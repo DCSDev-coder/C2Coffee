@@ -229,3 +229,152 @@ function resendOtp(e) {
 function verifyOtp() {
     window.location.href = 'login.html';
 }
+
+// Malaysian Postcode Dictionary (Client-Side Fast Lookup)
+const myPostcodeMap = {
+  // Selangor
+  "43000": "Semenyih / Kajang",
+  "43200": "Cheras / Hulu Langat",
+  "43300": "Seri Kembangan",
+  "43400": "Serdang",
+  "47000": "Sungai Buloh",
+  "47100": "Puchong",
+  "47300": "Petaling Jaya",
+  "47301": "Petaling Jaya",
+  "47400": "Damansara Utama",
+  "47500": "Subang Jaya",
+  "47600": "USJ Subang Jaya",
+  "47800": "Petaling Jaya / Damansara",
+  "47810": "Kota Damansara",
+  "40000": "Shah Alam",
+  "40100": "Shah Alam",
+  "40150": "Shah Alam",
+  "40200": "Shah Alam",
+  "41000": "Klang",
+  "41200": "Klang",
+  "42000": "Pelabuhan Klang",
+  "63000": "Cyberjaya",
+  "68000": "Ampang",
+  "68100": "Batu Caves",
+  
+  // Kuala Lumpur & Putrajaya
+  "50000": "Kuala Lumpur",
+  "50100": "Kuala Lumpur",
+  "50200": "Kuala Lumpur",
+  "50480": "Mont Kiara",
+  "52000": "Kepong",
+  "53000": "Setapak",
+  "54000": "Ampang KL",
+  "55000": "Pudu",
+  "56000": "Cheras KL",
+  "57000": "Bukit Jalil",
+  "58000": "Seputeh / Old Klang Road",
+  "59000": "Bangsar",
+  "60000": "Taman Tun Dr Ismail (TTDI)",
+  "62000": "Putrajaya",
+  
+  // Negeri Sembilan & Melaka
+  "70000": "Seremban",
+  "70300": "Seremban 2",
+  "71000": "Port Dickson",
+  "75000": "Melaka",
+  "75450": "Ayer Keroh",
+  
+  // Johor
+  "80000": "Johor Bahru",
+  "81100": "Johor Bahru",
+  "81200": "Johor Bahru",
+  "81300": "Skudai",
+  "81750": "Masai / Pasir Gudang",
+  "84000": "Muar",
+  "86000": "Kluang",
+  
+  // Penang & Northern States
+  "10000": "George Town",
+  "11900": "Bayan Lepas",
+  "13000": "Butterworth",
+  "14000": "Bukit Mertajam",
+  "05000": "Alor Setar",
+  "08000": "Sungai Petani",
+  "01000": "Kangar",
+  "30000": "Ipoh",
+  "30200": "Ipoh",
+  "34000": "Taiping",
+  
+  // East Coast & East Malaysia
+  "15000": "Kota Bharu",
+  "20000": "Kuala Terengganu",
+  "25000": "Kuantan",
+  "88000": "Kota Kinabalu",
+  "93000": "Kuching",
+  "96000": "Sibu",
+  "98000": "Miri"
+};
+
+// Handle Postcode Input Auto-Lookup
+let postcodeLookupTimeout;
+function handlePoscodeLookup(inputEl) {
+    const value = inputEl.value.trim();
+    const cityInput = document.getElementById('signup-city');
+    if (!cityInput) return;
+
+    // Only lookup when 5 numeric digits are entered
+    if (/^\d{5}$/.test(value)) {
+        // Fast Dictionary Lookup
+        if (myPostcodeMap[value]) {
+            cityInput.value = myPostcodeMap[value];
+            highlightCityInput(cityInput);
+        } else {
+            // General Range Fallback
+            const codeNum = parseInt(value, 10);
+            let estimatedCity = "";
+
+            if (codeNum >= 50000 && codeNum <= 60000) estimatedCity = "Kuala Lumpur";
+            else if (codeNum >= 62000 && codeNum <= 62999) estimatedCity = "Putrajaya";
+            else if (codeNum >= 40000 && codeNum <= 48999) estimatedCity = "Selangor";
+            else if (codeNum >= 70000 && codeNum <= 73999) estimatedCity = "Seremban";
+            else if (codeNum >= 75000 && codeNum <= 78999) estimatedCity = "Melaka";
+            else if (codeNum >= 80000 && codeNum <= 86999) estimatedCity = "Johor";
+            else if (codeNum >= 10000 && codeNum <= 14999) estimatedCity = "Penang";
+            else if (codeNum >= 30000 && codeNum <= 39999) estimatedCity = "Perak";
+            else if (codeNum >= 5000 && codeNum <= 9999) estimatedCity = "Kedah";
+            else if (codeNum >= 1000 && codeNum <= 2999) estimatedCity = "Perlis";
+            else if (codeNum >= 15000 && codeNum <= 18999) estimatedCity = "Kelantan";
+            else if (codeNum >= 20000 && codeNum <= 24999) estimatedCity = "Terengganu";
+            else if (codeNum >= 25000 && codeNum <= 28999) estimatedCity = "Pahang";
+            else if (codeNum >= 88000 && codeNum <= 91999) estimatedCity = "Sabah";
+            else if (codeNum >= 93000 && codeNum <= 98999) estimatedCity = "Sarawak";
+
+            if (estimatedCity) {
+                cityInput.value = estimatedCity;
+                highlightCityInput(cityInput);
+            }
+        }
+
+        // Fetch Zippopotam MY API for precision refinement
+        clearTimeout(postcodeLookupTimeout);
+        postcodeLookupTimeout = setTimeout(() => {
+            fetch(`https://api.zippopotam.us/MY/${value}`)
+                .then(res => res.ok ? res.json() : null)
+                .then(data => {
+                    if (data && data.places && data.places.length > 0) {
+                        const placeName = data.places[0]['place name'];
+                        if (placeName) {
+                            cityInput.value = placeName;
+                            highlightCityInput(cityInput);
+                        }
+                    }
+                })
+                .catch(() => {});
+        }, 180);
+    }
+}
+
+function highlightCityInput(el) {
+    el.style.borderColor = "var(--primary-green)";
+    el.style.backgroundColor = "#F0F5F1";
+    setTimeout(() => {
+        el.style.borderColor = "";
+        el.style.backgroundColor = "#FFFFFF";
+    }, 800);
+}
