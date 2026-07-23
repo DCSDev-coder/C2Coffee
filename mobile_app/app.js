@@ -232,11 +232,18 @@ function verifyOtp() {
 
 // Malaysian Postcode Dictionary (Client-Side Fast Lookup)
 const myPostcodeMap = {
-  // Selangor
-  "43000": "Semenyih / Kajang",
-  "43200": "Cheras / Hulu Langat",
+  // Selangor & Hulu Langat / Sepang
+  "43000": "Kajang",
+  "43100": "Hulu Langat",
+  "43200": "Cheras",
   "43300": "Seri Kembangan",
   "43400": "Serdang",
+  "43500": "Semenyih",
+  "43600": "Bangi",
+  "43650": "Bangi",
+  "43700": "Beranang",
+  "43800": "Dengkil",
+  "43900": "Sepang",
   "47000": "Sungai Buloh",
   "47100": "Puchong",
   "47300": "Petaling Jaya",
@@ -268,7 +275,7 @@ const myPostcodeMap = {
   "55000": "Pudu",
   "56000": "Cheras KL",
   "57000": "Bukit Jalil",
-  "58000": "Seputeh / Old Klang Road",
+  "58000": "Seputeh",
   "59000": "Bangsar",
   "60000": "Taman Tun Dr Ismail (TTDI)",
   "62000": "Putrajaya",
@@ -324,31 +331,32 @@ function handlePoscodeLookup(inputEl) {
         if (myPostcodeMap[value]) {
             cityInput.value = myPostcodeMap[value];
             highlightCityInput(cityInput);
-        } else {
-            // General Range Fallback
-            const codeNum = parseInt(value, 10);
-            let estimatedCity = "";
+            return;
+        }
 
-            if (codeNum >= 50000 && codeNum <= 60000) estimatedCity = "Kuala Lumpur";
-            else if (codeNum >= 62000 && codeNum <= 62999) estimatedCity = "Putrajaya";
-            else if (codeNum >= 40000 && codeNum <= 48999) estimatedCity = "Selangor";
-            else if (codeNum >= 70000 && codeNum <= 73999) estimatedCity = "Seremban";
-            else if (codeNum >= 75000 && codeNum <= 78999) estimatedCity = "Melaka";
-            else if (codeNum >= 80000 && codeNum <= 86999) estimatedCity = "Johor";
-            else if (codeNum >= 10000 && codeNum <= 14999) estimatedCity = "Penang";
-            else if (codeNum >= 30000 && codeNum <= 39999) estimatedCity = "Perak";
-            else if (codeNum >= 5000 && codeNum <= 9999) estimatedCity = "Kedah";
-            else if (codeNum >= 1000 && codeNum <= 2999) estimatedCity = "Perlis";
-            else if (codeNum >= 15000 && codeNum <= 18999) estimatedCity = "Kelantan";
-            else if (codeNum >= 20000 && codeNum <= 24999) estimatedCity = "Terengganu";
-            else if (codeNum >= 25000 && codeNum <= 28999) estimatedCity = "Pahang";
-            else if (codeNum >= 88000 && codeNum <= 91999) estimatedCity = "Sabah";
-            else if (codeNum >= 93000 && codeNum <= 98999) estimatedCity = "Sarawak";
+        // General Range Fallback
+        const codeNum = parseInt(value, 10);
+        let estimatedCity = "";
 
-            if (estimatedCity) {
-                cityInput.value = estimatedCity;
-                highlightCityInput(cityInput);
-            }
+        if (codeNum >= 50000 && codeNum <= 60000) estimatedCity = "Kuala Lumpur";
+        else if (codeNum >= 62000 && codeNum <= 62999) estimatedCity = "Putrajaya";
+        else if (codeNum >= 40000 && codeNum <= 48999) estimatedCity = "Selangor";
+        else if (codeNum >= 70000 && codeNum <= 73999) estimatedCity = "Seremban";
+        else if (codeNum >= 75000 && codeNum <= 78999) estimatedCity = "Melaka";
+        else if (codeNum >= 80000 && codeNum <= 86999) estimatedCity = "Johor";
+        else if (codeNum >= 10000 && codeNum <= 14999) estimatedCity = "Penang";
+        else if (codeNum >= 30000 && codeNum <= 39999) estimatedCity = "Perak";
+        else if (codeNum >= 5000 && codeNum <= 9999) estimatedCity = "Kedah";
+        else if (codeNum >= 1000 && codeNum <= 2999) estimatedCity = "Perlis";
+        else if (codeNum >= 15000 && codeNum <= 18999) estimatedCity = "Kelantan";
+        else if (codeNum >= 20000 && codeNum <= 24999) estimatedCity = "Terengganu";
+        else if (codeNum >= 25000 && codeNum <= 28999) estimatedCity = "Pahang";
+        else if (codeNum >= 88000 && codeNum <= 91999) estimatedCity = "Sabah";
+        else if (codeNum >= 93000 && codeNum <= 98999) estimatedCity = "Sarawak";
+
+        if (estimatedCity) {
+            cityInput.value = estimatedCity;
+            highlightCityInput(cityInput);
         }
 
         // Fetch Zippopotam MY API for precision refinement
@@ -359,7 +367,7 @@ function handlePoscodeLookup(inputEl) {
                 .then(data => {
                     if (data && data.places && data.places.length > 0) {
                         const placeName = data.places[0]['place name'];
-                        if (placeName) {
+                        if (placeName && placeName !== "Selangor") {
                             cityInput.value = placeName;
                             highlightCityInput(cityInput);
                         }
