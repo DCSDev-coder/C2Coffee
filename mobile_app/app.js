@@ -24,6 +24,26 @@ function showNotification(message, type = 'warning') {
     }, 3200);
 }
 
+// Country Code Selection Logic
+function updateCountryCode(selectEl) {
+    const selectedOption = selectEl.options[selectEl.selectedIndex];
+    const code = selectEl.value;
+    const parent = selectEl.closest('.phone-country');
+    if (!parent) return;
+
+    const displayEl = parent.querySelector('.code');
+    if (displayEl) displayEl.innerText = code;
+
+    const flagImg = parent.querySelector('.flag-img-small');
+    const flagCode = selectedOption.getAttribute('data-flag');
+
+    if (flagCode === 'my') {
+        if (flagImg) flagImg.src = 'assets/malaysia_flag.png';
+    } else {
+        if (flagImg) flagImg.src = `https://flagcdn.com/w20/${flagCode}.png`;
+    }
+}
+
 // Auto-run page specific logic
 document.addEventListener('DOMContentLoaded', () => {
     // If on OTP page, start timer and auto-focus first box

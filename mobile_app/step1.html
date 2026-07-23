@@ -66,8 +66,22 @@
         <label>Phone Number</label>
         <div class="phone-row">
           <div class="phone-country">
-            <img src="assets/malaysia_flag.png" alt="Malaysia Flag" class="flag-img-small">
+            <img src="assets/malaysia_flag.png" alt="Flag" class="flag-img-small">
             <span class="code">+60</span>
+            <select class="country-select" onchange="updateCountryCode(this)">
+              <option value="+60" data-flag="my" selected>Malaysia (+60)</option>
+              <option value="+65" data-flag="sg">Singapore (+65)</option>
+              <option value="+62" data-flag="id">Indonesia (+62)</option>
+              <option value="+66" data-flag="th">Thailand (+66)</option>
+              <option value="+63" data-flag="ph">Philippines (+63)</option>
+              <option value="+84" data-flag="vn">Vietnam (+84)</option>
+              <option value="+44" data-flag="gb">United Kingdom (+44)</option>
+              <option value="+1" data-flag="us">United States (+1)</option>
+              <option value="+61" data-flag="au">Australia (+61)</option>
+              <option value="+86" data-flag="cn">China (+86)</option>
+              <option value="+81" data-flag="jp">Japan (+81)</option>
+              <option value="+82" data-flag="kr">South Korea (+82)</option>
+            </select>
           </div>
           <div class="phone-number">
             <input type="tel" id="signup-phone" placeholder="1234567890">
