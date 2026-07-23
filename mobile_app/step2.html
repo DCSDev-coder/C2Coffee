@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Refine Your Profile - C² Coffee</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,600;1,700&family=Libre+Baskerville:ital,wght@0,700;1,400;1,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css?v=28">
+</head>
+<body>
+  <div id="app-container" class="container cream-bg">
+    <!-- Top & Bottom Decorative Leaf & Coffee Bean Line Art -->
+    <div class="top-leaf-bg">
+      <svg viewBox="0 0 150 150" fill="none" stroke="#E2D7CD" stroke-width="1.2">
+        <path d="M 120 0 Q 70 40 10 140" stroke-linecap="round"/>
+        <path d="M 90 24 C 115 15 135 25 140 45 C 120 50 100 40 90 24 Z"/>
+        <path d="M 90 24 Q 115 35 140 45"/>
+        <path d="M 65 45 C 45 30 35 10 50 0 C 65 15 70 35 65 45 Z"/>
+        <path d="M 65 45 Q 50 20 50 0"/>
+        <path d="M 45 75 C 65 65 85 75 90 95 C 70 95 50 85 45 75 Z"/>
+        <path d="M 45 75 Q 70 80 90 95"/>
+        <path d="M 25 105 C 10 90 0 70 10 55 C 25 70 30 90 25 105 Z"/>
+        <path d="M 25 105 Q 15 80 10 55"/>
+      </svg>
+    </div>
+
+    <div class="bottom-leaf-bg">
+      <svg viewBox="0 0 160 160" fill="none" stroke="#E2D7CD" stroke-width="1.2">
+        <path d="M 0 160 Q 40 100 130 30" stroke-linecap="round"/>
+        <path d="M 30 135 C 10 120 0 95 15 80 C 35 90 40 115 30 135 Z"/>
+        <path d="M 30 135 Q 15 105 15 80"/>
+        <path d="M 60 110 C 80 95 100 105 105 125 C 85 125 65 115 60 110 Z"/>
+        <path d="M 60 110 Q 85 115 105 125"/>
+        <path d="M 85 80 C 70 60 65 40 80 25 C 95 40 95 60 85 80 Z"/>
+        <path d="M 85 80 Q 80 50 80 25"/>
+        <ellipse cx="65" cy="142" rx="12" ry="8" transform="rotate(-35 65 142)"/>
+        <path d="M 57 146 Q 65 142 73 138"/>
+        <ellipse cx="92" cy="148" rx="11" ry="7" transform="rotate(-15 92 148)"/>
+        <path d="M 85 150 Q 92 148 99 146"/>
+      </svg>
+    </div>
+
+    <div class="header-logo-section">
+      <div class="c2-logo-badge">
+        <img src="assets/c2_logo.png" alt="C2 Coffee Logo" class="c2-logo-img">
+      </div>
+
+      <p class="step-label orange-step">Step 2 of 2</p>
+      <h1 class="title green-title">Refine Your Profile</h1>
+      <p class="subtitle brown-subtitle">Complete your registration to unlock the full experience.</p>
+    </div>
+
+    <div class="form-body">
+      <div class="form-group">
+        <label for="signup-unit">House / Unit No.</label>
+        <input type="text" id="signup-unit" placeholder="Number 1">
+      </div>
+
+      <div class="form-group">
+        <label for="signup-street">Street Name</label>
+        <input type="text" id="signup-street" placeholder="Jalan Coffee">
+      </div>
+
+      <div class="row form-group">
+        <div class="half">
+          <label for="signup-poscode">Postcode</label>
+          <input type="text" id="signup-poscode" placeholder="43000">
+        </div>
+        <div class="half">
+          <label for="signup-city">City</label>
+          <input type="text" id="signup-city" placeholder="Semenyih">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Gender</label>
+        <div class="gender-options">
+          <label class="gender-option" id="label-female" onclick="selectGender('female')">
+            <input type="radio" name="gender" value="female" id="gender-female">
+            <svg class="gender-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="9" r="5"/>
+              <path d="M12 14v7M9 18h6"/>
+            </svg>
+            <span>Female</span>
+          </label>
+          <label class="gender-option" id="label-male" onclick="selectGender('male')">
+            <input type="radio" name="gender" value="male" id="gender-male">
+            <svg class="gender-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="10" cy="14" r="5"/>
+              <path d="M13.5 10.5L20 4M15 4h5v5"/>
+            </svg>
+            <span>Male</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="bottom-section">
+        <p class="login-link">Already a member? <a href="login.html">Login</a></p>
+
+        <div class="buttons">
+          <button class="prev-btn outline-green-btn" type="button" onclick="window.location.href='step1.html'">PREVIOUS STEP</button>
+          <button class="signup-btn green-btn" type="button" onclick="validateStep2()">SIGN UP</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
