@@ -3,6 +3,20 @@ let otpTimerInterval;
 let otpTimeRemaining = 45;
 let toastTimeout;
 
+// Smooth Page Navigation
+function navigateTo(url) {
+    if (!url) return;
+    const container = document.getElementById('app-container') || document.querySelector('.container');
+    if (container) {
+        container.classList.add('page-exit-slide-up');
+        setTimeout(() => {
+            window.location.href = url;
+        }, 250);
+    } else {
+        window.location.href = url;
+    }
+}
+
 // Toast Notification System
 function showNotification(message, type = 'warning') {
     let toast = document.getElementById('app-notification');

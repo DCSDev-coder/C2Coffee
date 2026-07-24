@@ -25,10 +25,14 @@
 
     <script src="app.js"></script>
     <script>
-        // Auto-redirect to step1.html after 2.8 seconds or on tap
+        // Auto-redirect to step1.html after 2.5 seconds or on tap
         setTimeout(function() {
-            navigateTo('step1.html');
-        }, 2800);
+            if (typeof navigateTo === 'function') {
+                navigateTo('step1.html');
+            } else {
+                window.location.href = 'step1.html';
+            }
+        }, 2500);
     </script>
 </body>
 </html>
