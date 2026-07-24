@@ -241,7 +241,7 @@ function resendOtp(e) {
 
 // Verify OTP
 function verifyOtp() {
-    window.location.href = 'login.html';
+    navigateTo('home.html');
 }
 
 // Malaysian Postcode Dictionary (Client-Side Fast Lookup)

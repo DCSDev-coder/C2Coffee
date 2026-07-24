@@ -1069,3 +1069,351 @@ body {
 .get-started-btn:active {
   transform: translateY(0) scale(0.98);
 }
+
+/* ==========================================================================
+   Home Dashboard Screen Styling (Matching iPhone 17 Main Page Reference)
+   ========================================================================== */
+.home-container {
+  padding: 0 !important;
+  background-color: #FFFFFF;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* Top Bar Navigation Header */
+.home-top-bar {
+  width: 100%;
+  padding: 20px 20px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-sizing: border-box;
+  background-color: #FFFFFF;
+  z-index: 10;
+}
+
+.user-greeting-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mini-c2-badge {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background-color: #C65102;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 3px 8px rgba(198, 81, 2, 0.25);
+  flex-shrink: 0;
+}
+
+.mini-c2-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 3px;
+}
+
+.greeting-text .sub-greeting {
+  font-family: var(--font-serif);
+  font-size: 11.5px;
+  color: #4A3A2F;
+  margin-bottom: -2px;
+  line-height: 1.2;
+}
+
+.greeting-text .user-name {
+  font-family: var(--font-serif);
+  font-size: 18px;
+  font-weight: 800;
+  color: #1C3B24;
+  line-height: 1.1;
+}
+
+.top-actions-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.notif-btn {
+  width: 36px;
+  height: 36px;
+  background: transparent;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #1C3B24;
+}
+
+.notif-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.wallet-pill-btn {
+  background-color: #E56000;
+  border-radius: 20px;
+  padding: 6px 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 4px 10px rgba(229, 96, 0, 0.25);
+  cursor: pointer;
+}
+
+.wallet-icon {
+  width: 15px;
+  height: 15px;
+  stroke: #FFFFFF;
+}
+
+.balance-text {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 700;
+  color: #FFFFFF;
+}
+
+/* Home Scrollable Content */
+.home-scroll-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 18px 16px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Promo Banner Card */
+.promo-banner-card {
+  width: 100%;
+  border-radius: 24px;
+  overflow: hidden;
+  position: relative;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
+  margin-bottom: 16px;
+  background-color: #FAF4EE;
+}
+
+.promo-banner-card .banner-img {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: cover;
+}
+
+.carousel-dots {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+}
+
+.carousel-dots .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.carousel-dots .dot.active {
+  background: #C65102;
+  width: 14px;
+  border-radius: 4px;
+}
+
+/* Action Tiles Row */
+.action-tiles-row {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  margin-bottom: 20px;
+}
+
+.action-tile {
+  flex: 1;
+  height: 84px;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  padding: 16px 18px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.action-tile:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+}
+
+.action-tile.tile-order {
+  background-color: #E56000;
+}
+
+.action-tile.tile-referral {
+  background-color: #5A3214;
+}
+
+.action-tile .tile-title {
+  font-family: var(--font-serif);
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1.05;
+  letter-spacing: -0.5px;
+  color: #FFFFFF;
+  text-transform: uppercase;
+}
+
+/* Best Seller Section */
+.best-seller-section {
+  width: 100%;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.section-title {
+  font-family: var(--font-serif);
+  font-size: 21px;
+  font-weight: 800;
+  color: #1C3B24;
+}
+
+.see-all-link {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  color: #E56000;
+  text-decoration: none;
+}
+
+.see-all-link:hover {
+  text-decoration: underline;
+}
+
+/* Best Seller Cards Horizontal Scroll */
+.best-seller-scroll {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 12px;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+.product-card {
+  width: 155px;
+  flex-shrink: 0;
+  background-color: #FFF8F2;
+  border: 1.5px solid #F0E4D8;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+  display: flex;
+  flex-direction: column;
+}
+
+.product-img-wrap {
+  width: 100%;
+  height: 140px;
+  background-color: #FFF3E8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+}
+
+.product-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.product-info {
+  padding: 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.product-name {
+  font-family: var(--font-serif);
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #1C3B24;
+  line-height: 1.25;
+  height: 34px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.product-price {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 800;
+  color: #E56000;
+}
+
+/* Bottom Navigation Bar */
+.bottom-nav-bar {
+  width: 92%;
+  height: 62px;
+  background-color: #E56000;
+  border-radius: 31px;
+  margin: 0 auto 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 0 8px;
+  box-shadow: 0 8px 24px rgba(229, 96, 0, 0.35);
+  box-sizing: border-box;
+  z-index: 10;
+  flex-shrink: 0;
+}
+
+.nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.75);
+  padding: 4px 10px;
+  border-radius: 20px;
+  transition: all 0.2s ease;
+}
+
+.nav-item.active {
+  background-color: rgba(255, 255, 255, 0.22);
+  color: #FFFFFF;
+}
+
+.nav-icon {
+  width: 20px;
+  height: 20px;
+  stroke: currentColor;
+}
+
+.nav-label {
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 600;
+}
