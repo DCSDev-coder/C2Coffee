@@ -1320,11 +1320,11 @@ body {
 
 .action-tile {
   flex: 1;
-  height: 76px;
+  height: 90px;
   border-radius: 18px;
   display: flex;
   align-items: center;
-  padding: 12px 14px;
+  padding: 14px 16px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
   cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
@@ -1346,10 +1346,10 @@ body {
 
 .action-tile .tile-title {
   font-family: var(--font-serif);
-  font-size: 19px;
+  font-size: 24px;
   font-weight: 900;
   line-height: 1.05;
-  letter-spacing: -0.4px;
+  letter-spacing: -0.5px;
   color: #FFFFFF;
   text-transform: uppercase;
   word-break: break-word;
@@ -1458,6 +1458,7 @@ body {
   height: 32px;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -1468,6 +1469,7 @@ body {
   font-weight: 800;
   color: #E56000;
 }
+
 
 /* Bottom Navigation Bar */
 .bottom-nav-bar {
