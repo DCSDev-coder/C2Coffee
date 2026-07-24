@@ -401,3 +401,69 @@ function highlightCityInput(el) {
         el.style.backgroundColor = "#FFFFFF";
     }, 800);
 }
+
+// Automatic & Interactive Promo Carousel Slider
+let currentSlide = 0;
+let carouselInterval;
+
+function initCarousel() {
+    const track = document.getElementById('carousel-track');
+    const dots = document.querySelectorAll('.carousel-dots .dot');
+    const container = document.getElementById('promo-carousel');
+
+    if (!track || !dots.length) return;
+
+    function showSlide(index) {
+        const slides = track.children;
+        if (!slides.length) return;
+
+        if (index >= slides.length) currentSlide = 0;
+        else if (index < 0) currentSlide = slides.length - 1;
+        else currentSlide = index;
+
+        track.style.transform = `translateX(-${currentSlide * 100}%)`;
+
+        dots.forEach((dot, i) => {
+            dot.classList.toggle('active', i === currentSlide);
+        });
+    }
+
+    window.goToSlide = function(index) {
+        showSlide(index);
+        resetCarouselTimer();
+    };
+
+    window.nextSlide = function() {
+        showSlide(currentSlide + 1);
+        resetCarouselTimer();
+    };
+
+    window.prevSlide = function() {
+        showSlide(currentSlide - 1);
+        resetCarouselTimer();
+    };
+
+    function startCarouselTimer() {
+        clearInterval(carouselInterval);
+        carouselInterval = setInterval(() => {
+            showSlide(currentSlide + 1);
+        }, 3500);
+    }
+
+    function resetCarouselTimer() {
+        startCarouselTimer();
+    }
+
+    if (container) {
+        container.addEventListener('mouseenter', () => clearInterval(carouselInterval));
+        container.addEventListener('mouseleave', () => startCarouselTimer());
+        container.addEventListener('touchstart', () => clearInterval(carouselInterval), { passive: true });
+        container.addEventListener('touchend', () => startCarouselTimer(), { passive: true });
+    }
+
+    startCarouselTimer();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    initCarousel();
+});

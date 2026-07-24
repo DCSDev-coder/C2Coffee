@@ -42,13 +42,29 @@
 
     <!-- Scrollable Main Dashboard Content -->
     <div class="home-scroll-body">
-      <!-- Barista Craft Promo Banner -->
-      <div class="promo-banner-card">
-        <img src="assets/barista_craft_banner.png" alt="C2 Barista Craft Promo" class="banner-img">
+      <!-- Barista Craft Promo Banner Carousel -->
+      <div class="promo-banner-card" id="promo-carousel">
+        <div class="carousel-track" id="carousel-track">
+          <div class="carousel-slide active">
+            <img src="assets/barista_craft_banner.png" alt="C2 Barista Craft Promo" class="banner-img">
+          </div>
+          <div class="carousel-slide">
+            <img src="assets/promo_banner_2.png" alt="Morning Roast Special Promo" class="banner-img">
+          </div>
+          <div class="carousel-slide">
+            <img src="assets/promo_banner_3.png" alt="Coffee & Candle Pairing Promo" class="banner-img">
+          </div>
+        </div>
+
+        <!-- Control Buttons -->
+        <button class="carousel-btn prev-btn" onclick="prevSlide()" aria-label="Previous Slide">&lsaquo;</button>
+        <button class="carousel-btn next-btn" onclick="nextSlide()" aria-label="Next Slide">&rsaquo;</button>
+
+        <!-- Carousel Indicators -->
         <div class="carousel-dots">
-          <span class="dot active"></span>
-          <span class="dot"></span>
-          <span class="dot"></span>
+          <span class="dot active" onclick="goToSlide(0)"></span>
+          <span class="dot" onclick="goToSlide(1)"></span>
+          <span class="dot" onclick="goToSlide(2)"></span>
         </div>
       </div>
 
