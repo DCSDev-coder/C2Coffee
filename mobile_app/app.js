@@ -246,6 +246,7 @@ function verifyOtp() {
 
 // Malaysian Postcode Dictionary (Client-Side Fast Lookup)
 const myPostcodeMap = {
+  "00000": "Coffee City",
   // Selangor & Hulu Langat / Sepang
   "43000": "Kajang",
   "43100": "Hulu Langat",
