@@ -3,36 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>SIP THE CALM - C² Coffee</title>
+    <title>C² Coffee - Get Started</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@700;800;900&family=Outfit:wght@700;800;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=30">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,600&family=DM+Sans:wght@500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=31">
 </head>
 <body>
     <div id="app-container" class="container splash-container">
         <!-- Intro Splash Screen -->
-        <div id="screen-splash" class="splash-screen" onclick="navigateTo('step1.html')">
+        <div id="screen-splash" class="splash-screen">
             <div class="splash-overlay"></div>
             <div class="splash-content">
-                <h1 class="splash-title">SIP THE CALM</h1>
                 <div class="splash-logo-wrap">
                     <img src="assets/c2_logo.png" alt="C2 Logo" class="splash-logo-img">
                 </div>
+            </div>
+            <div class="splash-bottom-section">
+                <button class="get-started-btn green-btn" onclick="navigateTo('step1.html')">Get Started</button>
             </div>
         </div>
     </div>
 
     <script src="app.js"></script>
-    <script>
-        // Auto-redirect to step1.html after 2.5 seconds or on tap
-        setTimeout(function() {
-            if (typeof navigateTo === 'function') {
-                navigateTo('step1.html');
-            } else {
-                window.location.href = 'step1.html';
-            }
-        }, 2500);
-    </script>
 </body>
 </html>

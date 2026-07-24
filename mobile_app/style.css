@@ -973,7 +973,7 @@ body {
 /* Splash / Intro Screen Styling */
 .splash-container {
   padding: 0 !important;
-  background-color: #1C3B24;
+  background-color: #121814;
 }
 
 .splash-screen {
@@ -983,11 +983,12 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  cursor: pointer;
+  justify-content: space-between;
   background: url("assets/splash_bg.jpg") no-repeat center center;
   background-size: cover;
   overflow: hidden;
+  padding: 40px 24px 36px;
+  box-sizing: border-box;
 }
 
 .splash-overlay {
@@ -996,38 +997,25 @@ body {
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(28, 59, 36, 0.88);
-  backdrop-filter: blur(2px);
+  background: linear-gradient(180deg, rgba(20, 30, 24, 0.45) 0%, rgba(15, 25, 20, 0.75) 100%);
   z-index: 1;
 }
 
 .splash-content {
   position: relative;
   z-index: 2;
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  width: 100%;
   animation: slideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) ease-out forwards;
 }
 
-.splash-title {
-  font-family: 'DM Sans', 'Outfit', sans-serif;
-  font-weight: 900;
-  font-size: 46px;
-  color: #FFFFFF;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
-  margin-bottom: 24px;
-  text-align: center;
-  line-height: 1.05;
-  text-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
-}
-
 .splash-logo-wrap {
-  width: 230px;
-  height: 230px;
+  width: 250px;
+  height: 250px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1037,6 +1025,47 @@ body {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.3));
+  filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.4));
   animation: logoFloat 4s ease-in-out infinite;
+}
+
+.splash-bottom-section {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding-bottom: 8px;
+  animation: slideUp 0.9s cubic-bezier(0.16, 1, 0.3, 1) ease-out forwards;
+}
+
+.get-started-btn {
+  width: 88%;
+  height: 48px !important;
+  background-color: #264330 !important;
+  color: #FFFFFF !important;
+  border-radius: 24px !important;
+  border: none;
+  font-family: var(--font-serif);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  line-height: 1;
+}
+
+.get-started-btn:hover {
+  background-color: #1C3525 !important;
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.45);
+}
+
+.get-started-btn:active {
+  transform: translateY(0) scale(0.98);
 }
