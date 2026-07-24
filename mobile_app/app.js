@@ -141,13 +141,14 @@ function validateStep1() {
     }
 
     sessionStorage.setItem('userPhone', phone);
-    window.location.href = 'step2.html';
+    window.location.href = 'stepbackup2.html';
     return true;
 }
 
 // Validation & Navigation Logic for Step 2
 function validateStep2() {
-    const poscodeEl = document.getElementById('signup-poscode');
+    // Support both original step2 and stepbackup2 postcode IDs
+    const poscodeEl = document.getElementById('signup-poscode') || document.getElementById('sb2-postcode');
     const poscode = poscodeEl ? poscodeEl.value.trim() : '';
 
     if (poscode && !/^\d{4,6}$/.test(poscode)) {
@@ -156,12 +157,14 @@ function validateStep2() {
         return false;
     }
 
-    if (!selectedGender) {
+    // Support both original selectedGender and stepbackup2's sb2Gender
+    const gender = (typeof sb2Gender !== 'undefined' && sb2Gender) ? sb2Gender : selectedGender;
+    if (!gender) {
         showNotification('Please select your gender.', 'warning');
         return false;
     }
 
-    window.location.href = 'otp.html';
+    window.location.href = 'otpbackup.html';
     return true;
 }
 

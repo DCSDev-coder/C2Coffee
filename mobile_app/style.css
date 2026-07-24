@@ -278,6 +278,7 @@ body {
   cursor: pointer;
   border-radius: 23px;
   -webkit-appearance: none;
+  appearance: none;
 }
 
 .phone-country .flag-img-small {

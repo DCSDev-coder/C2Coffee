@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Verify Your Identity - C² Coffee</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,600;1,700&family=Libre+Baskerville:ital,wght@0,700;1,400;1,700&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="style.css?v=28">
+  <style>
+    /* ── Override: orange header + white card layout ── */
+    #app-container {
+      justify-content: flex-start;
+      padding: 0;
+      background-color: #E56000;
+    }
+
+    /* Orange header */
+    .ob-header {
+      width: 100%;
+      background-color: #E56000;
+      padding: 44px 28px 36px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      box-sizing: border-box;
+      flex-shrink: 0;
+      min-height: 240px;
+      z-index: 2;
+    }
+
+    .ob-title {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 48px;
+      font-weight: 800;
+      color: #FFFFFF;
+      line-height: 1.05;
+      letter-spacing: -0.5px;
+      margin-bottom: 10px;
+    }
+
+    .ob-subtitle {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      font-weight: 400;
+      color: rgba(255, 255, 255, 0.82);
+      line-height: 1.45;
+      max-width: 300px;
+    }
+
+    .ob-subtitle span {
+      font-weight: 700;
+      color: #FFFFFF;
+    }
+
+    /* White card */
+    .ob-card {
+      width: 100%;
+      flex: 1;
+      background-color: #FFFFFF;
+      border-radius: 30px 30px 0 0;
+      padding: 36px 24px 28px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      box-sizing: border-box;
+      overflow-y: auto;
+      z-index: 2;
+      box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
+    }
+
+    /* Instruction text */
+    .ob-instruction {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 15px;
+      font-weight: 700;
+      color: #E56000;
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    /* OTP boxes */
+    .ob-otp-row {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      margin-bottom: 24px;
+      width: 100%;
+    }
+
+    .ob-otp-box {
+      width: 44px;
+      height: 54px;
+      border: 1.5px solid #E6DCD3;
+      border-radius: 14px;
+      text-align: center;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 22px;
+      font-weight: 700;
+      color: #1C3B24;
+      outline: none;
+      background: #FFFFFF;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      caret-color: #E56000;
+    }
+
+    .ob-otp-box:focus {
+      border-color: #E56000;
+      box-shadow: 0 0 0 3px rgba(229, 96, 0, 0.12);
+    }
+
+    /* Resend section */
+    .ob-resend {
+      text-align: center;
+      margin-bottom: 8px;
+    }
+
+    .ob-resend p {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      color: #4A3A2F;
+      margin-bottom: 4px;
+    }
+
+    .ob-resend a {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      color: #E56000;
+      text-decoration: none;
+    }
+
+    .ob-resend a:hover {
+      text-decoration: underline;
+    }
+
+    /* VERIFY button */
+    .ob-bottom {
+      margin-top: auto;
+      width: 100%;
+    }
+
+    .ob-verify-btn {
+      width: 100%;
+      height: 50px;
+      background-color: #E56000;
+      border: none;
+      border-radius: 25px;
+      color: #FFFFFF;
+      font-family: 'Playfair Display', Georgia, serif;
+      font-weight: 700;
+      font-size: 14px;
+      letter-spacing: 2px;
+      cursor: pointer;
+      transition: background-color 0.2s ease, box-shadow 0.2s ease;
+      box-shadow: 0 6px 18px rgba(229, 96, 0, 0.35);
+    }
+
+    .ob-verify-btn:hover {
+      background-color: #C75200;
+      box-shadow: 0 8px 22px rgba(229, 96, 0, 0.45);
+    }
+
+    .ob-verify-btn:active {
+      transform: scale(0.98);
+    }
+  </style>
+</head>
+
+<body>
+  <div id="app-container" class="container">
+
+    <!-- Orange Header -->
+    <div class="ob-header">
+      <h1 class="ob-title">Verify Your Identity</h1>
+      <p class="ob-subtitle">We've sent an SMS to <span id="ob-display-phone">+00 11 2233 4455</span>.</p>
+    </div>
+
+    <!-- White Card -->
+    <div class="ob-card">
+
+      <p class="ob-instruction">Please fill in the security code.</p>
+
+      <!-- OTP Boxes -->
+      <div class="ob-otp-row">
+        <input type="text" class="ob-otp-box" maxlength="1" inputmode="numeric"
+          onkeyup="handleOBOtpInput(this, 0)" onfocus="this.select()">
+        <input type="text" class="ob-otp-box" maxlength="1" inputmode="numeric"
+          onkeyup="handleOBOtpInput(this, 1)" onfocus="this.select()">
+        <input type="text" class="ob-otp-box" maxlength="1" inputmode="numeric"
+          onkeyup="handleOBOtpInput(this, 2)" onfocus="this.select()">
+        <input type="text" class="ob-otp-box" maxlength="1" inputmode="numeric"
+          onkeyup="handleOBOtpInput(this, 3)" onfocus="this.select()">
+        <input type="text" class="ob-otp-box" maxlength="1" inputmode="numeric"
+          onkeyup="handleOBOtpInput(this, 4)" onfocus="this.select()">
+        <input type="text" class="ob-otp-box" maxlength="1" inputmode="numeric"
+          onkeyup="handleOBOtpInput(this, 5)" onfocus="this.select()">
+      </div>
+
+      <!-- Resend -->
+      <div class="ob-resend">
+        <p>Didn't receive the code?</p>
+        <a href="#" id="ob-resend-btn" onclick="obResendOtp(event)">Resend Code <span id="ob-timer">(00:45)</span></a>
+      </div>
+
+      <!-- Verify button -->
+      <div class="ob-bottom">
+        <button class="ob-verify-btn" type="button" onclick="obVerifyOtp()">VERIFY</button>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+  <script>
+    // Show stored phone number
+    const storedPhone = sessionStorage.getItem('userPhone');
+    if (storedPhone) {
+      document.getElementById('ob-display-phone').textContent = storedPhone;
+    }
+
+    // OTP box auto-advance
+    const obBoxes = document.querySelectorAll('.ob-otp-box');
+
+    function handleOBOtpInput(input, index) {
+      const val = input.value.replace(/\D/g, '');
+      input.value = val;
+      if (val && index < obBoxes.length - 1) {
+        obBoxes[index + 1].focus();
+      }
+      if (event.key === 'Backspace' && !val && index > 0) {
+        obBoxes[index - 1].focus();
+      }
+    }
+
+    // Resend countdown
+    let obSeconds = 45;
+    let obTimerInterval = setInterval(() => {
+      obSeconds--;
+      const m = String(Math.floor(obSeconds / 60)).padStart(2, '0');
+      const s = String(obSeconds % 60).padStart(2, '0');
+      const timerEl = document.getElementById('ob-timer');
+      if (timerEl) timerEl.textContent = `(${m}:${s})`;
+      if (obSeconds <= 0) {
+        clearInterval(obTimerInterval);
+        const resendBtn = document.getElementById('ob-resend-btn');
+        if (resendBtn) resendBtn.style.opacity = '1';
+      }
+    }, 1000);
+
+    function obResendOtp(e) {
+      e.preventDefault();
+      if (obSeconds > 0) return;
+      obSeconds = 45;
+      obTimerInterval = setInterval(() => {
+        obSeconds--;
+        const m = String(Math.floor(obSeconds / 60)).padStart(2, '0');
+        const s = String(obSeconds % 60).padStart(2, '0');
+        const timerEl = document.getElementById('ob-timer');
+        if (timerEl) timerEl.textContent = `(${m}:${s})`;
+        if (obSeconds <= 0) clearInterval(obTimerInterval);
+      }, 1000);
+      showNotification('OTP resent successfully!', 'success');
+    }
+
+    function obVerifyOtp() {
+      const code = Array.from(obBoxes).map(b => b.value).join('');
+      if (code.length < 6) {
+        showNotification('Please enter the 6-digit code.', 'warning');
+        return;
+      }
+      window.location.href = 'home.html';
+    }
+  </script>
+</body>
+
+</html>

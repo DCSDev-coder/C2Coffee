@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Login - C² Coffee</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,600;1,700&family=Libre+Baskerville:ital,wght@0,700;1,400;1,700&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="style.css?v=28">
+  <style>
+    /* ── Override: orange header + white card layout ── */
+    #app-container {
+      justify-content: flex-start;
+      padding: 0;
+      background-color: #E56000;
+    }
+
+    /* Orange header */
+    .lb-header {
+      width: 100%;
+      background-color: #E56000;
+      padding: 44px 28px 36px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      box-sizing: border-box;
+      flex-shrink: 0;
+      min-height: 240px;
+      z-index: 2;
+    }
+
+    .lb-title {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 48px;
+      font-weight: 800;
+      color: #FFFFFF;
+      line-height: 1.05;
+      letter-spacing: -0.5px;
+      margin-bottom: 10px;
+    }
+
+    .lb-subtitle {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      font-weight: 400;
+      color: rgba(255, 255, 255, 0.82);
+      line-height: 1.45;
+      max-width: 300px;
+    }
+
+    /* White card */
+    .lb-card {
+      width: 100%;
+      flex: 1;
+      background-color: #FFFFFF;
+      border-radius: 30px 30px 0 0;
+      padding: 32px 24px 28px;
+      display: flex;
+      flex-direction: column;
+      box-sizing: border-box;
+      overflow-y: auto;
+      z-index: 2;
+      box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
+    }
+
+    /* Phone Number label */
+    .lb-group {
+      margin-bottom: 20px;
+      width: 100%;
+    }
+
+    .lb-group label {
+      display: block;
+      font-family: 'Playfair Display', Georgia, serif;
+      font-weight: 700;
+      font-size: 15px;
+      color: #E56000;
+      margin-bottom: 8px;
+    }
+
+    /* Phone row */
+    .lb-phone-row {
+      display: flex;
+      gap: 8px;
+      width: 100%;
+    }
+
+    .lb-phone-country {
+      width: 86px;
+      height: 46px;
+      border: 1.5px solid #E6DCD3;
+      border-radius: 23px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      padding: 0 10px;
+      flex-shrink: 0;
+      background: #FFFFFF;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+      position: relative;
+      cursor: pointer;
+      transition: border-color 0.2s ease;
+      box-sizing: border-box;
+    }
+
+    .lb-phone-country:hover {
+      border-color: #E56000;
+    }
+
+    .lb-phone-country .lb-flag {
+      width: 20px;
+      height: 13px;
+      border-radius: 2px;
+      object-fit: cover;
+    }
+
+    .lb-phone-country .lb-code {
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 600;
+      font-size: 13px;
+      color: #1C3B24;
+    }
+
+    .lb-country-select {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      cursor: pointer;
+      border-radius: 23px;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
+    .lb-phone-number {
+      flex: 1;
+    }
+
+    .lb-phone-number input {
+      width: 100%;
+      height: 46px;
+      border: 1.5px solid #E6DCD3;
+      border-radius: 23px;
+      padding: 0 18px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13.5px;
+      color: #333;
+      outline: none;
+      background: #FFFFFF;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      box-sizing: border-box;
+    }
+
+    .lb-phone-number input::placeholder {
+      color: #C4BDB5;
+    }
+
+    .lb-phone-number input:focus {
+      border-color: #E56000;
+      box-shadow: 0 0 0 3px rgba(229, 96, 0, 0.12);
+    }
+
+    /* OR divider */
+    .lb-divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+      margin-bottom: 16px;
+    }
+
+    .lb-divider::before,
+    .lb-divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background-color: #E6DCD3;
+    }
+
+    .lb-divider span {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      color: #B0A89E;
+      font-weight: 500;
+      flex-shrink: 0;
+    }
+
+    /* Google button */
+    .lb-google-btn {
+      width: 100%;
+      height: 48px;
+      background-color: #FFFFFF;
+      border: 1.5px solid #E6DCD3;
+      border-radius: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      cursor: pointer;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      color: #333333;
+      margin-bottom: 20px;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+      text-decoration: none;
+    }
+
+    .lb-google-btn:hover {
+      border-color: #E56000;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+    }
+
+    /* Google icon SVG */
+    .lb-google-icon {
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+    }
+
+    /* Bottom section */
+    .lb-bottom {
+      margin-top: auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+    }
+
+    .lb-join-link {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      color: #4A3A2F;
+      text-align: center;
+      margin-bottom: 14px;
+    }
+
+    .lb-join-link a {
+      color: #E56000;
+      font-weight: 700;
+      text-decoration: none;
+    }
+
+    .lb-join-link a:hover {
+      text-decoration: underline;
+    }
+
+    /* LOGIN button */
+    .lb-login-btn {
+      width: 100%;
+      height: 50px;
+      background-color: #E56000;
+      border: none;
+      border-radius: 25px;
+      color: #FFFFFF;
+      font-family: 'Playfair Display', Georgia, serif;
+      font-weight: 700;
+      font-size: 14px;
+      letter-spacing: 2px;
+      cursor: pointer;
+      transition: background-color 0.2s ease, box-shadow 0.2s ease;
+      box-shadow: 0 6px 18px rgba(229, 96, 0, 0.35);
+    }
+
+    .lb-login-btn:hover {
+      background-color: #C75200;
+      box-shadow: 0 8px 22px rgba(229, 96, 0, 0.45);
+    }
+
+    .lb-login-btn:active {
+      transform: scale(0.98);
+    }
+  </style>
+</head>
+
+<body>
+  <div id="app-container" class="container">
+
+    <!-- Orange Header -->
+    <div class="lb-header">
+      <h1 class="lb-title">Welcome Back</h1>
+      <p class="lb-subtitle">Log in to continue your coffee journey and enjoy exclusive rewards.</p>
+    </div>
+
+    <!-- White Card -->
+    <div class="lb-card">
+
+      <!-- Phone Number -->
+      <div class="lb-group">
+        <label>Phone Number</label>
+        <div class="lb-phone-row">
+          <div class="lb-phone-country">
+            <img src="assets/malaysia_flag.png" alt="MY Flag" class="lb-flag">
+            <span class="lb-code">+60</span>
+            <select class="lb-country-select" onchange="updateLBCountryCode(this)">
+              <option value="+60" data-flag="my" selected>Malaysia (+60)</option>
+              <option value="+65" data-flag="sg">Singapore (+65)</option>
+              <option value="+62" data-flag="id">Indonesia (+62)</option>
+              <option value="+66" data-flag="th">Thailand (+66)</option>
+              <option value="+63" data-flag="ph">Philippines (+63)</option>
+              <option value="+84" data-flag="vn">Vietnam (+84)</option>
+              <option value="+44" data-flag="gb">United Kingdom (+44)</option>
+              <option value="+1" data-flag="us">United States (+1)</option>
+              <option value="+61" data-flag="au">Australia (+61)</option>
+              <option value="+86" data-flag="cn">China (+86)</option>
+              <option value="+81" data-flag="jp">Japan (+81)</option>
+              <option value="+82" data-flag="kr">South Korea (+82)</option>
+            </select>
+          </div>
+          <div class="lb-phone-number">
+            <input type="tel" id="lb-phone" placeholder="1234567890">
+          </div>
+        </div>
+      </div>
+
+      <!-- OR divider -->
+      <div class="lb-divider">
+        <span>or</span>
+      </div>
+
+      <!-- Continue with Google -->
+      <button class="lb-google-btn" type="button" onclick="loginWithGoogle()">
+        <!-- Google G logo -->
+        <svg class="lb-google-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+          <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+          <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+          <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+        </svg>
+        Continue with Google
+      </button>
+
+      <!-- Bottom -->
+      <div class="lb-bottom">
+        <p class="lb-join-link">New member? <a href="stepbackup1.html">Join now</a></p>
+        <button class="lb-login-btn" type="button" onclick="loginWithPhone()">LOGIN</button>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+  <script>
+    function updateLBCountryCode(select) {
+      const code = select.value;
+      const codeSpan = select.closest('.lb-phone-country').querySelector('.lb-code');
+      if (codeSpan) codeSpan.textContent = code;
+    }
+
+    function loginWithPhone() {
+      const phone = document.getElementById('lb-phone').value.trim();
+      const phoneRegex = /^\d{7,11}$/;
+      if (!phone || !phoneRegex.test(phone)) {
+        showNotification('Please enter a valid phone number (7 to 11 digits).', 'warning');
+        document.getElementById('lb-phone').focus();
+        return;
+      }
+      window.location.href = 'otpbackup.html';
+    }
+
+    function loginWithGoogle() {
+      // Google OAuth integration point
+      console.log('Google login triggered');
+    }
+  </script>
+</body>
+
+</html>

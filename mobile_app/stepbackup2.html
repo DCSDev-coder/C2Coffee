@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Refine Your Profile - C² Coffee</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,600;1,700&family=Libre+Baskerville:ital,wght@0,700;1,400;1,700&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="style.css?v=28">
+  <style>
+    /* ── Override: orange header + white card layout ── */
+    #app-container {
+      justify-content: flex-start;
+      padding: 0;
+      background-color: #E56000;
+    }
+
+    /* Orange header */
+    .sb2-header {
+      width: 100%;
+      background-color: #E56000;
+      padding: 44px 28px 36px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      box-sizing: border-box;
+      flex-shrink: 0;
+      min-height: 240px;
+      z-index: 2;
+    }
+
+    .sb2-step-label {
+      font-family: 'Playfair Display', 'Libre Baskerville', Georgia, serif;
+      font-style: italic;
+      font-size: 22px;
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.90);
+      margin-bottom: 6px;
+      letter-spacing: 0.2px;
+    }
+
+    .sb2-title {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 48px;
+      font-weight: 800;
+      color: #FFFFFF;
+      line-height: 1.05;
+      letter-spacing: -0.5px;
+      margin-bottom: 8px;
+    }
+
+    .sb2-subtitle {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      font-weight: 400;
+      color: rgba(255, 255, 255, 0.80);
+      line-height: 1.4;
+    }
+
+    /* White card */
+    .sb2-card {
+      width: 100%;
+      flex: 1;
+      background-color: #FFFFFF;
+      border-radius: 30px 30px 0 0;
+      padding: 28px 24px 24px;
+      display: flex;
+      flex-direction: column;
+      box-sizing: border-box;
+      overflow-y: auto;
+      z-index: 2;
+      box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
+    }
+
+    /* Form group */
+    .sb2-group {
+      margin-bottom: 14px;
+      width: 100%;
+    }
+
+    .sb2-group label {
+      display: block;
+      font-family: 'Playfair Display', Georgia, serif;
+      font-weight: 700;
+      font-size: 14.5px;
+      color: #1C3B24;
+      margin-bottom: 6px;
+    }
+
+    .sb2-group input[type="text"] {
+      width: 100%;
+      height: 46px;
+      border: 1.5px solid #E6DCD3;
+      border-radius: 23px;
+      padding: 0 18px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13.5px;
+      color: #333;
+      outline: none;
+      background: #FFFFFF;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      box-sizing: border-box;
+    }
+
+    .sb2-group input::placeholder {
+      color: #C4BDB5;
+    }
+
+    .sb2-group input:focus {
+      border-color: #E56000;
+      box-shadow: 0 0 0 3px rgba(229, 96, 0, 0.12);
+    }
+
+    /* Row: Postcode + City side by side */
+    .sb2-row {
+      display: flex;
+      gap: 10px;
+      width: 100%;
+      margin-bottom: 14px;
+    }
+
+    .sb2-half {
+      flex: 1;
+    }
+
+    .sb2-half label {
+      display: block;
+      font-family: 'Playfair Display', Georgia, serif;
+      font-weight: 700;
+      font-size: 14.5px;
+      color: #1C3B24;
+      margin-bottom: 6px;
+    }
+
+    .sb2-half input[type="text"] {
+      width: 100%;
+      height: 46px;
+      border: 1.5px solid #E6DCD3;
+      border-radius: 23px;
+      padding: 0 16px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13.5px;
+      color: #333;
+      outline: none;
+      background: #FFFFFF;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      box-sizing: border-box;
+    }
+
+    .sb2-half input::placeholder {
+      color: #C4BDB5;
+    }
+
+    .sb2-half input:focus {
+      border-color: #E56000;
+      box-shadow: 0 0 0 3px rgba(229, 96, 0, 0.12);
+    }
+
+    /* Gender group */
+    .sb2-gender-label {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-weight: 700;
+      font-size: 14.5px;
+      color: #1C3B24;
+      margin-bottom: 8px;
+      display: block;
+    }
+
+    .sb2-gender-row {
+      display: flex;
+      gap: 10px;
+      width: 100%;
+      margin-bottom: 14px;
+    }
+
+    .sb2-gender-btn {
+      flex: 1;
+      height: 46px;
+      border: 1.5px solid #E6DCD3;
+      border-radius: 23px;
+      background: #FFFFFF;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      cursor: pointer;
+      font-family: 'Playfair Display', Georgia, serif;
+      font-weight: 700;
+      font-size: 15px;
+      color: #1C3B24;
+      transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+      user-select: none;
+    }
+
+    .sb2-gender-btn svg {
+      width: 18px;
+      height: 18px;
+      stroke: #1C3B24;
+      transition: stroke 0.2s ease;
+    }
+
+    .sb2-gender-btn:hover {
+      border-color: #E56000;
+    }
+
+    .sb2-gender-btn.selected {
+      border-color: #E56000;
+      background-color: #FFF5EE;
+      box-shadow: 0 0 0 3px rgba(229, 96, 0, 0.12);
+      color: #E56000;
+    }
+
+    .sb2-gender-btn.selected svg {
+      stroke: #E56000;
+    }
+
+    /* Bottom section */
+    .sb2-bottom {
+      margin-top: auto;
+      padding-top: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+    }
+
+    .sb2-login-link {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      color: #4A3A2F;
+      text-align: center;
+      margin-bottom: 14px;
+    }
+
+    .sb2-login-link a {
+      color: #E56000;
+      font-weight: 700;
+      text-decoration: none;
+    }
+
+    .sb2-login-link a:hover {
+      text-decoration: underline;
+    }
+
+    .sb2-btn-row {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      width: 100%;
+    }
+
+    /* Previous Step — outline */
+    .sb2-prev-btn {
+      width: 100%;
+      height: 50px;
+      background-color: #FFFFFF;
+      border: 1.5px solid #1C3B24;
+      border-radius: 25px;
+      color: #1C3B24;
+      font-family: 'Playfair Display', Georgia, serif;
+      font-weight: 700;
+      font-size: 14px;
+      letter-spacing: 1.5px;
+      cursor: pointer;
+      transition: background-color 0.2s ease, color 0.2s ease;
+    }
+
+    .sb2-prev-btn:hover {
+      background-color: #F5F0EC;
+    }
+
+    .sb2-prev-btn:active {
+      transform: scale(0.98);
+    }
+
+    /* Sign Up — orange filled */
+    .sb2-signup-btn {
+      width: 100%;
+      height: 50px;
+      background-color: #E56000;
+      border: none;
+      border-radius: 25px;
+      color: #FFFFFF;
+      font-family: 'Playfair Display', Georgia, serif;
+      font-weight: 700;
+      font-size: 14px;
+      letter-spacing: 1.5px;
+      cursor: pointer;
+      transition: background-color 0.2s ease, box-shadow 0.2s ease;
+      box-shadow: 0 6px 18px rgba(229, 96, 0, 0.35);
+    }
+
+    .sb2-signup-btn:hover {
+      background-color: #C75200;
+      box-shadow: 0 8px 22px rgba(229, 96, 0, 0.45);
+    }
+
+    .sb2-signup-btn:active {
+      transform: scale(0.98);
+    }
+  </style>
+</head>
+
+<body>
+  <div id="app-container" class="container">
+
+    <!-- Orange Header -->
+    <div class="sb2-header">
+      <p class="sb2-step-label">Step 2 of 2</p>
+      <h1 class="sb2-title">Refine Your Profile</h1>
+      <p class="sb2-subtitle">Complete your registration to unlock the full experience.</p>
+    </div>
+
+    <!-- White Form Card -->
+    <div class="sb2-card">
+
+      <!-- House / Unit No. -->
+      <div class="sb2-group">
+        <label for="sb2-unit">House / Unit No.</label>
+        <input type="text" id="sb2-unit" placeholder="Number 1">
+      </div>
+
+      <!-- Street Name -->
+      <div class="sb2-group">
+        <label for="sb2-street">Street Name</label>
+        <input type="text" id="sb2-street" placeholder="Jalan Coffee">
+      </div>
+
+      <!-- Postcode + City -->
+      <div class="sb2-row">
+        <div class="sb2-half">
+          <label for="sb2-postcode">Postcode</label>
+          <input type="text" id="sb2-postcode" placeholder="43000" maxlength="5" inputmode="numeric"
+            oninput="handleSB2PoscodeLookup(this)">
+        </div>
+        <div class="sb2-half">
+          <label for="sb2-city">City</label>
+          <input type="text" id="sb2-city" placeholder="Semenyih">
+        </div>
+      </div>
+
+      <!-- Gender -->
+      <div>
+        <span class="sb2-gender-label">Gender</span>
+        <div class="sb2-gender-row">
+          <button class="sb2-gender-btn" id="sb2-btn-female" type="button" onclick="selectSB2Gender('female')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"
+              stroke-linejoin="round">
+              <circle cx="12" cy="9" r="5" />
+              <path d="M12 14v7M9 18h6" />
+            </svg>
+            Female
+          </button>
+          <button class="sb2-gender-btn" id="sb2-btn-male" type="button" onclick="selectSB2Gender('male')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"
+              stroke-linejoin="round">
+              <circle cx="10" cy="14" r="5" />
+              <path d="M13.5 10.5L20 4M15 4h5v5" />
+            </svg>
+            Male
+          </button>
+        </div>
+      </div>
+
+      <!-- Bottom -->
+      <div class="sb2-bottom">
+        <p class="sb2-login-link">Already a member? <a href="loginbackup.html">Login</a></p>
+        <div class="sb2-btn-row">
+          <button class="sb2-prev-btn" type="button" onclick="navigateTo('stepbackup1.html')">PREVIOUS STEP</button>
+          <button class="sb2-signup-btn" type="button" onclick="validateStep2()">SIGN UP</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    let sb2Gender = '';
+
+    function selectSB2Gender(value) {
+      sb2Gender = value;
+      document.getElementById('sb2-btn-female').classList.toggle('selected', value === 'female');
+      document.getElementById('sb2-btn-male').classList.toggle('selected', value === 'male');
+    }
+
+    function handleSB2PoscodeLookup(input) {
+      input.value = input.value.replace(/\D/g, '').slice(0, 5);
+      if (typeof handlePoscodeLookup === 'function') {
+        handlePoscodeLookup(input);
+      }
+    }
+  </script>
+  <script src="app.js"></script>
+</body>
+
+</html>
