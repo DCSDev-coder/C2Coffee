@@ -1341,6 +1341,16 @@ body {
   box-sizing: border-box;
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
+
+.best-seller-scroll::-webkit-scrollbar,
+.home-scroll-body::-webkit-scrollbar,
+.form-body::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
 }
 
 .product-card {
