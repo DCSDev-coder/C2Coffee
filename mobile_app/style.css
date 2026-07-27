@@ -1911,6 +1911,57 @@ body {
   transform: translateY(-1px);
 }
 
+/* Swipeable History Card */
+.history-swipe-wrapper {
+  overflow: hidden;
+  border-radius: 24px;
+  margin-bottom: 16px;
+  position: relative;
+  touch-action: pan-y;
+}
+
+.history-swipe-container {
+  display: flex;
+  transition: transform 0.25s cubic-bezier(0.2, 0.9, 0.3, 1);
+  will-change: transform;
+  background: white;
+  border-radius: 24px;
+  border: 1px solid #f0e3d8;
+  position: relative;
+}
+
+.history-swipe-container .history-card {
+  flex: 0 0 100%;
+  background: white;
+  border: none;
+  margin-bottom: 0;
+  border-radius: 24px;
+}
+
+.history-delete-area {
+  flex: 0 0 80px;
+  background: #d14334;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: 0.5px;
+  border-radius: 0 24px 24px 0;
+  flex-shrink: 0;
+  padding: 0 8px;
+  cursor: pointer;
+}
+
+.history-delete-area svg {
+  width: 26px;
+  height: 26px;
+  stroke: white;
+  stroke-width: 2;
+  margin-right: 6px;
+}
+
 /* Purchase History Cards */
 .history-card {
   width: 100%;

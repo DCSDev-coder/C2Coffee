@@ -567,4 +567,193 @@ function initCarousel() {
 
 document.addEventListener('DOMContentLoaded', () => {
     initCarousel();
+    
+    // For order page swipe delete
+    if (typeof attachSwipeListeners === 'function') {
+        attachSwipeListeners();
+        const scrollBody = document.querySelector('.order-scroll-body');
+        if (scrollBody) {
+            scrollBody.addEventListener('scroll', closeAllSwipes);
+        }
+    }
 });
+
+document.addEventListener('click', function (e) {
+    if (typeof closeAllSwipes === 'function' && !e.target.closest('.history-swipe-wrapper')) {
+        closeAllSwipes();
+    }
+});
+
+// ----- Swipe to delete (purchase history) -----
+function attachSwipeListeners() {
+    const wrappers = document.querySelectorAll('.history-swipe-wrapper');
+    wrappers.forEach(wrapper => {
+        wrapper.removeEventListener('touchstart', handleTouchStart);
+        wrapper.removeEventListener('touchmove', handleTouchMove);
+        wrapper.removeEventListener('touchend', handleTouchEnd);
+        wrapper.removeEventListener('mousedown', handleMouseDown);
+        wrapper.removeEventListener('mousemove', handleMouseMove);
+        wrapper.removeEventListener('mouseup', handleMouseUp);
+        wrapper.removeEventListener('mouseleave', handleMouseUp);
+
+        wrapper.addEventListener('touchstart', handleTouchStart, { passive: true });
+        wrapper.addEventListener('touchmove', handleTouchMove, { passive: false });
+        wrapper.addEventListener('touchend', handleTouchEnd, { passive: true });
+
+        wrapper.addEventListener('mousedown', handleMouseDown);
+        wrapper.addEventListener('mousemove', handleMouseMove);
+        wrapper.addEventListener('mouseup', handleMouseUp);
+        wrapper.addEventListener('mouseleave', handleMouseUp);
+    });
+}
+
+let touchStartX = 0;
+let touchCurrentX = 0;
+let isSwiping = false;
+let activeWrapper = null;
+let activeContainer = null;
+const SWIPE_THRESHOLD = 50;
+const MAX_SWIPE = 80;
+
+function handleTouchStart(e) {
+    const wrapper = e.currentTarget;
+    const container = wrapper.querySelector('.history-swipe-container');
+    if (!container || !wrapper.parentNode) return;
+
+    const touch = e.touches[0];
+    touchStartX = touch.clientX;
+    touchCurrentX = touchStartX;
+    isSwiping = true;
+    activeWrapper = wrapper;
+    activeContainer = container;
+    container.style.transition = 'none';
+}
+
+function handleTouchMove(e) {
+    if (!isSwiping || !activeContainer) return;
+    const touch = e.touches[0];
+    const deltaX = touch.clientX - touchStartX;
+    let newX = Math.min(0, deltaX);
+    newX = Math.max(-MAX_SWIPE, newX);
+    activeContainer.style.transform = `translateX(${newX}px)`;
+    touchCurrentX = touch.clientX;
+    e.preventDefault();
+}
+
+function handleTouchEnd(e) {
+    if (!isSwiping || !activeContainer) {
+        resetSwipe();
+        return;
+    }
+    const deltaX = touchCurrentX - touchStartX;
+    if (deltaX < -SWIPE_THRESHOLD) {
+        activeContainer.style.transition = 'transform 0.25s cubic-bezier(0.2, 0.9, 0.3, 1)';
+        activeContainer.style.transform = `translateX(-${MAX_SWIPE}px)`;
+        activeContainer.dataset.swipeOpen = 'true';
+    } else {
+        activeContainer.style.transition = 'transform 0.25s cubic-bezier(0.2, 0.9, 0.3, 1)';
+        activeContainer.style.transform = 'translateX(0px)';
+        activeContainer.dataset.swipeOpen = 'false';
+    }
+    resetSwipe();
+}
+
+let mouseDown = false;
+let mouseStartX = 0;
+let mouseCurrentX = 0;
+
+function handleMouseDown(e) {
+    const wrapper = e.currentTarget;
+    const container = wrapper.querySelector('.history-swipe-container');
+    if (!container || !wrapper.parentNode) return;
+    if (e.button !== 0) return;
+    mouseDown = true;
+    mouseStartX = e.clientX;
+    mouseCurrentX = mouseStartX;
+    activeWrapper = wrapper;
+    activeContainer = container;
+    container.style.transition = 'none';
+}
+
+function handleMouseMove(e) {
+    if (!mouseDown || !activeContainer) return;
+    const deltaX = e.clientX - mouseStartX;
+    let newX = Math.min(0, deltaX);
+    newX = Math.max(-MAX_SWIPE, newX);
+    activeContainer.style.transform = `translateX(${newX}px)`;
+    mouseCurrentX = e.clientX;
+}
+
+function handleMouseUp(e) {
+    if (!mouseDown || !activeContainer) {
+        resetSwipeMouse();
+        return;
+    }
+    const deltaX = mouseCurrentX - mouseStartX;
+    if (deltaX < -SWIPE_THRESHOLD) {
+        activeContainer.style.transition = 'transform 0.25s cubic-bezier(0.2, 0.9, 0.3, 1)';
+        activeContainer.style.transform = `translateX(-${MAX_SWIPE}px)`;
+        activeContainer.dataset.swipeOpen = 'true';
+    } else {
+        activeContainer.style.transition = 'transform 0.25s cubic-bezier(0.2, 0.9, 0.3, 1)';
+        activeContainer.style.transform = 'translateX(0px)';
+        activeContainer.dataset.swipeOpen = 'false';
+    }
+    resetSwipeMouse();
+}
+
+function resetSwipe() {
+    isSwiping = false;
+    activeWrapper = null;
+    activeContainer = null;
+}
+
+function resetSwipeMouse() {
+    mouseDown = false;
+    activeWrapper = null;
+    activeContainer = null;
+}
+
+function deleteHistoryItem(deleteBtn) {
+    const container = deleteBtn.closest('.history-swipe-container');
+    if (!container) return;
+    const wrapper = container.closest('.history-swipe-wrapper');
+    if (!wrapper) return;
+
+    container.style.transition = 'transform 0.25s ease, opacity 0.2s ease';
+    container.style.transform = 'translateX(-100%)';
+    container.style.opacity = '0';
+
+    setTimeout(() => {
+        if (wrapper.parentNode) {
+            wrapper.style.transition = 'height 0.25s ease, margin 0.25s ease';
+            wrapper.style.height = '0px';
+            wrapper.style.margin = '0';
+            wrapper.style.overflow = 'hidden';
+            setTimeout(() => {
+                if (wrapper.parentNode) {
+                    wrapper.remove();
+                    const historyView = document.getElementById('view-history');
+                    if (historyView) {
+                        const remaining = historyView.querySelectorAll('.history-swipe-wrapper');
+                        if (remaining.length === 0) {
+                            const loadingText = historyView.querySelector('.loading-completed-text');
+                            if (loadingText) {
+                                loadingText.textContent = 'No purchase history';
+                                loadingText.style.marginTop = '40px';
+                            }
+                        }
+                    }
+                }
+            }, 250);
+        }
+    }, 300);
+}
+
+function closeAllSwipes() {
+    document.querySelectorAll('.history-swipe-container[data-swipe-open="true"]').forEach(container => {
+        container.style.transition = 'transform 0.25s cubic-bezier(0.2, 0.9, 0.3, 1)';
+        container.style.transform = 'translateX(0px)';
+        container.dataset.swipeOpen = 'false';
+    });
+}
