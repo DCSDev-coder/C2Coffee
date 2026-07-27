@@ -6,6 +6,7 @@ let toastTimeout;
 // Page Loading Overlay System
 function showLoadingOverlay() {
     let overlay = document.getElementById('page-loading-overlay');
+    const container = document.getElementById('app-container') || document.body;
     if (!overlay) {
         overlay = document.createElement('div');
         overlay.id = 'page-loading-overlay';
@@ -25,9 +26,15 @@ function showLoadingOverlay() {
             <p class="loading-text"><span class="loading-black">Preparing your </span><span class="loading-orange">C²</span><span class="loading-black"> experience...</span></p>
           </div>
         `;
-        const container = document.getElementById('app-container') || document.body;
         container.appendChild(overlay);
     }
+
+    const headerEl = document.querySelector('.order-header-bar, .sb1-header, .sb2-header, .lb-header, .ob-header');
+    if (headerEl) {
+        headerEl.style.transition = 'opacity 0.15s ease';
+        headerEl.style.opacity = '0';
+    }
+
     void overlay.offsetWidth;
     overlay.classList.add('active');
 }

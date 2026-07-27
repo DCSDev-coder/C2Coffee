@@ -1609,6 +1609,8 @@ body {
   width: 100%;
   height: 90px;
   background-color: #E56000;
+  border-top-left-radius: 34px;
+  border-top-right-radius: 34px;
   border-bottom-left-radius: 28px;
   border-bottom-right-radius: 28px;
   display: flex;
@@ -1619,6 +1621,7 @@ body {
   box-shadow: 0 6px 18px rgba(229, 96, 0, 0.25);
   flex-shrink: 0;
   box-sizing: border-box;
+  overflow: hidden;
 }
 
 .order-back-btn {
