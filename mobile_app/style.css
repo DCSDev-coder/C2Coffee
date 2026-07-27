@@ -219,9 +219,9 @@ body {
 }
 
 .subtitle.brown-subtitle {
-  font-family: var(--font-serif);
-  font-weight: 400;
-  font-size: 13.5px;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: 15px;
   color: var(--text-brown);
   max-width: 310px;
   text-align: center;
@@ -518,8 +518,8 @@ body {
 .login-link, .join-link {
   text-align: center;
   margin-bottom: 14px;
-  font-family: var(--font-serif);
-  font-size: 13px;
+  font-family: var(--font-sans);
+  font-size: 14px;
   color: var(--text-brown);
 }
 
