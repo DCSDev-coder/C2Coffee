@@ -3,18 +3,42 @@ let otpTimerInterval;
 let otpTimeRemaining = 45;
 let toastTimeout;
 
-// Smooth Page Navigation
+// Page Loading Overlay System
+function showLoadingOverlay() {
+    let overlay = document.getElementById('page-loading-overlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'page-loading-overlay';
+        overlay.className = 'page-loading-overlay';
+        overlay.innerHTML = `
+          <div class="loading-content">
+            <div class="loading-badge-pulse">
+              <svg class="loading-cup-icon" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2">
+                <path d="M18 8h1a4 4 0 0 1 0 8h-1"></path>
+                <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path>
+                <line x1="6" y1="1" x2="6" y2="4" stroke-linecap="round"></line>
+                <line x1="10" y1="1" x2="10" y2="4" stroke-linecap="round"></line>
+                <line x1="14" y1="1" x2="14" y2="4" stroke-linecap="round"></line>
+              </svg>
+            </div>
+            <div class="loading-spinner"></div>
+            <p class="loading-text">Preparing your C² experience...</p>
+          </div>
+        `;
+        const container = document.getElementById('app-container') || document.body;
+        container.appendChild(overlay);
+    }
+    void overlay.offsetWidth;
+    overlay.classList.add('active');
+}
+
+// Smooth Page Navigation with Loading Screen
 function navigateTo(url) {
     if (!url) return;
-    const container = document.getElementById('app-container') || document.querySelector('.container');
-    if (container) {
-        container.classList.add('page-exit-slide-up');
-        setTimeout(() => {
-            window.location.href = url;
-        }, 250);
-    } else {
+    showLoadingOverlay();
+    setTimeout(() => {
         window.location.href = url;
-    }
+    }, 450);
 }
 
 // Toast Notification System
