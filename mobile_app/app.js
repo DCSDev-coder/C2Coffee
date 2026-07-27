@@ -16,10 +16,6 @@ function showLoadingOverlay() {
         overlay.className = 'page-loading-overlay';
         overlay.innerHTML = `
           <div class="loading-canvas">
-            <!-- Top C2 Floating Logo -->
-            <div class="floating-c2-logo-wrap">
-              <img src="assets/c2_logo.png" alt="C² Coffee Logo" class="floating-c2-logo">
-            </div>
 
             <!-- Central Coffee Cup Fill Animation -->
             <div class="cup-animation-wrap">
