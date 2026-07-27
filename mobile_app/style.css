@@ -1864,16 +1864,19 @@ body {
 
 .order-btn-outline {
   flex: 1;
-  height: 36px;
+  height: 42px;
   border: 1.5px solid #E56000;
-  border-radius: 18px;
+  border-radius: 21px;
   background: transparent;
   color: #E56000;
-  font-family: var(--font-sans);
-  font-size: 12px;
-  font-weight: 600;
+  font-family: 'Recoleta', var(--font-serif);
+  font-size: 15px;
+  font-weight: 700;
   cursor: pointer;
   transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .order-btn-outline:hover {
