@@ -6,18 +6,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Verify Your Identity - C² Coffee</title>
   <link
-    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,600;1,700&family=Libre+Baskerville:ital,wght@0,700;1,400;1,700&display=swap"
+    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,600;1,700&display=swap"
     rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=28">
+  <link rel="stylesheet" href="style.css?v=36">
   <style>
-    /* ── Override: orange header + white card layout ── */
     #app-container {
       justify-content: flex-start;
       padding: 0;
       background-color: #E56000;
     }
 
-    /* Orange header */
     .ob-header {
       width: 100%;
       background-color: #E56000;
@@ -29,13 +27,13 @@
       text-align: center;
       box-sizing: border-box;
       flex-shrink: 0;
-      min-height: 240px;
+      min-height: 200px;
       z-index: 2;
     }
 
     .ob-title {
       font-family: 'Playfair Display', Georgia, serif;
-      font-size: 48px;
+      font-size: 40px;
       font-weight: 800;
       color: #FFFFFF;
       line-height: 1.05;
@@ -57,13 +55,12 @@
       color: #FFFFFF;
     }
 
-    /* White card */
     .ob-card {
       width: 100%;
       flex: 1;
       background-color: #FFFFFF;
       border-radius: 30px 30px 0 0;
-      padding: 36px 24px 28px;
+      padding: 28px 24px 28px;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -73,7 +70,49 @@
       box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
     }
 
-    /* Instruction text */
+    /* Method Toggle Pills */
+    .ob-method-toggle {
+      display: flex;
+      background-color: #F5EDE5;
+      border-radius: 22px;
+      padding: 4px;
+      gap: 4px;
+      margin-bottom: 22px;
+      width: 100%;
+      max-width: 280px;
+    }
+
+    .ob-method-pill {
+      flex: 1;
+      height: 36px;
+      border: none;
+      border-radius: 18px;
+      background: transparent;
+      font-family: 'Recoleta', Georgia, serif;
+      font-size: 13px;
+      font-weight: 700;
+      color: #B07050;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+    }
+
+    .ob-method-pill.active {
+      background-color: #E56000;
+      color: #FFFFFF;
+      box-shadow: 0 3px 10px rgba(229, 96, 0, 0.3);
+    }
+
+    .ob-method-pill svg {
+      width: 14px;
+      height: 14px;
+      stroke: currentColor;
+      flex-shrink: 0;
+    }
+
     .ob-instruction {
       font-family: 'Playfair Display', Georgia, serif;
       font-size: 15px;
@@ -83,7 +122,6 @@
       margin-bottom: 24px;
     }
 
-    /* OTP boxes */
     .ob-otp-row {
       display: flex;
       gap: 10px;
@@ -114,10 +152,9 @@
       box-shadow: 0 0 0 3px rgba(229, 96, 0, 0.12);
     }
 
-    /* Resend section */
     .ob-resend {
       text-align: center;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
 
     .ob-resend p {
@@ -135,11 +172,26 @@
       text-decoration: none;
     }
 
-    .ob-resend a:hover {
-      text-decoration: underline;
+    .ob-resend a:hover { text-decoration: underline; }
+
+    .ob-switch-method {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 12.5px;
+      color: #7A6C60;
+      text-align: center;
+      margin-top: 6px;
+      margin-bottom: 6px;
     }
 
-    /* VERIFY button */
+    .ob-switch-method a {
+      color: #E56000;
+      font-weight: 600;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .ob-switch-method a:hover { text-decoration: underline; }
+
     .ob-bottom {
       margin-top: auto;
       width: 100%;
@@ -166,9 +218,7 @@
       box-shadow: 0 8px 22px rgba(229, 96, 0, 0.45);
     }
 
-    .ob-verify-btn:active {
-      transform: scale(0.98);
-    }
+    .ob-verify-btn:active { transform: scale(0.98); }
   </style>
 </head>
 
@@ -178,28 +228,41 @@
     <!-- Orange Header -->
     <div class="ob-header">
       <h1 class="ob-title">Verify Your Identity</h1>
-      <p class="ob-subtitle">We've sent an SMS to <span id="ob-display-phone">+00 11 2233 4455</span>.</p>
+      <p class="ob-subtitle" id="ob-subtitle-text">
+        We've sent an SMS to <span id="ob-display-dest">+00 11 2233 4455</span>.
+      </p>
     </div>
 
     <!-- White Card -->
     <div class="ob-card">
 
-      <p class="ob-instruction">Please fill in the security code.</p>
+      <!-- Method Toggle Pills -->
+      <div class="ob-method-toggle">
+        <button class="ob-method-pill active" id="pill-sms" onclick="switchMethod('sms')">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.58 3.44 2 2 0 0 1 3.55 1.25h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.81a16 16 0 0 0 6.29 6.29l.87-.87a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"></path>
+          </svg>
+          SMS
+        </button>
+        <button class="ob-method-pill" id="pill-email" onclick="switchMethod('email')">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+            <polyline points="22,6 12,13 2,6"></polyline>
+          </svg>
+          Email
+        </button>
+      </div>
+
+      <p class="ob-instruction" id="ob-instruction-text">Please fill in the security code.</p>
 
       <!-- OTP Boxes -->
       <div class="ob-otp-row">
-        <input type="text" class="ob-otp-box" maxlength="1" inputmode="numeric"
-          onkeyup="handleOBOtpInput(this, 0)" onfocus="this.select()">
-        <input type="text" class="ob-otp-box" maxlength="1" inputmode="numeric"
-          onkeyup="handleOBOtpInput(this, 1)" onfocus="this.select()">
-        <input type="text" class="ob-otp-box" maxlength="1" inputmode="numeric"
-          onkeyup="handleOBOtpInput(this, 2)" onfocus="this.select()">
-        <input type="text" class="ob-otp-box" maxlength="1" inputmode="numeric"
-          onkeyup="handleOBOtpInput(this, 3)" onfocus="this.select()">
-        <input type="text" class="ob-otp-box" maxlength="1" inputmode="numeric"
-          onkeyup="handleOBOtpInput(this, 4)" onfocus="this.select()">
-        <input type="text" class="ob-otp-box" maxlength="1" inputmode="numeric"
-          onkeyup="handleOBOtpInput(this, 5)" onfocus="this.select()">
+        <input type="text" class="ob-otp-box" maxlength="1" inputmode="numeric" onkeyup="handleOBOtpInput(this, 0)" onfocus="this.select()">
+        <input type="text" class="ob-otp-box" maxlength="1" inputmode="numeric" onkeyup="handleOBOtpInput(this, 1)" onfocus="this.select()">
+        <input type="text" class="ob-otp-box" maxlength="1" inputmode="numeric" onkeyup="handleOBOtpInput(this, 2)" onfocus="this.select()">
+        <input type="text" class="ob-otp-box" maxlength="1" inputmode="numeric" onkeyup="handleOBOtpInput(this, 3)" onfocus="this.select()">
+        <input type="text" class="ob-otp-box" maxlength="1" inputmode="numeric" onkeyup="handleOBOtpInput(this, 4)" onfocus="this.select()">
+        <input type="text" class="ob-otp-box" maxlength="1" inputmode="numeric" onkeyup="handleOBOtpInput(this, 5)" onfocus="this.select()">
       </div>
 
       <!-- Resend -->
@@ -207,6 +270,11 @@
         <p>Didn't receive the code?</p>
         <a href="#" id="ob-resend-btn" onclick="obResendOtp(event)">Resend Code <span id="ob-timer">(00:45)</span></a>
       </div>
+
+      <!-- Switch method hint -->
+      <p class="ob-switch-method">
+        Prefer a different method? <a id="ob-switch-link" onclick="switchMethod('email')">Try via Email instead</a>
+      </p>
 
       <!-- Verify button -->
       <div class="ob-bottom">
@@ -218,10 +286,47 @@
 
   <script src="app.js"></script>
   <script>
-    // Show stored phone number
-    const storedPhone = sessionStorage.getItem('userPhone');
-    if (storedPhone) {
-      document.getElementById('ob-display-phone').textContent = storedPhone;
+    let obMethod = 'sms';
+
+    const storedPhone = sessionStorage.getItem('userPhone') || '+00 11 2233 4455';
+    const storedEmail = sessionStorage.getItem('userEmail') || 'your@email.com';
+
+    // Init display
+    document.getElementById('ob-display-dest').textContent = storedPhone;
+
+    function switchMethod(method) {
+      obMethod = method;
+      const pillSms   = document.getElementById('pill-sms');
+      const pillEmail = document.getElementById('pill-email');
+      const subtitle  = document.getElementById('ob-subtitle-text');
+      const instrEl   = document.getElementById('ob-instruction-text');
+      const switchLink = document.getElementById('ob-switch-link');
+
+      // Clear boxes and reset focus
+      document.querySelectorAll('.ob-otp-box').forEach(b => b.value = '');
+      document.querySelectorAll('.ob-otp-box')[0].focus();
+
+      if (method === 'sms') {
+        pillSms.classList.add('active');
+        pillEmail.classList.remove('active');
+        subtitle.innerHTML = `We've sent an SMS to <span>${storedPhone}</span>.`;
+        instrEl.textContent = 'Please fill in the security code.';
+        switchLink.textContent = 'Try via Email instead';
+        switchLink.onclick = () => switchMethod('email');
+      } else {
+        pillEmail.classList.add('active');
+        pillSms.classList.remove('active');
+        subtitle.innerHTML = `We've sent an email to <span>${storedEmail}</span>.`;
+        instrEl.textContent = 'Check your inbox for the 6-digit code.';
+        switchLink.textContent = 'Try via SMS instead';
+        switchLink.onclick = () => switchMethod('sms');
+      }
+
+      // Reset and restart timer
+      obSeconds = 45;
+      clearInterval(obTimerInterval);
+      startObTimer();
+      showNotification(`OTP sent via ${method === 'sms' ? 'SMS' : 'Email'}!`, 'success');
     }
 
     // OTP box auto-advance
@@ -230,42 +335,40 @@
     function handleOBOtpInput(input, index) {
       const val = input.value.replace(/\D/g, '');
       input.value = val;
-      if (val && index < obBoxes.length - 1) {
-        obBoxes[index + 1].focus();
-      }
-      if (event.key === 'Backspace' && !val && index > 0) {
-        obBoxes[index - 1].focus();
-      }
+      if (val && index < obBoxes.length - 1) obBoxes[index + 1].focus();
+      if (event.key === 'Backspace' && !val && index > 0) obBoxes[index - 1].focus();
     }
 
-    // Resend countdown
+    // Countdown timer
     let obSeconds = 45;
-    let obTimerInterval = setInterval(() => {
-      obSeconds--;
-      const m = String(Math.floor(obSeconds / 60)).padStart(2, '0');
-      const s = String(obSeconds % 60).padStart(2, '0');
-      const timerEl = document.getElementById('ob-timer');
-      if (timerEl) timerEl.textContent = `(${m}:${s})`;
-      if (obSeconds <= 0) {
-        clearInterval(obTimerInterval);
-        const resendBtn = document.getElementById('ob-resend-btn');
-        if (resendBtn) resendBtn.style.opacity = '1';
-      }
-    }, 1000);
+    let obTimerInterval;
+
+    function startObTimer() {
+      const timerEl   = document.getElementById('ob-timer');
+      const resendBtn = document.getElementById('ob-resend-btn');
+      if (resendBtn) resendBtn.style.opacity = '0.55';
+      obTimerInterval = setInterval(() => {
+        obSeconds--;
+        const m = String(Math.floor(obSeconds / 60)).padStart(2, '0');
+        const s = String(obSeconds % 60).padStart(2, '0');
+        if (timerEl) timerEl.textContent = `(${m}:${s})`;
+        if (obSeconds <= 0) {
+          clearInterval(obTimerInterval);
+          if (timerEl) timerEl.textContent = '';
+          if (resendBtn) resendBtn.style.opacity = '1';
+        }
+      }, 1000);
+    }
+
+    startObTimer();
 
     function obResendOtp(e) {
       e.preventDefault();
       if (obSeconds > 0) return;
       obSeconds = 45;
-      obTimerInterval = setInterval(() => {
-        obSeconds--;
-        const m = String(Math.floor(obSeconds / 60)).padStart(2, '0');
-        const s = String(obSeconds % 60).padStart(2, '0');
-        const timerEl = document.getElementById('ob-timer');
-        if (timerEl) timerEl.textContent = `(${m}:${s})`;
-        if (obSeconds <= 0) clearInterval(obTimerInterval);
-      }, 1000);
-      showNotification('OTP resent successfully!', 'success');
+      clearInterval(obTimerInterval);
+      startObTimer();
+      showNotification(`Code resent via ${obMethod === 'sms' ? 'SMS' : 'Email'}!`, 'success');
     }
 
     function obVerifyOtp() {
@@ -274,7 +377,7 @@
         showNotification('Please enter the 6-digit code.', 'warning');
         return;
       }
-      window.location.href = 'home.html';
+      navigateTo('home.html');
     }
   </script>
 </body>
