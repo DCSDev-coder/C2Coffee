@@ -39,9 +39,9 @@
   --accent-orange: #C65102;
   --text-brown: #4A3A2F;
   --input-border: #E6DCD3;
-  --font-serif: 'Recoleta', 'Plus Jakarta Sans', Georgia, serif;
-  --font-sans: 'DM Sans', 'Plus Jakarta Sans', sans-serif;
-  --font-step: 'Recoleta', 'Plus Jakarta Sans', Georgia, serif;
+  --font-serif: 'Recoleta', Georgia, serif;
+  --font-sans: 'Afacad', sans-serif;
+  --font-step: 'Recoleta', Georgia, serif;
 }
 
 * {
