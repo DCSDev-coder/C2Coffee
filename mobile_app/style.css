@@ -2047,9 +2047,9 @@ body {
 /* C2 Logo on Cup */
 .cup-c2-logo {
   position: absolute;
-  top: 50%;
-  left: 42%;
-  transform: translate(-50%, -44%);
+  top: 62%;
+  left: 46%;
+  transform: translate(-50%, -50%);
   width: 44px;
   height: 44px;
   object-fit: contain;
