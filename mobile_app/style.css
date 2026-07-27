@@ -31,6 +31,39 @@
   font-style: normal;
 }
 
+/* Custom Afacad Font Family Definitions */
+@font-face {
+  font-family: 'Afacad';
+  src: url('assets/fonts/Afacad-Regular.woff2') format('woff2'),
+       url('assets/fonts/Afacad-Regular.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Afacad';
+  src: url('assets/fonts/Afacad-Medium.woff2') format('woff2'),
+       url('assets/fonts/Afacad-Medium.otf') format('opentype');
+  font-weight: 500;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Afacad';
+  src: url('assets/fonts/Afacad-SemiBold.woff2') format('woff2'),
+       url('assets/fonts/Afacad-SemiBold.otf') format('opentype');
+  font-weight: 600;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Afacad';
+  src: url('assets/fonts/Afacad-Bold.woff2') format('woff2'),
+       url('assets/fonts/Afacad-Bold.otf') format('opentype');
+  font-weight: 700;
+  font-style: normal;
+}
+
 /* C² Coffee - Luxury Cream & Forest Green Theme */
 :root {
   --bg-cream: #FAF4EE;
