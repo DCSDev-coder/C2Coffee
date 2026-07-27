@@ -14,13 +14,7 @@ function showLoadingOverlay() {
         overlay.innerHTML = `
           <div class="loading-content">
             <div class="loading-badge-pulse">
-              <svg class="loading-cup-icon" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2">
-                <path d="M18 8h1a4 4 0 0 1 0 8h-1"></path>
-                <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path>
-                <line x1="6" y1="1" x2="6" y2="4" stroke-linecap="round"></line>
-                <line x1="10" y1="1" x2="10" y2="4" stroke-linecap="round"></line>
-                <line x1="14" y1="1" x2="14" y2="4" stroke-linecap="round"></line>
-              </svg>
+              <img src="assets/c2_logo.png" alt="C² Coffee Logo" class="loading-c2-logo">
             </div>
             <div class="loading-spinner"></div>
             <p class="loading-text"><span class="loading-black">Preparing your </span><span class="loading-orange">C²</span><span class="loading-black"> experience...</span></p>

@@ -1998,9 +1998,12 @@ body {
   }
 }
 
-.loading-cup-icon {
-  width: 30px;
-  height: 30px;
+.loading-c2-logo {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 4px;
+  box-sizing: border-box;
 }
 
 .loading-spinner {
