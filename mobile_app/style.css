@@ -1504,42 +1504,13 @@ body {
   justify-content: center;
   padding: 6px;
   box-sizing: border-box;
-  position: relative;
 }
 
 .product-img {
   width: 100%;
   height: 100%;
   object-fit: contain;
-}
-
-/* Ingredient Badge Overlay (Bottom-Right Corner) */
-.ingredient-badge {
-  position: absolute;
-  bottom: 6px;
-  right: 6px;
-  background: #FFFFFF;
-  border: 1.5px solid #E56000;
-  border-radius: 12px;
-  padding: 3px 6px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.12);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-  z-index: 3;
-  cursor: pointer;
-}
-
-.ingredient-badge:hover {
-  transform: scale(1.1);
-  box-shadow: 0 4px 14px rgba(229, 96, 0, 0.3);
-}
-
-.ingredient-icon {
-  width: 18px;
-  height: 18px;
-  display: block;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.08));
 }
 
 .product-info {
@@ -1618,4 +1589,317 @@ body {
   font-family: var(--font-sans);
   font-size: 9.5px;
   font-weight: 600;
+}
+
+/* Order Page Styles */
+.order-container {
+  padding: 0 0 12px !important;
+  background-color: var(--bg-cream);
+}
+
+.order-header-bar {
+  width: 100%;
+  height: 90px;
+  background-color: #E56000;
+  border-bottom-left-radius: 28px;
+  border-bottom-right-radius: 28px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0 20px 18px;
+  position: relative;
+  box-shadow: 0 6px 18px rgba(229, 96, 0, 0.25);
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.order-back-btn {
+  position: absolute;
+  left: 20px;
+  bottom: 16px;
+  background: transparent;
+  border: none;
+  color: #FFFFFF;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.order-back-btn svg {
+  width: 22px;
+  height: 22px;
+}
+
+.order-header-title {
+  font-family: 'Recoleta', var(--font-serif);
+  font-size: 24px;
+  font-weight: 800;
+  color: #FFFFFF;
+  letter-spacing: 0.5px;
+  line-height: 1;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+/* Order Tabs Bar */
+.order-tabs-bar {
+  display: flex;
+  width: 100%;
+  padding: 16px 24px 8px;
+  gap: 24px;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.order-tab {
+  background: none;
+  border: none;
+  font-family: var(--font-serif);
+  font-size: 15px;
+  font-weight: 700;
+  color: #C65102;
+  opacity: 0.65;
+  cursor: pointer;
+  padding-bottom: 6px;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.order-tab.active {
+  opacity: 1;
+  color: #E56000;
+}
+
+.order-tab .tab-indicator {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 2.5px;
+  background-color: #E56000;
+  border-radius: 2px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.order-tab.active .tab-indicator {
+  opacity: 1;
+}
+
+/* Order Scroll Body */
+.order-scroll-body {
+  width: 100%;
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 18px 16px;
+  box-sizing: border-box;
+}
+
+.order-view {
+  display: none;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+}
+
+.order-view.active {
+  display: flex;
+}
+
+/* Order Cards (Stores Orders) */
+.order-card {
+  width: 100%;
+  background: #FFFFFF;
+  border-radius: 24px;
+  padding: 18px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.05);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.order-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.pickup-badge {
+  font-family: 'Recoleta', var(--font-serif);
+  font-size: 22px;
+  font-weight: 800;
+  color: #1C3B24;
+}
+
+.status-finished {
+  font-family: var(--font-sans);
+  font-size: 11.5px;
+  color: #7A6C60;
+  font-weight: 500;
+}
+
+/* Item Row */
+.order-item-row {
+  display: flex;
+  gap: 14px;
+  width: 100%;
+  align-items: flex-start;
+}
+
+.order-item-img-wrap {
+  width: 76px;
+  height: 80px;
+  background-color: #FFF3E8;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 4px;
+  box-sizing: border-box;
+}
+
+.order-item-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.order-item-details {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.order-item-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.order-item-name {
+  font-family: 'Recoleta', var(--font-serif);
+  font-size: 20px;
+  font-weight: 800;
+  color: #1C3B24;
+  margin: 0;
+  line-height: 1.1;
+}
+
+.order-qty {
+  font-family: var(--font-sans);
+  font-size: 18px;
+  font-weight: 700;
+  color: #E56000;
+}
+
+.order-specs {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: #6E5F54;
+  line-height: 1.35;
+  margin: 0;
+}
+
+.order-remarks {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: #6E5F54;
+  margin: 2px 0 0;
+}
+
+/* Order Footer */
+.order-card-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.order-summary-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  width: 100%;
+}
+
+.summary-count {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: #4A3A2F;
+}
+
+.summary-price {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 800;
+  color: #1C3B24;
+}
+
+.order-action-btns {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+}
+
+.order-btn-outline {
+  flex: 1;
+  height: 36px;
+  border: 1.5px solid #E56000;
+  border-radius: 18px;
+  background: transparent;
+  color: #E56000;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.order-btn-outline:hover {
+  background-color: #FFF4EC;
+}
+
+/* Purchase History Cards */
+.history-card {
+  width: 100%;
+  background: #FFFFFF;
+  border-radius: 24px;
+  padding: 16px 18px 18px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.05);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.history-card-header {
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 2px;
+}
+
+.history-datetime {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: #7A6C60;
+}
+
+/* End of List text */
+.loading-completed-text {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: #7A6C60;
+  text-align: center;
+  margin: 16px 0 10px;
 }
