@@ -1504,12 +1504,42 @@ body {
   justify-content: center;
   padding: 6px;
   box-sizing: border-box;
+  position: relative;
 }
 
 .product-img {
   width: 100%;
   height: 100%;
   object-fit: contain;
+}
+
+/* Ingredient Badge Overlay (Bottom-Right Corner) */
+.ingredient-badge {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  background: #FFFFFF;
+  border: 1.5px solid #E56000;
+  border-radius: 12px;
+  padding: 3px 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.12);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  z-index: 3;
+  cursor: pointer;
+}
+
+.ingredient-badge:hover {
+  transform: scale(1.1);
+  box-shadow: 0 4px 14px rgba(229, 96, 0, 0.3);
+}
+
+.ingredient-icon {
+  width: 18px;
+  height: 18px;
+  display: block;
 }
 
 .product-info {
