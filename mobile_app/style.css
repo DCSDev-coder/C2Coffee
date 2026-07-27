@@ -1867,7 +1867,7 @@ body {
   height: 42px;
   border: 1.5px solid #E56000;
   border-radius: 21px;
-  background: transparent;
+  background-color: #FFFFFF;
   color: #E56000;
   font-family: 'Recoleta', var(--font-serif);
   font-size: 15px;
@@ -1877,10 +1877,35 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
 .order-btn-outline:hover {
   background-color: #FFF4EC;
+  transform: translateY(-1px);
+}
+
+.order-btn-filled {
+  flex: 1;
+  height: 42px;
+  border: none;
+  border-radius: 21px;
+  background-color: #E56000;
+  color: #FFFFFF;
+  font-family: 'Recoleta', var(--font-serif);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 14px rgba(229, 96, 0, 0.3);
+}
+
+.order-btn-filled:hover {
+  background-color: #C75200;
+  transform: translateY(-1px);
 }
 
 /* Purchase History Cards */
