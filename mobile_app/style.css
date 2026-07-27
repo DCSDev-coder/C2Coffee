@@ -1297,14 +1297,20 @@ body {
   min-width: 100%;
   width: 100%;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg-cream);
 }
 
 .carousel-slide .banner-img {
   width: 100%;
   max-width: 100%;
-  height: auto;
+  height: 280px;
   display: block;
-  object-fit: cover;
+  object-fit: contain;
+  object-position: center;
+  margin: 0 auto;
 }
 
 /* Carousel Prev / Next Arrow Control Buttons */
