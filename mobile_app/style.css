@@ -1321,12 +1321,12 @@ body {
 
 .action-tile {
   flex: 1;
-  height: 90px;
-  border-radius: 18px;
+  height: 92px;
+  border-radius: 20px;
   display: flex;
   align-items: center;
-  padding: 14px 16px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+  padding: 16px 18px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
   cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
   box-sizing: border-box;
@@ -1334,7 +1334,7 @@ body {
 
 .action-tile:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
 }
 
 .action-tile.tile-order {
@@ -1347,10 +1347,10 @@ body {
 
 .action-tile .tile-title {
   font-family: var(--font-serif);
-  font-size: 24px;
+  font-size: 26px;
   font-weight: 900;
-  line-height: 1.05;
-  letter-spacing: -0.5px;
+  line-height: 1.02;
+  letter-spacing: -0.6px;
   color: #FFFFFF;
   text-transform: uppercase;
   word-break: break-word;
