@@ -22,7 +22,7 @@ function showLoadingOverlay() {
               </svg>
             </div>
             <div class="loading-spinner"></div>
-            <p class="loading-text">Preparing your C² experience...</p>
+            <p class="loading-text"><span class="loading-black">Preparing your </span><span class="loading-orange">C²</span><span class="loading-black"> experience...</span></p>
           </div>
         `;
         const container = document.getElementById('app-container') || document.body;
