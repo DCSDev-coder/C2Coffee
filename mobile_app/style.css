@@ -2004,7 +2004,7 @@ body {
   left: -2px;
   width: calc(100% + 4px);
   height: calc(100% + 4px);
-  background-color: #E8F4FA;
+  background-color: #FAF4EE;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -2136,7 +2136,7 @@ body {
   font-family: 'Recoleta', var(--font-serif);
   font-size: 20px;
   font-weight: 800;
-  color: #4A90E2;
+  color: #E56000;
   margin-left: 2px;
 }
 
@@ -2159,7 +2159,7 @@ body {
 .b-dot {
   width: 6px;
   height: 6px;
-  background-color: #4A90E2;
+  background-color: #E56000;
   border-radius: 50%;
   animation: bounceDot 1.2s infinite ease-in-out;
 }

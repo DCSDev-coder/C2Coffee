@@ -21,9 +21,9 @@ function showLoadingOverlay() {
             <div class="cup-animation-wrap">
               <!-- Steam Lines -->
               <svg class="steam-svg" viewBox="0 0 100 100">
-                <path class="steam-line" d="M30,80 Q40,60 30,40" fill="none" stroke="#9ECEFF" stroke-width="2.5" style="animation-delay: 0s;"></path>
-                <path class="steam-line" d="M50,85 Q60,65 50,45" fill="none" stroke="#4A90E2" stroke-width="2.5" style="animation-delay: 0.4s;"></path>
-                <path class="steam-line" d="M70,80 Q80,60 70,40" fill="none" stroke="#9ECEFF" stroke-width="2.5" style="animation-delay: 0.8s;"></path>
+                <path class="steam-line" d="M30,80 Q40,60 30,40" fill="none" stroke="#C65102" stroke-width="2.5" style="animation-delay: 0s;"></path>
+                <path class="steam-line" d="M50,85 Q60,65 50,45" fill="none" stroke="#1C3B24" stroke-width="2.5" style="animation-delay: 0.4s;"></path>
+                <path class="steam-line" d="M70,80 Q80,60 70,40" fill="none" stroke="#C65102" stroke-width="2.5" style="animation-delay: 0.8s;"></path>
               </svg>
 
               <!-- SVG Cup -->
@@ -39,8 +39,8 @@ function showLoadingOverlay() {
                 <path d="M15,30 L85,30 L78,85 C77,90 73,94 68,94 L32,94 C27,94 23,90 22,85 L15,30 Z" fill="#FFF3E8" stroke="#1C3B24" stroke-width="3.5"></path>
                 <!-- Liquid Fill -->
                 <g clip-path="url(#c2CupMask)">
-                  <rect class="c2-liquid-fill" id="c2-liquid" fill="#9ECEFF" width="100" height="100" x="0" y="0"></rect>
-                  <path class="c2-liquid-fill" id="c2-wave" d="M0,0 Q25,-5 50,0 T100,0 V10 H0 Z" fill="#4A90E2"></path>
+                  <rect class="c2-liquid-fill" id="c2-liquid" fill="#5A3214" width="100" height="100" x="0" y="0"></rect>
+                  <path class="c2-liquid-fill" id="c2-wave" d="M0,0 Q25,-5 50,0 T100,0 V10 H0 Z" fill="#E56000"></path>
                 </g>
                 <!-- Cup Rim -->
                 <path d="M15,30 L85,30" fill="none" stroke="#1C3B24" stroke-linecap="round" stroke-width="3.5"></path>
@@ -102,7 +102,7 @@ function showLoadingOverlay() {
             if (count >= 100) {
                 clearInterval(loadingInterval);
             }
-        }, 32);
+        }, 12);
     }
 }
 
@@ -112,7 +112,7 @@ function navigateTo(url) {
     showLoadingOverlay();
     setTimeout(() => {
         window.location.href = url;
-    }, 1200);
+    }, 450);
 }
 
 // Toast Notification System
