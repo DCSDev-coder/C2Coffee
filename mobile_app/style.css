@@ -1593,8 +1593,16 @@ body {
 
 /* Order Page Styles */
 .order-container {
-  padding: 0 0 12px !important;
+  padding: 0 !important;
   background-color: var(--bg-cream);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  height: 100%;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .order-header-bar {
