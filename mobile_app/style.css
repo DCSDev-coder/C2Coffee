@@ -2044,6 +2044,20 @@ body {
   transition: transform 0.15s ease-out;
 }
 
+/* C2 Logo on Cup */
+.cup-c2-logo {
+  position: absolute;
+  top: 50%;
+  left: 42%;
+  transform: translate(-50%, -44%);
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+  z-index: 10;
+  pointer-events: none;
+  filter: drop-shadow(0 1px 3px rgba(0,0,0,0.18));
+}
+
 /* Percentage Counter Group */
 .loading-counter-group {
   display: flex;

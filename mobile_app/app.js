@@ -45,6 +45,8 @@ function showLoadingOverlay() {
                 <!-- Cup Rim -->
                 <path d="M15,30 L85,30" fill="none" stroke="#1C3B24" stroke-linecap="round" stroke-width="3.5"></path>
               </svg>
+              <!-- C2 Logo overlaid on cup -->
+              <img src="assets/c2_logo.png" alt="C²" class="cup-c2-logo">
             </div>
 
             <!-- Percentage Counter & Status -->
