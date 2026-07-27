@@ -1,4 +1,37 @@
-/* C² Coffee - Luxury Cream & Forest Green Theme (Matching input_file_34.png) */
+/* Custom Recoleta Font Family Definitions */
+@font-face {
+  font-family: 'Recoleta';
+  src: url('assets/fonts/Recoleta%20Bold.woff2') format('woff2'),
+       url('assets/fonts/Recoleta%20Bold.otf') format('opentype');
+  font-weight: 700;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Recoleta';
+  src: url('assets/fonts/Recoleta%20Black.woff2') format('woff2'),
+       url('assets/fonts/Recoleta%20Black.otf') format('opentype');
+  font-weight: 900;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Recoleta';
+  src: url('assets/fonts/Recoleta%20SemiBold.woff2') format('woff2'),
+       url('assets/fonts/Recoleta%20SemiBold.otf') format('opentype');
+  font-weight: 600;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Recoleta';
+  src: url('assets/fonts/Recoleta%20Regular.woff2') format('woff2'),
+       url('assets/fonts/Recoleta%20Regular.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+}
+
+/* C² Coffee - Luxury Cream & Forest Green Theme */
 :root {
   --bg-cream: #FAF4EE;
   --primary-green: #1C3B24;
@@ -6,9 +39,9 @@
   --accent-orange: #C65102;
   --text-brown: #4A3A2F;
   --input-border: #E6DCD3;
-  --font-serif: 'Plus Jakarta Sans', 'Outfit', 'DM Sans', sans-serif;
+  --font-serif: 'Recoleta', 'Plus Jakarta Sans', Georgia, serif;
   --font-sans: 'DM Sans', 'Plus Jakarta Sans', sans-serif;
-  --font-step: 'Plus Jakarta Sans', 'Outfit', sans-serif;
+  --font-step: 'Recoleta', 'Plus Jakarta Sans', Georgia, serif;
 }
 
 * {
@@ -1346,11 +1379,11 @@ body {
 }
 
 .action-tile .tile-title {
-  font-family: var(--font-serif);
-  font-size: 26px;
-  font-weight: 900;
-  line-height: 1.02;
-  letter-spacing: -0.6px;
+  font-family: 'Recoleta', var(--font-serif) !important;
+  font-size: 25px;
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.3px;
   color: #FFFFFF;
   text-transform: uppercase;
   word-break: break-word;
