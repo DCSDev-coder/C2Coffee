@@ -64,7 +64,7 @@ function showLoadingOverlay() {
             </div>
 
             <!-- Descriptive Quote -->
-            <p class="loading-quote">"Behind every great cup of C² Coffee is a story of craft, patience, and passion."</p>
+            <p class="loading-quote">"A latte love makes perfect sense."</p>
           </div>
         `;
         container.appendChild(overlay);
@@ -89,7 +89,7 @@ function showLoadingOverlay() {
     if (counterEl && liquidEl && waveEl) {
         liquidEl.style.transform = `translateY(100%)`;
         waveEl.style.transform = `translateY(100%)`;
-        
+
         loadingInterval = setInterval(() => {
             count += 3;
             if (count > 100) count = 100;
@@ -102,7 +102,7 @@ function showLoadingOverlay() {
             if (count >= 100) {
                 clearInterval(loadingInterval);
             }
-        }, 12);
+        }, 32);
     }
 }
 
@@ -112,7 +112,7 @@ function navigateTo(url) {
     showLoadingOverlay();
     setTimeout(() => {
         window.location.href = url;
-    }, 450);
+    }, 1200);
 }
 
 // Toast Notification System
@@ -124,7 +124,7 @@ function showNotification(message, type = 'warning') {
         const container = document.getElementById('app-container') || document.body;
         container.appendChild(toast);
     }
-    
+
     clearTimeout(toastTimeout);
 
     const icon = type === 'warning' ? '⚠️' : '✓';
@@ -285,7 +285,7 @@ function submitLogin() {
 // OTP Input Auto-advance
 function handleOtpInput(input, index) {
     const value = input.value;
-    
+
     // Auto-advance to next input if single digit typed
     if (value.length === 1 && index < 6) {
         const nextInput = input.parentElement.children[index];
@@ -305,10 +305,10 @@ function handleOtpInput(input, index) {
 function startOtpTimer() {
     clearInterval(otpTimerInterval);
     otpTimeRemaining = 45;
-    
+
     const resendBtn = document.getElementById('resend-btn');
     const timerEl = document.getElementById('otp-timer');
-    
+
     if (!resendBtn || !timerEl) return;
 
     resendBtn.classList.add('disabled');
@@ -347,91 +347,91 @@ function verifyOtp() {
 
 // Malaysian Postcode Dictionary (Client-Side Fast Lookup)
 const myPostcodeMap = {
-  "00000": "Coffee City",
-  // Selangor & Hulu Langat / Sepang
-  "43000": "Kajang",
-  "43100": "Hulu Langat",
-  "43200": "Cheras",
-  "43300": "Seri Kembangan",
-  "43400": "Serdang",
-  "43500": "Semenyih",
-  "43600": "Bangi",
-  "43650": "Bangi",
-  "43700": "Beranang",
-  "43800": "Dengkil",
-  "43900": "Sepang",
-  "47000": "Sungai Buloh",
-  "47100": "Puchong",
-  "47300": "Petaling Jaya",
-  "47301": "Petaling Jaya",
-  "47400": "Damansara Utama",
-  "47500": "Subang Jaya",
-  "47600": "USJ Subang Jaya",
-  "47800": "Petaling Jaya / Damansara",
-  "47810": "Kota Damansara",
-  "40000": "Shah Alam",
-  "40100": "Shah Alam",
-  "40150": "Shah Alam",
-  "40200": "Shah Alam",
-  "41000": "Klang",
-  "41200": "Klang",
-  "42000": "Pelabuhan Klang",
-  "63000": "Cyberjaya",
-  "68000": "Ampang",
-  "68100": "Batu Caves",
-  
-  // Kuala Lumpur & Putrajaya
-  "50000": "Kuala Lumpur",
-  "50100": "Kuala Lumpur",
-  "50200": "Kuala Lumpur",
-  "50480": "Mont Kiara",
-  "52000": "Kepong",
-  "53000": "Setapak",
-  "54000": "Ampang KL",
-  "55000": "Pudu",
-  "56000": "Cheras KL",
-  "57000": "Bukit Jalil",
-  "58000": "Seputeh",
-  "59000": "Bangsar",
-  "60000": "Taman Tun Dr Ismail (TTDI)",
-  "62000": "Putrajaya",
-  
-  // Negeri Sembilan & Melaka
-  "70000": "Seremban",
-  "70300": "Seremban 2",
-  "71000": "Port Dickson",
-  "75000": "Melaka",
-  "75450": "Ayer Keroh",
-  
-  // Johor
-  "80000": "Johor Bahru",
-  "81100": "Johor Bahru",
-  "81200": "Johor Bahru",
-  "81300": "Skudai",
-  "81750": "Masai / Pasir Gudang",
-  "84000": "Muar",
-  "86000": "Kluang",
-  
-  // Penang & Northern States
-  "10000": "George Town",
-  "11900": "Bayan Lepas",
-  "13000": "Butterworth",
-  "14000": "Bukit Mertajam",
-  "05000": "Alor Setar",
-  "08000": "Sungai Petani",
-  "01000": "Kangar",
-  "30000": "Ipoh",
-  "30200": "Ipoh",
-  "34000": "Taiping",
-  
-  // East Coast & East Malaysia
-  "15000": "Kota Bharu",
-  "20000": "Kuala Terengganu",
-  "25000": "Kuantan",
-  "88000": "Kota Kinabalu",
-  "93000": "Kuching",
-  "96000": "Sibu",
-  "98000": "Miri"
+    "00000": "Coffee City",
+    // Selangor & Hulu Langat / Sepang
+    "43000": "Kajang",
+    "43100": "Hulu Langat",
+    "43200": "Cheras",
+    "43300": "Seri Kembangan",
+    "43400": "Serdang",
+    "43500": "Semenyih",
+    "43600": "Bangi",
+    "43650": "Bangi",
+    "43700": "Beranang",
+    "43800": "Dengkil",
+    "43900": "Sepang",
+    "47000": "Sungai Buloh",
+    "47100": "Puchong",
+    "47300": "Petaling Jaya",
+    "47301": "Petaling Jaya",
+    "47400": "Damansara Utama",
+    "47500": "Subang Jaya",
+    "47600": "USJ Subang Jaya",
+    "47800": "Petaling Jaya / Damansara",
+    "47810": "Kota Damansara",
+    "40000": "Shah Alam",
+    "40100": "Shah Alam",
+    "40150": "Shah Alam",
+    "40200": "Shah Alam",
+    "41000": "Klang",
+    "41200": "Klang",
+    "42000": "Pelabuhan Klang",
+    "63000": "Cyberjaya",
+    "68000": "Ampang",
+    "68100": "Batu Caves",
+
+    // Kuala Lumpur & Putrajaya
+    "50000": "Kuala Lumpur",
+    "50100": "Kuala Lumpur",
+    "50200": "Kuala Lumpur",
+    "50480": "Mont Kiara",
+    "52000": "Kepong",
+    "53000": "Setapak",
+    "54000": "Ampang KL",
+    "55000": "Pudu",
+    "56000": "Cheras KL",
+    "57000": "Bukit Jalil",
+    "58000": "Seputeh",
+    "59000": "Bangsar",
+    "60000": "Taman Tun Dr Ismail (TTDI)",
+    "62000": "Putrajaya",
+
+    // Negeri Sembilan & Melaka
+    "70000": "Seremban",
+    "70300": "Seremban 2",
+    "71000": "Port Dickson",
+    "75000": "Melaka",
+    "75450": "Ayer Keroh",
+
+    // Johor
+    "80000": "Johor Bahru",
+    "81100": "Johor Bahru",
+    "81200": "Johor Bahru",
+    "81300": "Skudai",
+    "81750": "Masai / Pasir Gudang",
+    "84000": "Muar",
+    "86000": "Kluang",
+
+    // Penang & Northern States
+    "10000": "George Town",
+    "11900": "Bayan Lepas",
+    "13000": "Butterworth",
+    "14000": "Bukit Mertajam",
+    "05000": "Alor Setar",
+    "08000": "Sungai Petani",
+    "01000": "Kangar",
+    "30000": "Ipoh",
+    "30200": "Ipoh",
+    "34000": "Taiping",
+
+    // East Coast & East Malaysia
+    "15000": "Kota Bharu",
+    "20000": "Kuala Terengganu",
+    "25000": "Kuantan",
+    "88000": "Kota Kinabalu",
+    "93000": "Kuching",
+    "96000": "Sibu",
+    "98000": "Miri"
 };
 
 // Handle Postcode Input Auto-Lookup
@@ -489,7 +489,7 @@ function handlePoscodeLookup(inputEl) {
                         }
                     }
                 })
-                .catch(() => {});
+                .catch(() => { });
         }, 180);
     }
 }
@@ -529,17 +529,17 @@ function initCarousel() {
         });
     }
 
-    window.goToSlide = function(index) {
+    window.goToSlide = function (index) {
         showSlide(index);
         resetCarouselTimer();
     };
 
-    window.nextSlide = function() {
+    window.nextSlide = function () {
         showSlide(currentSlide + 1);
         resetCarouselTimer();
     };
 
-    window.prevSlide = function() {
+    window.prevSlide = function () {
         showSlide(currentSlide - 1);
         resetCarouselTimer();
     };
@@ -567,7 +567,7 @@ function initCarousel() {
 
 document.addEventListener('DOMContentLoaded', () => {
     initCarousel();
-    
+
     // For order page swipe delete
     if (typeof attachSwipeListeners === 'function') {
         attachSwipeListeners();
