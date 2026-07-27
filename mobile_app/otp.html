@@ -5,11 +5,72 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Verify Your Identity - C² Coffee</title>
   <link href="https://fonts.googleapis.com/css2?family=Afacad:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=34">
+  <link rel="stylesheet" href="style.css?v=36">
+  <style>
+    /* Method toggle pill */
+    .otp-method-toggle {
+      display: flex;
+      background-color: rgba(28, 59, 36, 0.08);
+      border-radius: 22px;
+      padding: 4px;
+      gap: 4px;
+      margin: 10px auto 18px;
+      width: 100%;
+      max-width: 268px;
+    }
+
+    .otp-method-pill {
+      flex: 1;
+      height: 36px;
+      border: none;
+      border-radius: 18px;
+      background: transparent;
+      font-family: 'Recoleta', Georgia, serif;
+      font-size: 13px;
+      font-weight: 700;
+      color: #4A7055;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+    }
+
+    .otp-method-pill.active {
+      background-color: #1C3B24;
+      color: #FFFFFF;
+      box-shadow: 0 3px 10px rgba(28, 59, 36, 0.25);
+    }
+
+    .otp-method-pill svg {
+      width: 14px;
+      height: 14px;
+      stroke: currentColor;
+      flex-shrink: 0;
+    }
+
+    .otp-switch-hint {
+      font-family: var(--font-sans);
+      font-size: 12px;
+      color: #7A6C60;
+      text-align: center;
+      margin-top: 6px;
+    }
+
+    .otp-switch-hint a {
+      color: #E56000;
+      font-weight: 600;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .otp-switch-hint a:hover { text-decoration: underline; }
+  </style>
 </head>
 <body>
   <div id="app-container" class="container cream-bg">
-    <!-- Top & Bottom Decorative Leaf & Coffee Bean Line Art -->
+    <!-- Top Decorative Leaf -->
     <div class="top-leaf-bg">
       <svg viewBox="0 0 150 150" fill="none" stroke="#E2D7CD" stroke-width="1.2">
         <path d="M 120 0 Q 70 40 10 140" stroke-linecap="round"/>
@@ -40,18 +101,40 @@
       </svg>
     </div>
 
+    <!-- Header -->
     <div class="header-logo-section">
       <div class="c2-logo-badge">
         <img src="assets/c2_logo.png" alt="C2 Coffee Logo" class="c2-logo-img">
       </div>
-
       <p class="step-label transparent-step">&nbsp;</p>
       <h1 class="title green-title">Verify Your Identity</h1>
-      <p class="subtitle brown-subtitle">We've sent an SMS to <span id="display-phone-otp">+60 11 2233 4455</span>.</p>
-      <p class="subtitle brown-subtitle" style="margin-top: 2px;">Please fill in the security code</p>
+      <p class="subtitle brown-subtitle" id="otp-subtitle-text">
+        We've sent an SMS to <span id="display-phone-otp">+60 11 2233 4455</span>.
+      </p>
+      <p class="subtitle brown-subtitle" id="otp-instruction-text" style="margin-top: 2px;">Please fill in the security code</p>
     </div>
 
+    <!-- Form -->
     <div class="form-body align-center">
+
+      <!-- SMS / Email Toggle Pills -->
+      <div class="otp-method-toggle">
+        <button class="otp-method-pill active" id="otp-pill-sms" onclick="otpSwitchMethod('sms')">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.58 3.44 2 2 0 0 1 3.55 1.25h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.81a16 16 0 0 0 6.29 6.29l.87-.87a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"></path>
+          </svg>
+          SMS
+        </button>
+        <button class="otp-method-pill" id="otp-pill-email" onclick="otpSwitchMethod('email')">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+            <polyline points="22,6 12,13 2,6"></polyline>
+          </svg>
+          Email
+        </button>
+      </div>
+
+      <!-- OTP Boxes -->
       <div class="otp-inputs">
         <input type="text" class="otp-box" maxlength="1" inputmode="numeric" onkeyup="handleOtpInput(this, 1)" onfocus="this.select()">
         <input type="text" class="otp-box" maxlength="1" inputmode="numeric" onkeyup="handleOtpInput(this, 2)" onfocus="this.select()">
@@ -61,18 +144,80 @@
         <input type="text" class="otp-box" maxlength="1" inputmode="numeric" onkeyup="handleOtpInput(this, 6)" onfocus="this.select()">
       </div>
 
+      <!-- Resend -->
       <div class="resend-section">
         <p>Didn't receive the code?</p>
         <a href="#" id="resend-btn" onclick="resendOtp(event)">Resend Code <span id="otp-timer">(00.45)</span></a>
       </div>
 
+      <!-- Switch method hint -->
+      <p class="otp-switch-hint">
+        Prefer a different method? <a id="otp-switch-link" onclick="otpSwitchMethod('email')">Try via Email instead</a>
+      </p>
+
+      <!-- Verify Button -->
       <div class="bottom-section">
         <div class="login-link transparent-link">&nbsp;</div>
         <button class="verify-btn green-btn" onclick="verifyOtp()">VERIFY</button>
       </div>
+
     </div>
   </div>
 
   <script src="app.js"></script>
+  <script>
+    let otpMethod = 'sms';
+
+    const storedPhone = sessionStorage.getItem('userPhone') || '+60 11 2233 4455';
+    const storedEmail = sessionStorage.getItem('userEmail') || 'your@email.com';
+
+    // Init
+    const savedPhone = sessionStorage.getItem('userPhone');
+    if (savedPhone) {
+      const displayEl = document.getElementById('display-phone-otp');
+      if (displayEl) displayEl.textContent = '+60 ' + savedPhone;
+    }
+
+    startOtpTimer();
+    setTimeout(() => {
+      const firstInput = document.querySelector('.otp-box');
+      if (firstInput) firstInput.focus();
+    }, 300);
+
+    function otpSwitchMethod(method) {
+      otpMethod = method;
+      const pillSms    = document.getElementById('otp-pill-sms');
+      const pillEmail  = document.getElementById('otp-pill-email');
+      const subtitleEl = document.getElementById('otp-subtitle-text');
+      const instrEl    = document.getElementById('otp-instruction-text');
+      const switchLink = document.getElementById('otp-switch-link');
+
+      // Clear OTP boxes
+      document.querySelectorAll('.otp-box').forEach(b => b.value = '');
+      document.querySelector('.otp-box').focus();
+
+      if (method === 'sms') {
+        pillSms.classList.add('active');
+        pillEmail.classList.remove('active');
+        subtitleEl.innerHTML = `We've sent an SMS to <span id="display-phone-otp">${storedPhone}</span>.`;
+        instrEl.textContent = 'Please fill in the security code';
+        switchLink.textContent = 'Try via Email instead';
+        switchLink.onclick = () => otpSwitchMethod('email');
+      } else {
+        pillEmail.classList.add('active');
+        pillSms.classList.remove('active');
+        subtitleEl.innerHTML = `We've sent an email to <span>${storedEmail}</span>.`;
+        instrEl.textContent = 'Check your inbox for the 6-digit code';
+        switchLink.textContent = 'Try via SMS instead';
+        switchLink.onclick = () => otpSwitchMethod('sms');
+      }
+
+      // Reset countdown
+      otpTimeRemaining = 45;
+      clearInterval(otpTimerInterval);
+      startOtpTimer();
+      showNotification(`OTP sent via ${method === 'sms' ? 'SMS' : 'Email'}!`, 'success');
+    }
+  </script>
 </body>
 </html>
