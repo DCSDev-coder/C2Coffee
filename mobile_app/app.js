@@ -3,21 +3,70 @@ let otpTimerInterval;
 let otpTimeRemaining = 45;
 let toastTimeout;
 
-// Page Loading Overlay System
+// Page Loading Overlay System (Inspired by Stitch Beverage Enhancements)
+let loadingInterval;
+
 function showLoadingOverlay() {
     let overlay = document.getElementById('page-loading-overlay');
     const container = document.getElementById('app-container') || document.body;
+
     if (!overlay) {
         overlay = document.createElement('div');
         overlay.id = 'page-loading-overlay';
         overlay.className = 'page-loading-overlay';
         overlay.innerHTML = `
-          <div class="loading-content">
-            <div class="loading-badge-pulse">
-              <img src="assets/c2_logo.png" alt="C² Coffee Logo" class="loading-c2-logo">
+          <div class="loading-canvas">
+            <!-- Top C2 Floating Logo -->
+            <div class="floating-c2-logo-wrap">
+              <img src="assets/c2_logo.png" alt="C² Coffee Logo" class="floating-c2-logo">
             </div>
-            <div class="loading-spinner"></div>
-            <p class="loading-text"><span class="loading-black">Preparing your </span><span class="loading-orange">C²</span><span class="loading-black"> experience...</span></p>
+
+            <!-- Central Coffee Cup Fill Animation -->
+            <div class="cup-animation-wrap">
+              <!-- Steam Lines -->
+              <svg class="steam-svg" viewBox="0 0 100 100">
+                <path class="steam-line" d="M30,80 Q40,60 30,40" fill="none" stroke="#C65102" stroke-width="2.5" style="animation-delay: 0s;"></path>
+                <path class="steam-line" d="M50,85 Q60,65 50,45" fill="none" stroke="#1C3B24" stroke-width="2.5" style="animation-delay: 0.4s;"></path>
+                <path class="steam-line" d="M70,80 Q80,60 70,40" fill="none" stroke="#C65102" stroke-width="2.5" style="animation-delay: 0.8s;"></path>
+              </svg>
+
+              <!-- SVG Cup -->
+              <svg class="cup-svg" viewBox="0 0 100 100">
+                <!-- Cup Handle -->
+                <path d="M75,35 C88,35 95,45 95,55 C95,65 88,75 75,75" fill="none" stroke="#1C3B24" stroke-linecap="round" stroke-width="4.5"></path>
+                <defs>
+                  <clipPath id="c2CupMask">
+                    <path d="M15,30 L85,30 L78,85 C77,90 73,94 68,94 L32,94 C27,94 23,90 22,85 L15,30 Z"></path>
+                  </clipPath>
+                </defs>
+                <!-- Cup Body Background -->
+                <path d="M15,30 L85,30 L78,85 C77,90 73,94 68,94 L32,94 C27,94 23,90 22,85 L15,30 Z" fill="#FFF3E8" stroke="#1C3B24" stroke-width="3.5"></path>
+                <!-- Liquid Fill -->
+                <g clip-path="url(#c2CupMask)">
+                  <rect class="c2-liquid-fill" id="c2-liquid" fill="#5A3214" width="100" height="100" x="0" y="0"></rect>
+                  <path class="c2-liquid-fill" id="c2-wave" d="M0,0 Q25,-5 50,0 T100,0 V10 H0 Z" fill="#E56000"></path>
+                </g>
+                <!-- Cup Rim -->
+                <path d="M15,30 L85,30" fill="none" stroke="#1C3B24" stroke-linecap="round" stroke-width="3.5"></path>
+              </svg>
+            </div>
+
+            <!-- Percentage Counter & Status -->
+            <div class="loading-counter-group">
+              <div class="counter-val-wrap">
+                <span class="counter-num" id="c2-counter">0</span>
+                <span class="counter-pct">%</span>
+              </div>
+              <p class="loading-status-text">Crafting Your Beverage</p>
+              <div class="bounce-dots">
+                <span class="b-dot"></span>
+                <span class="b-dot"></span>
+                <span class="b-dot"></span>
+              </div>
+            </div>
+
+            <!-- Descriptive Quote -->
+            <p class="loading-quote">"Behind every great cup of C² Coffee is a story of craft, patience, and passion."</p>
           </div>
         `;
         container.appendChild(overlay);
@@ -31,6 +80,32 @@ function showLoadingOverlay() {
 
     void overlay.offsetWidth;
     overlay.classList.add('active');
+
+    // Run 0 -> 100% counter and liquid fill
+    const counterEl = document.getElementById('c2-counter');
+    const liquidEl = document.getElementById('c2-liquid');
+    const waveEl = document.getElementById('c2-wave');
+    let count = 0;
+    clearInterval(loadingInterval);
+
+    if (counterEl && liquidEl && waveEl) {
+        liquidEl.style.transform = `translateY(100%)`;
+        waveEl.style.transform = `translateY(100%)`;
+        
+        loadingInterval = setInterval(() => {
+            count += 3;
+            if (count > 100) count = 100;
+            counterEl.textContent = count;
+
+            const translateY = 100 - count;
+            liquidEl.style.transform = `translateY(${translateY}%)`;
+            waveEl.style.transform = `translateY(${translateY}%)`;
+
+            if (count >= 100) {
+                clearInterval(loadingInterval);
+            }
+        }, 12);
+    }
 }
 
 // Smooth Page Navigation with Loading Screen
