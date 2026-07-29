@@ -1,11 +1,22 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../widgets/custom_bottom_nav.dart';
 import 'home_page.dart';
 import 'loading_order_page.dart';
 import 'order_details_page.dart';
+import 'profile_page.dart';
 
 class OrdersPage extends StatefulWidget {
-  const OrdersPage({super.key});
+  final File? initialPickedImage;
+  final String? initialPresetPath;
+  final int initialAvatarIndex;
+
+  const OrdersPage({
+    super.key,
+    this.initialPickedImage,
+    this.initialPresetPath,
+    this.initialAvatarIndex = 0,
+  });
 
   @override
   State<OrdersPage> createState() => _OrdersPageState();
@@ -60,9 +71,26 @@ class _OrdersPageState extends State<OrdersPage>
         context,
         MaterialPageRoute(
           builder: (context) =>
-              const InteractiveFillingLoader(targetPage: HomePage()),
+              InteractiveFillingLoader(targetPage: HomePage(
+                initialPickedImage: widget.initialPickedImage,
+                initialPresetPath: widget.initialPresetPath,
+                initialAvatarIndex: widget.initialAvatarIndex,
+              )),
         ),
         (route) => false,
+      );
+    } else if (index == 4) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => InteractiveFillingLoader(
+            targetPage: ProfilePage(
+              initialPickedImage: widget.initialPickedImage,
+              initialPresetPath: widget.initialPresetPath,
+              initialAvatarIndex: widget.initialAvatarIndex,
+            ),
+          ),
+        ),
       );
     } else if (index != 2) {
       Navigator.pop(context);
@@ -96,8 +124,12 @@ class _OrdersPageState extends State<OrdersPage>
                           context,
                           MaterialPageRoute(
                             builder: (context) =>
-                                const InteractiveFillingLoader(
-                                    targetPage: HomePage()),
+                                InteractiveFillingLoader(
+                                    targetPage: HomePage(
+                                      initialPickedImage: widget.initialPickedImage,
+                                      initialPresetPath: widget.initialPresetPath,
+                                      initialAvatarIndex: widget.initialAvatarIndex,
+                                    )),
                           ),
                           (route) => false,
                         );

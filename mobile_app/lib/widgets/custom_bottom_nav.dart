@@ -38,7 +38,7 @@ class CustomBottomNav extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 decoration: BoxDecoration(
                   color:
-                      Colors.white.withValues(alpha: 0.9), // Sleek white glass
+                      orangeColor.withValues(alpha: 0.9), // Sleek orange glass
                   borderRadius: BorderRadius.circular(40),
                   border: Border.all(
                     color: Colors.white.withValues(alpha: 0.5),
@@ -70,7 +70,7 @@ class CustomBottomNav extends StatelessWidget {
   Widget _buildNavItem(
       IconData activeIcon, IconData inactiveIcon, String label, int index) {
     final bool isSelected = selectedIndex == index;
-    final Color color = isSelected ? orangeColor : Colors.grey.shade400;
+    final Color color = isSelected ? Colors.white : Colors.white.withValues(alpha: 0.6);
 
     return GestureDetector(
       onTap: () => onItemTapped(index),
@@ -83,7 +83,7 @@ class CustomBottomNav extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             decoration: BoxDecoration(
               color: isSelected
-                  ? orangeColor.withValues(alpha: 0.1)
+                  ? Colors.white.withValues(alpha: 0.2)
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(16),
             ),

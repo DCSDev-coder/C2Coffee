@@ -1,11 +1,22 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'dart:async';
 import '../widgets/custom_bottom_nav.dart';
 import 'loading_order_page.dart';
 import 'orders_page.dart';
+import 'profile_page.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  final File? initialPickedImage;
+  final String? initialPresetPath;
+  final int initialAvatarIndex;
+
+  const HomePage({
+    super.key,
+    this.initialPickedImage,
+    this.initialPresetPath,
+    this.initialAvatarIndex = 0,
+  });
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -98,8 +109,25 @@ class _HomePageState extends State<HomePage> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                          builder: (context) => const InteractiveFillingLoader(
-                              targetPage: OrdersPage())),
+                          builder: (context) => InteractiveFillingLoader(
+                              targetPage: OrdersPage(
+                                initialPickedImage: widget.initialPickedImage,
+                                initialPresetPath: widget.initialPresetPath,
+                                initialAvatarIndex: widget.initialAvatarIndex,
+                              ))),
+                    );
+                  } else if (index == 4) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => InteractiveFillingLoader(
+                          targetPage: ProfilePage(
+                            initialPickedImage: widget.initialPickedImage,
+                            initialPresetPath: widget.initialPresetPath,
+                            initialAvatarIndex: widget.initialAvatarIndex,
+                          ),
+                        ),
+                      ),
                     );
                   } else {
                     setState(() => _selectedIndex = index);
@@ -122,7 +150,7 @@ class _HomePageState extends State<HomePage> {
           // Left side: Logo and Greeting
           Row(
             children: [
-              // Circular C2 Logo
+              // C2 Logo
               Container(
                 width: 45,
                 height: 45,
@@ -131,13 +159,11 @@ class _HomePageState extends State<HomePage> {
                   shape: BoxShape.circle,
                 ),
                 alignment: Alignment.center,
-                child: const Text(
-                  'C2',
-                  style: TextStyle(
-                    fontFamily: 'Recoleta',
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
+                child: Padding(
+                  padding: const EdgeInsets.all(6.0),
+                  child: Image.asset(
+                    'assets/images/c2_logo.png',
+                    fit: BoxFit.contain,
                   ),
                 ),
               ),

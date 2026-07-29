@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import '../screens/home_page.dart';
 
 class OtpVerificationPage extends StatefulWidget {
   // Add parameters to receive avatar data
@@ -546,9 +547,15 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                               content: Text('OTP Verified! Welcome back!'),
                               backgroundColor: Color(0xFFD88344)),
                         );
-                        Navigator.pushNamedAndRemoveUntil(
+                        Navigator.pushAndRemoveUntil(
                           context,
-                          '/home',
+                          MaterialPageRoute(
+                            builder: (context) => HomePage(
+                              initialPickedImage: _pickedImage,
+                              initialPresetPath: _presetAvatarPath,
+                              initialAvatarIndex: _selectedAvatarIndex,
+                            ),
+                          ),
                           (route) => false,
                         );
                       },
