@@ -1,0 +1,589 @@
+import 'dart:io';
+import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+
+class OtpBackup extends StatefulWidget {
+  final File? initialPickedImage;
+  final String? initialPresetPath;
+  final int initialAvatarIndex;
+
+  const OtpBackup({
+    super.key,
+    this.initialPickedImage,
+    this.initialPresetPath,
+    this.initialAvatarIndex = 0,
+  });
+
+  @override
+  State<OtpBackup> createState() => _OtpBackupState();
+}
+
+class _OtpBackupState extends State<OtpBackup> {
+  File? _pickedImage;
+  String? _presetAvatarPath = 'assets/images/dato.png';
+  int _selectedAvatarIndex = 0;
+
+  final List<TextEditingController> _otpControllers =
+      List.generate(6, (_) => TextEditingController());
+  final List<FocusNode> _otpFocusNodes = List.generate(6, (_) => FocusNode());
+
+  Timer? _timer;
+  int _start = 45;
+  bool _isResendEnabled = false;
+
+  final List<Map<String, dynamic>> _avatarOptions = [
+    {'path': 'assets/images/dato.png', 'name': 'Dato'},
+    {'path': 'assets/images/datin.png', 'name': 'Datin'},
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    // Load avatar state passed from previous page
+    _pickedImage = widget.initialPickedImage;
+    _presetAvatarPath = widget.initialPresetPath;
+    _selectedAvatarIndex = widget.initialAvatarIndex;
+
+    startTimer();
+    for (int i = 0; i < 6; i++) {
+      _otpControllers[i].addListener(() {
+        if (_otpControllers[i].text.length == 1 && i < 5) {
+          _otpFocusNodes[i + 1].requestFocus();
+        }
+      });
+    }
+  }
+
+  void startTimer() {
+    _start = 45;
+    _isResendEnabled = false;
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_start == 0) {
+        setState(() {
+          _isResendEnabled = true;
+        });
+        timer.cancel();
+      } else {
+        setState(() {
+          _start--;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    for (var controller in _otpControllers) {
+      controller.dispose();
+    }
+    for (var node in _otpFocusNodes) {
+      node.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _pickImageFromGallery() async {
+    final picker = ImagePicker();
+    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+    if (image != null) {
+      setState(() {
+        _pickedImage = File(image.path);
+        _presetAvatarPath = null;
+        _selectedAvatarIndex = -1;
+      });
+    }
+  }
+
+  void _showAvatarPicker() {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black.withOpacity(0.6),
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding:
+              const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+          child: Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFFFAF4EE), Colors.white],
+              ),
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: const [
+                BoxShadow(
+                    color: Color(0x3D000000),
+                    blurRadius: 30,
+                    offset: Offset(0, 10)),
+                BoxShadow(
+                    color: Color(0x1A000000),
+                    blurRadius: 10,
+                    offset: Offset(0, 4)),
+              ],
+              border: Border.all(
+                  color: const Color(0xFFD88344).withOpacity(0.2), width: 1),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Align(
+                    alignment: Alignment.topRight,
+                    child: GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFD88344).withOpacity(0.1),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                              color: const Color(0xFFD88344).withOpacity(0.2),
+                              width: 1),
+                        ),
+                        child: const Icon(Icons.close,
+                            color: Color(0xFFD88344), size: 18),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Choose Your Icon',
+                    style: TextStyle(
+                        fontFamily: 'Recoleta',
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFFD88344),
+                        letterSpacing: 0.5),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                            color: Colors.grey.withOpacity(0.08),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2))
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children:
+                              List.generate(_avatarOptions.length, (index) {
+                            final isSelected = _selectedAvatarIndex == index &&
+                                _pickedImage == null;
+                            return GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  _selectedAvatarIndex = index;
+                                  _pickedImage = null;
+                                  _presetAvatarPath =
+                                      _avatarOptions[index]['path'];
+                                });
+                                Navigator.pop(context);
+                              },
+                              child: Container(
+                                margin:
+                                    const EdgeInsets.symmetric(horizontal: 12),
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: isSelected
+                                        ? const Color(0xFFD88344)
+                                        : Colors.grey.shade300,
+                                    width: isSelected ? 3 : 2,
+                                  ),
+                                  boxShadow: isSelected
+                                      ? [
+                                          BoxShadow(
+                                              color: const Color(0xFFD88344)
+                                                  .withOpacity(0.3),
+                                              blurRadius: 8,
+                                              offset: const Offset(0, 2))
+                                        ]
+                                      : [],
+                                ),
+                                child: CircleAvatar(
+                                  radius: 40,
+                                  backgroundColor: const Color(0xFFD88344),
+                                  backgroundImage:
+                                      AssetImage(_avatarOptions[index]['path']),
+                                ),
+                              ),
+                            );
+                          }),
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(
+                                child: Container(
+                                    height: 1, color: Colors.grey.shade300)),
+                            Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 16),
+                              child: Text('or',
+                                  style: TextStyle(
+                                      fontFamily: 'Afacad',
+                                      fontSize: 14,
+                                      color: const Color(0xFFD88344),
+                                      fontWeight: FontWeight.w600)),
+                            ),
+                            Expanded(
+                                child: Container(
+                                    height: 1, color: Colors.grey.shade300)),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.pop(context);
+                            _pickImageFromGallery();
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(colors: [
+                                Color(0xFFD88344),
+                                Color(0xFFE8955A)
+                              ]),
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                    color: const Color(0xFFD88344)
+                                        .withOpacity(0.3),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 4))
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: const [
+                                Icon(Icons.upload_file_outlined,
+                                    color: Colors.white, size: 20),
+                                SizedBox(width: 10),
+                                Text(
+                                  'Upload from your own gallery',
+                                  style: TextStyle(
+                                      fontFamily: 'Afacad',
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.white,
+                                      letterSpacing: 0.3),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 44,
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: TextButton.styleFrom(
+                        backgroundColor: Colors.transparent,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                        side:
+                            BorderSide(color: Colors.grey.shade300, width: 1.5),
+                      ),
+                      child: const Text('Cancel',
+                          style: TextStyle(
+                              fontFamily: 'Afacad',
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey,
+                              letterSpacing: 1.2)),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildMainAvatar() {
+    ImageProvider imageProvider;
+    if (_pickedImage != null) {
+      imageProvider = FileImage(_pickedImage!);
+    } else if (_presetAvatarPath != null) {
+      imageProvider = AssetImage(_presetAvatarPath!);
+    } else {
+      imageProvider = const AssetImage('assets/images/dato.png');
+    }
+
+    return Container(
+      width: 100,
+      height: 100,
+      decoration: const BoxDecoration(
+        shape: BoxShape.circle,
+        color: Color(0xFFB85C0D), // Darker Orange Fill
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white, width: 3.0), // White Ring
+        ),
+        child: ClipOval(child: Image(image: imageProvider, fit: BoxFit.cover)),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const Color orangeColor = Color(0xFFD88344);
+
+    return Scaffold(
+      backgroundColor: orangeColor,
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            // Orange Top Section
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              child: Column(
+                children: [
+                  GestureDetector(
+                    onTap: _showAvatarPicker,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        _buildMainAvatar(),
+                        Positioned(
+                          right: 2,
+                          bottom: 2,
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                  color: const Color(0xFFFAF4EE), width: 2),
+                              boxShadow: const [
+                                BoxShadow(
+                                    color: Color(0x1A000000), blurRadius: 4)
+                              ],
+                            ),
+                            child: const Icon(Icons.camera_alt,
+                                size: 18, color: Color(0xFFD88344)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Verify Your Identity',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        fontFamily: 'Recoleta',
+                        fontSize: 26,
+                        fontWeight: FontWeight.normal,
+                        color: Colors.white),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'We\'ve sent an SMS to your phone number.\nPlease fill in the security code',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 12,
+                        color: Colors.white70),
+                  ),
+                ],
+              ),
+            ),
+            // White Card Section
+            Expanded(
+              child: Container(
+                width: double.infinity,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(40)),
+                ),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(24, 32, 24, 32),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      const Text(
+                        'Please fill in the security code.',
+                        style: TextStyle(
+                            fontFamily: 'Recoleta',
+                            fontSize: 18,
+                            fontWeight: FontWeight.normal,
+                            color: Color(0xFFD88344)),
+                      ),
+                      const SizedBox(height: 30),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: List.generate(6, (index) {
+                          return Container(
+                            width: 44,
+                            height: 60,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border:
+                                  Border.all(color: orangeColor, width: 1.5),
+                            ),
+                            alignment: Alignment.center,
+                            child: Center(
+                              child: TextFormField(
+                                controller: _otpControllers[index],
+                                focusNode: _otpFocusNodes[index],
+                                textAlign: TextAlign.center,
+                                textAlignVertical: TextAlignVertical.center,
+                                keyboardType: TextInputType.number,
+                                maxLength: 1,
+                                style: const TextStyle(
+                                    fontFamily: 'Afacad',
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.black87),
+                                decoration: const InputDecoration(
+                                  counterText: '',
+                                  border: InputBorder.none,
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.zero,
+                                ),
+                                onChanged: (value) {
+                                  if (value.isNotEmpty && index < 5) {
+                                    _otpFocusNodes[index + 1].requestFocus();
+                                  }
+                                },
+                              ),
+                            ),
+                          );
+                        }),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // 👇 NEW TEXT ADDED HERE
+                      GestureDetector(
+                        onTap: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                                content: Text('OTP sent to your email!'),
+                                backgroundColor: orangeColor),
+                          );
+                          setState(() {
+                            startTimer();
+                          });
+                        },
+                        child: const Text(
+                          'Or send code via email',
+                          style: TextStyle(
+                            fontFamily: 'Afacad',
+                            fontSize: 14,
+                            color: Color(0xFFD88344),
+                            fontWeight: FontWeight.w600,
+                            decoration: TextDecoration.underline,
+                            decorationColor: Color(0xFFD88344),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+
+                      RichText(
+                        textAlign: TextAlign.center,
+                        text: TextSpan(
+                          style: const TextStyle(
+                              fontFamily: 'Afacad',
+                              fontSize: 14,
+                              color: Colors.black54),
+                          children: [
+                            const TextSpan(text: 'Didn\'t receive the code?\n'),
+                            if (_isResendEnabled)
+                              WidgetSpan(
+                                child: GestureDetector(
+                                  onTap: () {
+                                    setState(() {
+                                      startTimer();
+                                    });
+                                  },
+                                  child: const Text(
+                                    'Resend Code',
+                                    style: TextStyle(
+                                      fontFamily: 'Recoleta',
+                                      fontWeight: FontWeight.bold,
+                                      color: orangeColor,
+                                    ),
+                                  ),
+                                ),
+                              )
+                            else
+                              TextSpan(
+                                text:
+                                    'Resend Code (00:${_start.toString().padLeft(2, '0')})',
+                                style: TextStyle(color: Colors.grey.shade500),
+                              ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                  content: Text('OTP Verified! Welcome back!'),
+                                  backgroundColor: orangeColor),
+                            );
+                            Navigator.pushNamedAndRemoveUntil(
+                              context, 
+                              '/home', 
+                              (route) => false,
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: orangeColor,
+                            disabledBackgroundColor: Colors.grey.shade400,
+                            foregroundColor: Colors.white,
+                            disabledForegroundColor: Colors.white70,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(30)),
+                          ),
+                          child: const Text(
+                            'VERIFY',
+                            style: TextStyle(
+                                fontFamily: 'Recoleta',
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1.0),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

@@ -1,19 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:c2_coffee/authorization_backup/startup_selector.dart';
+import 'package:c2_coffee/authorization_backup/loginbackup.dart';
+import 'package:c2_coffee/screens/home_page.dart';
 
-// Import all screens
-import 'splash_screen.dart';
-import 'home_screen.dart';
-import 'login_screen.dart';
-import 'step1_screen.dart';
-import 'step2_screen.dart';
-import 'otp_screen.dart';
+import 'package:c2_coffee/screens/splash_screen.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const C2CoffeeApp());
 }
 
 class C2CoffeeApp extends StatelessWidget {
-  const C2CoffeeApp({Key? key}) : super(key: key);
+  const C2CoffeeApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -21,20 +19,17 @@ class C2CoffeeApp extends StatelessWidget {
       title: 'C² Coffee',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        primaryColor: const Color(0xFFE56000),
-        scaffoldBackgroundColor: Colors.white,
-        fontFamily: 'DM Sans', // Default body font
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFE56000)),
+        useMaterial3: true,
+        fontFamily: 'Afacad',
+        scaffoldBackgroundColor: const Color(0xFFFAF4EE),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF2E5B4E),
+        ),
       ),
-      // Set the initial route to Splash Screen
-      initialRoute: '/',
+      home: const SplashScreen(),
       routes: {
-        '/': (context) => const SplashScreen(),
-        '/home': (context) => const HomeScreen(),
-        '/login': (context) => const LoginScreen(),
-        '/step1': (context) => const Step1Screen(),
-        '/step2': (context) => const Step2Screen(),
-        '/otp': (context) => const OtpScreen(),
+        '/login_backup': (context) => const LoginBackup(),
+        '/home': (context) => const HomePage(),
       },
     );
   }

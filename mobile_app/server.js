@@ -1,7 +1,6 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const url = require('url');
 
 const PORT = 8080;
 const PUBLIC_DIR = __dirname;
@@ -17,28 +16,49 @@ const MIME_TYPES = {
     '.json': 'application/json'
 };
 
-const server = http.createServer((req, res) => {
-    // Strip query parameters (e.g. ?v=30) so files match on disk
-    const parsedUrl = url.parse(req.url);
-    let pathname = parsedUrl.pathname === '/' ? '/index.html' : parsedUrl.pathname;
-    let filePath = path.join(PUBLIC_DIR, pathname);
-    let ext = path.extname(filePath).toLowerCase();
-    let contentType = MIME_TYPES[ext] || 'application/octet-stream';
+const SUBDIRS = ['authorization', 'authorization_backup', 'main_app'];
 
-    fs.readFile(filePath, (err, content) => {
-        if (err) {
-            if (err.code === 'ENOENT') {
-                res.writeHead(404, { 'Content-Type': 'text/html' });
-                res.end('<h1>404 Not Found</h1>', 'utf-8');
-            } else {
-                res.writeHead(500);
-                res.end(`Server Error: ${err.code}`);
-            }
-        } else {
-            res.writeHead(200, { 'Content-Type': contentType, 'Cache-Control': 'no-cache' });
-            res.end(content, 'utf-8');
+const server = http.createServer((req, res) => {
+    try {
+        const parsedUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+        let pathname = parsedUrl.pathname === '/' ? '/index.html' : parsedUrl.pathname;
+        let filePath = path.join(PUBLIC_DIR, pathname);
+        let ext = path.extname(filePath).toLowerCase();
+        let contentType = MIME_TYPES[ext] || 'application/octet-stream';
+
+        const serveFile = (targetPath) => {
+            fs.readFile(targetPath, (err, content) => {
+                if (err) {
+                    res.writeHead(500, { 'Content-Type': 'text/html' });
+                    res.end(`<h1>Server Error: ${err.code}</h1>`);
+                } else {
+                    res.writeHead(200, { 'Content-Type': contentType, 'Cache-Control': 'no-cache' });
+                    res.end(content, 'utf-8');
+                }
+            });
+        };
+
+        // 1. Direct file match
+        if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+            return serveFile(filePath);
         }
-    });
+
+        // 2. Subdirectory search (authorization, authorization_backup, main_app)
+        const basename = path.basename(pathname);
+        for (const sub of SUBDIRS) {
+            const subPath = path.join(PUBLIC_DIR, sub, basename);
+            if (fs.existsSync(subPath) && fs.statSync(subPath).isFile()) {
+                return serveFile(subPath);
+            }
+        }
+
+        // 3. Fallback: 404
+        res.writeHead(404, { 'Content-Type': 'text/html' });
+        res.end(`<h1>404 Not Found</h1><p>Requested path: ${pathname}</p>`, 'utf-8');
+    } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'text/html' });
+        res.end(`<h1>500 Server Error</h1><p>${e.message}</p>`);
+    }
 });
 
 server.listen(PORT, () => {
