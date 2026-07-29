@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl_phone_field/intl_phone_field.dart';
 
-// 👇 Imports for navigation
 import 'signup1.dart';
 import 'otp_verification.dart';
 
@@ -562,7 +561,7 @@ class _LoginPageState extends State<LoginPage> {
                       child: ElevatedButton(
                         onPressed: _isFormValid
                             ? () {
-                                // 👇 Pass the current avatar state to the OTP page
+                                // Pass the current avatar state to the OTP page
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(

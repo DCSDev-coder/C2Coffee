@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'otpbackup.dart';
-import 'loginbackup.dart'; // 👈 Added to handle navigation to Login
+import 'loginbackup.dart';
 
 class Signup2Backup extends StatefulWidget {
   final File? initialPickedImage;
@@ -663,7 +663,7 @@ class _Signup2BackupState extends State<Signup2Backup> {
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               child: Column(
                 children: [
-                  // 👇 AVATAR PICKER
+                  // AVATAR PICKER
                   GestureDetector(
                     onTap: _showAvatarPicker,
                     child: Stack(
@@ -802,7 +802,7 @@ class _Signup2BackupState extends State<Signup2Backup> {
 
                         const SizedBox(height: 12),
 
-                        // 👇 MATCHED "Already a member? Login" TEXT & NAV
+                        // MATCHED "Already a member? Login"
                         Center(
                           child: GestureDetector(
                             onTap: () {
@@ -835,7 +835,7 @@ class _Signup2BackupState extends State<Signup2Backup> {
 
                         const SizedBox(height: 12),
 
-                        // 👇 ADDED PREVIOUS STEP BUTTON
+                        // ADDED PREVIOUS STEP BUTTON
                         SizedBox(
                           width: double.infinity,
                           height: 48,
@@ -864,7 +864,7 @@ class _Signup2BackupState extends State<Signup2Backup> {
 
                         const SizedBox(height: 10),
 
-                        // 👇 SIGN UP BUTTON
+                        // SIGN UP BUTTON
                         SizedBox(
                           width: double.infinity,
                           height: 48,

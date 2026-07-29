@@ -87,7 +87,7 @@ class _Signup1BackupState extends State<Signup1Backup> {
     showDialog(
       context: context,
       barrierDismissible: true,
-      barrierColor: Colors.black.withOpacity(0.6),
+      barrierColor: Colors.black.withValues(alpha: 0.6),
       builder: (BuildContext context) {
         return Dialog(
           backgroundColor: Colors.transparent,
@@ -113,7 +113,8 @@ class _Signup1BackupState extends State<Signup1Backup> {
                     offset: Offset(0, 4)),
               ],
               border: Border.all(
-                  color: const Color(0xFFD88344).withOpacity(0.2), width: 1),
+                  color: const Color(0xFFD88344).withValues(alpha: 0.2),
+                  width: 1),
             ),
             child: Padding(
               padding: const EdgeInsets.all(24),
@@ -127,10 +128,11 @@ class _Signup1BackupState extends State<Signup1Backup> {
                       child: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFD88344).withOpacity(0.1),
+                          color: const Color(0xFFD88344).withValues(alpha: 0.1),
                           shape: BoxShape.circle,
                           border: Border.all(
-                              color: const Color(0xFFD88344).withOpacity(0.2),
+                              color: const Color(0xFFD88344)
+                                  .withValues(alpha: 0.2),
                               width: 1),
                         ),
                         child: const Icon(Icons.close,
@@ -156,7 +158,7 @@ class _Signup1BackupState extends State<Signup1Backup> {
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
-                            color: Colors.grey.withOpacity(0.08),
+                            color: Colors.grey.withValues(alpha: 0.08),
                             blurRadius: 8,
                             offset: const Offset(0, 2))
                       ],
@@ -194,7 +196,7 @@ class _Signup1BackupState extends State<Signup1Backup> {
                                       ? [
                                           BoxShadow(
                                               color: const Color(0xFFD88344)
-                                                  .withOpacity(0.3),
+                                                  .withValues(alpha: 0.3),
                                               blurRadius: 8,
                                               offset: const Offset(0, 2))
                                         ]
@@ -248,7 +250,7 @@ class _Signup1BackupState extends State<Signup1Backup> {
                               boxShadow: [
                                 BoxShadow(
                                     color: const Color(0xFFD88344)
-                                        .withOpacity(0.3),
+                                        .withValues(alpha: 0.3),
                                     blurRadius: 8,
                                     offset: const Offset(0, 4))
                               ],

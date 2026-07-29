@@ -5,7 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:intl_phone_field/intl_phone_field.dart';
 
 import 'signup2.dart';
-// 👇 Added this import to navigate to Login
+// Added this import to navigate to Login
 import 'login.dart';
 
 class Signup1 extends StatefulWidget {
@@ -640,7 +640,7 @@ class _Signup1State extends State<Signup1> {
                                 fontFamily: 'Afacad',
                                 fontSize: 14,
                                 color: Colors.black87)),
-                        // 👇 ADDED NAVIGATION TO LOGIN PAGE
+                        // ADDED NAVIGATION TO LOGIN PAGE
                         GestureDetector(
                           onTap: () {
                             Navigator.push(

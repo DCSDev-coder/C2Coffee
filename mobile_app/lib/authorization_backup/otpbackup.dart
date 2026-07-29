@@ -100,7 +100,7 @@ class _OtpBackupState extends State<OtpBackup> {
     showDialog(
       context: context,
       barrierDismissible: true,
-      barrierColor: Colors.black.withOpacity(0.6),
+      barrierColor: Colors.black.withValues(alpha: 0.6),
       builder: (BuildContext context) {
         return Dialog(
           backgroundColor: Colors.transparent,
@@ -126,7 +126,8 @@ class _OtpBackupState extends State<OtpBackup> {
                     offset: Offset(0, 4)),
               ],
               border: Border.all(
-                  color: const Color(0xFFD88344).withOpacity(0.2), width: 1),
+                  color: const Color(0xFFD88344).withValues(alpha: 0.2),
+                  width: 1),
             ),
             child: Padding(
               padding: const EdgeInsets.all(24),
@@ -140,10 +141,11 @@ class _OtpBackupState extends State<OtpBackup> {
                       child: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFD88344).withOpacity(0.1),
+                          color: const Color(0xFFD88344).withValues(alpha: 0.1),
                           shape: BoxShape.circle,
                           border: Border.all(
-                              color: const Color(0xFFD88344).withOpacity(0.2),
+                              color: const Color(0xFFD88344)
+                                  .withValues(alpha: 0.2),
                               width: 1),
                         ),
                         child: const Icon(Icons.close,
@@ -169,7 +171,7 @@ class _OtpBackupState extends State<OtpBackup> {
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
-                            color: Colors.grey.withOpacity(0.08),
+                            color: Colors.grey.withValues(alpha: 0.08),
                             blurRadius: 8,
                             offset: const Offset(0, 2))
                       ],
@@ -207,7 +209,7 @@ class _OtpBackupState extends State<OtpBackup> {
                                       ? [
                                           BoxShadow(
                                               color: const Color(0xFFD88344)
-                                                  .withOpacity(0.3),
+                                                  .withValues(alpha: 0.3),
                                               blurRadius: 8,
                                               offset: const Offset(0, 2))
                                         ]
@@ -261,7 +263,7 @@ class _OtpBackupState extends State<OtpBackup> {
                               boxShadow: [
                                 BoxShadow(
                                     color: const Color(0xFFD88344)
-                                        .withOpacity(0.3),
+                                        .withValues(alpha: 0.3),
                                     blurRadius: 8,
                                     offset: const Offset(0, 4))
                               ],
@@ -478,7 +480,7 @@ class _OtpBackupState extends State<OtpBackup> {
                       ),
                       const SizedBox(height: 24),
 
-                      // 👇 NEW TEXT ADDED HERE
+                      // NEW TEXT ADDED HERE
                       GestureDetector(
                         onTap: () {
                           ScaffoldMessenger.of(context).showSnackBar(
@@ -552,8 +554,8 @@ class _OtpBackupState extends State<OtpBackup> {
                                   backgroundColor: orangeColor),
                             );
                             Navigator.pushNamedAndRemoveUntil(
-                              context, 
-                              '/home', 
+                              context,
+                              '/home',
                               (route) => false,
                             );
                           },

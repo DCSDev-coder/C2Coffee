@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 class OtpVerificationPage extends StatefulWidget {
-  // 1. Add parameters to receive avatar data
+  // Add parameters to receive avatar data
   final File? initialPickedImage;
   final String? initialPresetPath;
   final int initialAvatarIndex;
@@ -44,7 +44,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
   @override
   void initState() {
     super.initState();
-    // 2. Load the avatar data passed from the previous screen
+    // Load the avatar data passed from the previous screen
     _pickedImage = widget.initialPickedImage;
     _presetAvatarPath = widget.initialPresetPath;
     _selectedAvatarIndex = widget.initialAvatarIndex;
@@ -547,8 +547,8 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                               backgroundColor: Color(0xFFD88344)),
                         );
                         Navigator.pushNamedAndRemoveUntil(
-                          context, 
-                          '/home', 
+                          context,
+                          '/home',
                           (route) => false,
                         );
                       },

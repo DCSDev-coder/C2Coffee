@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'signup1backup.dart';
-// 👇 IMPORT YOUR ORIGINAL SIGNUP PAGE FROM THE AUTHORIZATION FOLDER
 import '../authorization/signup1.dart';
 
 class StartupSelector extends StatelessWidget {
@@ -56,7 +55,6 @@ class StartupSelector extends StatelessWidget {
               SizedBox(
                 height: 56,
                 child: ElevatedButton(
-                  // ✅ THIS NOW NAVIGATES TO YOUR ORIGINAL SIGNUP1 PAGE
                   onPressed: () {
                     Navigator.push(
                       context,
@@ -64,7 +62,7 @@ class StartupSelector extends StatelessWidget {
                     );
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white.withOpacity(0.2),
+                    backgroundColor: Colors.white.withValues(alpha: 0.2),
                     foregroundColor: Colors.white,
                     side: const BorderSide(color: Colors.white, width: 2),
                     elevation: 0,

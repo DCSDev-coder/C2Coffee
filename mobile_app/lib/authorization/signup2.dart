@@ -2,9 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
-// 👇 Added import for OTP Page
 import 'otp_verification.dart';
-// 👇 Added import for Login Page
 import 'login.dart';
 
 class Signup2 extends StatefulWidget {
@@ -829,7 +827,7 @@ class _Signup2State extends State<Signup2> {
                       width: double.infinity,
                       height: 48,
                       child: ElevatedButton(
-                        // 👇 Pass avatar state to OTP Page here
+                        // Pass avatar state to OTP Page here
                         onPressed: _isFormValid
                             ? () {
                                 Navigator.push(

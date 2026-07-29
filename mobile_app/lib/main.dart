@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:c2_coffee/authorization_backup/startup_selector.dart';
 import 'package:c2_coffee/authorization_backup/loginbackup.dart';
 import 'package:c2_coffee/screens/home_page.dart';
 

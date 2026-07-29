@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
-import 'dart:ui';
+import '../widgets/custom_bottom_nav.dart';
+import 'loading_order_page.dart';
+import 'orders_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -89,7 +91,21 @@ class _HomePageState extends State<HomePage> {
               bottom: 0,
               left: 0,
               right: 0,
-              child: _buildBottomNavigationBar(orangeColor),
+              child: CustomBottomNav(
+                selectedIndex: 0, // Home is index 0
+                onItemTapped: (index) {
+                  if (index == 2) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => const InteractiveFillingLoader(
+                              targetPage: OrdersPage())),
+                    );
+                  } else {
+                    setState(() => _selectedIndex = index);
+                  }
+                },
+              ),
             ),
           ],
         ),
@@ -255,23 +271,33 @@ class _HomePageState extends State<HomePage> {
       child: Row(
         children: [
           Expanded(
-            child: Container(
-              height: 80,
-              padding: const EdgeInsets.only(left: 20),
-              decoration: BoxDecoration(
-                color: orangeColor,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              alignment: Alignment.centerLeft,
-              child: const Text(
-                'MY\nORDER',
-                textAlign: TextAlign.left,
-                style: TextStyle(
-                  fontFamily: 'Recoleta',
-                  fontSize: 24,
-                  fontWeight: FontWeight.w900, // Extra bold
-                  color: Colors.white,
-                  height: 0.9, // Tighter line height
+            child: GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (context) => const InteractiveFillingLoader(
+                          targetPage: OrdersPage())),
+                );
+              },
+              child: Container(
+                height: 80,
+                padding: const EdgeInsets.only(left: 20),
+                decoration: BoxDecoration(
+                  color: orangeColor,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                alignment: Alignment.centerLeft,
+                child: const Text(
+                  'MY\nORDER',
+                  textAlign: TextAlign.left,
+                  style: TextStyle(
+                    fontFamily: 'Recoleta',
+                    fontSize: 24,
+                    fontWeight: FontWeight.w900, // Extra bold
+                    color: Colors.white,
+                    height: 0.9, // Tighter line height
+                  ),
                 ),
               ),
             ),
@@ -365,7 +391,7 @@ class _HomePageState extends State<HomePage> {
         ),
         const SizedBox(height: 12),
         SizedBox(
-          height: 150, // Reduced from 180 to fit everything on one page better
+          height: 220, // Increased to match new card height and fit text
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -373,13 +399,12 @@ class _HomePageState extends State<HomePage> {
             itemBuilder: (context, index) {
               final item = bestSellers[index];
               return Container(
-                width: 130, // Slightly reduced
+                width: 150, // Increased width
                 margin: const EdgeInsets.symmetric(horizontal: 6),
                 decoration: BoxDecoration(
                   color: const Color(0xFFFFF7F0), // slightly warm beige
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                      color: orangeColor.withValues(alpha: 0.5), width: 1),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: const Color(0xFFC87023), width: 2),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -398,10 +423,15 @@ class _HomePageState extends State<HomePage> {
                         ),
                       ),
                     ),
+                    Divider(
+                      color: const Color(0xFFC87023),
+                      height: 1,
+                      thickness: 1.5,
+                    ),
                     Container(
-                      height:
-                          34, // Fixed height ensures 1-line and 2-line names align vertically
-                      padding: const EdgeInsets.only(left: 12, right: 12),
+                      height: 56,
+                      padding:
+                          const EdgeInsets.only(left: 12, right: 12, top: 12),
                       alignment: Alignment.centerLeft,
                       child: Text(
                         item['name'] as String,
@@ -409,23 +439,23 @@ class _HomePageState extends State<HomePage> {
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           fontFamily: 'Recoleta',
-                          fontSize: 13,
+                          fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: Colors.black87,
+                          color: Colors.black,
                           height: 1.1,
                         ),
                       ),
                     ),
                     Padding(
                       padding: const EdgeInsets.only(
-                          left: 12, right: 12, bottom: 12),
+                          left: 12, right: 12, bottom: 16, top: 12),
                       child: Text(
                         item['price']!,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: 'Afacad',
-                          fontSize: 14,
+                          fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: orangeColor,
+                          color: Color(0xFFF1801C),
                         ),
                       ),
                     ),
@@ -435,92 +465,8 @@ class _HomePageState extends State<HomePage> {
             },
           ),
         ),
-        const SizedBox(
-            height: 10), // A tiny bit of padding at the absolute bottom
+        const SizedBox(height: 10),
       ],
-    );
-  }
-
-  Widget _buildBottomNavigationBar(Color orangeColor) {
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16), // Floating effect
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(30),
-          child: BackdropFilter(
-            filter:
-                ImageFilter.blur(sigmaX: 12, sigmaY: 12), // Glassmorphism blur
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              decoration: BoxDecoration(
-                color:
-                    orangeColor.withValues(alpha: 0.75), // Translucent orange
-                borderRadius: BorderRadius.circular(30),
-                border: Border.all(
-                  color: Colors.white
-                      .withValues(alpha: 0.3), // Light border for glass effect
-                  width: 1.5,
-                ),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _buildNavItem(Icons.home_outlined, 'Home', 0),
-                  _buildNavItem(Icons.local_cafe_outlined, 'Menu', 1),
-                  _buildNavItem(Icons.receipt_long_outlined, 'Orders', 2),
-                  _buildNavItem(Icons.card_giftcard_outlined, 'Rewards', 3),
-                  _buildNavItem(Icons.person_outline, 'Account', 4),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNavItem(IconData icon, String label, int index) {
-    final bool isSelected = _selectedIndex == index;
-
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _selectedIndex = index;
-        });
-      },
-      child: Container(
-        color: Colors.transparent, // expand tap area
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                border: isSelected
-                    ? Border.all(color: Colors.white, width: 1.5)
-                    : null,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(
-                icon,
-                color: Colors.white,
-                size: 20,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontFamily: 'Afacad',
-                fontSize: 10,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                color: Colors.white,
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

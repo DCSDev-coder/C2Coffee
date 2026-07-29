@@ -65,7 +65,7 @@ class _LoginBackupState extends State<LoginBackup> {
     showDialog(
       context: context,
       barrierDismissible: true,
-      barrierColor: Colors.black.withOpacity(0.6),
+      barrierColor: Colors.black.withValues(alpha: 0.6),
       builder: (BuildContext context) {
         return Dialog(
           backgroundColor: Colors.transparent,
@@ -91,7 +91,8 @@ class _LoginBackupState extends State<LoginBackup> {
                     offset: Offset(0, 4)),
               ],
               border: Border.all(
-                  color: const Color(0xFFD88344).withOpacity(0.2), width: 1),
+                  color: const Color(0xFFD88344).withValues(alpha: 0.2),
+                  width: 1),
             ),
             child: Padding(
               padding: const EdgeInsets.all(24),
@@ -105,10 +106,11 @@ class _LoginBackupState extends State<LoginBackup> {
                       child: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFD88344).withOpacity(0.1),
+                          color: const Color(0xFFD88344).withValues(alpha: 0.1),
                           shape: BoxShape.circle,
                           border: Border.all(
-                              color: const Color(0xFFD88344).withOpacity(0.2),
+                              color: const Color(0xFFD88344)
+                                  .withValues(alpha: 0.2),
                               width: 1),
                         ),
                         child: const Icon(Icons.close,
@@ -134,7 +136,7 @@ class _LoginBackupState extends State<LoginBackup> {
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
-                            color: Colors.grey.withOpacity(0.08),
+                            color: Colors.grey.withValues(alpha: 0.08),
                             blurRadius: 8,
                             offset: const Offset(0, 2))
                       ],
@@ -172,7 +174,7 @@ class _LoginBackupState extends State<LoginBackup> {
                                       ? [
                                           BoxShadow(
                                               color: const Color(0xFFD88344)
-                                                  .withOpacity(0.3),
+                                                  .withValues(alpha: 0.3),
                                               blurRadius: 8,
                                               offset: const Offset(0, 2))
                                         ]
@@ -226,7 +228,7 @@ class _LoginBackupState extends State<LoginBackup> {
                               boxShadow: [
                                 BoxShadow(
                                     color: const Color(0xFFD88344)
-                                        .withOpacity(0.3),
+                                        .withValues(alpha: 0.3),
                                     blurRadius: 8,
                                     offset: const Offset(0, 4))
                               ],
@@ -300,10 +302,10 @@ class _LoginBackupState extends State<LoginBackup> {
       height: 100,
       decoration: const BoxDecoration(
         shape: BoxShape.circle,
-        // 👇 DARKER ORANGE BACKGROUND FILL
+        // DARKER ORANGE BACKGROUND FILL
         color: Color(0xFFB85C0D),
       ),
-      // 👇 WHITE BORDER AROUND THE CIRCLE FOR CONTRAST
+      // WHITE BORDER AROUND THE CIRCLE FOR CONTRAST
       child: Container(
         decoration: BoxDecoration(
           shape: BoxShape.circle,
@@ -538,7 +540,7 @@ class _LoginBackupState extends State<LoginBackup> {
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
-                color: Colors.grey.withOpacity(0.1),
+                color: Colors.grey.withValues(alpha: 0.1),
                 blurRadius: 6,
                 offset: const Offset(0, 3),
               ),
