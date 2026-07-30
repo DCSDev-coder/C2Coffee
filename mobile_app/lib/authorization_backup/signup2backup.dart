@@ -4,6 +4,8 @@ import 'package:image_picker/image_picker.dart';
 
 import 'otpbackup.dart';
 import 'loginbackup.dart';
+import '../services/user_service.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class Signup2Backup extends StatefulWidget {
   final File? initialPickedImage;
@@ -623,7 +625,7 @@ class _Signup2BackupState extends State<Signup2Backup> {
   Widget _buildMainAvatar() {
     ImageProvider imageProvider;
     if (_pickedImage != null) {
-      imageProvider = FileImage(_pickedImage!);
+      imageProvider = kIsWeb ? NetworkImage(_pickedImage!.path) : FileImage(_pickedImage!) as ImageProvider;
     } else if (_presetAvatarPath != null) {
       imageProvider = AssetImage(_presetAvatarPath!);
     } else {
@@ -870,7 +872,14 @@ class _Signup2BackupState extends State<Signup2Backup> {
                           height: 48,
                           child: ElevatedButton(
                             onPressed: _isFormValid
-                                ? () {
+                                ? () async {
+                                    String fullAddress = '${_houseController.text.trim()}, ${_streetController.text.trim()}, ${_postcodeController.text.trim()} ${_cityController.text.trim()}';
+                                    await UserService.saveUserProfile({
+                                      'gender': _selectedGender ?? '',
+                                      'address': fullAddress,
+                                    });
+
+                                    if (!context.mounted) return;
                                     Navigator.push(
                                       context,
                                       MaterialPageRoute(

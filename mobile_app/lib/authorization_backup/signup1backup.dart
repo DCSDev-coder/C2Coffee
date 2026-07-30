@@ -3,8 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:intl_phone_field/intl_phone_field.dart';
+import 'package:intl_phone_field/countries.dart' as intl_countries;
 
 import 'signup2backup.dart';
+import '../services/user_service.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class Signup1Backup extends StatefulWidget {
   const Signup1Backup({super.key});
@@ -526,7 +529,7 @@ class _Signup1BackupState extends State<Signup1Backup> {
   Widget _buildMainAvatar() {
     ImageProvider imageProvider;
     if (_pickedImage != null) {
-      imageProvider = FileImage(_pickedImage!);
+      imageProvider = kIsWeb ? NetworkImage(_pickedImage!.path) : FileImage(_pickedImage!) as ImageProvider;
     } else if (_presetAvatarPath != null) {
       imageProvider = AssetImage(_presetAvatarPath!);
     } else {
@@ -689,7 +692,16 @@ class _Signup1BackupState extends State<Signup1Backup> {
                           height: 48,
                           child: ElevatedButton(
                             onPressed: _isFormValid
-                                ? () {
+                                ? () async {
+                                    // Save profile details to UserService
+                                    await UserService.saveUserProfile({
+                                      'username': _usernameController.text.trim(),
+                                      'email': _emailController.text.trim(),
+                                      'phone': _phoneController.text.trim(),
+                                      'birthday': _birthdayController.text.trim(),
+                                    });
+
+                                    if (!context.mounted) return;
                                     Navigator.push(
                                       context,
                                       MaterialPageRoute(
@@ -891,6 +903,29 @@ class _Signup1BackupState extends State<Signup1Backup> {
           child: IntlPhoneField(
             controller: _phoneController,
             initialCountryCode: 'MY',
+                            countries: [
+                              ...intl_countries.countries.where((c) => c.code == 'MY').map((c) => intl_countries.Country(
+                                    name: ' Malaysia',
+                                    nameTranslations: {},
+                                    flag: c.flag,
+                                    code: c.code,
+                                    dialCode: c.dialCode,
+                                    minLength: c.minLength,
+                                    maxLength: c.maxLength,
+                                    regionCode: c.regionCode,
+                                  )),
+                              ...intl_countries.countries.where((c) => c.code == 'SG').map((c) => intl_countries.Country(
+                                    name: ' Singapore',
+                                    nameTranslations: {},
+                                    flag: c.flag,
+                                    code: c.code,
+                                    dialCode: c.dialCode,
+                                    minLength: c.minLength,
+                                    maxLength: c.maxLength,
+                                    regionCode: c.regionCode,
+                                  )),
+                              ...intl_countries.countries.where((c) => c.code != 'MY' && c.code != 'SG'),
+                            ],
             disableLengthCheck: true,
             showDropdownIcon: false,
             dropdownIconPosition: IconPosition.trailing,

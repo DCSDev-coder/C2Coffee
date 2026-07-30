@@ -2,9 +2,12 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl_phone_field/intl_phone_field.dart';
+import 'package:intl_phone_field/countries.dart' as intl_countries;
 
-import 'otpbackup.dart';
 import 'signup1backup.dart';
+import 'otpbackup.dart';
+import '../services/user_service.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class LoginBackup extends StatefulWidget {
   const LoginBackup({super.key});
@@ -290,7 +293,7 @@ class _LoginBackupState extends State<LoginBackup> {
   Widget _buildMainAvatar() {
     ImageProvider imageProvider;
     if (_pickedImage != null) {
-      imageProvider = FileImage(_pickedImage!);
+      imageProvider = kIsWeb ? NetworkImage(_pickedImage!.path) : FileImage(_pickedImage!) as ImageProvider;
     } else if (_presetAvatarPath != null) {
       imageProvider = AssetImage(_presetAvatarPath!);
     } else {
@@ -476,7 +479,12 @@ class _LoginBackupState extends State<LoginBackup> {
                           height: 54,
                           child: ElevatedButton(
                             onPressed: _isFormValid
-                                ? () {
+                                ? () async {
+                                    await UserService.saveUserProfile({
+                                      'phone': _phoneController.text.trim(),
+                                    });
+
+                                    if (!context.mounted) return;
                                     Navigator.push(
                                       context,
                                       MaterialPageRoute(
@@ -549,6 +557,29 @@ class _LoginBackupState extends State<LoginBackup> {
           child: IntlPhoneField(
             controller: _phoneController,
             initialCountryCode: 'MY',
+                            countries: [
+                              ...intl_countries.countries.where((c) => c.code == 'MY').map((c) => intl_countries.Country(
+                                    name: ' Malaysia',
+                                    nameTranslations: {},
+                                    flag: c.flag,
+                                    code: c.code,
+                                    dialCode: c.dialCode,
+                                    minLength: c.minLength,
+                                    maxLength: c.maxLength,
+                                    regionCode: c.regionCode,
+                                  )),
+                              ...intl_countries.countries.where((c) => c.code == 'SG').map((c) => intl_countries.Country(
+                                    name: ' Singapore',
+                                    nameTranslations: {},
+                                    flag: c.flag,
+                                    code: c.code,
+                                    dialCode: c.dialCode,
+                                    minLength: c.minLength,
+                                    maxLength: c.maxLength,
+                                    regionCode: c.regionCode,
+                                  )),
+                              ...intl_countries.countries.where((c) => c.code != 'MY' && c.code != 'SG'),
+                            ],
             disableLengthCheck: true,
             showDropdownIcon: false,
             dropdownIconPosition: IconPosition.trailing,

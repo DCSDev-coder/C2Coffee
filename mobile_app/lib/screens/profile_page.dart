@@ -1,10 +1,17 @@
 import 'dart:io';
 import 'dart:async';
+import 'package:image_picker/image_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import '../widgets/custom_bottom_nav.dart';
+import '../services/user_service.dart';
 import 'home_page.dart';
 import 'loading_order_page.dart';
+import 'loading_order_page.dart';
 import 'orders_page.dart';
+import 'top_up_wallet_page.dart';
+import 'notification_page.dart';
+import 'settings_page.dart';
 
 class ProfilePage extends StatefulWidget {
   final File? initialPickedImage;
@@ -23,8 +30,27 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
+  File? _persistedPickedImage;
+  String? _persistedPresetPath;
+
   final Color orangeColor = const Color(0xFFE66B00);
   final Color bgColor = const Color(0xFFFAF4EE);
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAvatarState();
+  }
+
+  Future<void> _loadAvatarState() async {
+    final avatarData = await UserService.getAvatar();
+    setState(() {
+      if (avatarData['pickedImagePath'] != null) {
+        _persistedPickedImage = File(avatarData['pickedImagePath']!);
+      }
+      _persistedPresetPath = avatarData['presetPath'];
+    });
+  }
 
   void _onBottomNavTapped(int index) {
     if (index == 0) {
@@ -60,17 +86,18 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Widget _buildAvatar() {
-    if (widget.initialPickedImage != null) {
+    if (_persistedPickedImage != null) {
       return CircleAvatar(
         radius: 28,
-        backgroundImage: FileImage(widget.initialPickedImage!),
+        backgroundImage: kIsWeb ? NetworkImage(_persistedPickedImage!.path) : FileImage(_persistedPickedImage!) as ImageProvider,
         backgroundColor: Colors.transparent,
       );
-    } else if (widget.initialPresetPath != null) {
+    } else if (_persistedPresetPath != null) {
       return CircleAvatar(
         radius: 28,
-        backgroundImage: AssetImage(widget.initialPresetPath!),
-        backgroundColor: Colors.transparent,
+        backgroundImage: AssetImage(_persistedPresetPath!),
+        backgroundColor:
+            const Color(0xFFD88344), // Add the orange background back
       );
     } else {
       return CircleAvatar(
@@ -91,7 +118,8 @@ class _ProfilePageState extends State<ProfilePage> {
             children: [
               // Header
               Container(
-                padding: const EdgeInsets.only(top: 60, bottom: 20, left: 20, right: 20),
+                padding: const EdgeInsets.only(
+                    top: 60, bottom: 20, left: 20, right: 20),
                 decoration: BoxDecoration(
                   color: orangeColor,
                   borderRadius: const BorderRadius.only(
@@ -99,26 +127,30 @@ class _ProfilePageState extends State<ProfilePage> {
                     bottomRight: Radius.circular(20),
                   ),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                child: Stack(
+                  alignment: Alignment.center,
                   children: [
-                    GestureDetector(
-                      onTap: () {
-                        Navigator.pushAndRemoveUntil(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => InteractiveFillingLoader(
-                              targetPage: HomePage(
-                                initialPickedImage: widget.initialPickedImage,
-                                initialPresetPath: widget.initialPresetPath,
-                                initialAvatarIndex: widget.initialAvatarIndex,
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: GestureDetector(
+                        onTap: () {
+                          Navigator.pushAndRemoveUntil(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => InteractiveFillingLoader(
+                                targetPage: HomePage(
+                                  initialPickedImage: widget.initialPickedImage,
+                                  initialPresetPath: widget.initialPresetPath,
+                                  initialAvatarIndex: widget.initialAvatarIndex,
+                                ),
                               ),
                             ),
-                          ),
-                          (route) => false,
-                        );
-                      },
-                      child: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 24),
+                            (route) => false,
+                          );
+                        },
+                        child: const Icon(Icons.arrow_back_ios,
+                            color: Colors.white, size: 24),
+                      ),
                     ),
                     const Text(
                       'PROFILE',
@@ -129,12 +161,42 @@ class _ProfilePageState extends State<ProfilePage> {
                         color: Colors.white,
                       ),
                     ),
-                    Row(
-                      children: const [
-                        Icon(Icons.settings_outlined, color: Colors.white, size: 26),
-                        SizedBox(width: 16),
-                        Icon(Icons.notifications, color: Colors.white, size: 26),
-                      ],
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => InteractiveFillingLoader(
+                                    targetPage: SettingsPage(onProfileUpdated: _loadAvatarState),
+                                  ),
+                                ),
+                              );
+                            },
+                            child: const Icon(Icons.settings_outlined,
+                                color: Colors.white, size: 26),
+                          ),
+                          const SizedBox(width: 16),
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const InteractiveFillingLoader(
+                                    targetPage: NotificationPage(),
+                                  ),
+                                ),
+                              );
+                            },
+                            child: const Icon(Icons.notifications,
+                                color: Colors.white, size: 26),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -142,7 +204,8 @@ class _ProfilePageState extends State<ProfilePage> {
               // Content
               Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.only(left: 16, right: 16, top: 20, bottom: 130),
+                  padding: const EdgeInsets.only(
+                      left: 16, right: 16, top: 20, bottom: 130),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -154,7 +217,7 @@ class _ProfilePageState extends State<ProfilePage> {
                           borderRadius: BorderRadius.circular(20),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
+                              color: Colors.black.withValues(alpha: 0.05),
                               blurRadius: 10,
                               offset: const Offset(0, 5),
                             )
@@ -162,7 +225,15 @@ class _ProfilePageState extends State<ProfilePage> {
                         ),
                         child: Row(
                           children: [
-                            _buildAvatar(),
+                            GestureDetector(
+                              onTap: () async {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(builder: (context) => InteractiveFillingLoader(targetPage: SettingsPage(onProfileUpdated: _loadAvatarState))),
+                                );
+                              },
+                              child: _buildAvatar(),
+                            ),
                             const SizedBox(width: 16),
                             const Text(
                               'Hey Coffeelover1,',
@@ -177,117 +248,248 @@ class _ProfilePageState extends State<ProfilePage> {
                         ),
                       ),
                       const SizedBox(height: 24),
-                      
+
                       // Dashboard Grid
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      Column(
                         children: [
-                          // Wallet
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text('Wallet', style: TextStyle(fontFamily: 'Recoleta', fontSize: 18, fontWeight: FontWeight.bold)),
-                              const SizedBox(height: 8),
-                              Container(
-                                width: 90,
-                                height: 156,
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(20),
-                                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 5))],
+                          // Wallet Box
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(20),
+                              boxShadow: [
+                                BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.05),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 5))
+                              ],
+                            ),
+                            child: Material(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(20),
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(20),
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => const InteractiveFillingLoader(
+                                        targetPage: TopUpWalletPage(),
+                                      ),
+                                    ),
+                                  );
+                                },
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 16, vertical: 20),
+                                  child: Row(
+                                    children: [
+                                      Image.asset('assets/images/wallet.png',
+                                          height: 60),
+                                      const SizedBox(width: 16),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            const Text('Wallet Balance',
+                                                style: TextStyle(
+                                                    fontFamily: 'Recoleta',
+                                                    fontSize: 18,
+                                                    fontWeight:
+                                                        FontWeight.bold)),
+                                            const SizedBox(height: 4),
+                                            Text('RM0.00',
+                                                style: TextStyle(
+                                                    fontFamily: 'Afacad',
+                                                    fontSize: 18,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: orangeColor)),
+                                          ],
+                                        ),
+                                      ),
+                                      GestureDetector(
+                                        onTap: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) => const InteractiveFillingLoader(
+                                                targetPage: TopUpWalletPage(),
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 16, vertical: 8),
+                                          decoration: BoxDecoration(
+                                            color: orangeColor,
+                                            borderRadius:
+                                                BorderRadius.circular(20),
+                                          ),
+                                          child: const Text('Top up \u2192',
+                                              style: TextStyle(
+                                                  fontFamily: 'Afacad',
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.white)),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                                child: Material(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(20),
-                                  child: InkWell(
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          // Rewards & Referrals
+                          Row(
+                            children: [
+                              // My Reward
+                              Expanded(
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
                                     borderRadius: BorderRadius.circular(20),
-                                    onTap: () {}, // Add your navigation/action here
-                                    child: Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        const Icon(Icons.account_balance_wallet_outlined, size: 40, color: Colors.black87),
-                                        const SizedBox(height: 24),
-                                        Text('RM0.00', style: TextStyle(fontFamily: 'Afacad', fontSize: 16, fontWeight: FontWeight.bold, color: orangeColor)),
-                                      ],
+                                    boxShadow: [
+                                      BoxShadow(
+                                          color: Colors.black
+                                              .withValues(alpha: 0.05),
+                                          blurRadius: 10,
+                                          offset: const Offset(0, 5))
+                                    ],
+                                  ),
+                                  child: Material(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(20),
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(20),
+                                      onTap: () {},
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                            vertical: 20, horizontal: 16),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.center,
+                                          children: [
+                                            const Text('My Reward',
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                    fontFamily: 'Recoleta',
+                                                    fontSize: 18,
+                                                    fontWeight:
+                                                        FontWeight.bold)),
+                                            const SizedBox(height: 16),
+                                            Image.asset(
+                                                'assets/images/Surprise reward gift box with star popping out.png',
+                                                height: 70),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              // My Referrals
+                              Expanded(
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(20),
+                                    boxShadow: [
+                                      BoxShadow(
+                                          color: Colors.black
+                                              .withValues(alpha: 0.05),
+                                          blurRadius: 10,
+                                          offset: const Offset(0, 5))
+                                    ],
+                                  ),
+                                  child: Material(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(20),
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(20),
+                                      onTap: () {},
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                            vertical: 20, horizontal: 16),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.center,
+                                          children: [
+                                            const Text('My Referrals',
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                    fontFamily: 'Recoleta',
+                                                    fontSize: 18,
+                                                    fontWeight:
+                                                        FontWeight.bold)),
+                                            const SizedBox(height: 16),
+                                            Image.asset(
+                                                'assets/images/Community friends laughing together waving hands and giving thumbs.png',
+                                                height: 70),
+                                          ],
+                                        ),
+                                      ),
                                     ),
                                   ),
                                 ),
                               ),
                             ],
                           ),
-                          const SizedBox(width: 32),
-                          // Rewards & Referrals
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text('My Reward', style: TextStyle(fontFamily: 'Recoleta', fontSize: 18, fontWeight: FontWeight.bold)),
-                                const SizedBox(height: 8),
-                                Container(
-                                  height: 60,
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(16),
-                                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 5))],
-                                  ),
-                                  child: Material(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(16),
-                                    child: InkWell(
-                                      borderRadius: BorderRadius.circular(16),
-                                      onTap: () {}, // Add your navigation/action here
-                                      child: const Center(child: Icon(Icons.card_giftcard, size: 26, color: Colors.black87)),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 20),
-                                const Text('My Referrals', style: TextStyle(fontFamily: 'Recoleta', fontSize: 18, fontWeight: FontWeight.bold)),
-                                const SizedBox(height: 8),
-                                Container(
-                                  height: 60,
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(16),
-                                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 5))],
-                                  ),
-                                  child: Material(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(16),
-                                    child: InkWell(
-                                      borderRadius: BorderRadius.circular(16),
-                                      onTap: () {}, // Add your navigation/action here
-                                      child: const Center(child: Icon(Icons.group_outlined, size: 26, color: Colors.black87)),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
                         ],
                       ),
                       const SizedBox(height: 24),
-                      
+
                       // News Section
-                      const Text('News', style: TextStyle(fontFamily: 'Recoleta', fontSize: 20, fontWeight: FontWeight.bold)),
+                      const Text('News',
+                          style: TextStyle(
+                              fontFamily: 'Recoleta',
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold)),
                       const SizedBox(height: 12),
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(16),
-                          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 5))],
+                          boxShadow: [
+                            BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.05),
+                                blurRadius: 10,
+                                offset: const Offset(0, 5))
+                          ],
                         ),
                         child: Row(
                           children: [
                             ClipRRect(
                               borderRadius: BorderRadius.circular(12),
-                              child: Image.asset('assets/images/barista_craft_banner.png', width: 100, height: 100, fit: BoxFit.cover),
+                              child: Image.asset(
+                                  'assets/images/barista_craft_banner.png',
+                                  width: 100,
+                                  height: 100,
+                                  fit: BoxFit.cover),
                             ),
                             const SizedBox(width: 16),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text('C2 Barista Craft', style: TextStyle(fontFamily: 'Recoleta', fontSize: 18, fontWeight: FontWeight.bold)),
+                                  const Text('C2 Barista Craft',
+                                      style: TextStyle(
+                                          fontFamily: 'Recoleta',
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold)),
                                   const SizedBox(height: 6),
-                                  Text('Discover our new handcrafted joy and playful sips.', style: TextStyle(fontFamily: 'Afacad', fontSize: 16, color: Colors.grey)),
+                                  Text(
+                                      'Discover our new handcrafted joy and playful sips.',
+                                      style: TextStyle(
+                                          fontFamily: 'Afacad',
+                                          fontSize: 16,
+                                          color: Colors.grey)),
                                 ],
                               ),
                             ),
@@ -300,22 +502,40 @@ class _ProfilePageState extends State<ProfilePage> {
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(16),
-                          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 5))],
+                          boxShadow: [
+                            BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.05),
+                                blurRadius: 10,
+                                offset: const Offset(0, 5))
+                          ],
                         ),
                         child: Row(
                           children: [
                             ClipRRect(
                               borderRadius: BorderRadius.circular(12),
-                              child: Image.asset('assets/images/promo_banner_2.png', width: 100, height: 100, fit: BoxFit.cover),
+                              child: Image.asset(
+                                  'assets/images/promo_banner_2.png',
+                                  width: 100,
+                                  height: 100,
+                                  fit: BoxFit.cover),
                             ),
                             const SizedBox(width: 16),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text('Skip the Queue', style: TextStyle(fontFamily: 'Recoleta', fontSize: 18, fontWeight: FontWeight.bold)),
+                                  const Text('Skip the Queue',
+                                      style: TextStyle(
+                                          fontFamily: 'Recoleta',
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold)),
                                   const SizedBox(height: 6),
-                                  Text('Order ahead with mobile ordering and save time.', style: TextStyle(fontFamily: 'Afacad', fontSize: 16, color: Colors.grey)),
+                                  Text(
+                                      'Order ahead with mobile ordering and save time.',
+                                      style: TextStyle(
+                                          fontFamily: 'Afacad',
+                                          fontSize: 16,
+                                          color: Colors.grey)),
                                 ],
                               ),
                             ),
@@ -323,18 +543,26 @@ class _ProfilePageState extends State<ProfilePage> {
                         ),
                       ),
                       const SizedBox(height: 24),
-                      
+
                       // Calendar Section
-                      const Text('Calendar', style: TextStyle(fontFamily: 'Recoleta', fontSize: 20, fontWeight: FontWeight.bold)),
+                      const Text('Calendar',
+                          style: TextStyle(
+                              fontFamily: 'Recoleta',
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold)),
                       const SizedBox(height: 12),
                       const Padding(
                         padding: EdgeInsets.symmetric(horizontal: 24.0),
                         child: CustomCalendarWidget(),
                       ),
                       const SizedBox(height: 24),
-                      
+
                       // Our Promise Section
-                      const Text('Our Promise', style: TextStyle(fontFamily: 'Recoleta', fontSize: 20, fontWeight: FontWeight.bold)),
+                      const Text('Our Promise',
+                          style: TextStyle(
+                              fontFamily: 'Recoleta',
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold)),
                       const SizedBox(height: 12),
                       const SizedBox(
                         height: 140, // Increased from 100
@@ -346,7 +574,7 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
             ],
           ),
-          
+
           // Bottom Navigation
           Positioned(
             bottom: 0,
@@ -358,31 +586,6 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildPromiseCard(String text) {
-    return Container(
-      width: 150,
-      margin: const EdgeInsets.only(right: 12, bottom: 4),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 5, offset: const Offset(0, 2))],
-      ),
-      child: Center(
-        child: Text(
-          text,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontFamily: 'Recoleta',
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: orangeColor,
-          ),
-        ),
       ),
     );
   }
@@ -398,7 +601,7 @@ class CustomCalendarWidget extends StatefulWidget {
 class _CustomCalendarWidgetState extends State<CustomCalendarWidget> {
   DateTime _currentMonth = DateTime.now();
   DateTime? _selectedDate;
-  
+
   // Dummy dates to indicate drink bought
   final List<DateTime> _drinkBoughtDates = [
     DateTime(DateTime.now().year, DateTime.now().month, 4),
@@ -421,28 +624,56 @@ class _CustomCalendarWidgetState extends State<CustomCalendarWidget> {
   }
 
   bool _isDrinkBought(DateTime date) {
-    return _drinkBoughtDates.any((d) => 
-      d.year == date.year && d.month == date.month && d.day == date.day);
+    return _drinkBoughtDates.any((d) =>
+        d.year == date.year && d.month == date.month && d.day == date.day);
   }
 
   @override
   Widget build(BuildContext context) {
-    final int daysInMonth = DateUtils.getDaysInMonth(_currentMonth.year, _currentMonth.month);
-    final int firstWeekday = DateTime(_currentMonth.year, _currentMonth.month, 1).weekday;
-    
-    // adjust for Monday=1, Sunday=7 in dart. 
-    // We want Monday to be the first column (index 0)
-    final int emptySlots = firstWeekday - 1; 
+    final int daysInMonth =
+        DateUtils.getDaysInMonth(_currentMonth.year, _currentMonth.month);
+    final int firstWeekday =
+        DateTime(_currentMonth.year, _currentMonth.month, 1).weekday;
 
-    final List<String> monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    final List<String> dayNames = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
+    // adjust for Monday=1, Sunday=7 in dart.
+    // We want Monday to be the first column (index 0)
+    final int emptySlots = firstWeekday - 1;
+
+    final List<String> monthNames = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec"
+    ];
+    final List<String> dayNames = [
+      "MON",
+      "TUE",
+      "WED",
+      "THU",
+      "FRI",
+      "SAT",
+      "SUN"
+    ];
 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 5))],
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 5))
+        ],
       ),
       child: Column(
         children: [
@@ -450,24 +681,40 @@ class _CustomCalendarWidgetState extends State<CustomCalendarWidget> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              IconButton(icon: const Icon(Icons.chevron_left, color: Color(0xFFE66B00)), onPressed: _previousMonth),
+              IconButton(
+                  icon:
+                      const Icon(Icons.chevron_left, color: Color(0xFFE66B00)),
+                  onPressed: _previousMonth),
               Text(
                 '${monthNames[_currentMonth.month - 1]} ${_currentMonth.year}',
-                style: const TextStyle(fontFamily: 'Recoleta', fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFFE66B00)),
+                style: const TextStyle(
+                    fontFamily: 'Recoleta',
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFFE66B00)),
               ),
-              IconButton(icon: const Icon(Icons.chevron_right, color: Color(0xFFE66B00)), onPressed: _nextMonth),
+              IconButton(
+                  icon:
+                      const Icon(Icons.chevron_right, color: Color(0xFFE66B00)),
+                  onPressed: _nextMonth),
             ],
           ),
           const SizedBox(height: 16),
           // Days of week
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: dayNames.map((day) => 
-              SizedBox(
-                width: 30,
-                child: Center(child: Text(day, style: const TextStyle(fontFamily: 'Afacad', fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey))),
-              )
-            ).toList(),
+            children: dayNames
+                .map((day) => SizedBox(
+                      width: 30,
+                      child: Center(
+                          child: Text(day,
+                              style: const TextStyle(
+                                  fontFamily: 'Afacad',
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.grey))),
+                    ))
+                .toList(),
           ),
           const SizedBox(height: 12),
           // Grid
@@ -481,12 +728,15 @@ class _CustomCalendarWidgetState extends State<CustomCalendarWidget> {
             ),
             itemBuilder: (context, index) {
               if (index < emptySlots) return const SizedBox();
-              
+
               final int day = index - emptySlots + 1;
-              final DateTime date = DateTime(_currentMonth.year, _currentMonth.month, day);
+              final DateTime date =
+                  DateTime(_currentMonth.year, _currentMonth.month, day);
               final bool isBought = _isDrinkBought(date);
-              final bool isSelected = _selectedDate?.year == date.year && _selectedDate?.month == date.month && _selectedDate?.day == date.day;
-              
+              final bool isSelected = _selectedDate?.year == date.year &&
+                  _selectedDate?.month == date.month &&
+                  _selectedDate?.day == date.day;
+
               return GestureDetector(
                 onTap: () {
                   setState(() => _selectedDate = date);
@@ -495,8 +745,12 @@ class _CustomCalendarWidgetState extends State<CustomCalendarWidget> {
                   margin: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: isSelected ? const Color(0xFFE66B00) : Colors.transparent,
-                    border: isBought && !isSelected ? Border.all(color: const Color(0xFFE66B00), width: 1.5) : null,
+                    color: isSelected
+                        ? const Color(0xFFE66B00)
+                        : Colors.transparent,
+                    border: isBought && !isSelected
+                        ? Border.all(color: const Color(0xFFE66B00), width: 1.5)
+                        : null,
                   ),
                   child: Center(
                     child: Text(
@@ -527,9 +781,8 @@ class OurPromiseCarousel extends StatefulWidget {
 }
 
 class _OurPromiseCarouselState extends State<OurPromiseCarousel> {
-  final PageController _pageController = PageController(viewportFraction: 0.5);
-  Timer? _timer;
-  int _currentPage = 0;
+  final PageController _pageController =
+      PageController(initialPage: 1, viewportFraction: 0.85);
 
   final List<String> _promises = [
     '100% certified muslim-made',
@@ -538,27 +791,7 @@ class _OurPromiseCarouselState extends State<OurPromiseCarousel> {
   ];
 
   @override
-  void initState() {
-    super.initState();
-    _timer = Timer.periodic(const Duration(seconds: 3), (Timer timer) {
-      if (_currentPage < _promises.length - 1) {
-        _currentPage++;
-      } else {
-        _currentPage = 0;
-      }
-      if (_pageController.hasClients) {
-        _pageController.animateToPage(
-          _currentPage,
-          duration: const Duration(milliseconds: 350),
-          curve: Curves.easeInOut,
-        );
-      }
-    });
-  }
-
-  @override
   void dispose() {
-    _timer?.cancel();
     _pageController.dispose();
     super.dispose();
   }
@@ -575,7 +808,12 @@ class _OurPromiseCarouselState extends State<OurPromiseCarousel> {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 5, offset: const Offset(0, 2))],
+            boxShadow: [
+              BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 5,
+                  offset: const Offset(0, 2))
+            ],
           ),
           child: Center(
             child: Text(

@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image_picker/image_picker.dart';
 import '../screens/home_page.dart';
 
@@ -331,7 +333,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
   Widget _buildMainAvatar() {
     ImageProvider imageProvider;
     if (_pickedImage != null) {
-      imageProvider = FileImage(_pickedImage!);
+      imageProvider = kIsWeb ? NetworkImage(_pickedImage!.path) : FileImage(_pickedImage!) as ImageProvider;
     } else if (_presetAvatarPath != null) {
       imageProvider = AssetImage(_presetAvatarPath!);
     } else {

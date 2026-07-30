@@ -1,10 +1,17 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import '../services/user_service.dart';
 import '../widgets/custom_bottom_nav.dart';
 import 'loading_order_page.dart';
 import 'orders_page.dart';
 import 'profile_page.dart';
+import 'top_up_wallet_page.dart';
+import 'notification_page.dart';
+import 'settings_page.dart';
+import 'profile_page.dart';
+import 'top_up_wallet_page.dart';
 
 class HomePage extends StatefulWidget {
   final File? initialPickedImage;
@@ -23,7 +30,9 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  int _selectedIndex = 0;
+  File? _persistedPickedImage;
+  String? _persistedPresetPath;
+
 
   final PageController _pageController = PageController();
   Timer? _carouselTimer;
@@ -38,6 +47,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    _loadAvatarState();
     _carouselTimer = Timer.periodic(const Duration(seconds: 4), (Timer timer) {
       if (_currentBannerIndex < _banners.length - 1) {
         _currentBannerIndex++;
@@ -60,6 +70,25 @@ class _HomePageState extends State<HomePage> {
     _carouselTimer?.cancel();
     _pageController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadAvatarState() async {
+    // If we have explicit incoming arguments (e.g. from sign up/login), save them to persist
+    if (widget.initialPickedImage != null || widget.initialPresetPath != null) {
+      await UserService.saveAvatar(
+        presetPath: widget.initialPresetPath, 
+        pickedImagePath: widget.initialPickedImage?.path
+      );
+    }
+    
+    // Load from persisted storage to be sure
+    final avatarData = await UserService.getAvatar();
+    setState(() {
+      if (avatarData['pickedImagePath'] != null) {
+        _persistedPickedImage = File(avatarData['pickedImagePath']!);
+      }
+      _persistedPresetPath = avatarData['presetPath'];
+    });
   }
 
   @override
@@ -110,7 +139,7 @@ class _HomePageState extends State<HomePage> {
                       context,
                       MaterialPageRoute(
                           builder: (context) => InteractiveFillingLoader(
-                              targetPage: OrdersPage(
+                                  targetPage: OrdersPage(
                                 initialPickedImage: widget.initialPickedImage,
                                 initialPresetPath: widget.initialPresetPath,
                                 initialAvatarIndex: widget.initialAvatarIndex,
@@ -130,7 +159,7 @@ class _HomePageState extends State<HomePage> {
                       ),
                     );
                   } else {
-                    setState(() => _selectedIndex = index);
+                    // Handle other tabs if needed
                   }
                 },
               ),
@@ -150,20 +179,32 @@ class _HomePageState extends State<HomePage> {
           // Left side: Logo and Greeting
           Row(
             children: [
-              // C2 Logo
-              Container(
-                width: 45,
-                height: 45,
-                decoration: BoxDecoration(
-                  color: orangeColor,
-                  shape: BoxShape.circle,
-                ),
-                alignment: Alignment.center,
-                child: Padding(
-                  padding: const EdgeInsets.all(6.0),
-                  child: Image.asset(
-                    'assets/images/c2_logo.png',
-                    fit: BoxFit.contain,
+              // Avatar
+              GestureDetector(
+                onTap: () async {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => InteractiveFillingLoader(targetPage: SettingsPage(onProfileUpdated: _loadAvatarState))),
+                  );
+                },
+                child: Container(
+                  width: 45,
+                  height: 45,
+                  decoration: BoxDecoration(
+                    color: _persistedPickedImage == null && _persistedPresetPath != null 
+                           ? const Color(0xFFD88344) 
+                           : orangeColor,
+                    shape: BoxShape.circle,
+                  ),
+                  alignment: Alignment.center,
+                  child: ClipOval(
+                    child: _persistedPickedImage != null
+                        ? (kIsWeb 
+                            ? Image.network(_persistedPickedImage!.path, width: 45, height: 45, fit: BoxFit.cover)
+                            : Image.file(_persistedPickedImage!, width: 45, height: 45, fit: BoxFit.cover))
+                        : (_persistedPresetPath != null
+                            ? Image.asset(_persistedPresetPath!, width: 45, height: 45, fit: BoxFit.cover)
+                            : const Icon(Icons.person, color: Colors.white, size: 30)),
                   ),
                 ),
               ),
@@ -194,40 +235,65 @@ class _HomePageState extends State<HomePage> {
             ],
           ),
 
-          // Right side: Bell and Wallet
+          // Right side: Wallet and Bell
           Row(
             children: [
-              const Icon(
-                Icons.notifications,
-                color: Colors.black87,
-                size: 26,
-              ),
-              const SizedBox(width: 12),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: orangeColor,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  children: const [
-                    Icon(
-                      Icons.account_balance_wallet,
-                      color: Colors.white,
-                      size: 16,
-                    ),
-                    SizedBox(width: 6),
-                    Text(
-                      'RM0.00',
-                      style: TextStyle(
-                        fontFamily: 'Afacad',
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        fontSize: 14,
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const InteractiveFillingLoader(
+                        targetPage: TopUpWalletPage(),
                       ),
                     ),
-                  ],
+                  );
+                },
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: orangeColor,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    children: [
+                      Image.asset(
+                        'assets/images/wallet.png',
+                        color: Colors.white,
+                        height: 16,
+                        width: 16,
+                      ),
+                      const SizedBox(width: 6),
+                      const Text(
+                        'RM0.00',
+                        style: TextStyle(
+                          fontFamily: 'Afacad',
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const InteractiveFillingLoader(
+                        targetPage: NotificationPage(),
+                      ),
+                    ),
+                  );
+                },
+                child: const Icon(
+                  Icons.notifications,
+                  color: Colors.black87,
+                  size: 26,
                 ),
               ),
             ],

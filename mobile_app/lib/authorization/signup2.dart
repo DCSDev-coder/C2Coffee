@@ -4,6 +4,8 @@ import 'package:image_picker/image_picker.dart';
 
 import 'otp_verification.dart';
 import 'login.dart';
+import '../services/user_service.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class Signup2 extends StatefulWidget {
   final File? initialPickedImage;
@@ -622,7 +624,7 @@ class _Signup2State extends State<Signup2> {
   Widget _buildMainAvatar() {
     ImageProvider imageProvider;
     if (_pickedImage != null) {
-      imageProvider = FileImage(_pickedImage!);
+      imageProvider = kIsWeb ? NetworkImage(_pickedImage!.path) : FileImage(_pickedImage!) as ImageProvider;
     } else if (_presetAvatarPath != null) {
       imageProvider = AssetImage(_presetAvatarPath!);
     } else {
@@ -829,7 +831,14 @@ class _Signup2State extends State<Signup2> {
                       child: ElevatedButton(
                         // Pass avatar state to OTP Page here
                         onPressed: _isFormValid
-                            ? () {
+                            ? () async {
+                                String fullAddress = '${_houseController.text.trim()}, ${_streetController.text.trim()}, ${_postcodeController.text.trim()} ${_cityController.text.trim()}';
+                                await UserService.saveUserProfile({
+                                  'gender': _selectedGender ?? '',
+                                  'address': fullAddress,
+                                });
+
+                                if (!context.mounted) return;
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(

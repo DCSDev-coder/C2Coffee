@@ -2,6 +2,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl_phone_field/intl_phone_field.dart';
+import 'package:intl_phone_field/countries.dart' as intl_countries;
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'signup1.dart';
 import 'otp_verification.dart';
@@ -299,7 +301,7 @@ class _LoginPageState extends State<LoginPage> {
   Widget _buildMainAvatar() {
     ImageProvider imageProvider;
     if (_pickedImage != null) {
-      imageProvider = FileImage(_pickedImage!);
+      imageProvider = kIsWeb ? NetworkImage(_pickedImage!.path) : FileImage(_pickedImage!) as ImageProvider;
     } else if (_presetAvatarPath != null) {
       imageProvider = AssetImage(_presetAvatarPath!);
     } else {
@@ -421,6 +423,29 @@ class _LoginPageState extends State<LoginPage> {
                           child: IntlPhoneField(
                             controller: _phoneController,
                             initialCountryCode: 'MY',
+                            countries: [
+                              ...intl_countries.countries.where((c) => c.code == 'MY').map((c) => intl_countries.Country(
+                                    name: ' Malaysia',
+                                    nameTranslations: {},
+                                    flag: c.flag,
+                                    code: c.code,
+                                    dialCode: c.dialCode,
+                                    minLength: c.minLength,
+                                    maxLength: c.maxLength,
+                                    regionCode: c.regionCode,
+                                  )),
+                              ...intl_countries.countries.where((c) => c.code == 'SG').map((c) => intl_countries.Country(
+                                    name: ' Singapore',
+                                    nameTranslations: {},
+                                    flag: c.flag,
+                                    code: c.code,
+                                    dialCode: c.dialCode,
+                                    minLength: c.minLength,
+                                    maxLength: c.maxLength,
+                                    regionCode: c.regionCode,
+                                  )),
+                              ...intl_countries.countries.where((c) => c.code != 'MY' && c.code != 'SG'),
+                            ],
                             disableLengthCheck: true,
                             showDropdownIcon: false,
                             dropdownIconPosition: IconPosition.trailing,

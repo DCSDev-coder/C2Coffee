@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
-import 'orders_page.dart';
 
 class InteractiveFillingLoader extends StatefulWidget {
-  final Widget targetPage;
-  const InteractiveFillingLoader({super.key, required this.targetPage});
+  final Widget? targetPage;
+  const InteractiveFillingLoader({super.key, this.targetPage});
 
   @override
   State<InteractiveFillingLoader> createState() =>
@@ -30,19 +29,18 @@ class _InteractiveFillingLoaderState extends State<InteractiveFillingLoader>
 
     _controller.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
-        // Navigate to the target page smoothly once the animation finishes
-        Navigator.pushReplacement(
-          context,
-          PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) =>
-                widget.targetPage,
-            transitionsBuilder:
-                (context, animation, secondaryAnimation, child) {
-              return FadeTransition(opacity: animation, child: child);
-            },
-            transitionDuration: const Duration(milliseconds: 500),
-          ),
-        );
+        if (widget.targetPage != null) {
+          // Navigate to the target page smoothly once the animation finishes
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => widget.targetPage!,
+            ),
+          );
+        } else {
+          // If no target page is provided, simply pop the loader
+          Navigator.pop(context);
+        }
       }
     });
 
@@ -60,8 +58,6 @@ class _InteractiveFillingLoaderState extends State<InteractiveFillingLoader>
     // Design System Colors: Artisan Roast
     const backgroundColor = Color(0xFFFAF9F6);
     const primaryColor = Color(0xFF1B3323); // Dark Green
-    const secondaryColor = Color(0xFFE94E28); // Strawberry Red/Orange
-    const matchaColor = Color(0xFF6B8E23); // Matcha Green
 
     return Scaffold(
       backgroundColor: backgroundColor,
@@ -90,11 +86,11 @@ class _InteractiveFillingLoaderState extends State<InteractiveFillingLoader>
                             width: 130,
                             height: 12,
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.8),
+                              color: Colors.white.withValues(alpha: 0.8),
                               borderRadius: const BorderRadius.vertical(
                                   top: Radius.circular(8)),
                               border: Border.all(
-                                  color: Colors.grey.withOpacity(0.3),
+                                  color: Colors.grey.withValues(alpha: 0.3),
                                   width: 1.5),
                             ),
                           ),
@@ -102,10 +98,10 @@ class _InteractiveFillingLoaderState extends State<InteractiveFillingLoader>
                             width: 145,
                             height: 6,
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.85),
+                              color: Colors.white.withValues(alpha: 0.85),
                               borderRadius: BorderRadius.circular(3),
                               border: Border.all(
-                                  color: Colors.grey.withOpacity(0.3),
+                                  color: Colors.grey.withValues(alpha: 0.3),
                                   width: 1.5),
                             ),
                           ),
@@ -113,10 +109,10 @@ class _InteractiveFillingLoaderState extends State<InteractiveFillingLoader>
                             width: 170,
                             height: 10,
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.9),
+                              color: Colors.white.withValues(alpha: 0.9),
                               borderRadius: BorderRadius.circular(5),
                               border: Border.all(
-                                  color: Colors.grey.withOpacity(0.3),
+                                  color: Colors.grey.withValues(alpha: 0.3),
                                   width: 2),
                             ),
                           ),
@@ -125,11 +121,11 @@ class _InteractiveFillingLoaderState extends State<InteractiveFillingLoader>
                             width: 160,
                             height: 220,
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.1),
+                              color: Colors.white.withValues(alpha: 0.1),
                               borderRadius: const BorderRadius.vertical(
                                   bottom: Radius.circular(80)),
                               border: Border.all(
-                                  color: Colors.grey.withOpacity(0.3),
+                                  color: Colors.grey.withValues(alpha: 0.3),
                                   width: 3),
                             ),
                             child: ClipRRect(
@@ -150,8 +146,8 @@ class _InteractiveFillingLoaderState extends State<InteractiveFillingLoader>
                                           colors: [
                                             const Color(
                                                 0xFFE84258), // Strawberry at bottom
-                                            Colors.white.withOpacity(
-                                                0.95), // Milk in middle
+                                            Colors.white.withValues(
+                                                alpha: 0.95), // Milk in middle
                                             const Color(
                                                 0xFF387F25), // Matcha green at top
                                           ],
@@ -211,7 +207,7 @@ class _InteractiveFillingLoaderState extends State<InteractiveFillingLoader>
                         fontSize: 14,
                         letterSpacing: 2,
                         fontWeight: FontWeight.w600,
-                        color: Color(0xFF1B3323),
+                        color: primaryColor,
                         fontFamily: 'Afacad',
                       ),
                     ),
@@ -227,8 +223,9 @@ class _InteractiveFillingLoaderState extends State<InteractiveFillingLoader>
                           width: 8,
                           height: 8,
                           decoration: BoxDecoration(
-                            color: const Color(0xFFE94E28).withOpacity(
-                                _getDotOpacity(index, _controller.value)),
+                            color: const Color(0xFFE94E28).withValues(
+                                alpha:
+                                    _getDotOpacity(index, _controller.value)),
                             shape: BoxShape.circle,
                           ),
                         );
