@@ -99,7 +99,24 @@ class _OrdersPageState extends State<OrdersPage>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => InteractiveFillingLoader(
+              targetPage: HomePage(
+                initialPickedImage: widget.initialPickedImage,
+                initialPresetPath: widget.initialPresetPath,
+                initialAvatarIndex: widget.initialAvatarIndex,
+              ),
+            ),
+          ),
+        );
+      },
+      child: Scaffold(
       backgroundColor: bgColor,
       body: Stack(
         children: [
@@ -205,6 +222,7 @@ class _OrdersPageState extends State<OrdersPage>
             ),
           ),
         ],
+      ),
       ),
     );
   }
