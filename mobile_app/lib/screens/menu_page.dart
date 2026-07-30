@@ -353,8 +353,17 @@ class _MenuPageState extends State<MenuPage> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           GestureDetector(
-                            onTap: () => Navigator.popUntil(
-                                context, (route) => route.isFirst),
+                            onTap: () {
+                              Navigator.pushAndRemoveUntil(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const InteractiveFillingLoader(
+                                    targetPage: HomePage(),
+                                  ),
+                                ),
+                                (route) => false,
+                              );
+                            },
                             child: const Icon(Icons.arrow_back_ios,
                                 color: Colors.white, size: 24),
                           ),
@@ -516,31 +525,33 @@ class _MenuPageState extends State<MenuPage> {
                                             context,
                                             MaterialPageRoute(
                                               builder: (context) =>
-                                                  const BaristaPage(
-                                                title: 'By Syah',
-                                                heroImage:
-                                                    'assets/images/Syah.jpeg',
-                                                drinks: [
-                                                  {
-                                                    'name':
-                                                        'Pink Blush Milkshake',
-                                                    'price': 'RM 14.90',
-                                                    'image':
-                                                        'assets/images/drinks/PINKY BLUSH MILKSHAKE BY SYAH.png',
-                                                  },
-                                                  {
-                                                    'name': 'Solero Fizz',
-                                                    'price': 'RM 14.90',
-                                                    'image':
-                                                        'assets/images/drinks/SOLERO FIZZ.png',
-                                                  },
-                                                  {
-                                                    'name': 'Paddle Pop',
-                                                    'price': 'RM 14.90',
-                                                    'image':
-                                                        'assets/images/drinks/PADDLE POP.png',
-                                                  },
-                                                ],
+                                                  const InteractiveFillingLoader(
+                                                targetPage: BaristaPage(
+                                                  title: 'By Syah',
+                                                  heroImage:
+                                                      'assets/images/Syah.jpeg',
+                                                  drinks: [
+                                                    {
+                                                      'name':
+                                                          'Pink Blush Milkshake',
+                                                      'price': 'RM 14.90',
+                                                      'image':
+                                                          'assets/images/drinks/PINKY BLUSH MILKSHAKE BY SYAH.png',
+                                                    },
+                                                    {
+                                                      'name': 'Solero Fizz',
+                                                      'price': 'RM 14.90',
+                                                      'image':
+                                                          'assets/images/drinks/SOLERO FIZZ.png',
+                                                    },
+                                                    {
+                                                      'name': 'Paddle Pop',
+                                                      'price': 'RM 14.90',
+                                                      'image':
+                                                          'assets/images/drinks/PADDLE POP.png',
+                                                    },
+                                                  ],
+                                                ),
                                               ),
                                             ),
                                           );
@@ -549,18 +560,20 @@ class _MenuPageState extends State<MenuPage> {
                                             context,
                                             MaterialPageRoute(
                                               builder: (context) =>
-                                                  const BaristaPage(
-                                                title: 'By Ajim',
-                                                heroImage:
-                                                    'assets/images/FKP01925.jpg',
-                                                drinks: [
-                                                  {
-                                                    'name': 'Cloudy Jasmine',
-                                                    'price': 'RM 14.90',
-                                                    'image':
-                                                        'assets/images/drinks/CLOUDY JASMINE.png',
-                                                  },
-                                                ],
+                                                  const InteractiveFillingLoader(
+                                                targetPage: BaristaPage(
+                                                  title: 'By Ajim',
+                                                  heroImage:
+                                                      'assets/images/FKP01925.jpg',
+                                                  drinks: [
+                                                    {
+                                                      'name': 'Cloudy Jasmine',
+                                                      'price': 'RM 14.90',
+                                                      'image':
+                                                          'assets/images/drinks/CLOUDY JASMINE.png',
+                                                    },
+                                                  ],
+                                                ),
                                               ),
                                             ),
                                           );

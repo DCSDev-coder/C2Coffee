@@ -5,7 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import '../services/user_service.dart';
 import 'loading_order_page.dart';
-import 'orders_page.dart';
+import 'profile_page.dart';
 import 'menu_page.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
@@ -415,7 +415,14 @@ class _SettingsPageState extends State<SettingsPage> {
                         alignment: Alignment.centerLeft,
                         child: GestureDetector(
                           onTap: () {
-                            Navigator.pop(context);
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const InteractiveFillingLoader(
+                                  targetPage: ProfilePage(),
+                                ),
+                              ),
+                            );
                           },
                           child: const Icon(Icons.arrow_back_ios,
                               color: Colors.white, size: 20),

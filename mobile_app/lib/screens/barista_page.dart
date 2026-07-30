@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'loading_order_page.dart';
+import 'menu_page.dart';
 
 class BaristaPage extends StatelessWidget {
   final String title;
@@ -31,7 +33,16 @@ class BaristaPage extends StatelessWidget {
               child: Row(
                 children: [
                   GestureDetector(
-                    onTap: () => Navigator.pop(context),
+                    onTap: () {
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const InteractiveFillingLoader(
+                            targetPage: MenuPage(),
+                          ),
+                        ),
+                      );
+                    },
                     child: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 24),
                   ),
                   Expanded(

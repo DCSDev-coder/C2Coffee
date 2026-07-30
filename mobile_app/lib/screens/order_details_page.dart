@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'loading_order_page.dart';
+import 'orders_page.dart';
 
 class OrderDetailsPage extends StatelessWidget {
   final Map<String, dynamic> item;
@@ -27,7 +29,16 @@ class OrderDetailsPage extends StatelessWidget {
             child: Row(
               children: [
                 GestureDetector(
-                  onTap: () => Navigator.pop(context),
+                  onTap: () {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const InteractiveFillingLoader(
+                          targetPage: OrdersPage(),
+                        ),
+                      ),
+                    );
+                  },
                   child: const Icon(Icons.arrow_back_ios,
                       color: Colors.white, size: 24),
                 ),
