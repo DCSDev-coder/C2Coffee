@@ -4,8 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import '../services/user_service.dart';
-import '../authorization/login.dart';
 import 'loading_order_page.dart';
+import 'orders_page.dart';
+import 'menu_page.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 class SettingsPage extends StatefulWidget {
@@ -108,7 +109,7 @@ class _SettingsPageState extends State<SettingsPage> {
                         fontFamily: 'Recoleta',
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFFD88344))),
+                        color: Color(0xFFE76D00))),
                 const SizedBox(height: 24),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -132,7 +133,7 @@ class _SettingsPageState extends State<SettingsPage> {
                             height: 80,
                             decoration: const BoxDecoration(
                                 shape: BoxShape.circle,
-                                color: Color(0xFFD88344)),
+                                color: Color(0xFFE76D00)),
                             child:
                                 Image.asset(option['path'], fit: BoxFit.cover),
                           ),
@@ -162,7 +163,7 @@ class _SettingsPageState extends State<SettingsPage> {
                           fontWeight: FontWeight.bold,
                           color: Colors.white)),
                   style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFD88344),
+                      backgroundColor: const Color(0xFFE76D00),
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(30)),
                       minimumSize: const Size(double.infinity, 48)),
@@ -194,7 +195,7 @@ class _SettingsPageState extends State<SettingsPage> {
         height: 100,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: const Color(0xFFD88344),
+          color: const Color(0xFFE76D00),
           border: Border.all(color: bgColor, width: 4),
         ),
         child: ClipOval(child: Image(image: imageProvider, fit: BoxFit.cover)),
@@ -385,218 +386,238 @@ class _SettingsPageState extends State<SettingsPage> {
         if (didPop) return;
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const InteractiveFillingLoader()),
+          MaterialPageRoute(
+              builder: (context) => const InteractiveFillingLoader()),
         );
       },
       child: Scaffold(
-      backgroundColor: bgColor,
-      body: Stack(
-        children: [
-          Column(
-            children: [
-              // Header
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.only(
-                    top: 60, bottom: 60, left: 20, right: 20),
-                decoration: BoxDecoration(
-                  color: orangeColor,
-                  borderRadius: const BorderRadius.only(
-                    bottomLeft: Radius.circular(20),
-                    bottomRight: Radius.circular(20),
+        backgroundColor: bgColor,
+        body: Stack(
+          children: [
+            Column(
+              children: [
+                // Header
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.only(
+                      top: 60, bottom: 60, left: 20, right: 20),
+                  decoration: BoxDecoration(
+                    color: orangeColor,
+                    borderRadius: const BorderRadius.only(
+                      bottomLeft: Radius.circular(20),
+                      bottomRight: Radius.circular(20),
+                    ),
+                  ),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: GestureDetector(
+                          onTap: () {
+                            Navigator.pop(context);
+                          },
+                          child: const Icon(Icons.arrow_back_ios,
+                              color: Colors.white, size: 20),
+                        ),
+                      ),
+                      const Text('SETTINGS',
+                          style: TextStyle(
+                              fontFamily: 'Recoleta',
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white)),
+                    ],
                   ),
                 ),
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: GestureDetector(
-                        onTap: () {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(builder: (context) => const InteractiveFillingLoader()),
-                          );
-                        },
-                        child: const Icon(Icons.arrow_back_ios,
-                            color: Colors.white, size: 20),
-                      ),
-                    ),
-                    const Text('SETTINGS',
-                        style: TextStyle(
-                            fontFamily: 'Recoleta',
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white)),
-                  ],
-                ),
-              ),
 
-              // Body
-              Expanded(
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(
-                          height: 60), // Space for the overlapping avatar
-
-                      // Details Card
-                      Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 20),
-                        padding: const EdgeInsets.only(
-                            top: 50, bottom: 10, left: 20, right: 20),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: const [
-                            BoxShadow(
-                                color: Color(0x08000000),
-                                blurRadius: 10,
-                                offset: Offset(0, 4))
-                          ],
-                        ),
-                        child: Column(
+                // Body
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      alignment: Alignment.topCenter,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _buildRowItem(
-                                'Username', userProfile['username'] ?? '',
-                                onTap: () => _showEditDialog('Username',
-                                    'username', userProfile['username'] ?? '')),
-                            _buildRowItem('Email', userProfile['email'] ?? '',
-                                onTap: () => _showEditDialog('Email', 'email',
-                                    userProfile['email'] ?? '')),
-                            _buildRowItem(
-                                'Phone Number', userProfile['phone'] ?? '',
-                                onTap: () => _showEditDialog('Phone Number',
-                                    'phone', userProfile['phone'] ?? '')),
-                            _buildRowItem(
-                                'Birthday', userProfile['birthday'] ?? '',
-                                onTap: () => _showEditDialog('Birthday',
-                                    'birthday', userProfile['birthday'] ?? '')),
-                            _buildRowItem('Gender', userProfile['gender'] ?? '',
-                                onTap: () => _showEditDialog('Gender', 'gender',
-                                    userProfile['gender'] ?? '')),
-                            _buildRowItem(
-                                'Address', userProfile['address'] ?? '',
-                                isAddress: true,
-                                onTap: () => _showEditDialog('Address',
-                                    'address', userProfile['address'] ?? '')),
-                          ],
-                        ),
-                      ),
+                            const SizedBox(
+                                height: 60), // Space for the overlapping avatar
 
-                      const SizedBox(height: 24),
-
-                      // Settings Text
-                      const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 20),
-                        child: Text('Settings',
-                            style: TextStyle(
-                                fontFamily: 'Recoleta',
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87)),
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      // Push Notifications Card
-                      Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 20),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 20, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: const [
-                            BoxShadow(
-                                color: Color(0x08000000),
-                                blurRadius: 10,
-                                offset: Offset(0, 4))
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text('Push Notifications',
-                                style: TextStyle(
-                                    fontFamily: 'Afacad',
-                                    fontSize: 16,
-                                    color: Colors.grey)),
-                            Switch(
-                              value: pushNotifications,
-                              onChanged: (val) {
-                                setState(() {
-                                  pushNotifications = val;
-                                });
-                              },
-                              activeColor: orangeColor,
+                            // Details Card
+                            Container(
+                              margin:
+                                  const EdgeInsets.symmetric(horizontal: 20),
+                              padding: const EdgeInsets.only(
+                                  top: 50, bottom: 10, left: 20, right: 20),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(20),
+                                boxShadow: const [
+                                  BoxShadow(
+                                      color: Color(0x08000000),
+                                      blurRadius: 10,
+                                      offset: Offset(0, 4))
+                                ],
+                              ),
+                              child: Column(
+                                children: [
+                                  _buildRowItem(
+                                      'Username', userProfile['username'] ?? '',
+                                      onTap: () => _showEditDialog(
+                                          'Username',
+                                          'username',
+                                          userProfile['username'] ?? '')),
+                                  _buildRowItem(
+                                      'Email', userProfile['email'] ?? '',
+                                      onTap: () => _showEditDialog('Email',
+                                          'email', userProfile['email'] ?? '')),
+                                  _buildRowItem('Phone Number',
+                                      userProfile['phone'] ?? '',
+                                      onTap: () => _showEditDialog(
+                                          'Phone Number',
+                                          'phone',
+                                          userProfile['phone'] ?? '')),
+                                  _buildRowItem(
+                                      'Birthday', userProfile['birthday'] ?? '',
+                                      onTap: () => _showEditDialog(
+                                          'Birthday',
+                                          'birthday',
+                                          userProfile['birthday'] ?? '')),
+                                  _buildRowItem(
+                                      'Gender', userProfile['gender'] ?? '',
+                                      onTap: () => _showEditDialog(
+                                          'Gender',
+                                          'gender',
+                                          userProfile['gender'] ?? '')),
+                                  _buildRowItem(
+                                      'Address', userProfile['address'] ?? '',
+                                      isAddress: true,
+                                      onTap: () => _showEditDialog(
+                                          'Address',
+                                          'address',
+                                          userProfile['address'] ?? '')),
+                                ],
+                              ),
                             ),
-                          ],
-                        ),
-                      ),
 
-                      const SizedBox(height: 40),
+                            const SizedBox(height: 24),
 
-                      // Log Out Button
-                      GestureDetector(
-                        onTap: () {
-                          // Perform logout
-                          Navigator.pushAndRemoveUntil(
-                            context,
-                            MaterialPageRoute(
-                                builder: (context) => const SplashScreen()),
-                            (Route<dynamic> route) => false,
-                          );
-                        },
-                        child: Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 20),
-                          padding: const EdgeInsets.symmetric(
-                              vertical: 16, horizontal: 20),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: const [
-                              BoxShadow(
-                                  color: Color(0x08000000),
-                                  blurRadius: 10,
-                                  offset: Offset(0, 4))
-                            ],
-                          ),
-                          child: Row(
-                            children: [
-                              Image.asset('assets/images/logout.png',
-                                  height: 24,
-                                  errorBuilder: (context, error, stackTrace) =>
-                                      const Icon(Icons.exit_to_app,
-                                          color: Color(0xFFD88344))),
-                              const SizedBox(width: 16),
-                              const Text('Log Out',
+                            // Settings Text
+                            const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 20),
+                              child: Text('Settings',
                                   style: TextStyle(
                                       fontFamily: 'Recoleta',
                                       fontSize: 18,
                                       fontWeight: FontWeight.bold,
-                                      color: Colors.black)),
-                            ],
-                          ),
+                                      color: Colors.black87)),
+                            ),
+
+                            const SizedBox(height: 12),
+
+                            // Push Notifications Card
+                            Container(
+                              margin:
+                                  const EdgeInsets.symmetric(horizontal: 20),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 20, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(20),
+                                boxShadow: const [
+                                  BoxShadow(
+                                      color: Color(0x08000000),
+                                      blurRadius: 10,
+                                      offset: Offset(0, 4))
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text('Push Notifications',
+                                      style: TextStyle(
+                                          fontFamily: 'Afacad',
+                                          fontSize: 16,
+                                          color: Colors.grey)),
+                                  Switch(
+                                    value: pushNotifications,
+                                    onChanged: (val) {
+                                      setState(() {
+                                        pushNotifications = val;
+                                      });
+                                    },
+                                    activeColor: orangeColor,
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            const SizedBox(height: 40),
+
+                            // Log Out Button
+                            GestureDetector(
+                              onTap: () {
+                                // Perform logout
+                                Navigator.pushAndRemoveUntil(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (context) =>
+                                          const SplashScreen()),
+                                  (Route<dynamic> route) => false,
+                                );
+                              },
+                              child: Container(
+                                margin:
+                                    const EdgeInsets.symmetric(horizontal: 20),
+                                padding: const EdgeInsets.symmetric(
+                                    vertical: 16, horizontal: 20),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(20),
+                                  boxShadow: const [
+                                    BoxShadow(
+                                        color: Color(0x08000000),
+                                        blurRadius: 10,
+                                        offset: Offset(0, 4))
+                                  ],
+                                ),
+                                child: Row(
+                                  children: [
+                                    Image.asset('assets/images/logout.png',
+                                        height: 24,
+                                        errorBuilder:
+                                            (context, error, stackTrace) =>
+                                                const Icon(Icons.exit_to_app,
+                                                    color: Color(0xFFE76D00))),
+                                    const SizedBox(width: 16),
+                                    const Text('Log Out',
+                                        style: TextStyle(
+                                            fontFamily: 'Recoleta',
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.black)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 40),
+                          ],
                         ),
-                      ),
-                      const SizedBox(height: 40),
-                    ],
+                        // Overlapping Avatar (now scrolls with content)
+                        Positioned(
+                          top: 10,
+                          child: _buildAvatar(),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
-
-          // Overlapping Avatar
-          Positioned(
-            top: 165,
-            left: MediaQuery.of(context).size.width / 2 - 50,
-            child: _buildAvatar(),
-          ),
-        ],
-      ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -208,7 +208,7 @@ class _InteractiveFillingLoaderState extends State<InteractiveFillingLoader>
                         letterSpacing: 2,
                         fontWeight: FontWeight.w600,
                         color: primaryColor,
-                        fontFamily: 'Afacad',
+                        fontFamily: 'Recoleta',
                       ),
                     ),
 

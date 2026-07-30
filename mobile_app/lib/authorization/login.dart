@@ -102,7 +102,7 @@ class _LoginPageState extends State<LoginPage> {
                     offset: Offset(0, 4)),
               ],
               border: Border.all(
-                  color: const Color(0xFFD88344).withValues(alpha: 0.2),
+                  color: const Color(0xFFE76D00).withValues(alpha: 0.2),
                   width: 1),
             ),
             child: Padding(
@@ -117,15 +117,15 @@ class _LoginPageState extends State<LoginPage> {
                       child: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFD88344).withValues(alpha: 0.1),
+                          color: const Color(0xFFE76D00).withValues(alpha: 0.1),
                           shape: BoxShape.circle,
                           border: Border.all(
-                              color: const Color(0xFFD88344)
+                              color: const Color(0xFFE76D00)
                                   .withValues(alpha: 0.2),
                               width: 1),
                         ),
                         child: const Icon(Icons.close,
-                            color: Color(0xFFD88344), size: 18),
+                            color: Color(0xFFE76D00), size: 18),
                       ),
                     ),
                   ),
@@ -136,7 +136,7 @@ class _LoginPageState extends State<LoginPage> {
                         fontFamily: 'Recoleta',
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFFD88344),
+                        color: Color(0xFFE76D00),
                         letterSpacing: 0.5),
                   ),
                   const SizedBox(height: 8),
@@ -177,14 +177,14 @@ class _LoginPageState extends State<LoginPage> {
                                   shape: BoxShape.circle,
                                   border: Border.all(
                                     color: isSelected
-                                        ? const Color(0xFFD88344)
+                                        ? const Color(0xFFE76D00)
                                         : Colors.grey.shade300,
                                     width: isSelected ? 3 : 2,
                                   ),
                                   boxShadow: isSelected
                                       ? [
                                           BoxShadow(
-                                              color: const Color(0xFFD88344)
+                                              color: const Color(0xFFE76D00)
                                                   .withValues(alpha: 0.3),
                                               blurRadius: 8,
                                               offset: const Offset(0, 2))
@@ -193,7 +193,7 @@ class _LoginPageState extends State<LoginPage> {
                                 ),
                                 child: CircleAvatar(
                                   radius: 40,
-                                  backgroundColor: const Color(0xFFD88344),
+                                  backgroundColor: const Color(0xFFE76D00),
                                   backgroundImage:
                                       AssetImage(_avatarOptions[index]['path']),
                                 ),
@@ -214,7 +214,7 @@ class _LoginPageState extends State<LoginPage> {
                                   style: TextStyle(
                                       fontFamily: 'Afacad',
                                       fontSize: 14,
-                                      color: const Color(0xFFD88344),
+                                      color: const Color(0xFFE76D00),
                                       fontWeight: FontWeight.w600)),
                             ),
                             Expanded(
@@ -232,13 +232,13 @@ class _LoginPageState extends State<LoginPage> {
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             decoration: BoxDecoration(
                               gradient: const LinearGradient(colors: [
-                                Color(0xFFD88344),
-                                Color(0xFFE8955A)
+                                Color(0xFFE76D00),
+                                Color(0xFFE76D00)
                               ]),
                               borderRadius: BorderRadius.circular(12),
                               boxShadow: [
                                 BoxShadow(
-                                    color: const Color(0xFFD88344)
+                                    color: const Color(0xFFE76D00)
                                         .withValues(alpha: 0.3),
                                     blurRadius: 8,
                                     offset: const Offset(0, 4))
@@ -312,14 +312,14 @@ class _LoginPageState extends State<LoginPage> {
       width: 100,
       height: 100,
       decoration:
-          const BoxDecoration(shape: BoxShape.circle, color: Color(0xFFD88344)),
+          const BoxDecoration(shape: BoxShape.circle, color: Color(0xFFE76D00)),
       child: ClipOval(child: Image(image: imageProvider, fit: BoxFit.cover)),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    const Color orangeColor = Color(0xFFD88344);
+    const Color orangeColor = Color(0xFFE76D00);
 
     return Scaffold(
       body: Container(
@@ -363,7 +363,7 @@ class _LoginPageState extends State<LoginPage> {
                                 ],
                               ),
                               child: const Icon(Icons.camera_alt,
-                                  size: 18, color: Color(0xFFD88344)),
+                                  size: 18, color: Color(0xFFE76D00)),
                             ),
                           ),
                         ],
@@ -509,7 +509,7 @@ class _LoginPageState extends State<LoginPage> {
                               style: TextStyle(
                                   fontFamily: 'Afacad',
                                   fontSize: 14,
-                                  color: const Color(0xFFD88344),
+                                  color: const Color(0xFFE76D00),
                                   fontWeight: FontWeight.w600)),
                         ),
                         Expanded(

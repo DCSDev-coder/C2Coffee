@@ -8,7 +8,7 @@ class StartupSelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFD88344),
+      backgroundColor: const Color(0xFFE76D00),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32.0),
@@ -39,7 +39,7 @@ class StartupSelector extends StatelessWidget {
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.white,
-                    foregroundColor: const Color(0xFFD88344),
+                    foregroundColor: const Color(0xFFE76D00),
                     elevation: 4,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(30),

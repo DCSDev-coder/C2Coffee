@@ -116,7 +116,7 @@ class _Signup1BackupState extends State<Signup1Backup> {
                     offset: Offset(0, 4)),
               ],
               border: Border.all(
-                  color: const Color(0xFFD88344).withValues(alpha: 0.2),
+                  color: const Color(0xFFE76D00).withValues(alpha: 0.2),
                   width: 1),
             ),
             child: Padding(
@@ -131,15 +131,15 @@ class _Signup1BackupState extends State<Signup1Backup> {
                       child: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFD88344).withValues(alpha: 0.1),
+                          color: const Color(0xFFE76D00).withValues(alpha: 0.1),
                           shape: BoxShape.circle,
                           border: Border.all(
-                              color: const Color(0xFFD88344)
+                              color: const Color(0xFFE76D00)
                                   .withValues(alpha: 0.2),
                               width: 1),
                         ),
                         child: const Icon(Icons.close,
-                            color: Color(0xFFD88344), size: 18),
+                            color: Color(0xFFE76D00), size: 18),
                       ),
                     ),
                   ),
@@ -150,7 +150,7 @@ class _Signup1BackupState extends State<Signup1Backup> {
                         fontFamily: 'Recoleta',
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFFD88344),
+                        color: Color(0xFFE76D00),
                         letterSpacing: 0.5),
                   ),
                   const SizedBox(height: 8),
@@ -191,14 +191,14 @@ class _Signup1BackupState extends State<Signup1Backup> {
                                   shape: BoxShape.circle,
                                   border: Border.all(
                                     color: isSelected
-                                        ? const Color(0xFFD88344)
+                                        ? const Color(0xFFE76D00)
                                         : Colors.grey.shade300,
                                     width: isSelected ? 3 : 2,
                                   ),
                                   boxShadow: isSelected
                                       ? [
                                           BoxShadow(
-                                              color: const Color(0xFFD88344)
+                                              color: const Color(0xFFE76D00)
                                                   .withValues(alpha: 0.3),
                                               blurRadius: 8,
                                               offset: const Offset(0, 2))
@@ -207,7 +207,7 @@ class _Signup1BackupState extends State<Signup1Backup> {
                                 ),
                                 child: CircleAvatar(
                                   radius: 40,
-                                  backgroundColor: const Color(0xFFD88344),
+                                  backgroundColor: const Color(0xFFE76D00),
                                   backgroundImage:
                                       AssetImage(_avatarOptions[index]['path']),
                                 ),
@@ -228,7 +228,7 @@ class _Signup1BackupState extends State<Signup1Backup> {
                                   style: TextStyle(
                                       fontFamily: 'Afacad',
                                       fontSize: 14,
-                                      color: const Color(0xFFD88344),
+                                      color: const Color(0xFFE76D00),
                                       fontWeight: FontWeight.w600)),
                             ),
                             Expanded(
@@ -246,13 +246,13 @@ class _Signup1BackupState extends State<Signup1Backup> {
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             decoration: BoxDecoration(
                               gradient: const LinearGradient(colors: [
-                                Color(0xFFD88344),
-                                Color(0xFFE8955A)
+                                Color(0xFFE76D00),
+                                Color(0xFFE76D00)
                               ]),
                               borderRadius: BorderRadius.circular(12),
                               boxShadow: [
                                 BoxShadow(
-                                    color: const Color(0xFFD88344)
+                                    color: const Color(0xFFE76D00)
                                         .withValues(alpha: 0.3),
                                     blurRadius: 8,
                                     offset: const Offset(0, 4))
@@ -341,7 +341,7 @@ class _Signup1BackupState extends State<Signup1Backup> {
                               fontFamily: 'Recoleta',
                               fontSize: 24,
                               fontWeight: FontWeight.bold,
-                              color: Color(0xFFD88344))),
+                              color: Color(0xFFE76D00))),
                       IconButton(
                         icon: const Icon(Icons.close, color: Colors.grey),
                         onPressed: () => Navigator.pop(context),
@@ -361,7 +361,7 @@ class _Signup1BackupState extends State<Signup1Backup> {
                             children: [
                               const Text('Year',
                                   style: TextStyle(
-                                      color: Color(0xFFD88344),
+                                      color: Color(0xFFE76D00),
                                       fontWeight: FontWeight.bold,
                                       fontSize: 13)),
                               Expanded(
@@ -387,7 +387,7 @@ class _Signup1BackupState extends State<Signup1Backup> {
                                                 ? FontWeight.bold
                                                 : FontWeight.normal,
                                             color: isSelected
-                                                ? const Color(0xFFD88344)
+                                                ? const Color(0xFFE76D00)
                                                 : Colors.grey.shade400,
                                           ),
                                         ),
@@ -404,7 +404,7 @@ class _Signup1BackupState extends State<Signup1Backup> {
                             children: [
                               const Text('Month',
                                   style: TextStyle(
-                                      color: Color(0xFFD88344),
+                                      color: Color(0xFFE76D00),
                                       fontWeight: FontWeight.bold,
                                       fontSize: 13)),
                               Expanded(
@@ -431,7 +431,7 @@ class _Signup1BackupState extends State<Signup1Backup> {
                                                 ? FontWeight.bold
                                                 : FontWeight.normal,
                                             color: isSelected
-                                                ? const Color(0xFFD88344)
+                                                ? const Color(0xFFE76D00)
                                                 : Colors.grey.shade400,
                                           ),
                                         ),
@@ -448,7 +448,7 @@ class _Signup1BackupState extends State<Signup1Backup> {
                             children: [
                               const Text('Day',
                                   style: TextStyle(
-                                      color: Color(0xFFD88344),
+                                      color: Color(0xFFE76D00),
                                       fontWeight: FontWeight.bold,
                                       fontSize: 13)),
                               Expanded(
@@ -474,7 +474,7 @@ class _Signup1BackupState extends State<Signup1Backup> {
                                                 ? FontWeight.bold
                                                 : FontWeight.normal,
                                             color: isSelected
-                                                ? const Color(0xFFD88344)
+                                                ? const Color(0xFFE76D00)
                                                 : Colors.grey.shade400,
                                           ),
                                         ),
@@ -505,7 +505,7 @@ class _Signup1BackupState extends State<Signup1Backup> {
                         Navigator.pop(context);
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFD88344),
+                        backgroundColor: const Color(0xFFE76D00),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(25)),
                       ),
@@ -556,7 +556,7 @@ class _Signup1BackupState extends State<Signup1Backup> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFD88344),
+      backgroundColor: const Color(0xFFE76D00),
       body: SafeArea(
         bottom: false,
         child: Column(
@@ -588,7 +588,7 @@ class _Signup1BackupState extends State<Signup1Backup> {
                               ],
                             ),
                             child: const Icon(Icons.camera_alt,
-                                size: 18, color: Color(0xFFD88344)),
+                                size: 18, color: Color(0xFFE76D00)),
                           ),
                         ),
                       ],
@@ -678,7 +678,7 @@ class _Signup1BackupState extends State<Signup1Backup> {
                                     style: TextStyle(
                                         fontFamily: 'Recoleta',
                                         fontWeight: FontWeight.bold,
-                                        color: Color(0xFFD88344)),
+                                        color: Color(0xFFE76D00)),
                                   ),
                                 ],
                               ),
@@ -716,7 +716,7 @@ class _Signup1BackupState extends State<Signup1Backup> {
                                   }
                                 : null,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFD88344),
+                              backgroundColor: const Color(0xFFE76D00),
                               disabledBackgroundColor: Colors.grey.shade400,
                               foregroundColor: Colors.white,
                               disabledForegroundColor: Colors.white70,
@@ -766,7 +766,7 @@ class _Signup1BackupState extends State<Signup1Backup> {
               fontFamily: 'Recoleta',
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: Color(0xFFD88344)),
+              color: Color(0xFFE76D00)),
         ),
         const SizedBox(height: 4),
         Container(
@@ -802,7 +802,7 @@ class _Signup1BackupState extends State<Signup1Backup> {
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(20),
                 borderSide:
-                    const BorderSide(color: Color(0xFFD88344), width: 1.5),
+                    const BorderSide(color: Color(0xFFE76D00), width: 1.5),
               ),
               contentPadding:
                   const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -823,7 +823,7 @@ class _Signup1BackupState extends State<Signup1Backup> {
               fontFamily: 'Recoleta',
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: Color(0xFFD88344)),
+              color: Color(0xFFE76D00)),
         ),
         const SizedBox(height: 4),
         GestureDetector(
@@ -846,7 +846,7 @@ class _Signup1BackupState extends State<Signup1Backup> {
                 hintStyle: const TextStyle(
                     fontFamily: 'Afacad', fontSize: 15, color: Colors.grey),
                 suffixIcon: const Icon(Icons.calendar_today_rounded,
-                    color: Color(0xFFD88344), size: 20),
+                    color: Color(0xFFE76D00), size: 20),
                 border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(20),
                     borderSide: BorderSide.none),
@@ -856,7 +856,7 @@ class _Signup1BackupState extends State<Signup1Backup> {
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(20),
                   borderSide:
-                      const BorderSide(color: Color(0xFFD88344), width: 1.5),
+                      const BorderSide(color: Color(0xFFE76D00), width: 1.5),
                 ),
                 contentPadding:
                     const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -885,7 +885,7 @@ class _Signup1BackupState extends State<Signup1Backup> {
               fontFamily: 'Recoleta',
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: Color(0xFFD88344)),
+              color: Color(0xFFE76D00)),
         ),
         const SizedBox(height: 4),
         Container(
@@ -943,7 +943,7 @@ class _Signup1BackupState extends State<Signup1Backup> {
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(20),
                 borderSide:
-                    const BorderSide(color: Color(0xFFD88344), width: 1.5),
+                    const BorderSide(color: Color(0xFFE76D00), width: 1.5),
               ),
               contentPadding:
                   const EdgeInsets.symmetric(horizontal: 20, vertical: 12),

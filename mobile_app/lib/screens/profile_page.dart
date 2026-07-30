@@ -1,17 +1,17 @@
 import 'dart:io';
 import 'dart:async';
-import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import '../widgets/custom_bottom_nav.dart';
 import '../services/user_service.dart';
 import 'home_page.dart';
 import 'loading_order_page.dart';
-import 'loading_order_page.dart';
 import 'orders_page.dart';
+import 'menu_page.dart';
 import 'top_up_wallet_page.dart';
 import 'notification_page.dart';
 import 'settings_page.dart';
+import 'referral_page.dart';
 
 class ProfilePage extends StatefulWidget {
   final File? initialPickedImage;
@@ -89,7 +89,9 @@ class _ProfilePageState extends State<ProfilePage> {
     if (_persistedPickedImage != null) {
       return CircleAvatar(
         radius: 28,
-        backgroundImage: kIsWeb ? NetworkImage(_persistedPickedImage!.path) : FileImage(_persistedPickedImage!) as ImageProvider,
+        backgroundImage: kIsWeb
+            ? NetworkImage(_persistedPickedImage!.path)
+            : FileImage(_persistedPickedImage!) as ImageProvider,
         backgroundColor: Colors.transparent,
       );
     } else if (_persistedPresetPath != null) {
@@ -97,7 +99,7 @@ class _ProfilePageState extends State<ProfilePage> {
         radius: 28,
         backgroundImage: AssetImage(_persistedPresetPath!),
         backgroundColor:
-            const Color(0xFFD88344), // Add the orange background back
+            const Color(0xFFE76D00), // Add the orange background back
       );
     } else {
       return CircleAvatar(
@@ -171,8 +173,10 @@ class _ProfilePageState extends State<ProfilePage> {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => InteractiveFillingLoader(
-                                    targetPage: SettingsPage(onProfileUpdated: _loadAvatarState),
+                                  builder: (context) =>
+                                      InteractiveFillingLoader(
+                                    targetPage: SettingsPage(
+                                        onProfileUpdated: _loadAvatarState),
                                   ),
                                 ),
                               );
@@ -186,7 +190,8 @@ class _ProfilePageState extends State<ProfilePage> {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => const InteractiveFillingLoader(
+                                  builder: (context) =>
+                                      const InteractiveFillingLoader(
                                     targetPage: NotificationPage(),
                                   ),
                                 ),
@@ -229,7 +234,12 @@ class _ProfilePageState extends State<ProfilePage> {
                               onTap: () async {
                                 Navigator.push(
                                   context,
-                                  MaterialPageRoute(builder: (context) => InteractiveFillingLoader(targetPage: SettingsPage(onProfileUpdated: _loadAvatarState))),
+                                  MaterialPageRoute(
+                                      builder: (context) =>
+                                          InteractiveFillingLoader(
+                                              targetPage: SettingsPage(
+                                                  onProfileUpdated:
+                                                      _loadAvatarState))),
                                 );
                               },
                               child: _buildAvatar(),
@@ -273,7 +283,8 @@ class _ProfilePageState extends State<ProfilePage> {
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (context) => const InteractiveFillingLoader(
+                                      builder: (context) =>
+                                          const InteractiveFillingLoader(
                                         targetPage: TopUpWalletPage(),
                                       ),
                                     ),
@@ -313,7 +324,8 @@ class _ProfilePageState extends State<ProfilePage> {
                                           Navigator.push(
                                             context,
                                             MaterialPageRoute(
-                                              builder: (context) => const InteractiveFillingLoader(
+                                              builder: (context) =>
+                                                  const InteractiveFillingLoader(
                                                 targetPage: TopUpWalletPage(),
                                               ),
                                             ),

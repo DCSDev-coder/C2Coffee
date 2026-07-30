@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../widgets/custom_bottom_nav.dart';
 import 'home_page.dart';
+import 'menu_page.dart';
 import 'loading_order_page.dart';
 import 'order_details_page.dart';
 import 'profile_page.dart';
@@ -38,7 +39,7 @@ class _OrdersPageState extends State<OrdersPage>
           'Dato Blend / Hot / Fresh Milk /\nReg. Sweet / Reg. Ice /\nTake Away',
       'remarks': 'None',
       'quantity': 1,
-      'image': 'assets/images/shakerato_bianco.png',
+      'image': 'assets/images/drinks/SHAKERATO BIANCO.png',
     },
     {
       'id': '2',
@@ -49,7 +50,7 @@ class _OrdersPageState extends State<OrdersPage>
           'Dato Blend / Hot / Fresh Milk /\nReg. Sweet / Reg. Ice /\nTake Away',
       'remarks': 'None',
       'quantity': 1,
-      'image': 'assets/images/shakerato_bianco.png',
+      'image': 'assets/images/drinks/SHAKERATO BIANCO.png',
     },
   ];
 
@@ -78,6 +79,15 @@ class _OrdersPageState extends State<OrdersPage>
               )),
         ),
         (route) => false,
+      );
+    } else if (index == 1) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const InteractiveFillingLoader(
+            targetPage: MenuPage(),
+          ),
+        ),
       );
     } else if (index == 4) {
       Navigator.push(
@@ -355,7 +365,7 @@ class _OrdersPageState extends State<OrdersPage>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Image.asset(
-                'assets/images/shakerato_bianco.png',
+                'assets/images/drinks/SHAKERATO BIANCO.png',
                 width: 60,
                 height: 80,
                 fit: BoxFit.contain,

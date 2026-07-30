@@ -94,7 +94,7 @@ class _LoginBackupState extends State<LoginBackup> {
                     offset: Offset(0, 4)),
               ],
               border: Border.all(
-                  color: const Color(0xFFD88344).withValues(alpha: 0.2),
+                  color: const Color(0xFFE76D00).withValues(alpha: 0.2),
                   width: 1),
             ),
             child: Padding(
@@ -109,15 +109,15 @@ class _LoginBackupState extends State<LoginBackup> {
                       child: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFD88344).withValues(alpha: 0.1),
+                          color: const Color(0xFFE76D00).withValues(alpha: 0.1),
                           shape: BoxShape.circle,
                           border: Border.all(
-                              color: const Color(0xFFD88344)
+                              color: const Color(0xFFE76D00)
                                   .withValues(alpha: 0.2),
                               width: 1),
                         ),
                         child: const Icon(Icons.close,
-                            color: Color(0xFFD88344), size: 18),
+                            color: Color(0xFFE76D00), size: 18),
                       ),
                     ),
                   ),
@@ -128,7 +128,7 @@ class _LoginBackupState extends State<LoginBackup> {
                         fontFamily: 'Recoleta',
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFFD88344),
+                        color: Color(0xFFE76D00),
                         letterSpacing: 0.5),
                   ),
                   const SizedBox(height: 8),
@@ -169,14 +169,14 @@ class _LoginBackupState extends State<LoginBackup> {
                                   shape: BoxShape.circle,
                                   border: Border.all(
                                     color: isSelected
-                                        ? const Color(0xFFD88344)
+                                        ? const Color(0xFFE76D00)
                                         : Colors.grey.shade300,
                                     width: isSelected ? 3 : 2,
                                   ),
                                   boxShadow: isSelected
                                       ? [
                                           BoxShadow(
-                                              color: const Color(0xFFD88344)
+                                              color: const Color(0xFFE76D00)
                                                   .withValues(alpha: 0.3),
                                               blurRadius: 8,
                                               offset: const Offset(0, 2))
@@ -185,7 +185,7 @@ class _LoginBackupState extends State<LoginBackup> {
                                 ),
                                 child: CircleAvatar(
                                   radius: 40,
-                                  backgroundColor: const Color(0xFFD88344),
+                                  backgroundColor: const Color(0xFFE76D00),
                                   backgroundImage:
                                       AssetImage(_avatarOptions[index]['path']),
                                 ),
@@ -206,7 +206,7 @@ class _LoginBackupState extends State<LoginBackup> {
                                   style: TextStyle(
                                       fontFamily: 'Afacad',
                                       fontSize: 14,
-                                      color: const Color(0xFFD88344),
+                                      color: const Color(0xFFE76D00),
                                       fontWeight: FontWeight.w600)),
                             ),
                             Expanded(
@@ -224,13 +224,13 @@ class _LoginBackupState extends State<LoginBackup> {
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             decoration: BoxDecoration(
                               gradient: const LinearGradient(colors: [
-                                Color(0xFFD88344),
-                                Color(0xFFE8955A)
+                                Color(0xFFE76D00),
+                                Color(0xFFE76D00)
                               ]),
                               borderRadius: BorderRadius.circular(12),
                               boxShadow: [
                                 BoxShadow(
-                                    color: const Color(0xFFD88344)
+                                    color: const Color(0xFFE76D00)
                                         .withValues(alpha: 0.3),
                                     blurRadius: 8,
                                     offset: const Offset(0, 4))
@@ -321,7 +321,7 @@ class _LoginBackupState extends State<LoginBackup> {
 
   @override
   Widget build(BuildContext context) {
-    const Color orangeColor = Color(0xFFD88344);
+    const Color orangeColor = Color(0xFFE76D00);
 
     return Scaffold(
       backgroundColor: orangeColor,
@@ -356,7 +356,7 @@ class _LoginBackupState extends State<LoginBackup> {
                               ],
                             ),
                             child: const Icon(Icons.camera_alt,
-                                size: 18, color: Color(0xFFD88344)),
+                                size: 18, color: Color(0xFFE76D00)),
                           ),
                         ),
                       ],
@@ -410,7 +410,7 @@ class _LoginBackupState extends State<LoginBackup> {
                               style: TextStyle(
                                   fontFamily: 'Afacad',
                                   fontSize: 14,
-                                  color: Color(0xFFD88344),
+                                  color: Color(0xFFE76D00),
                                   fontWeight: FontWeight.w600),
                             ),
                           ),
@@ -466,7 +466,7 @@ class _LoginBackupState extends State<LoginBackup> {
                                     style: TextStyle(
                                         fontFamily: 'Recoleta',
                                         fontWeight: FontWeight.bold,
-                                        color: Color(0xFFD88344)),
+                                        color: Color(0xFFE76D00)),
                                   ),
                                 ],
                               ),
@@ -539,7 +539,7 @@ class _LoginBackupState extends State<LoginBackup> {
               fontFamily: 'Recoleta',
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: Color(0xFFD88344)),
+              color: Color(0xFFE76D00)),
         ),
         const SizedBox(height: 6),
         Container(
@@ -597,7 +597,7 @@ class _LoginBackupState extends State<LoginBackup> {
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(20),
                 borderSide:
-                    const BorderSide(color: Color(0xFFD88344), width: 1.5),
+                    const BorderSide(color: Color(0xFFE76D00), width: 1.5),
               ),
               contentPadding:
                   const EdgeInsets.symmetric(horizontal: 20, vertical: 14),

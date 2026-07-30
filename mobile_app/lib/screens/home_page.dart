@@ -10,8 +10,8 @@ import 'profile_page.dart';
 import 'top_up_wallet_page.dart';
 import 'notification_page.dart';
 import 'settings_page.dart';
-import 'profile_page.dart';
-import 'top_up_wallet_page.dart';
+import 'referral_page.dart';
+import 'menu_page.dart';
 
 class HomePage extends StatefulWidget {
   final File? initialPickedImage;
@@ -32,7 +32,6 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   File? _persistedPickedImage;
   String? _persistedPresetPath;
-
 
   final PageController _pageController = PageController();
   Timer? _carouselTimer;
@@ -76,11 +75,10 @@ class _HomePageState extends State<HomePage> {
     // If we have explicit incoming arguments (e.g. from sign up/login), save them to persist
     if (widget.initialPickedImage != null || widget.initialPresetPath != null) {
       await UserService.saveAvatar(
-        presetPath: widget.initialPresetPath, 
-        pickedImagePath: widget.initialPickedImage?.path
-      );
+          presetPath: widget.initialPresetPath,
+          pickedImagePath: widget.initialPickedImage?.path);
     }
-    
+
     // Load from persisted storage to be sure
     final avatarData = await UserService.getAvatar();
     setState(() {
@@ -134,7 +132,16 @@ class _HomePageState extends State<HomePage> {
               child: CustomBottomNav(
                 selectedIndex: 0, // Home is index 0
                 onItemTapped: (index) {
-                  if (index == 2) {
+                  if (index == 1) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const InteractiveFillingLoader(
+                          targetPage: MenuPage(),
+                        ),
+                      ),
+                    );
+                  } else if (index == 2) {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -184,27 +191,35 @@ class _HomePageState extends State<HomePage> {
                 onTap: () async {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => InteractiveFillingLoader(targetPage: SettingsPage(onProfileUpdated: _loadAvatarState))),
+                    MaterialPageRoute(
+                        builder: (context) => InteractiveFillingLoader(
+                            targetPage: SettingsPage(
+                                onProfileUpdated: _loadAvatarState))),
                   );
                 },
                 child: Container(
                   width: 45,
                   height: 45,
                   decoration: BoxDecoration(
-                    color: _persistedPickedImage == null && _persistedPresetPath != null 
-                           ? const Color(0xFFD88344) 
-                           : orangeColor,
+                    color: _persistedPickedImage == null &&
+                            _persistedPresetPath != null
+                        ? const Color(0xFFE76D00)
+                        : orangeColor,
                     shape: BoxShape.circle,
                   ),
                   alignment: Alignment.center,
                   child: ClipOval(
                     child: _persistedPickedImage != null
-                        ? (kIsWeb 
-                            ? Image.network(_persistedPickedImage!.path, width: 45, height: 45, fit: BoxFit.cover)
-                            : Image.file(_persistedPickedImage!, width: 45, height: 45, fit: BoxFit.cover))
+                        ? (kIsWeb
+                            ? Image.network(_persistedPickedImage!.path,
+                                width: 45, height: 45, fit: BoxFit.cover)
+                            : Image.file(_persistedPickedImage!,
+                                width: 45, height: 45, fit: BoxFit.cover))
                         : (_persistedPresetPath != null
-                            ? Image.asset(_persistedPresetPath!, width: 45, height: 45, fit: BoxFit.cover)
-                            : const Icon(Icons.person, color: Colors.white, size: 30)),
+                            ? Image.asset(_persistedPresetPath!,
+                                width: 45, height: 45, fit: BoxFit.cover)
+                            : const Icon(Icons.person,
+                                color: Colors.white, size: 30)),
                   ),
                 ),
               ),
@@ -258,11 +273,10 @@ class _HomePageState extends State<HomePage> {
                   ),
                   child: Row(
                     children: [
-                      Image.asset(
-                        'assets/images/wallet.png',
+                      const Icon(
+                        Icons.account_balance_wallet_outlined,
                         color: Colors.white,
-                        height: 16,
-                        width: 16,
+                        size: 18,
                       ),
                       const SizedBox(width: 6),
                       const Text(
@@ -396,23 +410,35 @@ class _HomePageState extends State<HomePage> {
           ),
           const SizedBox(width: 16),
           Expanded(
-            child: Container(
-              height: 80,
-              padding: const EdgeInsets.only(left: 20),
-              decoration: BoxDecoration(
-                color: darkBrownColor,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              alignment: Alignment.centerLeft,
-              child: const Text(
-                'MY\nREFERRAL',
-                textAlign: TextAlign.left,
-                style: TextStyle(
-                  fontFamily: 'Recoleta',
-                  fontSize: 22, // Slightly smaller to fit "REFERRAL"
-                  fontWeight: FontWeight.w900, // Extra bold
-                  color: Colors.white,
-                  height: 0.9, // Tighter line height
+            child: GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const InteractiveFillingLoader(
+                      targetPage: ReferralPage(),
+                    ),
+                  ),
+                );
+              },
+              child: Container(
+                height: 80,
+                padding: const EdgeInsets.only(left: 20),
+                decoration: BoxDecoration(
+                  color: darkBrownColor,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                alignment: Alignment.centerLeft,
+                child: const Text(
+                  'MY\nREFERRAL',
+                  textAlign: TextAlign.left,
+                  style: TextStyle(
+                    fontFamily: 'Recoleta',
+                    fontSize: 22, // Slightly smaller to fit "REFERRAL"
+                    fontWeight: FontWeight.w900, // Extra bold
+                    color: Colors.white,
+                    height: 0.9, // Tighter line height
+                  ),
                 ),
               ),
             ),
@@ -427,17 +453,17 @@ class _HomePageState extends State<HomePage> {
       {
         'name': 'Shakerato Bianco',
         'price': 'RM 15.90',
-        'image': 'assets/images/shakerato_bianco.png',
+        'image': 'assets/images/drinks/SHAKERATO BIANCO.png',
       },
       {
         'name': 'Blue Cloud Coconut Coffee',
         'price': 'RM 15.90',
-        'image': 'assets/images/blue_cloud_coffee.png',
+        'image': 'assets/images/drinks/BLUE CLOUD COCONUT COFFEE.png',
       },
       {
         'name': 'Bloody Peach',
         'price': 'RM 15.90',
-        'image': 'assets/images/bloody_peach.png',
+        'image': 'assets/images/drinks/PEACHY JASMINE.png',
         'scale': 1.0,
       },
     ];
@@ -459,24 +485,37 @@ class _HomePageState extends State<HomePage> {
                   color: Colors.black87,
                 ),
               ),
-              Row(
-                children: [
-                  Text(
-                    'See all',
-                    style: TextStyle(
-                      fontFamily: 'Afacad',
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
+              GestureDetector(
+                onTap: () {
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const InteractiveFillingLoader(
+                        targetPage: MenuPage(),
+                      ),
+                    ),
+                    (route) => false,
+                  );
+                },
+                child: Row(
+                  children: [
+                    Text(
+                      'See all',
+                      style: TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: orangeColor,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(
+                      Icons.arrow_forward_rounded,
+                      size: 16,
                       color: orangeColor,
                     ),
-                  ),
-                  const SizedBox(width: 4),
-                  Icon(
-                    Icons.arrow_forward_rounded,
-                    size: 16,
-                    color: orangeColor,
-                  ),
-                ],
+                  ],
+                ),
               )
             ],
           ),
@@ -498,11 +537,13 @@ class _HomePageState extends State<HomePage> {
                   borderRadius: BorderRadius.circular(24),
                   border: Border.all(color: const Color(0xFFC87023), width: 2),
                 ),
+                clipBehavior: Clip.antiAlias,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
-                      child: Padding(
+                      child: Container(
+                        color: Colors.white,
                         padding: const EdgeInsets.all(8.0),
                         child: Center(
                           child: Transform.scale(
@@ -515,10 +556,10 @@ class _HomePageState extends State<HomePage> {
                         ),
                       ),
                     ),
-                    Divider(
+                    Container(
+                      width: double.infinity,
+                      height: 1.5,
                       color: const Color(0xFFC87023),
-                      height: 1,
-                      thickness: 1.5,
                     ),
                     Container(
                       height: 56,
