@@ -43,6 +43,8 @@ class _HomePageState extends State<HomePage> {
     'assets/images/incaseofemergency.jpeg',
   ];
 
+  String _username = 'Guest';
+
   @override
   void initState() {
     super.initState();
@@ -81,11 +83,16 @@ class _HomePageState extends State<HomePage> {
 
     // Load from persisted storage to be sure
     final avatarData = await UserService.getAvatar();
+    final profileData = await UserService.getUserProfile();
     setState(() {
       if (avatarData['pickedImagePath'] != null) {
         _persistedPickedImage = File(avatarData['pickedImagePath']!);
       }
       _persistedPresetPath = avatarData['presetPath'];
+      
+      if (profileData['username'] != null && profileData['username']!.isNotEmpty) {
+        _username = profileData['username']!;
+      }
     });
   }
 
@@ -227,8 +234,8 @@ class _HomePageState extends State<HomePage> {
               // Greeting Text
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text(
+                children: [
+                  const Text(
                     'Good morning,',
                     style: TextStyle(
                       fontFamily: 'Afacad',
@@ -237,8 +244,8 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
                   Text(
-                    'Coffeelover1',
-                    style: TextStyle(
+                    _username,
+                    style: const TextStyle(
                       fontFamily: 'Recoleta',
                       fontSize: 18,
                       fontWeight: FontWeight.bold,

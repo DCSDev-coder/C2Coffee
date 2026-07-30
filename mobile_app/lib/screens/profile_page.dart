@@ -32,6 +32,7 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   File? _persistedPickedImage;
   String? _persistedPresetPath;
+  String _username = 'Guest';
 
   final Color orangeColor = const Color(0xFFE66B00);
   final Color bgColor = const Color(0xFFFAF4EE);
@@ -44,11 +45,16 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _loadAvatarState() async {
     final avatarData = await UserService.getAvatar();
+    final profileData = await UserService.getUserProfile();
     setState(() {
       if (avatarData['pickedImagePath'] != null) {
         _persistedPickedImage = File(avatarData['pickedImagePath']!);
       }
       _persistedPresetPath = avatarData['presetPath'];
+      
+      if (profileData['username'] != null && profileData['username']!.isNotEmpty) {
+        _username = profileData['username']!;
+      }
     });
   }
 
@@ -245,9 +251,9 @@ class _ProfilePageState extends State<ProfilePage> {
                               child: _buildAvatar(),
                             ),
                             const SizedBox(width: 16),
-                            const Text(
-                              'Hey Coffeelover1,',
-                              style: TextStyle(
+                            Text(
+                              'Hey $_username,',
+                              style: const TextStyle(
                                 fontFamily: 'Recoleta',
                                 fontSize: 20,
                                 fontWeight: FontWeight.bold,
