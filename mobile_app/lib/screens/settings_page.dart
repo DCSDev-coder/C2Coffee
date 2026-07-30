@@ -11,7 +11,8 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 
 class SettingsPage extends StatefulWidget {
   final VoidCallback? onProfileUpdated;
-  const SettingsPage({super.key, this.onProfileUpdated});
+  final Widget? returnPage;
+  const SettingsPage({super.key, this.onProfileUpdated, this.returnPage});
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -418,8 +419,8 @@ class _SettingsPageState extends State<SettingsPage> {
                             Navigator.pushReplacement(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => const InteractiveFillingLoader(
-                                  targetPage: ProfilePage(),
+                                builder: (context) => InteractiveFillingLoader(
+                                  targetPage: widget.returnPage ?? const ProfilePage(),
                                 ),
                               ),
                             );

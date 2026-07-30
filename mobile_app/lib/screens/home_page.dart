@@ -201,7 +201,9 @@ class _HomePageState extends State<HomePage> {
                     MaterialPageRoute(
                         builder: (context) => InteractiveFillingLoader(
                             targetPage: SettingsPage(
-                                onProfileUpdated: _loadAvatarState))),
+                                onProfileUpdated: _loadAvatarState,
+                                returnPage: const HomePage(),
+                            ))),
                   );
                 },
                 child: Container(

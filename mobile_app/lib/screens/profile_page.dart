@@ -182,7 +182,9 @@ class _ProfilePageState extends State<ProfilePage> {
                                   builder: (context) =>
                                       InteractiveFillingLoader(
                                     targetPage: SettingsPage(
-                                        onProfileUpdated: _loadAvatarState),
+                                        onProfileUpdated: _loadAvatarState,
+                                        returnPage: const ProfilePage(),
+                                    ),
                                   ),
                                 ),
                               );
@@ -245,7 +247,9 @@ class _ProfilePageState extends State<ProfilePage> {
                                           InteractiveFillingLoader(
                                               targetPage: SettingsPage(
                                                   onProfileUpdated:
-                                                      _loadAvatarState))),
+                                                      _loadAvatarState,
+                                                  returnPage: const ProfilePage(),
+                                              ))),
                                 );
                               },
                               child: _buildAvatar(),
