@@ -213,7 +213,8 @@ class _RewardsPageState extends State<RewardsPage> {
               Expanded(
                 flex: 4,
                 child: Padding(
-                  padding: const EdgeInsets.only(bottom: 30), // Shifting text upwards
+                  padding: const EdgeInsets.only(
+                      bottom: 30), // Shifting text upwards
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: const [
@@ -227,25 +228,25 @@ class _RewardsPageState extends State<RewardsPage> {
                       ),
                       Text(
                         '0 pts',
-                      style: TextStyle(
-                        fontFamily: 'Recoleta',
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        height: 1.1,
+                        style: TextStyle(
+                          fontFamily: 'Recoleta',
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          height: 1.1,
+                        ),
                       ),
-                    ),
-                    SizedBox(height: 4),
-                    Text(
-                      '0/1',
-                      style: TextStyle(
-                        fontFamily: 'Recoleta',
-                        fontSize: 48,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        height: 1.0,
+                      SizedBox(height: 4),
+                      Text(
+                        '0/1',
+                        style: TextStyle(
+                          fontFamily: 'Recoleta',
+                          fontSize: 48,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          height: 1.0,
+                        ),
                       ),
-                    ),
                     ],
                   ),
                 ),
@@ -378,38 +379,38 @@ class _RewardsPageState extends State<RewardsPage> {
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Stack(
-                children: [
-                  Positioned(
-                    top: 12,
-                    bottom: 40,
-                    left: 12,
-                    right: 12,
-                    child: Image.asset(
+                  children: [
+                    Positioned(
+                      top: 12,
+                      bottom: 40,
+                      left: 12,
+                      right: 12,
+                      child: Image.asset(
                         'assets/images/Surprise reward gift box with star popping out.png',
                         fit: BoxFit.contain,
-                    ),
-                  ),
-                  const Positioned(
-                    bottom: 12,
-                    left: 0,
-                    right: 0,
-                    child: Text(
-                      'My Rewards',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontFamily: 'Recoleta',
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
                       ),
                     ),
-                  ),
-                ],
+                    const Positioned(
+                      bottom: 12,
+                      left: 0,
+                      right: 0,
+                      child: Text(
+                        'My Rewards',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontFamily: 'Recoleta',
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
-        ),
-        const SizedBox(width: 16),
+          const SizedBox(width: 16),
           Expanded(
             child: GestureDetector(
               onTap: () {
@@ -431,15 +432,15 @@ class _RewardsPageState extends State<RewardsPage> {
                 child: Stack(
                   children: [
                     Positioned(
-                    top: 12,
-                    bottom: 40,
-                    left: 12,
-                    right: 12,
-                    child: Image.asset(
-                          'assets/images/Community friends laughing together waving hands and giving thumbs.png',
-                          fit: BoxFit.contain,
+                      top: 12,
+                      bottom: 40,
+                      left: 12,
+                      right: 12,
+                      child: Image.asset(
+                        'assets/images/Community friends laughing together waving hands and giving thumbs.png',
+                        fit: BoxFit.contain,
+                      ),
                     ),
-                  ),
                     const Positioned(
                       bottom: 12,
                       left: 0,
@@ -499,9 +500,9 @@ class _RewardsPageState extends State<RewardsPage> {
           child: Row(
             children: [
               Expanded(child: _buildTierTab(0, 'Tier 1', 'C2 Core', false)),
-              Expanded(child: _buildTierTab(1, 'Tier 2', 'C2 Brew', false)),
-              Expanded(child: _buildTierTab(2, 'Tier 3', 'C2 Roast', true)),
-              Expanded(child: _buildTierTab(3, 'Tier 4', 'C2 Reserve', true)),
+              Expanded(child: _buildTierTab(1, 'Tier 2', 'C2 Plus', false)),
+              Expanded(child: _buildTierTab(2, 'Tier 3', 'C2 Prime', true)),
+              Expanded(child: _buildTierTab(3, 'Tier 4', 'C2 Elite', true)),
             ],
           ),
         ),
@@ -525,7 +526,8 @@ class _RewardsPageState extends State<RewardsPage> {
             ],
           ),
           child: SizedBox(
-            height: 150, // Fixed height to prevent layout jumps during transition
+            height:
+                150, // Fixed height to prevent layout jumps during transition
             child: AnimatedSwitcher(
               duration: const Duration(milliseconds: 300),
               child: _selectedTier == 0
@@ -535,23 +537,25 @@ class _RewardsPageState extends State<RewardsPage> {
                       alignment: Alignment.center,
                       padding: const EdgeInsets.symmetric(vertical: 20),
                       child: const Text(
-                      'Just 1 cup to level up & unlock more member benefits.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontFamily: 'Afacad',
-                        fontSize: 16,
-                        color: Colors.black87,
+                        'Just 1 cup to level up & unlock more member benefits.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 16,
+                          color: Colors.black87,
+                        ),
                       ),
+                    )
+                  : Column(
+                      key: const ValueKey('other_tiers'),
+                      children: [
+                        _buildRewardListItem('1 Free Birthday Drink',
+                            'added on your birthday and usable once'),
+                        const Divider(),
+                        _buildRewardListItem('Exclusive Promos',
+                            'receive exclusive promotional offers'),
+                      ],
                     ),
-                  )
-                : Column(
-                    key: const ValueKey('other_tiers'),
-                    children: [
-                      _buildRewardListItem('1 Free Birthday Drink', 'added on your birthday and usable once'),
-                      const Divider(),
-                      _buildRewardListItem('Exclusive Promos', 'receive exclusive promotional offers'),
-                    ],
-                  ),
             ),
           ),
         ),
@@ -561,7 +565,9 @@ class _RewardsPageState extends State<RewardsPage> {
 
   Widget _buildTierTab(int index, String title, String subtitle, bool locked) {
     bool isSelected = index == _selectedTier;
-    Color bgColor = locked ? Colors.grey.shade300 : (isSelected ? orangeColor : orangeColor.withValues(alpha: 0.5));
+    Color bgColor = locked
+        ? Colors.grey.shade300
+        : (isSelected ? orangeColor : orangeColor.withValues(alpha: 0.5));
     Color textColor = locked ? Colors.grey.shade600 : Colors.white;
 
     return GestureDetector(
@@ -585,10 +591,9 @@ class _RewardsPageState extends State<RewardsPage> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            if (locked)
-              Icon(Icons.lock, size: 12, color: textColor),
+            if (locked) Icon(Icons.lock, size: 12, color: textColor),
             if (locked) const SizedBox(width: 2),
-            Expanded(
+            Flexible(
               child: Column(
                 children: [
                   Text(
@@ -615,6 +620,9 @@ class _RewardsPageState extends State<RewardsPage> {
                 ],
               ),
             ),
+            if (locked)
+              const SizedBox(
+                  width: 14), // Balance the icon to keep text exactly centered
           ],
         ),
       ),
@@ -672,70 +680,72 @@ class _RewardsPageState extends State<RewardsPage> {
         },
         child: Container(
           padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 5),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: orangeColor.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 5),
               ),
-              child: Icon(Icons.help_outline, color: orangeColor, size: 24),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text(
-                    'FAQS',
-                    style: TextStyle(
-                      fontFamily: 'Recoleta',
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF6B3A1A),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: orangeColor.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.help_outline, color: orangeColor, size: 24),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Text(
+                      'FAQS',
+                      style: TextStyle(
+                        fontFamily: 'Recoleta',
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF6B3A1A),
+                      ),
                     ),
-                  ),
-                  Text(
-                    'Learn how it works',
-                    style: TextStyle(
-                      fontFamily: 'Afacad',
-                      fontSize: 12,
-                      color: Colors.grey,
+                    Text(
+                      'Learn how it works',
+                      style: TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 12,
+                        color: Colors.grey,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: orangeColor,
-                borderRadius: BorderRadius.circular(8),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: orangeColor,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: AnimatedRotation(
+                  turns: _isFaqsOpen ? 0.25 : 0,
+                  duration: const Duration(milliseconds: 300),
+                  child: const Icon(Icons.chevron_right,
+                      color: Colors.white, size: 20),
+                ),
               ),
-              child: AnimatedRotation(
-                turns: _isFaqsOpen ? 0.25 : 0,
-                duration: const Duration(milliseconds: 300),
-                child: const Icon(Icons.chevron_right, color: Colors.white, size: 20),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
+
   Widget _buildFaqsDrawer() {
     return Drawer(
       backgroundColor: Colors.white,
@@ -744,16 +754,18 @@ class _RewardsPageState extends State<RewardsPage> {
         children: [
           // Header
           Padding(
-            padding: const EdgeInsets.only(top: 60, left: 20, right: 20, bottom: 20),
+            padding:
+                const EdgeInsets.only(top: 60, left: 20, right: 20, bottom: 20),
             child: Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: orangeColor,
+                    color: orangeColor.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.question_mark, color: Colors.white, size: 24),
+                  child: Icon(Icons.help_outline,
+                      color: orangeColor, size: 24),
                 ),
                 const SizedBox(width: 16),
                 Column(
@@ -812,7 +824,8 @@ class _RewardsPageState extends State<RewardsPage> {
           ),
           // Footer Links
           _buildFooterLink('Privacy Policy', () {
-            Navigator.push(context, _slideRightRoute(const PrivacyPolicyPage()));
+            Navigator.push(
+                context, _slideRightRoute(const PrivacyPolicyPage()));
           }),
           _buildFooterLink('Terms of Use', () {
             Navigator.push(context, _slideRightRoute(const TermsOfUsePage()));
@@ -833,7 +846,8 @@ class _RewardsPageState extends State<RewardsPage> {
         const begin = Offset(1.0, 0.0);
         const end = Offset.zero;
         const curve = Curves.easeOutQuart;
-        var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+        var tween =
+            Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
         var offsetAnimation = animation.drive(tween);
         return SlideTransition(position: offsetAnimation, child: child);
       },
