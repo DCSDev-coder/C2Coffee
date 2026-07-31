@@ -248,12 +248,18 @@ class _HomePageState extends State<HomePage> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Good morning,',
-                    style: TextStyle(
+                  Text(
+                    (() {
+                      final hour = DateTime.now().hour;
+                      if (hour < 12) return 'Good morning,';
+                      if (hour < 17) return 'Good afternoon,';
+                      return 'Good evening,';
+                    })(),
+                    style: const TextStyle(
                       fontFamily: 'Afacad',
                       fontSize: 12,
                       color: Colors.grey,
+                      height: 1.0,
                     ),
                   ),
                   Text(
@@ -263,6 +269,7 @@ class _HomePageState extends State<HomePage> {
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                       color: Color(0xFF5A3118),
+                      height: 1.0,
                     ),
                   ),
                 ],

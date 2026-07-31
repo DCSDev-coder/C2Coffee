@@ -6,6 +6,9 @@ import 'package:intl/intl.dart';
 import '../services/user_service.dart';
 import 'loading_order_page.dart';
 import 'profile_page.dart';
+import 'privacy_policy_page.dart';
+import 'terms_of_use_page.dart';
+import 'about_us_page.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 class SettingsPage extends StatefulWidget {
@@ -563,6 +566,81 @@ class _SettingsPageState extends State<SettingsPage> {
                                       });
                                     },
                                     activeThumbColor: orangeColor,
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            const SizedBox(height: 12),
+
+                            // Info Links Card
+                            Container(
+                              margin:
+                                  const EdgeInsets.symmetric(horizontal: 20),
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(20),
+                                boxShadow: const [
+                                  BoxShadow(
+                                      color: Color(0x08000000),
+                                      blurRadius: 10,
+                                      offset: Offset(0, 4))
+                                ],
+                              ),
+                              child: Column(
+                                children: [
+                                  ListTile(
+                                    title: const Text('Privacy Policy',
+                                        style: TextStyle(
+                                            fontFamily: 'Afacad',
+                                            fontSize: 16,
+                                            color: Colors.black87)),
+                                    trailing: const Icon(
+                                        Icons.arrow_forward_ios,
+                                        size: 16,
+                                        color: Colors.grey),
+                                    onTap: () => Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                            builder: (_) =>
+                                                const PrivacyPolicyPage())),
+                                  ),
+                                  const Divider(
+                                      height: 1, indent: 16, endIndent: 16),
+                                  ListTile(
+                                    title: const Text('Terms & Conditions',
+                                        style: TextStyle(
+                                            fontFamily: 'Afacad',
+                                            fontSize: 16,
+                                            color: Colors.black87)),
+                                    trailing: const Icon(
+                                        Icons.arrow_forward_ios,
+                                        size: 16,
+                                        color: Colors.grey),
+                                    onTap: () => Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                            builder: (_) =>
+                                                const TermsOfUsePage())),
+                                  ),
+                                  const Divider(
+                                      height: 1, indent: 16, endIndent: 16),
+                                  ListTile(
+                                    title: const Text('About Us',
+                                        style: TextStyle(
+                                            fontFamily: 'Afacad',
+                                            fontSize: 16,
+                                            color: Colors.black87)),
+                                    trailing: const Icon(
+                                        Icons.arrow_forward_ios,
+                                        size: 16,
+                                        color: Colors.grey),
+                                    onTap: () => Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                            builder: (_) =>
+                                                const AboutUsPage())),
                                   ),
                                 ],
                               ),

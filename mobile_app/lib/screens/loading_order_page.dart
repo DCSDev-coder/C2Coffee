@@ -75,109 +75,100 @@ class _InteractiveFillingLoaderState extends State<InteractiveFillingLoader>
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     // Takeaway Cup & Liquid Container
+                    // Coffee Mug & Liquid Container
                     SizedBox(
-                      width: 200,
-                      height: 260,
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.end,
+                      width: 240,
+                      height: 160,
+                      child: Stack(
+                        alignment: Alignment.center,
                         children: [
-                          // Plastic Lid
-                          Container(
-                            width: 130,
-                            height: 12,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.8),
-                              borderRadius: const BorderRadius.vertical(
-                                  top: Radius.circular(8)),
-                              border: Border.all(
-                                  color: Colors.grey.withValues(alpha: 0.3),
-                                  width: 1.5),
-                            ),
-                          ),
-                          Container(
-                            width: 145,
-                            height: 6,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.85),
-                              borderRadius: BorderRadius.circular(3),
-                              border: Border.all(
-                                  color: Colors.grey.withValues(alpha: 0.3),
-                                  width: 1.5),
-                            ),
-                          ),
-                          Container(
-                            width: 170,
-                            height: 10,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.9),
-                              borderRadius: BorderRadius.circular(5),
-                              border: Border.all(
-                                  color: Colors.grey.withValues(alpha: 0.3),
-                                  width: 2),
+                          // Handle
+                          Positioned(
+                            left: 186,
+                            top: 40,
+                            child: Container(
+                              width: 50,
+                              height: 60,
+                              decoration: BoxDecoration(
+                                border: Border(
+                                  top: BorderSide(
+                                      color: const Color(0xFF3E2723),
+                                      width: 4),
+                                  right: BorderSide(
+                                      color: const Color(0xFF3E2723),
+                                      width: 4),
+                                  bottom: BorderSide(
+                                      color: const Color(0xFF3E2723),
+                                      width: 4),
+                                ),
+                                borderRadius: const BorderRadius.horizontal(
+                                    right: Radius.circular(30)),
+                              ),
                             ),
                           ),
                           // Cup Body
-                          Container(
-                            width: 160,
-                            height: 220,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.1),
-                              borderRadius: const BorderRadius.vertical(
-                                  bottom: Radius.circular(80)),
-                              border: Border.all(
-                                  color: Colors.grey.withValues(alpha: 0.3),
-                                  width: 3),
-                            ),
-                            child: ClipRRect(
-                              borderRadius: const BorderRadius.vertical(
-                                  bottom: Radius.circular(77)),
-                              child: Stack(
-                                alignment: Alignment.bottomCenter,
-                                children: [
-                                  // Drink Gradient Fill
-                                  FractionallySizedBox(
-                                    widthFactor: 1.0,
-                                    heightFactor: progress,
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        gradient: LinearGradient(
-                                          begin: Alignment.bottomCenter,
-                                          end: Alignment.topCenter,
-                                          colors: [
-                                            const Color(
-                                                0xFFE84258), // Strawberry at bottom
-                                            Colors.white.withValues(
-                                                alpha: 0.95), // Milk in middle
-                                            const Color(
-                                                0xFF387F25), // Matcha green at top
-                                          ],
-                                          stops: const [0.25, 0.5, 1.0],
+                          Positioned(
+                            left: 30,
+                            child: Container(
+                              width: 160,
+                              height: 140,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.1),
+                                borderRadius: const BorderRadius.vertical(
+                                    bottom: Radius.circular(40)),
+                                border: Border.all(
+                                    color: const Color(0xFF3E2723),
+                                    width: 4),
+                              ),
+                              child: ClipRRect(
+                                borderRadius: const BorderRadius.vertical(
+                                    bottom: Radius.circular(36)),
+                                child: Stack(
+                                  alignment: Alignment.bottomCenter,
+                                  children: [
+                                    // Drink Gradient Fill
+                                    FractionallySizedBox(
+                                      widthFactor: 1.0,
+                                      heightFactor: progress,
+                                      child: Container(
+                                        decoration: const BoxDecoration(
+                                          gradient: LinearGradient(
+                                            begin: Alignment.bottomCenter,
+                                            end: Alignment.topCenter,
+                                            colors: [
+                                              Color(0xFF3E2723), // Dark Coffee
+                                              Color(0xFF5D4037), // Medium Coffee
+                                              Color(0xFF8D6E63), // Light Foam
+                                            ],
+                                          ),
                                         ),
                                       ),
                                     ),
-                                  ),
 
-                                  // Wave Effect at the top of the liquid
-                                  Positioned(
-                                    bottom: 220 * progress - 10,
-                                    child: CustomPaint(
-                                      size: const Size(160, 20),
-                                      painter: WavePainter(
-                                          progress, const Color(0xFF387F25)),
+                                    // Wave Effect at the top of the liquid
+                                    Positioned(
+                                      bottom: 140 * progress - 10,
+                                      child: CustomPaint(
+                                        size: const Size(160, 20),
+                                        painter: WavePainter(
+                                            progress, const Color(0xFF8D6E63)),
+                                      ),
                                     ),
-                                  ),
 
-                                  // Actual C2 Logo on Cup
-                                  Center(
-                                    child: Image.asset(
-                                      'assets/images/c2_logo.png',
-                                      width: 120,
-                                      height: 120,
-                                      fit: BoxFit.contain,
-                                      color: Colors.black,
+                                    // Actual C2 Logo on Cup
+                                    Center(
+                                      child: Image.asset(
+                                        'assets/images/c2_logo.png',
+                                        width: 80,
+                                        height: 80,
+                                        fit: BoxFit.contain,
+                                        color: progress > 0.4
+                                            ? Colors.white.withValues(alpha: 0.8)
+                                            : Colors.black.withValues(alpha: 0.8),
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
                           ),
@@ -193,7 +184,7 @@ class _InteractiveFillingLoaderState extends State<InteractiveFillingLoader>
                       style: const TextStyle(
                         fontSize: 48,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFFE94E28),
+                        color: Color(0xFFE76D00),
                         fontFamily: 'Recoleta',
                       ),
                     ),
@@ -223,7 +214,7 @@ class _InteractiveFillingLoaderState extends State<InteractiveFillingLoader>
                           width: 8,
                           height: 8,
                           decoration: BoxDecoration(
-                            color: const Color(0xFFE94E28).withValues(
+                            color: const Color(0xFFE76D00).withValues(
                                 alpha:
                                     _getDotOpacity(index, _controller.value)),
                             shape: BoxShape.circle,

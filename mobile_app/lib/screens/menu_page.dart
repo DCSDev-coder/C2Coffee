@@ -8,7 +8,7 @@ import 'home_page.dart';
 import 'barista_page.dart';
 import 'rewards_page.dart';
 import '../widgets/order_status_banner.dart';
-import 'order_details_page.dart';
+import 'mont_broga_page.dart';
 
 class MenuPage extends StatefulWidget {
   const MenuPage({super.key});
@@ -231,6 +231,20 @@ class _MenuPageState extends State<MenuPage> {
     _searchController.addListener(() {
       setState(() {});
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    for (var category in _menuData) {
+      if (category['items'] != null) {
+        for (var item in category['items']) {
+          if (item['image'] != null) {
+            precacheImage(AssetImage(item['image']), context);
+          }
+        }
+      }
+    }
   }
 
   @override
@@ -658,7 +672,7 @@ class _MenuPageState extends State<MenuPage> {
                                             MaterialPageRoute(
                                               builder: (context) =>
                                                   InteractiveFillingLoader(
-                                                targetPage: OrderDetailsPage(item: item),
+                                                targetPage: MontBrogaPage(item: item),
                                               ),
                                             ),
                                           );

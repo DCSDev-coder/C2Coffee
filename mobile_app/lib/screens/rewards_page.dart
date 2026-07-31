@@ -822,17 +822,6 @@ class _RewardsPageState extends State<RewardsPage> {
               ],
             ),
           ),
-          // Footer Links
-          _buildFooterLink('Privacy Policy', () {
-            Navigator.push(
-                context, _slideRightRoute(const PrivacyPolicyPage()));
-          }),
-          _buildFooterLink('Terms of Use', () {
-            Navigator.push(context, _slideRightRoute(const TermsOfUsePage()));
-          }),
-          _buildFooterLink('About us', () {
-            Navigator.push(context, _slideRightRoute(const AboutUsPage()));
-          }),
           const SizedBox(height: 20),
         ],
       ),

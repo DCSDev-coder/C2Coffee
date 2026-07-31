@@ -309,14 +309,12 @@ class _OrdersPageState extends State<OrdersPage>
             },
             child: GestureDetector(
               onTap: () {
-                if (item['name'] != 'Mont Broga') {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => OrderDetailsPage(item: item),
-                    ),
-                  );
-                }
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => OrderDetailsPage(item: item),
+                  ),
+                );
               },
               child: _buildHistoryCard(item),
             ),
@@ -327,7 +325,29 @@ class _OrdersPageState extends State<OrdersPage>
   }
 
   Widget _buildStoreOrderCard() {
-    return Container(
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => OrderDetailsPage(
+              item: {
+                'name': 'Mont Broga',
+                'price': 'RM 16.90',
+                'image': 'assets/images/drinks/SHAKERATO BIANCO.png',
+                'status': 'Finished',
+                'id': 'store-1',
+                'date': '29/04',
+                'time': '16:04',
+                'quantity': 1,
+                'details': 'Dato Blend / Hot / Fresh Milk /\nReg. Sweet / Reg. Ice /\nTake Away',
+                'remarks': 'None',
+              },
+            ),
+          ),
+        );
+      },
+      child: Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -461,7 +481,7 @@ class _OrdersPageState extends State<OrdersPage>
           ),
         ],
       ),
-    );
+    ));
   }
 
   Widget _buildHistoryCard(Map<String, dynamic> item) {
