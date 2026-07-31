@@ -6,7 +6,6 @@ import 'package:intl/intl.dart';
 import '../services/user_service.dart';
 import 'loading_order_page.dart';
 import 'profile_page.dart';
-import 'menu_page.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 class SettingsPage extends StatefulWidget {
@@ -60,18 +59,24 @@ class _SettingsPageState extends State<SettingsPage> {
       _presetAvatarPath = avatarData['presetPath'] ?? 'assets/images/dato.png';
 
       // Update with stored profile data if available
-      if (profileData['username'] != null)
+      if (profileData['username'] != null) {
         userProfile['username'] = profileData['username'];
-      if (profileData['email'] != null)
+      }
+      if (profileData['email'] != null) {
         userProfile['email'] = profileData['email'];
-      if (profileData['phone'] != null)
+      }
+      if (profileData['phone'] != null) {
         userProfile['phone'] = profileData['phone'];
-      if (profileData['birthday'] != null)
+      }
+      if (profileData['birthday'] != null) {
         userProfile['birthday'] = profileData['birthday'];
-      if (profileData['gender'] != null)
+      }
+      if (profileData['gender'] != null) {
         userProfile['gender'] = profileData['gender'];
-      if (profileData['address'] != null)
+      }
+      if (profileData['address'] != null) {
         userProfile['address'] = profileData['address'];
+      }
     });
   }
 
@@ -420,7 +425,8 @@ class _SettingsPageState extends State<SettingsPage> {
                               context,
                               MaterialPageRoute(
                                 builder: (context) => InteractiveFillingLoader(
-                                  targetPage: widget.returnPage ?? const ProfilePage(),
+                                  targetPage:
+                                      widget.returnPage ?? const ProfilePage(),
                                 ),
                               ),
                             );
@@ -556,7 +562,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                         pushNotifications = val;
                                       });
                                     },
-                                    activeColor: orangeColor,
+                                    activeThumbColor: orangeColor,
                                   ),
                                 ],
                               ),

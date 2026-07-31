@@ -6,6 +6,8 @@ import 'profile_page.dart';
 import 'order_confirmation_page.dart';
 import 'home_page.dart';
 import 'barista_page.dart';
+import 'rewards_page.dart';
+import '../widgets/order_status_banner.dart';
 
 class MenuPage extends StatefulWidget {
   const MenuPage({super.key});
@@ -216,7 +218,6 @@ class _MenuPageState extends State<MenuPage> {
   // Map to store keys for each section header
   final Map<int, GlobalKey> _sectionKeys = {};
   bool _isSearching = false;
-  bool _showOrderStatusBanner = false;
   final TextEditingController _searchController = TextEditingController();
 
   @override
@@ -291,6 +292,50 @@ class _MenuPageState extends State<MenuPage> {
       backgroundColor: bgColor,
       resizeToAvoidBottomInset:
           false, // Prevents bottom UI elements from moving up when keyboard appears
+      extendBody: true,
+      bottomNavigationBar: CustomBottomNav(
+        selectedIndex: 1, // Menu is index 1
+        onItemTapped: (index) {
+          if (index == 0) {
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const InteractiveFillingLoader(
+                  targetPage: HomePage(),
+                ),
+              ),
+              (route) => false,
+            );
+          } else if (index == 2) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const InteractiveFillingLoader(
+                  targetPage: OrdersPage(),
+                ),
+              ),
+            );
+          } else if (index == 3) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const InteractiveFillingLoader(
+                  targetPage: RewardsPage(),
+                ),
+              ),
+            );
+          } else if (index == 4) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const InteractiveFillingLoader(
+                  targetPage: ProfilePage(),
+                ),
+              ),
+            );
+          }
+        },
+      ),
       body: Stack(
         children: [
           // Main Content
@@ -307,86 +352,112 @@ class _MenuPageState extends State<MenuPage> {
                     bottomRight: Radius.circular(20),
                   ),
                 ),
-                child: _isSearching
-                    ? Row(
-                        children: [
-                          Expanded(
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: TextField(
-                                controller: _searchController,
-                                textAlignVertical: TextAlignVertical.center,
-                                style: const TextStyle(
-                                  fontFamily: 'Afacad',
-                                  fontSize: 16,
-                                ),
-                                decoration: const InputDecoration(
-                                  hintText: 'Search',
-                                  hintStyle: TextStyle(
-                                    color: Colors.grey,
-                                    fontFamily: 'Afacad',
-                                    fontSize: 16,
+                child: SizedBox(
+                  height: 48,
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 300),
+                    transitionBuilder:
+                        (Widget child, Animation<double> animation) {
+                      return FadeTransition(
+                        opacity: animation,
+                        child: SlideTransition(
+                          position: Tween<Offset>(
+                            begin: const Offset(0.2, 0.0),
+                            end: Offset.zero,
+                          ).animate(CurvedAnimation(
+                            parent: animation,
+                            curve: Curves.easeOutCubic,
+                          )),
+                          child: child,
+                        ),
+                      );
+                    },
+                    child: _isSearching
+                        ? Row(
+                            key: const ValueKey('searchBar'),
+                            children: [
+                              Expanded(
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(20),
                                   ),
-                                  border: InputBorder.none,
-                                  isDense: true,
-                                  contentPadding: EdgeInsets.symmetric(
-                                      horizontal: 16, vertical: 10),
-                                ),
-                              ),
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.close, color: Colors.white),
-                            onPressed: () {
-                              setState(() {
-                                _isSearching = false;
-                                _searchController.clear();
-                              });
-                            },
-                          ),
-                        ],
-                      )
-                    : Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          GestureDetector(
-                            onTap: () {
-                              Navigator.pushAndRemoveUntil(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const InteractiveFillingLoader(
-                                    targetPage: HomePage(),
+                                  child: TextField(
+                                    controller: _searchController,
+                                    textAlignVertical: TextAlignVertical.center,
+                                    style: const TextStyle(
+                                      fontFamily: 'Afacad',
+                                      fontSize: 16,
+                                    ),
+                                    decoration: const InputDecoration(
+                                      hintText: 'Search',
+                                      hintStyle: TextStyle(
+                                        color: Colors.grey,
+                                        fontFamily: 'Afacad',
+                                        fontSize: 16,
+                                      ),
+                                      border: InputBorder.none,
+                                      isDense: true,
+                                      contentPadding: EdgeInsets.symmetric(
+                                          horizontal: 16, vertical: 10),
+                                    ),
                                   ),
                                 ),
-                                (route) => false,
-                              );
-                            },
-                            child: const Icon(Icons.arrow_back_ios,
-                                color: Colors.white, size: 24),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.close,
+                                    color: Colors.white),
+                                onPressed: () {
+                                  setState(() {
+                                    _isSearching = false;
+                                    _searchController.clear();
+                                  });
+                                },
+                              ),
+                            ],
+                          )
+                        : Row(
+                            key: const ValueKey('menuHeader'),
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              GestureDetector(
+                                onTap: () {
+                                  Navigator.pushAndRemoveUntil(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          const InteractiveFillingLoader(
+                                        targetPage: HomePage(),
+                                      ),
+                                    ),
+                                    (route) => false,
+                                  );
+                                },
+                                child: const Icon(Icons.arrow_back_ios,
+                                    color: Colors.white, size: 24),
+                              ),
+                              const Text(
+                                'MENU',
+                                style: TextStyle(
+                                  fontFamily: 'Recoleta',
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _isSearching = true;
+                                  });
+                                },
+                                child: const Icon(Icons.search,
+                                    color: Colors.white, size: 28),
+                              ),
+                            ],
                           ),
-                          const Text(
-                            'MENU',
-                            style: TextStyle(
-                              fontFamily: 'Recoleta',
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                          GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                _isSearching = true;
-                              });
-                            },
-                            child: const Icon(Icons.search,
-                                color: Colors.white, size: 28),
-                          ),
-                        ],
-                      ),
+                  ),
+                ),
               ),
 
               // Location Header
@@ -408,7 +479,7 @@ class _MenuPageState extends State<MenuPage> {
                       ),
                     ),
                     Text(
-                      'A latte love makes perfect scents',
+                      'A latte love makes perfect scents ☕︎♡',
                       style: TextStyle(
                         fontFamily: 'Afacad',
                         fontSize: 13,
@@ -430,7 +501,8 @@ class _MenuPageState extends State<MenuPage> {
                       color: Colors.white,
                       child: ListView.builder(
                         padding: const EdgeInsets.only(
-                            bottom: 180), // Padding for bottom nav
+                            bottom:
+                                220), // Padding for bottom nav & status banner
                         itemCount: _categories.length,
                         itemBuilder: (context, index) {
                           final isSelected = index == _selectedCategoryIndex;
@@ -473,7 +545,8 @@ class _MenuPageState extends State<MenuPage> {
                             left: 12,
                             right: 12,
                             top: 12,
-                            bottom: 150), // Reduced from 180
+                            bottom:
+                                220), // Increased to allow scrolling past the status banner
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children:
@@ -507,6 +580,7 @@ class _MenuPageState extends State<MenuPage> {
                                 GridView.builder(
                                   shrinkWrap: true,
                                   physics: const NeverScrollableScrollPhysics(),
+                                  padding: EdgeInsets.zero,
                                   gridDelegate:
                                       const SliverGridDelegateWithFixedCrossAxisCount(
                                     crossAxisCount: 2,
@@ -596,262 +670,152 @@ class _MenuPageState extends State<MenuPage> {
             ],
           ),
 
-          // Floating Checkout Bar or Order Status
+          // Floating Checkout Bar
           Positioned(
             bottom: 120, // Positioned above the floating CustomBottomNav
             left: 16,
             right: 16,
-            child: _showOrderStatusBanner
-                ? Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(color: orangeColor, width: 1.5),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.1),
-                          blurRadius: 15,
-                          offset: const Offset(0, 5),
-                        ),
-                      ],
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 12),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Text(
-                              'Your order is being prepared',
-                              style: TextStyle(
-                                fontFamily: 'Recoleta',
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: orangeColor,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Row(
-                              children: const [
-                                Text(
-                                  'Estimated preparation time : ',
-                                  style: TextStyle(
-                                    fontFamily: 'Afacad',
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.black87,
-                                  ),
-                                ),
-                                Text(
-                                  '5 min',
-                                  style: TextStyle(
-                                    fontFamily: 'Afacad',
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.bold,
-                                    fontStyle: FontStyle.italic,
-                                    color: orangeColor,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                        Image.asset(
-                          'assets/images/pour.png',
-                          width: 40,
-                          height: 40,
-                          fit: BoxFit.contain,
-                        ),
-                      ],
-                    ),
-                  )
-                : Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(24),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.1),
-                          blurRadius: 15,
-                          offset: const Offset(0, 5),
-                        ),
-                      ],
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 12),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Text(
-                              'Total',
-                              style: TextStyle(
-                                fontFamily: 'Recoleta',
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            RichText(
-                              text: const TextSpan(
-                                children: [
-                                  TextSpan(
-                                    text: 'RM ',
-                                    style: TextStyle(
-                                      fontFamily: 'Afacad',
-                                      fontSize: 12,
-                                      color: Colors.black87,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  TextSpan(
-                                    text: '15.90',
-                                    style: TextStyle(
-                                      fontFamily: 'Afacad',
-                                      fontSize: 18,
-                                      color: Colors.black,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        Row(
-                          children: [
-                            ElevatedButton(
-                              onPressed: () async {
-                                final result = await Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        const InteractiveFillingLoader(
-                                      targetPage: OrderConfirmationPage(),
-                                    ),
-                                  ),
-                                );
-                                if (result == true) {
-                                  setState(() {
-                                    _showOrderStatusBanner = true;
-                                  });
-                                }
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: orangeColor,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 24, vertical: 10),
-                              ),
-                              child: const Text(
-                                'CHECKOUT',
-                                style: TextStyle(
-                                  fontFamily: 'Afacad',
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            GestureDetector(
-                              onTap: () async {
-                                final result = await Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        const InteractiveFillingLoader(
-                                      targetPage: OrderConfirmationPage(),
-                                    ),
-                                  ),
-                                );
-                                if (result == true) {
-                                  setState(() {
-                                    _showOrderStatusBanner = true;
-                                  });
-                                }
-                              },
-                              child: Stack(
-                                clipBehavior: Clip.none,
-                                children: [
-                                  const Icon(Icons.shopping_basket,
-                                      size: 28, color: Colors.black87),
-                                  Positioned(
-                                    right: -4,
-                                    top: -4,
-                                    child: Container(
-                                      padding: const EdgeInsets.all(4),
-                                      decoration: const BoxDecoration(
-                                        color: orangeColor,
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: const Text(
-                                        '1',
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.1),
+                    blurRadius: 15,
+                    offset: const Offset(0, 5),
                   ),
-          ),
-
-          // Floating Bottom Navigation
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: CustomBottomNav(
-              selectedIndex: 1, // Menu is index 1
-              onItemTapped: (index) {
-                if (index == 0) {
-                  Navigator.pushAndRemoveUntil(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const InteractiveFillingLoader(
-                        targetPage: HomePage(),
+                ],
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        'Total',
+                        style: TextStyle(
+                          fontFamily: 'Recoleta',
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
-                    (route) => false,
-                  );
-                } else if (index == 2) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const InteractiveFillingLoader(
-                        targetPage: OrdersPage(),
+                      RichText(
+                        text: const TextSpan(
+                          children: [
+                            TextSpan(
+                              text: 'RM ',
+                              style: TextStyle(
+                                fontFamily: 'Afacad',
+                                fontSize: 12,
+                                color: Colors.black87,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            TextSpan(
+                              text: '15.90',
+                              style: TextStyle(
+                                fontFamily: 'Afacad',
+                                fontSize: 18,
+                                color: Colors.black,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  );
-                } else if (index == 4) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const InteractiveFillingLoader(
-                        targetPage: ProfilePage(),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      ElevatedButton(
+                        onPressed: () async {
+                          final result = await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  const InteractiveFillingLoader(
+                                targetPage: OrderConfirmationPage(),
+                              ),
+                            ),
+                          );
+                          if (result == true) {
+                            // Global state is handled by order_confirmation_page directly
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: orangeColor,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 24, vertical: 10),
+                        ),
+                        child: const Text(
+                          'CHECKOUT',
+                          style: TextStyle(
+                            fontFamily: 'Afacad',
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            color: Colors.white,
+                          ),
+                        ),
                       ),
-                    ),
-                  );
-                }
-              },
+                      const SizedBox(width: 16),
+                      GestureDetector(
+                        onTap: () async {
+                          final result = await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  const InteractiveFillingLoader(
+                                targetPage: OrderConfirmationPage(),
+                              ),
+                            ),
+                          );
+                          if (result == true) {
+                            // Global state is handled by order_confirmation_page directly
+                          }
+                        },
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            const Icon(Icons.shopping_basket,
+                                size: 28, color: Colors.black87),
+                            Positioned(
+                              right: -4,
+                              top: -4,
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: const BoxDecoration(
+                                  color: orangeColor,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Text(
+                                  '1',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
+
+          // Global Order Status Banner overlay
+          const OrderStatusBanner(),
         ],
       ),
     );

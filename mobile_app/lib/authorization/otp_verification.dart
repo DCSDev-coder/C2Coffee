@@ -1,7 +1,7 @@
 import 'dart:io';
+import '../screens/success_page.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image_picker/image_picker.dart';
 import '../screens/home_page.dart';
@@ -333,7 +333,9 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
   Widget _buildMainAvatar() {
     ImageProvider imageProvider;
     if (_pickedImage != null) {
-      imageProvider = kIsWeb ? NetworkImage(_pickedImage!.path) : FileImage(_pickedImage!) as ImageProvider;
+      imageProvider = kIsWeb
+          ? NetworkImage(_pickedImage!.path)
+          : FileImage(_pickedImage!) as ImageProvider;
     } else if (_presetAvatarPath != null) {
       imageProvider = AssetImage(_presetAvatarPath!);
     } else {
@@ -476,9 +478,16 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                   GestureDetector(
                     onTap: () {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content: Text('OTP sent to your email!'),
-                            backgroundColor: orangeColor),
+                        SnackBar(
+                            content: const Text('OTP sent to your email!'),
+                            backgroundColor: orangeColor,
+                            behavior: SnackBarBehavior.floating,
+                            margin: EdgeInsets.only(
+                              bottom: MediaQuery.of(context).size.height - 220,
+                              left: 20,
+                              right: 20,
+                            ),
+                        ),
                       );
                       setState(() {
                         startTimer();
@@ -544,18 +553,25 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                     height: 48,
                     child: ElevatedButton(
                       onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                              content: Text('OTP Verified! Welcome back!'),
-                              backgroundColor: Color(0xFFE76D00)),
-                        );
                         Navigator.pushAndRemoveUntil(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => HomePage(
-                              initialPickedImage: _pickedImage,
-                              initialPresetPath: _presetAvatarPath,
-                              initialAvatarIndex: _selectedAvatarIndex,
+                            builder: (context) => SuccessPage(
+                              title: 'SUCCESS!',
+                              subtitle: 'OTP Verified! Welcome back!',
+                              onDone: () {
+                                Navigator.pushAndRemoveUntil(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => HomePage(
+                                      initialPickedImage: _pickedImage,
+                                      initialPresetPath: _presetAvatarPath,
+                                      initialAvatarIndex: _selectedAvatarIndex,
+                                    ),
+                                  ),
+                                  (route) => false,
+                                );
+                              },
                             ),
                           ),
                           (route) => false,

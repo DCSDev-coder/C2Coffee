@@ -7,11 +7,11 @@ import '../services/user_service.dart';
 import 'home_page.dart';
 import 'loading_order_page.dart';
 import 'orders_page.dart';
-import 'menu_page.dart';
 import 'top_up_wallet_page.dart';
 import 'notification_page.dart';
 import 'settings_page.dart';
-import 'referral_page.dart';
+import 'rewards_page.dart';
+import '../widgets/order_status_banner.dart';
 
 class ProfilePage extends StatefulWidget {
   final File? initialPickedImage;
@@ -51,8 +51,9 @@ class _ProfilePageState extends State<ProfilePage> {
         _persistedPickedImage = File(avatarData['pickedImagePath']!);
       }
       _persistedPresetPath = avatarData['presetPath'];
-      
-      if (profileData['username'] != null && profileData['username']!.isNotEmpty) {
+
+      if (profileData['username'] != null &&
+          profileData['username']!.isNotEmpty) {
         _username = profileData['username']!;
       }
     });
@@ -79,6 +80,19 @@ class _ProfilePageState extends State<ProfilePage> {
         MaterialPageRoute(
           builder: (context) => InteractiveFillingLoader(
             targetPage: OrdersPage(
+              initialPickedImage: widget.initialPickedImage,
+              initialPresetPath: widget.initialPresetPath,
+              initialAvatarIndex: widget.initialAvatarIndex,
+            ),
+          ),
+        ),
+      );
+    } else if (index == 3) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => InteractiveFillingLoader(
+            targetPage: RewardsPage(
               initialPickedImage: widget.initialPickedImage,
               initialPresetPath: widget.initialPresetPath,
               initialAvatarIndex: widget.initialAvatarIndex,
@@ -120,6 +134,11 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: bgColor,
+      extendBody: true,
+      bottomNavigationBar: CustomBottomNav(
+        selectedIndex: 4,
+        onItemTapped: _onBottomNavTapped,
+      ),
       body: Stack(
         children: [
           Column(
@@ -182,8 +201,8 @@ class _ProfilePageState extends State<ProfilePage> {
                                   builder: (context) =>
                                       InteractiveFillingLoader(
                                     targetPage: SettingsPage(
-                                        onProfileUpdated: _loadAvatarState,
-                                        returnPage: const ProfilePage(),
+                                      onProfileUpdated: _loadAvatarState,
+                                      returnPage: const ProfilePage(),
                                     ),
                                   ),
                                 ),
@@ -246,10 +265,9 @@ class _ProfilePageState extends State<ProfilePage> {
                                       builder: (context) =>
                                           InteractiveFillingLoader(
                                               targetPage: SettingsPage(
-                                                  onProfileUpdated:
-                                                      _loadAvatarState,
-                                                  returnPage: const ProfilePage(),
-                                              ))),
+                                            onProfileUpdated: _loadAvatarState,
+                                            returnPage: const ProfilePage(),
+                                          ))),
                                 );
                               },
                               child: _buildAvatar(),
@@ -596,17 +614,7 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
             ],
           ),
-
-          // Bottom Navigation
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: CustomBottomNav(
-              selectedIndex: 4,
-              onItemTapped: _onBottomNavTapped,
-            ),
-          ),
+          const OrderStatusBanner(),
         ],
       ),
     );

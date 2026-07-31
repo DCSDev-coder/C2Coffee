@@ -202,7 +202,7 @@ class _InteractiveFillingLoaderState extends State<InteractiveFillingLoader>
 
                     // Status Text
                     const Text(
-                      'SIP THE CALM',
+                      'SIP THE CALM ༄',
                       style: TextStyle(
                         fontSize: 14,
                         letterSpacing: 2,
@@ -241,7 +241,7 @@ class _InteractiveFillingLoaderState extends State<InteractiveFillingLoader>
                 left: 40,
                 right: 40,
                 child: Text(
-                  '"A LATTE LOVE MAKES PERFECT SENSE."',
+                  '"A LATTE LOVE MAKES PERFECT SENSE ☕︎♡"',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontStyle: FontStyle.italic,

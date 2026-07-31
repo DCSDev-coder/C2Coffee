@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../utils/global_state.dart';
+import 'success_page.dart';
 import 'loading_order_page.dart';
 import 'menu_page.dart';
 
@@ -27,7 +29,8 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
             children: [
               // Custom Header
               Container(
-                padding: const EdgeInsets.only(top: 60, bottom: 20, left: 20, right: 20),
+                padding: const EdgeInsets.only(
+                    top: 60, bottom: 20, left: 20, right: 20),
                 decoration: const BoxDecoration(
                   color: orangeColor,
                   borderRadius: BorderRadius.only(
@@ -42,13 +45,15 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                         Navigator.pushReplacement(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => const InteractiveFillingLoader(
+                            builder: (context) =>
+                                const InteractiveFillingLoader(
                               targetPage: MenuPage(),
                             ),
                           ),
                         );
                       },
-                      child: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 24),
+                      child: const Icon(Icons.arrow_back_ios,
+                          color: Colors.white, size: 24),
                     ),
                     const Expanded(
                       child: Center(
@@ -74,7 +79,8 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
               // Scrollable Content
               Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -124,14 +130,16 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                                   ),
                                 ),
                                 const SizedBox(width: 16),
-                                
+
                                 // Drink Details
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Row(
-                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
                                         children: [
                                           const Text(
                                             'Mont Broga',
@@ -179,35 +187,55 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                                         ),
                                       ),
                                       const SizedBox(height: 12),
-                                      
+
                                       // Quantity Selector
                                       Container(
                                         width: 80,
                                         height: 28,
                                         decoration: BoxDecoration(
-                                          borderRadius: BorderRadius.circular(14),
-                                          border: Border.all(color: orangeColor, width: 1),
+                                          borderRadius:
+                                              BorderRadius.circular(14),
+                                          border: Border.all(
+                                              color: orangeColor, width: 1),
                                         ),
                                         child: Row(
-                                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                                          crossAxisAlignment: CrossAxisAlignment.center,
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceEvenly,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.center,
                                           children: [
                                             GestureDetector(
                                               onTap: () {
                                                 if (_quantity > 1) {
                                                   setState(() => _quantity--);
                                                 } else if (_quantity == 1) {
-                                                  Navigator.pop(context); // "or delete" - pop back
+                                                  Navigator.pop(
+                                                      context); // "or delete" - pop back
                                                 }
                                               },
-                                              child: const Text('-', style: TextStyle(color: orangeColor, fontSize: 16, fontWeight: FontWeight.bold)),
+                                              child: const Text('-',
+                                                  style: TextStyle(
+                                                      color: orangeColor,
+                                                      fontSize: 16,
+                                                      fontWeight:
+                                                          FontWeight.bold)),
                                             ),
-                                            Text('$_quantity', style: const TextStyle(color: orangeColor, fontSize: 14, fontWeight: FontWeight.bold)),
+                                            Text('$_quantity',
+                                                style: const TextStyle(
+                                                    color: orangeColor,
+                                                    fontSize: 14,
+                                                    fontWeight:
+                                                        FontWeight.bold)),
                                             GestureDetector(
                                               onTap: () {
                                                 setState(() => _quantity++);
                                               },
-                                              child: const Text('+', style: TextStyle(color: orangeColor, fontSize: 16, fontWeight: FontWeight.bold)),
+                                              child: const Text('+',
+                                                  style: TextStyle(
+                                                      color: orangeColor,
+                                                      fontSize: 16,
+                                                      fontWeight:
+                                                          FontWeight.bold)),
                                             ),
                                           ],
                                         ),
@@ -220,7 +248,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                             const SizedBox(height: 16),
                             const Divider(color: Color(0xFFEEEEEE), height: 1),
                             const SizedBox(height: 12),
-                            
+
                             // Total line
                             Row(
                               mainAxisAlignment: MainAxisAlignment.end,
@@ -249,7 +277,8 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                                         ),
                                       ),
                                       TextSpan(
-                                        text: (_basePrice * _quantity).toStringAsFixed(2),
+                                        text: (_basePrice * _quantity)
+                                            .toStringAsFixed(2),
                                         style: const TextStyle(
                                           fontFamily: 'Afacad',
                                           fontSize: 16,
@@ -265,9 +294,9 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                           ],
                         ),
                       ),
-                      
+
                       const SizedBox(height: 16),
-                      
+
                       // Add order text
                       Align(
                         alignment: Alignment.centerRight,
@@ -284,16 +313,19 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                           ),
                         ),
                       ),
-                      
+
                       const SizedBox(height: 24),
-                      
+
                       // Voucher Card
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 12),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: orangeColor.withValues(alpha: 0.5), width: 1),
+                          border: Border.all(
+                              color: orangeColor.withValues(alpha: 0.5),
+                              width: 1),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -311,9 +343,11 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                             Row(
                               children: [
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 4),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFFC85A17), // Darker orange/brown
+                                    color: const Color(
+                                        0xFFC85A17), // Darker orange/brown
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: const Text(
@@ -340,16 +374,19 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                           ],
                         ),
                       ),
-                      
+
                       const SizedBox(height: 16),
-                      
+
                       // Payment Method Card
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 12),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: orangeColor.withValues(alpha: 0.5), width: 1),
+                          border: Border.all(
+                              color: orangeColor.withValues(alpha: 0.5),
+                              width: 1),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -366,11 +403,15 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                             const SizedBox(height: 8),
                             Row(
                               children: [
-                                const Icon(Icons.account_balance_wallet_outlined, size: 28, color: Colors.black87),
+                                const Icon(
+                                    Icons.account_balance_wallet_outlined,
+                                    size: 28,
+                                    color: Colors.black87),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       const Text(
                                         'Wallet',
@@ -398,7 +439,8 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                                   height: 20,
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
-                                    border: Border.all(color: orangeColor, width: 2),
+                                    border: Border.all(
+                                        color: orangeColor, width: 2),
                                   ),
                                   child: Center(
                                     child: Container(
@@ -417,17 +459,27 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                         ),
                       ),
                       const SizedBox(height: 32),
-                      
+
                       // Checkout Button
                       GestureDetector(
                         onTap: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Order placed successfully!'),
-                              backgroundColor: orangeColor,
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => SuccessPage(
+                                title: 'SUCCESS!',
+                                subtitle:
+                                    'Your order has been placed successfully.',
+                                onDone: () {
+                                  globalOrderStatusVisible.value =
+                                      true; // Show global banner
+                                  Navigator.pop(context); // Pop SuccessPage
+                                  Navigator.pop(
+                                      context, true); // Pop Checkout page
+                                },
+                              ),
                             ),
                           );
-                          Navigator.pop(context, true);
                         },
                         child: Container(
                           width: double.infinity,

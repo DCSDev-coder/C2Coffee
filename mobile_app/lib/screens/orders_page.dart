@@ -6,6 +6,8 @@ import 'menu_page.dart';
 import 'loading_order_page.dart';
 import 'order_details_page.dart';
 import 'profile_page.dart';
+import 'rewards_page.dart';
+import '../widgets/order_status_banner.dart';
 
 class OrdersPage extends StatefulWidget {
   final File? initialPickedImage;
@@ -71,12 +73,12 @@ class _OrdersPageState extends State<OrdersPage>
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(
-          builder: (context) =>
-              InteractiveFillingLoader(targetPage: HomePage(
-                initialPickedImage: widget.initialPickedImage,
-                initialPresetPath: widget.initialPresetPath,
-                initialAvatarIndex: widget.initialAvatarIndex,
-              )),
+          builder: (context) => InteractiveFillingLoader(
+              targetPage: HomePage(
+            initialPickedImage: widget.initialPickedImage,
+            initialPresetPath: widget.initialPresetPath,
+            initialAvatarIndex: widget.initialAvatarIndex,
+          )),
         ),
         (route) => false,
       );
@@ -86,6 +88,19 @@ class _OrdersPageState extends State<OrdersPage>
         MaterialPageRoute(
           builder: (context) => const InteractiveFillingLoader(
             targetPage: MenuPage(),
+          ),
+        ),
+      );
+    } else if (index == 3) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => InteractiveFillingLoader(
+            targetPage: RewardsPage(
+              initialPickedImage: widget.initialPickedImage,
+              initialPresetPath: widget.initialPresetPath,
+              initialAvatarIndex: widget.initialAvatarIndex,
+            ),
           ),
         ),
       );
@@ -127,112 +142,106 @@ class _OrdersPageState extends State<OrdersPage>
         );
       },
       child: Scaffold(
-      backgroundColor: bgColor,
-      body: Stack(
-        children: [
-          Column(
-            children: [
-              // Header
-              Container(
-                padding: const EdgeInsets.only(
-                    top: 60, bottom: 20, left: 20, right: 20),
-                decoration: BoxDecoration(
-                  color: orangeColor,
-                  borderRadius: const BorderRadius.only(
-                    bottomLeft: Radius.circular(20),
-                    bottomRight: Radius.circular(20),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    GestureDetector(
-                      onTap: () {
-                        Navigator.pushAndRemoveUntil(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                InteractiveFillingLoader(
-                                    targetPage: HomePage(
-                                      initialPickedImage: widget.initialPickedImage,
-                                      initialPresetPath: widget.initialPresetPath,
-                                      initialAvatarIndex: widget.initialAvatarIndex,
-                                    )),
-                          ),
-                          (route) => false,
-                        );
-                      },
-                      child: const Icon(Icons.arrow_back_ios,
-                          color: Colors.white, size: 24),
+        backgroundColor: bgColor,
+        extendBody: true,
+        bottomNavigationBar: CustomBottomNav(
+          selectedIndex: 2,
+          onItemTapped: _onBottomNavTapped,
+        ),
+        body: Stack(
+          children: [
+            Column(
+              children: [
+                // Header
+                Container(
+                  padding: const EdgeInsets.only(
+                      top: 60, bottom: 20, left: 20, right: 20),
+                  decoration: BoxDecoration(
+                    color: orangeColor,
+                    borderRadius: const BorderRadius.only(
+                      bottomLeft: Radius.circular(20),
+                      bottomRight: Radius.circular(20),
                     ),
-                    const Expanded(
-                      child: Center(
-                        child: Text(
-                          'MY ORDER',
-                          style: TextStyle(
-                            fontFamily: 'Recoleta',
-                            fontSize: 28,
-                            fontWeight: FontWeight.w900,
-                            color: Colors.white,
+                  ),
+                  child: Row(
+                    children: [
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.pushAndRemoveUntil(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => InteractiveFillingLoader(
+                                  targetPage: HomePage(
+                                initialPickedImage: widget.initialPickedImage,
+                                initialPresetPath: widget.initialPresetPath,
+                                initialAvatarIndex: widget.initialAvatarIndex,
+                              )),
+                            ),
+                            (route) => false,
+                          );
+                        },
+                        child: const Icon(Icons.arrow_back_ios,
+                            color: Colors.white, size: 24),
+                      ),
+                      const Expanded(
+                        child: Center(
+                          child: Text(
+                            'MY ORDER',
+                            style: TextStyle(
+                              fontFamily: 'Recoleta',
+                              fontSize: 28,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 24), // Balance the back button
-                  ],
-                ),
-              ),
-
-              // Tabs
-              Container(
-                alignment: Alignment.centerLeft,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: TabBar(
-                  controller: _tabController,
-                  isScrollable: true,
-                  tabAlignment: TabAlignment.start,
-                  dividerColor: Colors.transparent,
-                  indicatorColor: orangeColor,
-                  labelColor: orangeColor,
-                  unselectedLabelColor: orangeColor.withValues(alpha: 0.6),
-                  indicatorSize: TabBarIndicatorSize.label,
-                  labelStyle: const TextStyle(
-                    fontFamily: 'Afacad',
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
+                      const SizedBox(width: 24), // Balance the back button
+                    ],
                   ),
-                  tabs: const [
-                    Tab(text: 'Stores Orders'),
-                    Tab(text: 'Purchase History'),
-                  ],
                 ),
-              ),
 
-              // Tab Content
-              Expanded(
-                child: TabBarView(
-                  controller: _tabController,
-                  physics: const NeverScrollableScrollPhysics(),
-                  children: [
-                    _buildStoresOrdersTab(),
-                    _buildPurchaseHistoryTab(),
-                  ],
+                // Tabs
+                Container(
+                  alignment: Alignment.centerLeft,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: TabBar(
+                    controller: _tabController,
+                    isScrollable: true,
+                    tabAlignment: TabAlignment.start,
+                    dividerColor: Colors.transparent,
+                    indicatorColor: orangeColor,
+                    labelColor: orangeColor,
+                    unselectedLabelColor: orangeColor.withValues(alpha: 0.6),
+                    indicatorSize: TabBarIndicatorSize.label,
+                    labelStyle: const TextStyle(
+                      fontFamily: 'Afacad',
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                    tabs: const [
+                      Tab(text: 'Stores Orders'),
+                      Tab(text: 'Purchase History'),
+                    ],
+                  ),
                 ),
-              ),
-            ],
-          ),
 
-          // Bottom Navigation
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: CustomBottomNav(
-              selectedIndex: 2,
-              onItemTapped: _onBottomNavTapped,
+                // Tab Content
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabController,
+                    physics: const NeverScrollableScrollPhysics(),
+                    children: [
+                      _buildStoresOrdersTab(),
+                      _buildPurchaseHistoryTab(),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ),
-        ],
-      ),
+            const OrderStatusBanner(),
+          ],
+        ),
       ),
     );
   }
@@ -298,9 +307,15 @@ class _OrdersPageState extends State<OrdersPage>
                 _purchaseHistory.removeAt(index);
               });
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Order removed from history'),
-                  duration: Duration(seconds: 2),
+                SnackBar(
+                  content: const Text('Order removed from history'),
+                  duration: const Duration(seconds: 2),
+                  behavior: SnackBarBehavior.floating,
+                  margin: EdgeInsets.only(
+                    bottom: MediaQuery.of(context).size.height - 220,
+                    left: 20,
+                    right: 20,
+                  ),
                 ),
               );
             },

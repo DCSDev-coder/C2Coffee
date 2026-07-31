@@ -12,6 +12,8 @@ import 'notification_page.dart';
 import 'settings_page.dart';
 import 'referral_page.dart';
 import 'menu_page.dart';
+import 'rewards_page.dart';
+import '../widgets/order_status_banner.dart';
 
 class HomePage extends StatefulWidget {
   final File? initialPickedImage;
@@ -96,6 +98,58 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  void _onBottomNavTapped(int index) {
+    if (index == 1) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const InteractiveFillingLoader(
+            targetPage: MenuPage(),
+          ),
+        ),
+      );
+    } else if (index == 2) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => InteractiveFillingLoader(
+            targetPage: OrdersPage(
+              initialPickedImage: widget.initialPickedImage,
+              initialPresetPath: widget.initialPresetPath,
+              initialAvatarIndex: widget.initialAvatarIndex,
+            ),
+          ),
+        ),
+      );
+    } else if (index == 3) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => InteractiveFillingLoader(
+            targetPage: RewardsPage(
+              initialPickedImage: widget.initialPickedImage,
+              initialPresetPath: widget.initialPresetPath,
+              initialAvatarIndex: widget.initialAvatarIndex,
+            ),
+          ),
+        ),
+      );
+    } else if (index == 4) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => InteractiveFillingLoader(
+            targetPage: ProfilePage(
+              initialPickedImage: widget.initialPickedImage,
+              initialPresetPath: widget.initialPresetPath,
+              initialAvatarIndex: widget.initialAvatarIndex,
+            ),
+          ),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     const Color orangeColor = Color(0xFFE66B00); // Bright orange from the image
@@ -103,83 +157,38 @@ class _HomePageState extends State<HomePage> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFFAF4EE),
-      body: SafeArea(
-        bottom: false,
-        child: Stack(
-          children: [
-            // Content
-            Positioned.fill(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.only(
-                    bottom: 130), // Increased space for bottom bar
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 16),
-                    _buildHeader(orangeColor),
-                    const SizedBox(height: 16),
-                    AspectRatio(
-                      aspectRatio: 1.0,
-                      child: _buildHeroBanner(),
-                    ),
-                    const SizedBox(height: 16),
-                    _buildActionButtons(orangeColor, darkBrownColor),
-                    const SizedBox(height: 16),
-                    _buildBestSellerSection(orangeColor),
-                  ],
-                ),
+      extendBody: true,
+      bottomNavigationBar: CustomBottomNav(
+        selectedIndex: 0, // Home is index 0
+        onItemTapped: _onBottomNavTapped,
+      ),
+      body: Stack(
+        children: [
+          SafeArea(
+            bottom: false,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.only(
+                  bottom: 220), // Increased space for bottom bar and status banner
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 16),
+                  _buildHeader(orangeColor),
+                  const SizedBox(height: 16),
+                  AspectRatio(
+                    aspectRatio: 1.0,
+                    child: _buildHeroBanner(),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildActionButtons(orangeColor, darkBrownColor),
+                  const SizedBox(height: 16),
+                  _buildBestSellerSection(orangeColor),
+                ],
               ),
             ),
-
-            // Custom Glass Bottom Navigation Bar
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: CustomBottomNav(
-                selectedIndex: 0, // Home is index 0
-                onItemTapped: (index) {
-                  if (index == 1) {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const InteractiveFillingLoader(
-                          targetPage: MenuPage(),
-                        ),
-                      ),
-                    );
-                  } else if (index == 2) {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (context) => InteractiveFillingLoader(
-                                  targetPage: OrdersPage(
-                                initialPickedImage: widget.initialPickedImage,
-                                initialPresetPath: widget.initialPresetPath,
-                                initialAvatarIndex: widget.initialAvatarIndex,
-                              ))),
-                    );
-                  } else if (index == 4) {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => InteractiveFillingLoader(
-                          targetPage: ProfilePage(
-                            initialPickedImage: widget.initialPickedImage,
-                            initialPresetPath: widget.initialPresetPath,
-                            initialAvatarIndex: widget.initialAvatarIndex,
-                          ),
-                        ),
-                      ),
-                    );
-                  } else {
-                    // Handle other tabs if needed
-                  }
-                },
-              ),
-            ),
-          ],
-        ),
+          ),
+          const OrderStatusBanner(),
+        ],
       ),
     );
   }
@@ -542,7 +551,7 @@ class _HomePageState extends State<HomePage> {
                 width: 150, // Increased width
                 margin: const EdgeInsets.symmetric(horizontal: 6),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFF7F0), // slightly warm beige
+                  color: Colors.white,
                   borderRadius: BorderRadius.circular(24),
                   border: Border.all(color: const Color(0xFFC87023), width: 2),
                 ),
@@ -552,7 +561,6 @@ class _HomePageState extends State<HomePage> {
                   children: [
                     Expanded(
                       child: Container(
-                        color: Colors.white,
                         padding: const EdgeInsets.all(8.0),
                         child: Center(
                           child: Transform.scale(
