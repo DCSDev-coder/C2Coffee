@@ -194,21 +194,6 @@ class ReferralPage extends StatelessWidget {
                                 onTap: () {
                                   Clipboard.setData(
                                       const ClipboardData(text: 'DSC123'));
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content:
-                                          const Text('Referral code copied!'),
-                                      duration: const Duration(seconds: 2),
-                                      behavior: SnackBarBehavior.floating,
-                                      margin: EdgeInsets.only(
-                                        bottom:
-                                            MediaQuery.of(context).size.height -
-                                                220,
-                                        left: 20,
-                                        right: 20,
-                                      ),
-                                    ),
-                                  );
                                 },
                                 child: Container(
                                   width: double.infinity,

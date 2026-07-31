@@ -12,6 +12,7 @@ import '../widgets/order_status_banner.dart';
 import 'privacy_policy_page.dart';
 import 'terms_of_use_page.dart';
 import 'about_us_page.dart';
+import 'my_rewards_page.dart';
 
 class RewardsPage extends StatefulWidget {
   final File? initialPickedImage;
@@ -273,12 +274,12 @@ class _RewardsPageState extends State<RewardsPage> {
           'Check-In for Rewards',
           style: TextStyle(
             fontFamily: 'Recoleta',
-            fontSize: 20,
+            fontSize: 18,
             fontWeight: FontWeight.bold,
             color: Color(0xFF6B3A1A),
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: List.generate(7, (index) {
@@ -286,17 +287,14 @@ class _RewardsPageState extends State<RewardsPage> {
             return Column(
               children: [
                 isToday
-                    ? Transform.scale(
-                        scale: 1.2,
-                        child: Image.asset(
-                          'assets/images/coin.png',
-                          width: 48,
-                          height: 48,
-                        ),
+                    ? Image.asset(
+                        'assets/images/coin.png',
+                        width: 44,
+                        height: 44,
                       )
                     : Container(
-                        width: 48,
-                        height: 48,
+                        width: 44,
+                        height: 44,
                         decoration: BoxDecoration(
                           color: Colors.grey.shade300,
                           shape: BoxShape.circle,
@@ -321,7 +319,7 @@ class _RewardsPageState extends State<RewardsPage> {
             );
           }),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         SizedBox(
           width: 240,
           child: ElevatedButton(
@@ -362,13 +360,24 @@ class _RewardsPageState extends State<RewardsPage> {
       child: Row(
         children: [
           Expanded(
-            child: Container(
-              height: 120,
-              decoration: BoxDecoration(
-                color: orangeColor,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Stack(
+            child: GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const InteractiveFillingLoader(
+                      targetPage: MyRewardsPage(),
+                    ),
+                  ),
+                );
+              },
+              child: Container(
+                height: 120,
+                decoration: BoxDecoration(
+                  color: orangeColor,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Stack(
                 children: [
                   Positioned(
                     top: 12,
@@ -399,7 +408,8 @@ class _RewardsPageState extends State<RewardsPage> {
               ),
             ),
           ),
-          const SizedBox(width: 16),
+        ),
+        const SizedBox(width: 16),
           Expanded(
             child: GestureDetector(
               onTap: () {

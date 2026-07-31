@@ -11,6 +11,8 @@ import 'top_up_wallet_page.dart';
 import 'notification_page.dart';
 import 'settings_page.dart';
 import 'rewards_page.dart';
+import 'my_rewards_page.dart';
+import 'referral_page.dart';
 import '../widgets/order_status_banner.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -49,6 +51,8 @@ class _ProfilePageState extends State<ProfilePage> {
     setState(() {
       if (avatarData['pickedImagePath'] != null) {
         _persistedPickedImage = File(avatarData['pickedImagePath']!);
+      } else {
+        _persistedPickedImage = null;
       }
       _persistedPresetPath = avatarData['presetPath'];
 
@@ -404,7 +408,17 @@ class _ProfilePageState extends State<ProfilePage> {
                                     borderRadius: BorderRadius.circular(20),
                                     child: InkWell(
                                       borderRadius: BorderRadius.circular(20),
-                                      onTap: () {},
+                                      onTap: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) =>
+                                                const InteractiveFillingLoader(
+                                              targetPage: MyRewardsPage(),
+                                            ),
+                                          ),
+                                        );
+                                      },
                                       child: Padding(
                                         padding: const EdgeInsets.symmetric(
                                             vertical: 20, horizontal: 16),
@@ -451,7 +465,17 @@ class _ProfilePageState extends State<ProfilePage> {
                                     borderRadius: BorderRadius.circular(20),
                                     child: InkWell(
                                       borderRadius: BorderRadius.circular(20),
-                                      onTap: () {},
+                                      onTap: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) =>
+                                                const InteractiveFillingLoader(
+                                              targetPage: ReferralPage(),
+                                            ),
+                                          ),
+                                        );
+                                      },
                                       child: Padding(
                                         padding: const EdgeInsets.symmetric(
                                             vertical: 20, horizontal: 16),

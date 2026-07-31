@@ -89,6 +89,8 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       if (avatarData['pickedImagePath'] != null) {
         _persistedPickedImage = File(avatarData['pickedImagePath']!);
+      } else {
+        _persistedPickedImage = null;
       }
       _persistedPresetPath = avatarData['presetPath'];
       

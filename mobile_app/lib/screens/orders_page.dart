@@ -306,27 +306,17 @@ class _OrdersPageState extends State<OrdersPage>
               setState(() {
                 _purchaseHistory.removeAt(index);
               });
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: const Text('Order removed from history'),
-                  duration: const Duration(seconds: 2),
-                  behavior: SnackBarBehavior.floating,
-                  margin: EdgeInsets.only(
-                    bottom: MediaQuery.of(context).size.height - 220,
-                    left: 20,
-                    right: 20,
-                  ),
-                ),
-              );
             },
             child: GestureDetector(
               onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => OrderDetailsPage(item: item),
-                  ),
-                );
+                if (item['name'] != 'Mont Broga') {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => OrderDetailsPage(item: item),
+                    ),
+                  );
+                }
               },
               child: _buildHistoryCard(item),
             ),

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import '../screens/success_page.dart';
 
 class OtpBackup extends StatefulWidget {
   final File? initialPickedImage;
@@ -549,14 +550,21 @@ class _OtpBackupState extends State<OtpBackup> {
                         height: 48,
                         child: ElevatedButton(
                           onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                  content: Text('OTP Verified! Welcome back!'),
-                                  backgroundColor: orangeColor),
-                            );
-                            Navigator.pushNamedAndRemoveUntil(
+                            Navigator.pushAndRemoveUntil(
                               context,
-                              '/home',
+                              MaterialPageRoute(
+                                builder: (context) => SuccessPage(
+                                  title: 'SUCCESS!',
+                                  subtitle: 'OTP Verified! Welcome back!',
+                                  onDone: () {
+                                    Navigator.pushNamedAndRemoveUntil(
+                                      context,
+                                      '/home',
+                                      (route) => false,
+                                    );
+                                  },
+                                ),
+                              ),
                               (route) => false,
                             );
                           },
