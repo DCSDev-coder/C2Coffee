@@ -16,29 +16,30 @@ class TermsOfUsePage extends StatelessWidget {
             decoration: const BoxDecoration(
               color: Color(0xFFE66B00),
               borderRadius: BorderRadius.only(
-                bottomLeft: Radius.circular(30),
-                bottomRight: Radius.circular(30),
+                bottomLeft: Radius.circular(20),
+                bottomRight: Radius.circular(20),
               ),
             ),
-            child: Stack(
-              alignment: Alignment.center,
+            child: Row(
               children: [
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 24),
+                GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 20),
+                ),
+                const Expanded(
+                  child: Center(
+                    child: Text(
+                      'TERMS OF USE',
+                      style: TextStyle(
+                        fontFamily: 'Recoleta',
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
                   ),
                 ),
-                const Text(
-                  'TERMS OF USE',
-                  style: TextStyle(
-                    fontFamily: 'Recoleta',
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
+                const SizedBox(width: 20),
               ],
             ),
           ),

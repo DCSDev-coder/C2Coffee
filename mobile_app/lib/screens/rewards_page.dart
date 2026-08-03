@@ -9,9 +9,6 @@ import 'referral_page.dart';
 import 'dart:io';
 import 'package:intl/intl.dart';
 import '../widgets/order_status_banner.dart';
-import 'privacy_policy_page.dart';
-import 'terms_of_use_page.dart';
-import 'about_us_page.dart';
 import 'my_rewards_page.dart';
 
 class RewardsPage extends StatefulWidget {
@@ -764,8 +761,7 @@ class _RewardsPageState extends State<RewardsPage> {
                     color: orangeColor.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(Icons.help_outline,
-                      color: orangeColor, size: 24),
+                  child: Icon(Icons.help_outline, color: orangeColor, size: 24),
                 ),
                 const SizedBox(width: 16),
                 Column(
@@ -828,22 +824,6 @@ class _RewardsPageState extends State<RewardsPage> {
     );
   }
 
-  Route _slideRightRoute(Widget page) {
-    return PageRouteBuilder(
-      pageBuilder: (context, animation, secondaryAnimation) => page,
-      transitionsBuilder: (context, animation, secondaryAnimation, child) {
-        const begin = Offset(1.0, 0.0);
-        const end = Offset.zero;
-        const curve = Curves.easeOutQuart;
-        var tween =
-            Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
-        var offsetAnimation = animation.drive(tween);
-        return SlideTransition(position: offsetAnimation, child: child);
-      },
-      transitionDuration: const Duration(milliseconds: 300),
-    );
-  }
-
   Widget _buildExpansionTile(String title, String content) {
     return Theme(
       data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
@@ -872,30 +852,6 @@ class _RewardsPageState extends State<RewardsPage> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildFooterLink(String title, VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              title,
-              style: const TextStyle(
-                fontFamily: 'Afacad',
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: Colors.black54,
-              ),
-            ),
-            const Icon(Icons.chevron_right, color: Colors.black54, size: 20),
-          ],
-        ),
       ),
     );
   }

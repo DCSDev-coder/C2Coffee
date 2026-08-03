@@ -140,9 +140,9 @@ class _SettingsPageState extends State<SettingsPage> {
                           Container(
                             width: 80,
                             height: 80,
-                            decoration: const BoxDecoration(
+                            decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                color: Color(0xFFE76D00)),
+                                color: orangeColor),
                             child:
                                 Image.asset(option['path'], fit: BoxFit.cover),
                           ),
@@ -172,7 +172,7 @@ class _SettingsPageState extends State<SettingsPage> {
                           fontWeight: FontWeight.bold,
                           color: Colors.white)),
                   style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFE76D00),
+                      backgroundColor: orangeColor,
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(30)),
                       minimumSize: const Size(double.infinity, 48)),
@@ -204,7 +204,7 @@ class _SettingsPageState extends State<SettingsPage> {
         height: 100,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: const Color(0xFFE76D00),
+          color: orangeColor,
           border: Border.all(color: bgColor, width: 4),
         ),
         child: ClipOval(child: Image(image: imageProvider, fit: BoxFit.cover)),
@@ -409,7 +409,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.only(
-                      top: 60, bottom: 60, left: 20, right: 20),
+                      top: 60, bottom: 20, left: 20, right: 20),
                   decoration: BoxDecoration(
                     color: orangeColor,
                     borderRadius: const BorderRadius.only(
@@ -417,33 +417,37 @@ class _SettingsPageState extends State<SettingsPage> {
                       bottomRight: Radius.circular(20),
                     ),
                   ),
-                  child: Stack(
-                    alignment: Alignment.center,
+                  child: Row(
                     children: [
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: GestureDetector(
-                          onTap: () {
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => InteractiveFillingLoader(
-                                  targetPage:
-                                      widget.returnPage ?? const ProfilePage(),
-                                ),
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => InteractiveFillingLoader(
+                                targetPage:
+                                    widget.returnPage ?? const ProfilePage(),
                               ),
-                            );
-                          },
-                          child: const Icon(Icons.arrow_back_ios,
-                              color: Colors.white, size: 20),
-                        ),
+                            ),
+                          );
+                        },
+                        child: const Icon(Icons.arrow_back_ios,
+                            color: Colors.white, size: 20),
                       ),
-                      const Text('SETTINGS',
-                          style: TextStyle(
+                      const Expanded(
+                        child: Center(
+                          child: Text(
+                            'SETTINGS',
+                            style: TextStyle(
                               fontFamily: 'Recoleta',
                               fontSize: 24,
                               fontWeight: FontWeight.bold,
-                              color: Colors.white)),
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 20), // Balance the back button
                     ],
                   ),
                 ),
@@ -459,14 +463,14 @@ class _SettingsPageState extends State<SettingsPage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const SizedBox(
-                                height: 60), // Space for the overlapping avatar
+                                height: 50), // Space for top half of avatar
 
                             // Details Card
                             Container(
                               margin:
                                   const EdgeInsets.symmetric(horizontal: 20),
                               padding: const EdgeInsets.only(
-                                  top: 50, bottom: 10, left: 20, right: 20),
+                                  top: 60, bottom: 10, left: 20, right: 20),
                               decoration: BoxDecoration(
                                 color: Colors.white,
                                 borderRadius: BorderRadius.circular(20),
@@ -699,7 +703,7 @@ class _SettingsPageState extends State<SettingsPage> {
                         ),
                         // Overlapping Avatar (now scrolls with content)
                         Positioned(
-                          top: 10,
+                          top: 0,
                           child: _buildAvatar(),
                         ),
                       ],

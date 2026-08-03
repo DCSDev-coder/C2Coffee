@@ -21,33 +21,48 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: beigeBg,
-      appBar: AppBar(
-        backgroundColor: orangeColor,
-        elevation: 0,
-        centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 20),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          'MY REWARDS',
-          style: TextStyle(
-            fontFamily: 'Recoleta',
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.info, color: Colors.white),
-            onPressed: _showPointsRules,
-          ),
-        ],
-      ),
       body: SingleChildScrollView(
         child: Column(
           children: [
+            // Custom Header matching other pages
+            Container(
+              padding: const EdgeInsets.only(
+                  top: 60, bottom: 20, left: 20, right: 20),
+              decoration: BoxDecoration(
+                color: orangeColor,
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(20),
+                  bottomRight: Radius.circular(20),
+                ),
+              ),
+              child: Row(
+                children: [
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: const Icon(Icons.arrow_back_ios,
+                        color: Colors.white, size: 20),
+                  ),
+                  const Expanded(
+                    child: Center(
+                      child: Text(
+                        'MY REWARDS',
+                        style: TextStyle(
+                          fontFamily: 'Recoleta',
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: _showPointsRules,
+                    child: const Icon(Icons.info,
+                        color: Colors.white, size: 24),
+                  ),
+                ],
+              ),
+            ),
             // Top Section (Points and Toggles)
             Container(
               color: beigeBg,

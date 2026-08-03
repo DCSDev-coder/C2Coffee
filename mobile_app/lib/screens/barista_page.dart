@@ -1,22 +1,78 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'loading_order_page.dart';
 import 'menu_page.dart';
 
-class BaristaPage extends StatelessWidget {
+class BaristaPage extends StatefulWidget {
   final String title;
-  final String heroImage;
+  final String? heroImage;
+  final List<String>? heroImages;
   final List<Map<String, dynamic>> drinks;
 
   const BaristaPage({
     super.key,
     required this.title,
-    required this.heroImage,
+    this.heroImage,
+    this.heroImages,
     required this.drinks,
   });
 
   @override
+  State<BaristaPage> createState() => _BaristaPageState();
+}
+
+class _BaristaPageState extends State<BaristaPage> {
+  late final PageController _pageController;
+  Timer? _carouselTimer;
+  int _currentImageIndex = 0;
+  late final List<String> _images;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController();
+
+    if (widget.heroImages != null && widget.heroImages!.isNotEmpty) {
+      _images = List<String>.from(widget.heroImages!);
+    } else if (widget.heroImage != null && widget.heroImage!.isNotEmpty) {
+      _images = [
+        widget.heroImage!,
+        'assets/images/barista_craft_banner.png',
+        'assets/images/c2_poster.png',
+      ];
+    } else {
+      _images = [
+        'assets/images/FKP01925.jpg',
+        'assets/images/barista_craft_banner.png',
+        'assets/images/c2_poster.png',
+      ];
+    }
+
+    if (_images.length > 1) {
+      _carouselTimer = Timer.periodic(const Duration(seconds: 4), (timer) {
+        if (!mounted) return;
+        final nextIndex = (_currentImageIndex + 1) % _images.length;
+        if (_pageController.hasClients) {
+          _pageController.animateToPage(
+            nextIndex,
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.easeInOut,
+          );
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _carouselTimer?.cancel();
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    const orangeColor = Color(0xFFE86A12); // Extracted from UI
+    const orangeColor = Color(0xFFE66B00);
     const backgroundColor = Color(0xFFF7F7F7);
 
     return Scaffold(
@@ -50,7 +106,7 @@ class BaristaPage extends StatelessWidget {
                       child: FittedBox(
                         fit: BoxFit.scaleDown,
                         child: Text(
-                          title.toUpperCase(),
+                          widget.title.toUpperCase(),
                           style: const TextStyle(
                             fontFamily: 'Recoleta',
                             fontSize: 24,
@@ -65,8 +121,9 @@ class BaristaPage extends StatelessWidget {
                 ],
               ),
             ),
-            // Hero Image Carousel (mocked with single image and dots)
+            // Hero Image Carousel (Auto-sliding PageView with animated indicator dots)
             Container(
+              height: 200,
               decoration: const BoxDecoration(
                 color: backgroundColor,
                 borderRadius: BorderRadius.only(
@@ -75,67 +132,63 @@ class BaristaPage extends StatelessWidget {
                 ),
               ),
               child: Stack(
-                  alignment: Alignment.bottomCenter,
-                  children: [
-                    ClipRRect(
-                      borderRadius: const BorderRadius.only(
-                        bottomLeft: Radius.circular(24),
-                        bottomRight: Radius.circular(24),
-                      ),
-                      child: Image.asset(
-                        heroImage,
-                        width: double.infinity,
-                        height: 200,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          // Fallback to another image if banner doesn't exist
-                          return Image.asset(
-                            'assets/images/FKP01925.jpg',
-                            width: double.infinity,
-                            height: 200,
-                            fit: BoxFit.cover,
-                          );
-                        },
-                      ),
-                    ),
-                    // Dots
-                    Positioned(
-                      bottom: 8,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            width: 6,
-                            height: 6,
-                            margin: const EdgeInsets.symmetric(horizontal: 3),
-                            decoration: const BoxDecoration(
-                              color: orangeColor,
-                              shape: BoxShape.circle,
-                            ),
+                alignment: Alignment.bottomCenter,
+                children: [
+                  PageView.builder(
+                    controller: _pageController,
+                    onPageChanged: (int index) {
+                      setState(() {
+                        _currentImageIndex = index;
+                      });
+                    },
+                    itemCount: _images.length,
+                    itemBuilder: (context, index) {
+                      return ClipRRect(
+                        borderRadius: const BorderRadius.only(
+                          bottomLeft: Radius.circular(24),
+                          bottomRight: Radius.circular(24),
+                        ),
+                        child: Image.asset(
+                          _images[index],
+                          width: double.infinity,
+                          height: 200,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Image.asset(
+                              'assets/images/FKP01925.jpg',
+                              width: double.infinity,
+                              height: 200,
+                              fit: BoxFit.cover,
+                            );
+                          },
+                        ),
+                      );
+                    },
+                  ),
+                  // Dots
+                  Positioned(
+                    bottom: 8,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(
+                        _images.length,
+                        (index) => AnimatedContainer(
+                          duration: const Duration(milliseconds: 300),
+                          width: _currentImageIndex == index ? 16 : 6,
+                          height: 6,
+                          margin: const EdgeInsets.symmetric(horizontal: 3),
+                          decoration: BoxDecoration(
+                            color: _currentImageIndex == index
+                                ? orangeColor
+                                : Colors.white,
+                            borderRadius: BorderRadius.circular(3),
                           ),
-                          Container(
-                            width: 6,
-                            height: 6,
-                            margin: const EdgeInsets.symmetric(horizontal: 3),
-                            decoration: const BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          Container(
-                            width: 6,
-                            height: 6,
-                            margin: const EdgeInsets.symmetric(horizontal: 3),
-                            decoration: const BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 24),
             
@@ -150,7 +203,7 @@ class BaristaPage extends StatelessWidget {
                     spacing: 12,
                     runSpacing: 12,
                     alignment: WrapAlignment.center,
-                    children: drinks.map((drink) {
+                    children: widget.drinks.map((drink) {
                       return SizedBox(
                         width: itemWidth,
                         height: itemWidth, // keeping aspect ratio 1.0
@@ -189,9 +242,12 @@ class BaristaPage extends StatelessWidget {
             child: Padding(
               padding:
                   const EdgeInsets.only(top: 12, bottom: 8, left: 8, right: 8),
-              child: Image.asset(
-                item['image'],
-                fit: BoxFit.contain,
+              child: Transform.scale(
+                scale: item['scale'] as double? ?? 1.0,
+                child: Image.asset(
+                  item['image'],
+                  fit: BoxFit.contain,
+                ),
               ),
             ),
           ),

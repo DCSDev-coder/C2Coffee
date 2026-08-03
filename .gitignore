@@ -20,3 +20,7 @@ backend/public/storage/
 
 # Edge Server (Node.js)
 edge_server/node_modules/
+
+# Build artifacts and binaries
+*.apk
+*.aab

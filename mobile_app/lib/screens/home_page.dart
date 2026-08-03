@@ -93,8 +93,9 @@ class _HomePageState extends State<HomePage> {
         _persistedPickedImage = null;
       }
       _persistedPresetPath = avatarData['presetPath'];
-      
-      if (profileData['username'] != null && profileData['username']!.isNotEmpty) {
+
+      if (profileData['username'] != null &&
+          profileData['username']!.isNotEmpty) {
         _username = profileData['username']!;
       }
     });
@@ -170,7 +171,8 @@ class _HomePageState extends State<HomePage> {
             bottom: false,
             child: SingleChildScrollView(
               padding: const EdgeInsets.only(
-                  bottom: 220), // Increased space for bottom bar and status banner
+                  bottom:
+                      220), // Increased space for bottom bar and status banner
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -211,9 +213,9 @@ class _HomePageState extends State<HomePage> {
                     context,
                     MaterialPageRoute(
                         builder: (context) => InteractiveFillingLoader(
-                            targetPage: SettingsPage(
-                                onProfileUpdated: _loadAvatarState,
-                                returnPage: const HomePage(),
+                                targetPage: SettingsPage(
+                              onProfileUpdated: _loadAvatarState,
+                              returnPage: const HomePage(),
                             ))),
                   );
                 },
@@ -490,7 +492,7 @@ class _HomePageState extends State<HomePage> {
       {
         'name': 'Bloody Peach',
         'price': 'RM 15.90',
-        'image': 'assets/images/drinks/PEACHY JASMINE.png',
+        'image': 'assets/images/drinks/BLOODY PEACH.png',
         'scale': 1.0,
       },
     ];

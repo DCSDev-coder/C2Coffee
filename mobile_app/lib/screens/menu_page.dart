@@ -95,12 +95,13 @@ class _MenuPageState extends State<MenuPage> {
         {
           'name': 'Boijito',
           'price': 'RM 15.00',
-          'image': 'assets/images/drinks/BOIJITO.png'
+          'image': 'assets/images/drinks/BOIJITO.png',
+          'scale': 1.25,
         },
         {
           'name': 'Bloody Peach',
           'price': 'RM 14.90',
-          'image': 'assets/images/drinks/PEACHY JASMINE.png'
+          'image': 'assets/images/drinks/BLOODY PEACH.png'
         },
         {
           'name': 'Fuji Fizz',
@@ -632,12 +633,14 @@ class _MenuPageState extends State<MenuPage> {
                                                       'price': 'RM 14.90',
                                                       'image':
                                                           'assets/images/drinks/SOLERO FIZZ.png',
+                                                      'scale': 1.25,
                                                     },
                                                     {
                                                       'name': 'Paddle Pop',
                                                       'price': 'RM 14.90',
                                                       'image':
                                                           'assets/images/drinks/PADDLE POP.png',
+                                                      'scale': 1.25,
                                                     },
                                                   ],
                                                 ),
@@ -660,19 +663,22 @@ class _MenuPageState extends State<MenuPage> {
                                                       'price': 'RM 14.90',
                                                       'image':
                                                           'assets/images/drinks/CLOUDY JASMINE.png',
+                                                      'scale': 1.25,
                                                     },
                                                   ],
                                                 ),
                                               ),
                                             ),
                                           );
-                                        } else if (item['name'] == 'Mont Broga') {
+                                        } else if (item['name'] ==
+                                            'Mont Broga') {
                                           Navigator.push(
                                             context,
                                             MaterialPageRoute(
                                               builder: (context) =>
                                                   InteractiveFillingLoader(
-                                                targetPage: MontBrogaPage(item: item),
+                                                targetPage:
+                                                    MontBrogaPage(item: item),
                                               ),
                                             ),
                                           );
@@ -867,9 +873,12 @@ class _MenuPageState extends State<MenuPage> {
             child: Padding(
               padding:
                   const EdgeInsets.only(top: 12, bottom: 8, left: 8, right: 8),
-              child: Image.asset(
-                item['image'],
-                fit: BoxFit.contain,
+              child: Transform.scale(
+                scale: item['scale'] as double? ?? 1.0,
+                child: Image.asset(
+                  item['image'],
+                  fit: BoxFit.contain,
+                ),
               ),
             ),
           ),
