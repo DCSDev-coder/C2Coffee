@@ -113,12 +113,12 @@ class _SettingsPageState extends State<SettingsPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('Choose Avatar',
+                Text('Choose Avatar',
                     style: TextStyle(
                         fontFamily: 'Recoleta',
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFFE76D00))),
+                        color: orangeColor)),
                 const SizedBox(height: 24),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -220,20 +220,16 @@ class _SettingsPageState extends State<SettingsPage> {
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 12),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
+            Text(label,
+                style: const TextStyle(
+                    fontFamily: 'Afacad', fontSize: 15, color: Colors.grey)),
+            const SizedBox(width: 12),
             Expanded(
-              flex: 2,
-              child: Text(label,
-                  style: const TextStyle(
-                      fontFamily: 'Afacad', fontSize: 15, color: Colors.grey)),
-            ),
-            Expanded(
-              flex: 3,
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  Flexible(
+                  Expanded(
                     child: Text(
                       value.isNotEmpty ? value : '-',
                       style: const TextStyle(
@@ -247,7 +243,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                   const SizedBox(width: 8),
                   if (isAddress)
-                    const Icon(Icons.edit, size: 16, color: Color(0xFFE66B00))
+                    Icon(Icons.edit, size: 16, color: orangeColor)
                   else
                     const Icon(Icons.chevron_right,
                         size: 18, color: Colors.grey),
@@ -581,7 +577,6 @@ class _SettingsPageState extends State<SettingsPage> {
                             Container(
                               margin:
                                   const EdgeInsets.symmetric(horizontal: 20),
-                              padding: const EdgeInsets.symmetric(vertical: 8),
                               decoration: BoxDecoration(
                                 color: Colors.white,
                                 borderRadius: BorderRadius.circular(20),
@@ -592,61 +587,70 @@ class _SettingsPageState extends State<SettingsPage> {
                                       offset: Offset(0, 4))
                                 ],
                               ),
-                              child: Column(
-                                children: [
-                                  ListTile(
-                                    title: const Text('Privacy Policy',
-                                        style: TextStyle(
-                                            fontFamily: 'Afacad',
-                                            fontSize: 16,
-                                            color: Colors.black87)),
-                                    trailing: const Icon(
-                                        Icons.arrow_forward_ios,
-                                        size: 16,
-                                        color: Colors.grey),
-                                    onTap: () => Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                            builder: (_) =>
-                                                const PrivacyPolicyPage())),
+                              child: Material(
+                                color: Colors.transparent,
+                                borderRadius: BorderRadius.circular(20),
+                                clipBehavior: Clip.antiAlias,
+                                child: Padding(
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 8),
+                                  child: Column(
+                                    children: [
+                                      ListTile(
+                                        title: const Text('Privacy Policy',
+                                            style: TextStyle(
+                                                fontFamily: 'Afacad',
+                                                fontSize: 16,
+                                                color: Colors.black87)),
+                                        trailing: const Icon(
+                                            Icons.arrow_forward_ios,
+                                            size: 16,
+                                            color: Colors.grey),
+                                        onTap: () => Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                                builder: (_) =>
+                                                    const PrivacyPolicyPage())),
+                                      ),
+                                      const Divider(
+                                          height: 1, indent: 16, endIndent: 16),
+                                      ListTile(
+                                        title: const Text('Terms & Conditions',
+                                            style: TextStyle(
+                                                fontFamily: 'Afacad',
+                                                fontSize: 16,
+                                                color: Colors.black87)),
+                                        trailing: const Icon(
+                                            Icons.arrow_forward_ios,
+                                            size: 16,
+                                            color: Colors.grey),
+                                        onTap: () => Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                                builder: (_) =>
+                                                    const TermsOfUsePage())),
+                                      ),
+                                      const Divider(
+                                          height: 1, indent: 16, endIndent: 16),
+                                      ListTile(
+                                        title: const Text('About Us',
+                                            style: TextStyle(
+                                                fontFamily: 'Afacad',
+                                                fontSize: 16,
+                                                color: Colors.black87)),
+                                        trailing: const Icon(
+                                            Icons.arrow_forward_ios,
+                                            size: 16,
+                                            color: Colors.grey),
+                                        onTap: () => Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                                builder: (_) =>
+                                                    const AboutUsPage())),
+                                      ),
+                                    ],
                                   ),
-                                  const Divider(
-                                      height: 1, indent: 16, endIndent: 16),
-                                  ListTile(
-                                    title: const Text('Terms & Conditions',
-                                        style: TextStyle(
-                                            fontFamily: 'Afacad',
-                                            fontSize: 16,
-                                            color: Colors.black87)),
-                                    trailing: const Icon(
-                                        Icons.arrow_forward_ios,
-                                        size: 16,
-                                        color: Colors.grey),
-                                    onTap: () => Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                            builder: (_) =>
-                                                const TermsOfUsePage())),
-                                  ),
-                                  const Divider(
-                                      height: 1, indent: 16, endIndent: 16),
-                                  ListTile(
-                                    title: const Text('About Us',
-                                        style: TextStyle(
-                                            fontFamily: 'Afacad',
-                                            fontSize: 16,
-                                            color: Colors.black87)),
-                                    trailing: const Icon(
-                                        Icons.arrow_forward_ios,
-                                        size: 16,
-                                        color: Colors.grey),
-                                    onTap: () => Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                            builder: (_) =>
-                                                const AboutUsPage())),
-                                  ),
-                                ],
+                                ),
                               ),
                             ),
 
@@ -681,12 +685,9 @@ class _SettingsPageState extends State<SettingsPage> {
                                 ),
                                 child: Row(
                                   children: [
-                                    Image.asset('assets/images/logout.png',
-                                        height: 24,
-                                        errorBuilder:
-                                            (context, error, stackTrace) =>
-                                                const Icon(Icons.exit_to_app,
-                                                    color: Color(0xFFE76D00))),
+                                    Icon(Icons.logout,
+                                        size: 24,
+                                        color: orangeColor),
                                     const SizedBox(width: 16),
                                     const Text('Log Out',
                                         style: TextStyle(
