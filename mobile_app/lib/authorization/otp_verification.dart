@@ -3,8 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import '../screens/success_page.dart';
 import '../screens/home_page.dart';
+import 'auth_transition.dart';
 
 class OtpVerificationPage extends StatefulWidget {
   final File? initialPickedImage;
@@ -64,6 +64,14 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
         }
       });
     }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    precacheImage(const AssetImage('assets/images/FKP01925.jpg'), context);
+    precacheImage(const AssetImage('assets/images/dato.png'), context);
+    precacheImage(const AssetImage('assets/images/datin.png'), context);
   }
 
   void startTimer() {
@@ -385,26 +393,14 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
     // Here you would normally verify the OTP with your backend
     // For demo purposes, we'll accept any 6-digit code
 
-    // Navigate to SuccessPage then to HomePage
+    // Navigate directly to HomePage
     Navigator.pushAndRemoveUntil(
       context,
-      MaterialPageRoute(
-        builder: (context) => SuccessPage(
-          title: 'SUCCESS!',
-          subtitle: 'OTP Verified! Welcome back!',
-          onDone: () {
-            Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(
-                builder: (context) => HomePage(
-                  initialPickedImage: widget.initialPickedImage,
-                  initialPresetPath: widget.initialPresetPath,
-                  initialAvatarIndex: widget.initialAvatarIndex,
-                ),
-              ),
-              (route) => false,
-            );
-          },
+      AuthPageRoute(
+        page: HomePage(
+          initialPickedImage: widget.initialPickedImage,
+          initialPresetPath: widget.initialPresetPath,
+          initialAvatarIndex: widget.initialAvatarIndex,
         ),
       ),
       (route) => false,
@@ -486,17 +482,19 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                           ],
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 8),
+                      // Spacer to match the "Step 1 of 2" line height in Signup1 (22px) for exact vertical symmetry
+                      const SizedBox(height: 22),
                       const Text(
                         'Verify Your Identity',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                             fontFamily: 'Recoleta',
                             fontSize: 26,
-                            fontWeight: FontWeight.normal,
+                            fontWeight: FontWeight.bold,
                             color: Colors.white),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 2),
                       const Text(
                         'We\'ve sent a text to your phone number.\nPlease fill in the security code',
                         textAlign: TextAlign.center,
@@ -512,13 +510,15 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                 Expanded(
                   child: Container(
                     width: double.infinity,
+                    clipBehavior: Clip.antiAlias,
                     decoration: const BoxDecoration(
                       color: Colors.white,
                       borderRadius:
                           BorderRadius.vertical(top: Radius.circular(40)),
                     ),
                     child: SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(24, 32, 24, 32),
+                      physics: const ClampingScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [

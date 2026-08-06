@@ -13,6 +13,8 @@ import 'settings_page.dart';
 import 'referral_page.dart';
 import 'menu_page.dart';
 import 'rewards_page.dart';
+import 'mont_broga_page.dart';
+import 'simple_product_detail_page.dart';
 import '../utils/app_colors.dart';
 import '../widgets/order_status_banner.dart';
 import '../widgets/poster_popup.dart'; // Add this import
@@ -37,10 +39,32 @@ class _HomePageState extends State<HomePage> {
   File? _persistedPickedImage;
   String? _persistedPresetPath;
   bool _hasShownPoster = false; // Add this
+  bool _showTokenPrice = false;
 
   final PageController _pageController = PageController();
   Timer? _carouselTimer;
   int _currentBannerIndex = 0;
+
+  String _formatPrice(
+    String? rawPrice, {
+    bool isDrink = false,
+    bool isMerchandise = false,
+  }) {
+    if (rawPrice == null || rawPrice.isEmpty) return '';
+    final formattedPrice = AppColors.formatDiscountedPrice(
+      rawPrice,
+      isDrink: isDrink,
+      isMerchandise: isMerchandise,
+    );
+    if (!_showTokenPrice) return formattedPrice;
+    final cleanPrice = formattedPrice.replaceAll('RM', '').trim();
+    final val = double.tryParse(cleanPrice);
+    if (val != null) {
+      final tokens = val.round();
+      return '$tokens tokens';
+    }
+    return formattedPrice;
+  }
 
   final List<String> _banners = [
     'assets/images/operationhour.jpeg',
@@ -118,51 +142,32 @@ class _HomePageState extends State<HomePage> {
 
   void _onBottomNavTapped(int index) {
     if (index == 1) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => const InteractiveFillingLoader(
-            targetPage: MenuPage(),
-          ),
-        ),
-      );
+      InteractiveFillingLoader.show(context, targetPage: const MenuPage());
     } else if (index == 2) {
-      Navigator.pushReplacement(
+      InteractiveFillingLoader.show(
         context,
-        MaterialPageRoute(
-          builder: (context) => InteractiveFillingLoader(
-            targetPage: OrdersPage(
-              initialPickedImage: widget.initialPickedImage,
-              initialPresetPath: widget.initialPresetPath,
-              initialAvatarIndex: widget.initialAvatarIndex,
-            ),
-          ),
+        targetPage: OrdersPage(
+          initialPickedImage: widget.initialPickedImage,
+          initialPresetPath: widget.initialPresetPath,
+          initialAvatarIndex: widget.initialAvatarIndex,
         ),
       );
     } else if (index == 3) {
-      Navigator.pushReplacement(
+      InteractiveFillingLoader.show(
         context,
-        MaterialPageRoute(
-          builder: (context) => InteractiveFillingLoader(
-            targetPage: RewardsPage(
-              initialPickedImage: widget.initialPickedImage,
-              initialPresetPath: widget.initialPresetPath,
-              initialAvatarIndex: widget.initialAvatarIndex,
-            ),
-          ),
+        targetPage: RewardsPage(
+          initialPickedImage: widget.initialPickedImage,
+          initialPresetPath: widget.initialPresetPath,
+          initialAvatarIndex: widget.initialAvatarIndex,
         ),
       );
     } else if (index == 4) {
-      Navigator.pushReplacement(
+      InteractiveFillingLoader.show(
         context,
-        MaterialPageRoute(
-          builder: (context) => InteractiveFillingLoader(
-            targetPage: ProfilePage(
-              initialPickedImage: widget.initialPickedImage,
-              initialPresetPath: widget.initialPresetPath,
-              initialAvatarIndex: widget.initialAvatarIndex,
-            ),
-          ),
+        targetPage: ProfilePage(
+          initialPickedImage: widget.initialPickedImage,
+          initialPresetPath: widget.initialPresetPath,
+          initialAvatarIndex: widget.initialAvatarIndex,
         ),
       );
     }
@@ -202,7 +207,49 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
           OrderStatusBanner(
-              bottomOffset: 90 + MediaQuery.paddingOf(context).bottom),
+            rightOffset: 90,
+            bottomOffset: 90 + MediaQuery.paddingOf(context).bottom,
+          ),
+          Positioned(
+            bottom: 90 + MediaQuery.paddingOf(context).bottom,
+            right: 20,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                setState(() => _showTokenPrice = !_showTokenPrice);
+              },
+              child: Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  color: _showTokenPrice
+                      ? const Color(0xFFE5A93C)
+                      : const Color(0xFFFAF7F2),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: const Color(0xFFE5A93C),
+                    width: 2,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.18),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Center(
+                  child: Icon(
+                    Icons.monetization_on_rounded,
+                    size: 30,
+                    color: _showTokenPrice
+                        ? Colors.white
+                        : const Color(0xFFE5A93C),
+                  ),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -218,14 +265,12 @@ class _HomePageState extends State<HomePage> {
             children: [
               GestureDetector(
                 onTap: () async {
-                  Navigator.push(
+                  InteractiveFillingLoader.show(
                     context,
-                    MaterialPageRoute(
-                        builder: (context) => InteractiveFillingLoader(
-                                targetPage: SettingsPage(
-                              onProfileUpdated: _loadAvatarState,
-                              returnPage: const HomePage(),
-                            ))),
+                    targetPage: SettingsPage(
+                      onProfileUpdated: _loadAvatarState,
+                      returnPage: const HomePage(),
+                    ),
                   );
                 },
                 child: Container(
@@ -274,7 +319,7 @@ class _HomePageState extends State<HomePage> {
                   ),
                   Text(
                     _username,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: 'Recoleta',
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -290,13 +335,9 @@ class _HomePageState extends State<HomePage> {
             children: [
               GestureDetector(
                 onTap: () {
-                  Navigator.push(
+                  InteractiveFillingLoader.show(
                     context,
-                    MaterialPageRoute(
-                      builder: (context) => const InteractiveFillingLoader(
-                        targetPage: TopUpWalletPage(),
-                      ),
-                    ),
+                    targetPage: const TopUpWalletPage(),
                   );
                 },
                 child: Container(
@@ -312,18 +353,18 @@ class _HomePageState extends State<HomePage> {
                   ),
                   child: Row(
                     children: [
-                      const Icon(
-                        Icons.account_balance_wallet_outlined,
-                        color: AppColors.softGold,
-                        size: 18,
+                      Image.asset(
+                        'assets/images/wallet.png',
+                        width: 32,
+                        height: 32,
                       ),
                       const SizedBox(width: 6),
-                      const Text(
-                        '0 points',
+                      Text(
+                        '0 tokens',
                         style: TextStyle(
                           fontFamily: 'Afacad',
                           fontWeight: FontWeight.bold,
-                          color: AppColors.charcoal,
+                          color: AppColors.softGold,
                           fontSize: 14,
                         ),
                       ),
@@ -334,19 +375,15 @@ class _HomePageState extends State<HomePage> {
               const SizedBox(width: 12),
               GestureDetector(
                 onTap: () {
-                  Navigator.push(
+                  InteractiveFillingLoader.show(
                     context,
-                    MaterialPageRoute(
-                      builder: (context) => const InteractiveFillingLoader(
-                        targetPage: NotificationPage(),
-                      ),
-                    ),
+                    targetPage: const NotificationPage(),
                   );
                 },
                 child: Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.notifications_outlined,
                       color: AppColors.deepTeal,
                       size: 26,
@@ -357,7 +394,7 @@ class _HomePageState extends State<HomePage> {
                       child: Container(
                         width: 8,
                         height: 8,
-                        decoration: const BoxDecoration(
+                        decoration: BoxDecoration(
                           color: AppColors.terracotta,
                           shape: BoxShape.circle,
                         ),
@@ -433,11 +470,9 @@ class _HomePageState extends State<HomePage> {
           Expanded(
             child: GestureDetector(
               onTap: () {
-                Navigator.push(
+                InteractiveFillingLoader.show(
                   context,
-                  MaterialPageRoute(
-                      builder: (context) => const InteractiveFillingLoader(
-                          targetPage: OrdersPage())),
+                  targetPage: const OrdersPage(),
                 );
               },
               child: Container(
@@ -466,13 +501,9 @@ class _HomePageState extends State<HomePage> {
           Expanded(
             child: GestureDetector(
               onTap: () {
-                Navigator.push(
+                InteractiveFillingLoader.show(
                   context,
-                  MaterialPageRoute(
-                    builder: (context) => const InteractiveFillingLoader(
-                      targetPage: ReferralPage(),
-                    ),
-                  ),
+                  targetPage: const ReferralPage(),
                 );
               },
               child: Container(
@@ -487,7 +518,7 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
                 alignment: Alignment.centerLeft,
-                child: const Text(
+                child: Text(
                   'MY\nREFERRAL',
                   textAlign: TextAlign.left,
                   style: TextStyle(
@@ -510,18 +541,22 @@ class _HomePageState extends State<HomePage> {
     final List<Map<String, dynamic>> bestSellerDrinks = [
       {
         'name': 'Shakerato Bianco',
-        'price': 'RM 15.90',
+        'price': 'RM 16.90',
         'image': 'assets/images/drinks/SHAKERATO BIANCO.png',
+        'desc': 'Chilled, shaken espresso with sweet silky and refreshing cream.',
+        'scale': 1.2,
       },
       {
         'name': 'Blue Cloud Coconut Coffee',
-        'price': 'RM 15.90',
+        'price': 'RM 13.90',
         'image': 'assets/images/drinks/BLUE CLOUD COCONUT COFFEE.png',
+        'scale': 1.0,
       },
       {
         'name': 'Bloody Peach',
         'price': 'RM 15.90',
         'image': 'assets/images/drinks/BLOODY PEACH.png',
+        'scale': 1.2,
       },
     ];
 
@@ -530,25 +565,25 @@ class _HomePageState extends State<HomePage> {
         'name': 'Gunung Candle',
         'price': 'RM 47.00',
         'image': 'assets/images/candles/gunung.png',
-        'scale': 0.9,
+        'scale': 1.5,
       },
       {
         'name': 'Crushed Lime & Seasalt',
         'price': 'RM 47.00',
         'image': 'assets/images/candles/crushed lime and seasalt.png',
-        'scale': 0.9,
+        'scale': 1.5,
       },
       {
         'name': 'Fresh Sage & Driftwood',
         'price': 'RM 47.00',
         'image': 'assets/images/candles/fresh sage and driftwood.png',
-        'scale': 0.9,
+        'scale': 1.5,
       },
       {
         'name': 'Tobacco Vanilla',
         'price': 'RM 47.00',
         'image': 'assets/images/candles/tobacco vanilla.png',
-        'scale': 0.9,
+        'scale': 1.5,
       },
     ];
 
@@ -560,7 +595,7 @@ class _HomePageState extends State<HomePage> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
+              Text(
                 'Best Seller Drink',
                 style: TextStyle(
                   fontFamily: 'Recoleta',
@@ -571,17 +606,12 @@ class _HomePageState extends State<HomePage> {
               ),
               GestureDetector(
                 onTap: () {
-                  Navigator.pushAndRemoveUntil(
+                  InteractiveFillingLoader.show(
                     context,
-                    MaterialPageRoute(
-                      builder: (context) => const InteractiveFillingLoader(
-                        targetPage: MenuPage(),
-                      ),
-                    ),
-                    (route) => false,
+                    targetPage: const MenuPage(),
                   );
                 },
-                child: const Row(
+                child: Row(
                   children: [
                     Text(
                       'See all',
@@ -592,7 +622,7 @@ class _HomePageState extends State<HomePage> {
                         color: AppColors.deepTeal,
                       ),
                     ),
-                    SizedBox(width: 4),
+                    const SizedBox(width: 4),
                     Icon(
                       Icons.arrow_forward_rounded,
                       size: 16,
@@ -612,7 +642,7 @@ class _HomePageState extends State<HomePage> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
+              Text(
                 'Best Seller Candle',
                 style: TextStyle(
                   fontFamily: 'Recoleta',
@@ -623,17 +653,12 @@ class _HomePageState extends State<HomePage> {
               ),
               GestureDetector(
                 onTap: () {
-                  Navigator.pushAndRemoveUntil(
+                  InteractiveFillingLoader.show(
                     context,
-                    MaterialPageRoute(
-                      builder: (context) => const InteractiveFillingLoader(
-                        targetPage: MenuPage(initialCategoryIndex: 10),
-                      ),
-                    ),
-                    (route) => false,
+                    targetPage: const MenuPage(initialCategoryIndex: 10),
                   );
                 },
-                child: const Row(
+                child: Row(
                   children: [
                     Text(
                       'See all',
@@ -644,7 +669,7 @@ class _HomePageState extends State<HomePage> {
                         color: AppColors.deepTeal,
                       ),
                     ),
-                    SizedBox(width: 4),
+                    const SizedBox(width: 4),
                     Icon(
                       Icons.arrow_forward_rounded,
                       size: 16,
@@ -675,78 +700,122 @@ class _HomePageState extends State<HomePage> {
         itemCount: items.length,
         itemBuilder: (context, index) {
           final item = items[index];
-          return Container(
-            width: cardWidth,
-            margin: const EdgeInsets.symmetric(horizontal: 6),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.border, width: 1),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.03),
-                  blurRadius: 6,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Expanded(
-                  flex: 7,
-                  child: Padding(
-                    padding: const EdgeInsets.only(
-                        top: 14, bottom: 8, left: 10, right: 10),
-                    child: Transform.scale(
-                      scale: item['scale'] as double? ?? 1.0,
-                      child: Image.asset(
-                        item['image'] as String,
-                        fit: BoxFit.contain,
-                        errorBuilder: (context, error, stackTrace) =>
-                            const Center(
-                          child: Icon(
-                            Icons.image_outlined,
-                            size: 32,
-                            color: Colors.grey,
+          final bool isDrink =
+              (item['image'] as String).toLowerCase().contains('drinks');
+          return GestureDetector(
+            onTap: () {
+              if (isDrink) {
+                InteractiveFillingLoader.show(
+                  context,
+                  targetPage: MontBrogaPage(item: item),
+                );
+              } else {
+                InteractiveFillingLoader.show(
+                  context,
+                  targetPage: SimpleProductDetailPage(item: item),
+                );
+              }
+            },
+            child: Container(
+              width: cardWidth,
+              margin: const EdgeInsets.symmetric(horizontal: 6),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.border, width: 1),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.03),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    flex: 7,
+                    child: Padding(
+                      padding: const EdgeInsets.only(
+                          top: 14, bottom: 8, left: 10, right: 10),
+                      child: Transform.scale(
+                        scale: (item['image'] as String)
+                                .toLowerCase()
+                                .contains('candle')
+                            ? 1.5
+                            : 1.0,
+                        child: Image.asset(
+                          item['image'] as String,
+                          fit: BoxFit.contain,
+                          errorBuilder: (context, error, stackTrace) =>
+                              const Center(
+                            child: Icon(
+                              Icons.image_outlined,
+                              size: 32,
+                              color: Colors.grey,
+                            ),
                           ),
                         ),
                       ),
                     ),
                   ),
-                ),
-                SizedBox(
-                  height: 36,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    child: Text(
-                      item['name'] as String,
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontFamily: 'Afacad',
-                        fontSize: 14,
-                        fontWeight: FontWeight.w300,
-                        color: AppColors.charcoal,
-                        height: 1.2,
+                  // Item Name — Fixed height so 1-line and 2-line titles reserve identical space, keeping image size constant
+                  SizedBox(
+                    height: 36,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      child: Center(
+                        child: Text(
+                          item['name'] as String,
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontFamily: 'Afacad',
+                            fontSize: 14,
+                            fontWeight: FontWeight.w300,
+                            color: AppColors.charcoal,
+                            height: 1.2,
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 14),
-                  child: Text(
-                    item['price'] as String,
-                    style: const TextStyle(
-                      fontFamily: 'Afacad',
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.deepTeal,
+
+                  // Price — Fixed height so every card has identical layout proportions
+                  SizedBox(
+                    height: 34,
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Center(
+                        child: Text(
+                          _formatPrice(
+                            item['price'] as String?,
+                            isDrink: (item['image'] as String)
+                                .toLowerCase()
+                                .contains('drinks'),
+                            isMerchandise: (item['image'] as String)
+                                    .toLowerCase()
+                                    .contains('candle') ||
+                                (item['image'] as String)
+                                    .toLowerCase()
+                                    .contains('merchandies'),
+                          ),
+                          style: TextStyle(
+                            fontFamily: 'Afacad',
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: _showTokenPrice
+                                ? const Color(0xFFD97706)
+                                : AppColors.deepTeal,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           );
         },

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import '../utils/app_colors.dart';
 
 class OrderStatusDetailPage extends StatefulWidget {
   const OrderStatusDetailPage({super.key});
@@ -12,7 +13,7 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
   int _currentPhase = 0;
   Timer? _timer;
 
-  final Color orangeColor = const Color(0xFF2E5E58);
+  Color get orangeColor => AppColors.deepTeal;
   final Color bgColor = Colors.white;
 
   @override
@@ -145,11 +146,11 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
           // Header
           Container(
             padding:
-                const EdgeInsets.only(top: 50, bottom: 12, left: 20, right: 20),
-            decoration: const BoxDecoration(
+                EdgeInsets.only(top: MediaQuery.paddingOf(context).top + 14, bottom: 12, left: 20, right: 20),
+            decoration: BoxDecoration(
               color: Colors.white,
               border: Border(
-                bottom: BorderSide(color: Color(0xFFEDF4F3), width: 1),
+                bottom: BorderSide(color: AppColors.border, width: 1),
               ),
             ),
             child: Stack(
@@ -159,17 +160,17 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
                   alignment: Alignment.centerLeft,
                   child: GestureDetector(
                     onTap: () => Navigator.pop(context),
-                    child: const Icon(Icons.arrow_back_ios,
-                        color: Color(0xFF2E5E58), size: 20),
+                    child: Icon(Icons.arrow_back_ios,
+                        color: AppColors.deepTeal, size: 20),
                   ),
                 ),
-                const Text(
+                Text(
                   'ORDER STATUS',
                   style: TextStyle(
                     fontFamily: 'Recoleta',
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF2E5E58),
+                    color: AppColors.deepTeal,
                     letterSpacing: 1.0,
                   ),
                 ),

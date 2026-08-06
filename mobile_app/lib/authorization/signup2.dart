@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'otp_verification.dart';
 import 'login.dart';
+import 'auth_transition.dart';
 import '../services/user_service.dart';
 
 class Signup2 extends StatefulWidget {
@@ -64,8 +65,17 @@ class _Signup2State extends State<Signup2> {
       _selectedAvatarIndex = -1;
     } else if (widget.initialPresetPath != null) {
       _presetAvatarPath = widget.initialPresetPath;
+      _pickedImage = null;
       _selectedAvatarIndex = widget.initialAvatarIndex;
     }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    precacheImage(const AssetImage('assets/images/FKP01925.jpg'), context);
+    precacheImage(const AssetImage('assets/images/dato.png'), context);
+    precacheImage(const AssetImage('assets/images/datin.png'), context);
   }
 
   void _onFieldChanged() => setState(() {});
@@ -575,14 +585,13 @@ class _Signup2State extends State<Signup2> {
                             // Already a member? Login
                             Center(
                               child: GestureDetector(
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                        builder: (context) =>
-                                            const LoginPage()),
-                                  );
-                                },
+                                  onTap: () {
+                                    Navigator.pushAndRemoveUntil(
+                                      context,
+                                      AuthPageRoute(page: const LoginPage()),
+                                      (route) => false,
+                                    );
+                                  },
                                 child: RichText(
                                   text: const TextSpan(
                                     style: TextStyle(
@@ -652,9 +661,8 @@ class _Signup2State extends State<Signup2> {
                                         if (!context.mounted) return;
                                         Navigator.push(
                                           context,
-                                          MaterialPageRoute(
-                                            builder: (context) =>
-                                                OtpVerificationPage(
+                                          AuthPageRoute(
+                                            page: OtpVerificationPage(
                                               initialPickedImage: _pickedImage,
                                               initialPresetPath:
                                                   _presetAvatarPath,
@@ -821,12 +829,12 @@ class _Signup2State extends State<Signup2> {
   void _showTermsAndConditionsDialog() {
     const Color brandColor = Color(0xFF1F3A34);
     final List<String> terms = [
-      'The top-up balance can only be used at C2 Coffee + Candle.',
-      'The balance is non-refundable and cannot be exchanged for cash.',
-      'The balance cannot be transferred to another account.',
-      'Please ensure the top-up amount is correct before making payment.',
-      'Any promotional credit, cashback, or rewards may have a validity period.',
-      'C2 Coffee + Candle reserves the right to amend these terms and conditions when necessary.',
+      'C2 Token is a closed-loop prepaid balance valid exclusively for orders at participating C2 Coffee stores.',
+      'C2 Tokens and top-up balances are non-refundable, non-transferable, and cannot be redeemed for cash.',
+      'All beverage and food orders placed through the App are strictly for Store Self-Pickup.',
+      'Personal data is handled in accordance with the Malaysian Personal Data Protection Act 2010 (PDPA).',
+      'Promotional cups, tier rewards, and vouchers are subject to individual validity and redemption criteria.',
+      'C2 Coffee reserves the right to amend terms, pricing, and member tiers when necessary.',
     ];
 
     showDialog(

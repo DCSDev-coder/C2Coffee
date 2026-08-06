@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'loading_order_page.dart';
+import '../utils/app_colors.dart';
 
 class TopUpWalletPage extends StatefulWidget {
   const TopUpWalletPage({super.key});
@@ -13,21 +14,61 @@ class _TopUpWalletPageState extends State<TopUpWalletPage> {
 
   final List<int> _presetAmounts = [20, 50, 100];
 
+  void _showTokenInfoDialog(BuildContext context) {
+    final Color brandColor = AppColors.deepTeal;
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: Row(
+          children: [
+            Icon(Icons.info_outline, color: brandColor),
+            const SizedBox(width: 8),
+            Text(
+              'Token Information',
+              style: TextStyle(
+                fontFamily: 'Recoleta',
+                color: brandColor,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        content: const Text(
+          '1 token = RM 1\n\nTokens can be used to purchase any handcrafted beverages and food in C2 Coffee.',
+          style: TextStyle(
+            fontFamily: 'Afacad',
+            fontSize: 15,
+            color: Colors.black87,
+            height: 1.3,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'GOT IT',
+              style: TextStyle(
+                fontFamily: 'Afacad',
+                fontWeight: FontWeight.bold,
+                color: brandColor,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    const Color brandColor = Color(0xFF2E5E58);
+    final Color brandColor = AppColors.deepTeal;
     const Color bgColor = Colors.white;
 
     return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, result) {
-        if (didPop) return;
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-              builder: (context) => const InteractiveFillingLoader()),
-        );
-      },
+      canPop: true,
       child: Scaffold(
         backgroundColor: bgColor,
         body: SingleChildScrollView(
@@ -35,44 +76,48 @@ class _TopUpWalletPageState extends State<TopUpWalletPage> {
             children: [
               // App Bar
               Container(
-                padding: const EdgeInsets.only(
-                    top: 50, bottom: 12, left: 20, right: 20),
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  border: Border(
-                    bottom: BorderSide(color: Color(0xFFEDF4F3), width: 1),
+                width: double.infinity,
+                padding: EdgeInsets.only(
+                    top: MediaQuery.paddingOf(context).top + 14,
+                    bottom: 16,
+                    left: 20,
+                    right: 20),
+                decoration: BoxDecoration(
+                  color: AppColors.deepTeal,
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(20),
+                    bottomRight: Radius.circular(20),
                   ),
                 ),
-                child: Row(
+                child: Stack(
+                  alignment: Alignment.center,
                   children: [
-                    GestureDetector(
-                      onTap: () {
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                const InteractiveFillingLoader(),
-                          ),
-                        );
-                      },
-                      child: const Icon(Icons.arrow_back_ios,
-                          color: brandColor, size: 20),
-                    ),
-                    const Expanded(
-                      child: Center(
-                        child: Text(
-                          'TOP UP WALLET',
-                          style: TextStyle(
-                            fontFamily: 'Recoleta',
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: brandColor,
-                            letterSpacing: 1.0,
-                          ),
-                        ),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: GestureDetector(
+                        onTap: () => InteractiveFillingLoader.showPop(context),
+                        child: const Icon(Icons.arrow_back_ios,
+                            color: Colors.white, size: 20),
                       ),
                     ),
-                    const SizedBox(width: 20),
+                    const Text(
+                      'TOP UP WALLET',
+                      style: TextStyle(
+                        fontFamily: 'Recoleta',
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        letterSpacing: 1.0,
+                      ),
+                    ),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: GestureDetector(
+                        onTap: () => _showTokenInfoDialog(context),
+                        child: const Icon(Icons.info_outline,
+                            color: Colors.white, size: 22),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -90,7 +135,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage> {
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: const Color(0xFFCFDEDB),
+                          color: AppColors.border,
                           width: 1,
                         ),
                         boxShadow: [
@@ -104,26 +149,25 @@ class _TopUpWalletPageState extends State<TopUpWalletPage> {
                         children: [
                           Image.asset('assets/images/wallet.png', height: 48),
                           const SizedBox(width: 16),
-                          const Column(
+                          Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
+                              const Text(
                                 'Balance',
                                 style: TextStyle(
                                   fontFamily: 'Afacad',
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: brandColor,
+                                  fontSize: 14,
+                                  color: Colors.black54,
                                 ),
                               ),
-                              SizedBox(height: 2),
+                              const SizedBox(height: 2),
                               Text(
-                                '0 points',
+                                '0 tokens',
                                 style: TextStyle(
-                                  fontFamily: 'Afacad',
-                                  fontSize: 16,
+                                  fontFamily: 'Recoleta',
+                                  fontSize: 22,
                                   fontWeight: FontWeight.bold,
-                                  color: brandColor,
+                                  color: AppColors.gold,
                                 ),
                               ),
                             ],
@@ -134,7 +178,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage> {
                     const SizedBox(height: 24),
 
                     // Select Amount
-                    const Text(
+                    Text(
                       'Select amount',
                       style: TextStyle(
                         fontFamily: 'Recoleta',
@@ -160,12 +204,12 @@ class _TopUpWalletPageState extends State<TopUpWalletPage> {
                               decoration: BoxDecoration(
                                 color: selected
                                     ? brandColor
-                                    : const Color(0xFFEDF4F3),
+                                    : AppColors.surfaceLight,
                                 borderRadius: BorderRadius.circular(14),
                                 border: Border.all(
                                   color: selected
                                       ? brandColor
-                                      : const Color(0xFFCFDEDB),
+                                      : AppColors.border,
                                   width: 1.5,
                                 ),
                                 boxShadow: selected
@@ -182,13 +226,15 @@ class _TopUpWalletPageState extends State<TopUpWalletPage> {
                               child: Column(
                                 children: [
                                   Text(
-                                    'RM',
+                                    'TOKENS',
                                     style: TextStyle(
                                       fontFamily: 'Afacad',
-                                      fontSize: 12,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
                                       color: selected
                                           ? Colors.white70
-                                          : Colors.grey.shade500,
+                                          : Colors.grey.shade600,
+                                      letterSpacing: 0.5,
                                     ),
                                   ),
                                   Text(
@@ -212,7 +258,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage> {
                     const SizedBox(height: 24),
 
                     // All top-up methods
-                    const Text(
+                    Text(
                       'All top-up methods',
                       style: TextStyle(
                         fontFamily: 'Recoleta',
@@ -228,7 +274,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage> {
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                          color: const Color(0xFFCFDEDB),
+                          color: AppColors.border,
                           width: 1,
                         ),
                         boxShadow: [
@@ -250,7 +296,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage> {
                             ),
                           ),
                           const SizedBox(width: 16),
-                          const Expanded(
+                          Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -263,7 +309,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage> {
                                     color: brandColor,
                                   ),
                                 ),
-                                Text(
+                                const Text(
                                   '********1134',
                                   style: TextStyle(
                                     fontFamily: 'Afacad',
@@ -286,7 +332,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage> {
                               child: Container(
                                 width: 16,
                                 height: 16,
-                                decoration: const BoxDecoration(
+                                decoration: BoxDecoration(
                                   shape: BoxShape.circle,
                                   color: brandColor,
                                 ),
@@ -304,25 +350,10 @@ class _TopUpWalletPageState extends State<TopUpWalletPage> {
                       child: ElevatedButton(
                         onPressed: _selectedAmount == null
                             ? null
-                            : () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      'Top up RM${_presetAmounts[_selectedAmount!]} successful!',
-                                      style:
-                                          const TextStyle(fontFamily: 'Afacad'),
-                                    ),
-                                    backgroundColor: brandColor,
-                                    behavior: SnackBarBehavior.floating,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                  ),
-                                );
-                              },
+                            : () {},
                         style: ElevatedButton.styleFrom(
                           backgroundColor: brandColor,
-                          disabledBackgroundColor: const Color(0xFFCFDEDB),
+                          disabledBackgroundColor: AppColors.border,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14),
                           ),
@@ -332,7 +363,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage> {
                         child: Text(
                           _selectedAmount == null
                               ? 'SELECT AN AMOUNT'
-                              : 'TOP UP RM${_presetAmounts[_selectedAmount!]}',
+                              : 'TOP UP ${_presetAmounts[_selectedAmount!]} TOKENS',
                           style: const TextStyle(
                             fontFamily: 'Recoleta',
                             fontSize: 16,
@@ -345,7 +376,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage> {
                     const SizedBox(height: 24),
 
                     // Recent Transactions
-                    const Text(
+                    Text(
                       'Recent Transactions',
                       style: TextStyle(
                         fontFamily: 'Recoleta',
@@ -362,7 +393,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage> {
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                          color: const Color(0xFFCFDEDB),
+                          color: AppColors.border,
                           width: 1,
                         ),
                         boxShadow: [
@@ -372,7 +403,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage> {
                               offset: const Offset(0, 2))
                         ],
                       ),
-                      child: const Column(
+                      child: Column(
                         children: [
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -389,8 +420,8 @@ class _TopUpWalletPageState extends State<TopUpWalletPage> {
                                       color: brandColor,
                                     ),
                                   ),
-                                  SizedBox(height: 2),
-                                  Text(
+                                  const SizedBox(height: 2),
+                                  const Text(
                                     'Via Touch n go',
                                     style: TextStyle(
                                       fontFamily: 'Afacad',
@@ -401,7 +432,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage> {
                                 ],
                               ),
                               Text(
-                                '+ RM20.00',
+                                '+ 20 tokens',
                                 style: TextStyle(
                                   fontFamily: 'Afacad',
                                   fontSize: 18,
@@ -411,7 +442,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage> {
                               ),
                             ],
                           ),
-                          SizedBox(height: 24),
+                          const SizedBox(height: 24),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
@@ -427,8 +458,8 @@ class _TopUpWalletPageState extends State<TopUpWalletPage> {
                                       color: brandColor,
                                     ),
                                   ),
-                                  SizedBox(height: 2),
-                                  Text(
+                                  const SizedBox(height: 2),
+                                  const Text(
                                     '14 July 2026',
                                     style: TextStyle(
                                       fontFamily: 'Afacad',
@@ -439,7 +470,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage> {
                                 ],
                               ),
                               Text(
-                                '- RM16.90',
+                                '- 16 tokens',
                                 style: TextStyle(
                                   fontFamily: 'Afacad',
                                   fontSize: 18,

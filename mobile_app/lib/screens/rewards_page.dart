@@ -30,60 +30,46 @@ class RewardsPage extends StatefulWidget {
 
 class _RewardsPageState extends State<RewardsPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-  final Color orangeColor = AppColors.deepTeal;
+  Color get orangeColor => AppColors.deepTeal;
   final Color beigeBg = Colors.white;
-  int _selectedTier = 1; // Tier 2 index is 1
+  int _selectedTier = 1;
   bool _isFaqsOpen = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedTier = AppColors.currentTier.value;
+  }
 
   void _onBottomNavTapped(int index) {
     if (index == 3) return;
     if (index == 0) {
-      Navigator.pushAndRemoveUntil(
+      InteractiveFillingLoader.show(
         context,
-        MaterialPageRoute(
-          builder: (context) => InteractiveFillingLoader(
-            targetPage: HomePage(
-              initialPickedImage: widget.initialPickedImage,
-              initialPresetPath: widget.initialPresetPath,
-              initialAvatarIndex: widget.initialAvatarIndex,
-            ),
-          ),
+        targetPage: HomePage(
+          initialPickedImage: widget.initialPickedImage,
+          initialPresetPath: widget.initialPresetPath,
+          initialAvatarIndex: widget.initialAvatarIndex,
         ),
-        (route) => false,
       );
     } else if (index == 1) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => const InteractiveFillingLoader(
-            targetPage: MenuPage(),
-          ),
-        ),
-      );
+      InteractiveFillingLoader.show(context, targetPage: const MenuPage());
     } else if (index == 2) {
-      Navigator.pushReplacement(
+      InteractiveFillingLoader.show(
         context,
-        MaterialPageRoute(
-          builder: (context) => InteractiveFillingLoader(
-            targetPage: OrdersPage(
-              initialPickedImage: widget.initialPickedImage,
-              initialPresetPath: widget.initialPresetPath,
-              initialAvatarIndex: widget.initialAvatarIndex,
-            ),
-          ),
+        targetPage: OrdersPage(
+          initialPickedImage: widget.initialPickedImage,
+          initialPresetPath: widget.initialPresetPath,
+          initialAvatarIndex: widget.initialAvatarIndex,
         ),
       );
     } else if (index == 4) {
-      Navigator.pushReplacement(
+      InteractiveFillingLoader.show(
         context,
-        MaterialPageRoute(
-          builder: (context) => InteractiveFillingLoader(
-            targetPage: ProfilePage(
-              initialPickedImage: widget.initialPickedImage,
-              initialPresetPath: widget.initialPresetPath,
-              initialAvatarIndex: widget.initialAvatarIndex,
-            ),
-          ),
+        targetPage: ProfilePage(
+          initialPickedImage: widget.initialPickedImage,
+          initialPresetPath: widget.initialPresetPath,
+          initialAvatarIndex: widget.initialAvatarIndex,
         ),
       );
     }
@@ -94,13 +80,13 @@ class _RewardsPageState extends State<RewardsPage> {
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: beigeBg,
-      extendBody: true,
-      onEndDrawerChanged: (isOpened) {
+      endDrawer: _buildFaqsDrawer(),
+      onEndDrawerChanged: (isOpen) {
         setState(() {
-          _isFaqsOpen = isOpened;
+          _isFaqsOpen = isOpen;
         });
       },
-      endDrawer: _buildFaqsDrawer(),
+      extendBody: true,
       bottomNavigationBar: CustomBottomNav(
         selectedIndex: 3,
         onItemTapped: _onBottomNavTapped,
@@ -112,7 +98,7 @@ class _RewardsPageState extends State<RewardsPage> {
               _buildHeader(),
               Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.only(bottom: 220),
+                  padding: const EdgeInsets.only(bottom: 130),
                   child: Column(
                     children: [
                       const SizedBox(height: 16),
@@ -139,10 +125,14 @@ class _RewardsPageState extends State<RewardsPage> {
   Widget _buildHeader() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.only(top: 50, bottom: 12, left: 20, right: 20),
-      decoration: const BoxDecoration(
-        color: Color(0xFF2E5E58),
-        borderRadius: BorderRadius.only(
+      padding: EdgeInsets.only(
+          top: MediaQuery.paddingOf(context).top + 14,
+          bottom: 16,
+          left: 20,
+          right: 20),
+      decoration: BoxDecoration(
+        color: AppColors.deepTeal,
+        borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(20),
           bottomRight: Radius.circular(20),
         ),
@@ -153,21 +143,7 @@ class _RewardsPageState extends State<RewardsPage> {
           Align(
             alignment: Alignment.centerLeft,
             child: GestureDetector(
-              onTap: () {
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => InteractiveFillingLoader(
-                      targetPage: HomePage(
-                        initialPickedImage: widget.initialPickedImage,
-                        initialPresetPath: widget.initialPresetPath,
-                        initialAvatarIndex: widget.initialAvatarIndex,
-                      ),
-                    ),
-                  ),
-                  (route) => false,
-                );
-              },
+              onTap: () => InteractiveFillingLoader.showPop(context),
               child: const Icon(Icons.arrow_back_ios,
                   color: Colors.white, size: 20),
             ),
@@ -208,7 +184,7 @@ class _RewardsPageState extends State<RewardsPage> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: const Color(0xFFCFDEDB),
+          color: AppColors.border,
           width: 1,
         ),
         boxShadow: [
@@ -243,8 +219,8 @@ class _RewardsPageState extends State<RewardsPage> {
                   padding: const EdgeInsets.only(bottom: 10),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.center,
-                    children: const [
-                      Text(
+                    children: [
+                      const Text(
                         'you have',
                         style: TextStyle(
                           fontFamily: 'Afacad',
@@ -256,21 +232,31 @@ class _RewardsPageState extends State<RewardsPage> {
                         '0 tokens',
                         style: TextStyle(
                           fontFamily: 'Recoleta',
-                          fontSize: 28,
+                          fontSize: 26,
                           fontWeight: FontWeight.bold,
                           color: AppColors.softGold,
                           height: 1.1,
                         ),
                       ),
-                      SizedBox(height: 4),
+                      const SizedBox(height: 16),
                       Text(
                         '0/1',
                         style: TextStyle(
                           fontFamily: 'Recoleta',
-                          fontSize: 48,
+                          fontSize: 42,
                           fontWeight: FontWeight.bold,
                           color: AppColors.deepTeal,
                           height: 1.0,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'cups to next tier',
+                        style: TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.deepTeal,
                         ),
                       ),
                     ],
@@ -302,22 +288,18 @@ class _RewardsPageState extends State<RewardsPage> {
           Expanded(
             child: GestureDetector(
               onTap: () {
-                Navigator.push(
+                InteractiveFillingLoader.show(
                   context,
-                  MaterialPageRoute(
-                    builder: (context) => const InteractiveFillingLoader(
-                      targetPage: MyRewardsPage(),
-                    ),
-                  ),
+                  targetPage: const MyRewardsPage(),
                 );
               },
               child: Container(
                 height: 120,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEDF4F3),
+                  color: AppColors.surfaceLight,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
-                    color: const Color(0xFFCFDEDB),
+                    color: AppColors.border,
                     width: 1,
                   ),
                   boxShadow: [
@@ -332,16 +314,6 @@ class _RewardsPageState extends State<RewardsPage> {
                   children: [
                     Positioned(
                       top: 12,
-                      bottom: 40,
-                      left: 12,
-                      right: 12,
-                      child: Image.asset(
-                        'assets/images/Surprise reward gift box with star popping out.png',
-                        fit: BoxFit.contain,
-                      ),
-                    ),
-                    const Positioned(
-                      bottom: 12,
                       left: 0,
                       right: 0,
                       child: Text(
@@ -351,7 +323,20 @@ class _RewardsPageState extends State<RewardsPage> {
                           fontFamily: 'Recoleta',
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF2E5E58),
+                          color: AppColors.deepTeal,
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      top: 40,
+                      bottom: 2,
+                      left: 4,
+                      right: 4,
+                      child: Transform.scale(
+                        scale: 1.35,
+                        child: Image.asset(
+                          'assets/images/Surprise reward gift box with star popping out.png',
+                          fit: BoxFit.contain,
                         ),
                       ),
                     ),
@@ -364,22 +349,18 @@ class _RewardsPageState extends State<RewardsPage> {
           Expanded(
             child: GestureDetector(
               onTap: () {
-                Navigator.push(
+                InteractiveFillingLoader.show(
                   context,
-                  MaterialPageRoute(
-                    builder: (context) => const InteractiveFillingLoader(
-                      targetPage: ReferralPage(),
-                    ),
-                  ),
+                  targetPage: const ReferralPage(),
                 );
               },
               child: Container(
                 height: 120,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEDF4F3),
+                  color: AppColors.surfaceLight,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
-                    color: const Color(0xFFCFDEDB),
+                    color: AppColors.border,
                     width: 1,
                   ),
                   boxShadow: [
@@ -394,16 +375,6 @@ class _RewardsPageState extends State<RewardsPage> {
                   children: [
                     Positioned(
                       top: 12,
-                      bottom: 40,
-                      left: 12,
-                      right: 12,
-                      child: Image.asset(
-                        'assets/images/Community friends laughing together waving hands and giving thumbs.png',
-                        fit: BoxFit.contain,
-                      ),
-                    ),
-                    const Positioned(
-                      bottom: 12,
                       left: 0,
                       right: 0,
                       child: Text(
@@ -413,7 +384,20 @@ class _RewardsPageState extends State<RewardsPage> {
                           fontFamily: 'Recoleta',
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF2E5E58),
+                          color: AppColors.deepTeal,
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      top: 40,
+                      bottom: 2,
+                      left: 4,
+                      right: 4,
+                      child: Transform.scale(
+                        scale: 1.35,
+                        child: Image.asset(
+                          'assets/images/Community friends laughing together waving hands and giving thumbs.png',
+                          fit: BoxFit.contain,
                         ),
                       ),
                     ),
@@ -435,20 +419,20 @@ class _RewardsPageState extends State<RewardsPage> {
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Row(
             children: [
-              const Text(
+              Text(
                 'Tier',
                 style: TextStyle(
                   fontFamily: 'Recoleta',
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFF2E5E58),
+                  color: AppColors.deepTeal,
                 ),
               ),
               const SizedBox(width: 16),
               Expanded(
                 child: Container(
                   height: 1,
-                  color: const Color(0xFFCFDEDB),
+                  color: AppColors.border,
                 ),
               ),
             ],
@@ -462,8 +446,8 @@ class _RewardsPageState extends State<RewardsPage> {
             children: [
               Expanded(child: _buildTierTab(0, 'Tier 1', 'Kawan', false)),
               Expanded(child: _buildTierTab(1, 'Tier 2', 'Dilamun', false)),
-              Expanded(child: _buildTierTab(2, 'Tier 3', 'Ketagih', true)),
-              Expanded(child: _buildTierTab(3, 'Tier 4', 'Legend', true)),
+              Expanded(child: _buildTierTab(2, 'Tier 3', 'Ketagih', false)),
+              Expanded(child: _buildTierTab(3, 'Tier 4', 'Legend', false)),
             ],
           ),
         ),
@@ -474,7 +458,7 @@ class _RewardsPageState extends State<RewardsPage> {
           decoration: BoxDecoration(
             color: Colors.white,
             border: Border.all(
-              color: const Color(0xFFCFDEDB),
+              color: AppColors.border,
               width: 1,
             ),
             borderRadius: const BorderRadius.only(
@@ -490,37 +474,134 @@ class _RewardsPageState extends State<RewardsPage> {
               ),
             ],
           ),
-          child: SizedBox(
-            height:
-                150, // Fixed height to prevent layout jumps during transition
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 300),
-              child: _selectedTier == 0
-                  ? Container(
-                      key: const ValueKey('tier0'),
-                      width: double.infinity,
-                      alignment: Alignment.center,
-                      padding: const EdgeInsets.symmetric(vertical: 20),
-                      child: const Text(
-                        'Just 1 cup to level up & unlock more member benefits.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontFamily: 'Afacad',
-                          fontSize: 16,
-                          color: Colors.black87,
-                        ),
-                      ),
-                    )
-                  : Column(
-                      key: const ValueKey('other_tiers'),
+          child: AnimatedCrossFade(
+            duration: const Duration(milliseconds: 280),
+            sizeCurve: Curves.easeInOutCubic,
+            firstCurve: Curves.easeIn,
+            secondCurve: Curves.easeOut,
+            crossFadeState: _selectedTier == 0
+                ? CrossFadeState.showFirst
+                : CrossFadeState.showSecond,
+            firstChild: Column(
+              key: const ValueKey('tier0'),
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildRewardListItem(
+                  'RM1 Off Every Order',
+                  'Enjoy RM1 discount on all handcrafted drinks',
+                  icon: Icons.local_offer_outlined,
+                ),
+                const Divider(height: 12),
+                _buildRewardListItem(
+                  '10 Bonus Tokens on Reload',
+                  'Earn 10 bonus tokens when topping up your wallet',
+                  icon: Icons.monetization_on_outlined,
+                ),
+                const Divider(height: 12),
+                _buildRewardListItem(
+                  'Complimentary Welcome Drink',
+                  'Enjoy 1 free handcrafted beverage on your first visit',
+                  icon: Icons.local_cafe_outlined,
+                ),
+              ],
+            ),
+            secondChild: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 250),
+              child: _selectedTier == 1
+                  ? Column(
+                      key: const ValueKey('tier1'),
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        _buildRewardListItem('1 Free Birthday Drink',
-                            'added on your birthday and usable once'),
-                        const Divider(),
-                        _buildRewardListItem('Exclusive Promos',
-                            'receive exclusive promotional offers'),
+                        _buildRewardListItem(
+                          'RM2 Off Every Order',
+                          'Enjoy RM2 discount on all handcrafted drinks',
+                          icon: Icons.local_offer_outlined,
+                        ),
+                        const Divider(height: 12),
+                        _buildRewardListItem(
+                          'Birthday Treat: 1 Free Drink',
+                          '1 complimentary drink on your birthday (bring a friend)',
+                          icon: Icons.cake_outlined,
+                        ),
+                        const Divider(height: 12),
+                        _buildRewardListItem(
+                          '1 Free Complimentary Drink',
+                          '1 free handcrafted drink of your choice (any drink)',
+                          icon: Icons.local_cafe_outlined,
+                        ),
+                        const Divider(height: 12),
+                        _buildRewardListItem(
+                          '5% Off Merchandise',
+                          'Get 5% discount on official C² cups & merchandise',
+                          icon: Icons.shopping_bag_outlined,
+                        ),
                       ],
-                    ),
+                    )
+                  : _selectedTier == 2
+                      ? Column(
+                          key: const ValueKey('tier2'),
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _buildRewardListItem(
+                              'RM3 Off Every Order',
+                              'Enjoy RM3 discount on all handcrafted drinks',
+                              icon: Icons.local_offer_outlined,
+                            ),
+                            const Divider(height: 12),
+                            _buildRewardListItem(
+                              'Birthday Treat: 1 Free Drink',
+                              '1 complimentary drink on your birthday (bring a friend)',
+                              icon: Icons.cake_outlined,
+                            ),
+                            const Divider(height: 12),
+                            _buildRewardListItem(
+                              '1 Free Complimentary Drink',
+                              '1 free handcrafted drink of your choice (any drink)',
+                              icon: Icons.local_cafe_outlined,
+                            ),
+                            const Divider(height: 12),
+                            _buildRewardListItem(
+                              '10% Off Merchandise',
+                              'Get 10% discount on all official C² merchandise',
+                              icon: Icons.shopping_bag_outlined,
+                            ),
+                          ],
+                        )
+                      : Column(
+                          key: const ValueKey('tier3'),
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _buildRewardListItem(
+                              'Complimentary C² Cup (Nude Colour)',
+                              'Receive an exclusive official C² signature cup in nude colour',
+                              icon: Icons.card_giftcard_outlined,
+                            ),
+                            const Divider(height: 12),
+                            _buildRewardListItem(
+                              'RM4 Off Every Order',
+                              'Enjoy RM4 discount on all handcrafted drinks',
+                              icon: Icons.local_offer_outlined,
+                            ),
+                            const Divider(height: 12),
+                            _buildRewardListItem(
+                              'Birthday Treat: 1 Free Drink',
+                              '1 complimentary drink on your birthday (bring a friend)',
+                              icon: Icons.cake_outlined,
+                            ),
+                            const Divider(height: 12),
+                            _buildRewardListItem(
+                              '1 Free Complimentary Drink',
+                              '1 free handcrafted drink of your choice (any drink)',
+                              icon: Icons.local_cafe_outlined,
+                            ),
+                            const Divider(height: 12),
+                            _buildRewardListItem(
+                              '20% Off Merchandise',
+                              'Get 20% discount on all official C² merchandise',
+                              icon: Icons.shopping_bag_outlined,
+                            ),
+                          ],
+                        ),
             ),
           ),
         ),
@@ -531,11 +612,11 @@ class _RewardsPageState extends State<RewardsPage> {
   Widget _buildTierTab(int index, String title, String subtitle, bool locked) {
     bool isSelected = index == _selectedTier;
     Color bgColor = locked
-        ? const Color(0xFFEDF4F3)
-        : (isSelected ? const Color(0xFFEDF4F3) : Colors.white);
+        ? AppColors.surfaceLight
+        : (isSelected ? AppColors.surfaceLight : Colors.white);
     Color textColor = locked
         ? Colors.grey.shade400
-        : (isSelected ? orangeColor : Colors.black87);
+        : (isSelected ? AppColors.gold : Colors.black87);
 
     return GestureDetector(
       onTap: () {
@@ -543,6 +624,7 @@ class _RewardsPageState extends State<RewardsPage> {
           setState(() {
             _selectedTier = index;
           });
+          AppColors.setTier(index);
         }
       },
       child: Container(
@@ -551,8 +633,7 @@ class _RewardsPageState extends State<RewardsPage> {
         decoration: BoxDecoration(
           color: bgColor,
           border: Border.all(
-            color:
-                isSelected ? const Color(0xFFCFDEDB) : const Color(0xFFEDF4F3),
+            color: isSelected ? AppColors.border : AppColors.surfaceLight,
             width: 1,
           ),
           borderRadius: const BorderRadius.only(
@@ -574,7 +655,7 @@ class _RewardsPageState extends State<RewardsPage> {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontFamily: 'Afacad',
-                      fontSize: 10,
+                      fontSize: 12.5,
                       color: textColor,
                     ),
                   ),
@@ -584,7 +665,7 @@ class _RewardsPageState extends State<RewardsPage> {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontFamily: 'Recoleta',
-                      fontSize: 9, // Reduced so C2 Reserve fits
+                      fontSize: 12,
                       fontWeight: FontWeight.bold,
                       color: textColor,
                     ),
@@ -592,54 +673,160 @@ class _RewardsPageState extends State<RewardsPage> {
                 ],
               ),
             ),
-            if (locked)
-              const SizedBox(
-                  width: 14), // Balance the icon to keep text exactly centered
+            if (locked) const SizedBox(width: 14),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildRewardListItem(String title, String subtitle) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: const BoxDecoration(
-              color: Color(0xFFEDF4F3),
-              shape: BoxShape.circle,
+  Widget _buildRewardListItem(String title, String subtitle,
+      {IconData icon = Icons.coffee}) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        _showRewardDetailDialog(title, subtitle, icon);
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceLight,
+                shape: BoxShape.circle,
+              ),
+              child: icon == Icons.local_offer_outlined
+                  ? Image.asset(
+                      'assets/images/voucher.png',
+                      width: 32,
+                      height: 32,
+                    )
+                  : Icon(icon, color: AppColors.gold, size: 20),
             ),
-            child: Icon(Icons.coffee, color: orangeColor, size: 24),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontFamily: 'Afacad',
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.deepTeal,
+                    ),
+                  ),
+                  if (subtitle.isNotEmpty)
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 12,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right,
+              color: Colors.grey.shade400,
+              size: 20,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showRewardDetailDialog(String title, String subtitle, IconData icon) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Padding(
+        padding: EdgeInsets.only(
+          top: 24,
+          left: 24,
+          right: 24,
+          bottom: 24 + MediaQuery.paddingOf(context).bottom,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontFamily: 'Recoleta',
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF2E5E58),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceLight,
+                    shape: BoxShape.circle,
+                  ),
+                  child: icon == Icons.local_offer_outlined
+                      ? Image.asset(
+                          'assets/images/voucher.png',
+                          width: 44,
+                          height: 44,
+                        )
+                      : Icon(icon, color: orangeColor, size: 28),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      fontFamily: 'Recoleta',
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.deepTeal,
+                    ),
                   ),
                 ),
-                Text(
-                  subtitle,
-                  style: const TextStyle(
-                    fontFamily: 'Afacad',
-                    fontSize: 12,
-                    color: Colors.grey,
-                  ),
+                IconButton(
+                  icon: const Icon(Icons.close, color: Colors.grey),
+                  onPressed: () => Navigator.pop(context),
                 ),
               ],
             ),
-          ),
-        ],
+            const SizedBox(height: 16),
+            Text(
+              subtitle,
+              style: const TextStyle(
+                fontFamily: 'Afacad',
+                fontSize: 14,
+                color: Colors.black87,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.deepTeal,
+                minimumSize: const Size(double.infinity, 48),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text(
+                'CLAIM REWARD NOW',
+                style: TextStyle(
+                  fontFamily: 'Afacad',
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -657,7 +844,7 @@ class _RewardsPageState extends State<RewardsPage> {
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: const Color(0xFFCFDEDB),
+              color: AppColors.border,
               width: 1,
             ),
             boxShadow: [
@@ -672,8 +859,8 @@ class _RewardsPageState extends State<RewardsPage> {
             children: [
               Container(
                 padding: const EdgeInsets.all(12),
-                decoration: const BoxDecoration(
-                  color: Color(0xFFEDF4F3),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceLight,
                   shape: BoxShape.circle,
                 ),
                 child: Icon(Icons.help_outline, color: orangeColor, size: 24),
@@ -682,17 +869,17 @@ class _RewardsPageState extends State<RewardsPage> {
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
+                  children: [
                     Text(
                       'FAQS',
                       style: TextStyle(
                         fontFamily: 'Recoleta',
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFF2E5E58),
+                        color: AppColors.deepTeal,
                       ),
                     ),
-                    Text(
+                    const Text(
                       'Learn how it works',
                       style: TextStyle(
                         fontFamily: 'Afacad',
@@ -706,18 +893,18 @@ class _RewardsPageState extends State<RewardsPage> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEDF4F3),
+                  color: AppColors.surfaceLight,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: const Color(0xFFCFDEDB),
+                    color: AppColors.border,
                     width: 1,
                   ),
                 ),
                 child: AnimatedRotation(
                   turns: _isFaqsOpen ? 0.25 : 0,
                   duration: const Duration(milliseconds: 300),
-                  child: const Icon(Icons.chevron_right,
-                      color: Color(0xFF2E5E58), size: 20),
+                  child: Icon(Icons.chevron_right,
+                      color: AppColors.deepTeal, size: 20),
                 ),
               ),
             ],
@@ -750,17 +937,17 @@ class _RewardsPageState extends State<RewardsPage> {
                 const SizedBox(width: 16),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
+                  children: [
                     Text(
                       'FAQS',
                       style: TextStyle(
                         fontFamily: 'Recoleta',
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFF2E5E58),
+                        color: AppColors.deepTeal,
                       ),
                     ),
-                    Text(
+                    const Text(
                       'Learn how it works',
                       style: TextStyle(
                         fontFamily: 'Afacad',
@@ -790,7 +977,7 @@ class _RewardsPageState extends State<RewardsPage> {
                 ),
                 const Divider(height: 1),
                 _buildExpansionTile(
-                  'How do I earn reward points?',
+                  'How do I earn reward tokens?',
                   'You earn 1 cup for every handcrafted beverage purchased. Collect enough cups to level up your tier and unlock exclusive benefits!',
                 ),
                 const Divider(height: 1),

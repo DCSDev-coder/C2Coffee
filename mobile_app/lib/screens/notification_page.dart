@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'loading_order_page.dart';
+import '../utils/app_colors.dart';
 
 class NotificationPage extends StatelessWidget {
   const NotificationPage({super.key});
@@ -9,61 +10,50 @@ class NotificationPage extends StatelessWidget {
     const Color bgColor = Colors.white;
 
     return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, result) {
-        if (didPop) return;
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const InteractiveFillingLoader()),
-        );
-      },
+      canPop: true,
       child: Scaffold(
-      backgroundColor: bgColor,
-      body: Column(
-        children: [
-          // App Bar
-          Container(
-            padding: const EdgeInsets.only(
-                top: 50, bottom: 12, left: 20, right: 20),
-            decoration: const BoxDecoration(
-              color: Color(0xFF2E5E58),
-              borderRadius: BorderRadius.only(
-                bottomLeft: Radius.circular(20),
-                bottomRight: Radius.circular(20),
-              ),
-            ),
-            child: Row(
-              children: [
-                GestureDetector(
-                  onTap: () {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const InteractiveFillingLoader(),
-                      ),
-                    );
-                  },
-                  child: const Icon(Icons.arrow_back_ios,
-                      color: Colors.white, size: 20),
+        backgroundColor: bgColor,
+        body: Column(
+          children: [
+            // App Bar
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.only(
+                  top: MediaQuery.paddingOf(context).top + 14,
+                  bottom: 16,
+                  left: 20,
+                  right: 20),
+              decoration: BoxDecoration(
+                color: AppColors.deepTeal,
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(20),
+                  bottomRight: Radius.circular(20),
                 ),
-                const Expanded(
-                  child: Center(
-                    child: Text(
-                      'NOTIFICATIONS',
-                      style: TextStyle(
-                        fontFamily: 'Recoleta',
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        letterSpacing: 1.0,
-                      ),
+              ),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: GestureDetector(
+                      onTap: () => InteractiveFillingLoader.showPop(context),
+                      child: const Icon(Icons.arrow_back_ios,
+                          color: Colors.white, size: 20),
                     ),
                   ),
-                ),
-                const SizedBox(width: 20), // Balance the flex space
-              ],
+                  const Text(
+                    'NOTIFICATIONS',
+                    style: TextStyle(
+                      fontFamily: 'Recoleta',
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      letterSpacing: 1.0,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
             
             // Notifications List
             Expanded(
@@ -95,7 +85,7 @@ class NotificationPage extends StatelessWidget {
     required String title,
     required String description,
   }) {
-    const Color brandColor = Color(0xFF2E5E58);
+    final Color brandColor = AppColors.deepTeal;
 
     return Column(
       children: [
@@ -114,7 +104,7 @@ class NotificationPage extends StatelessWidget {
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: const Color(0xFFCFDEDB),
+              color: AppColors.border,
               width: 1,
             ),
             boxShadow: [
@@ -132,7 +122,7 @@ class NotificationPage extends StatelessWidget {
               Container(
                 width: 40,
                 height: 40,
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   color: brandColor,
                   shape: BoxShape.circle,
                 ),
@@ -150,7 +140,7 @@ class NotificationPage extends StatelessWidget {
                   children: [
                     Text(
                       title,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: 'Recoleta',
                         fontSize: 16,
                         fontWeight: FontWeight.bold,

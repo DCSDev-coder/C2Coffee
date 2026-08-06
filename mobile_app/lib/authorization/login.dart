@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'signup1.dart';
 import 'otp_verification.dart';
+import 'auth_transition.dart';
 import '../services/user_service.dart';
 
 class LoginPage extends StatefulWidget {
@@ -38,6 +39,14 @@ class _LoginPageState extends State<LoginPage> {
   void initState() {
     super.initState();
     _phoneController.addListener(_onFieldChanged);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    precacheImage(const AssetImage('assets/images/FKP01925.jpg'), context);
+    precacheImage(const AssetImage('assets/images/dato.png'), context);
+    precacheImage(const AssetImage('assets/images/datin.png'), context);
   }
 
   void _onFieldChanged() => setState(() {});
@@ -366,7 +375,7 @@ class _LoginPageState extends State<LoginPage> {
                 // Top Section
                 Padding(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                   child: Column(
                     children: [
                       GestureDetector(
@@ -397,26 +406,27 @@ class _LoginPageState extends State<LoginPage> {
                           ],
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 8),
+                      // Spacer to match the "Step 1 of 2" line height in Signup1 (22px) for exact vertical symmetry
+                      const SizedBox(height: 22),
                       const Text(
                         'Welcome Back',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                             fontFamily: 'Recoleta',
-                            fontSize: 32,
-                            fontWeight: FontWeight.normal,
+                            fontSize: 26,
+                            fontWeight: FontWeight.bold,
                             color: Colors.white),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 2),
                       const Text(
                         'Log in to continue your coffee journey and enjoy exclusive rewards.',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                             fontFamily: 'Afacad',
-                            fontSize: 14,
+                            fontSize: 12,
                             color: Colors.white70),
                       ),
-                      const SizedBox(height: 16),
                     ],
                   ),
                 ),
@@ -424,46 +434,45 @@ class _LoginPageState extends State<LoginPage> {
                 Expanded(
                   child: Container(
                     width: double.infinity,
+                    clipBehavior: Clip.antiAlias,
                     decoration: const BoxDecoration(
                       color: Colors.white,
                       borderRadius:
                           BorderRadius.vertical(top: Radius.circular(40)),
                     ),
                     child: SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
+                      physics: const ClampingScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(24, 16, 24, 20),
                       child: Form(
                         key: _formKey,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             _buildPhoneField(),
-                            const SizedBox(height: 24),
+                            const SizedBox(height: 16),
                             Center(
-                              child: GestureDetector(
-                                onTap: () {},
-                                child: const Text(
-                                  'or',
-                                  style: TextStyle(
-                                      fontFamily: 'Afacad',
-                                      fontSize: 14,
-                                      color: Color(0xFF1F3A34),
-                                      fontWeight: FontWeight.w600),
-                                ),
+                              child: const Text(
+                                'or',
+                                style: TextStyle(
+                                    fontFamily: 'Afacad',
+                                    fontSize: 14,
+                                    color: Color(0xFF1F3A34),
+                                    fontWeight: FontWeight.w600),
                               ),
                             ),
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 12),
                             SizedBox(
                               width: double.infinity,
-                              height: 54,
+                              height: 48,
                               child: ElevatedButton.icon(
                                 onPressed: () {},
                                 icon: const Icon(Icons.email_outlined,
-                                    size: 20, color: orangeColor),
+                                    size: 18, color: orangeColor),
                                 label: const Text(
                                   'Continue with Email',
                                   style: TextStyle(
                                       fontFamily: 'Afacad',
-                                      fontSize: 16,
+                                      fontSize: 15,
                                       fontWeight: FontWeight.w600,
                                       color: orangeColor),
                                 ),
@@ -472,21 +481,19 @@ class _LoginPageState extends State<LoginPage> {
                                   elevation: 0,
                                   shadowColor: Colors.transparent,
                                   side: BorderSide(
-                                      color: Colors.grey.shade300, width: 1),
+                                      color: Colors.grey.shade300, width: 1.5),
                                   shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(30)),
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 20),
+                            const SizedBox(height: 14),
                             Center(
                               child: GestureDetector(
                                 onTap: () {
-                                  Navigator.push(
+                                  Navigator.pushReplacement(
                                     context,
-                                    MaterialPageRoute(
-                                        builder: (context) =>
-                                            const Signup1()),
+                                    AuthPageRoute(page: const Signup1()),
                                   );
                                 },
                                 child: RichText(
@@ -509,10 +516,10 @@ class _LoginPageState extends State<LoginPage> {
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 20),
+                            const SizedBox(height: 14),
                             SizedBox(
                               width: double.infinity,
-                              height: 54,
+                              height: 48,
                               child: ElevatedButton(
                                 onPressed: _isFormValid
                                     ? () async {
@@ -523,9 +530,8 @@ class _LoginPageState extends State<LoginPage> {
                                         if (!context.mounted) return;
                                         Navigator.push(
                                           context,
-                                          MaterialPageRoute(
-                                            builder: (context) =>
-                                                OtpVerificationPage(
+                                          AuthPageRoute(
+                                            page: OtpVerificationPage(
                                               initialPickedImage: _pickedImage,
                                               initialPresetPath:
                                                   _presetAvatarPath,
@@ -577,11 +583,11 @@ class _LoginPageState extends State<LoginPage> {
           'Phone Number',
           style: TextStyle(
               fontFamily: 'Recoleta',
-              fontSize: 18,
+              fontSize: 16,
               fontWeight: FontWeight.bold,
               color: Color(0xFF2E5E58)),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 4),
         Container(
           decoration: BoxDecoration(
             color: Colors.white,
@@ -635,7 +641,7 @@ class _LoginPageState extends State<LoginPage> {
               fillColor: Colors.white,
               hintText: '1234567890',
               hintStyle: const TextStyle(
-                  fontFamily: 'Afacad', fontSize: 16, color: Colors.grey),
+                  fontFamily: 'Afacad', fontSize: 15, color: Colors.grey),
               border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(20),
                   borderSide: BorderSide.none),
@@ -648,12 +654,12 @@ class _LoginPageState extends State<LoginPage> {
                     const BorderSide(color: Color(0xFF2E5E58), width: 1.5),
               ),
               contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             ),
             style: const TextStyle(
-                fontFamily: 'Afacad', fontSize: 16, color: Colors.black87),
+                fontFamily: 'Afacad', fontSize: 15, color: Colors.black87),
             dropdownTextStyle: const TextStyle(
-                fontFamily: 'Afacad', fontSize: 16, color: Colors.black87),
+                fontFamily: 'Afacad', fontSize: 15, color: Colors.black87),
             onChanged: (phone) {
               setState(() {
                 try {

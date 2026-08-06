@@ -8,20 +8,11 @@ class ReferralPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const Color brandColor = Color(0xFF2E5E58);
-    const Color cardBgColor = Color(0xFFEDF4F3);
+    final Color brandColor = AppColors.deepTeal;
+    final Color cardBgColor = AppColors.surfaceLight;
 
     return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, result) {
-        if (didPop) return;
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const InteractiveFillingLoader(),
-          ),
-        );
-      },
+      canPop: true,
       child: Scaffold(
         backgroundColor: Colors.white,
         body: Stack(
@@ -31,11 +22,14 @@ class ReferralPage extends StatelessWidget {
                 // Header
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.only(
-                      top: 50, bottom: 12, left: 20, right: 20),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF2E5E58),
-                    borderRadius: BorderRadius.only(
+                  padding: EdgeInsets.only(
+                      top: MediaQuery.paddingOf(context).top + 14,
+                      bottom: 16,
+                      left: 20,
+                      right: 20),
+                  decoration: BoxDecoration(
+                    color: AppColors.deepTeal,
+                    borderRadius: const BorderRadius.only(
                       bottomLeft: Radius.circular(20),
                       bottomRight: Radius.circular(20),
                     ),
@@ -46,15 +40,7 @@ class ReferralPage extends StatelessWidget {
                       Align(
                         alignment: Alignment.centerLeft,
                         child: GestureDetector(
-                          onTap: () {
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    const InteractiveFillingLoader(),
-                              ),
-                            );
-                          },
+                          onTap: () => InteractiveFillingLoader.showPop(context),
                           child: const Icon(Icons.arrow_back_ios,
                               color: Colors.white, size: 20),
                         ),
@@ -88,18 +74,18 @@ class ReferralPage extends StatelessWidget {
                             color: cardBgColor,
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
-                                color: const Color(0xFFCFDEDB), width: 1),
+                                color: AppColors.border, width: 1),
                           ),
                           child: Column(
                             children: [
                               // Illustration Placeholder
-                              const Icon(
+                              Icon(
                                 Icons.group_add_outlined,
                                 size: 80,
                                 color: brandColor,
                               ),
                               const SizedBox(height: 16),
-                              const Text(
+                              Text(
                                 'INVITE A FRIEND',
                                 style: TextStyle(
                                   fontFamily: 'Recoleta',
@@ -112,7 +98,7 @@ class ReferralPage extends StatelessWidget {
                               const SizedBox(height: 8),
                               RichText(
                                 textAlign: TextAlign.center,
-                                text: const TextSpan(
+                                text: TextSpan(
                                   style: TextStyle(
                                     fontFamily: 'Afacad',
                                     fontSize: 15,
@@ -120,15 +106,15 @@ class ReferralPage extends StatelessWidget {
                                     fontWeight: FontWeight.w500,
                                   ),
                                   children: [
-                                    TextSpan(text: 'Sharing with a friend\ngives you '),
+                                    const TextSpan(text: 'Sharing with a friend\ngives you '),
                                     TextSpan(
-                                      text: '10 points 🔥',
+                                      text: '10 tokens 🔥',
                                       style: TextStyle(
-                                        color: AppColors.softGold,
+                                        color: AppColors.gold,
                                         fontWeight: FontWeight.bold,
                                       ),
                                     ),
-                                    TextSpan(text: ' (true story).'),
+                                    const TextSpan(text: ' (true story).'),
                                   ],
                                 ),
                               ),
@@ -164,7 +150,7 @@ class ReferralPage extends StatelessWidget {
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
-                                color: const Color(0xFFCFDEDB), width: 1),
+                                color: AppColors.border, width: 1),
                             boxShadow: [
                               BoxShadow(
                                 color: Colors.black.withValues(alpha: 0.03),
@@ -175,7 +161,7 @@ class ReferralPage extends StatelessWidget {
                           ),
                           child: Column(
                             children: [
-                              const Text(
+                              Text(
                                 'YOUR UNIQUE CODE',
                                 style: TextStyle(
                                   fontFamily: 'Recoleta',
@@ -190,13 +176,13 @@ class ReferralPage extends StatelessWidget {
                                 padding:
                                     const EdgeInsets.symmetric(vertical: 12),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFEDF4F3),
+                                  color: AppColors.surfaceLight,
                                   borderRadius: BorderRadius.circular(8),
                                   border: Border.all(
-                                      color: const Color(0xFFCFDEDB)),
+                                      color: AppColors.border),
                                 ),
                                 alignment: Alignment.center,
-                                child: const Text(
+                                child: Text(
                                   'DSC123',
                                   style: TextStyle(
                                     fontFamily: 'Afacad',
@@ -221,9 +207,9 @@ class ReferralPage extends StatelessWidget {
                                     color: brandColor,
                                     borderRadius: BorderRadius.circular(8),
                                   ),
-                                  child: Row(
+                                  child: const Row(
                                     mainAxisAlignment: MainAxisAlignment.center,
-                                    children: const [
+                                    children: [
                                       Icon(Icons.ios_share,
                                           color: Colors.white, size: 20),
                                       SizedBox(width: 8),
@@ -247,13 +233,13 @@ class ReferralPage extends StatelessWidget {
 
                         // How It Works Divider
                         Row(
-                          children: const [
+                          children: [
                             Expanded(
                                 child:
-                                    Divider(color: Color(0xFFCFDEDB), thickness: 1)),
+                                    Divider(color: AppColors.border, thickness: 1)),
                             Padding(
                               padding:
-                                  EdgeInsets.symmetric(horizontal: 12),
+                                  const EdgeInsets.symmetric(horizontal: 12),
                               child: Text(
                                 'How It Works',
                                 style: TextStyle(
@@ -266,7 +252,7 @@ class ReferralPage extends StatelessWidget {
                             ),
                             Expanded(
                                 child:
-                                    Divider(color: Color(0xFFCFDEDB), thickness: 1)),
+                                    Divider(color: AppColors.border, thickness: 1)),
                           ],
                         ),
                         const SizedBox(height: 24),
@@ -279,7 +265,7 @@ class ReferralPage extends StatelessWidget {
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
-                                color: const Color(0xFFCFDEDB), width: 1),
+                                color: AppColors.border, width: 1),
                             boxShadow: [
                               BoxShadow(
                                 color: Colors.black.withValues(alpha: 0.03),
@@ -305,13 +291,13 @@ class ReferralPage extends StatelessWidget {
 
                         // My Achievements Divider
                         Row(
-                          children: const [
+                          children: [
                             Expanded(
                                 child:
-                                    Divider(color: Color(0xFFCFDEDB), thickness: 1)),
+                                    Divider(color: AppColors.border, thickness: 1)),
                             Padding(
                               padding:
-                                  EdgeInsets.symmetric(horizontal: 12),
+                                  const EdgeInsets.symmetric(horizontal: 12),
                               child: Text(
                                 'My Achievements',
                                 style: TextStyle(
@@ -324,7 +310,7 @@ class ReferralPage extends StatelessWidget {
                             ),
                             Expanded(
                                 child:
-                                    Divider(color: Color(0xFFCFDEDB), thickness: 1)),
+                                    Divider(color: AppColors.border, thickness: 1)),
                           ],
                         ),
                         const SizedBox(height: 24),
@@ -346,9 +332,9 @@ class ReferralPage extends StatelessWidget {
                           ),
                           child: Row(
                             children: [
-                              Expanded(
+                              const Expanded(
                                 child: Column(
-                                  children: const [
+                                  children: [
                                     Text(
                                       'Friends Invited',
                                       style: TextStyle(
@@ -377,10 +363,10 @@ class ReferralPage extends StatelessWidget {
                                 height: 70,
                                 color: Colors.white.withValues(alpha: 0.3),
                               ),
-                              Expanded(
+                              const Expanded(
                                 child: Column(
                                   children: [
-                                    const Text(
+                                    Text(
                                       'Total Earned',
                                       style: TextStyle(
                                         fontFamily: 'Recoleta',
@@ -389,13 +375,13 @@ class ReferralPage extends StatelessWidget {
                                         color: Colors.white,
                                       ),
                                     ),
-                                    const SizedBox(height: 8),
+                                    SizedBox(height: 8),
                                     Row(
                                       mainAxisAlignment:
                                           MainAxisAlignment.center,
                                       crossAxisAlignment:
                                           CrossAxisAlignment.end,
-                                      children: const [
+                                      children: [
                                         Padding(
                                           padding: EdgeInsets.only(
                                               bottom: 8.0, right: 4.0),
@@ -440,14 +426,14 @@ class ReferralPage extends StatelessWidget {
   }
 
   Widget _buildStep(
-      int number, String title, String description, Color orangeColor) {
+      int number, String title, String description, Color brandColor) {
     return Row(
       children: [
         Container(
           width: 48,
           height: 48,
           decoration: BoxDecoration(
-            color: const Color(0xFF2E5E58),
+            color: brandColor,
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(

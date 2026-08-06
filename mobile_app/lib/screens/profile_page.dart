@@ -8,6 +8,7 @@ import 'home_page.dart';
 import 'menu_page.dart';
 import 'loading_order_page.dart';
 import 'orders_page.dart';
+import 'order_details_page.dart';
 import 'top_up_wallet_page.dart';
 import 'notification_page.dart';
 import 'settings_page.dart';
@@ -38,7 +39,7 @@ class _ProfilePageState extends State<ProfilePage> {
   String? _persistedPresetPath;
   String _username = 'Guest';
 
-  final Color orangeColor = const Color(0xFF2E5E58);
+  Color get orangeColor => AppColors.deepTeal;
   final Color bgColor = Colors.white;
 
   @override
@@ -68,52 +69,32 @@ class _ProfilePageState extends State<ProfilePage> {
   void _onBottomNavTapped(int index) {
     if (index == 4) return;
     if (index == 0) {
-      Navigator.pushAndRemoveUntil(
+      InteractiveFillingLoader.show(
         context,
-        MaterialPageRoute(
-          builder: (context) => InteractiveFillingLoader(
-            targetPage: HomePage(
-              initialPickedImage: widget.initialPickedImage,
-              initialPresetPath: widget.initialPresetPath,
-              initialAvatarIndex: widget.initialAvatarIndex,
-            ),
-          ),
+        targetPage: HomePage(
+          initialPickedImage: widget.initialPickedImage,
+          initialPresetPath: widget.initialPresetPath,
+          initialAvatarIndex: widget.initialAvatarIndex,
         ),
-        (route) => false,
       );
     } else if (index == 1) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => const InteractiveFillingLoader(
-            targetPage: MenuPage(),
-          ),
-        ),
-      );
+      InteractiveFillingLoader.show(context, targetPage: const MenuPage());
     } else if (index == 2) {
-      Navigator.pushReplacement(
+      InteractiveFillingLoader.show(
         context,
-        MaterialPageRoute(
-          builder: (context) => InteractiveFillingLoader(
-            targetPage: OrdersPage(
-              initialPickedImage: widget.initialPickedImage,
-              initialPresetPath: widget.initialPresetPath,
-              initialAvatarIndex: widget.initialAvatarIndex,
-            ),
-          ),
+        targetPage: OrdersPage(
+          initialPickedImage: widget.initialPickedImage,
+          initialPresetPath: widget.initialPresetPath,
+          initialAvatarIndex: widget.initialAvatarIndex,
         ),
       );
     } else if (index == 3) {
-      Navigator.pushReplacement(
+      InteractiveFillingLoader.show(
         context,
-        MaterialPageRoute(
-          builder: (context) => InteractiveFillingLoader(
-            targetPage: RewardsPage(
-              initialPickedImage: widget.initialPickedImage,
-              initialPresetPath: widget.initialPresetPath,
-              initialAvatarIndex: widget.initialAvatarIndex,
-            ),
-          ),
+        targetPage: RewardsPage(
+          initialPickedImage: widget.initialPickedImage,
+          initialPresetPath: widget.initialPresetPath,
+          initialAvatarIndex: widget.initialAvatarIndex,
         ),
       );
     }
@@ -133,7 +114,7 @@ class _ProfilePageState extends State<ProfilePage> {
         radius: 28,
         backgroundImage: AssetImage(_persistedPresetPath!),
         backgroundColor:
-            const Color(0xFF2E5E58), // Add the dark green background back
+            AppColors.deepTeal, // Add the dark green background back
       );
     } else {
       return CircleAvatar(
@@ -159,11 +140,15 @@ class _ProfilePageState extends State<ProfilePage> {
             children: [
               // Header
               Container(
-                padding: const EdgeInsets.only(
-                    top: 50, bottom: 12, left: 20, right: 20),
-                decoration: const BoxDecoration(
-                  color: Color(0xFF2E5E58),
-                  borderRadius: BorderRadius.only(
+                width: double.infinity,
+                padding: EdgeInsets.only(
+                    top: MediaQuery.paddingOf(context).top + 14,
+                    bottom: 16,
+                    left: 20,
+                    right: 20),
+                decoration: BoxDecoration(
+                  color: AppColors.deepTeal,
+                  borderRadius: const BorderRadius.only(
                     bottomLeft: Radius.circular(20),
                     bottomRight: Radius.circular(20),
                   ),
@@ -174,21 +159,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     Align(
                       alignment: Alignment.centerLeft,
                       child: GestureDetector(
-                        onTap: () {
-                          Navigator.pushAndRemoveUntil(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => InteractiveFillingLoader(
-                                targetPage: HomePage(
-                                  initialPickedImage: widget.initialPickedImage,
-                                  initialPresetPath: widget.initialPresetPath,
-                                  initialAvatarIndex: widget.initialAvatarIndex,
-                                ),
-                              ),
-                            ),
-                            (route) => false,
-                          );
-                        },
+                        onTap: () => InteractiveFillingLoader.showPop(context),
                         child: const Icon(Icons.arrow_back_ios,
                             color: Colors.white, size: 20),
                       ),
@@ -210,16 +181,11 @@ class _ProfilePageState extends State<ProfilePage> {
                         children: [
                           GestureDetector(
                             onTap: () {
-                              Navigator.push(
+                              InteractiveFillingLoader.show(
                                 context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      InteractiveFillingLoader(
-                                    targetPage: SettingsPage(
-                                      onProfileUpdated: _loadAvatarState,
-                                      returnPage: const ProfilePage(),
-                                    ),
-                                  ),
+                                targetPage: SettingsPage(
+                                  onProfileUpdated: _loadAvatarState,
+                                  returnPage: const ProfilePage(),
                                 ),
                               );
                             },
@@ -229,14 +195,9 @@ class _ProfilePageState extends State<ProfilePage> {
                           const SizedBox(width: 14),
                           GestureDetector(
                             onTap: () {
-                              Navigator.push(
+                              InteractiveFillingLoader.show(
                                 context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      const InteractiveFillingLoader(
-                                    targetPage: NotificationPage(),
-                                  ),
-                                ),
+                                targetPage: const NotificationPage(),
                               );
                             },
                             child: Stack(
@@ -250,8 +211,8 @@ class _ProfilePageState extends State<ProfilePage> {
                                   child: Container(
                                     width: 8,
                                     height: 8,
-                                    decoration: const BoxDecoration(
-                                      color: AppColors.terracotta,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.accent,
                                       shape: BoxShape.circle,
                                     ),
                                   ),
@@ -280,7 +241,7 @@ class _ProfilePageState extends State<ProfilePage> {
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: const Color(0xFFCFDEDB),
+                            color: AppColors.border,
                             width: 1,
                           ),
                           boxShadow: [
@@ -298,12 +259,11 @@ class _ProfilePageState extends State<ProfilePage> {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                      builder: (context) =>
-                                          InteractiveFillingLoader(
-                                              targetPage: SettingsPage(
-                                            onProfileUpdated: _loadAvatarState,
-                                            returnPage: const ProfilePage(),
-                                          ))),
+                                    builder: (context) => SettingsPage(
+                                      onProfileUpdated: _loadAvatarState,
+                                      returnPage: const ProfilePage(),
+                                    ),
+                                  ),
                                 );
                               },
                               child: _buildAvatar(),
@@ -312,7 +272,7 @@ class _ProfilePageState extends State<ProfilePage> {
                             Expanded(
                               child: Text(
                                 'Hey $_username,',
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontFamily: 'Recoleta',
                                   fontSize: 20,
                                   fontWeight: FontWeight.bold,
@@ -335,7 +295,7 @@ class _ProfilePageState extends State<ProfilePage> {
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(
-                                color: const Color(0xFFCFDEDB),
+                                color: AppColors.border,
                                 width: 1,
                               ),
                               boxShadow: [
@@ -351,75 +311,56 @@ class _ProfilePageState extends State<ProfilePage> {
                               child: InkWell(
                                 borderRadius: BorderRadius.circular(20),
                                 onTap: () {
-                                  Navigator.push(
+                                  InteractiveFillingLoader.show(
                                     context,
-                                    MaterialPageRoute(
-                                      builder: (context) =>
-                                          const InteractiveFillingLoader(
-                                        targetPage: TopUpWalletPage(),
-                                      ),
-                                    ),
+                                    targetPage: const TopUpWalletPage(),
                                   );
                                 },
                                 child: Padding(
                                   padding: const EdgeInsets.symmetric(
-                                      horizontal: 16, vertical: 20),
+                                      horizontal: 14, vertical: 16),
                                   child: Row(
                                     children: [
                                       Image.asset('assets/images/wallet.png',
-                                          height: 60),
-                                      const SizedBox(width: 16),
+                                          height: 80),
+                                      const SizedBox(width: 10),
                                       Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            const Text('Wallet Balance',
-                                                style: TextStyle(
-                                                    fontFamily: 'Recoleta',
-                                                    fontSize: 18,
-                                                    fontWeight: FontWeight.bold,
-                                                    color: Color(0xFF2E5E58))),
-                                            const SizedBox(height: 4),
-                                            Text('0 points',
-                                                style: TextStyle(
-                                                    fontFamily: 'Afacad',
-                                                    fontSize: 18,
-                                                    fontWeight: FontWeight.bold,
-                                                    color: orangeColor)),
-                                          ],
+                                        child: Text(
+                                          'Wallet',
+                                          style: TextStyle(
+                                            fontFamily: 'Recoleta',
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                            color: AppColors.deepTeal,
+                                          ),
                                         ),
                                       ),
+                                      const SizedBox(width: 8),
                                       GestureDetector(
                                         onTap: () {
-                                          Navigator.push(
+                                          InteractiveFillingLoader.show(
                                             context,
-                                            MaterialPageRoute(
-                                              builder: (context) =>
-                                                  const InteractiveFillingLoader(
-                                                targetPage: TopUpWalletPage(),
-                                              ),
-                                            ),
+                                            targetPage: const TopUpWalletPage(),
                                           );
                                         },
                                         child: Container(
                                           padding: const EdgeInsets.symmetric(
-                                              horizontal: 16, vertical: 8),
+                                              horizontal: 12, vertical: 8),
                                           decoration: BoxDecoration(
-                                            color: const Color(0xFFEDF4F3),
+                                            color: AppColors.surfaceLight,
                                             borderRadius:
                                                 BorderRadius.circular(20),
                                             border: Border.all(
-                                              color: const Color(0xFFCFDEDB),
+                                              color: AppColors.border,
                                               width: 1,
                                             ),
                                           ),
-                                          child: const Text('Top up \u2192',
+                                          child: Text('Top up \u2192',
                                               style: TextStyle(
                                                   fontFamily: 'Afacad',
                                                   fontSize: 14,
                                                   fontWeight: FontWeight.bold,
-                                                  color: Color(0xFF2E5E58))),
+                                                  color: AppColors.deepTeal)),
                                         ),
                                       ),
                                     ],
@@ -439,7 +380,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                     color: Colors.white,
                                     borderRadius: BorderRadius.circular(20),
                                     border: Border.all(
-                                      color: const Color(0xFFCFDEDB),
+                                      color: AppColors.border,
                                       width: 1,
                                     ),
                                     boxShadow: [
@@ -456,14 +397,9 @@ class _ProfilePageState extends State<ProfilePage> {
                                     child: InkWell(
                                       borderRadius: BorderRadius.circular(20),
                                       onTap: () {
-                                        Navigator.push(
+                                        InteractiveFillingLoader.show(
                                           context,
-                                          MaterialPageRoute(
-                                            builder: (context) =>
-                                                const InteractiveFillingLoader(
-                                              targetPage: MyRewardsPage(),
-                                            ),
-                                          ),
+                                          targetPage: const MyRewardsPage(),
                                         );
                                       },
                                       child: Padding(
@@ -473,18 +409,18 @@ class _ProfilePageState extends State<ProfilePage> {
                                           crossAxisAlignment:
                                               CrossAxisAlignment.center,
                                           children: [
-                                            const Text('My Reward',
+                                            Text('My Reward',
                                                 maxLines: 1,
                                                 overflow: TextOverflow.ellipsis,
                                                 style: TextStyle(
                                                     fontFamily: 'Recoleta',
                                                     fontSize: 18,
                                                     fontWeight: FontWeight.bold,
-                                                    color: Color(0xFF2E5E58))),
+                                                    color: AppColors.deepTeal)),
                                             const SizedBox(height: 16),
                                             Image.asset(
                                                 'assets/images/Surprise reward gift box with star popping out.png',
-                                                height: 70),
+                                                height: 95),
                                           ],
                                         ),
                                       ),
@@ -500,7 +436,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                     color: Colors.white,
                                     borderRadius: BorderRadius.circular(20),
                                     border: Border.all(
-                                      color: const Color(0xFFCFDEDB),
+                                      color: AppColors.border,
                                       width: 1,
                                     ),
                                     boxShadow: [
@@ -517,14 +453,9 @@ class _ProfilePageState extends State<ProfilePage> {
                                     child: InkWell(
                                       borderRadius: BorderRadius.circular(20),
                                       onTap: () {
-                                        Navigator.push(
+                                        InteractiveFillingLoader.show(
                                           context,
-                                          MaterialPageRoute(
-                                            builder: (context) =>
-                                                const InteractiveFillingLoader(
-                                              targetPage: ReferralPage(),
-                                            ),
-                                          ),
+                                          targetPage: const ReferralPage(),
                                         );
                                       },
                                       child: Padding(
@@ -534,18 +465,18 @@ class _ProfilePageState extends State<ProfilePage> {
                                           crossAxisAlignment:
                                               CrossAxisAlignment.center,
                                           children: [
-                                            const Text('My Referrals',
+                                            Text('My Referrals',
                                                 maxLines: 1,
                                                 overflow: TextOverflow.ellipsis,
                                                 style: TextStyle(
                                                     fontFamily: 'Recoleta',
                                                     fontSize: 18,
                                                     fontWeight: FontWeight.bold,
-                                                    color: Color(0xFF2E5E58))),
+                                                    color: AppColors.deepTeal)),
                                             const SizedBox(height: 16),
                                             Image.asset(
                                                 'assets/images/Community friends laughing together waving hands and giving thumbs.png',
-                                                height: 70),
+                                                height: 95),
                                           ],
                                         ),
                                       ),
@@ -560,12 +491,12 @@ class _ProfilePageState extends State<ProfilePage> {
                       const SizedBox(height: 24),
 
                       // News Section
-                      const Text('News',
+                      Text('News',
                           style: TextStyle(
                               fontFamily: 'Recoleta',
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
-                              color: Color(0xFF2E5E58))),
+                              color: AppColors.deepTeal)),
                       const SizedBox(height: 12),
                       Container(
                         padding: const EdgeInsets.all(16),
@@ -573,7 +504,7 @@ class _ProfilePageState extends State<ProfilePage> {
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
-                            color: const Color(0xFFCFDEDB),
+                            color: AppColors.border,
                             width: 1,
                           ),
                           boxShadow: [
@@ -598,12 +529,12 @@ class _ProfilePageState extends State<ProfilePage> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text('C2 Barista Craft',
+                                  Text('C2 Barista Craft',
                                       style: TextStyle(
                                           fontFamily: 'Recoleta',
                                           fontSize: 18,
                                           fontWeight: FontWeight.bold,
-                                          color: Color(0xFF2E5E58))),
+                                          color: AppColors.deepTeal)),
                                   const SizedBox(height: 6),
                                   Text(
                                       'Discover our new handcrafted joy and playful sips.',
@@ -624,7 +555,7 @@ class _ProfilePageState extends State<ProfilePage> {
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
-                            color: const Color(0xFFCFDEDB),
+                            color: AppColors.border,
                             width: 1,
                           ),
                           boxShadow: [
@@ -649,12 +580,12 @@ class _ProfilePageState extends State<ProfilePage> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text('Skip the Queue',
+                                  Text('Skip the Queue',
                                       style: TextStyle(
                                           fontFamily: 'Recoleta',
                                           fontSize: 18,
                                           fontWeight: FontWeight.bold,
-                                          color: Color(0xFF2E5E58))),
+                                          color: AppColors.deepTeal)),
                                   const SizedBox(height: 6),
                                   Text(
                                       'Order ahead with mobile ordering and save time.',
@@ -671,12 +602,12 @@ class _ProfilePageState extends State<ProfilePage> {
                       const SizedBox(height: 24),
 
                       // Calendar Section
-                      const Text('Calendar',
+                      Text('Calendar',
                           style: TextStyle(
                               fontFamily: 'Recoleta',
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
-                              color: Color(0xFF2E5E58))),
+                              color: AppColors.deepTeal)),
                       const SizedBox(height: 12),
                       const Padding(
                         padding: EdgeInsets.symmetric(horizontal: 24.0),
@@ -685,12 +616,12 @@ class _ProfilePageState extends State<ProfilePage> {
                       const SizedBox(height: 24),
 
                       // Our Promise Section
-                      const Text('Our Promise',
+                      Text('Our Promise',
                           style: TextStyle(
                               fontFamily: 'Recoleta',
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
-                              color: Color(0xFF2E5E58))),
+                              color: AppColors.deepTeal)),
                       const SizedBox(height: 12),
                       const SizedBox(
                         height: 140, // Increased from 100
@@ -719,7 +650,6 @@ class CustomCalendarWidget extends StatefulWidget {
 
 class _CustomCalendarWidgetState extends State<CustomCalendarWidget> {
   DateTime _currentMonth = DateTime.now();
-  DateTime? _selectedDate;
 
   // Dummy dates to indicate drink bought
   final List<DateTime> _drinkBoughtDates = [
@@ -788,7 +718,7 @@ class _CustomCalendarWidgetState extends State<CustomCalendarWidget> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: const Color(0xFFCFDEDB),
+          color: AppColors.border,
           width: 1,
         ),
         boxShadow: [
@@ -806,19 +736,19 @@ class _CustomCalendarWidgetState extends State<CustomCalendarWidget> {
             children: [
               IconButton(
                   icon:
-                      const Icon(Icons.chevron_left, color: Color(0xFF2E5E58)),
+                      Icon(Icons.chevron_left, color: AppColors.deepTeal),
                   onPressed: _previousMonth),
               Text(
                 '${monthNames[_currentMonth.month - 1]} ${_currentMonth.year}',
-                style: const TextStyle(
+                style: TextStyle(
                     fontFamily: 'Recoleta',
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF2E5E58)),
+                    color: AppColors.deepTeal),
               ),
               IconButton(
                   icon:
-                      const Icon(Icons.chevron_right, color: Color(0xFF2E5E58)),
+                      Icon(Icons.chevron_right, color: AppColors.deepTeal),
                   onPressed: _nextMonth),
             ],
           ),
@@ -856,23 +786,38 @@ class _CustomCalendarWidgetState extends State<CustomCalendarWidget> {
               final DateTime date =
                   DateTime(_currentMonth.year, _currentMonth.month, day);
               final bool isBought = _isDrinkBought(date);
-              final bool isSelected = _selectedDate?.year == date.year &&
-                  _selectedDate?.month == date.month &&
-                  _selectedDate?.day == date.day;
 
               return GestureDetector(
-                onTap: () {
-                  setState(() => _selectedDate = date);
-                },
+                onTap: isBought
+                    ? () {
+                        final String formattedDate =
+                            "${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}";
+
+                        final pastOrderItem = {
+                          'id': '${date.millisecondsSinceEpoch}',
+                          'date': formattedDate,
+                          'time': '10:30 am',
+                          'name': 'Mont Broga',
+                          'details':
+                              'Dato Blend / Hot / Fresh Milk /\nReg. Sweet / Reg. Ice /\nTake Away',
+                          'remarks': 'None',
+                          'quantity': 1,
+                          'image': 'assets/images/drinks/SHAKERATO BIANCO.png',
+                        };
+
+                        InteractiveFillingLoader.show(
+                          context,
+                          targetPage: OrderDetailsPage(item: pastOrderItem),
+                        );
+                      }
+                    : null,
                 child: Container(
                   margin: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: isSelected
-                        ? const Color(0xFF2E5E58)
-                        : Colors.transparent,
-                    border: isBought && !isSelected
-                        ? Border.all(color: const Color(0xFF2E5E58), width: 1.5)
+                    color: Colors.transparent,
+                    border: isBought
+                        ? Border.all(color: AppColors.deepTeal, width: 1.5)
                         : null,
                   ),
                   child: Center(
@@ -882,7 +827,8 @@ class _CustomCalendarWidgetState extends State<CustomCalendarWidget> {
                         fontFamily: 'Afacad',
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: isSelected ? Colors.white : Colors.black87,
+                        color:
+                            isBought ? AppColors.deepTeal : Colors.black87,
                       ),
                     ),
                   ),
@@ -932,7 +878,7 @@ class _OurPromiseCarouselState extends State<OurPromiseCarousel> {
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: const Color(0xFFCFDEDB),
+              color: AppColors.border,
               width: 1,
             ),
             boxShadow: [
@@ -946,11 +892,11 @@ class _OurPromiseCarouselState extends State<OurPromiseCarousel> {
             child: Text(
               _promises[index],
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 fontFamily: 'Recoleta',
                 fontSize: 22, // increased from 16
                 fontWeight: FontWeight.bold,
-                color: Color(0xFF2E5E58),
+                color: AppColors.deepTeal,
               ),
             ),
           ),

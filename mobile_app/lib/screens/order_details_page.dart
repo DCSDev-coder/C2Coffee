@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'loading_order_page.dart';
-import 'orders_page.dart';
 import 'mont_broga_page.dart';
 import '../utils/app_colors.dart';
 
@@ -70,45 +69,34 @@ class OrderDetailsPage extends StatelessWidget {
     final Map<String, dynamic> drinkItem = {
       'name': item['name'] ?? 'Mont Broga',
       'image': item['image'] ?? 'assets/images/drinks/MONT BROGA.png',
-      'price': '16.90',
+      'price': AppColors.getDiscountedDrinkPrice(16.90).toStringAsFixed(2),
       'desc': 'Black coffee layered with orangey cold foam and orange zest.',
     };
 
-    Navigator.pushReplacement(
+    InteractiveFillingLoader.show(
       context,
-      MaterialPageRoute(
-        builder: (context) => InteractiveFillingLoader(
-          targetPage: MontBrogaPage(
-            item: drinkItem,
-            initialBean: bean,
-            initialTemperature: temp,
-            initialMilk: milk,
-            initialSweetness: sweetness,
-            initialIceLevel: iceLevel,
-            initialOrderType: orderType,
-            initialRemarks: remarks,
-            initialQuantity: qty,
-            isReorder: true,
-          ),
-        ),
+      targetPage: MontBrogaPage(
+        item: drinkItem,
+        initialBean: bean,
+        initialTemperature: temp,
+        initialMilk: milk,
+        initialSweetness: sweetness,
+        initialIceLevel: iceLevel,
+        initialOrderType: orderType,
+        initialRemarks: remarks,
+        initialQuantity: qty,
+        isReorder: true,
       ),
     );
   }
 
   void _navigateBackToPurchaseHistory(BuildContext context) {
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const InteractiveFillingLoader(
-          targetPage: OrdersPage(initialTabIndex: 1),
-        ),
-      ),
-    );
+    InteractiveFillingLoader.showPop(context);
   }
 
   @override
   Widget build(BuildContext context) {
-    const Color orangeColor = AppColors.deepTeal;
+    Color orangeColor = AppColors.deepTeal;
     const Color bgColor = Colors.white;
 
     return PopScope(
@@ -123,37 +111,40 @@ class OrderDetailsPage extends StatelessWidget {
           children: [
             // Custom Header
             Container(
-              padding: const EdgeInsets.only(
-                  top: 50, bottom: 12, left: 20, right: 20),
-              decoration: const BoxDecoration(
+              width: double.infinity,
+              padding: EdgeInsets.only(
+                  top: MediaQuery.paddingOf(context).top + 14,
+                  bottom: 16,
+                  left: 20,
+                  right: 20),
+              decoration: BoxDecoration(
                 color: AppColors.deepTeal,
-                borderRadius: BorderRadius.only(
+                borderRadius: const BorderRadius.only(
                   bottomLeft: Radius.circular(20),
                   bottomRight: Radius.circular(20),
                 ),
               ),
-              child: Row(
+              child: Stack(
+                alignment: Alignment.center,
                 children: [
-                  GestureDetector(
-                    onTap: () => _navigateBackToPurchaseHistory(context),
-                    child: const Icon(Icons.arrow_back_ios,
-                        color: Colors.white, size: 20),
-                  ),
-                  const Expanded(
-                    child: Center(
-                      child: Text(
-                        'ORDER DETAILS',
-                        style: TextStyle(
-                          fontFamily: 'Recoleta',
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                          letterSpacing: 1.0,
-                        ),
-                      ),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: GestureDetector(
+                      onTap: () => _navigateBackToPurchaseHistory(context),
+                      child: const Icon(Icons.arrow_back_ios,
+                          color: Colors.white, size: 20),
                     ),
                   ),
-                  const SizedBox(width: 20),
+                  const Text(
+                    'ORDER DETAILS',
+                    style: TextStyle(
+                      fontFamily: 'Recoleta',
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      letterSpacing: 1.0,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -165,7 +156,7 @@ class OrderDetailsPage extends StatelessWidget {
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
-                    color: const Color(0xFFCFDEDB),
+                    color: AppColors.border,
                     width: 1,
                   ),
                   boxShadow: [
@@ -184,8 +175,8 @@ class OrderDetailsPage extends StatelessWidget {
                       children: [
                         Image.asset(
                           item['image'],
-                          width: 80,
-                          height: 100,
+                          width: 55,
+                          height: 75,
                           fit: BoxFit.contain,
                         ),
                         const SizedBox(width: 16),
@@ -208,7 +199,7 @@ class OrderDetailsPage extends StatelessWidget {
                                 children: [
                                   Text(
                                     item['name'],
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontFamily: 'Recoleta',
                                       fontSize: 20,
                                       fontWeight: FontWeight.bold,
@@ -217,7 +208,7 @@ class OrderDetailsPage extends StatelessWidget {
                                   ),
                                   Text(
                                     'x${item['quantity']}',
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontFamily: 'Afacad',
                                       fontSize: 22,
                                       fontWeight: FontWeight.bold,
@@ -262,8 +253,8 @@ class OrderDetailsPage extends StatelessWidget {
                             color: Colors.black87,
                           ),
                         ),
-                        const Text(
-                          'RM16.90',
+                        Text(
+                          'RM${AppColors.getDiscountedDrinkPrice(16.90).toStringAsFixed(2)}',
                           style: TextStyle(
                             fontFamily: 'Afacad',
                             fontSize: 14,
@@ -286,15 +277,15 @@ class OrderDetailsPage extends StatelessWidget {
                 child: ElevatedButton(
                   onPressed: () => _handleOrderAgain(context),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFEDF4F3),
+                    backgroundColor: AppColors.surfaceLight,
                     foregroundColor: orangeColor,
-                    side: const BorderSide(color: Color(0xFFCFDEDB)),
+                    side: BorderSide(color: AppColors.border),
                     elevation: 0,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(25),
                     ),
                   ),
-                  child: const Text(
+                  child: Text(
                     'Order Again',
                     style: TextStyle(
                       fontFamily: 'Recoleta',

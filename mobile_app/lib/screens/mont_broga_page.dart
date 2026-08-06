@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'loading_order_page.dart';
+import '../utils/app_colors.dart';
 
 class MontBrogaPage extends StatefulWidget {
   final Map<String, dynamic> item;
@@ -33,7 +35,7 @@ class MontBrogaPage extends StatefulWidget {
 }
 
 class _MontBrogaPageState extends State<MontBrogaPage> {
-  final Color orangeColor = const Color(0xFF2E5E58);
+  Color get orangeColor => AppColors.deepTeal;
   final Color bgColor = Colors.white;
 
   String selectedBean = 'Dato Blend';
@@ -43,6 +45,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
   String sweetness = 'No Sugar';
   String iceLevel = 'Less Ice';
   String orderType = 'Take Away';
+  String sparklingMixer = 'Ginger Ade';
   int quantity = 1;
   final TextEditingController remarksController = TextEditingController();
 
@@ -55,6 +58,10 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
     }
     if (widget.initialTemperature != null) {
       temperature = widget.initialTemperature!;
+    } else if (_isColdOnly) {
+      temperature = 'Cold';
+    } else if (_isHotOnly) {
+      temperature = 'Hot';
     }
     if (widget.initialMilk != null) milk = widget.initialMilk!;
     if (widget.initialSweetness != null) sweetness = widget.initialSweetness!;
@@ -66,38 +73,254 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
     if (widget.initialQuantity != null) quantity = widget.initialQuantity!;
 
     if (widget.isReorder) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Row(
-                children: [
-                  Icon(Icons.history_rounded, color: Colors.white, size: 20),
-                  SizedBox(width: 8),
-                  Text(
-                    'Customizations restored from previous order!',
-                    style: TextStyle(
-                        fontFamily: 'Afacad', fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
-              backgroundColor: orangeColor,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10)),
-              duration: const Duration(seconds: 3),
-            ),
-          );
-        }
-      });
+      // Reorder customizations restored automatically
     }
   }
 
+  double get _itemBasePrice {
+    final raw = widget.item['price']?.toString() ?? '16.90';
+    final clean = raw.replaceAll('RM', '').replaceAll(r'$', '').trim();
+    final parsed = double.tryParse(clean) ?? 16.90;
+    final image = (widget.item['image']?.toString() ?? '').toLowerCase();
+    if (image.contains('pastries')) {
+      return parsed;
+    } else if (image.contains('merchandies') || image.contains('candle')) {
+      return AppColors.getDiscountedMerchPrice(parsed);
+    } else {
+      return AppColors.getDiscountedDrinkPrice(parsed);
+    }
+  }
+
+  String get _itemName => (widget.item['name'] ?? '').toString();
+  String get _itemCategory => (widget.item['category'] ?? '').toString();
+
+  bool get _isMocktail {
+    final name = _itemName.toLowerCase();
+    final cat = _itemCategory.toLowerCase();
+    return cat.contains('mocktail') ||
+        name.contains('boijito') ||
+        name.contains('peach') ||
+        name.contains('fuji fizz') ||
+        name.contains('mimosa') ||
+        name.contains('onde');
+  }
+
+  bool get _isTea {
+    final name = _itemName.toLowerCase();
+    return name.contains('jasmine') || name.contains('solero');
+  }
+
+  bool get _isMatcha {
+    final name = _itemName.toLowerCase();
+    final cat = _itemCategory.toLowerCase();
+    return cat.contains('matcha') || name.contains('matcha');
+  }
+
+  bool get _isChocolate {
+    final name = _itemName.toLowerCase();
+    final cat = _itemCategory.toLowerCase();
+    return cat.contains('chocolate') || name.contains('chocolate');
+  }
+
+  bool get _isMilkshake {
+    final name = _itemName.toLowerCase();
+    return name.contains('milkshake') ||
+        name.contains('pinky blush') ||
+        name.contains('paddle pop');
+  }
+
+  bool get _isColdOnly {
+    if (_isMocktail || _isMilkshake) return true;
+    final name = _itemName.toLowerCase();
+    if (name.contains('mont broga') ||
+        name.contains('shakerato') ||
+        name.contains('yuzukano') ||
+        name.contains('senja di broga') ||
+        name.contains('espresso bomb') ||
+        name.contains('blue cloud') ||
+        name.contains('solero') ||
+        name.contains('cloudy jasmine') ||
+        name.contains('fuji fizz') ||
+        name.contains('onde')) {
+      return true;
+    }
+    return false;
+  }
+
+  bool get _isHotOnly {
+    final name = _itemName.toLowerCase();
+    if (name == 'espresso' || name.contains('flat white')) {
+      return true;
+    }
+    return false;
+  }
+
+  /// Whether this drink uses coffee beans & has Choice of Beans
+  bool get _hasChoiceOfBeans {
+    if (_isMocktail || _isMatcha || _isChocolate || _isMilkshake || _isTea) {
+      return false;
+    }
+    return true;
+  }
+
+  /// Whether this drink can add extra espresso shots
+  bool get _hasEspressoShot {
+    if (_isMocktail || _isChocolate || _isMilkshake || _isMatcha || _isTea) {
+      return false;
+    }
+    final name = _itemName.toLowerCase();
+    if (name.contains('v60')) {
+      return false;
+    }
+    return true;
+  }
+
+  /// Whether this drink has milk options (Fresh Milk, Oat Milk)
+  bool get _hasChoiceOfMilk {
+    final name = _itemName.toLowerCase();
+    if (_isMocktail || _isTea) {
+      return false;
+    }
+    if (name.contains('mont broga') ||
+        name.contains('shakerato') ||
+        name.contains('yuzukano') ||
+        name.contains('senja di broga') ||
+        name.contains('espresso bomb') ||
+        name.contains('blue cloud') ||
+        name.contains('v60') ||
+        name == 'espresso' ||
+        name.contains('solero')) {
+      return false;
+    }
+    return true;
+  }
+
+  /// Whether this drink has temperature options (Hot / Cold)
+  bool get _hasTemperatureOption => !_isColdOnly && !_isHotOnly;
+
+  /// Whether this drink shows ice level options
+  bool get _hasIceOption {
+    if (_isHotOnly) return false;
+    if (_isColdOnly) return true;
+    return temperature == 'Cold';
+  }
+
+  /// Espresso Bomb specific mixer selection
+  bool get _hasSparklingMixerOption {
+    return _itemName.toLowerCase().contains('espresso bomb');
+  }
+
+  String get _itemDescription {
+    if (widget.item['desc'] != null &&
+        widget.item['desc'].toString().isNotEmpty) {
+      return widget.item['desc'].toString();
+    }
+    final name = _itemName.toLowerCase();
+    if (name.contains('shakerato')) {
+      return 'Chilled, shaken espresso with sweet silky and refreshing cream.';
+    }
+    if (name.contains('mont broga')) {
+      return 'Black coffee layered with orangey cold foam and orange zest.';
+    }
+    if (name.contains('yuzukano')) {
+      return 'Aerated espresso topping the chilled yuzu puree.';
+    }
+    if (name.contains('senja di broga')) {
+      return 'Sweet sparkling orange juice topped with espresso.';
+    }
+    if (name.contains('espresso bomb')) {
+      return 'The trendy espresso bomb is here. Choice of sparkling of ginger ade or tonic water.';
+    }
+    if (name.contains('pinky blush')) {
+      return 'Creamy strawberry, delicate banana puree, mix and shaken with milk.';
+    }
+    if (name.contains('solero fizz')) {
+      return 'Bright citrus notes with sparkling soda and creamy, silky cold foam.';
+    }
+    if (name.contains('paddle pop')) {
+      return 'Creamy strawberry, delicate banana puree, mix and shaken with milk.';
+    }
+    if (name.contains('cloudy jasmine')) {
+      return 'Refreshing jasmine tea soda with silky butterscotch cream foam.';
+    }
+    if (name.contains('boijito')) {
+      return 'Sparkling mojito with hand-picked mint and calamansi flavour.';
+    }
+    if (name.contains('bloody peach')) {
+      return 'Sparkling jasmine tea with peach flavour and top with grenadine syrup.';
+    }
+    if (name.contains('fuji fizz')) {
+      return 'Ginger, apple and cinnamon comes together in a fizzy drinks. Fruity and spice.';
+    }
+    if (name.contains('spicy mimosa')) {
+      return 'Hot and spicy orange juice topped with ginger ade and red berry based of grenadine syrup.';
+    }
+    if (name.contains('onde2pop')) {
+      return 'Green apple and coconut shaken together and topped with sparkling soda .';
+    }
+    if (name.contains('matcha latte')) {
+      return 'Ceremonial grade matcha with smooth, creamy milk.';
+    }
+    if (name.contains('monkey matcha')) {
+      return 'Ceremonial grade matcha with ripe banana puree.';
+    }
+    if (name.contains('pinky promise matcha')) {
+      return 'Ceremonial grade matcha with strawberry puree sweetness.';
+    }
+    if (name.contains('milk chocolate')) {
+      return 'Rich and smooth chocolate milk drinks topped with marshmallows.';
+    }
+    if (name.contains('nutty chocolate')) {
+      return 'Chocolate drink mixed with crunchy peanut butter.';
+    }
+    if (name.contains('v60')) {
+      return 'Hand-poured coffee revealing delicate aroma and clarity.';
+    }
+    if (name.contains('espresso bomb')) {
+      return 'The trendy espresso bomb is here. Choice of sparkling of ginger ade or tonic water.';
+    }
+    if (name.contains('pocco')) {
+      return 'An espresso and oatmilk-small in size, rich in flavour.';
+    }
+    if (name.contains('butterscotch latte')) {
+      return 'Smooth espresso and milk mix with butterscotch flavour.';
+    }
+    if (name.contains('hazelnut latte')) {
+      return 'Espresso and milk mixed with hazelnut flavour.';
+    }
+    if (name.contains('vanilla latte')) {
+      return 'Gentle vanilla sweetness lifting smooth espresso.';
+    }
+    if (name.contains('flat white')) {
+      return 'Espresso top with hot milk with a thin layer of smooth foam.';
+    }
+    if (name.contains('cappuccino') || name.contains('cappucino')) {
+      return 'Espresso topped with light and thick foam and delicate milk.';
+    }
+    if (name.contains('blue cloud')) {
+      return 'Black coffee with coconut flavour topped with creamy light blue cold foam.';
+    }
+    if (name.contains('mocha')) {
+      return 'Chocolate and espresso mixed with milk.';
+    }
+    if (name.contains('latte')) {
+      return 'Espresso top with milk with layered of smooth foam.';
+    }
+    if (name == 'espresso' || name.contains('espresso')) {
+      return 'Pure, concentrated coffee. Choose between bold taste note or lighter note';
+    }
+    return 'Specialty handcrafted drink prepared fresh to order.';
+  }
+
   double get totalPrice {
-    double basePrice = 16.90;
-    if (espressoShots == 2) basePrice += 3.00;
-    if (espressoShots == 3) basePrice += 6.00;
-    if (milk == 'Oat Milk') basePrice += 3.00;
+    double basePrice = _itemBasePrice;
+    if (_hasEspressoShot) {
+      if (espressoShots == 2) basePrice += 3.00;
+      if (espressoShots == 3) basePrice += 6.00;
+    }
+    if (_hasChoiceOfMilk) {
+      if (milk == 'Oat Milk') basePrice += 3.00;
+    }
     return basePrice * quantity;
   }
 
@@ -110,7 +333,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
   Widget _buildSectionTitle(String title,
       {bool required = true, String subtitle = ''}) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12.0, top: 24.0),
+      padding: const EdgeInsets.only(bottom: 8.0, top: 16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -118,18 +341,18 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
             title,
             style: const TextStyle(
               fontFamily: 'Recoleta',
-              fontSize: 20,
+              fontSize: 17,
               fontWeight: FontWeight.w900,
               color: Colors.black,
             ),
           ),
           if (required)
-            const Text(
+            Text(
               'Pick 1 *',
               style: TextStyle(
                 fontFamily: 'Afacad',
-                fontSize: 12,
-                color: Color(0xFF2E5E58),
+                fontSize: 11,
+                color: AppColors.deepTeal,
                 fontWeight: FontWeight.bold,
               ),
             )
@@ -138,7 +361,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
               subtitle,
               style: const TextStyle(
                 fontFamily: 'Afacad',
-                fontSize: 12,
+                fontSize: 11,
                 color: Colors.black54,
               ),
             ),
@@ -158,81 +381,90 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
     Widget? icon,
     bool isGradient = false,
     List<Color>? gradientColors,
+    double? height,
+    bool isExpanded = true,
   }) {
     bool isSelected = value == groupValue;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => onChanged(value),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          height: 180,
-          margin: const EdgeInsets.symmetric(horizontal: 4),
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-          decoration: BoxDecoration(
-            color: isSelected ? (isGradient ? null : color) : Colors.white,
-            gradient: (isSelected && isGradient && gradientColors != null)
-                ? LinearGradient(
-                    colors: gradientColors,
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                  )
-                : null,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: isSelected
-                  ? (isGradient ? gradientColors!.first : color)
-                  : Colors.grey.shade300,
-              width: 2,
-            ),
-            boxShadow: [
-              if (isSelected)
-                BoxShadow(
-                    color: (isGradient ? gradientColors!.first : color)
-                        .withValues(alpha: 0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 4))
-            ],
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (title.isNotEmpty)
-                Text(
-                  title.toUpperCase(),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontFamily: 'Recoleta',
-                    fontSize: 18,
-                    fontWeight: FontWeight.w900,
-                    color: isSelected ? textColor : Colors.grey.shade500,
-                    height: 1.1,
-                  ),
-                ),
-              if (icon != null) ...[
-                const SizedBox(height: 12),
-                Opacity(opacity: isSelected ? 1.0 : 0.5, child: icon),
-                const SizedBox(height: 12),
-              ],
-              if (subtitle.isNotEmpty) ...[
-                if (icon == null) const SizedBox(height: 16),
-                Text(
-                  subtitle,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontFamily: 'Afacad',
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: isSelected
-                        ? textColor.withValues(alpha: 0.9)
-                        : Colors.grey.shade400,
-                  ),
-                ),
-              ]
-            ],
-          ),
+    final defaultMinHeight = icon != null ? 125.0 : 82.0;
+
+    Widget cardChild = AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      constraints: BoxConstraints(
+        minHeight: height ?? defaultMinHeight,
+      ),
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+      decoration: BoxDecoration(
+        color: isSelected ? (isGradient ? null : color) : Colors.white,
+        gradient: (isSelected && isGradient && gradientColors != null)
+            ? LinearGradient(
+                colors: gradientColors,
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              )
+            : null,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isSelected
+              ? (isGradient ? gradientColors!.first : color)
+              : Colors.grey.shade300,
+          width: 1.5,
         ),
+        boxShadow: [
+          if (isSelected)
+            BoxShadow(
+                color: (isGradient ? gradientColors!.first : color)
+                    .withValues(alpha: 0.25),
+                blurRadius: 6,
+                offset: const Offset(0, 3))
+        ],
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (title.isNotEmpty)
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Recoleta',
+                fontSize: 13,
+                fontWeight: FontWeight.w900,
+                color: isSelected ? textColor : Colors.grey.shade600,
+                height: 1.1,
+              ),
+            ),
+          if (icon != null) ...[
+            const SizedBox(height: 4),
+            Opacity(opacity: isSelected ? 1.0 : 0.5, child: icon),
+            const SizedBox(height: 4),
+          ],
+          if (subtitle.isNotEmpty) ...[
+            if (icon == null) const SizedBox(height: 3),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Afacad',
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: isSelected
+                    ? textColor.withValues(alpha: 0.9)
+                    : Colors.grey.shade400,
+              ),
+            ),
+          ]
+        ],
       ),
     );
+
+    Widget clickableContent = GestureDetector(
+      onTap: () => onChanged(value),
+      child: cardChild,
+    );
+
+    return isExpanded ? Expanded(child: clickableContent) : clickableContent;
   }
 
   @override
@@ -248,8 +480,8 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
             leading: const SizedBox.shrink(),
             actions: [
               IconButton(
-                icon: const Icon(Icons.close, color: Color(0xFF2E5E58)),
-                onPressed: () => Navigator.pop(context),
+                icon: Icon(Icons.close, color: AppColors.deepTeal),
+                onPressed: () => InteractiveFillingLoader.showPop(context),
               ),
             ],
           ),
@@ -259,9 +491,18 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
               children: [
                 Center(
                   child: Image.asset(
-                    'assets/images/drinks/MONT BROGA.png',
-                    height: 250,
+                    widget.item['image']?.toString() ??
+                        'assets/images/drinks/MONT BROGA.png',
+                    height: 200,
                     fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) =>
+                        const SizedBox(
+                      height: 200,
+                      child: Center(
+                        child: Icon(Icons.local_cafe_rounded,
+                            size: 70, color: Colors.grey),
+                      ),
+                    ),
                   ),
                 ),
                 Padding(
@@ -269,9 +510,9 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'Mont Broga',
-                        style: TextStyle(
+                      Text(
+                        widget.item['name']?.toString() ?? 'Mont Broga',
+                        style: const TextStyle(
                           fontFamily: 'Recoleta',
                           fontSize: 28,
                           fontWeight: FontWeight.w900,
@@ -279,9 +520,9 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                         ),
                       ),
                       const SizedBox(height: 4),
-                      const Text(
-                        'Black coffee layered with orangey cold foam and orange zest.',
-                        style: TextStyle(
+                      Text(
+                        _itemDescription,
+                        style: const TextStyle(
                           fontFamily: 'Afacad',
                           fontSize: 14,
                           color: Colors.black87,
@@ -296,9 +537,9 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                                 color: Colors.black.withValues(alpha: 0.1)),
                           ),
                         ),
-                        child: const Row(
+                        child: Row(
                           children: [
-                            Text(
+                            const Text(
                               'RM ',
                               style: TextStyle(
                                   fontFamily: 'Afacad',
@@ -306,8 +547,8 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                                   fontWeight: FontWeight.bold),
                             ),
                             Text(
-                              '16.90',
-                              style: TextStyle(
+                              _itemBasePrice.toStringAsFixed(2),
+                              style: const TextStyle(
                                   fontFamily: 'Recoleta',
                                   fontSize: 20,
                                   fontWeight: FontWeight.bold),
@@ -316,158 +557,225 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                         ),
                       ),
                       // Options
-                      _buildSectionTitle('Choice of Beans'),
-                      Row(
-                        children: [
-                          _buildOptionCard(
-                            title: 'DATO\nBLEND',
-                            subtitle: 'Bold & Dark\nChocolatey',
-                            value: 'Dato Blend',
-                            groupValue: selectedBean,
-                            onChanged: (v) => setState(() => selectedBean = v),
-                            color: Colors.transparent,
-                            textColor: Colors.white,
-                            isGradient: true,
-                            gradientColors: [
-                              const Color(0xFFC76B26),
-                              const Color(0xFF7A1800)
-                            ],
-                            icon: Image.asset('assets/images/dato.png',
-                                height: 40, color: Colors.white),
-                          ),
-                          _buildOptionCard(
-                            title: 'DATIN\nBLEND',
-                            subtitle: 'Citrus & Fruity',
-                            value: 'Datin Blend',
-                            groupValue: selectedBean,
-                            onChanged: (v) => setState(() => selectedBean = v),
-                            color: Colors.transparent,
-                            textColor: Colors.white,
-                            isGradient: true,
-                            gradientColors: [
-                              const Color(0xFFE91E63),
-                              const Color(0xFF009624)
-                            ],
-                            icon: Image.asset('assets/images/datin.png',
-                                height: 40, color: Colors.white),
-                          ),
-                        ],
-                      ),
-                      const Divider(height: 40),
-                      _buildSectionTitle('Espresso Shot',
-                          required: false, subtitle: 'Optional'),
-                      SliderTheme(
-                        data: SliderThemeData(
-                          activeTrackColor: orangeColor,
-                          inactiveTrackColor:
-                              orangeColor.withValues(alpha: 0.2),
-                          thumbColor: orangeColor,
-                          trackHeight: 4.0,
-                          tickMarkShape: const RoundSliderTickMarkShape(
-                              tickMarkRadius: 8.0),
-                          activeTickMarkColor: orangeColor,
-                          inactiveTickMarkColor:
-                              orangeColor.withValues(alpha: 0.2),
+                      if (_hasChoiceOfBeans) ...[
+                        _buildSectionTitle('Choice of Beans'),
+                        Row(
+                          children: [
+                            _buildOptionCard(
+                              title: 'DATO\nBLEND',
+                              subtitle: 'Bold & Dark\nChocolatey',
+                              value: 'Dato Blend',
+                              groupValue: selectedBean,
+                              onChanged: (v) =>
+                                  setState(() => selectedBean = v),
+                              color: Colors.transparent,
+                              textColor: Colors.white,
+                              isGradient: true,
+                              gradientColors: [
+                                const Color(0xFFC76B26),
+                                const Color(0xFF7A1800)
+                              ],
+                              icon: Image.asset('assets/images/dato.png',
+                                  height: 28, color: Colors.white),
+                            ),
+                            _buildOptionCard(
+                              title: 'DATIN\nBLEND',
+                              subtitle: 'Citrus & Fruity',
+                              value: 'Datin Blend',
+                              groupValue: selectedBean,
+                              onChanged: (v) =>
+                                  setState(() => selectedBean = v),
+                              color: Colors.transparent,
+                              textColor: Colors.white,
+                              isGradient: true,
+                              gradientColors: [
+                                const Color(0xFFE91E63),
+                                const Color(0xFF009624)
+                              ],
+                              icon: Image.asset('assets/images/datin.png',
+                                  height: 28, color: Colors.white),
+                            ),
+                          ],
                         ),
-                        child: Slider(
-                          value: espressoShots.toDouble(),
-                          min: 1,
-                          max: 3,
-                          divisions: 2,
-                          onChanged: (v) =>
-                              setState(() => espressoShots = v.toInt()),
-                        ),
-                      ),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Padding(
-                            padding: EdgeInsets.only(left: 8.0),
-                            child: Text('1',
-                                style: TextStyle(
-                                    fontFamily: 'Afacad',
-                                    color: Colors.black54)),
+                        const Divider(height: 24),
+                      ],
+                      if (_hasEspressoShot) ...[
+                        _buildSectionTitle('Espresso Shot',
+                            required: false, subtitle: 'Optional'),
+                        SliderTheme(
+                          data: SliderThemeData(
+                            activeTrackColor: orangeColor,
+                            inactiveTrackColor:
+                                orangeColor.withValues(alpha: 0.2),
+                            thumbColor: orangeColor,
+                            trackHeight: 4.0,
+                            tickMarkShape: const RoundSliderTickMarkShape(
+                                tickMarkRadius: 8.0),
+                            activeTickMarkColor: orangeColor,
+                            inactiveTickMarkColor:
+                                orangeColor.withValues(alpha: 0.2),
                           ),
-                          Column(
+                          child: Slider(
+                            value: espressoShots.toDouble(),
+                            min: 1,
+                            max: 3,
+                            divisions: 2,
+                            onChanged: (v) =>
+                                setState(() => espressoShots = v.toInt()),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              const Text('2',
-                                  style: TextStyle(
+                              const Column(
+                                children: [
+                                  Text(
+                                    '1',
+                                    style: TextStyle(
                                       fontFamily: 'Afacad',
-                                      color: Colors.black54)),
-                              Text('+3.00',
-                                  style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black54,
+                                    ),
+                                  ),
+                                  Text(
+                                    '+0.00',
+                                    style: TextStyle(
                                       fontFamily: 'Afacad',
                                       fontSize: 10,
-                                      color: orangeColor)),
+                                      color: Colors.transparent,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Column(
+                                children: [
+                                  const Text(
+                                    '2',
+                                    style: TextStyle(
+                                      fontFamily: 'Afacad',
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black54,
+                                    ),
+                                  ),
+                                  Text(
+                                    '+3.00',
+                                    style: TextStyle(
+                                      fontFamily: 'Afacad',
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: orangeColor,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Column(
+                                children: [
+                                  const Text(
+                                    '3',
+                                    style: TextStyle(
+                                      fontFamily: 'Afacad',
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black54,
+                                    ),
+                                  ),
+                                  Text(
+                                    '+6.00',
+                                    style: TextStyle(
+                                      fontFamily: 'Afacad',
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: orangeColor,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ],
                           ),
-                          Padding(
-                            padding: const EdgeInsets.only(right: 8.0),
-                            child: Column(
-                              children: [
-                                const Text('3',
-                                    style: TextStyle(
-                                        fontFamily: 'Afacad',
-                                        color: Colors.black54)),
-                                Text('+6.00',
-                                    style: TextStyle(
-                                        fontFamily: 'Afacad',
-                                        fontSize: 10,
-                                        color: orangeColor)),
-                              ],
+                        ),
+                        const Divider(height: 24),
+                      ],
+                      if (_hasTemperatureOption) ...[
+                        _buildSectionTitle('Choice of Temperature'),
+                        Row(
+                          children: [
+                            _buildOptionCard(
+                              title: 'HOT',
+                              subtitle: '+ 0.00',
+                              value: 'Hot',
+                              groupValue: temperature,
+                              onChanged: (v) => setState(() => temperature = v),
+                              color: const Color(0xFFE63900),
+                              textColor: Colors.white,
                             ),
-                          ),
-                        ],
-                      ),
-                      const Divider(height: 40),
-                      _buildSectionTitle('Choice of Temperature'),
-                      Row(
-                        children: [
-                          _buildOptionCard(
-                            title: 'HOT',
-                            subtitle: '+ 0.00',
-                            value: 'Hot',
-                            groupValue: temperature,
-                            onChanged: (v) => setState(() => temperature = v),
-                            color: const Color(0xFFE63900),
-                            textColor: Colors.white,
-                          ),
-                          _buildOptionCard(
-                            title: 'COLD',
-                            subtitle: '+ 0.00',
-                            value: 'Cold',
-                            groupValue: temperature,
-                            onChanged: (v) => setState(() => temperature = v),
-                            color: const Color(0xFF66C2E6),
-                            textColor: Colors.white,
-                          ),
-                        ],
-                      ),
-                      const Divider(height: 40),
-                      _buildSectionTitle('Choice of Milk'),
-                      Row(
-                        children: [
-                          _buildOptionCard(
-                            title: 'FRESH\nMILK',
-                            subtitle: '+ 0.00',
-                            value: 'Fresh Milk',
-                            groupValue: milk,
-                            onChanged: (v) => setState(() => milk = v),
-                            color: const Color(0xFF007AEC),
-                            textColor: Colors.white,
-                          ),
-                          _buildOptionCard(
-                            title: 'OAT\nMILK',
-                            subtitle: 'OATSIDE\n+ 3.00',
-                            value: 'Oat Milk',
-                            groupValue: milk,
-                            onChanged: (v) => setState(() => milk = v),
-                            color: const Color(0xFF995C00),
-                            textColor: Colors.white,
-                          ),
-                        ],
-                      ),
-                      const Divider(height: 40),
+                            _buildOptionCard(
+                              title: 'COLD',
+                              subtitle: '+ 0.00',
+                              value: 'Cold',
+                              groupValue: temperature,
+                              onChanged: (v) => setState(() => temperature = v),
+                              color: const Color(0xFF66C2E6),
+                              textColor: Colors.white,
+                            ),
+                          ],
+                        ),
+                        const Divider(height: 24),
+                      ],
+                      if (_hasSparklingMixerOption) ...[
+                        _buildSectionTitle('Choice of Sparkling'),
+                        Row(
+                          children: [
+                            _buildOptionCard(
+                              title: 'GINGER\nADE',
+                              subtitle: '+ 0.00',
+                              value: 'Ginger Ade',
+                              groupValue: sparklingMixer,
+                              onChanged: (v) =>
+                                  setState(() => sparklingMixer = v),
+                              color: const Color(0xFFC76B26),
+                              textColor: Colors.white,
+                            ),
+                            _buildOptionCard(
+                              title: 'TONIC\nWATER',
+                              subtitle: '+ 0.00',
+                              value: 'Tonic Water',
+                              groupValue: sparklingMixer,
+                              onChanged: (v) =>
+                                  setState(() => sparklingMixer = v),
+                              color: const Color(0xFF007AEC),
+                              textColor: Colors.white,
+                            ),
+                          ],
+                        ),
+                        const Divider(height: 24),
+                      ],
+                      if (_hasChoiceOfMilk) ...[
+                        _buildSectionTitle('Choice of Milk'),
+                        Row(
+                          children: [
+                            _buildOptionCard(
+                              title: 'FRESH\nMILK',
+                              subtitle: '+ 0.00',
+                              value: 'Fresh Milk',
+                              groupValue: milk,
+                              onChanged: (v) => setState(() => milk = v),
+                              color: const Color(0xFF007AEC),
+                              textColor: Colors.white,
+                            ),
+                            _buildOptionCard(
+                              title: 'OAT\nMILK',
+                              subtitle: 'OATSIDE\n+ 3.00',
+                              value: 'Oat Milk',
+                              groupValue: milk,
+                              onChanged: (v) => setState(() => milk = v),
+                              color: const Color(0xFF995C00),
+                              textColor: Colors.white,
+                            ),
+                          ],
+                        ),
+                        const Divider(height: 24),
+                      ],
                       _buildSectionTitle('Choice of Sweetness'),
                       Row(
                         children: [
@@ -505,35 +813,38 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                               onChanged: (v) => setState(() => sweetness = v),
                               color: const Color(0xFFD4A017),
                               textColor: Colors.white,
+                              isExpanded: false,
                             ),
                           ),
                         ],
                       ),
-                      const Divider(height: 40),
-                      _buildSectionTitle('Ice Level'),
-                      Row(
-                        children: [
-                          _buildOptionCard(
-                            title: 'LESS\nICE',
-                            subtitle: '+ 0.00',
-                            value: 'Less Ice',
-                            groupValue: iceLevel,
-                            onChanged: (v) => setState(() => iceLevel = v),
-                            color: const Color(0xFF6B3AB7),
-                            textColor: Colors.white,
-                          ),
-                          _buildOptionCard(
-                            title: 'REGULAR\nICE',
-                            subtitle: '+ 0.00',
-                            value: 'Regular Ice',
-                            groupValue: iceLevel,
-                            onChanged: (v) => setState(() => iceLevel = v),
-                            color: const Color(0xFFD47A88),
-                            textColor: Colors.white,
-                          ),
-                        ],
-                      ),
-                      const Divider(height: 40),
+                      const Divider(height: 24),
+                      if (_hasIceOption) ...[
+                        _buildSectionTitle('Ice Level'),
+                        Row(
+                          children: [
+                            _buildOptionCard(
+                              title: 'LESS\nICE',
+                              subtitle: '+ 0.00',
+                              value: 'Less Ice',
+                              groupValue: iceLevel,
+                              onChanged: (v) => setState(() => iceLevel = v),
+                              color: const Color(0xFF6B3AB7),
+                              textColor: Colors.white,
+                            ),
+                            _buildOptionCard(
+                              title: 'REGULAR\nICE',
+                              subtitle: '+ 0.00',
+                              value: 'Regular Ice',
+                              groupValue: iceLevel,
+                              onChanged: (v) => setState(() => iceLevel = v),
+                              color: const Color(0xFFD47A88),
+                              textColor: Colors.white,
+                            ),
+                          ],
+                        ),
+                        const Divider(height: 24),
+                      ],
                       _buildSectionTitle('Order Type'),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -548,11 +859,12 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                               onChanged: (v) => setState(() => orderType = v),
                               color: const Color(0xFFFF6B5C),
                               textColor: Colors.white,
+                              isExpanded: false,
                             ),
                           ),
                         ],
                       ),
-                      const Divider(height: 40),
+                      const Divider(height: 24),
                       _buildSectionTitle('Remarks', required: false),
                       TextField(
                         controller: remarksController,
@@ -589,7 +901,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
         ],
       ),
       bottomNavigationBar: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         decoration: BoxDecoration(
           color: Colors.white,
           boxShadow: [
@@ -611,7 +923,8 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                     'Total',
                     style: TextStyle(
                         fontFamily: 'Recoleta',
-                        fontSize: 20,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
                         color: Colors.black87),
                   ),
                   Row(
@@ -620,32 +933,35 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                         'RM ',
                         style: TextStyle(
                             fontFamily: 'Afacad',
-                            fontSize: 14,
+                            fontSize: 12,
                             fontWeight: FontWeight.bold),
                       ),
                       Text(
                         totalPrice.toStringAsFixed(2),
                         style: const TextStyle(
                             fontFamily: 'Recoleta',
-                            fontSize: 22,
+                            fontSize: 17,
                             fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 10),
               Row(
                 children: [
                   Container(
                     decoration: BoxDecoration(
                       border: Border.all(color: orangeColor),
-                      borderRadius: BorderRadius.circular(24),
+                      borderRadius: BorderRadius.circular(20),
                     ),
                     child: Row(
                       children: [
                         IconButton(
-                          icon: const Icon(Icons.remove),
+                          icon: const Icon(Icons.remove, size: 18),
+                          constraints:
+                              const BoxConstraints(minWidth: 36, minHeight: 36),
+                          padding: EdgeInsets.zero,
                           color: Colors.black54,
                           onPressed: () {
                             if (quantity > 1) {
@@ -654,17 +970,20 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                           },
                         ),
                         Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                          padding: const EdgeInsets.symmetric(horizontal: 10.0),
                           child: Text(
                             quantity.toString(),
                             style: const TextStyle(
                                 fontFamily: 'Recoleta',
-                                fontSize: 20,
+                                fontSize: 16,
                                 fontWeight: FontWeight.bold),
                           ),
                         ),
                         IconButton(
-                          icon: const Icon(Icons.add),
+                          icon: const Icon(Icons.add, size: 18),
+                          constraints:
+                              const BoxConstraints(minWidth: 36, minHeight: 36),
+                          padding: EdgeInsets.zero,
                           color: Colors.black54,
                           onPressed: () {
                             setState(() => quantity++);
@@ -673,7 +992,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                       ],
                     ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton(
                       onPressed: () {
@@ -682,16 +1001,16 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: orangeColor,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(24),
+                          borderRadius: BorderRadius.circular(20),
                         ),
                       ),
                       child: const Text(
                         'ADD TO CART',
                         style: TextStyle(
                           fontFamily: 'Recoleta',
-                          fontSize: 16,
+                          fontSize: 14,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
                         ),

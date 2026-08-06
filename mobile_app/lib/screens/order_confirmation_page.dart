@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import '../utils/global_state.dart';
-import 'success_page.dart';
 import 'loading_order_page.dart';
-import 'menu_page.dart';
+import '../utils/app_colors.dart';
 
 class OrderConfirmationPage extends StatefulWidget {
   final int initialQuantity;
@@ -15,7 +14,17 @@ class OrderConfirmationPage extends StatefulWidget {
 
 class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
   late int _quantity;
-  final double _basePrice = 16.90;
+  double get _basePrice => AppColors.getDiscountedDrinkPrice(16.90);
+  String? _selectedVoucherTitle;
+  double _voucherDiscount = 0.0;
+
+  Color get orangeColor => AppColors.deepTeal;
+
+  double get _totalPrice {
+    final subtotal = _basePrice * _quantity;
+    final total = subtotal - _voucherDiscount;
+    return total < 0 ? 0.0 : total;
+  }
 
   @override
   void initState() {
@@ -23,9 +32,185 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
     _quantity = widget.initialQuantity;
   }
 
+  void _showVoucherSelectionModal() {
+    final List<Map<String, dynamic>> vouchers = [
+      {
+        'title': 'Buy 1 Free 1 Any Coffee',
+        'discountText': '-RM ${_basePrice.toStringAsFixed(2)}',
+        'discountValue': _basePrice,
+        'badge': '%',
+        'terms': 'Applies 1 free handcrafted coffee item'
+      },
+      {
+        'title': 'RM 5 Off Handcrafted Drink',
+        'discountText': '-RM 5.00',
+        'discountValue': 5.00,
+        'badge': 'RM5',
+        'terms': 'RM 5 discount on your order'
+      },
+      {
+        'title': '10% Off Total Order',
+        'discountText': '-10%',
+        'discountValue': (_basePrice * _quantity) * 0.10,
+        'badge': '10%',
+        'terms': '10% discount on total basket subtotal'
+      },
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: EdgeInsets.only(
+            top: 20,
+            left: 20,
+            right: 20,
+            bottom: 24 + MediaQuery.paddingOf(context).bottom,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Select Voucher',
+                    style: TextStyle(
+                      fontFamily: 'Recoleta',
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.deepTeal,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.grey),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Column(
+                children: vouchers.map((v) {
+                  final isSelected = _selectedVoucherTitle == v['title'];
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _selectedVoucherTitle = v['title'] as String;
+                          _voucherDiscount =
+                              (v['discountValue'] as num).toDouble();
+                        });
+                        Navigator.pop(context);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? AppColors.deepTeal.withValues(alpha: 0.08)
+                              : AppColors.surfaceLight,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: isSelected
+                                ? AppColors.deepTeal
+                                : AppColors.border,
+                            width: isSelected ? 1.5 : 1,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Image.asset(
+                              'assets/images/voucher.png',
+                              width: 40,
+                              height: 40,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    v['title'] as String,
+                                    style: const TextStyle(
+                                      fontFamily: 'Afacad',
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    v['terms'] as String,
+                                    style: const TextStyle(
+                                      fontFamily: 'Afacad',
+                                      fontSize: 12,
+                                      color: Colors.black54,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Text(
+                              v['discountText'] as String,
+                              style: TextStyle(
+                                fontFamily: 'Afacad',
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.deepTeal,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+              if (_selectedVoucherTitle != null)
+                Center(
+                  child: TextButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        _selectedVoucherTitle = null;
+                        _voucherDiscount = 0.0;
+                      });
+                      Navigator.pop(context);
+                    },
+                    icon: const Icon(Icons.clear, size: 16, color: Colors.red),
+                    label: const Text(
+                      'Remove selected voucher',
+                      style:
+                          TextStyle(color: Colors.red, fontFamily: 'Afacad'),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    const Color orangeColor = Color(0xFF2E5E58);
     const Color bgColor = Colors.white;
 
     return Scaffold(
@@ -37,49 +222,40 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
             children: [
               // Custom Header
               Container(
+                width: double.infinity,
                 padding: EdgeInsets.only(
-                    top: 50 + MediaQuery.paddingOf(context).top,
+                    top: MediaQuery.paddingOf(context).top + 14,
                     bottom: 16,
                     left: 20,
                     right: 20),
-                decoration: const BoxDecoration(
-                  color: orangeColor,
+                decoration: BoxDecoration(
+                  color: AppColors.deepTeal,
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(20),
+                    bottomRight: Radius.circular(20),
+                  ),
                 ),
-                child: Row(
+                child: Stack(
+                  alignment: Alignment.center,
                   children: [
-                    GestureDetector(
-                      onTap: () {
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                const InteractiveFillingLoader(
-                              targetPage: MenuPage(),
-                            ),
-                          ),
-                        );
-                      },
-                      child: const Icon(Icons.arrow_back_ios,
-                          color: Colors.white, size: 20),
-                    ),
-                    const Expanded(
-                      child: Center(
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Text(
-                            'ORDER CONFIRMATION',
-                            style: TextStyle(
-                              fontFamily: 'Recoleta',
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                              letterSpacing: 1.0,
-                            ),
-                          ),
-                        ),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: GestureDetector(
+                        onTap: () => InteractiveFillingLoader.showPop(context),
+                        child: const Icon(Icons.arrow_back_ios,
+                            color: Colors.white, size: 20),
                       ),
                     ),
-                    const SizedBox(width: 20), // Balance the flex for centering
+                    const Text(
+                      'ORDER CONFIRMATION',
+                      style: TextStyle(
+                        fontFamily: 'Recoleta',
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        letterSpacing: 1.0,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -93,7 +269,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // Subtitle
-                      const Text(
+                      Text(
                         'Your order',
                         style: TextStyle(
                           fontFamily: 'Afacad',
@@ -110,6 +286,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppColors.border),
                           boxShadow: [
                             BoxShadow(
                               color: Colors.black.withValues(alpha: 0.04),
@@ -159,9 +336,9 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                                             ),
                                           ),
                                           RichText(
-                                            text: const TextSpan(
+                                            text: TextSpan(
                                               children: [
-                                                TextSpan(
+                                                const TextSpan(
                                                   text: 'RM ',
                                                   style: TextStyle(
                                                     fontFamily: 'Afacad',
@@ -171,8 +348,8 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                                                   ),
                                                 ),
                                                 TextSpan(
-                                                  text: '16.90',
-                                                  style: TextStyle(
+                                                  text: _basePrice.toStringAsFixed(2),
+                                                  style: const TextStyle(
                                                     fontFamily: 'Afacad',
                                                     fontSize: 14,
                                                     color: Colors.black87,
@@ -221,7 +398,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                                                       context); // "or delete" - pop back
                                                 }
                                               },
-                                              child: const Text('-',
+                                              child: Text('-',
                                                   style: TextStyle(
                                                       color: orangeColor,
                                                       fontSize: 16,
@@ -229,7 +406,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                                                           FontWeight.bold)),
                                             ),
                                             Text('$_quantity',
-                                                style: const TextStyle(
+                                                style: TextStyle(
                                                     color: orangeColor,
                                                     fontSize: 14,
                                                     fontWeight:
@@ -238,7 +415,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                                               onTap: () {
                                                 setState(() => _quantity++);
                                               },
-                                              child: const Text('+',
+                                              child: Text('+',
                                                   style: TextStyle(
                                                       color: orangeColor,
                                                       fontSize: 16,
@@ -254,7 +431,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                               ],
                             ),
                             const SizedBox(height: 16),
-                            const Divider(color: Color(0xFFEDF4F3), height: 1),
+                            Divider(color: AppColors.border, height: 1),
                             const SizedBox(height: 12),
 
                             // Total line
@@ -285,8 +462,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                                         ),
                                       ),
                                       TextSpan(
-                                        text: (_basePrice * _quantity)
-                                            .toStringAsFixed(2),
+                                        text: _totalPrice.toStringAsFixed(2),
                                         style: const TextStyle(
                                           fontFamily: 'Afacad',
                                           fontSize: 16,
@@ -310,7 +486,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                         alignment: Alignment.centerRight,
                         child: GestureDetector(
                           onTap: () => Navigator.pop(context),
-                          child: const Text(
+                          child: Text(
                             '+ Add order',
                             style: TextStyle(
                               fontFamily: 'Afacad',
@@ -325,61 +501,85 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                       const SizedBox(height: 24),
 
                       // Voucher Card
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                              color: orangeColor.withValues(alpha: 0.5),
-                              width: 1),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Voucher',
-                              style: TextStyle(
-                                fontFamily: 'Recoleta',
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: const Color(
-                                        0xFFE0715F), // Darker orange/brown
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: const Text(
-                                    '%',
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: _showVoucherSelectionModal,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                                color: orangeColor.withValues(alpha: 0.5),
+                                width: 1),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text(
+                                    'Voucher',
                                     style: TextStyle(
-                                      color: Colors.white,
+                                      fontFamily: 'Recoleta',
+                                      fontSize: 18,
                                       fontWeight: FontWeight.bold,
-                                      fontSize: 16,
+                                      color: Colors.black87,
                                     ),
                                   ),
-                                ),
-                                const SizedBox(width: 12),
-                                const Text(
-                                  'Select Voucher',
-                                  style: TextStyle(
-                                    fontFamily: 'Afacad',
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.black87,
+                                  Text(
+                                    _selectedVoucherTitle != null
+                                        ? 'Change'
+                                        : 'Select',
+                                    style: TextStyle(
+                                      fontFamily: 'Afacad',
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                      color: orangeColor,
+                                    ),
                                   ),
-                                ),
-                              ],
-                            ),
-                          ],
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Image.asset(
+                                    'assets/images/voucher.png',
+                                    width: 46,
+                                    height: 46,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      _selectedVoucherTitle ??
+                                          'Select Voucher',
+                                      style: TextStyle(
+                                        fontFamily: 'Afacad',
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.bold,
+                                        color: _selectedVoucherTitle != null
+                                            ? orangeColor
+                                            : Colors.black87,
+                                      ),
+                                    ),
+                                  ),
+                                  if (_selectedVoucherTitle != null)
+                                    Text(
+                                      '-RM ${_voucherDiscount.toStringAsFixed(2)}',
+                                      style: TextStyle(
+                                        fontFamily: 'Afacad',
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                        color: orangeColor,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
                       ),
 
@@ -411,10 +611,11 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                             const SizedBox(height: 8),
                             Row(
                               children: [
-                                const Icon(
-                                    Icons.account_balance_wallet_outlined,
-                                    size: 28,
-                                    color: Colors.black87),
+                                 Image.asset(
+                                   'assets/images/wallet.png',
+                                   width: 55,
+                                   height: 55,
+                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
@@ -431,7 +632,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                                         ),
                                       ),
                                       Text(
-                                        '0 points',
+                                        '0 tokens',
                                         style: TextStyle(
                                           fontFamily: 'Afacad',
                                           fontSize: 12,
@@ -454,7 +655,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                                     child: Container(
                                       width: 10,
                                       height: 10,
-                                      decoration: const BoxDecoration(
+                                      decoration: BoxDecoration(
                                         shape: BoxShape.circle,
                                         color: orangeColor,
                                       ),
@@ -471,23 +672,8 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                       // Checkout Button
                       GestureDetector(
                         onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => SuccessPage(
-                                title: 'SUCCESS!',
-                                subtitle:
-                                    'Your order has been placed successfully.',
-                                onDone: () {
-                                  globalOrderStatusVisible.value =
-                                      true; // Show global banner
-                                  Navigator.pop(context); // Pop SuccessPage
-                                  Navigator.pop(context,
-                                      true); // Pop Checkout page — signals basket to clear
-                                },
-                              ),
-                            ),
-                          );
+                          globalOrderStatusVisible.value = true; // Show global banner
+                          Navigator.pop(context, true); // Pop Checkout page — signals basket to clear
                         },
                         child: Container(
                           width: double.infinity,

@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'loading_order_page.dart';
-import 'menu_page.dart';
+import 'mont_broga_page.dart';
+import '../utils/app_colors.dart';
 
 class BaristaPage extends StatefulWidget {
   final String title;
@@ -72,7 +73,7 @@ class _BaristaPageState extends State<BaristaPage> {
 
   @override
   Widget build(BuildContext context) {
-    const orangeColor = Color(0xFF2E5E58);
+    Color orangeColor = AppColors.deepTeal;
     const backgroundColor = Color(0xFFF7F7F7);
 
     return Scaffold(
@@ -82,24 +83,21 @@ class _BaristaPageState extends State<BaristaPage> {
           children: [
             // Custom Header matching other pages (but flattened bottom to merge with image)
             Container(
-              padding: const EdgeInsets.only(top: 50, bottom: 12, left: 20, right: 20),
-              decoration: const BoxDecoration(
+              width: double.infinity,
+              padding: EdgeInsets.only(
+                  top: MediaQuery.paddingOf(context).top + 14,
+                  bottom: 16,
+                  left: 20,
+                  right: 20),
+              decoration: BoxDecoration(
                 color: orangeColor,
               ),
               child: Row(
                 children: [
                   GestureDetector(
-                    onTap: () {
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const InteractiveFillingLoader(
-                            targetPage: MenuPage(),
-                          ),
-                        ),
-                      );
-                    },
-                    child: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 20),
+                    onTap: () => InteractiveFillingLoader.showPop(context),
+                    child: const Icon(Icons.arrow_back_ios,
+                        color: Colors.white, size: 20),
                   ),
                   Expanded(
                     child: Center(
@@ -192,7 +190,7 @@ class _BaristaPageState extends State<BaristaPage> {
               ),
             ),
             const SizedBox(height: 24),
-            
+
             // Drink Grid
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -223,67 +221,86 @@ class _BaristaPageState extends State<BaristaPage> {
   }
 
   Widget _buildDrinkCard(Map<String, dynamic> item) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          // Image
-          Expanded(
-            child: Padding(
-              padding:
-                  const EdgeInsets.only(top: 12, bottom: 8, left: 8, right: 8),
-              child: Transform.scale(
-                scale: item['scale'] as double? ?? 1.0,
-                child: Image.asset(
-                  item['image'],
-                  fit: BoxFit.contain,
+    return GestureDetector(
+      onTap: () {
+        InteractiveFillingLoader.show(
+          context,
+          targetPage: MontBrogaPage(item: item),
+        );
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // Image
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(
+                    top: 12, bottom: 8, left: 8, right: 8),
+                child: Transform.scale(
+                  scale: item['scale'] as double? ?? 1.0,
+                  child: Image.asset(
+                    item['image'],
+                    fit: BoxFit.contain,
+                  ),
                 ),
               ),
             ),
-          ),
 
-          // Details
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Text(
-              item['name'],
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontFamily: 'Afacad',
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-                height: 1.1,
+            // Details
+            SizedBox(
+              height: 34,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Center(
+                  child: Text(
+                    item['name'],
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontFamily: 'Afacad',
+                      fontSize: 14,
+                      fontWeight: FontWeight.normal,
+                      color: Colors.black87,
+                      height: 1.15,
+                    ),
+                  ),
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 4),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Text(
-              item['price'] ?? '',
-              style: TextStyle(
-                fontFamily: 'Afacad',
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: Colors.grey.shade600,
+            const SizedBox(height: 2),
+            SizedBox(
+              height: 24,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Center(
+                  child: Text(
+                    AppColors.formatDiscountedPrice(item['price'],
+                        isDrink: true),
+                    style: TextStyle(
+                      fontFamily: 'Afacad',
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.deepTeal,
+                    ),
+                  ),
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

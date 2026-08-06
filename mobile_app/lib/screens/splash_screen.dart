@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../authorization/signup1.dart';
+import '../authorization/auth_transition.dart';
 
 class SplashScreen extends StatelessWidget {
   const SplashScreen({super.key});
@@ -54,8 +55,8 @@ class SplashScreen extends StatelessWidget {
                       onPressed: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(
-                            builder: (_) => const Signup1(),
+                          AuthPageRoute(
+                            page: const Signup1(),
                           ),
                         );
                       },

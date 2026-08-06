@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/app_colors.dart';
 
 class TermsOfUsePage extends StatelessWidget {
   const TermsOfUsePage({super.key});
@@ -6,68 +7,234 @@ class TermsOfUsePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF9F9FB),
       body: Column(
         children: [
           // Header
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.only(top: 50, bottom: 12, left: 20, right: 20),
-            decoration: const BoxDecoration(
-              color: Color(0xFF2E5E58),
-              borderRadius: BorderRadius.only(
+            padding: EdgeInsets.only(
+                top: MediaQuery.paddingOf(context).top + 14,
+                bottom: 16,
+                left: 20,
+                right: 20),
+            decoration: BoxDecoration(
+              color: AppColors.deepTeal,
+              borderRadius: const BorderRadius.only(
                 bottomLeft: Radius.circular(20),
                 bottomRight: Radius.circular(20),
               ),
             ),
-            child: Row(
+            child: Stack(
+              alignment: Alignment.center,
               children: [
-                GestureDetector(
-                  onTap: () => Navigator.pop(context),
-                  child: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 20),
-                ),
-                const Expanded(
-                  child: Center(
-                    child: Text(
-                      'TERMS OF USE',
-                      style: TextStyle(
-                        fontFamily: 'Recoleta',
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        letterSpacing: 1.0,
-                      ),
-                    ),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: const Icon(Icons.arrow_back_ios,
+                        color: Colors.white, size: 20),
                   ),
                 ),
-                const SizedBox(width: 20),
+                const Text(
+                  'TERMS & CONDITIONS',
+                  style: TextStyle(
+                    fontFamily: 'Recoleta',
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    letterSpacing: 1.0,
+                  ),
+                ),
               ],
             ),
           ),
           // Content
-          const Expanded(
-            child: SingleChildScrollView(
-              padding: EdgeInsets.all(24),
-              child: Text(
-                '1. Acceptance of Terms\n'
-                'By downloading, accessing, or using the C2 Coffee mobile application, you agree to be bound by these Terms of Use. If you do not agree to these terms, please do not use the application.\n\n'
-                '2. Account Registration\n'
-                'To use certain features of the app, you may be required to create an account. You are responsible for maintaining the confidentiality of your account credentials and for all activities that occur under your account.\n\n'
-                '3. Orders and Payments\n'
-                'All orders placed through the app are subject to availability and acceptance. Prices are subject to change without notice. You agree to provide current, complete, and accurate purchase and account information for all purchases made via the app.\n\n'
-                '4. Reward Points and Loyalty Program\n'
-                'Reward points earned through the app have no cash value and cannot be exchanged for cash. C2 Coffee reserves the right to modify or terminate the rewards program at any time without prior notice.\n\n'
-                '5. Intellectual Property\n'
-                'All content included in the app, such as text, graphics, logos, images, and software, is the property of C2 Coffee and is protected by copyright and other laws.\n\n'
-                '6. Modifications to Terms\n'
-                'We reserve the right to modify these Terms of Use at any time. Your continued use of the app following any changes indicates your acceptance of the new terms.',
-                style: TextStyle(
-                  fontFamily: 'Afacad',
-                  fontSize: 16,
-                  color: Colors.black87,
-                  height: 1.5,
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+              children: [
+                _buildLastUpdated('August 6, 2026'),
+                const SizedBox(height: 16),
+                _buildSection(
+                  number: '1',
+                  title: 'Acceptance of Terms & Operational Scope',
+                  body:
+                      'By downloading, accessing, or using the C2 Coffee mobile application ("App"), you agree to be legally bound by these Terms and Conditions ("Terms"). The App is operated by C2 Coffee ("C2 Coffee + Candle", "we", "us", or "our") to provide self-pickup ordering, closed-loop prepaid C2 Token services, loyalty cup tracking, and promotional rewards across participating C2 Coffee outlets (including Broga, Kajang, Semenyih, and future stores). If you do not agree to these Terms, please immediately discontinue use of the App.',
+                ),
+                _buildSection(
+                  number: '2',
+                  title: 'Account Registration & Authentication',
+                  body:
+                      '2.1 Account creation requires a valid Malaysian mobile phone number. Authentication is conducted via WhatsApp One-Time Password (OTP) as the primary channel, or SMS OTP as a secondary channel upon explicit request.\n\n'
+                      '2.2 You are solely responsible for maintaining the confidentiality of your account access and credentials. You agree that all activities and transactions performed under your authenticated phone number are binding.\n\n'
+                      '2.3 You agree to provide true, accurate, and current information during registration (including full name, contact details, and optional birthday for reward verification).',
+                ),
+                _buildSection(
+                  number: '3',
+                  title: 'Menu, Customizations & Store Orders',
+                  body:
+                      '3.1 All beverage items (Coffee Craft, Barista Craft, Pour Over, Mocktails, Matcha, Chocolate, Coffee, Flavoured Coffee), pastries, merchandise, and candles are subject to real-time store availability.\n\n'
+                      '3.2 Handcrafted drinks are customized according to your specifications (such as choice of coffee beans, espresso shot count, choice of milk, temperature, ice level, sweetness, and sparkling mixer). Once an order enters preparation, customizations cannot be modified.\n\n'
+                      '3.3 All orders placed on the App are for Store Self-Pickup only. Delivery and courier dispatch are not supported at this time.',
+                ),
+                _buildSection(
+                  number: '4',
+                  title: 'Direct Payments & Payment Gateway Security',
+                  body:
+                      '4.1 Direct payments in Malaysian Ringgit (RM) are processed via our authorized payment gateway provider (Billplz), supporting FPX Online Banking, Touch \'n Go eWallet, and Debit/Credit cards.\n\n'
+                      '4.2 In accordance with PCI-DSS data security standards, C2 Coffee does not capture, process, log, or store your credit/debit card numbers (PAN), CVV security codes, or banking credentials. All payment processing occurs on secure, encrypted provider rails.\n\n'
+                      '4.3 An order status updates to "Paid" strictly upon verified backend confirmation from the payment gateway.',
+                ),
+                _buildSection(
+                  number: '5',
+                  title: 'C2 Token System (Closed-Loop Prepaid Balance)',
+                  body:
+                      '5.1 "C2 Token" is a closed-loop prepaid stored-value balance intended strictly for member purchases at participating C2 Coffee stores. The conversion valuation is fixed at 1 C2 Token = RM 1.00.\n\n'
+                      '5.2 C2 Tokens enable members to purchase menu items at discounted member token prices structured by membership tier (Kawan, Dilamun, Ketagih, Legend).\n\n'
+                      '5.3 Closed-Loop Restrictions: C2 Tokens have no external cash value, cannot be redeemed for physical currency, cannot be transferred peer-to-peer (P2P) to other user accounts, and cannot be used outside C2 Coffee.\n\n'
+                      '5.4 Token top-ups are final, non-refundable, and non-reversible once successfully credited to your account ledger, except where mandated by statutory consumer protection laws or verified technical billing discrepancies.',
+                ),
+                _buildSection(
+                  number: '6',
+                  title: 'Loyalty Cups, Membership Tiers & Vouchers',
+                  body:
+                      '6.1 Every qualifying handcrafted beverage purchased records 1 Cup toward your lifetime membership progression, unlocking higher tiers (Kawan -> Dilamun -> Ketagih -> Legend) and deeper token pricing discounts.\n\n'
+                      '6.2 Vouchers (including Welcome Drink Vouchers, Tier Progression Rewards, Referral Drink Rewards, and Promotional Campaign Vouchers) are subject to explicit validity periods, single-use checkout rules, primary non-stacking conditions, and specified drink category eligibility.\n\n'
+                      '6.3 Referral rewards are credited only upon the new user\'s verified first qualifying order. Any automated abuse, multi-account farming, or fraudulent referral attempts will result in immediate forfeiture of rewards and account suspension.',
+                ),
+                _buildSection(
+                  number: '7',
+                  title: 'Store Pickup Fulfillment & Food Safety',
+                  body:
+                      '7.1 Customers are responsible for selecting the correct store location and arriving within the estimated pickup lead window (standard lead time: 15 minutes).\n\n'
+                      '7.2 Due to strict food safety and temperature quality standards for fresh espresso, hot milk foam, chilled beverages, and artisan pastries, uncollected orders will be safely disposed of after a reasonable holding period with no refund or replacement entitlement.',
+                ),
+                _buildSection(
+                  number: '8',
+                  title: 'Cancellations, Refunds & Billing Queries',
+                  body:
+                      '8.1 Once an order is confirmed and sent to the barista queue, it cannot be cancelled by the user in-app.\n\n'
+                      '8.2 In the rare event of store unavailability, equipment breakdown, or out-of-stock items, C2 Coffee store management will initiate a full refund or token balance credit through our official administrative channels.\n\n'
+                      '8.3 Billing or payment discrepancy claims must be submitted to C2 Support with relevant transaction references within fourteen (14) days of the transaction date.',
+                ),
+                _buildSection(
+                  number: '9',
+                  title: 'Intellectual Property & User Conduct',
+                  body:
+                      '9.1 All trademarks, logos, brand names ("Mont Broga", "Shakerato Bianco", "Senja Di Broga", "Dato Blend", "Datin Blend", "C2 Coffee + Candle"), graphics, imagery, and software code are the proprietary intellectual property of C2 Coffee.\n\n'
+                      '9.2 Users shall not reverse engineer, decompile, scrape, or exploit the App for unauthorized commercial gains or interfere with server integrity.',
+                ),
+                _buildSection(
+                  number: '10',
+                  title: 'Modifications, Governing Law & Jurisdiction',
+                  body:
+                      '10.1 We reserve the right to revise these Terms at any time. Updated versions will be published within the App with a revised date stamp. Continued use of the App following updates constitutes binding agreement to the amended Terms.\n\n'
+                      '10.2 These Terms and Conditions are governed by and construed in accordance with the laws of Malaysia. Any disputes shall be subject to the exclusive jurisdiction of the courts of Malaysia.',
+                ),
+                const SizedBox(height: 24),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLastUpdated(String date) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.deepTeal.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.calendar_today_outlined,
+              size: 15, color: AppColors.deepTeal),
+          const SizedBox(width: 8),
+          Text(
+            'Last Updated: $date',
+            style: TextStyle(
+              fontFamily: 'Afacad',
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: AppColors.deepTeal,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSection({
+    required String number,
+    required String title,
+    required String body,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.black.withValues(alpha: 0.06)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 26,
+                height: 26,
+                decoration: BoxDecoration(
+                  color: AppColors.deepTeal,
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  number,
+                  style: const TextStyle(
+                    fontFamily: 'Afacad',
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
                 ),
               ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontFamily: 'Recoleta',
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                    height: 1.2,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            body,
+            style: const TextStyle(
+              fontFamily: 'Afacad',
+              fontSize: 14.5,
+              color: Colors.black87,
+              height: 1.45,
             ),
           ),
         ],

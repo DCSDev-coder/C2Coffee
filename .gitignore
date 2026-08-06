@@ -24,3 +24,6 @@ edge_server/node_modules/
 # Build artifacts and binaries
 *.apk
 *.aab
+
+# Documentation directory
+.md/

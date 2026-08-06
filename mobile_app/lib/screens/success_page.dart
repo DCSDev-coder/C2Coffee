@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../widgets/confetti_overlay.dart';
+import '../utils/app_colors.dart';
 
 class SuccessPage extends StatefulWidget {
   final String title;
@@ -23,7 +24,7 @@ class _SuccessPageState extends State<SuccessPage>
   late Animation<double> _scaleAnimation;
   late Animation<double> _opacityAnimation;
 
-  final Color orangeColor = const Color(0xFF2E5E58);
+  Color get orangeColor => AppColors.deepTeal;
   final Color beigeBg = Colors.white;
 
   @override
@@ -67,106 +68,106 @@ class _SuccessPageState extends State<SuccessPage>
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-              const SizedBox(height: 40), // Spacer at the top
-              
-              // Center Content
-              Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  AnimatedBuilder(
-                    animation: _controller,
-                    builder: (context, child) {
-                      return Transform.scale(
-                        scale: _scaleAnimation.value,
-                        child: Opacity(
-                          opacity: _opacityAnimation.value,
-                          child: child,
-                        ),
-                      );
-                    },
-                    child: Container(
-                      width: 120,
-                      height: 120,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: orangeColor,
-                          width: 8,
+                  const SizedBox(height: 40), // Spacer at the top
+
+                  // Center Content
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      AnimatedBuilder(
+                        animation: _controller,
+                        builder: (context, child) {
+                          return Transform.scale(
+                            scale: _scaleAnimation.value,
+                            child: Opacity(
+                              opacity: _opacityAnimation.value,
+                              child: child,
+                            ),
+                          );
+                        },
+                        child: Container(
+                          width: 120,
+                          height: 120,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: orangeColor,
+                              width: 8,
+                            ),
+                          ),
+                          child: Center(
+                            child: Icon(
+                              Icons.check,
+                              color: orangeColor,
+                              size: 80,
+                            ),
+                          ),
                         ),
                       ),
-                      child: Center(
-                        child: Icon(
-                          Icons.check,
-                          color: orangeColor,
-                          size: 80,
+                      const SizedBox(height: 32),
+                      AnimatedOpacity(
+                        opacity: 1.0,
+                        duration: const Duration(milliseconds: 500),
+                        child: Text(
+                          widget.title,
+                          style: const TextStyle(
+                            fontFamily: 'Recoleta',
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
                         ),
                       ),
-                    ),
+                      const SizedBox(height: 16),
+                      AnimatedOpacity(
+                        opacity: 1.0,
+                        duration: const Duration(milliseconds: 500),
+                        child: Text(
+                          widget.subtitle,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontFamily: 'Afacad',
+                            fontSize: 16,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 32),
-                  AnimatedOpacity(
-                    opacity: 1.0,
-                    duration: const Duration(milliseconds: 500),
-                    child: Text(
-                      widget.title,
-                      style: const TextStyle(
-                        fontFamily: 'Recoleta',
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
+
+                  // Bottom Button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: ElevatedButton(
+                      onPressed: widget.onDone,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: orangeColor,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 0,
                       ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  AnimatedOpacity(
-                    opacity: 1.0,
-                    duration: const Duration(milliseconds: 500),
-                    child: Text(
-                      widget.subtitle,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontFamily: 'Afacad',
-                        fontSize: 16,
-                        color: Colors.grey.shade600,
+                      child: const Text(
+                        'DONE',
+                        style: TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
                   ),
                 ],
               ),
-              
-              // Bottom Button
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton(
-                  onPressed: widget.onDone,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: orangeColor,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    elevation: 0,
-                  ),
-                  child: const Text(
-                    'DONE',
-                    style: TextStyle(
-                      fontFamily: 'Afacad',
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
-        ),
+          const Positioned.fill(
+            child: ConfettiWidget(particleCount: 80),
+          ),
+        ],
       ),
-      const Positioned.fill(
-        child: ConfettiWidget(particleCount: 80),
-      ),
-    ],
-  ),
-);
+    );
   }
 }

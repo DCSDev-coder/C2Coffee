@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:c2_coffee/authorization/login.dart';
 import 'package:c2_coffee/screens/home_page.dart';
-
 import 'package:c2_coffee/screens/splash_screen.dart';
+import 'package:c2_coffee/utils/app_colors.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await AppColors.loadTier();
   runApp(const C2CoffeeApp());
 }
 
@@ -14,22 +15,20 @@ class C2CoffeeApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'C² Coffee',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        fontFamily: 'Afacad',
-        scaffoldBackgroundColor: Colors.white,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF2E5E58),
-        ),
-      ),
-      home: const SplashScreen(),
-      routes: {
-        '/login': (context) => const LoginPage(),
-        '/login_backup': (context) => const LoginPage(),
-        '/home': (context) => const HomePage(),
+    return ValueListenableBuilder<int>(
+      valueListenable: AppColors.currentTier,
+      builder: (context, tier, child) {
+        return MaterialApp(
+          title: 'C² Coffee',
+          debugShowCheckedModeBanner: false,
+          theme: AppColors.getThemeData(),
+          home: const SplashScreen(),
+          routes: {
+            '/login': (context) => const LoginPage(),
+            '/login_backup': (context) => const LoginPage(),
+            '/home': (context) => const HomePage(),
+          },
+        );
       },
     );
   }

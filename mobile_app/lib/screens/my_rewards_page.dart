@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'loading_order_page.dart';
+import '../widgets/order_status_banner.dart';
+import '../utils/app_colors.dart';
 
 class MyRewardsPage extends StatefulWidget {
   const MyRewardsPage({super.key});
@@ -8,7 +11,7 @@ class MyRewardsPage extends StatefulWidget {
 }
 
 class _MyRewardsPageState extends State<MyRewardsPage> {
-  final Color orangeColor = const Color(0xFF2E5E58);
+  Color get orangeColor => AppColors.gold;
   final Color beigeBg = Colors.white;
 
   // 0 for "Active", 1 for "Past"
@@ -18,30 +21,38 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: beigeBg,
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            // Header
-            Container(
-              padding: const EdgeInsets.only(
-                  top: 50, bottom: 12, left: 20, right: 20),
-              decoration: const BoxDecoration(
-                color: Color(0xFF2E5E58),
-                borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(20),
-                  bottomRight: Radius.circular(20),
-                ),
-              ),
-              child: Row(
-                children: [
-                  GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: const Icon(Icons.arrow_back_ios,
-                        color: Colors.white, size: 20),
+      body: Stack(
+        children: [
+          SingleChildScrollView(
+            child: Column(
+              children: [
+                // Header
+                Container(
+                  width: double.infinity,
+                  padding: EdgeInsets.only(
+                      top: MediaQuery.paddingOf(context).top + 14,
+                      bottom: 16,
+                      left: 20,
+                      right: 20),
+                  decoration: BoxDecoration(
+                    color: AppColors.deepTeal,
+                    borderRadius: const BorderRadius.only(
+                      bottomLeft: Radius.circular(20),
+                      bottomRight: Radius.circular(20),
+                    ),
                   ),
-                  const Expanded(
-                    child: Center(
-                      child: Text(
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: GestureDetector(
+                          onTap: () => InteractiveFillingLoader.showPop(context),
+                          child: const Icon(Icons.arrow_back_ios,
+                              color: Colors.white, size: 20),
+                        ),
+                      ),
+                      const Text(
                         'MY REWARDS',
                         style: TextStyle(
                           fontFamily: 'Recoleta',
@@ -51,296 +62,407 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
                           letterSpacing: 1.0,
                         ),
                       ),
-                    ),
+                    ],
                   ),
-                  GestureDetector(
-                    onTap: _showTokensRules,
-                    child: const Icon(Icons.info_outline,
-                        color: Colors.white, size: 22),
-                  ),
-                ],
-              ),
-            ),
+                ),
 
-            // Top Section (Tokens Card)
-            Container(
-              color: beigeBg,
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                children: [
-                  // Tokens Card
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 24, vertical: 20),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border:
-                          Border.all(color: const Color(0xFFCFDEDB), width: 1),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.03),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Reward tokens',
-                          style: TextStyle(
-                            fontFamily: 'Afacad',
-                            fontSize: 16,
-                            color: Color(0xFF2E5E58),
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        Row(
-                          children: [
-                            Image.asset(
-                              'assets/images/coin.png',
-                              width: 32,
-                              height: 32,
-                            ),
-                            const SizedBox(width: 8),
-                            const Text(
-                              '0',
-                              style: TextStyle(
-                                fontFamily: 'Recoleta',
-                                fontSize: 48,
-                                fontWeight: FontWeight.normal,
-                                color: Color(0xFF2E5E58),
-                                height: 1.0,
-                              ),
+                // Top Section (Tokens Card)
+                Container(
+                  color: beigeBg,
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      // Tokens Card
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 24, vertical: 20),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border:
+                              Border.all(color: AppColors.border, width: 1),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.03),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
                             ),
                           ],
                         ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Reward tokens',
+                              style: TextStyle(
+                                fontFamily: 'Afacad',
+                                fontSize: 16,
+                                color: AppColors.deepTeal,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            Row(
+                              children: [
+                                Image.asset(
+                                  'assets/images/coin.png',
+                                  width: 32,
+                                  height: 32,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  '0',
+                                  style: TextStyle(
+                                    fontFamily: 'Recoleta',
+                                    fontSize: 48,
+                                    fontWeight: FontWeight.normal,
+                                    color: AppColors.deepTeal,
+                                    height: 1.0,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Active / Past pill buttons
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          GestureDetector(
+                            onTap: () => setState(() => _selectedSubTab = 0),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 28, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: _selectedSubTab == 0
+                                    ? AppColors.deepTeal
+                                    : AppColors.surfaceLight,
+                                borderRadius: BorderRadius.circular(50),
+                                border: Border.all(
+                                  color: _selectedSubTab == 0
+                                      ? AppColors.deepTeal
+                                      : AppColors.border,
+                                  width: 1,
+                                ),
+                              ),
+                              child: Text(
+                                'Active',
+                                style: TextStyle(
+                                  fontFamily: 'Afacad',
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: _selectedSubTab == 0
+                                      ? Colors.white
+                                      : AppColors.deepTeal,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          GestureDetector(
+                            onTap: () => setState(() => _selectedSubTab = 1),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 28, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: _selectedSubTab == 1
+                                    ? AppColors.deepTeal
+                                    : AppColors.surfaceLight,
+                                borderRadius: BorderRadius.circular(50),
+                                border: Border.all(
+                                  color: _selectedSubTab == 1
+                                      ? AppColors.deepTeal
+                                      : AppColors.border,
+                                  width: 1,
+                                ),
+                              ),
+                              child: Text(
+                                'Past',
+                                style: TextStyle(
+                                  fontFamily: 'Afacad',
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: _selectedSubTab == 1
+                                      ? Colors.white
+                                      : AppColors.deepTeal,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+
+                Divider(height: 1, color: AppColors.border, thickness: 1),
+
+                // Content Area
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  child: _selectedSubTab == 0
+                      ? _buildActiveRewards()
+                      : _buildPastRewards(),
+                ),
+              ],
+            ),
+          ),
+          const OrderStatusBanner(),
+        ],
+      ),
+    );
+  }
+
+  final List<Map<String, dynamic>> _activeVouchers = [
+    {
+      'title': 'Buy 1 Free 1 Any Coffee',
+      'expiry': 'Use by 11.10.2026   09:52',
+      'code': 'C2-B1F1-2026',
+      'discount': '%',
+      'terms': 'Valid for any handcrafted C2 coffee beverage. Redeemable once at checkout.',
+    },
+    {
+      'title': 'RM 5 Off Handcrafted Drink',
+      'expiry': 'Use by 15.11.2026   23:59',
+      'code': 'C2-RM5-OFF',
+      'discount': 'RM5',
+      'terms': 'Applicable on any drink order above RM 12.00.',
+    },
+    {
+      'title': '10% Off Merchandise',
+      'expiry': 'Use by 31.12.2026   23:59',
+      'code': 'C2-10OFF-M',
+      'discount': '10%',
+      'terms': 'Valid for C2 official tumblers, cups, and merchandise items.',
+    },
+  ];
+
+  Widget _buildActiveRewards() {
+    return Column(
+      children: _activeVouchers.map((voucher) {
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: GestureDetector(
+            onTap: () => _showVoucherDetailsModal(voucher),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: AppColors.border,
+                  width: 1,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.03),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  ClipPath(
+                    clipper: TicketClipper(),
+                    child: Container(
+                      width: 54,
+                      height: 44,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: orangeColor,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        voucher['discount'] as String,
+                        style: TextStyle(
+                          fontFamily: 'Recoleta',
+                          fontSize:
+                              (voucher['discount'] as String).length > 2
+                                  ? 13
+                                  : 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          voucher['title'] as String,
+                          style: TextStyle(
+                            fontFamily: 'Afacad',
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.deepTeal,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          voucher['expiry'] as String,
+                          style: TextStyle(
+                            fontFamily: 'Afacad',
+                            fontSize: 12,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 20),
-
-                  // Active / Past pill buttons
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      GestureDetector(
-                        onTap: () => setState(() => _selectedSubTab = 0),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 28, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: _selectedSubTab == 0
-                                ? orangeColor
-                                : const Color(0xFFEDF4F3),
-                            borderRadius: BorderRadius.circular(50),
-                            border: Border.all(
-                              color: _selectedSubTab == 0
-                                  ? orangeColor
-                                  : const Color(0xFFCFDEDB),
-                              width: 1,
-                            ),
-                          ),
-                          child: Text(
-                            'Active',
-                            style: TextStyle(
-                              fontFamily: 'Afacad',
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: _selectedSubTab == 0
-                                  ? Colors.white
-                                  : orangeColor,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      GestureDetector(
-                        onTap: () => setState(() => _selectedSubTab = 1),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 28, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: _selectedSubTab == 1
-                                ? orangeColor
-                                : const Color(0xFFEDF4F3),
-                            borderRadius: BorderRadius.circular(50),
-                            border: Border.all(
-                              color: _selectedSubTab == 1
-                                  ? orangeColor
-                                  : const Color(0xFFCFDEDB),
-                              width: 1,
-                            ),
-                          ),
-                          child: Text(
-                            'Past',
-                            style: TextStyle(
-                              fontFamily: 'Afacad',
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: _selectedSubTab == 1
-                                  ? Colors.white
-                                  : orangeColor,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+                  Icon(
+                    Icons.arrow_forward_ios,
+                    size: 16,
+                    color: AppColors.deepTeal,
                   ),
                 ],
               ),
             ),
-
-            const Divider(height: 1, color: Color(0xFFEDF4F3), thickness: 1),
-
-            // Content Area
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              child: _selectedSubTab == 0
-                  ? _buildActiveRewards()
-                  : _buildPastRewards(),
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      }).toList(),
     );
   }
 
-  void _showTokensRules() {
+  void _showVoucherDetailsModal(Map<String, dynamic> voucher) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'C2 Tokens Rules',
-                  style: TextStyle(
-                    fontFamily: 'Recoleta',
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: EdgeInsets.only(
+            top: 24,
+            left: 24,
+            right: 24,
+            bottom: 24 + MediaQuery.paddingOf(context).bottom,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Handle
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-                GestureDetector(
-                  onTap: () => Navigator.pop(context),
-                  child:
-                      const Icon(Icons.close, size: 24, color: Colors.black54),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            _buildRuleItem('spent RM 1 = 1 token'),
-            const SizedBox(height: 16),
-            _buildRuleItem(
-                'Make at least ONE (1) token-earning order to extend your tokens validity by one year.'),
-            const SizedBox(height: 16),
-            _buildRuleItem(
-                'Daily check-ins and any non-order token accruals do not extend validity.'),
-            const SizedBox(height: 24),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRuleItem(String text) {
-    return Text(
-      text,
-      style: const TextStyle(
-        fontFamily: 'Afacad',
-        fontSize: 14,
-        color: Colors.black,
-        height: 1.4,
-        fontWeight: FontWeight.w500,
-      ),
-    );
-  }
-
-  Widget _buildActiveRewards() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: const Color(0xFFCFDEDB),
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        children: [
-          ClipPath(
-            clipper: TicketClipper(),
-            child: Container(
-              width: 50,
-              height: 40,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: orangeColor,
-                borderRadius: BorderRadius.circular(4),
               ),
-              child: const Text(
-                '%',
-                style: TextStyle(
-                  fontFamily: 'Recoleta',
-                  fontSize: 24,
+              const SizedBox(height: 20),
+              // Header title & badge
+              Row(
+                children: [
+                  ClipPath(
+                    clipper: TicketClipper(),
+                    child: Container(
+                      width: 50,
+                      height: 40,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: orangeColor,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        voucher['discount'] as String,
+                        style: TextStyle(
+                          fontFamily: 'Recoleta',
+                          fontSize:
+                              (voucher['discount'] as String).length > 2
+                                  ? 13
+                                  : 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          voucher['title'] as String,
+                          style: TextStyle(
+                            fontFamily: 'Recoleta',
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.deepTeal,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color:
+                                AppColors.deepTeal.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            'Active Voucher',
+                            style: TextStyle(
+                              fontFamily: 'Afacad',
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.deepTeal,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.grey),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              const Divider(),
+              const SizedBox(height: 16),
+              // Validity & Terms
+              Text(
+                voucher['expiry'] as String,
+                style: const TextStyle(
+                  fontFamily: 'Afacad',
+                  fontSize: 13,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                  color: Colors.black87,
                 ),
               ),
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Buy 1 Free 1',
-                  style: TextStyle(
-                    fontFamily: 'Afacad',
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF2E5E58),
-                  ),
+              const SizedBox(height: 8),
+              Text(
+                voucher['terms'] as String,
+                style: const TextStyle(
+                  fontFamily: 'Afacad',
+                  fontSize: 13,
+                  color: Colors.black54,
+                  height: 1.3,
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'Use by 11.10.2026   09:52',
-                  style: TextStyle(
-                    fontFamily: 'Afacad',
-                    fontSize: 12,
-                    color: Colors.grey.shade600,
-                  ),
-                ),
-              ],
-            ),
+              ),
+              const SizedBox(height: 12),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 

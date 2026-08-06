@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/app_colors.dart';
 
 class AboutUsPage extends StatelessWidget {
   const AboutUsPage({super.key});
@@ -12,35 +13,38 @@ class AboutUsPage extends StatelessWidget {
           // Header
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.only(top: 50, bottom: 12, left: 20, right: 20),
-            decoration: const BoxDecoration(
-              color: Color(0xFF2E5E58),
-              borderRadius: BorderRadius.only(
+            padding: EdgeInsets.only(
+                top: MediaQuery.paddingOf(context).top + 14,
+                bottom: 16,
+                left: 20,
+                right: 20),
+            decoration: BoxDecoration(
+              color: AppColors.deepTeal,
+              borderRadius: const BorderRadius.only(
                 bottomLeft: Radius.circular(20),
                 bottomRight: Radius.circular(20),
               ),
             ),
-            child: Row(
+            child: Stack(
+              alignment: Alignment.center,
               children: [
-                GestureDetector(
-                  onTap: () => Navigator.pop(context),
-                  child: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 20),
-                ),
-                const Expanded(
-                  child: Center(
-                    child: Text(
-                      'ABOUT US',
-                      style: TextStyle(
-                        fontFamily: 'Recoleta',
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        letterSpacing: 1.0,
-                      ),
-                    ),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 20),
                   ),
                 ),
-                const SizedBox(width: 20),
+                const Text(
+                  'ABOUT US',
+                  style: TextStyle(
+                    fontFamily: 'Recoleta',
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    letterSpacing: 1.0,
+                  ),
+                ),
               ],
             ),
           ),
@@ -49,8 +53,8 @@ class AboutUsPage extends StatelessWidget {
           Container(
             height: 140,
             width: 140,
-            decoration: const BoxDecoration(
-              color: Color(0xFF2E5E58),
+            decoration: BoxDecoration(
+              color: AppColors.deepTeal,
               shape: BoxShape.circle,
             ),
             padding: const EdgeInsets.all(24),
@@ -61,13 +65,13 @@ class AboutUsPage extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          const Text(
+          Text(
             'Sip The Calm',
             style: TextStyle(
               fontFamily: 'Recoleta',
               fontSize: 24,
               fontWeight: FontWeight.bold,
-              color: Color(0xFF2E5E58),
+              color: AppColors.deepTeal,
             ),
           ),
           const SizedBox(height: 24),

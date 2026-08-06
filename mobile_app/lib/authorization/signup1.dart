@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'signup2.dart';
 import 'login.dart';
+import 'auth_transition.dart';
 import '../services/user_service.dart';
 
 class Signup1 extends StatefulWidget {
@@ -46,6 +47,14 @@ class _Signup1State extends State<Signup1> {
     _emailController.addListener(_onFieldChanged);
     _phoneController.addListener(_onFieldChanged);
     _birthdayController.addListener(_onFieldChanged);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    precacheImage(const AssetImage('assets/images/FKP01925.jpg'), context);
+    precacheImage(const AssetImage('assets/images/dato.png'), context);
+    precacheImage(const AssetImage('assets/images/datin.png'), context);
   }
 
   void _onFieldChanged() => setState(() {});
@@ -703,13 +712,12 @@ class _Signup1State extends State<Signup1> {
 
                             Center(
                               child: GestureDetector(
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                        builder: (context) => const LoginPage()),
-                                  );
-                                },
+                                  onTap: () {
+                                    Navigator.pushReplacement(
+                                      context,
+                                      AuthPageRoute(page: const LoginPage()),
+                                    );
+                                  },
                                 child: RichText(
                                   text: const TextSpan(
                                     style: TextStyle(
@@ -751,8 +759,8 @@ class _Signup1State extends State<Signup1> {
                                         if (!context.mounted) return;
                                         Navigator.push(
                                           context,
-                                          MaterialPageRoute(
-                                            builder: (context) => Signup2(
+                                          AuthPageRoute(
+                                            page: Signup2(
                                               initialPickedImage: _pickedImage,
                                               initialPresetPath:
                                                   _presetAvatarPath,

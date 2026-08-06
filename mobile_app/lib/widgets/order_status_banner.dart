@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../utils/global_state.dart';
+import '../utils/app_colors.dart';
 import '../screens/order_status_detail_page.dart';
 
 class OrderStatusBanner extends StatefulWidget {
@@ -24,7 +25,7 @@ class _OrderStatusBannerState extends State<OrderStatusBanner>
   late Animation<Offset> _slideAnimation;
   late Animation<double> _fadeAnimation;
 
-  final Color orangeColor = const Color(0xFF2E5E58);
+  Color get orangeColor => AppColors.deepTeal;
 
   @override
   void initState() {
@@ -50,12 +51,6 @@ class _OrderStatusBannerState extends State<OrderStatusBanner>
     if (globalOrderStatusVisible.value) {
       _controller.forward();
     }
-
-    _controller.addStatusListener((status) {
-      if (mounted) {
-        setState(() {});
-      }
-    });
 
     globalOrderStatusVisible.addListener(_onGlobalStateChanged);
   }
@@ -134,19 +129,19 @@ class _OrderStatusBannerState extends State<OrderStatusBanner>
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             'Order being prepared',
                             style: TextStyle(
                               fontFamily: 'Recoleta',
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
-                              color: Color(0xFF2E5E58),
+                              color: AppColors.deepTeal,
                               height: 1.2,
                             ),
                           ),
                           Row(
-                            children: const [
-                              Text(
+                            children: [
+                              const Text(
                                 'Est. time: ',
                                 style: TextStyle(
                                   fontFamily: 'Afacad',
@@ -162,7 +157,7 @@ class _OrderStatusBannerState extends State<OrderStatusBanner>
                                   fontSize: 10,
                                   fontWeight: FontWeight.bold,
                                   fontStyle: FontStyle.italic,
-                                  color: Color(0xFF2E5E58),
+                                  color: AppColors.deepTeal,
                                   height: 1.2,
                                 ),
                               ),

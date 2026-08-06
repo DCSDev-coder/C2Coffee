@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../utils/app_colors.dart';
 
 class PosterPopup extends StatefulWidget {
   final VoidCallback? onClose;
@@ -14,6 +16,7 @@ class _PosterPopupState extends State<PosterPopup>
   late AnimationController _animationController;
   late Animation<double> _scaleAnimation;
   late Animation<double> _fadeAnimation;
+  bool _dontShowAgain = false;
 
   @override
   void initState() {
@@ -32,6 +35,21 @@ class _PosterPopupState extends State<PosterPopup>
     );
 
     _animationController.forward();
+    _loadDontShowAgainState();
+  }
+
+  Future<void> _loadDontShowAgainState() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        _dontShowAgain = prefs.getBool('hide_menu_ad_popup') ?? false;
+      });
+    }
+  }
+
+  Future<void> _saveDontShowAgainState(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('hide_menu_ad_popup', value);
   }
 
   @override
@@ -71,7 +89,6 @@ class _PosterPopupState extends State<PosterPopup>
                       width: MediaQuery.of(context).size.width * 0.85,
                       constraints: const BoxConstraints(maxWidth: 400),
                       decoration: BoxDecoration(
-                        color: Colors.white,
                         borderRadius: BorderRadius.circular(24),
                         boxShadow: [
                           BoxShadow(
@@ -81,13 +98,13 @@ class _PosterPopupState extends State<PosterPopup>
                           ),
                         ],
                       ),
-                      child: Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          // Poster image
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(24),
-                            child: Image.asset(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(24),
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            // Poster image
+                            Image.asset(
                               'assets/images/poster.jpg',
                               width: double.infinity,
                               fit: BoxFit.cover,
@@ -119,38 +136,98 @@ class _PosterPopupState extends State<PosterPopup>
                                 );
                               },
                             ),
-                          ),
-                          // Close button
-                          Positioned(
-                            top: 12,
-                            right: 12,
-                            child: GestureDetector(
-                              onTap: _closePopup,
-                              child: Container(
-                                width: 36,
-                                height: 36,
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF2E5E58)
-                                      .withValues(alpha: 0.85),
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color:
-                                          Colors.black.withValues(alpha: 0.25),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ],
-                                ),
-                                child: const Icon(
-                                  Icons.close,
-                                  color: Colors.white,
-                                  size: 18,
+                            // Close button on top right
+                            Positioned(
+                              top: 12,
+                              right: 12,
+                              child: GestureDetector(
+                                onTap: _closePopup,
+                                child: Container(
+                                  width: 36,
+                                  height: 36,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.deepTeal
+                                        .withValues(alpha: 0.85),
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black
+                                            .withValues(alpha: 0.25),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: const Icon(
+                                    Icons.close,
+                                    color: Colors.white,
+                                    size: 18,
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                        ],
+                            // "Don't show again" overlay on bottom left
+                            Positioned(
+                              bottom: 12,
+                              left: 12,
+                              child: GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: () {
+                                  final newVal = !_dontShowAgain;
+                                  setState(() {
+                                    _dontShowAgain = newVal;
+                                  });
+                                  _saveDontShowAgainState(newVal);
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 10, vertical: 5),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withValues(alpha: 0.45),
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: Checkbox(
+                                          value: _dontShowAgain,
+                                          activeColor: AppColors.deepTeal,
+                                          checkColor: Colors.white,
+                                          side: const BorderSide(
+                                              color: Colors.white, width: 1.5),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(4),
+                                          ),
+                                          onChanged: (bool? val) {
+                                            final newVal = val ?? false;
+                                            setState(() {
+                                              _dontShowAgain = newVal;
+                                            });
+                                            _saveDontShowAgainState(newVal);
+                                          },
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      const Text(
+                                        "Don't show again",
+                                        style: TextStyle(
+                                          fontFamily: 'Afacad',
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),

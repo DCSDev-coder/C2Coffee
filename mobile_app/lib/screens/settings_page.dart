@@ -1,11 +1,10 @@
 import 'dart:io';
-import 'package:c2_coffee/screens/splash_screen.dart';
 import 'package:flutter/material.dart';
+import 'loading_order_page.dart';
+import 'splash_screen.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import '../services/user_service.dart';
-import 'loading_order_page.dart';
-import 'profile_page.dart';
 import 'privacy_policy_page.dart';
 import 'terms_of_use_page.dart';
 import 'about_us_page.dart';
@@ -22,7 +21,7 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  final Color orangeColor = const Color(0xFF2E5E58);
+  Color get orangeColor => AppColors.deepTeal;
   final Color bgColor = Colors.white;
 
   File? _pickedImage;
@@ -142,8 +141,7 @@ class _SettingsPageState extends State<SettingsPage> {
                             width: 80,
                             height: 80,
                             decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: orangeColor),
+                                shape: BoxShape.circle, color: orangeColor),
                             child:
                                 Image.asset(option['path'], fit: BoxFit.cover),
                           ),
@@ -221,72 +219,67 @@ class _SettingsPageState extends State<SettingsPage> {
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 12),
         child: Row(
+          crossAxisAlignment:
+              isAddress ? CrossAxisAlignment.start : CrossAxisAlignment.center,
           children: [
-            Text(label,
+            SizedBox(
+              width: 110,
+              child: Text(
+                label,
                 style: const TextStyle(
-                    fontFamily: 'Afacad', fontSize: 15, color: Colors.grey)),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Expanded(
-                    child: Text(
-                      value.isNotEmpty ? value : '-',
-                      style: const TextStyle(
-                          fontFamily: 'Afacad',
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87),
-                      textAlign: TextAlign.right,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  if (isAddress)
-                    Icon(Icons.edit, size: 16, color: orangeColor)
-                  else
-                    const Icon(Icons.chevron_right,
-                        size: 18, color: Colors.grey),
-                ],
+                  fontFamily: 'Afacad',
+                  fontSize: 16,
+                  color: Colors.grey,
+                ),
               ),
             ),
+            Expanded(
+              child: Text(
+                value.isEmpty ? 'Not set' : value,
+                textAlign: TextAlign.right,
+                style: TextStyle(
+                  fontFamily: 'Afacad',
+                  fontSize: 16,
+                  color: value.isEmpty ? Colors.grey : Colors.black87,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
           ],
         ),
       ),
     );
   }
 
-  Future<void> _showEditDialog(
-      String label, String key, String currentValue) async {
+  void _showEditDialog(String label, String key, String currentValue) async {
     if (key == 'gender') {
-      String? selectedGender = currentValue.isNotEmpty ? currentValue : null;
+      String selectedGender = currentValue.isEmpty ? 'Female' : currentValue;
       await showDialog(
         context: context,
         builder: (context) {
           return StatefulBuilder(
-            builder: (context, setState) {
+            builder: (context, setDialogState) {
               return AlertDialog(
-                title: Text('Edit $label',
+                title: Text('Select Gender',
                     style: const TextStyle(fontFamily: 'Recoleta')),
-                content: DropdownButton<String>(
-                  value:
-                      (selectedGender == 'Male' || selectedGender == 'Female')
-                          ? selectedGender
-                          : null,
-                  isExpanded: true,
-                  hint: const Text('Select Gender'),
-                  items: ['Male', 'Female'].map((String value) {
-                    return DropdownMenuItem<String>(
-                      value: value,
-                      child: Text(value),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: ['Female', 'Male'].map((gender) {
+                    return RadioListTile<String>(
+                      title: Text(gender,
+                          style: const TextStyle(fontFamily: 'Afacad')),
+                      value: gender,
+                      groupValue: selectedGender,
+                      activeColor: AppColors.deepTeal,
+                      onChanged: (val) {
+                        setDialogState(() {
+                          selectedGender = val!;
+                        });
+                      },
                     );
                   }).toList(),
-                  onChanged: (newValue) {
-                    setState(() {
-                      selectedGender = newValue;
-                    });
-                  },
                 ),
                 actions: [
                   TextButton(
@@ -296,16 +289,145 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                   TextButton(
                     onPressed: () async {
-                      if (selectedGender != null) {
-                        await UserService.saveUserProfile(
-                            {key: selectedGender!});
+                      await UserService.saveUserProfile({key: selectedGender});
+                      _loadUserData();
+                      widget.onProfileUpdated?.call();
+                      if (context.mounted) Navigator.pop(context);
+                    },
+                    child: Text('Save',
+                        style: TextStyle(color: AppColors.deepTeal)),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      );
+    } else if (key == 'address') {
+      String street = '';
+      String city = '';
+      String postcode = '';
+      String stateVal = '';
+
+      if (currentValue.isNotEmpty) {
+        List<String> parts = currentValue.split(', ');
+        if (parts.isNotEmpty) street = parts[0];
+        if (parts.length > 1) {
+          List<String> pcCity = parts[1].split(' ');
+          if (pcCity.length > 1) {
+            postcode = pcCity[0];
+            city = pcCity.sublist(1).join(' ');
+          } else {
+            city = parts[1];
+          }
+        }
+        if (parts.length > 2) stateVal = parts[2];
+      }
+
+      TextEditingController streetController =
+          TextEditingController(text: street);
+      TextEditingController cityController = TextEditingController(text: city);
+      TextEditingController postcodeController =
+          TextEditingController(text: postcode);
+      TextEditingController stateController =
+          TextEditingController(text: stateVal);
+
+      final formKey = GlobalKey<FormState>();
+
+      await showDialog(
+        context: context,
+        builder: (context) {
+          return StatefulBuilder(
+            builder: (context, setDialogState) {
+              return AlertDialog(
+                title: const Text('Edit Address',
+                    style: TextStyle(fontFamily: 'Recoleta')),
+                content: SingleChildScrollView(
+                  child: Form(
+                    key: formKey,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TextFormField(
+                          controller: streetController,
+                          decoration: InputDecoration(
+                            labelText: 'Street Address',
+                            focusedBorder: UnderlineInputBorder(
+                                borderSide: BorderSide(color: AppColors.deepTeal)),
+                          ),
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Please enter street address';
+                            }
+                            return null;
+                          },
+                        ),
+                        TextFormField(
+                          controller: cityController,
+                          decoration: InputDecoration(
+                            labelText: 'City',
+                            focusedBorder: UnderlineInputBorder(
+                                borderSide: BorderSide(color: AppColors.deepTeal)),
+                          ),
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Please enter city';
+                            }
+                            return null;
+                          },
+                        ),
+                        TextFormField(
+                          controller: postcodeController,
+                          keyboardType: TextInputType.number,
+                          decoration: InputDecoration(
+                            labelText: 'Postcode',
+                            focusedBorder: UnderlineInputBorder(
+                                borderSide: BorderSide(color: AppColors.deepTeal)),
+                          ),
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Please enter postcode';
+                            }
+                            return null;
+                          },
+                        ),
+                        TextFormField(
+                          controller: stateController,
+                          decoration: InputDecoration(
+                            labelText: 'State',
+                            focusedBorder: UnderlineInputBorder(
+                                borderSide: BorderSide(color: AppColors.deepTeal)),
+                          ),
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Please enter state';
+                            }
+                            return null;
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Cancel',
+                        style: TextStyle(color: Colors.grey)),
+                  ),
+                  TextButton(
+                    onPressed: () async {
+                      if (formKey.currentState!.validate()) {
+                        String fullAddress =
+                            '${streetController.text.trim()}, ${postcodeController.text.trim()} ${cityController.text.trim()}, ${stateController.text.trim()}';
+                        await UserService.saveUserProfile({key: fullAddress});
                         _loadUserData();
                         widget.onProfileUpdated?.call();
                         if (context.mounted) Navigator.pop(context);
                       }
                     },
-                    child: const Text('Save',
-                        style: TextStyle(color: Color(0xFF2E5E58))),
+                    child: Text('Save',
+                        style: TextStyle(color: AppColors.deepTeal)),
                   ),
                 ],
               );
@@ -322,14 +444,14 @@ class _SettingsPageState extends State<SettingsPage> {
         builder: (context, child) {
           return Theme(
             data: Theme.of(context).copyWith(
-              colorScheme: const ColorScheme.light(
-                primary: Color(0xFF2E5E58), // header background color
+              colorScheme: ColorScheme.light(
+                primary: AppColors.deepTeal, // header background color
                 onPrimary: Colors.white, // header text color
                 onSurface: Colors.black, // body text color
               ),
               textButtonTheme: TextButtonThemeData(
                 style: TextButton.styleFrom(
-                  foregroundColor: const Color(0xFF2E5E58), // button text color
+                  foregroundColor: AppColors.deepTeal, // button text color
                 ),
               ),
             ),
@@ -356,8 +478,8 @@ class _SettingsPageState extends State<SettingsPage> {
               controller: controller,
               decoration: InputDecoration(
                 hintText: 'Enter $label',
-                focusedBorder: const UnderlineInputBorder(
-                    borderSide: BorderSide(color: Color(0xFF2E5E58))),
+                focusedBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: AppColors.deepTeal)),
               ),
             ),
             actions: [
@@ -374,8 +496,8 @@ class _SettingsPageState extends State<SettingsPage> {
                   widget.onProfileUpdated?.call();
                   if (context.mounted) Navigator.pop(context);
                 },
-                child: const Text('Save',
-                    style: TextStyle(color: Color(0xFF2E5E58))),
+                child: Text('Save',
+                    style: TextStyle(color: AppColors.deepTeal)),
               ),
             ],
           );
@@ -387,15 +509,7 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, result) {
-        if (didPop) return;
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-              builder: (context) => const InteractiveFillingLoader()),
-        );
-      },
+      canPop: true,
       child: Scaffold(
         backgroundColor: bgColor,
         body: Stack(
@@ -405,11 +519,14 @@ class _SettingsPageState extends State<SettingsPage> {
                 // Header
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.only(
-                      top: 50, bottom: 12, left: 20, right: 20),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF2E5E58),
-                    borderRadius: BorderRadius.only(
+                  padding: EdgeInsets.only(
+                      top: MediaQuery.paddingOf(context).top + 14,
+                      bottom: 16,
+                      left: 20,
+                      right: 20),
+                  decoration: BoxDecoration(
+                    color: AppColors.deepTeal,
+                    borderRadius: const BorderRadius.only(
                       bottomLeft: Radius.circular(20),
                       bottomRight: Radius.circular(20),
                     ),
@@ -417,17 +534,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   child: Row(
                     children: [
                       GestureDetector(
-                        onTap: () {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => InteractiveFillingLoader(
-                                targetPage:
-                                    widget.returnPage ?? const ProfilePage(),
-                              ),
-                            ),
-                          );
-                        },
+                        onTap: () => InteractiveFillingLoader.showPop(context),
                         child: const Icon(Icons.arrow_back_ios,
                             color: Colors.white, size: 20),
                       ),
@@ -473,7 +580,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                 color: Colors.white,
                                 borderRadius: BorderRadius.circular(20),
                                 border: Border.all(
-                                  color: const Color(0xFFCFDEDB),
+                                  color: AppColors.border,
                                   width: 1,
                                 ),
                                 boxShadow: [
@@ -528,14 +635,14 @@ class _SettingsPageState extends State<SettingsPage> {
                             const SizedBox(height: 24),
 
                             // Settings Text
-                            const Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 20),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 20),
                               child: Text('Settings',
                                   style: TextStyle(
                                       fontFamily: 'Recoleta',
                                       fontSize: 18,
                                       fontWeight: FontWeight.bold,
-                                      color: Color(0xFF2E5E58))),
+                                      color: AppColors.deepTeal)),
                             ),
 
                             const SizedBox(height: 12),
@@ -550,7 +657,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                 color: Colors.white,
                                 borderRadius: BorderRadius.circular(20),
                                 border: Border.all(
-                                  color: const Color(0xFFCFDEDB),
+                                  color: AppColors.border,
                                   width: 1,
                                 ),
                                 boxShadow: [
@@ -593,7 +700,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                 color: Colors.white,
                                 borderRadius: BorderRadius.circular(20),
                                 border: Border.all(
-                                  color: const Color(0xFFCFDEDB),
+                                  color: AppColors.border,
                                   width: 1,
                                 ),
                                 boxShadow: [
@@ -671,7 +778,7 @@ class _SettingsPageState extends State<SettingsPage> {
                               ),
                             ),
 
-                            const SizedBox(height: 40),
+                            const SizedBox(height: 14),
 
                             // Log Out Button
                             GestureDetector(
@@ -689,12 +796,12 @@ class _SettingsPageState extends State<SettingsPage> {
                                 margin:
                                     const EdgeInsets.symmetric(horizontal: 20),
                                 padding: const EdgeInsets.symmetric(
-                                    vertical: 16, horizontal: 20),
+                                    vertical: 12, horizontal: 20),
                                 decoration: BoxDecoration(
                                   color: Colors.white,
-                                  borderRadius: BorderRadius.circular(20),
+                                  borderRadius: BorderRadius.circular(16),
                                   border: Border.all(
-                                    color: const Color(0xFFCFDEDB),
+                                    color: AppColors.border,
                                     width: 1,
                                   ),
                                   boxShadow: [
@@ -705,23 +812,22 @@ class _SettingsPageState extends State<SettingsPage> {
                                         offset: const Offset(0, 2))
                                   ],
                                 ),
-                                child: const Row(
+                                child: Row(
                                   children: [
                                     Icon(Icons.logout,
-                                        size: 24,
-                                        color: AppColors.terracotta),
-                                    SizedBox(width: 16),
+                                        size: 28, color: AppColors.terracotta),
+                                    const SizedBox(width: 16),
                                     Text('Log Out',
                                         style: TextStyle(
                                             fontFamily: 'Recoleta',
-                                            fontSize: 18,
+                                            fontSize: 20,
                                             fontWeight: FontWeight.bold,
                                             color: AppColors.terracotta)),
                                   ],
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 40),
+                            const SizedBox(height: 20),
                           ],
                         ),
                         // Overlapping Avatar (now scrolls with content)

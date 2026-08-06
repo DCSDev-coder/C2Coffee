@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import '../utils/app_colors.dart';
 
 enum ConfettiShape { rectangle, circle, ribbon }
 
@@ -55,15 +56,15 @@ class _ConfettiWidgetState extends State<ConfettiWidget>
   final List<ConfettiParticle> _particles = [];
   final Random _random = Random();
 
-  final List<Color> _colors = const [
-    Color(0xFF2E5E58), // C2 Forest Green
-    Color(0xFFFFB300), // Golden Amber
-    Color(0xFFFFD54F), // Bright Yellow
-    Color(0xFFFF7043), // Coral
-    Color(0xFF4CAF50), // Fresh Green
-    Color(0xFF26A69A), // Teal
-    Color(0xFFAB47BC), // Purple
-    Color(0xFFE91E63), // Pink
+  List<Color> get _colors => [
+    AppColors.deepTeal, // Brand Green / Teal
+    const Color(0xFFFFB300), // Golden Amber
+    const Color(0xFFFFD54F), // Bright Yellow
+    const Color(0xFFFF7043), // Coral
+    const Color(0xFF4CAF50), // Fresh Green
+    const Color(0xFF26A69A), // Teal
+    const Color(0xFFAB47BC), // Purple
+    const Color(0xFFE91E63), // Pink
   ];
 
   @override

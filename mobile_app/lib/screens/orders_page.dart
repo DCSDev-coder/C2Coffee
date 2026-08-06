@@ -1,14 +1,14 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import '../widgets/custom_bottom_nav.dart';
 import 'home_page.dart';
 import 'menu_page.dart';
-import 'loading_order_page.dart';
-import 'order_details_page.dart';
 import 'profile_page.dart';
 import 'rewards_page.dart';
-import '../utils/app_colors.dart';
+import 'loading_order_page.dart';
+import 'dart:io';
+import 'order_details_page.dart';
 import '../widgets/order_status_banner.dart';
+import '../utils/app_colors.dart';
 
 class OrdersPage extends StatefulWidget {
   final File? initialPickedImage;
@@ -31,7 +31,7 @@ class OrdersPage extends StatefulWidget {
 class _OrdersPageState extends State<OrdersPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  final Color orangeColor = const Color(0xFF2E5E58);
+  Color get orangeColor => AppColors.deepTeal;
   final Color bgColor = Colors.white;
 
   final List<Map<String, dynamic>> _purchaseHistory = [
@@ -65,7 +65,7 @@ class _OrdersPageState extends State<OrdersPage>
     _tabController = TabController(
       length: 2,
       vsync: this,
-      initialIndex: widget.initialTabIndex.clamp(0, 1),
+      initialIndex: widget.initialTabIndex,
     );
   }
 
@@ -76,7 +76,7 @@ class _OrdersPageState extends State<OrdersPage>
   }
 
   void _onBottomNavTapped(int index) {
-    if (index == 2) return; // Already on Orders page
+    if (index == 2) return;
 
     Widget target;
     switch (index) {
@@ -108,35 +108,13 @@ class _OrdersPageState extends State<OrdersPage>
         return;
     }
 
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(
-        builder: (context) => InteractiveFillingLoader(targetPage: target),
-      ),
-      (route) => false,
-    );
+    InteractiveFillingLoader.show(context, targetPage: target);
   }
 
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, result) {
-        if (didPop) return;
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(
-            builder: (context) => InteractiveFillingLoader(
-              targetPage: HomePage(
-                initialPickedImage: widget.initialPickedImage,
-                initialPresetPath: widget.initialPresetPath,
-                initialAvatarIndex: widget.initialAvatarIndex,
-              ),
-            ),
-          ),
-          (route) => false,
-        );
-      },
+      canPop: true,
       child: Scaffold(
         backgroundColor: bgColor,
         extendBody: true,
@@ -150,50 +128,41 @@ class _OrdersPageState extends State<OrdersPage>
               children: [
                 // Header
                 Container(
-                  padding: const EdgeInsets.only(
-                      top: 50, bottom: 12, left: 20, right: 20),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF2E5E58),
-                    borderRadius: BorderRadius.only(
+                  width: double.infinity,
+                  padding: EdgeInsets.only(
+                      top: MediaQuery.paddingOf(context).top + 14,
+                      bottom: 16,
+                      left: 20,
+                      right: 20),
+                  decoration: BoxDecoration(
+                    color: AppColors.deepTeal,
+                    borderRadius: const BorderRadius.only(
                       bottomLeft: Radius.circular(20),
                       bottomRight: Radius.circular(20),
                     ),
                   ),
-                  child: Row(
+                  child: Stack(
+                    alignment: Alignment.center,
                     children: [
-                      GestureDetector(
-                        onTap: () {
-                          Navigator.pushAndRemoveUntil(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => InteractiveFillingLoader(
-                                  targetPage: HomePage(
-                                initialPickedImage: widget.initialPickedImage,
-                                initialPresetPath: widget.initialPresetPath,
-                                initialAvatarIndex: widget.initialAvatarIndex,
-                              )),
-                            ),
-                            (route) => false,
-                          );
-                        },
-                        child: const Icon(Icons.arrow_back_ios,
-                            color: Colors.white, size: 20),
-                      ),
-                      const Expanded(
-                        child: Center(
-                          child: Text(
-                            'MY ORDER',
-                            style: TextStyle(
-                              fontFamily: 'Recoleta',
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                              letterSpacing: 1.0,
-                            ),
-                          ),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: GestureDetector(
+                          onTap: () =>
+                              InteractiveFillingLoader.showPop(context),
+                          child: const Icon(Icons.arrow_back_ios,
+                              color: Colors.white, size: 20),
                         ),
                       ),
-                      const SizedBox(width: 20), // Balance the back button
+                      const Text(
+                        'MY ORDER',
+                        style: TextStyle(
+                          fontFamily: 'Recoleta',
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          letterSpacing: 1.0,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -325,24 +294,22 @@ class _OrdersPageState extends State<OrdersPage>
   Widget _buildStoreOrderCard() {
     return GestureDetector(
       onTap: () {
-        Navigator.push(
+        InteractiveFillingLoader.show(
           context,
-          MaterialPageRoute(
-            builder: (context) => OrderDetailsPage(
-              item: {
-                'name': 'Mont Broga',
-                'price': 'RM 16.90',
-                'image': 'assets/images/drinks/SHAKERATO BIANCO.png',
-                'status': 'Finished',
-                'id': 'store-1',
-                'date': '29/04',
-                'time': '16:04',
-                'quantity': 1,
-                'details':
-                    'Dato Blend / Hot / Fresh Milk /\nReg. Sweet / Reg. Ice /\nTake Away',
-                'remarks': 'None',
-              },
-            ),
+          targetPage: OrderDetailsPage(
+            item: {
+              'name': 'Mont Broga',
+              'price': AppColors.formatDiscountedPrice('RM 16.90', isDrink: true),
+              'image': 'assets/images/drinks/SHAKERATO BIANCO.png',
+              'status': 'Finished',
+              'id': 'store-1',
+              'date': '29/04',
+              'time': '16:04',
+              'quantity': 1,
+              'details':
+                  'Dato Blend / Hot / Fresh Milk /\nReg. Sweet / Reg. Ice /\nTake Away',
+              'remarks': 'None',
+            },
           ),
         );
       },
@@ -352,7 +319,7 @@ class _OrdersPageState extends State<OrdersPage>
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: const Color(0xFFCFDEDB),
+            color: AppColors.border,
             width: 1,
           ),
           boxShadow: [
@@ -369,7 +336,7 @@ class _OrdersPageState extends State<OrdersPage>
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
+                Text(
                   'Pickup',
                   style: TextStyle(
                     fontFamily: 'Recoleta',
@@ -382,16 +349,16 @@ class _OrdersPageState extends State<OrdersPage>
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: AppColors.terracotta.withValues(alpha: 0.12),
+                    color: AppColors.accent.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Text(
+                  child: Text(
                     'Finished',
                     style: TextStyle(
                       fontFamily: 'Afacad',
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.terracotta,
+                      color: AppColors.accent,
                     ),
                   ),
                 ),
@@ -415,7 +382,7 @@ class _OrdersPageState extends State<OrdersPage>
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text(
+                          Text(
                             'Mont Broga',
                             style: TextStyle(
                               fontFamily: 'Recoleta',
@@ -424,7 +391,7 @@ class _OrdersPageState extends State<OrdersPage>
                               color: AppColors.deepTeal,
                             ),
                           ),
-                          const Text(
+                          Text(
                             'x1',
                             style: TextStyle(
                               fontFamily: 'Afacad',
@@ -436,7 +403,7 @@ class _OrdersPageState extends State<OrdersPage>
                         ],
                       ),
                       const SizedBox(height: 4),
-                      const Text(
+                      Text(
                         'Dato Blend / Hot / Fresh Milk /\nReg. Sweet / Reg. Ice /\nTake Away',
                         style: TextStyle(
                           fontFamily: 'Afacad',
@@ -465,7 +432,7 @@ class _OrdersPageState extends State<OrdersPage>
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 RichText(
-                  text: const TextSpan(
+                  text: TextSpan(
                     text: 'RM ',
                     style: TextStyle(
                       fontFamily: 'Afacad',
@@ -475,8 +442,9 @@ class _OrdersPageState extends State<OrdersPage>
                     ),
                     children: [
                       TextSpan(
-                        text: '16.90',
-                        style: TextStyle(
+                        text: AppColors.getDiscountedDrinkPrice(16.90)
+                            .toStringAsFixed(2),
+                        style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
@@ -499,7 +467,7 @@ class _OrdersPageState extends State<OrdersPage>
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: const Color(0xFFCFDEDB),
+          color: AppColors.border,
           width: 1,
         ),
         boxShadow: [
@@ -538,20 +506,20 @@ class _OrdersPageState extends State<OrdersPage>
                   children: [
                     Text(
                       item['name'],
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: 'Recoleta',
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFF2E5E58),
+                        color: AppColors.deepTeal,
                       ),
                     ),
                     Text(
                       'x${item['quantity']}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: 'Afacad',
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFF2E5E58),
+                        color: AppColors.deepTeal,
                       ),
                     ),
                   ],
