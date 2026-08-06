@@ -13,7 +13,9 @@ import 'settings_page.dart';
 import 'referral_page.dart';
 import 'menu_page.dart';
 import 'rewards_page.dart';
+import '../utils/app_colors.dart';
 import '../widgets/order_status_banner.dart';
+import '../widgets/poster_popup.dart'; // Add this import
 
 class HomePage extends StatefulWidget {
   final File? initialPickedImage;
@@ -34,6 +36,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   File? _persistedPickedImage;
   String? _persistedPresetPath;
+  bool _hasShownPoster = false; // Add this
 
   final PageController _pageController = PageController();
   Timer? _carouselTimer;
@@ -66,6 +69,20 @@ class _HomePageState extends State<HomePage> {
         );
       }
     });
+
+    // Show poster popup after a short delay when home page loads
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _showPosterIfNeeded();
+    });
+  }
+
+  void _showPosterIfNeeded() {
+    // Only show the poster once
+    if (!_hasShownPoster && mounted) {
+      _hasShownPoster = true;
+      // Show the poster popup
+      showPosterPopup(context);
+    }
   }
 
   @override
@@ -76,14 +93,12 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _loadAvatarState() async {
-    // If we have explicit incoming arguments (e.g. from sign up/login), save them to persist
     if (widget.initialPickedImage != null || widget.initialPresetPath != null) {
       await UserService.saveAvatar(
           presetPath: widget.initialPresetPath,
           pickedImagePath: widget.initialPickedImage?.path);
     }
 
-    // Load from persisted storage to be sure
     final avatarData = await UserService.getAvatar();
     final profileData = await UserService.getUserProfile();
     setState(() {
@@ -155,14 +170,11 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    const Color orangeColor = Color(0xFFE66B00); // Bright orange from the image
-    const Color darkBrownColor = Color(0xFF6B3A1A); // Dark brown for referral
-
     return Scaffold(
-      backgroundColor: const Color(0xFFFAF4EE),
+      backgroundColor: Colors.white,
       extendBody: true,
       bottomNavigationBar: CustomBottomNav(
-        selectedIndex: 0, // Home is index 0
+        selectedIndex: 0,
         onItemTapped: _onBottomNavTapped,
       ),
       body: Stack(
@@ -170,43 +182,40 @@ class _HomePageState extends State<HomePage> {
           SafeArea(
             bottom: false,
             child: SingleChildScrollView(
-              padding: const EdgeInsets.only(
-                  bottom:
-                      220), // Increased space for bottom bar and status banner
+              padding: const EdgeInsets.only(bottom: 220),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const SizedBox(height: 16),
-                  _buildHeader(orangeColor),
+                  _buildHeader(),
                   const SizedBox(height: 16),
                   AspectRatio(
                     aspectRatio: 1.0,
                     child: _buildHeroBanner(),
                   ),
                   const SizedBox(height: 16),
-                  _buildActionButtons(orangeColor, darkBrownColor),
+                  _buildActionButtons(),
                   const SizedBox(height: 16),
-                  _buildBestSellerSection(orangeColor),
+                  _buildBestSellerSection(),
                 ],
               ),
             ),
           ),
-          const OrderStatusBanner(),
+          OrderStatusBanner(
+              bottomOffset: 90 + MediaQuery.paddingOf(context).bottom),
         ],
       ),
     );
   }
 
-  Widget _buildHeader(Color orangeColor) {
+  Widget _buildHeader() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // Left side: Logo and Greeting
           Row(
             children: [
-              // Avatar
               GestureDetector(
                 onTap: () async {
                   Navigator.push(
@@ -225,8 +234,8 @@ class _HomePageState extends State<HomePage> {
                   decoration: BoxDecoration(
                     color: _persistedPickedImage == null &&
                             _persistedPresetPath != null
-                        ? const Color(0xFFE76D00)
-                        : orangeColor,
+                        ? AppColors.deepTeal
+                        : AppColors.deepTeal,
                     shape: BoxShape.circle,
                   ),
                   alignment: Alignment.center,
@@ -246,7 +255,6 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
               const SizedBox(width: 12),
-              // Greeting Text
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -270,7 +278,7 @@ class _HomePageState extends State<HomePage> {
                       fontFamily: 'Recoleta',
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF5A3118),
+                      color: AppColors.deepTeal,
                       height: 1.0,
                     ),
                   ),
@@ -278,8 +286,6 @@ class _HomePageState extends State<HomePage> {
               ),
             ],
           ),
-
-          // Right side: Wallet and Bell
           Row(
             children: [
               GestureDetector(
@@ -297,23 +303,27 @@ class _HomePageState extends State<HomePage> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: orangeColor,
+                    color: const Color(0xFFFAF7F2),
                     borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: AppColors.softGold.withValues(alpha: 0.45),
+                      width: 1.2,
+                    ),
                   ),
                   child: Row(
                     children: [
                       const Icon(
                         Icons.account_balance_wallet_outlined,
-                        color: Colors.white,
+                        color: AppColors.softGold,
                         size: 18,
                       ),
                       const SizedBox(width: 6),
                       const Text(
-                        'RM0.00',
+                        '0 points',
                         style: TextStyle(
                           fontFamily: 'Afacad',
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: AppColors.charcoal,
                           fontSize: 14,
                         ),
                       ),
@@ -333,10 +343,27 @@ class _HomePageState extends State<HomePage> {
                     ),
                   );
                 },
-                child: const Icon(
-                  Icons.notifications,
-                  color: Colors.black87,
-                  size: 26,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    const Icon(
+                      Icons.notifications_outlined,
+                      color: AppColors.deepTeal,
+                      size: 26,
+                    ),
+                    Positioned(
+                      right: 1,
+                      top: 1,
+                      child: Container(
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(
+                          color: AppColors.terracotta,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -365,12 +392,10 @@ class _HomePageState extends State<HomePage> {
                 return Image.asset(
                   _banners[index],
                   width: double.infinity,
-                  fit: BoxFit
-                      .cover, // Ensures image reaches corners to get rounded edges
+                  fit: BoxFit.cover,
                 );
               },
             ),
-            // Indicator dots
             Positioned(
               bottom: 12,
               left: 0,
@@ -386,8 +411,8 @@ class _HomePageState extends State<HomePage> {
                     height: 8,
                     decoration: BoxDecoration(
                       color: _currentBannerIndex == index
-                          ? Colors.white
-                          : Colors.white.withValues(alpha: 0.5),
+                          ? AppColors.softGold
+                          : Colors.white.withValues(alpha: 0.6),
                       borderRadius: BorderRadius.circular(4),
                     ),
                   ),
@@ -400,7 +425,7 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildActionButtons(Color orangeColor, Color darkBrownColor) {
+  Widget _buildActionButtons() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
@@ -419,7 +444,7 @@ class _HomePageState extends State<HomePage> {
                 height: 80,
                 padding: const EdgeInsets.only(left: 20),
                 decoration: BoxDecoration(
-                  color: orangeColor,
+                  color: AppColors.deepTeal,
                   borderRadius: BorderRadius.circular(20),
                 ),
                 alignment: Alignment.centerLeft,
@@ -429,9 +454,9 @@ class _HomePageState extends State<HomePage> {
                   style: TextStyle(
                     fontFamily: 'Recoleta',
                     fontSize: 24,
-                    fontWeight: FontWeight.w900, // Extra bold
+                    fontWeight: FontWeight.w900,
                     color: Colors.white,
-                    height: 0.9, // Tighter line height
+                    height: 0.9,
                   ),
                 ),
               ),
@@ -454,8 +479,12 @@ class _HomePageState extends State<HomePage> {
                 height: 80,
                 padding: const EdgeInsets.only(left: 20),
                 decoration: BoxDecoration(
-                  color: darkBrownColor,
+                  color: AppColors.surfaceLight,
                   borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: AppColors.border,
+                    width: 1.5,
+                  ),
                 ),
                 alignment: Alignment.centerLeft,
                 child: const Text(
@@ -463,10 +492,10 @@ class _HomePageState extends State<HomePage> {
                   textAlign: TextAlign.left,
                   style: TextStyle(
                     fontFamily: 'Recoleta',
-                    fontSize: 22, // Slightly smaller to fit "REFERRAL"
-                    fontWeight: FontWeight.w900, // Extra bold
-                    color: Colors.white,
-                    height: 0.9, // Tighter line height
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.deepTeal,
+                    height: 0.9,
                   ),
                 ),
               ),
@@ -477,8 +506,8 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildBestSellerSection(Color orangeColor) {
-    final List<Map<String, dynamic>> bestSellers = [
+  Widget _buildBestSellerSection() {
+    final List<Map<String, dynamic>> bestSellerDrinks = [
       {
         'name': 'Shakerato Bianco',
         'price': 'RM 15.90',
@@ -493,7 +522,33 @@ class _HomePageState extends State<HomePage> {
         'name': 'Bloody Peach',
         'price': 'RM 15.90',
         'image': 'assets/images/drinks/BLOODY PEACH.png',
-        'scale': 1.0,
+      },
+    ];
+
+    final List<Map<String, dynamic>> bestSellerCandles = [
+      {
+        'name': 'Gunung Candle',
+        'price': 'RM 47.00',
+        'image': 'assets/images/candles/gunung.png',
+        'scale': 0.9,
+      },
+      {
+        'name': 'Crushed Lime & Seasalt',
+        'price': 'RM 47.00',
+        'image': 'assets/images/candles/crushed lime and seasalt.png',
+        'scale': 0.9,
+      },
+      {
+        'name': 'Fresh Sage & Driftwood',
+        'price': 'RM 47.00',
+        'image': 'assets/images/candles/fresh sage and driftwood.png',
+        'scale': 0.9,
+      },
+      {
+        'name': 'Tobacco Vanilla',
+        'price': 'RM 47.00',
+        'image': 'assets/images/candles/tobacco vanilla.png',
+        'scale': 0.9,
       },
     ];
 
@@ -506,12 +561,12 @@ class _HomePageState extends State<HomePage> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
-                'Best Seller',
+                'Best Seller Drink',
                 style: TextStyle(
                   fontFamily: 'Recoleta',
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
-                  color: Colors.black87,
+                  color: AppColors.deepTeal,
                 ),
               ),
               GestureDetector(
@@ -526,7 +581,7 @@ class _HomePageState extends State<HomePage> {
                     (route) => false,
                   );
                 },
-                child: Row(
+                child: const Row(
                   children: [
                     Text(
                       'See all',
@@ -534,100 +589,168 @@ class _HomePageState extends State<HomePage> {
                         fontFamily: 'Afacad',
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
-                        color: orangeColor,
+                        color: AppColors.deepTeal,
                       ),
                     ),
-                    const SizedBox(width: 4),
+                    SizedBox(width: 4),
                     Icon(
                       Icons.arrow_forward_rounded,
                       size: 16,
-                      color: orangeColor,
+                      color: AppColors.deepTeal,
                     ),
                   ],
                 ),
-              )
+              ),
             ],
           ),
         ),
         const SizedBox(height: 12),
-        SizedBox(
-          height: 220, // Increased to match new card height and fit text
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: bestSellers.length,
-            itemBuilder: (context, index) {
-              final item = bestSellers[index];
-              return Container(
-                width: 150, // Increased width
-                margin: const EdgeInsets.symmetric(horizontal: 6),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: const Color(0xFFC87023), width: 2),
+        _buildProductRow(bestSellerDrinks),
+        const SizedBox(height: 24),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Best Seller Candle',
+                style: TextStyle(
+                  fontFamily: 'Recoleta',
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.deepTeal,
                 ),
-                clipBehavior: Clip.antiAlias,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              ),
+              GestureDetector(
+                onTap: () {
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const InteractiveFillingLoader(
+                        targetPage: MenuPage(initialCategoryIndex: 10),
+                      ),
+                    ),
+                    (route) => false,
+                  );
+                },
+                child: const Row(
                   children: [
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.all(8.0),
-                        child: Center(
-                          child: Transform.scale(
-                            scale: item['scale'] as double? ?? 1.0,
-                            child: Image.asset(
-                              item['image'] as String,
-                              fit: BoxFit.contain,
-                            ),
+                    Text(
+                      'See all',
+                      style: TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.deepTeal,
+                      ),
+                    ),
+                    SizedBox(width: 4),
+                    Icon(
+                      Icons.arrow_forward_rounded,
+                      size: 16,
+                      color: AppColors.deepTeal,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        _buildProductRow(bestSellerCandles),
+        const SizedBox(height: 10),
+      ],
+    );
+  }
+
+  Widget _buildProductRow(List<Map<String, dynamic>> items) {
+    const double cardWidth = 155;
+    const double cardHeight = 210;
+
+    return SizedBox(
+      height: cardHeight,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: items.length,
+        itemBuilder: (context, index) {
+          final item = items[index];
+          return Container(
+            width: cardWidth,
+            margin: const EdgeInsets.symmetric(horizontal: 6),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.border, width: 1),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  flex: 7,
+                  child: Padding(
+                    padding: const EdgeInsets.only(
+                        top: 14, bottom: 8, left: 10, right: 10),
+                    child: Transform.scale(
+                      scale: item['scale'] as double? ?? 1.0,
+                      child: Image.asset(
+                        item['image'] as String,
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) =>
+                            const Center(
+                          child: Icon(
+                            Icons.image_outlined,
+                            size: 32,
+                            color: Colors.grey,
                           ),
                         ),
                       ),
                     ),
-                    Container(
-                      width: double.infinity,
-                      height: 1.5,
-                      color: const Color(0xFFC87023),
-                    ),
-                    Container(
-                      height: 56,
-                      padding:
-                          const EdgeInsets.only(left: 12, right: 12, top: 12),
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        item['name'] as String,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontFamily: 'Recoleta',
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black,
-                          height: 1.1,
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.only(
-                          left: 12, right: 12, bottom: 16, top: 12),
-                      child: Text(
-                        item['price']!,
-                        style: const TextStyle(
-                          fontFamily: 'Afacad',
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFFF1801C),
-                        ),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              );
-            },
-          ),
-        ),
-        const SizedBox(height: 10),
-      ],
+                SizedBox(
+                  height: 36,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: Text(
+                      item['name'] as String,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 14,
+                        fontWeight: FontWeight.w300,
+                        color: AppColors.charcoal,
+                        height: 1.2,
+                      ),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 14),
+                  child: Text(
+                    item['price'] as String,
+                    style: const TextStyle(
+                      fontFamily: 'Afacad',
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.deepTeal,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 }

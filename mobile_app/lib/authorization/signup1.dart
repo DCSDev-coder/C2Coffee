@@ -7,7 +7,6 @@ import 'package:intl_phone_field/countries.dart' as intl_countries;
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'signup2.dart';
-// Added this import to navigate to Login
 import 'login.dart';
 import '../services/user_service.dart';
 
@@ -18,6 +17,9 @@ class Signup1 extends StatefulWidget {
   State<Signup1> createState() => _Signup1State();
 }
 
+// Aliases for compatibility
+typedef Signup1Backup = Signup1;
+
 class _Signup1State extends State<Signup1> {
   final _formKey = GlobalKey<FormState>();
 
@@ -27,10 +29,10 @@ class _Signup1State extends State<Signup1> {
   final TextEditingController _birthdayController = TextEditingController();
 
   File? _pickedImage;
-  String? _presetAvatarPath = 'assets/images/dato.png';
+  String? _presetAvatarPath;
   DateTime? _selectedDate;
   bool _isPhoneValid = false;
-  int _selectedAvatarIndex = 0;
+  int _selectedAvatarIndex = -1;
 
   final List<Map<String, dynamic>> _avatarOptions = [
     {'path': 'assets/images/dato.png', 'name': 'Dato'},
@@ -118,7 +120,7 @@ class _Signup1State extends State<Signup1> {
                     offset: Offset(0, 4)),
               ],
               border: Border.all(
-                  color: const Color(0xFFE76D00).withValues(alpha: 0.2),
+                  color: const Color(0xFF1F3A34).withValues(alpha: 0.2),
                   width: 1),
             ),
             child: Padding(
@@ -133,15 +135,15 @@ class _Signup1State extends State<Signup1> {
                       child: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFE76D00).withValues(alpha: 0.1),
+                          color: const Color(0xFF1F3A34).withValues(alpha: 0.1),
                           shape: BoxShape.circle,
                           border: Border.all(
-                              color: const Color(0xFFE76D00)
+                              color: const Color(0xFF1F3A34)
                                   .withValues(alpha: 0.2),
                               width: 1),
                         ),
                         child: const Icon(Icons.close,
-                            color: Color(0xFFE76D00), size: 18),
+                            color: Color(0xFF1F3A34), size: 18),
                       ),
                     ),
                   ),
@@ -152,7 +154,7 @@ class _Signup1State extends State<Signup1> {
                         fontFamily: 'Recoleta',
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFFE76D00),
+                        color: Color(0xFF1F3A34),
                         letterSpacing: 0.5),
                   ),
                   const SizedBox(height: 8),
@@ -193,14 +195,14 @@ class _Signup1State extends State<Signup1> {
                                   shape: BoxShape.circle,
                                   border: Border.all(
                                     color: isSelected
-                                        ? const Color(0xFFE76D00)
+                                        ? const Color(0xFF1F3A34)
                                         : Colors.grey.shade300,
                                     width: isSelected ? 3 : 2,
                                   ),
                                   boxShadow: isSelected
                                       ? [
                                           BoxShadow(
-                                              color: const Color(0xFFE76D00)
+                                              color: const Color(0xFF1F3A34)
                                                   .withValues(alpha: 0.3),
                                               blurRadius: 8,
                                               offset: const Offset(0, 2))
@@ -209,7 +211,7 @@ class _Signup1State extends State<Signup1> {
                                 ),
                                 child: CircleAvatar(
                                   radius: 40,
-                                  backgroundColor: const Color(0xFFE76D00),
+                                  backgroundColor: const Color(0xFF1F3A34),
                                   backgroundImage:
                                       AssetImage(_avatarOptions[index]['path']),
                                 ),
@@ -230,7 +232,7 @@ class _Signup1State extends State<Signup1> {
                                   style: TextStyle(
                                       fontFamily: 'Afacad',
                                       fontSize: 14,
-                                      color: const Color(0xFFE76D00),
+                                      color: const Color(0xFF1F3A34),
                                       fontWeight: FontWeight.w600)),
                             ),
                             Expanded(
@@ -248,13 +250,13 @@ class _Signup1State extends State<Signup1> {
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             decoration: BoxDecoration(
                               gradient: const LinearGradient(colors: [
-                                Color(0xFFE76D00),
-                                Color(0xFFE76D00)
+                                Color(0xFF1F3A34),
+                                Color(0xFF1F3A34)
                               ]),
                               borderRadius: BorderRadius.circular(12),
                               boxShadow: [
                                 BoxShadow(
-                                    color: const Color(0xFFE76D00)
+                                    color: const Color(0xFF1F3A34)
                                         .withValues(alpha: 0.3),
                                     blurRadius: 8,
                                     offset: const Offset(0, 4))
@@ -343,7 +345,7 @@ class _Signup1State extends State<Signup1> {
                               fontFamily: 'Recoleta',
                               fontSize: 24,
                               fontWeight: FontWeight.bold,
-                              color: Color(0xFFE76D00))),
+                              color: Color(0xFF1F3A34))),
                       IconButton(
                         icon: const Icon(Icons.close, color: Colors.grey),
                         onPressed: () => Navigator.pop(context),
@@ -363,7 +365,7 @@ class _Signup1State extends State<Signup1> {
                             children: [
                               const Text('Year',
                                   style: TextStyle(
-                                      color: Color(0xFFE76D00),
+                                      color: Color(0xFF1F3A34),
                                       fontWeight: FontWeight.bold,
                                       fontSize: 13)),
                               Expanded(
@@ -389,7 +391,7 @@ class _Signup1State extends State<Signup1> {
                                                 ? FontWeight.bold
                                                 : FontWeight.normal,
                                             color: isSelected
-                                                ? const Color(0xFFE76D00)
+                                                ? const Color(0xFF1F3A34)
                                                 : Colors.grey.shade400,
                                           ),
                                         ),
@@ -406,7 +408,7 @@ class _Signup1State extends State<Signup1> {
                             children: [
                               const Text('Month',
                                   style: TextStyle(
-                                      color: Color(0xFFE76D00),
+                                      color: Color(0xFF1F3A34),
                                       fontWeight: FontWeight.bold,
                                       fontSize: 13)),
                               Expanded(
@@ -433,7 +435,7 @@ class _Signup1State extends State<Signup1> {
                                                 ? FontWeight.bold
                                                 : FontWeight.normal,
                                             color: isSelected
-                                                ? const Color(0xFFE76D00)
+                                                ? const Color(0xFF1F3A34)
                                                 : Colors.grey.shade400,
                                           ),
                                         ),
@@ -450,7 +452,7 @@ class _Signup1State extends State<Signup1> {
                             children: [
                               const Text('Day',
                                   style: TextStyle(
-                                      color: Color(0xFFE76D00),
+                                      color: Color(0xFF1F3A34),
                                       fontWeight: FontWeight.bold,
                                       fontSize: 13)),
                               Expanded(
@@ -476,7 +478,7 @@ class _Signup1State extends State<Signup1> {
                                                 ? FontWeight.bold
                                                 : FontWeight.normal,
                                             color: isSelected
-                                                ? const Color(0xFFE76D00)
+                                                ? const Color(0xFF1F3A34)
                                                 : Colors.grey.shade400,
                                           ),
                                         ),
@@ -507,7 +509,7 @@ class _Signup1State extends State<Signup1> {
                         Navigator.pop(context);
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFE76D00),
+                        backgroundColor: const Color(0xFF1F3A34),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(25)),
                       ),
@@ -531,7 +533,9 @@ class _Signup1State extends State<Signup1> {
   Widget _buildMainAvatar() {
     ImageProvider imageProvider;
     if (_pickedImage != null) {
-      imageProvider = kIsWeb ? NetworkImage(_pickedImage!.path) : FileImage(_pickedImage!) as ImageProvider;
+      imageProvider = kIsWeb
+          ? NetworkImage(_pickedImage!.path)
+          : FileImage(_pickedImage!) as ImageProvider;
     } else if (_presetAvatarPath != null) {
       imageProvider = AssetImage(_presetAvatarPath!);
     } else {
@@ -541,180 +545,257 @@ class _Signup1State extends State<Signup1> {
     return Container(
       width: 100,
       height: 100,
-      decoration:
-          const BoxDecoration(shape: BoxShape.circle, color: Color(0xFFE76D00)),
-      child: ClipOval(child: Image(image: imageProvider, fit: BoxFit.cover)),
+      decoration: const BoxDecoration(
+        shape: BoxShape.circle,
+        color: Color(0xFF1F3A34),
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white, width: 3.0),
+        ),
+        child: ClipOval(child: Image(image: imageProvider, fit: BoxFit.cover)),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          image: DecorationImage(
-              image: AssetImage('assets/images/background.png'),
-              fit: BoxFit.cover),
-        ),
-        child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    GestureDetector(
-                      onTap: _showAvatarPicker,
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          _buildMainAvatar(),
-                          Positioned(
-                            right: 2,
-                            bottom: 2,
-                            child: Container(
-                              padding: const EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                    color: const Color(0xFFFAF4EE), width: 2),
-                                boxShadow: const [
-                                  BoxShadow(
-                                      color: Color(0x1A000000), blurRadius: 4)
-                                ],
-                              ),
-                              child: const Icon(Icons.camera_alt,
-                                  size: 18, color: Color(0xFFE76D00)),
-                            ),
-                          ),
-                        ],
-                      ),
+      backgroundColor: const Color(0xFF1F3A34),
+      body: Stack(
+        children: [
+          // Header Background Picture
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 320,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Image.asset(
+                  'assets/images/FKP01925.jpg',
+                  fit: BoxFit.cover,
+                  alignment: Alignment.center,
+                ),
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        const Color(0xFF1F3A34).withValues(alpha: 0.65),
+                        const Color(0xFF1F3A34).withValues(alpha: 0.90),
+                      ],
                     ),
-                    const SizedBox(height: 12),
-                    const Text('Step 1 of 2',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SafeArea(
+            bottom: false,
+            child: Column(
+              children: [
+                // Top Section (Fixed, non-scrolling top)
+                Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  child: Column(
+                    children: [
+                      GestureDetector(
+                        onTap: _showAvatarPicker,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            _buildMainAvatar(),
+                            Positioned(
+                              right: 2,
+                              bottom: 2,
+                              child: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                      color: const Color(0xFFFAF4EE), width: 2),
+                                  boxShadow: const [
+                                    BoxShadow(
+                                        color: Color(0x1A000000), blurRadius: 4)
+                                  ],
+                                ),
+                                child: const Icon(Icons.camera_alt,
+                                    size: 18, color: Color(0xFF1F3A34)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Step 1 of 2',
                         style: TextStyle(
                             fontFamily: 'Recoleta',
                             fontSize: 20,
                             fontStyle: FontStyle.italic,
-                            color: Color(0xFFE76D00))),
-                    const SizedBox(height: 4),
-                    const Text('Create Your Account',
+                            color: Colors.white),
+                      ),
+                      const SizedBox(height: 2),
+                      const Text(
+                        'Create Your Account',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                             fontFamily: 'Recoleta',
                             fontSize: 26,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFFE76D00))),
-                    const SizedBox(height: 4),
-                    const Text(
+                            color: Colors.white),
+                      ),
+                      const SizedBox(height: 2),
+                      const Text(
                         'Join C2 and start earning rewards with every sip.',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                             fontFamily: 'Afacad',
-                            fontSize: 13,
-                            color: Colors.black87)),
-                    const SizedBox(height: 16),
-                    _buildTextField(
-                        label: 'Username',
-                        hintText: 'e.g. CoffeeLover1',
-                        controller: _usernameController),
-                    const SizedBox(height: 10),
-                    _buildTextField(
-                        label: 'Email',
-                        hintText: 'e.g. name@example.com',
-                        controller: _emailController,
-                        keyboardType: TextInputType.emailAddress),
-                    const SizedBox(height: 10),
-                    _buildPhoneField(),
-                    const SizedBox(height: 10),
-                    _buildBirthdayField(),
-                    const SizedBox(height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Text('Already a member? ',
-                            style: TextStyle(
-                                fontFamily: 'Afacad',
-                                fontSize: 14,
-                                color: Colors.black87)),
-                        // ADDED NAVIGATION TO LOGIN PAGE
-                        GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (context) => const LoginPage()),
-                            );
-                          },
-                          child: const Text('Login',
-                              style: TextStyle(
-                                  fontFamily: 'Recoleta',
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFFE76D00))),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 48,
-                      child: ElevatedButton(
-                        onPressed: _isFormValid
-                            ? () async {
-                                // Save profile details to UserService
-                                await UserService.saveUserProfile({
-                                  'username': _usernameController.text.trim(),
-                                  'email': _emailController.text.trim(),
-                                  'phone': _phoneController.text.trim(),
-                                  'birthday': _birthdayController.text.trim(),
-                                });
+                            fontSize: 12,
+                            color: Colors.white70),
+                      ),
+                    ],
+                  ),
+                ),
 
-                                // Pass the current avatar state to the next screen
-                                if (!context.mounted) return;
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => Signup2(
-                                      initialPickedImage: _pickedImage,
-                                      initialPresetPath: _presetAvatarPath,
-                                      initialAvatarIndex: _selectedAvatarIndex,
-                                    ),
+                // White Card Section
+                Expanded(
+                  child: Container(
+                    width: double.infinity,
+                    clipBehavior: Clip.antiAlias,
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      borderRadius:
+                          BorderRadius.vertical(top: Radius.circular(40)),
+                    ),
+                    child: SingleChildScrollView(
+                      physics: const ClampingScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(24, 16, 24, 20),
+                      child: Form(
+                        key: _formKey,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildTextField(
+                              label: 'Username',
+                              hintText: 'Username',
+                              controller: _usernameController,
+                            ),
+                            const SizedBox(height: 10),
+                            _buildTextField(
+                              label: 'Email',
+                              hintText: 'Email@gmail.com',
+                              controller: _emailController,
+                              keyboardType: TextInputType.emailAddress,
+                            ),
+                            const SizedBox(height: 10),
+                            _buildPhoneField(),
+                            const SizedBox(height: 10),
+                            _buildBirthdayField(),
+
+                            const SizedBox(height: 12),
+
+                            Center(
+                              child: GestureDetector(
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                        builder: (context) => const LoginPage()),
+                                  );
+                                },
+                                child: RichText(
+                                  text: const TextSpan(
+                                    style: TextStyle(
+                                        fontFamily: 'Afacad',
+                                        fontSize: 14,
+                                        color: Colors.black87),
+                                    children: [
+                                      TextSpan(text: 'Already a member? '),
+                                      TextSpan(
+                                        text: 'Login',
+                                        style: TextStyle(
+                                            fontFamily: 'Recoleta',
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xFF1F3A34)),
+                                      ),
+                                    ],
                                   ),
-                                );
-                              }
-                            : null,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFE76D00),
-                          disabledBackgroundColor: Colors.grey.shade400,
-                          foregroundColor: Colors.white,
-                          disabledForegroundColor: Colors.white70,
-                          elevation: 0,
-                          shadowColor: Colors.transparent,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(30)),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+
+                            SizedBox(
+                              width: double.infinity,
+                              height: 48,
+                              child: ElevatedButton(
+                                onPressed: _isFormValid
+                                    ? () async {
+                                        // Save profile details to UserService
+                                        await UserService.saveUserProfile({
+                                          'username':
+                                              _usernameController.text.trim(),
+                                          'email': _emailController.text.trim(),
+                                          'phone': _phoneController.text.trim(),
+                                          'birthday':
+                                              _birthdayController.text.trim(),
+                                        });
+
+                                        if (!context.mounted) return;
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) => Signup2(
+                                              initialPickedImage: _pickedImage,
+                                              initialPresetPath:
+                                                  _presetAvatarPath,
+                                              initialAvatarIndex:
+                                                  _selectedAvatarIndex,
+                                            ),
+                                          ),
+                                        );
+                                      }
+                                    : null,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF1F3A34),
+                                  disabledBackgroundColor: Colors.grey.shade400,
+                                  foregroundColor: Colors.white,
+                                  disabledForegroundColor: Colors.white70,
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(30)),
+                                ),
+                                child: const Text(
+                                  'NEXT STEP',
+                                  style: TextStyle(
+                                      fontFamily: 'Recoleta',
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 1.0),
+                                ),
+                              ),
+                            ),
+                            // Bottom padding
+                            SizedBox(
+                                height: 20 +
+                                    MediaQuery.of(context).padding.bottom),
+                          ],
                         ),
-                        child: const Text('NEXT STEP',
-                            style: TextStyle(
-                                fontFamily: 'Recoleta',
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 1.0)),
                       ),
                     ),
-                    const SizedBox(height: 8),
-                  ],
+                  ),
                 ),
-              ),
+              ],
             ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -731,20 +812,26 @@ class _Signup1State extends State<Signup1> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label,
-            style: const TextStyle(
-                fontFamily: 'Recoleta',
-                fontSize: 17,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFFE76D00))),
+        Text(
+          label,
+          style: const TextStyle(
+              fontFamily: 'Recoleta',
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF2E5E58)),
+        ),
         const SizedBox(height: 4),
         Container(
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.95),
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: const [
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
               BoxShadow(
-                  color: Color(0x08000000), blurRadius: 6, offset: Offset(0, 2))
+                color: Colors.grey.withValues(alpha: 0.18),
+                blurRadius: 12,
+                spreadRadius: 1,
+                offset: const Offset(0, 4),
+              ),
             ],
           ),
           child: TextFormField(
@@ -755,22 +842,25 @@ class _Signup1State extends State<Signup1> {
             style: const TextStyle(
                 fontFamily: 'Afacad', fontSize: 15, color: Colors.black87),
             decoration: InputDecoration(
+              filled: true,
+              fillColor: Colors.white,
               hintText: hintText,
               hintStyle: const TextStyle(
                   fontFamily: 'Afacad', fontSize: 15, color: Colors.grey),
               suffixIcon: suffixIcon,
               border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(20),
                   borderSide: BorderSide.none),
               enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(20),
                   borderSide: BorderSide.none),
               focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide:
-                      const BorderSide(color: Color(0xFFE76D00), width: 1.5)),
+                borderRadius: BorderRadius.circular(20),
+                borderSide:
+                    const BorderSide(color: Color(0xFF2E5E58), width: 1.5),
+              ),
               contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             ),
           ),
         ),
@@ -782,54 +872,60 @@ class _Signup1State extends State<Signup1> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Birthday',
-            style: TextStyle(
-                fontFamily: 'Recoleta',
-                fontSize: 17,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFFE76D00))),
+        const Text(
+          'Birthday',
+          style: TextStyle(
+              fontFamily: 'Recoleta',
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF2E5E58)),
+        ),
         const SizedBox(height: 4),
         GestureDetector(
           onTap: _openSimpleDatePicker,
           child: Container(
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.95),
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: const [
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
                 BoxShadow(
-                    color: Color(0x08000000),
-                    blurRadius: 6,
-                    offset: Offset(0, 2))
+                  color: Colors.grey.withValues(alpha: 0.18),
+                  blurRadius: 12,
+                  spreadRadius: 1,
+                  offset: const Offset(0, 4),
+                ),
               ],
             ),
             child: InputDecorator(
               decoration: InputDecoration(
-                hintText: _selectedDate == null ? 'Tap to select date' : '',
+                filled: true,
+                fillColor: Colors.white,
+                hintText: _selectedDate == null ? 'dd/mm/yy' : '',
                 hintStyle: const TextStyle(
                     fontFamily: 'Afacad', fontSize: 15, color: Colors.grey),
                 suffixIcon: const Icon(Icons.calendar_today_rounded,
-                    color: Color(0xFFE76D00), size: 20),
+                    color: Color(0xFF2E5E58), size: 20),
                 border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(20),
                     borderSide: BorderSide.none),
                 enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(20),
                     borderSide: BorderSide.none),
                 focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide:
-                        const BorderSide(color: Color(0xFFE76D00), width: 1.5)),
+                  borderRadius: BorderRadius.circular(20),
+                  borderSide:
+                      const BorderSide(color: Color(0xFF2E5E58), width: 1.5),
+                ),
                 contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               ),
               child: Text(
-                  _selectedDate == null
-                      ? ''
-                      : DateFormat('dd MMM yyyy').format(_selectedDate!),
-                  style: const TextStyle(
-                      fontFamily: 'Afacad',
-                      fontSize: 15,
-                      color: Colors.black87)),
+                _selectedDate == null
+                    ? ''
+                    : DateFormat('dd/MM/yy').format(_selectedDate!),
+                style: const TextStyle(
+                    fontFamily: 'Afacad', fontSize: 15, color: Colors.black87),
+              ),
             ),
           ),
         ),
@@ -841,68 +937,82 @@ class _Signup1State extends State<Signup1> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Phone Number',
-            style: TextStyle(
-                fontFamily: 'Recoleta',
-                fontSize: 17,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFFE76D00))),
+        const Text(
+          'Phone Number',
+          style: TextStyle(
+              fontFamily: 'Recoleta',
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF2E5E58)),
+        ),
         const SizedBox(height: 4),
         Container(
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.95),
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: const [
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
               BoxShadow(
-                  color: Color(0x08000000), blurRadius: 6, offset: Offset(0, 2))
+                color: Colors.grey.withValues(alpha: 0.18),
+                blurRadius: 12,
+                spreadRadius: 1,
+                offset: const Offset(0, 4),
+              ),
             ],
           ),
           child: IntlPhoneField(
             controller: _phoneController,
             initialCountryCode: 'MY',
-                            countries: [
-                              ...intl_countries.countries.where((c) => c.code == 'MY').map((c) => intl_countries.Country(
-                                    name: ' Malaysia',
-                                    nameTranslations: {},
-                                    flag: c.flag,
-                                    code: c.code,
-                                    dialCode: c.dialCode,
-                                    minLength: c.minLength,
-                                    maxLength: c.maxLength,
-                                    regionCode: c.regionCode,
-                                  )),
-                              ...intl_countries.countries.where((c) => c.code == 'SG').map((c) => intl_countries.Country(
-                                    name: ' Singapore',
-                                    nameTranslations: {},
-                                    flag: c.flag,
-                                    code: c.code,
-                                    dialCode: c.dialCode,
-                                    minLength: c.minLength,
-                                    maxLength: c.maxLength,
-                                    regionCode: c.regionCode,
-                                  )),
-                              ...intl_countries.countries.where((c) => c.code != 'MY' && c.code != 'SG'),
-                            ],
+            countries: [
+              ...intl_countries.countries
+                  .where((c) => c.code == 'MY')
+                  .map((c) => intl_countries.Country(
+                        name: ' Malaysia',
+                        nameTranslations: {},
+                        flag: c.flag,
+                        code: c.code,
+                        dialCode: c.dialCode,
+                        minLength: c.minLength,
+                        maxLength: c.maxLength,
+                        regionCode: c.regionCode,
+                      )),
+              ...intl_countries.countries
+                  .where((c) => c.code == 'SG')
+                  .map((c) => intl_countries.Country(
+                        name: ' Singapore',
+                        nameTranslations: {},
+                        flag: c.flag,
+                        code: c.code,
+                        dialCode: c.dialCode,
+                        minLength: c.minLength,
+                        maxLength: c.maxLength,
+                        regionCode: c.regionCode,
+                      )),
+              ...intl_countries.countries
+                  .where((c) => c.code != 'MY' && c.code != 'SG'),
+            ],
             disableLengthCheck: true,
             showDropdownIcon: false,
             dropdownIconPosition: IconPosition.trailing,
             flagsButtonMargin: const EdgeInsets.only(left: 12, right: 4),
             decoration: InputDecoration(
+              filled: true,
+              fillColor: Colors.white,
               hintText: '1234567890',
               hintStyle: const TextStyle(
                   fontFamily: 'Afacad', fontSize: 15, color: Colors.grey),
               border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(20),
                   borderSide: BorderSide.none),
               enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(20),
                   borderSide: BorderSide.none),
               focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide:
-                      const BorderSide(color: Color(0xFFE76D00), width: 1.5)),
+                borderRadius: BorderRadius.circular(20),
+                borderSide:
+                    const BorderSide(color: Color(0xFF2E5E58), width: 1.5),
+              ),
               contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             ),
             style: const TextStyle(
                 fontFamily: 'Afacad', fontSize: 15, color: Colors.black87),

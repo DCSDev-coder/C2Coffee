@@ -6,8 +6,7 @@ class NotificationPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const Color orangeColor = Color(0xFFE66B00);
-    const Color bgColor = Color(0xFFFAF4EE);
+    const Color bgColor = Colors.white;
 
     return PopScope(
       canPop: false,
@@ -24,45 +23,47 @@ class NotificationPage extends StatelessWidget {
         children: [
           // App Bar
           Container(
-            padding: const EdgeInsets.only(top: 60, bottom: 20, left: 20, right: 20),
-              decoration: BoxDecoration(
-                color: orangeColor,
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(20),
-                  bottomRight: Radius.circular(20),
-                ),
+            padding: const EdgeInsets.only(
+                top: 50, bottom: 12, left: 20, right: 20),
+            decoration: const BoxDecoration(
+              color: Color(0xFF2E5E58),
+              borderRadius: BorderRadius.only(
+                bottomLeft: Radius.circular(20),
+                bottomRight: Radius.circular(20),
               ),
-              child: Row(
-                children: [
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const InteractiveFillingLoader(),
-                        ),
-                      );
-                    },
-                    child: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 20),
-                  ),
-                  const Expanded(
-                    child: Center(
-                      child: Text(
-                        'NOTIFICATIONS',
-                        style: TextStyle(
-                          fontFamily: 'Recoleta',
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                          letterSpacing: 1.2,
-                        ),
+            ),
+            child: Row(
+              children: [
+                GestureDetector(
+                  onTap: () {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const InteractiveFillingLoader(),
+                      ),
+                    );
+                  },
+                  child: const Icon(Icons.arrow_back_ios,
+                      color: Colors.white, size: 20),
+                ),
+                const Expanded(
+                  child: Center(
+                    child: Text(
+                      'NOTIFICATIONS',
+                      style: TextStyle(
+                        fontFamily: 'Recoleta',
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        letterSpacing: 1.0,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 20), // Balance the flex space
-                ],
-              ),
+                ),
+                const SizedBox(width: 20), // Balance the flex space
+              ],
             ),
+          ),
             
             // Notifications List
             Expanded(
@@ -94,7 +95,7 @@ class NotificationPage extends StatelessWidget {
     required String title,
     required String description,
   }) {
-    const Color orangeColor = Color(0xFFC7511F); // Darker orange from mockup icon
+    const Color brandColor = Color(0xFF2E5E58);
 
     return Column(
       children: [
@@ -112,11 +113,15 @@ class NotificationPage extends StatelessWidget {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: const Color(0xFFCFDEDB),
+              width: 1,
+            ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 10,
-                offset: const Offset(0, 5),
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
               ),
             ],
           ),
@@ -128,7 +133,7 @@ class NotificationPage extends StatelessWidget {
                 width: 40,
                 height: 40,
                 decoration: const BoxDecoration(
-                  color: orangeColor,
+                  color: brandColor,
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
@@ -149,7 +154,7 @@ class NotificationPage extends StatelessWidget {
                         fontFamily: 'Recoleta',
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: Colors.black87,
+                        color: brandColor,
                         height: 1.2,
                       ),
                     ),

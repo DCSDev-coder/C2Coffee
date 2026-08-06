@@ -1,215 +1,313 @@
 import 'package:flutter/material.dart';
 import 'loading_order_page.dart';
 import 'orders_page.dart';
-import 'menu_page.dart';
+import 'mont_broga_page.dart';
+import '../utils/app_colors.dart';
+
 class OrderDetailsPage extends StatelessWidget {
   final Map<String, dynamic> item;
 
   const OrderDetailsPage({super.key, required this.item});
 
+  void _handleOrderAgain(BuildContext context) {
+    final detailsStr = item['details']?.toString() ?? '';
+
+    // Parse Bean Blend
+    String bean = 'Dato Blend';
+    if (detailsStr.contains('Datin Blend')) {
+      bean = 'Datin Blend';
+    } else if (detailsStr.contains('Dato Blend')) {
+      bean = 'Dato Blend';
+    }
+
+    // Parse Temperature
+    String temp = 'Hot';
+    if (detailsStr.contains('Cold') || detailsStr.contains('Iced')) {
+      temp = 'Cold';
+    } else if (detailsStr.contains('Hot')) {
+      temp = 'Hot';
+    }
+
+    // Parse Milk
+    String milk = 'Fresh Milk';
+    if (detailsStr.contains('Oat Milk')) {
+      milk = 'Oat Milk';
+    } else if (detailsStr.contains('Fresh Milk')) {
+      milk = 'Fresh Milk';
+    }
+
+    // Parse Sweetness
+    String sweetness = 'Regular Sweet';
+    if (detailsStr.contains('No Sugar')) {
+      sweetness = 'No Sugar';
+    } else if (detailsStr.contains('Less Sweet')) {
+      sweetness = 'Less Sweet';
+    } else if (detailsStr.contains('Reg. Sweet') ||
+        detailsStr.contains('Regular Sweet')) {
+      sweetness = 'Regular Sweet';
+    }
+
+    // Parse Ice Level
+    String iceLevel = 'Regular Ice';
+    if (detailsStr.contains('Less Ice')) {
+      iceLevel = 'Less Ice';
+    } else if (detailsStr.contains('Reg. Ice') ||
+        detailsStr.contains('Regular Ice')) {
+      iceLevel = 'Regular Ice';
+    }
+
+    // Parse Order Type
+    String orderType = 'Dine In';
+    if (detailsStr.contains('Take Away')) {
+      orderType = 'Take Away';
+    } else if (detailsStr.contains('Dine In')) {
+      orderType = 'Dine In';
+    }
+
+    final int qty = (item['quantity'] is int) ? item['quantity'] as int : 1;
+    final String remarks = item['remarks']?.toString() ?? '';
+
+    final Map<String, dynamic> drinkItem = {
+      'name': item['name'] ?? 'Mont Broga',
+      'image': item['image'] ?? 'assets/images/drinks/MONT BROGA.png',
+      'price': '16.90',
+      'desc': 'Black coffee layered with orangey cold foam and orange zest.',
+    };
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => InteractiveFillingLoader(
+          targetPage: MontBrogaPage(
+            item: drinkItem,
+            initialBean: bean,
+            initialTemperature: temp,
+            initialMilk: milk,
+            initialSweetness: sweetness,
+            initialIceLevel: iceLevel,
+            initialOrderType: orderType,
+            initialRemarks: remarks,
+            initialQuantity: qty,
+            isReorder: true,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _navigateBackToPurchaseHistory(BuildContext context) {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const InteractiveFillingLoader(
+          targetPage: OrdersPage(initialTabIndex: 1),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final Color orangeColor = const Color(0xFFE66B00);
-    final Color bgColor = const Color(0xFFFAF4EE);
+    const Color orangeColor = AppColors.deepTeal;
+    const Color bgColor = Colors.white;
 
-    return Scaffold(
-      backgroundColor: bgColor,
-      body: Column(
-        children: [
-          Container(
-            padding:
-                const EdgeInsets.only(top: 60, bottom: 20, left: 20, right: 20),
-            decoration: BoxDecoration(
-              color: orangeColor,
-              borderRadius: const BorderRadius.only(
-                bottomLeft: Radius.circular(20),
-                bottomRight: Radius.circular(20),
-              ),
-            ),
-            child: Row(
-              children: [
-                GestureDetector(
-                  onTap: () {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const InteractiveFillingLoader(
-                          targetPage: OrdersPage(),
-                        ),
-                      ),
-                    );
-                  },
-                  child: const Icon(Icons.arrow_back_ios,
-                      color: Colors.white, size: 24),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _navigateBackToPurchaseHistory(context);
+      },
+      child: Scaffold(
+        backgroundColor: bgColor,
+        body: Column(
+          children: [
+            // Custom Header
+            Container(
+              padding: const EdgeInsets.only(
+                  top: 50, bottom: 12, left: 20, right: 20),
+              decoration: const BoxDecoration(
+                color: AppColors.deepTeal,
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(20),
+                  bottomRight: Radius.circular(20),
                 ),
-                const Expanded(
-                  child: Center(
-                    child: Text(
-                      'ORDER DETAILS',
-                      style: TextStyle(
-                        fontFamily: 'Recoleta',
-                        fontSize: 28,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 24),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+              child: Row(
                 children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Image.asset(
-                        item['image'],
-                        width: 80,
-                        height: 100,
-                        fit: BoxFit.contain,
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '${item['date']} . ${item['time']}',
-                              style: const TextStyle(
-                                fontFamily: 'Afacad',
-                                fontSize: 12,
-                                color: Colors.black54,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  item['name'],
-                                  style: const TextStyle(
-                                    fontFamily: 'Recoleta',
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.black,
-                                  ),
-                                ),
-                                Text(
-                                  'x${item['quantity']}',
-                                  style: TextStyle(
-                                    fontFamily: 'Afacad',
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.bold,
-                                    color: orangeColor,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              item['details'],
-                              style: const TextStyle(
-                                fontFamily: 'Afacad',
-                                fontSize: 14,
-                                color: Colors.black87,
-                                height: 1.2,
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Remarks: ${item['remarks']}',
-                              style: const TextStyle(
-                                fontFamily: 'Afacad',
-                                fontSize: 14,
-                                color: Colors.black87,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                  GestureDetector(
+                    onTap: () => _navigateBackToPurchaseHistory(context),
+                    child: const Icon(Icons.arrow_back_ios,
+                        color: Colors.white, size: 20),
                   ),
-                  const SizedBox(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      Text(
-                        '${item['quantity']} item  ',
-                        style: const TextStyle(
-                          fontFamily: 'Afacad',
-                          fontSize: 14,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      const Text(
-                        'RM16.90',
+                  const Expanded(
+                    child: Center(
+                      child: Text(
+                        'ORDER DETAILS',
                         style: TextStyle(
-                          fontFamily: 'Afacad',
-                          fontSize: 14,
+                          fontFamily: 'Recoleta',
+                          fontSize: 20,
                           fontWeight: FontWeight.bold,
-                          color: Colors.black,
+                          color: Colors.white,
+                          letterSpacing: 1.0,
                         ),
                       ),
-                    ],
+                    ),
                   ),
+                  const SizedBox(width: 20),
                 ],
               ),
             ),
-          ),
-          const Spacer(),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 30),
-            child: SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const InteractiveFillingLoader(
-                        targetPage: MenuPage(),
-                      ),
-                    ),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: orangeColor,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(25),
+            Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: const Color(0xFFCFDEDB),
+                    width: 1,
                   ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.03),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
-                child: const Text(
-                  'Order Again',
-                  style: TextStyle(
-                    fontFamily: 'Recoleta',
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Image.asset(
+                          item['image'],
+                          width: 80,
+                          height: 100,
+                          fit: BoxFit.contain,
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${item['date']} . ${item['time']}',
+                                style: const TextStyle(
+                                  fontFamily: 'Afacad',
+                                  fontSize: 12,
+                                  color: Colors.black54,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    item['name'],
+                                    style: const TextStyle(
+                                      fontFamily: 'Recoleta',
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.deepTeal,
+                                    ),
+                                  ),
+                                  Text(
+                                    'x${item['quantity']}',
+                                    style: const TextStyle(
+                                      fontFamily: 'Afacad',
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.bold,
+                                      color: orangeColor,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                item['details'],
+                                style: const TextStyle(
+                                  fontFamily: 'Afacad',
+                                  fontSize: 14,
+                                  color: Colors.black87,
+                                  height: 1.2,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'Remarks: ${item['remarks']}',
+                                style: const TextStyle(
+                                  fontFamily: 'Afacad',
+                                  fontSize: 14,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Text(
+                          '${item['quantity']} item  ',
+                          style: const TextStyle(
+                            fontFamily: 'Afacad',
+                            fontSize: 14,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const Text(
+                          'RM16.90',
+                          style: TextStyle(
+                            fontFamily: 'Afacad',
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.deepTeal,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            // Moved higher right below the details card
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: () => _handleOrderAgain(context),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFEDF4F3),
+                    foregroundColor: orangeColor,
+                    side: const BorderSide(color: Color(0xFFCFDEDB)),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(25),
+                    ),
+                  ),
+                  child: const Text(
+                    'Order Again',
+                    style: TextStyle(
+                      fontFamily: 'Recoleta',
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.deepTeal,
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

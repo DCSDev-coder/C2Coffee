@@ -1,0 +1,36 @@
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      @keyframes float {
+        0%, 100% { transform: translateY(0px) rotate(0deg); }
+        50% { transform: translateY(-10px) rotate(2deg); }
+      }
+      @keyframes steam {
+        0% { transform: translateY(0) scale(1); opacity: 0; }
+        50% { opacity: 0.6; }
+        100% { transform: translateY(-20px) scale(1.5); opacity: 0; }
+      }
+      .cup-group { animation: float 3s ease-in-out infinite; transform-origin: center; }
+      .steam-line { animation: steam 2s infinite; opacity: 0; }
+    </style>
+  </defs>
+  
+  <!-- Steam effects -->
+  <g class="steam-group" transform="translate(100, 60)">
+    <path class="steam-line" d="M-10,0 Q-15,-10 -10,-20" fill="none" stroke="#2e5e58" stroke-width="2" style="animation-delay: 0s;"></path>
+    <path class="steam-line" d="M0,0 Q5,-10 0,-20" fill="none" stroke="#2e5e58" stroke-width="2" style="animation-delay: 0.5s;"></path>
+    <path class="steam-line" d="M10,0 Q5,-10 10,-20" fill="none" stroke="#2e5e58" stroke-width="2" style="animation-delay: 1s;"></path>
+  </g>
+  
+  <g class="cup-group">
+    <!-- Cup Body -->
+    <path d="M65,70 L135,70 L125,160 L75,160 Z" fill="#ffffff" stroke="#dcd9d9" stroke-width="1"></path>
+    <!-- Sleeve -->
+    <path d="M67,100 L133,100 L129,135 L71,135 Z" fill="#2e5e58"></path>
+    <!-- Lid -->
+    <path d="M60,65 L140,65 L138,75 L62,75 Z" fill="#ffffff" stroke="#dcd9d9" stroke-width="1"></path>
+    <rect fill="#ffffff" height="5" rx="2" stroke="#dcd9d9" stroke-width="1" width="20" x="90" y="60"></rect>
+    <!-- Logo placeholder - replaced with a proper image tag for your asset -->
+    <image href="assets/images/c2_logo.png" x="80" y="106" width="40" height="40" />
+  </g>
+</svg>

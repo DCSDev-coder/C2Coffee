@@ -43,6 +43,7 @@ flutter:
   assets:
     - assets/images/
     - assets/images/drinks/
+    - assets/images/candles/
 
   fonts:
     - family: Recoleta

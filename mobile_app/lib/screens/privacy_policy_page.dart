@@ -12,12 +12,12 @@ class PrivacyPolicyPage extends StatelessWidget {
           // Header
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.only(top: 60, bottom: 20, left: 20, right: 20),
+            padding: const EdgeInsets.only(top: 50, bottom: 12, left: 20, right: 20),
             decoration: const BoxDecoration(
-              color: Color(0xFFE66B00),
+              color: Color(0xFF2E5E58),
               borderRadius: BorderRadius.only(
-                bottomLeft: Radius.circular(30),
-                bottomRight: Radius.circular(30),
+                bottomLeft: Radius.circular(20),
+                bottomRight: Radius.circular(20),
               ),
             ),
             child: Stack(
@@ -27,7 +27,7 @@ class PrivacyPolicyPage extends StatelessWidget {
                   alignment: Alignment.centerLeft,
                   child: GestureDetector(
                     onTap: () => Navigator.pop(context),
-                    child: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 24),
+                    child: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 20),
                   ),
                 ),
                 const Text(
@@ -37,6 +37,7 @@ class PrivacyPolicyPage extends StatelessWidget {
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
+                    letterSpacing: 1.0,
                   ),
                 ),
               ],

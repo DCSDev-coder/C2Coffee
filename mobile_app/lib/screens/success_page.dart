@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/confetti_overlay.dart';
 
 class SuccessPage extends StatefulWidget {
   final String title;
@@ -22,8 +23,8 @@ class _SuccessPageState extends State<SuccessPage>
   late Animation<double> _scaleAnimation;
   late Animation<double> _opacityAnimation;
 
-  final Color orangeColor = const Color(0xFFE66B00);
-  final Color beigeBg = const Color(0xFFFAF4EE);
+  final Color orangeColor = const Color(0xFF2E5E58);
+  final Color beigeBg = Colors.white;
 
   @override
   void initState() {
@@ -57,12 +58,15 @@ class _SuccessPageState extends State<SuccessPage>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: beigeBg,
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
+      body: Stack(
+        children: [
+          SafeArea(
+            child: Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
               const SizedBox(height: 40), // Spacer at the top
               
               // Center Content
@@ -158,6 +162,11 @@ class _SuccessPageState extends State<SuccessPage>
           ),
         ),
       ),
-    );
+      const Positioned.fill(
+        child: ConfettiWidget(particleCount: 80),
+      ),
+    ],
+  ),
+);
   }
 }

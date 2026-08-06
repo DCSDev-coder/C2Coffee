@@ -7,18 +7,21 @@ import 'loading_order_page.dart';
 import 'order_details_page.dart';
 import 'profile_page.dart';
 import 'rewards_page.dart';
+import '../utils/app_colors.dart';
 import '../widgets/order_status_banner.dart';
 
 class OrdersPage extends StatefulWidget {
   final File? initialPickedImage;
   final String? initialPresetPath;
   final int initialAvatarIndex;
+  final int initialTabIndex;
 
   const OrdersPage({
     super.key,
     this.initialPickedImage,
     this.initialPresetPath,
     this.initialAvatarIndex = 0,
+    this.initialTabIndex = 0,
   });
 
   @override
@@ -28,8 +31,8 @@ class OrdersPage extends StatefulWidget {
 class _OrdersPageState extends State<OrdersPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  final Color orangeColor = const Color(0xFFE66B00);
-  final Color bgColor = const Color(0xFFFAF4EE);
+  final Color orangeColor = const Color(0xFF2E5E58);
+  final Color bgColor = Colors.white;
 
   final List<Map<String, dynamic>> _purchaseHistory = [
     {
@@ -59,7 +62,11 @@ class _OrdersPageState extends State<OrdersPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(
+      length: 2,
+      vsync: this,
+      initialIndex: widget.initialTabIndex.clamp(0, 1),
+    );
   }
 
   @override
@@ -69,57 +76,45 @@ class _OrdersPageState extends State<OrdersPage>
   }
 
   void _onBottomNavTapped(int index) {
-    if (index == 0) {
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(
-          builder: (context) => InteractiveFillingLoader(
-              targetPage: HomePage(
-            initialPickedImage: widget.initialPickedImage,
-            initialPresetPath: widget.initialPresetPath,
-            initialAvatarIndex: widget.initialAvatarIndex,
-          )),
-        ),
-        (route) => false,
-      );
-    } else if (index == 1) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => const InteractiveFillingLoader(
-            targetPage: MenuPage(),
-          ),
-        ),
-      );
-    } else if (index == 3) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => InteractiveFillingLoader(
-            targetPage: RewardsPage(
-              initialPickedImage: widget.initialPickedImage,
-              initialPresetPath: widget.initialPresetPath,
-              initialAvatarIndex: widget.initialAvatarIndex,
-            ),
-          ),
-        ),
-      );
-    } else if (index == 4) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => InteractiveFillingLoader(
-            targetPage: ProfilePage(
-              initialPickedImage: widget.initialPickedImage,
-              initialPresetPath: widget.initialPresetPath,
-              initialAvatarIndex: widget.initialAvatarIndex,
-            ),
-          ),
-        ),
-      );
-    } else if (index != 2) {
-      Navigator.pop(context);
+    if (index == 2) return; // Already on Orders page
+
+    Widget target;
+    switch (index) {
+      case 0:
+        target = HomePage(
+          initialPickedImage: widget.initialPickedImage,
+          initialPresetPath: widget.initialPresetPath,
+          initialAvatarIndex: widget.initialAvatarIndex,
+        );
+        break;
+      case 1:
+        target = const MenuPage();
+        break;
+      case 3:
+        target = RewardsPage(
+          initialPickedImage: widget.initialPickedImage,
+          initialPresetPath: widget.initialPresetPath,
+          initialAvatarIndex: widget.initialAvatarIndex,
+        );
+        break;
+      case 4:
+        target = ProfilePage(
+          initialPickedImage: widget.initialPickedImage,
+          initialPresetPath: widget.initialPresetPath,
+          initialAvatarIndex: widget.initialAvatarIndex,
+        );
+        break;
+      default:
+        return;
     }
+
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(
+        builder: (context) => InteractiveFillingLoader(targetPage: target),
+      ),
+      (route) => false,
+    );
   }
 
   @override
@@ -128,7 +123,7 @@ class _OrdersPageState extends State<OrdersPage>
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
-        Navigator.pushReplacement(
+        Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(
             builder: (context) => InteractiveFillingLoader(
@@ -139,6 +134,7 @@ class _OrdersPageState extends State<OrdersPage>
               ),
             ),
           ),
+          (route) => false,
         );
       },
       child: Scaffold(
@@ -155,10 +151,10 @@ class _OrdersPageState extends State<OrdersPage>
                 // Header
                 Container(
                   padding: const EdgeInsets.only(
-                      top: 60, bottom: 20, left: 20, right: 20),
-                  decoration: BoxDecoration(
-                    color: orangeColor,
-                    borderRadius: const BorderRadius.only(
+                      top: 50, bottom: 12, left: 20, right: 20),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF2E5E58),
+                    borderRadius: BorderRadius.only(
                       bottomLeft: Radius.circular(20),
                       bottomRight: Radius.circular(20),
                     ),
@@ -181,7 +177,7 @@ class _OrdersPageState extends State<OrdersPage>
                           );
                         },
                         child: const Icon(Icons.arrow_back_ios,
-                            color: Colors.white, size: 24),
+                            color: Colors.white, size: 20),
                       ),
                       const Expanded(
                         child: Center(
@@ -189,14 +185,15 @@ class _OrdersPageState extends State<OrdersPage>
                             'MY ORDER',
                             style: TextStyle(
                               fontFamily: 'Recoleta',
-                              fontSize: 28,
-                              fontWeight: FontWeight.w900,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
                               color: Colors.white,
+                              letterSpacing: 1.0,
                             ),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 24), // Balance the back button
+                      const SizedBox(width: 20), // Balance the back button
                     ],
                   ),
                 ),
@@ -212,7 +209,7 @@ class _OrdersPageState extends State<OrdersPage>
                     dividerColor: Colors.transparent,
                     indicatorColor: orangeColor,
                     labelColor: orangeColor,
-                    unselectedLabelColor: orangeColor.withValues(alpha: 0.6),
+                    unselectedLabelColor: Colors.grey.shade500,
                     indicatorSize: TabBarIndicatorSize.label,
                     labelStyle: const TextStyle(
                       fontFamily: 'Afacad',
@@ -239,7 +236,8 @@ class _OrdersPageState extends State<OrdersPage>
                 ),
               ],
             ),
-            const OrderStatusBanner(),
+            OrderStatusBanner(
+                bottomOffset: 90 + MediaQuery.paddingOf(context).bottom),
           ],
         ),
       ),
@@ -340,7 +338,8 @@ class _OrdersPageState extends State<OrdersPage>
                 'date': '29/04',
                 'time': '16:04',
                 'quantity': 1,
-                'details': 'Dato Blend / Hot / Fresh Milk /\nReg. Sweet / Reg. Ice /\nTake Away',
+                'details':
+                    'Dato Blend / Hot / Fresh Milk /\nReg. Sweet / Reg. Ice /\nTake Away',
                 'remarks': 'None',
               },
             ),
@@ -348,140 +347,149 @@ class _OrdersPageState extends State<OrdersPage>
         );
       },
       child: Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: const Color(0xFFCFDEDB),
+            width: 1,
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Pickup',
-                style: TextStyle(
-                  fontFamily: 'Recoleta',
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF4A3424),
-                ),
-              ),
-              Text(
-                'Finished',
-                style: TextStyle(
-                  fontFamily: 'Afacad',
-                  fontSize: 12,
-                  color: Colors.black54,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Image.asset(
-                'assets/images/drinks/SHAKERATO BIANCO.png',
-                width: 60,
-                height: 80,
-                fit: BoxFit.contain,
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Mont Broga',
-                          style: TextStyle(
-                            fontFamily: 'Recoleta',
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Text(
-                          'x1',
-                          style: TextStyle(
-                            fontFamily: 'Afacad',
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: orangeColor,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    const Text(
-                      'Dato Blend / Hot / Fresh Milk /\nReg. Sweet / Reg. Ice /\nTake Away',
-                      style: TextStyle(
-                        fontFamily: 'Afacad',
-                        fontSize: 14,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    const Text(
-                      'Remarks: None',
-                      style: TextStyle(
-                        fontFamily: 'Afacad',
-                        fontSize: 14,
-                        color: Colors.black87,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          const Divider(height: 1),
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              const Text(
-                '1 item  ',
-                style: TextStyle(
-                  fontFamily: 'Afacad',
-                  fontSize: 14,
-                  color: Colors.black87,
-                ),
-              ),
-              RichText(
-                text: const TextSpan(
-                  text: 'RM ',
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Pickup',
                   style: TextStyle(
-                    fontFamily: 'Afacad',
-                    fontSize: 14,
-                    color: Colors.black87,
+                    fontFamily: 'Recoleta',
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.deepTeal,
                   ),
-                  children: [
-                    TextSpan(
-                      text: '16.90',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
                 ),
-              ),
-            ],
-          ),
-        ],
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppColors.terracotta.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Text(
+                    'Finished',
+                    style: TextStyle(
+                      fontFamily: 'Afacad',
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.terracotta,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Image.asset(
+                  'assets/images/drinks/SHAKERATO BIANCO.png',
+                  width: 60,
+                  height: 80,
+                  fit: BoxFit.contain,
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Mont Broga',
+                            style: TextStyle(
+                              fontFamily: 'Recoleta',
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.deepTeal,
+                            ),
+                          ),
+                          const Text(
+                            'x1',
+                            style: TextStyle(
+                              fontFamily: 'Afacad',
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.deepTeal,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Dato Blend / Hot / Fresh Milk /\nReg. Sweet / Reg. Ice /\nTake Away',
+                        style: TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 14,
+                          color: AppColors.charcoal,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Remarks: None',
+                        style: TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 14,
+                          color: Colors.black54,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            const Divider(height: 1),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                RichText(
+                  text: const TextSpan(
+                    text: 'RM ',
+                    style: TextStyle(
+                      fontFamily: 'Afacad',
+                      fontSize: 16,
+                      color: AppColors.deepTeal,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    children: [
+                      TextSpan(
+                        text: '16.90',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
-    ));
+    );
   }
 
   Widget _buildHistoryCard(Map<String, dynamic> item) {
@@ -490,11 +498,15 @@ class _OrdersPageState extends State<OrdersPage>
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: const Color(0xFFCFDEDB),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -530,15 +542,16 @@ class _OrdersPageState extends State<OrdersPage>
                         fontFamily: 'Recoleta',
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
+                        color: Color(0xFF2E5E58),
                       ),
                     ),
                     Text(
                       'x${item['quantity']}',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: 'Afacad',
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
-                        color: orangeColor,
+                        color: Color(0xFF2E5E58),
                       ),
                     ),
                   ],

@@ -12,9 +12,9 @@ class TermsOfUsePage extends StatelessWidget {
           // Header
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.only(top: 60, bottom: 20, left: 20, right: 20),
+            padding: const EdgeInsets.only(top: 50, bottom: 12, left: 20, right: 20),
             decoration: const BoxDecoration(
-              color: Color(0xFFE66B00),
+              color: Color(0xFF2E5E58),
               borderRadius: BorderRadius.only(
                 bottomLeft: Radius.circular(20),
                 bottomRight: Radius.circular(20),
@@ -32,9 +32,10 @@ class TermsOfUsePage extends StatelessWidget {
                       'TERMS OF USE',
                       style: TextStyle(
                         fontFamily: 'Recoleta',
-                        fontSize: 24,
+                        fontSize: 20,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
+                        letterSpacing: 1.0,
                       ),
                     ),
                   ),

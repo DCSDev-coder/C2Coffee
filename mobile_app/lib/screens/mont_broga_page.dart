@@ -2,16 +2,39 @@ import 'package:flutter/material.dart';
 
 class MontBrogaPage extends StatefulWidget {
   final Map<String, dynamic> item;
+  final String? initialBean;
+  final int? initialEspressoShots;
+  final String? initialTemperature;
+  final String? initialMilk;
+  final String? initialSweetness;
+  final String? initialIceLevel;
+  final String? initialOrderType;
+  final String? initialRemarks;
+  final int? initialQuantity;
+  final bool isReorder;
 
-  const MontBrogaPage({super.key, required this.item});
+  const MontBrogaPage({
+    super.key,
+    required this.item,
+    this.initialBean,
+    this.initialEspressoShots,
+    this.initialTemperature,
+    this.initialMilk,
+    this.initialSweetness,
+    this.initialIceLevel,
+    this.initialOrderType,
+    this.initialRemarks,
+    this.initialQuantity,
+    this.isReorder = false,
+  });
 
   @override
   State<MontBrogaPage> createState() => _MontBrogaPageState();
 }
 
 class _MontBrogaPageState extends State<MontBrogaPage> {
-  final Color orangeColor = const Color(0xFFE66B00);
-  final Color bgColor = const Color(0xFFFAF4EE);
+  final Color orangeColor = const Color(0xFF2E5E58);
+  final Color bgColor = Colors.white;
 
   String selectedBean = 'Dato Blend';
   int espressoShots = 1;
@@ -19,9 +42,56 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
   String milk = 'Fresh Milk';
   String sweetness = 'No Sugar';
   String iceLevel = 'Less Ice';
-  String orderType = 'Dine In';
+  String orderType = 'Take Away';
   int quantity = 1;
   final TextEditingController remarksController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialBean != null) selectedBean = widget.initialBean!;
+    if (widget.initialEspressoShots != null) {
+      espressoShots = widget.initialEspressoShots!;
+    }
+    if (widget.initialTemperature != null) {
+      temperature = widget.initialTemperature!;
+    }
+    if (widget.initialMilk != null) milk = widget.initialMilk!;
+    if (widget.initialSweetness != null) sweetness = widget.initialSweetness!;
+    if (widget.initialIceLevel != null) iceLevel = widget.initialIceLevel!;
+    if (widget.initialOrderType != null) orderType = widget.initialOrderType!;
+    if (widget.initialRemarks != null && widget.initialRemarks != 'None') {
+      remarksController.text = widget.initialRemarks!;
+    }
+    if (widget.initialQuantity != null) quantity = widget.initialQuantity!;
+
+    if (widget.isReorder) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Row(
+                children: [
+                  Icon(Icons.history_rounded, color: Colors.white, size: 20),
+                  SizedBox(width: 8),
+                  Text(
+                    'Customizations restored from previous order!',
+                    style: TextStyle(
+                        fontFamily: 'Afacad', fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              backgroundColor: orangeColor,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      });
+    }
+  }
 
   double get totalPrice {
     double basePrice = 16.90;
@@ -37,7 +107,8 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
     super.dispose();
   }
 
-  Widget _buildSectionTitle(String title, {bool required = true, String subtitle = ''}) {
+  Widget _buildSectionTitle(String title,
+      {bool required = true, String subtitle = ''}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12.0, top: 24.0),
       child: Column(
@@ -58,12 +129,12 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
               style: TextStyle(
                 fontFamily: 'Afacad',
                 fontSize: 12,
-                color: Color(0xFFE66B00),
+                color: Color(0xFF2E5E58),
                 fontWeight: FontWeight.bold,
               ),
             )
           else if (subtitle.isNotEmpty)
-             Text(
+            Text(
               subtitle,
               style: const TextStyle(
                 fontFamily: 'Afacad',
@@ -94,7 +165,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
         onTap: () => onChanged(value),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          height: 180, // Ensure all cards are exactly the same size, large enough to prevent overflow
+          height: 180,
           margin: const EdgeInsets.symmetric(horizontal: 4),
           padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
           decoration: BoxDecoration(
@@ -108,12 +179,18 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                 : null,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: isSelected ? (isGradient ? gradientColors!.first : color) : Colors.grey.shade300,
+              color: isSelected
+                  ? (isGradient ? gradientColors!.first : color)
+                  : Colors.grey.shade300,
               width: 2,
             ),
             boxShadow: [
-              if (isSelected) 
-                BoxShadow(color: (isGradient ? gradientColors!.first : color).withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 4))
+              if (isSelected)
+                BoxShadow(
+                    color: (isGradient ? gradientColors!.first : color)
+                        .withValues(alpha: 0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4))
             ],
           ),
           child: Column(
@@ -145,7 +222,9 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                     fontFamily: 'Afacad',
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
-                    color: isSelected ? textColor.withValues(alpha: 0.9) : Colors.grey.shade400,
+                    color: isSelected
+                        ? textColor.withValues(alpha: 0.9)
+                        : Colors.grey.shade400,
                   ),
                 ),
               ]
@@ -169,7 +248,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
             leading: const SizedBox.shrink(),
             actions: [
               IconButton(
-                icon: const Icon(Icons.close, color: Color(0xFFE66B00)),
+                icon: const Icon(Icons.close, color: Color(0xFF2E5E58)),
                 onPressed: () => Navigator.pop(context),
               ),
             ],
@@ -213,18 +292,25 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         decoration: BoxDecoration(
                           border: Border(
-                            bottom: BorderSide(color: Colors.black.withValues(alpha: 0.1)),
+                            bottom: BorderSide(
+                                color: Colors.black.withValues(alpha: 0.1)),
                           ),
                         ),
                         child: const Row(
                           children: [
                             Text(
                               'RM ',
-                              style: TextStyle(fontFamily: 'Afacad', fontSize: 14, fontWeight: FontWeight.bold),
+                              style: TextStyle(
+                                  fontFamily: 'Afacad',
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold),
                             ),
                             Text(
                               '16.90',
-                              style: TextStyle(fontFamily: 'Recoleta', fontSize: 20, fontWeight: FontWeight.bold),
+                              style: TextStyle(
+                                  fontFamily: 'Recoleta',
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold),
                             ),
                           ],
                         ),
@@ -242,8 +328,12 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                             color: Colors.transparent,
                             textColor: Colors.white,
                             isGradient: true,
-                            gradientColors: [const Color(0xFFC76B26), const Color(0xFF7A1800)],
-                            icon: Image.asset('assets/images/dato.png', height: 40, color: Colors.white),
+                            gradientColors: [
+                              const Color(0xFFC76B26),
+                              const Color(0xFF7A1800)
+                            ],
+                            icon: Image.asset('assets/images/dato.png',
+                                height: 40, color: Colors.white),
                           ),
                           _buildOptionCard(
                             title: 'DATIN\nBLEND',
@@ -254,29 +344,38 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                             color: Colors.transparent,
                             textColor: Colors.white,
                             isGradient: true,
-                            gradientColors: [const Color(0xFFE91E63), const Color(0xFF009624)],
-                            icon: Image.asset('assets/images/datin.png', height: 40, color: Colors.white),
+                            gradientColors: [
+                              const Color(0xFFE91E63),
+                              const Color(0xFF009624)
+                            ],
+                            icon: Image.asset('assets/images/datin.png',
+                                height: 40, color: Colors.white),
                           ),
                         ],
                       ),
                       const Divider(height: 40),
-                      _buildSectionTitle('Espresso Shot', required: false, subtitle: 'Optional'),
+                      _buildSectionTitle('Espresso Shot',
+                          required: false, subtitle: 'Optional'),
                       SliderTheme(
                         data: SliderThemeData(
                           activeTrackColor: orangeColor,
-                          inactiveTrackColor: orangeColor.withValues(alpha: 0.2),
+                          inactiveTrackColor:
+                              orangeColor.withValues(alpha: 0.2),
                           thumbColor: orangeColor,
                           trackHeight: 4.0,
-                          tickMarkShape: const RoundSliderTickMarkShape(tickMarkRadius: 8.0),
+                          tickMarkShape: const RoundSliderTickMarkShape(
+                              tickMarkRadius: 8.0),
                           activeTickMarkColor: orangeColor,
-                          inactiveTickMarkColor: orangeColor.withValues(alpha: 0.2),
+                          inactiveTickMarkColor:
+                              orangeColor.withValues(alpha: 0.2),
                         ),
                         child: Slider(
                           value: espressoShots.toDouble(),
                           min: 1,
                           max: 3,
                           divisions: 2,
-                          onChanged: (v) => setState(() => espressoShots = v.toInt()),
+                          onChanged: (v) =>
+                              setState(() => espressoShots = v.toInt()),
                         ),
                       ),
                       Row(
@@ -284,20 +383,37 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                         children: [
                           const Padding(
                             padding: EdgeInsets.only(left: 8.0),
-                            child: Text('1', style: TextStyle(fontFamily: 'Afacad', color: Colors.black54)),
+                            child: Text('1',
+                                style: TextStyle(
+                                    fontFamily: 'Afacad',
+                                    color: Colors.black54)),
                           ),
                           Column(
                             children: [
-                              const Text('2', style: TextStyle(fontFamily: 'Afacad', color: Colors.black54)),
-                              Text('+3.00', style: TextStyle(fontFamily: 'Afacad', fontSize: 10, color: orangeColor)),
+                              const Text('2',
+                                  style: TextStyle(
+                                      fontFamily: 'Afacad',
+                                      color: Colors.black54)),
+                              Text('+3.00',
+                                  style: TextStyle(
+                                      fontFamily: 'Afacad',
+                                      fontSize: 10,
+                                      color: orangeColor)),
                             ],
                           ),
                           Padding(
                             padding: const EdgeInsets.only(right: 8.0),
                             child: Column(
                               children: [
-                                const Text('3', style: TextStyle(fontFamily: 'Afacad', color: Colors.black54)),
-                                Text('+6.00', style: TextStyle(fontFamily: 'Afacad', fontSize: 10, color: orangeColor)),
+                                const Text('3',
+                                    style: TextStyle(
+                                        fontFamily: 'Afacad',
+                                        color: Colors.black54)),
+                                Text('+6.00',
+                                    style: TextStyle(
+                                        fontFamily: 'Afacad',
+                                        fontSize: 10,
+                                        color: orangeColor)),
                               ],
                             ),
                           ),
@@ -420,24 +536,19 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                       const Divider(height: 40),
                       _buildSectionTitle('Order Type'),
                       Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          _buildOptionCard(
-                            title: 'DINE\nIN',
-                            subtitle: '',
-                            value: 'Dine In',
-                            groupValue: orderType,
-                            onChanged: (v) => setState(() => orderType = v),
-                            color: const Color(0xFF1CB59C),
-                            textColor: Colors.white,
-                          ),
-                          _buildOptionCard(
-                            title: 'TAKE\nAWAY',
-                            subtitle: '',
-                            value: 'Take Away',
-                            groupValue: orderType,
-                            onChanged: (v) => setState(() => orderType = v),
-                            color: const Color(0xFFFF6B5C),
-                            textColor: Colors.white,
+                          SizedBox(
+                            width: MediaQuery.of(context).size.width * 0.45,
+                            child: _buildOptionCard(
+                              title: 'TAKE\nAWAY',
+                              subtitle: '',
+                              value: 'Take Away',
+                              groupValue: orderType,
+                              onChanged: (v) => setState(() => orderType = v),
+                              color: const Color(0xFFFF6B5C),
+                              textColor: Colors.white,
+                            ),
                           ),
                         ],
                       ),
@@ -448,16 +559,19 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                         maxLines: 4,
                         decoration: InputDecoration(
                           hintText: 'Add your remark',
-                          hintStyle: const TextStyle(fontFamily: 'Afacad', color: Colors.black38),
+                          hintStyle: const TextStyle(
+                              fontFamily: 'Afacad', color: Colors.black38),
                           filled: true,
                           fillColor: Colors.white,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: orangeColor.withValues(alpha: 0.5)),
+                            borderSide: BorderSide(
+                                color: orangeColor.withValues(alpha: 0.5)),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: orangeColor.withValues(alpha: 0.5)),
+                            borderSide: BorderSide(
+                                color: orangeColor.withValues(alpha: 0.5)),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -495,17 +609,26 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                 children: [
                   const Text(
                     'Total',
-                    style: TextStyle(fontFamily: 'Recoleta', fontSize: 20, color: Colors.black87),
+                    style: TextStyle(
+                        fontFamily: 'Recoleta',
+                        fontSize: 20,
+                        color: Colors.black87),
                   ),
                   Row(
                     children: [
                       const Text(
                         'RM ',
-                        style: TextStyle(fontFamily: 'Afacad', fontSize: 14, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                            fontFamily: 'Afacad',
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold),
                       ),
                       Text(
                         totalPrice.toStringAsFixed(2),
-                        style: const TextStyle(fontFamily: 'Recoleta', fontSize: 22, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                            fontFamily: 'Recoleta',
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
@@ -534,7 +657,10 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                           padding: const EdgeInsets.symmetric(horizontal: 16.0),
                           child: Text(
                             quantity.toString(),
-                            style: const TextStyle(fontFamily: 'Recoleta', fontSize: 20, fontWeight: FontWeight.bold),
+                            style: const TextStyle(
+                                fontFamily: 'Recoleta',
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold),
                           ),
                         ),
                         IconButton(

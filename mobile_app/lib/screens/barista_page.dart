@@ -72,7 +72,7 @@ class _BaristaPageState extends State<BaristaPage> {
 
   @override
   Widget build(BuildContext context) {
-    const orangeColor = Color(0xFFE66B00);
+    const orangeColor = Color(0xFF2E5E58);
     const backgroundColor = Color(0xFFF7F7F7);
 
     return Scaffold(
@@ -82,7 +82,7 @@ class _BaristaPageState extends State<BaristaPage> {
           children: [
             // Custom Header matching other pages (but flattened bottom to merge with image)
             Container(
-              padding: const EdgeInsets.only(top: 60, bottom: 20, left: 20, right: 20),
+              padding: const EdgeInsets.only(top: 50, bottom: 12, left: 20, right: 20),
               decoration: const BoxDecoration(
                 color: orangeColor,
               ),
@@ -99,7 +99,7 @@ class _BaristaPageState extends State<BaristaPage> {
                         ),
                       );
                     },
-                    child: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 24),
+                    child: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 20),
                   ),
                   Expanded(
                     child: Center(
@@ -109,15 +109,16 @@ class _BaristaPageState extends State<BaristaPage> {
                           widget.title.toUpperCase(),
                           style: const TextStyle(
                             fontFamily: 'Recoleta',
-                            fontSize: 24,
+                            fontSize: 20,
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
+                            letterSpacing: 1.0,
                           ),
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 24), // Balance the flex for centering
+                  const SizedBox(width: 20), // Balance the flex for centering
                 ],
               ),
             ),

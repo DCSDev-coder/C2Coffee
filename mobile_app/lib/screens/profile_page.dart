@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../widgets/custom_bottom_nav.dart';
 import '../services/user_service.dart';
 import 'home_page.dart';
+import 'menu_page.dart';
 import 'loading_order_page.dart';
 import 'orders_page.dart';
 import 'top_up_wallet_page.dart';
@@ -14,6 +15,7 @@ import 'rewards_page.dart';
 import 'my_rewards_page.dart';
 import 'referral_page.dart';
 import '../widgets/order_status_banner.dart';
+import '../utils/app_colors.dart';
 
 class ProfilePage extends StatefulWidget {
   final File? initialPickedImage;
@@ -36,8 +38,8 @@ class _ProfilePageState extends State<ProfilePage> {
   String? _persistedPresetPath;
   String _username = 'Guest';
 
-  final Color orangeColor = const Color(0xFFE66B00);
-  final Color bgColor = const Color(0xFFFAF4EE);
+  final Color orangeColor = const Color(0xFF2E5E58);
+  final Color bgColor = Colors.white;
 
   @override
   void initState() {
@@ -64,6 +66,7 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   void _onBottomNavTapped(int index) {
+    if (index == 4) return;
     if (index == 0) {
       Navigator.pushAndRemoveUntil(
         context,
@@ -78,8 +81,17 @@ class _ProfilePageState extends State<ProfilePage> {
         ),
         (route) => false,
       );
+    } else if (index == 1) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const InteractiveFillingLoader(
+            targetPage: MenuPage(),
+          ),
+        ),
+      );
     } else if (index == 2) {
-      Navigator.push(
+      Navigator.pushReplacement(
         context,
         MaterialPageRoute(
           builder: (context) => InteractiveFillingLoader(
@@ -92,7 +104,7 @@ class _ProfilePageState extends State<ProfilePage> {
         ),
       );
     } else if (index == 3) {
-      Navigator.push(
+      Navigator.pushReplacement(
         context,
         MaterialPageRoute(
           builder: (context) => InteractiveFillingLoader(
@@ -104,8 +116,6 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
         ),
       );
-    } else if (index != 4) {
-      Navigator.pop(context);
     }
   }
 
@@ -123,7 +133,7 @@ class _ProfilePageState extends State<ProfilePage> {
         radius: 28,
         backgroundImage: AssetImage(_persistedPresetPath!),
         backgroundColor:
-            const Color(0xFFE76D00), // Add the orange background back
+            const Color(0xFF2E5E58), // Add the dark green background back
       );
     } else {
       return CircleAvatar(
@@ -150,10 +160,10 @@ class _ProfilePageState extends State<ProfilePage> {
               // Header
               Container(
                 padding: const EdgeInsets.only(
-                    top: 60, bottom: 20, left: 20, right: 20),
-                decoration: BoxDecoration(
-                  color: orangeColor,
-                  borderRadius: const BorderRadius.only(
+                    top: 50, bottom: 12, left: 20, right: 20),
+                decoration: const BoxDecoration(
+                  color: Color(0xFF2E5E58),
+                  borderRadius: BorderRadius.only(
                     bottomLeft: Radius.circular(20),
                     bottomRight: Radius.circular(20),
                   ),
@@ -180,16 +190,17 @@ class _ProfilePageState extends State<ProfilePage> {
                           );
                         },
                         child: const Icon(Icons.arrow_back_ios,
-                            color: Colors.white, size: 24),
+                            color: Colors.white, size: 20),
                       ),
                     ),
                     const Text(
                       'PROFILE',
                       style: TextStyle(
                         fontFamily: 'Recoleta',
-                        fontSize: 22,
+                        fontSize: 20,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
+                        letterSpacing: 1.0,
                       ),
                     ),
                     Align(
@@ -213,9 +224,9 @@ class _ProfilePageState extends State<ProfilePage> {
                               );
                             },
                             child: const Icon(Icons.settings_outlined,
-                                color: Colors.white, size: 26),
+                                color: Colors.white, size: 22),
                           ),
-                          const SizedBox(width: 16),
+                          const SizedBox(width: 14),
                           GestureDetector(
                             onTap: () {
                               Navigator.push(
@@ -228,8 +239,25 @@ class _ProfilePageState extends State<ProfilePage> {
                                 ),
                               );
                             },
-                            child: const Icon(Icons.notifications,
-                                color: Colors.white, size: 26),
+                            child: Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                const Icon(Icons.notifications_outlined,
+                                    color: Colors.white, size: 26),
+                                Positioned(
+                                  top: 1,
+                                  right: 1,
+                                  child: Container(
+                                    width: 8,
+                                    height: 8,
+                                    decoration: const BoxDecoration(
+                                      color: AppColors.terracotta,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ],
                       ),
@@ -251,11 +279,15 @@ class _ProfilePageState extends State<ProfilePage> {
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: const Color(0xFFCFDEDB),
+                            width: 1,
+                          ),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.05),
-                              blurRadius: 10,
-                              offset: const Offset(0, 5),
+                              color: Colors.black.withValues(alpha: 0.03),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
                             )
                           ],
                         ),
@@ -277,13 +309,16 @@ class _ProfilePageState extends State<ProfilePage> {
                               child: _buildAvatar(),
                             ),
                             const SizedBox(width: 16),
-                            Text(
-                              'Hey $_username,',
-                              style: const TextStyle(
-                                fontFamily: 'Recoleta',
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
+                            Expanded(
+                              child: Text(
+                                'Hey $_username,',
+                                style: const TextStyle(
+                                  fontFamily: 'Recoleta',
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.deepTeal,
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                           ],
@@ -299,11 +334,15 @@ class _ProfilePageState extends State<ProfilePage> {
                             decoration: BoxDecoration(
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: const Color(0xFFCFDEDB),
+                                width: 1,
+                              ),
                               boxShadow: [
                                 BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.05),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 5))
+                                    color: Colors.black.withValues(alpha: 0.03),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2))
                               ],
                             ),
                             child: Material(
@@ -339,10 +378,10 @@ class _ProfilePageState extends State<ProfilePage> {
                                                 style: TextStyle(
                                                     fontFamily: 'Recoleta',
                                                     fontSize: 18,
-                                                    fontWeight:
-                                                        FontWeight.bold)),
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Color(0xFF2E5E58))),
                                             const SizedBox(height: 4),
-                                            Text('RM0.00',
+                                            Text('0 points',
                                                 style: TextStyle(
                                                     fontFamily: 'Afacad',
                                                     fontSize: 18,
@@ -367,16 +406,20 @@ class _ProfilePageState extends State<ProfilePage> {
                                           padding: const EdgeInsets.symmetric(
                                               horizontal: 16, vertical: 8),
                                           decoration: BoxDecoration(
-                                            color: orangeColor,
+                                            color: const Color(0xFFEDF4F3),
                                             borderRadius:
                                                 BorderRadius.circular(20),
+                                            border: Border.all(
+                                              color: const Color(0xFFCFDEDB),
+                                              width: 1,
+                                            ),
                                           ),
                                           child: const Text('Top up \u2192',
                                               style: TextStyle(
                                                   fontFamily: 'Afacad',
                                                   fontSize: 14,
                                                   fontWeight: FontWeight.bold,
-                                                  color: Colors.white)),
+                                                  color: Color(0xFF2E5E58))),
                                         ),
                                       ),
                                     ],
@@ -395,12 +438,16 @@ class _ProfilePageState extends State<ProfilePage> {
                                   decoration: BoxDecoration(
                                     color: Colors.white,
                                     borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: const Color(0xFFCFDEDB),
+                                      width: 1,
+                                    ),
                                     boxShadow: [
                                       BoxShadow(
                                           color: Colors.black
-                                              .withValues(alpha: 0.05),
-                                          blurRadius: 10,
-                                          offset: const Offset(0, 5))
+                                              .withValues(alpha: 0.03),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 2))
                                     ],
                                   ),
                                   child: Material(
@@ -432,8 +479,8 @@ class _ProfilePageState extends State<ProfilePage> {
                                                 style: TextStyle(
                                                     fontFamily: 'Recoleta',
                                                     fontSize: 18,
-                                                    fontWeight:
-                                                        FontWeight.bold)),
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Color(0xFF2E5E58))),
                                             const SizedBox(height: 16),
                                             Image.asset(
                                                 'assets/images/Surprise reward gift box with star popping out.png',
@@ -452,12 +499,16 @@ class _ProfilePageState extends State<ProfilePage> {
                                   decoration: BoxDecoration(
                                     color: Colors.white,
                                     borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: const Color(0xFFCFDEDB),
+                                      width: 1,
+                                    ),
                                     boxShadow: [
                                       BoxShadow(
                                           color: Colors.black
-                                              .withValues(alpha: 0.05),
-                                          blurRadius: 10,
-                                          offset: const Offset(0, 5))
+                                              .withValues(alpha: 0.03),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 2))
                                     ],
                                   ),
                                   child: Material(
@@ -489,8 +540,8 @@ class _ProfilePageState extends State<ProfilePage> {
                                                 style: TextStyle(
                                                     fontFamily: 'Recoleta',
                                                     fontSize: 18,
-                                                    fontWeight:
-                                                        FontWeight.bold)),
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Color(0xFF2E5E58))),
                                             const SizedBox(height: 16),
                                             Image.asset(
                                                 'assets/images/Community friends laughing together waving hands and giving thumbs.png',
@@ -513,18 +564,23 @@ class _ProfilePageState extends State<ProfilePage> {
                           style: TextStyle(
                               fontFamily: 'Recoleta',
                               fontSize: 20,
-                              fontWeight: FontWeight.bold)),
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF2E5E58))),
                       const SizedBox(height: 12),
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: const Color(0xFFCFDEDB),
+                            width: 1,
+                          ),
                           boxShadow: [
                             BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.05),
-                                blurRadius: 10,
-                                offset: const Offset(0, 5))
+                                color: Colors.black.withValues(alpha: 0.03),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2))
                           ],
                         ),
                         child: Row(
@@ -546,7 +602,8 @@ class _ProfilePageState extends State<ProfilePage> {
                                       style: TextStyle(
                                           fontFamily: 'Recoleta',
                                           fontSize: 18,
-                                          fontWeight: FontWeight.bold)),
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF2E5E58))),
                                   const SizedBox(height: 6),
                                   Text(
                                       'Discover our new handcrafted joy and playful sips.',
@@ -566,11 +623,15 @@ class _ProfilePageState extends State<ProfilePage> {
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: const Color(0xFFCFDEDB),
+                            width: 1,
+                          ),
                           boxShadow: [
                             BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.05),
-                                blurRadius: 10,
-                                offset: const Offset(0, 5))
+                                color: Colors.black.withValues(alpha: 0.03),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2))
                           ],
                         ),
                         child: Row(
@@ -592,7 +653,8 @@ class _ProfilePageState extends State<ProfilePage> {
                                       style: TextStyle(
                                           fontFamily: 'Recoleta',
                                           fontSize: 18,
-                                          fontWeight: FontWeight.bold)),
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF2E5E58))),
                                   const SizedBox(height: 6),
                                   Text(
                                       'Order ahead with mobile ordering and save time.',
@@ -613,7 +675,8 @@ class _ProfilePageState extends State<ProfilePage> {
                           style: TextStyle(
                               fontFamily: 'Recoleta',
                               fontSize: 20,
-                              fontWeight: FontWeight.bold)),
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF2E5E58))),
                       const SizedBox(height: 12),
                       const Padding(
                         padding: EdgeInsets.symmetric(horizontal: 24.0),
@@ -626,7 +689,8 @@ class _ProfilePageState extends State<ProfilePage> {
                           style: TextStyle(
                               fontFamily: 'Recoleta',
                               fontSize: 20,
-                              fontWeight: FontWeight.bold)),
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF2E5E58))),
                       const SizedBox(height: 12),
                       const SizedBox(
                         height: 140, // Increased from 100
@@ -638,7 +702,8 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
             ],
           ),
-          const OrderStatusBanner(),
+          OrderStatusBanner(
+              bottomOffset: 90 + MediaQuery.paddingOf(context).bottom),
         ],
       ),
     );
@@ -722,11 +787,15 @@ class _CustomCalendarWidgetState extends State<CustomCalendarWidget> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: const Color(0xFFCFDEDB),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 5))
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 2))
         ],
       ),
       child: Column(
@@ -737,7 +806,7 @@ class _CustomCalendarWidgetState extends State<CustomCalendarWidget> {
             children: [
               IconButton(
                   icon:
-                      const Icon(Icons.chevron_left, color: Color(0xFFE66B00)),
+                      const Icon(Icons.chevron_left, color: Color(0xFF2E5E58)),
                   onPressed: _previousMonth),
               Text(
                 '${monthNames[_currentMonth.month - 1]} ${_currentMonth.year}',
@@ -745,11 +814,11 @@ class _CustomCalendarWidgetState extends State<CustomCalendarWidget> {
                     fontFamily: 'Recoleta',
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFFE66B00)),
+                    color: Color(0xFF2E5E58)),
               ),
               IconButton(
                   icon:
-                      const Icon(Icons.chevron_right, color: Color(0xFFE66B00)),
+                      const Icon(Icons.chevron_right, color: Color(0xFF2E5E58)),
                   onPressed: _nextMonth),
             ],
           ),
@@ -800,10 +869,10 @@ class _CustomCalendarWidgetState extends State<CustomCalendarWidget> {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: isSelected
-                        ? const Color(0xFFE66B00)
+                        ? const Color(0xFF2E5E58)
                         : Colors.transparent,
                     border: isBought && !isSelected
-                        ? Border.all(color: const Color(0xFFE66B00), width: 1.5)
+                        ? Border.all(color: const Color(0xFF2E5E58), width: 1.5)
                         : null,
                   ),
                   child: Center(
@@ -862,10 +931,14 @@ class _OurPromiseCarouselState extends State<OurPromiseCarousel> {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: const Color(0xFFCFDEDB),
+              width: 1,
+            ),
             boxShadow: [
               BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 5,
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 6,
                   offset: const Offset(0, 2))
             ],
           ),
@@ -877,7 +950,7 @@ class _OurPromiseCarouselState extends State<OurPromiseCarousel> {
                 fontFamily: 'Recoleta',
                 fontSize: 22, // increased from 16
                 fontWeight: FontWeight.bold,
-                color: Color(0xFFE66B00),
+                color: Color(0xFF2E5E58),
               ),
             ),
           ),

@@ -12,8 +12,8 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
   int _currentPhase = 0;
   Timer? _timer;
 
-  final Color orangeColor = const Color(0xFFE66B00);
-  final Color bgColor = const Color(0xFFFAF4EE);
+  final Color orangeColor = const Color(0xFF2E5E58);
+  final Color bgColor = Colors.white;
 
   @override
   void initState() {
@@ -145,12 +145,11 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
           // Header
           Container(
             padding:
-                const EdgeInsets.only(top: 60, bottom: 20, left: 20, right: 20),
-            decoration: BoxDecoration(
-              color: orangeColor,
-              borderRadius: const BorderRadius.only(
-                bottomLeft: Radius.circular(20),
-                bottomRight: Radius.circular(20),
+                const EdgeInsets.only(top: 50, bottom: 12, left: 20, right: 20),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              border: Border(
+                bottom: BorderSide(color: Color(0xFFEDF4F3), width: 1),
               ),
             ),
             child: Stack(
@@ -161,16 +160,17 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
                   child: GestureDetector(
                     onTap: () => Navigator.pop(context),
                     child: const Icon(Icons.arrow_back_ios,
-                        color: Colors.white, size: 24),
+                        color: Color(0xFF2E5E58), size: 20),
                   ),
                 ),
                 const Text(
                   'ORDER STATUS',
                   style: TextStyle(
                     fontFamily: 'Recoleta',
-                    fontSize: 22,
+                    fontSize: 20,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: Color(0xFF2E5E58),
+                    letterSpacing: 1.0,
                   ),
                 ),
               ],

@@ -1,13 +1,12 @@
 import 'dart:io';
-import '../screens/success_page.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image_picker/image_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import '../screens/success_page.dart';
 import '../screens/home_page.dart';
 
 class OtpVerificationPage extends StatefulWidget {
-  // Add parameters to receive avatar data
   final File? initialPickedImage;
   final String? initialPresetPath;
   final int initialAvatarIndex;
@@ -23,18 +22,19 @@ class OtpVerificationPage extends StatefulWidget {
   State<OtpVerificationPage> createState() => _OtpVerificationPageState();
 }
 
+// Alias for convenience
+typedef OtpVerification = OtpVerificationPage;
+typedef OtpBackup = OtpVerificationPage;
+
 class _OtpVerificationPageState extends State<OtpVerificationPage> {
-  // Avatar State
   File? _pickedImage;
   String? _presetAvatarPath = 'assets/images/dato.png';
   int _selectedAvatarIndex = 0;
 
-  // OTP State
   final List<TextEditingController> _otpControllers =
       List.generate(6, (_) => TextEditingController());
   final List<FocusNode> _otpFocusNodes = List.generate(6, (_) => FocusNode());
 
-  // Timer State
   Timer? _timer;
   int _start = 45;
   bool _isResendEnabled = false;
@@ -47,13 +47,16 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
   @override
   void initState() {
     super.initState();
-    // Load the avatar data passed from the previous screen
-    _pickedImage = widget.initialPickedImage;
-    _presetAvatarPath = widget.initialPresetPath;
-    _selectedAvatarIndex = widget.initialAvatarIndex;
+    if (widget.initialPickedImage != null) {
+      _pickedImage = widget.initialPickedImage;
+      _presetAvatarPath = null;
+      _selectedAvatarIndex = -1;
+    } else if (widget.initialPresetPath != null) {
+      _presetAvatarPath = widget.initialPresetPath;
+      _selectedAvatarIndex = widget.initialAvatarIndex;
+    }
 
     startTimer();
-    // Add listeners to automatically move to next box
     for (int i = 0; i < 6; i++) {
       _otpControllers[i].addListener(() {
         if (_otpControllers[i].text.length == 1 && i < 5) {
@@ -134,7 +137,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                     offset: Offset(0, 4)),
               ],
               border: Border.all(
-                  color: const Color(0xFFE76D00).withValues(alpha: 0.2),
+                  color: const Color(0xFF1F3A34).withValues(alpha: 0.2),
                   width: 1),
             ),
             child: Padding(
@@ -149,15 +152,15 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                       child: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFE76D00).withValues(alpha: 0.1),
+                          color: const Color(0xFF1F3A34).withValues(alpha: 0.1),
                           shape: BoxShape.circle,
                           border: Border.all(
-                              color: const Color(0xFFE76D00)
+                              color: const Color(0xFF1F3A34)
                                   .withValues(alpha: 0.2),
                               width: 1),
                         ),
                         child: const Icon(Icons.close,
-                            color: Color(0xFFE76D00), size: 18),
+                            color: Color(0xFF1F3A34), size: 18),
                       ),
                     ),
                   ),
@@ -168,7 +171,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                         fontFamily: 'Recoleta',
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFFE76D00),
+                        color: Color(0xFF1F3A34),
                         letterSpacing: 0.5),
                   ),
                   const SizedBox(height: 8),
@@ -209,14 +212,14 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                                   shape: BoxShape.circle,
                                   border: Border.all(
                                     color: isSelected
-                                        ? const Color(0xFFE76D00)
+                                        ? const Color(0xFF1F3A34)
                                         : Colors.grey.shade300,
                                     width: isSelected ? 3 : 2,
                                   ),
                                   boxShadow: isSelected
                                       ? [
                                           BoxShadow(
-                                              color: const Color(0xFFE76D00)
+                                              color: const Color(0xFF1F3A34)
                                                   .withValues(alpha: 0.3),
                                               blurRadius: 8,
                                               offset: const Offset(0, 2))
@@ -225,7 +228,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                                 ),
                                 child: CircleAvatar(
                                   radius: 40,
-                                  backgroundColor: const Color(0xFFE76D00),
+                                  backgroundColor: const Color(0xFF1F3A34),
                                   backgroundImage:
                                       AssetImage(_avatarOptions[index]['path']),
                                 ),
@@ -246,7 +249,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                                   style: TextStyle(
                                       fontFamily: 'Afacad',
                                       fontSize: 14,
-                                      color: const Color(0xFFE76D00),
+                                      color: const Color(0xFF1F3A34),
                                       fontWeight: FontWeight.w600)),
                             ),
                             Expanded(
@@ -264,13 +267,13 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             decoration: BoxDecoration(
                               gradient: const LinearGradient(colors: [
-                                Color(0xFFE76D00),
-                                Color(0xFFE76D00)
+                                Color(0xFF1F3A34),
+                                Color(0xFF1F3A34)
                               ]),
                               borderRadius: BorderRadius.circular(12),
                               boxShadow: [
                                 BoxShadow(
-                                    color: const Color(0xFFE76D00)
+                                    color: const Color(0xFF1F3A34)
                                         .withValues(alpha: 0.3),
                                     blurRadius: 8,
                                     offset: const Offset(0, 4))
@@ -345,264 +348,309 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
     return Container(
       width: 100,
       height: 100,
-      decoration:
-          const BoxDecoration(shape: BoxShape.circle, color: Color(0xFFE76D00)),
-      child: ClipOval(child: Image(image: imageProvider, fit: BoxFit.cover)),
+      decoration: const BoxDecoration(
+        shape: BoxShape.circle,
+        color: Color(0xFF1F3A34),
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white, width: 3.0),
+        ),
+        child: ClipOval(child: Image(image: imageProvider, fit: BoxFit.cover)),
+      ),
+    );
+  }
+
+  // Function to handle OTP verification
+  void _verifyOTP() {
+    // Get all OTP digits
+    String otp = '';
+    for (var controller in _otpControllers) {
+      otp += controller.text;
+    }
+
+    // Check if all fields are filled
+    if (otp.length != 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter all 6 digits'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    // Here you would normally verify the OTP with your backend
+    // For demo purposes, we'll accept any 6-digit code
+
+    // Navigate to SuccessPage then to HomePage
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SuccessPage(
+          title: 'SUCCESS!',
+          subtitle: 'OTP Verified! Welcome back!',
+          onDone: () {
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(
+                builder: (context) => HomePage(
+                  initialPickedImage: widget.initialPickedImage,
+                  initialPresetPath: widget.initialPresetPath,
+                  initialAvatarIndex: widget.initialAvatarIndex,
+                ),
+              ),
+              (route) => false,
+            );
+          },
+        ),
+      ),
+      (route) => false,
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    const Color orangeColor = Color(0xFFE76D00);
+    const Color orangeColor = Color(0xFF1F3A34);
 
     return Scaffold(
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          image: DecorationImage(
-              image: AssetImage('assets/images/background.png'),
-              fit: BoxFit.cover),
-        ),
-        child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Avatar
-                  GestureDetector(
-                    onTap: _showAvatarPicker,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        _buildMainAvatar(),
-                        Positioned(
-                          right: 2,
-                          bottom: 2,
-                          child: Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                  color: const Color(0xFFFAF4EE), width: 2),
-                              boxShadow: const [
-                                BoxShadow(
-                                    color: Color(0x1A000000), blurRadius: 4)
-                              ],
-                            ),
-                            child: const Icon(Icons.camera_alt,
-                                size: 18, color: Color(0xFFE76D00)),
-                          ),
-                        ),
+      backgroundColor: orangeColor,
+      body: Stack(
+        children: [
+          // Header Background Picture
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 320,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Image.asset(
+                  'assets/images/FKP01925.jpg',
+                  fit: BoxFit.cover,
+                  alignment: Alignment.center,
+                ),
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        const Color(0xFF1F3A34).withValues(alpha: 0.65),
+                        const Color(0xFF1F3A34).withValues(alpha: 0.90),
                       ],
                     ),
                   ),
-
-                  const SizedBox(height: 20),
-
-                  // Title
-                  const Text(
-                    'Verify Your Identity',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                        fontFamily: 'Recoleta',
-                        fontSize: 32,
-                        fontWeight: FontWeight.normal,
-                        color: orangeColor),
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  // Subtitle
-                  const Text(
-                    'We\'ve sent an SMS to your phone number.\nPlease fill in the security code',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                        fontFamily: 'Afacad',
-                        fontSize: 15,
-                        color: Colors.black87),
-                  ),
-
-                  const SizedBox(height: 30),
-
-                  // OTP Boxes
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: List.generate(6, (index) {
-                      return Container(
-                        width: 44,
-                        height: 60,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: orangeColor, width: 1.5),
-                        ),
-                        alignment: Alignment.center,
-                        child: Center(
-                          child: TextFormField(
-                            controller: _otpControllers[index],
-                            focusNode: _otpFocusNodes[index],
-                            textAlign: TextAlign.center,
-                            textAlignVertical: TextAlignVertical.center,
-                            keyboardType: TextInputType.number,
-                            maxLength: 1,
-                            style: const TextStyle(
-                                fontFamily: 'Afacad',
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87),
-                            decoration: const InputDecoration(
-                              counterText: '',
-                              border: InputBorder.none,
-                              isDense: true,
-                              contentPadding: EdgeInsets.zero,
-                            ),
-                            onChanged: (value) {
-                              if (value.isNotEmpty && index < 5) {
-                                _otpFocusNodes[index + 1].requestFocus();
-                              }
-                            },
-                          ),
-                        ),
-                      );
-                    }),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // Send via Email
-                  GestureDetector(
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                            content: const Text('OTP sent to your email!'),
-                            backgroundColor: orangeColor,
-                            behavior: SnackBarBehavior.floating,
-                            margin: EdgeInsets.only(
-                              bottom: MediaQuery.of(context).size.height - 220,
-                              left: 20,
-                              right: 20,
-                            ),
-                        ),
-                      );
-                      setState(() {
-                        startTimer();
-                      });
-                    },
-                    child: const Text(
-                      'Or send code via email',
-                      style: TextStyle(
-                        fontFamily: 'Afacad',
-                        fontSize: 14,
-                        color: Color(0xFFE76D00),
-                        fontWeight: FontWeight.w600,
-                        decoration: TextDecoration.underline,
-                        decorationColor: Color(0xFFE76D00),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-
-                  // Resend Text
-                  RichText(
-                    textAlign: TextAlign.center,
-                    text: TextSpan(
-                      style: const TextStyle(
-                          fontFamily: 'Afacad',
-                          fontSize: 14,
-                          color: Colors.black54),
-                      children: [
-                        const TextSpan(text: 'Didn\'t receive the code?\n'),
-                        if (_isResendEnabled)
-                          WidgetSpan(
-                            child: GestureDetector(
-                              onTap: () {
-                                setState(() {
-                                  startTimer();
-                                });
-                              },
-                              child: const Text(
-                                'Resend Code',
-                                style: TextStyle(
-                                  fontFamily: 'Recoleta',
-                                  fontWeight: FontWeight.bold,
-                                  color: orangeColor,
-                                ),
-                              ),
-                            ),
-                          )
-                        else
-                          TextSpan(
-                            text:
-                                'Resend Code (00:${_start.toString().padLeft(2, '0')})',
-                            style: TextStyle(color: Colors.grey.shade500),
-                          ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 30),
-
-                  // VERIFY Button
-                  SizedBox(
-                    width: double.infinity,
-                    height: 48,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.pushAndRemoveUntil(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => SuccessPage(
-                              title: 'SUCCESS!',
-                              subtitle: 'OTP Verified! Welcome back!',
-                              onDone: () {
-                                Navigator.pushAndRemoveUntil(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => HomePage(
-                                      initialPickedImage: _pickedImage,
-                                      initialPresetPath: _presetAvatarPath,
-                                      initialAvatarIndex: _selectedAvatarIndex,
-                                    ),
-                                  ),
-                                  (route) => false,
-                                );
-                              },
-                            ),
-                          ),
-                          (route) => false,
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: orangeColor,
-                        disabledBackgroundColor: Colors.grey.shade400,
-                        foregroundColor: Colors.white,
-                        disabledForegroundColor: Colors.white70,
-                        elevation: 0,
-                        shadowColor: Colors.transparent,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(30)),
-                      ),
-                      child: const Text(
-                        'VERIFY',
-                        style: TextStyle(
-                            fontFamily: 'Recoleta',
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1.0),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
-        ),
+          SafeArea(
+            bottom: false,
+            child: Column(
+              children: [
+                // Top Section
+                Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  child: Column(
+                    children: [
+                      GestureDetector(
+                        onTap: _showAvatarPicker,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            _buildMainAvatar(),
+                            Positioned(
+                              right: 2,
+                              bottom: 2,
+                              child: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                      color: const Color(0xFFFAF4EE), width: 2),
+                                  boxShadow: const [
+                                    BoxShadow(
+                                        color: Color(0x1A000000), blurRadius: 4)
+                                  ],
+                                ),
+                                child: const Icon(Icons.camera_alt,
+                                    size: 18, color: Color(0xFF1F3A34)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Verify Your Identity',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                            fontFamily: 'Recoleta',
+                            fontSize: 26,
+                            fontWeight: FontWeight.normal,
+                            color: Colors.white),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'We\'ve sent a text to your phone number.\nPlease fill in the security code',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                            fontFamily: 'Afacad',
+                            fontSize: 12,
+                            color: Colors.white70),
+                      ),
+                    ],
+                  ),
+                ),
+                // White Card Section
+                Expanded(
+                  child: Container(
+                    width: double.infinity,
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      borderRadius:
+                          BorderRadius.vertical(top: Radius.circular(40)),
+                    ),
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(24, 32, 24, 32),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          const Text(
+                            'Please fill in the security code.',
+                            style: TextStyle(
+                                fontFamily: 'Recoleta',
+                                fontSize: 18,
+                                fontWeight: FontWeight.normal,
+                                color: Color(0xFF1F3A34)),
+                          ),
+                          const SizedBox(height: 30),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: List.generate(6, (index) {
+                              return Container(
+                                width: 50,
+                                height: 60,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                      color: orangeColor, width: 1.5),
+                                ),
+                                child: Center(
+                                  child: SizedBox(
+                                    width: 58,
+                                    child: TextFormField(
+                                      controller: _otpControllers[index],
+                                      focusNode: _otpFocusNodes[index],
+                                      textAlign: TextAlign.center,
+                                      textAlignVertical:
+                                          TextAlignVertical.center,
+                                      keyboardType: TextInputType.number,
+                                      maxLength: 1,
+                                      style: const TextStyle(
+                                          fontFamily: 'Afacad',
+                                          fontSize: 26,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.black87),
+                                      decoration: const InputDecoration(
+                                        counterText: '',
+                                        border: InputBorder.none,
+                                        isDense: true,
+                                        contentPadding:
+                                            EdgeInsets.symmetric(vertical: 0),
+                                      ),
+                                      onChanged: (value) {
+                                        if (value.isNotEmpty && index < 5) {
+                                          _otpFocusNodes[index + 1]
+                                              .requestFocus();
+                                        }
+                                      },
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }),
+                          ),
+                          const SizedBox(height: 24),
+                          RichText(
+                            textAlign: TextAlign.center,
+                            text: TextSpan(
+                              style: const TextStyle(
+                                  fontFamily: 'Afacad',
+                                  fontSize: 14,
+                                  color: Colors.black54),
+                              children: [
+                                const TextSpan(
+                                    text: 'Didn\'t receive the code?\n'),
+                                if (_isResendEnabled)
+                                  WidgetSpan(
+                                    child: GestureDetector(
+                                      onTap: () {
+                                        setState(() {
+                                          startTimer();
+                                        });
+                                      },
+                                      child: const Text(
+                                        'Resend Code',
+                                        style: TextStyle(
+                                          fontFamily: 'Recoleta',
+                                          fontWeight: FontWeight.bold,
+                                          color: orangeColor,
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                else
+                                  TextSpan(
+                                    text:
+                                        'Resend Code (00:${_start.toString().padLeft(2, '0')})',
+                                    style:
+                                        TextStyle(color: Colors.grey.shade500),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 32),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 48,
+                            child: ElevatedButton(
+                              onPressed: _verifyOTP,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: orangeColor,
+                                disabledBackgroundColor: Colors.grey.shade400,
+                                foregroundColor: Colors.white,
+                                disabledForegroundColor: Colors.white70,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(30)),
+                              ),
+                              child: const Text(
+                                'VERIFY',
+                                style: TextStyle(
+                                    fontFamily: 'Recoleta',
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 1.0),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

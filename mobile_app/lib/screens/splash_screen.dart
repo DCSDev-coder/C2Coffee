@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../authorization_backup/startup_selector.dart';
+import '../authorization/signup1.dart';
 
 class SplashScreen extends StatelessWidget {
   const SplashScreen({super.key});
@@ -55,12 +55,12 @@ class SplashScreen extends StatelessWidget {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => const StartupSelector(),
+                            builder: (_) => const Signup1(),
                           ),
                         );
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF2F6353),
+                        backgroundColor: const Color(0xFF2E5E58),
                         foregroundColor: Colors.white,
                         elevation: 0,
                         shape: RoundedRectangleBorder(

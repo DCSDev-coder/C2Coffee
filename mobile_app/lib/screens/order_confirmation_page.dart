@@ -5,20 +5,28 @@ import 'loading_order_page.dart';
 import 'menu_page.dart';
 
 class OrderConfirmationPage extends StatefulWidget {
-  const OrderConfirmationPage({super.key});
+  final int initialQuantity;
+
+  const OrderConfirmationPage({super.key, this.initialQuantity = 1});
 
   @override
   State<OrderConfirmationPage> createState() => _OrderConfirmationPageState();
 }
 
 class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
-  int _quantity = 1;
+  late int _quantity;
   final double _basePrice = 16.90;
 
   @override
+  void initState() {
+    super.initState();
+    _quantity = widget.initialQuantity;
+  }
+
+  @override
   Widget build(BuildContext context) {
-    const Color orangeColor = Color(0xFFE76D00);
-    const Color bgColor = Color(0xFFF6F6F6);
+    const Color orangeColor = Color(0xFF2E5E58);
+    const Color bgColor = Colors.white;
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -29,14 +37,13 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
             children: [
               // Custom Header
               Container(
-                padding: const EdgeInsets.only(
-                    top: 60, bottom: 20, left: 20, right: 20),
+                padding: EdgeInsets.only(
+                    top: 50 + MediaQuery.paddingOf(context).top,
+                    bottom: 16,
+                    left: 20,
+                    right: 20),
                 decoration: const BoxDecoration(
                   color: orangeColor,
-                  borderRadius: BorderRadius.only(
-                    bottomLeft: Radius.circular(20),
-                    bottomRight: Radius.circular(20),
-                  ),
                 ),
                 child: Row(
                   children: [
@@ -53,7 +60,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                         );
                       },
                       child: const Icon(Icons.arrow_back_ios,
-                          color: Colors.white, size: 24),
+                          color: Colors.white, size: 20),
                     ),
                     const Expanded(
                       child: Center(
@@ -63,15 +70,16 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                             'ORDER CONFIRMATION',
                             style: TextStyle(
                               fontFamily: 'Recoleta',
-                              fontSize: 24,
+                              fontSize: 20,
                               fontWeight: FontWeight.bold,
                               color: Colors.white,
+                              letterSpacing: 1.0,
                             ),
                           ),
                         ),
                       ),
                     ),
-                    const SizedBox(width: 24), // Balance the flex for centering
+                    const SizedBox(width: 20), // Balance the flex for centering
                   ],
                 ),
               ),
@@ -246,7 +254,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                               ],
                             ),
                             const SizedBox(height: 16),
-                            const Divider(color: Color(0xFFEEEEEE), height: 1),
+                            const Divider(color: Color(0xFFEDF4F3), height: 1),
                             const SizedBox(height: 12),
 
                             // Total line
@@ -347,7 +355,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                                       horizontal: 8, vertical: 4),
                                   decoration: BoxDecoration(
                                     color: const Color(
-                                        0xFFC85A17), // Darker orange/brown
+                                        0xFFE0715F), // Darker orange/brown
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: const Text(
@@ -423,7 +431,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                                         ),
                                       ),
                                       Text(
-                                        'RM0.00',
+                                        '0 points',
                                         style: TextStyle(
                                           fontFamily: 'Afacad',
                                           fontSize: 12,
@@ -474,8 +482,8 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                                   globalOrderStatusVisible.value =
                                       true; // Show global banner
                                   Navigator.pop(context); // Pop SuccessPage
-                                  Navigator.pop(
-                                      context, true); // Pop Checkout page
+                                  Navigator.pop(context,
+                                      true); // Pop Checkout page — signals basket to clear
                                 },
                               ),
                             ),

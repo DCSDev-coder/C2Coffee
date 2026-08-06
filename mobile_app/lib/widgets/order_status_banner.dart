@@ -3,11 +3,15 @@ import '../utils/global_state.dart';
 import '../screens/order_status_detail_page.dart';
 
 class OrderStatusBanner extends StatefulWidget {
-  final double bottomOffset;
+  final double? bottomOffset;
+  final double? leftOffset;
+  final double? rightOffset;
 
   const OrderStatusBanner({
     super.key,
-    this.bottomOffset = 120, // Default to float just above the bottom nav
+    this.bottomOffset,
+    this.leftOffset,
+    this.rightOffset,
   });
 
   @override
@@ -20,7 +24,7 @@ class _OrderStatusBannerState extends State<OrderStatusBanner>
   late Animation<Offset> _slideAnimation;
   late Animation<double> _fadeAnimation;
 
-  final Color orangeColor = const Color(0xFFE66B00);
+  final Color orangeColor = const Color(0xFF2E5E58);
 
   @override
   void initState() {
@@ -47,6 +51,12 @@ class _OrderStatusBannerState extends State<OrderStatusBanner>
       _controller.forward();
     }
 
+    _controller.addStatusListener((status) {
+      if (mounted) {
+        setState(() {});
+      }
+    });
+
     globalOrderStatusVisible.addListener(_onGlobalStateChanged);
   }
 
@@ -67,19 +77,32 @@ class _OrderStatusBannerState extends State<OrderStatusBanner>
 
   @override
   Widget build(BuildContext context) {
+    final effectiveBottomOffset = widget.bottomOffset ??
+        (84 + MediaQuery.paddingOf(context).bottom);
+    final effectiveLeftOffset = widget.leftOffset ?? 16.0;
+    final effectiveRightOffset = widget.rightOffset ?? 16.0;
+
     return ValueListenableBuilder<bool>(
       valueListenable: globalOrderStatusVisible,
       builder: (context, isVisible, child) {
+        if (!isVisible && _controller.isDismissed) {
+          return const SizedBox.shrink();
+        }
+
         return Positioned(
-          bottom: widget.bottomOffset,
-          left: 16,
-          right: 16,
-          child: SlideTransition(
-            position: _slideAnimation,
-            child: FadeTransition(
-              opacity: _fadeAnimation,
-              child: Stack(
-                clipBehavior: Clip.none,
+          bottom: effectiveBottomOffset,
+          left: effectiveLeftOffset,
+          right: effectiveRightOffset,
+          child: IgnorePointer(
+            ignoring: !isVisible ||
+                _controller.status == AnimationStatus.dismissed ||
+                _controller.status == AnimationStatus.reverse,
+            child: SlideTransition(
+              position: _slideAnimation,
+              child: FadeTransition(
+                opacity: _fadeAnimation,
+                child: Stack(
+                  clipBehavior: Clip.none,
                 children: [
                   GestureDetector(
                     onTap: () {
@@ -91,10 +114,10 @@ class _OrderStatusBannerState extends State<OrderStatusBanner>
                       );
                     },
                     child: Container(
-                      width: double.infinity,
+                      height: 60,
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        borderRadius: BorderRadius.circular(24),
+                        borderRadius: BorderRadius.circular(18),
                         border: Border.all(color: orangeColor, width: 1.5),
                         boxShadow: [
                           BoxShadow(
@@ -105,58 +128,46 @@ class _OrderStatusBannerState extends State<OrderStatusBanner>
                         ],
                       ),
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 8),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          horizontal: 14, vertical: 8),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Text(
-                                  'Your order is being prepared',
-                                  style: TextStyle(
-                                    fontFamily: 'Recoleta',
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFFE66B00),
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Row(
-                                  children: const [
-                                    Text(
-                                      'Estimated preparation time : ',
-                                      style: TextStyle(
-                                        fontFamily: 'Afacad',
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.black87,
-                                      ),
-                                    ),
-                                    Text(
-                                      '5 min',
-                                      style: TextStyle(
-                                        fontFamily: 'Afacad',
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.bold,
-                                        fontStyle: FontStyle.italic,
-                                        color: Color(0xFFE66B00),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
+                          const Text(
+                            'Order being prepared',
+                            style: TextStyle(
+                              fontFamily: 'Recoleta',
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF2E5E58),
+                              height: 1.2,
                             ),
                           ),
-                          Image.asset(
-                            'assets/images/pour.png',
-                            width: 55,
-                            height: 55,
-                            fit: BoxFit.contain,
+                          Row(
+                            children: const [
+                              Text(
+                                'Est. time: ',
+                                style: TextStyle(
+                                  fontFamily: 'Afacad',
+                                  fontSize: 10,
+                                  color: Colors.black54,
+                                  height: 1.2,
+                                ),
+                              ),
+                              Text(
+                                '5 min',
+                                style: TextStyle(
+                                  fontFamily: 'Afacad',
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  fontStyle: FontStyle.italic,
+                                  color: Color(0xFF2E5E58),
+                                  height: 1.2,
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 8), // space for close button
                         ],
                       ),
                     ),
@@ -195,8 +206,9 @@ class _OrderStatusBannerState extends State<OrderStatusBanner>
               ),
             ),
           ),
-        );
-      },
-    );
-  }
+        ),
+      );
+    },
+  );
+}
 }

@@ -16,7 +16,7 @@ const MIME_TYPES = {
     '.json': 'application/json'
 };
 
-const SUBDIRS = ['authorization', 'authorization_backup', 'main_app'];
+const SUBDIRS = ['authorization', 'main_app'];
 
 const server = http.createServer((req, res) => {
     try {

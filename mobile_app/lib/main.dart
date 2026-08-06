@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:c2_coffee/authorization_backup/loginbackup.dart';
+import 'package:c2_coffee/authorization/login.dart';
 import 'package:c2_coffee/screens/home_page.dart';
 
 import 'package:c2_coffee/screens/splash_screen.dart';
@@ -20,14 +20,15 @@ class C2CoffeeApp extends StatelessWidget {
       theme: ThemeData(
         useMaterial3: true,
         fontFamily: 'Afacad',
-        scaffoldBackgroundColor: const Color(0xFFFAF4EE),
+        scaffoldBackgroundColor: Colors.white,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF2E5B4E),
+          seedColor: const Color(0xFF2E5E58),
         ),
       ),
       home: const SplashScreen(),
       routes: {
-        '/login_backup': (context) => const LoginBackup(),
+        '/login': (context) => const LoginPage(),
+        '/login_backup': (context) => const LoginPage(),
         '/home': (context) => const HomePage(),
       },
     );

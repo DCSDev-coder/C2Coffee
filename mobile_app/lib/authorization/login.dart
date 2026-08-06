@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'signup1.dart';
 import 'otp_verification.dart';
+import '../services/user_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -15,10 +16,12 @@ class LoginPage extends StatefulWidget {
   State<LoginPage> createState() => _LoginPageState();
 }
 
+// Aliases for compatibility
+typedef LoginBackup = LoginPage;
+
 class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _phoneController = TextEditingController();
-  final TextEditingController _emailController = TextEditingController();
 
   // Avatar State
   File? _pickedImage;
@@ -35,7 +38,6 @@ class _LoginPageState extends State<LoginPage> {
   void initState() {
     super.initState();
     _phoneController.addListener(_onFieldChanged);
-    _emailController.addListener(_onFieldChanged);
   }
 
   void _onFieldChanged() => setState(() {});
@@ -43,21 +45,14 @@ class _LoginPageState extends State<LoginPage> {
   @override
   void dispose() {
     _phoneController.removeListener(_onFieldChanged);
-    _emailController.removeListener(_onFieldChanged);
     _phoneController.dispose();
-    _emailController.dispose();
     super.dispose();
   }
 
   bool get _isFormValid {
     final phone = _phoneController.text.trim();
-    final email = _emailController.text.trim();
-
     final isPhoneValid = phone.isNotEmpty && _isPhoneValid;
-    final isEmailValid = email.isNotEmpty &&
-        RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email);
-
-    return isPhoneValid || isEmailValid;
+    return isPhoneValid;
   }
 
   Future<void> _pickImageFromGallery() async {
@@ -102,7 +97,7 @@ class _LoginPageState extends State<LoginPage> {
                     offset: Offset(0, 4)),
               ],
               border: Border.all(
-                  color: const Color(0xFFE76D00).withValues(alpha: 0.2),
+                  color: const Color(0xFF1F3A34).withValues(alpha: 0.2),
                   width: 1),
             ),
             child: Padding(
@@ -117,15 +112,15 @@ class _LoginPageState extends State<LoginPage> {
                       child: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFE76D00).withValues(alpha: 0.1),
+                          color: const Color(0xFF1F3A34).withValues(alpha: 0.1),
                           shape: BoxShape.circle,
                           border: Border.all(
-                              color: const Color(0xFFE76D00)
+                              color: const Color(0xFF1F3A34)
                                   .withValues(alpha: 0.2),
                               width: 1),
                         ),
                         child: const Icon(Icons.close,
-                            color: Color(0xFFE76D00), size: 18),
+                            color: Color(0xFF1F3A34), size: 18),
                       ),
                     ),
                   ),
@@ -136,7 +131,7 @@ class _LoginPageState extends State<LoginPage> {
                         fontFamily: 'Recoleta',
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFFE76D00),
+                        color: Color(0xFF1F3A34),
                         letterSpacing: 0.5),
                   ),
                   const SizedBox(height: 8),
@@ -177,14 +172,14 @@ class _LoginPageState extends State<LoginPage> {
                                   shape: BoxShape.circle,
                                   border: Border.all(
                                     color: isSelected
-                                        ? const Color(0xFFE76D00)
+                                        ? const Color(0xFF1F3A34)
                                         : Colors.grey.shade300,
                                     width: isSelected ? 3 : 2,
                                   ),
                                   boxShadow: isSelected
                                       ? [
                                           BoxShadow(
-                                              color: const Color(0xFFE76D00)
+                                              color: const Color(0xFF1F3A34)
                                                   .withValues(alpha: 0.3),
                                               blurRadius: 8,
                                               offset: const Offset(0, 2))
@@ -193,7 +188,7 @@ class _LoginPageState extends State<LoginPage> {
                                 ),
                                 child: CircleAvatar(
                                   radius: 40,
-                                  backgroundColor: const Color(0xFFE76D00),
+                                  backgroundColor: const Color(0xFF1F3A34),
                                   backgroundImage:
                                       AssetImage(_avatarOptions[index]['path']),
                                 ),
@@ -214,7 +209,7 @@ class _LoginPageState extends State<LoginPage> {
                                   style: TextStyle(
                                       fontFamily: 'Afacad',
                                       fontSize: 14,
-                                      color: const Color(0xFFE76D00),
+                                      color: const Color(0xFF1F3A34),
                                       fontWeight: FontWeight.w600)),
                             ),
                             Expanded(
@@ -232,13 +227,13 @@ class _LoginPageState extends State<LoginPage> {
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             decoration: BoxDecoration(
                               gradient: const LinearGradient(colors: [
-                                Color(0xFFE76D00),
-                                Color(0xFFE76D00)
+                                Color(0xFF1F3A34),
+                                Color(0xFF1F3A34)
                               ]),
                               borderRadius: BorderRadius.circular(12),
                               boxShadow: [
                                 BoxShadow(
-                                    color: const Color(0xFFE76D00)
+                                    color: const Color(0xFF1F3A34)
                                         .withValues(alpha: 0.3),
                                     blurRadius: 8,
                                     offset: const Offset(0, 4))
@@ -301,7 +296,9 @@ class _LoginPageState extends State<LoginPage> {
   Widget _buildMainAvatar() {
     ImageProvider imageProvider;
     if (_pickedImage != null) {
-      imageProvider = kIsWeb ? NetworkImage(_pickedImage!.path) : FileImage(_pickedImage!) as ImageProvider;
+      imageProvider = kIsWeb
+          ? NetworkImage(_pickedImage!.path)
+          : FileImage(_pickedImage!) as ImageProvider;
     } else if (_presetAvatarPath != null) {
       imageProvider = AssetImage(_presetAvatarPath!);
     } else {
@@ -311,322 +308,365 @@ class _LoginPageState extends State<LoginPage> {
     return Container(
       width: 100,
       height: 100,
-      decoration:
-          const BoxDecoration(shape: BoxShape.circle, color: Color(0xFFE76D00)),
-      child: ClipOval(child: Image(image: imageProvider, fit: BoxFit.cover)),
+      decoration: const BoxDecoration(
+        shape: BoxShape.circle,
+        color: Color(0xFF1F3A34),
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white, width: 3.0),
+        ),
+        child: ClipOval(child: Image(image: imageProvider, fit: BoxFit.cover)),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    const Color orangeColor = Color(0xFFE76D00);
+    const Color orangeColor = Color(0xFF1F3A34);
 
     return Scaffold(
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          image: DecorationImage(
-              image: AssetImage('assets/images/background.png'),
-              fit: BoxFit.cover),
-        ),
-        child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Avatar
-                    GestureDetector(
-                      onTap: _showAvatarPicker,
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          _buildMainAvatar(),
-                          Positioned(
-                            right: 2,
-                            bottom: 2,
-                            child: Container(
-                              padding: const EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                    color: const Color(0xFFFAF4EE), width: 2),
-                                boxShadow: const [
-                                  BoxShadow(
-                                      color: Color(0x1A000000), blurRadius: 4)
-                                ],
-                              ),
-                              child: const Icon(Icons.camera_alt,
-                                  size: 18, color: Color(0xFFE76D00)),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    // Welcome Back
-                    const Text(
-                      'Welcome Back',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                          fontFamily: 'Recoleta',
-                          fontSize: 32,
-                          fontWeight: FontWeight.normal,
-                          color: orangeColor),
-                    ),
-
-                    const SizedBox(height: 6),
-
-                    const Text(
-                      'Log in to continue your coffee journey and enjoy exclusive rewards.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                          fontFamily: 'Afacad',
-                          fontSize: 15,
-                          color: Colors.black87),
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    // Phone Number Box
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Phone Number',
-                          style: TextStyle(
-                              fontFamily: 'Recoleta',
-                              fontSize: 17,
-                              fontWeight: FontWeight.bold,
-                              color: orangeColor),
-                        ),
-                        const SizedBox(height: 4),
-                        Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.95),
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: const [
-                              BoxShadow(
-                                  color: Color(0x08000000),
-                                  blurRadius: 6,
-                                  offset: Offset(0, 2))
-                            ],
-                          ),
-                          child: IntlPhoneField(
-                            controller: _phoneController,
-                            initialCountryCode: 'MY',
-                            countries: [
-                              ...intl_countries.countries.where((c) => c.code == 'MY').map((c) => intl_countries.Country(
-                                    name: ' Malaysia',
-                                    nameTranslations: {},
-                                    flag: c.flag,
-                                    code: c.code,
-                                    dialCode: c.dialCode,
-                                    minLength: c.minLength,
-                                    maxLength: c.maxLength,
-                                    regionCode: c.regionCode,
-                                  )),
-                              ...intl_countries.countries.where((c) => c.code == 'SG').map((c) => intl_countries.Country(
-                                    name: ' Singapore',
-                                    nameTranslations: {},
-                                    flag: c.flag,
-                                    code: c.code,
-                                    dialCode: c.dialCode,
-                                    minLength: c.minLength,
-                                    maxLength: c.maxLength,
-                                    regionCode: c.regionCode,
-                                  )),
-                              ...intl_countries.countries.where((c) => c.code != 'MY' && c.code != 'SG'),
-                            ],
-                            disableLengthCheck: true,
-                            showDropdownIcon: false,
-                            dropdownIconPosition: IconPosition.trailing,
-                            flagsButtonMargin:
-                                const EdgeInsets.only(left: 12, right: 4),
-                            decoration: InputDecoration(
-                              hintText: '1234567890',
-                              hintStyle: const TextStyle(
-                                  fontFamily: 'Afacad',
-                                  fontSize: 15,
-                                  color: Colors.grey),
-                              border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                  borderSide: BorderSide.none),
-                              enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                  borderSide: BorderSide.none),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(16),
-                                borderSide: const BorderSide(
-                                    color: orangeColor, width: 1.5),
-                              ),
-                              contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 12),
-                            ),
-                            style: const TextStyle(
-                                fontFamily: 'Afacad',
-                                fontSize: 15,
-                                color: Colors.black87),
-                            dropdownTextStyle: const TextStyle(
-                                fontFamily: 'Afacad',
-                                fontSize: 15,
-                                color: Colors.black87),
-                            onChanged: (phone) {
-                              setState(() {
-                                try {
-                                  _isPhoneValid = phone.isValidNumber();
-                                } catch (_) {
-                                  _isPhoneValid =
-                                      phone.number.trim().length >= 7;
-                                }
-                              });
-                            },
-                            onCountryChanged: (_) => setState(() {}),
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    // OR Divider
-                    Row(
-                      children: [
-                        Expanded(
-                            child: Container(
-                                height: 1, color: Colors.grey.shade400)),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Text('or',
-                              style: TextStyle(
-                                  fontFamily: 'Afacad',
-                                  fontSize: 14,
-                                  color: const Color(0xFFE76D00),
-                                  fontWeight: FontWeight.w600)),
-                        ),
-                        Expanded(
-                            child: Container(
-                                height: 1, color: Colors.grey.shade400)),
-                      ],
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // Continue with Email Button
-                    SizedBox(
-                      width: double.infinity,
-                      height: 48,
-                      child: ElevatedButton.icon(
-                        onPressed: () {},
-                        icon: const Icon(Icons.email_outlined,
-                            size: 20, color: orangeColor),
-                        label: const Text(
-                          'Continue with Email',
-                          style: TextStyle(
-                              fontFamily: 'Afacad',
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: orangeColor),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          elevation: 0,
-                          shadowColor: Colors.transparent,
-                          side:
-                              BorderSide(color: Colors.grey.shade300, width: 1),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(30)),
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    // New member?
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Text('New member? ',
-                            style: TextStyle(
-                                fontFamily: 'Afacad',
-                                fontSize: 14,
-                                color: Colors.black87)),
-                        GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (context) => const Signup1()),
-                            );
-                          },
-                          child: const Text('Join now',
-                              style: TextStyle(
-                                  fontFamily: 'Recoleta',
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                  color: orangeColor)),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    // LOGIN Button
-                    SizedBox(
-                      width: double.infinity,
-                      height: 48,
-                      child: ElevatedButton(
-                        onPressed: _isFormValid
-                            ? () {
-                                // Pass the current avatar state to the OTP page
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => OtpVerificationPage(
-                                      initialPickedImage: _pickedImage,
-                                      initialPresetPath: _presetAvatarPath,
-                                      initialAvatarIndex: _selectedAvatarIndex,
-                                    ),
-                                  ),
-                                );
-                              }
-                            : null,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: orangeColor,
-                          disabledBackgroundColor: Colors.grey.shade400,
-                          foregroundColor: Colors.white,
-                          disabledForegroundColor: Colors.white70,
-                          elevation: 0,
-                          shadowColor: Colors.transparent,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(30)),
-                        ),
-                        child: const Text(
-                          'LOGIN',
-                          style: TextStyle(
-                              fontFamily: 'Recoleta',
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1.0),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                  ],
+      backgroundColor: orangeColor,
+      body: Stack(
+        children: [
+          // Header Background Picture
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 320,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Image.asset(
+                  'assets/images/FKP01925.jpg',
+                  fit: BoxFit.cover,
+                  alignment: Alignment.center,
                 ),
-              ),
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        const Color(0xFF1F3A34).withValues(alpha: 0.65),
+                        const Color(0xFF1F3A34).withValues(alpha: 0.90),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-        ),
+          SafeArea(
+            bottom: false,
+            child: Column(
+              children: [
+                // Top Section
+                Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                  child: Column(
+                    children: [
+                      GestureDetector(
+                        onTap: _showAvatarPicker,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            _buildMainAvatar(),
+                            Positioned(
+                              right: 2,
+                              bottom: 2,
+                              child: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                      color: const Color(0xFFFAF4EE), width: 2),
+                                  boxShadow: const [
+                                    BoxShadow(
+                                        color: Color(0x1A000000), blurRadius: 4)
+                                  ],
+                                ),
+                                child: const Icon(Icons.camera_alt,
+                                    size: 18, color: Color(0xFF1F3A34)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Welcome Back',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                            fontFamily: 'Recoleta',
+                            fontSize: 32,
+                            fontWeight: FontWeight.normal,
+                            color: Colors.white),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Log in to continue your coffee journey and enjoy exclusive rewards.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                            fontFamily: 'Afacad',
+                            fontSize: 14,
+                            color: Colors.white70),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                  ),
+                ),
+                // White Card Section
+                Expanded(
+                  child: Container(
+                    width: double.infinity,
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      borderRadius:
+                          BorderRadius.vertical(top: Radius.circular(40)),
+                    ),
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
+                      child: Form(
+                        key: _formKey,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildPhoneField(),
+                            const SizedBox(height: 24),
+                            Center(
+                              child: GestureDetector(
+                                onTap: () {},
+                                child: const Text(
+                                  'or',
+                                  style: TextStyle(
+                                      fontFamily: 'Afacad',
+                                      fontSize: 14,
+                                      color: Color(0xFF1F3A34),
+                                      fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            SizedBox(
+                              width: double.infinity,
+                              height: 54,
+                              child: ElevatedButton.icon(
+                                onPressed: () {},
+                                icon: const Icon(Icons.email_outlined,
+                                    size: 20, color: orangeColor),
+                                label: const Text(
+                                  'Continue with Email',
+                                  style: TextStyle(
+                                      fontFamily: 'Afacad',
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                      color: orangeColor),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.white,
+                                  elevation: 0,
+                                  shadowColor: Colors.transparent,
+                                  side: BorderSide(
+                                      color: Colors.grey.shade300, width: 1),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(30)),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            Center(
+                              child: GestureDetector(
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                        builder: (context) =>
+                                            const Signup1()),
+                                  );
+                                },
+                                child: RichText(
+                                  text: const TextSpan(
+                                    style: TextStyle(
+                                        fontFamily: 'Afacad',
+                                        fontSize: 14,
+                                        color: Colors.black87),
+                                    children: [
+                                      TextSpan(text: 'New member? '),
+                                      TextSpan(
+                                        text: 'Join now',
+                                        style: TextStyle(
+                                            fontFamily: 'Recoleta',
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xFF1F3A34)),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            SizedBox(
+                              width: double.infinity,
+                              height: 54,
+                              child: ElevatedButton(
+                                onPressed: _isFormValid
+                                    ? () async {
+                                        await UserService.saveUserProfile({
+                                          'phone': _phoneController.text.trim(),
+                                        });
+
+                                        if (!context.mounted) return;
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) =>
+                                                OtpVerificationPage(
+                                              initialPickedImage: _pickedImage,
+                                              initialPresetPath:
+                                                  _presetAvatarPath,
+                                              initialAvatarIndex:
+                                                  _selectedAvatarIndex,
+                                            ),
+                                          ),
+                                        );
+                                      }
+                                    : null,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: orangeColor,
+                                  disabledBackgroundColor: Colors.grey.shade400,
+                                  foregroundColor: Colors.white,
+                                  disabledForegroundColor: Colors.white70,
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(30)),
+                                ),
+                                child: const Text(
+                                  'LOGIN',
+                                  style: TextStyle(
+                                      fontFamily: 'Recoleta',
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 1.0),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
+    );
+  }
+
+  Widget _buildPhoneField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Phone Number',
+          style: TextStyle(
+              fontFamily: 'Recoleta',
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF2E5E58)),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.grey.withValues(alpha: 0.18),
+                blurRadius: 12,
+                spreadRadius: 1,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: IntlPhoneField(
+            controller: _phoneController,
+            initialCountryCode: 'MY',
+            countries: [
+              ...intl_countries.countries
+                  .where((c) => c.code == 'MY')
+                  .map((c) => intl_countries.Country(
+                        name: ' Malaysia',
+                        nameTranslations: {},
+                        flag: c.flag,
+                        code: c.code,
+                        dialCode: c.dialCode,
+                        minLength: c.minLength,
+                        maxLength: c.maxLength,
+                        regionCode: c.regionCode,
+                      )),
+              ...intl_countries.countries
+                  .where((c) => c.code == 'SG')
+                  .map((c) => intl_countries.Country(
+                        name: ' Singapore',
+                        nameTranslations: {},
+                        flag: c.flag,
+                        code: c.code,
+                        dialCode: c.dialCode,
+                        minLength: c.minLength,
+                        maxLength: c.maxLength,
+                        regionCode: c.regionCode,
+                      )),
+              ...intl_countries.countries
+                  .where((c) => c.code != 'MY' && c.code != 'SG'),
+            ],
+            disableLengthCheck: true,
+            showDropdownIcon: false,
+            dropdownIconPosition: IconPosition.trailing,
+            flagsButtonMargin: const EdgeInsets.only(left: 12, right: 4),
+            decoration: InputDecoration(
+              filled: true,
+              fillColor: Colors.white,
+              hintText: '1234567890',
+              hintStyle: const TextStyle(
+                  fontFamily: 'Afacad', fontSize: 16, color: Colors.grey),
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(20),
+                  borderSide: BorderSide.none),
+              enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(20),
+                  borderSide: BorderSide.none),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(20),
+                borderSide:
+                    const BorderSide(color: Color(0xFF2E5E58), width: 1.5),
+              ),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            ),
+            style: const TextStyle(
+                fontFamily: 'Afacad', fontSize: 16, color: Colors.black87),
+            dropdownTextStyle: const TextStyle(
+                fontFamily: 'Afacad', fontSize: 16, color: Colors.black87),
+            onChanged: (phone) {
+              setState(() {
+                try {
+                  _isPhoneValid = phone.isValidNumber();
+                } catch (_) {
+                  _isPhoneValid = phone.number.trim().length >= 7;
+                }
+              });
+            },
+            onCountryChanged: (_) => setState(() {}),
+          ),
+        ),
+      ],
     );
   }
 }

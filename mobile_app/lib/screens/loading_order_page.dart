@@ -57,7 +57,7 @@ class _InteractiveFillingLoaderState extends State<InteractiveFillingLoader>
   Widget build(BuildContext context) {
     // Design System Colors: Artisan Roast
     const backgroundColor = Color(0xFFFAF9F6);
-    const primaryColor = Color(0xFF1B3323); // Dark Green
+    const primaryColor = Color(0xFF2E5E58); // Deep Forest Green
 
     return Scaffold(
       backgroundColor: backgroundColor,
@@ -92,14 +92,11 @@ class _InteractiveFillingLoaderState extends State<InteractiveFillingLoader>
                               decoration: BoxDecoration(
                                 border: Border(
                                   top: BorderSide(
-                                      color: const Color(0xFF3E2723),
-                                      width: 4),
+                                      color: const Color(0xFF3E2723), width: 4),
                                   right: BorderSide(
-                                      color: const Color(0xFF3E2723),
-                                      width: 4),
+                                      color: const Color(0xFF3E2723), width: 4),
                                   bottom: BorderSide(
-                                      color: const Color(0xFF3E2723),
-                                      width: 4),
+                                      color: const Color(0xFF3E2723), width: 4),
                                 ),
                                 borderRadius: const BorderRadius.horizontal(
                                     right: Radius.circular(30)),
@@ -117,8 +114,7 @@ class _InteractiveFillingLoaderState extends State<InteractiveFillingLoader>
                                 borderRadius: const BorderRadius.vertical(
                                     bottom: Radius.circular(40)),
                                 border: Border.all(
-                                    color: const Color(0xFF3E2723),
-                                    width: 4),
+                                    color: const Color(0xFF3E2723), width: 4),
                               ),
                               child: ClipRRect(
                                 borderRadius: const BorderRadius.vertical(
@@ -137,7 +133,8 @@ class _InteractiveFillingLoaderState extends State<InteractiveFillingLoader>
                                             end: Alignment.topCenter,
                                             colors: [
                                               Color(0xFF3E2723), // Dark Coffee
-                                              Color(0xFF5D4037), // Medium Coffee
+                                              Color(
+                                                  0xFF5D4037), // Medium Coffee
                                               Color(0xFF8D6E63), // Light Foam
                                             ],
                                           ),
@@ -163,8 +160,10 @@ class _InteractiveFillingLoaderState extends State<InteractiveFillingLoader>
                                         height: 80,
                                         fit: BoxFit.contain,
                                         color: progress > 0.4
-                                            ? Colors.white.withValues(alpha: 0.8)
-                                            : Colors.black.withValues(alpha: 0.8),
+                                            ? Colors.white
+                                                .withValues(alpha: 0.8)
+                                            : Colors.black
+                                                .withValues(alpha: 0.8),
                                       ),
                                     ),
                                   ],
@@ -184,7 +183,7 @@ class _InteractiveFillingLoaderState extends State<InteractiveFillingLoader>
                       style: const TextStyle(
                         fontSize: 48,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFFE76D00),
+                        color: Color(0xFF2E5E58),
                         fontFamily: 'Recoleta',
                       ),
                     ),
@@ -214,7 +213,7 @@ class _InteractiveFillingLoaderState extends State<InteractiveFillingLoader>
                           width: 8,
                           height: 8,
                           decoration: BoxDecoration(
-                            color: const Color(0xFFE76D00).withValues(
+                            color: const Color(0xFF2E5E58).withValues(
                                 alpha:
                                     _getDotOpacity(index, _controller.value)),
                             shape: BoxShape.circle,

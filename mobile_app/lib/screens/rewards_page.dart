@@ -10,6 +10,7 @@ import 'dart:io';
 import 'package:intl/intl.dart';
 import '../widgets/order_status_banner.dart';
 import 'my_rewards_page.dart';
+import '../utils/app_colors.dart';
 
 class RewardsPage extends StatefulWidget {
   final File? initialPickedImage;
@@ -29,13 +30,13 @@ class RewardsPage extends StatefulWidget {
 
 class _RewardsPageState extends State<RewardsPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-  final Color orangeColor = const Color(0xFFE66B00);
-  final Color beigeBg = const Color(0xFFFAF4EE);
+  final Color orangeColor = AppColors.deepTeal;
+  final Color beigeBg = Colors.white;
   int _selectedTier = 1; // Tier 2 index is 1
   bool _isFaqsOpen = false;
-  bool _hasClaimedToday = false;
 
   void _onBottomNavTapped(int index) {
+    if (index == 3) return;
     if (index == 0) {
       Navigator.pushAndRemoveUntil(
         context,
@@ -106,23 +107,30 @@ class _RewardsPageState extends State<RewardsPage> {
       ),
       body: Stack(
         children: [
-          SingleChildScrollView(
-            padding: const EdgeInsets.only(bottom: 120),
-            child: Column(
-              children: [
-                _buildHeader(),
-                const SizedBox(height: 16),
-                _buildCheckInSection(),
-                const SizedBox(height: 16),
-                _buildActionCards(),
-                const SizedBox(height: 24),
-                _buildTierSection(),
-                const SizedBox(height: 24),
-                _buildFaqsCard(),
-              ],
-            ),
+          Column(
+            children: [
+              _buildHeader(),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.only(bottom: 220),
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 16),
+                      _buildPointsCard(),
+                      const SizedBox(height: 16),
+                      _buildActionCards(),
+                      const SizedBox(height: 24),
+                      _buildTierSection(),
+                      const SizedBox(height: 24),
+                      _buildFaqsCard(),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
-          const OrderStatusBanner(),
+          OrderStatusBanner(
+              bottomOffset: 90 + MediaQuery.paddingOf(context).bottom),
         ],
       ),
     );
@@ -131,66 +139,88 @@ class _RewardsPageState extends State<RewardsPage> {
   Widget _buildHeader() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.only(top: 60, bottom: 30, left: 20, right: 20),
-      decoration: BoxDecoration(
-        color: orangeColor,
-        borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(30),
-          bottomRight: Radius.circular(30),
+      padding: const EdgeInsets.only(top: 50, bottom: 12, left: 20, right: 20),
+      decoration: const BoxDecoration(
+        color: Color(0xFF2E5E58),
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(20),
+          bottomRight: Radius.circular(20),
         ),
       ),
-      child: Column(
+      child: Stack(
+        alignment: Alignment.center,
         children: [
-          Stack(
-            alignment: Alignment.center,
-            children: [
-              Align(
-                alignment: Alignment.centerLeft,
-                child: GestureDetector(
-                  onTap: () {
-                    Navigator.pushAndRemoveUntil(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => InteractiveFillingLoader(
-                          targetPage: HomePage(
-                            initialPickedImage: widget.initialPickedImage,
-                            initialPresetPath: widget.initialPresetPath,
-                            initialAvatarIndex: widget.initialAvatarIndex,
-                          ),
-                        ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: GestureDetector(
+              onTap: () {
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => InteractiveFillingLoader(
+                      targetPage: HomePage(
+                        initialPickedImage: widget.initialPickedImage,
+                        initialPresetPath: widget.initialPresetPath,
+                        initialAvatarIndex: widget.initialAvatarIndex,
                       ),
-                      (route) => false,
-                    );
-                  },
-                  child: const Icon(Icons.arrow_back_ios,
-                      color: Colors.white, size: 24),
+                    ),
+                  ),
+                  (route) => false,
+                );
+              },
+              child: const Icon(Icons.arrow_back_ios,
+                  color: Colors.white, size: 20),
+            ),
+          ),
+          Column(
+            children: [
+              const Text(
+                'C2 COFFEE SQUAD',
+                style: TextStyle(
+                  fontFamily: 'Recoleta',
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  letterSpacing: 1.0,
                 ),
               ),
-              Column(
-                children: [
-                  const Text(
-                    'C2 COFFEE SQUAD',
-                    style: TextStyle(
-                      fontFamily: 'Recoleta',
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'member since ${DateFormat('d MMMM yyyy').format(DateTime.now())}',
-                    style: const TextStyle(
-                      fontFamily: 'Afacad',
-                      fontSize: 12,
-                      color: Colors.white70,
-                    ),
-                  ),
-                ],
+              const SizedBox(height: 2),
+              Text(
+                'member since ${DateFormat('d MMMM yyyy').format(DateTime.now())}',
+                style: const TextStyle(
+                  fontFamily: 'Afacad',
+                  fontSize: 12,
+                  color: Colors.white70,
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 30),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPointsCard() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: const Color(0xFFCFDEDB),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -210,8 +240,7 @@ class _RewardsPageState extends State<RewardsPage> {
               Expanded(
                 flex: 4,
                 child: Padding(
-                  padding: const EdgeInsets.only(
-                      bottom: 30), // Shifting text upwards
+                  padding: const EdgeInsets.only(bottom: 10),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: const [
@@ -220,16 +249,16 @@ class _RewardsPageState extends State<RewardsPage> {
                         style: TextStyle(
                           fontFamily: 'Afacad',
                           fontSize: 14,
-                          color: Colors.white,
+                          color: Colors.black54,
                         ),
                       ),
                       Text(
-                        '0 pts',
+                        '0 tokens',
                         style: TextStyle(
                           fontFamily: 'Recoleta',
                           fontSize: 28,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: AppColors.softGold,
                           height: 1.1,
                         ),
                       ),
@@ -240,7 +269,7 @@ class _RewardsPageState extends State<RewardsPage> {
                           fontFamily: 'Recoleta',
                           fontSize: 48,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: AppColors.deepTeal,
                           height: 1.0,
                         ),
                       ),
@@ -250,105 +279,18 @@ class _RewardsPageState extends State<RewardsPage> {
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
           const Text(
             "*Promo or free drinks don't earn cups and don't count toward rewards or tier upgrades.",
             textAlign: TextAlign.center,
             style: TextStyle(
               fontFamily: 'Afacad',
               fontSize: 10,
-              color: Colors.white70,
+              color: Colors.black54,
             ),
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildCheckInSection() {
-    return Column(
-      children: [
-        const Text(
-          'Check-In for Rewards',
-          style: TextStyle(
-            fontFamily: 'Recoleta',
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF6B3A1A),
-          ),
-        ),
-        const SizedBox(height: 12),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: List.generate(7, (index) {
-            bool isToday = index == 0;
-            return Column(
-              children: [
-                isToday
-                    ? Image.asset(
-                        'assets/images/coin.png',
-                        width: 44,
-                        height: 44,
-                      )
-                    : Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade300,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.lock,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                      ),
-                const SizedBox(height: 8),
-                Text(
-                  isToday ? 'TODAY' : 'DAY ${index + 1}',
-                  style: TextStyle(
-                    fontFamily: 'Afacad',
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: isToday ? orangeColor : Colors.grey.shade400,
-                  ),
-                ),
-              ],
-            );
-          }),
-        ),
-        const SizedBox(height: 12),
-        SizedBox(
-          width: 240,
-          child: ElevatedButton(
-            onPressed: _hasClaimedToday
-                ? null
-                : () {
-                    setState(() {
-                      _hasClaimedToday = true;
-                    });
-                  },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: orangeColor,
-              disabledBackgroundColor: Colors.grey.shade400,
-              disabledForegroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            ),
-            child: Text(
-              _hasClaimedToday ? 'COME BACK TOMORROW' : 'CLAIM',
-              style: const TextStyle(
-                fontFamily: 'Afacad',
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-          ),
-        ),
-      ],
     );
   }
 
@@ -372,8 +314,19 @@ class _RewardsPageState extends State<RewardsPage> {
               child: Container(
                 height: 120,
                 decoration: BoxDecoration(
-                  color: orangeColor,
+                  color: const Color(0xFFEDF4F3),
                   borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: const Color(0xFFCFDEDB),
+                    width: 1,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.03),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
                 child: Stack(
                   children: [
@@ -398,7 +351,7 @@ class _RewardsPageState extends State<RewardsPage> {
                           fontFamily: 'Recoleta',
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: Color(0xFF2E5E58),
                         ),
                       ),
                     ),
@@ -423,8 +376,19 @@ class _RewardsPageState extends State<RewardsPage> {
               child: Container(
                 height: 120,
                 decoration: BoxDecoration(
-                  color: orangeColor,
+                  color: const Color(0xFFEDF4F3),
                   borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: const Color(0xFFCFDEDB),
+                    width: 1,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.03),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
                 child: Stack(
                   children: [
@@ -449,7 +413,7 @@ class _RewardsPageState extends State<RewardsPage> {
                           fontFamily: 'Recoleta',
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: Color(0xFF2E5E58),
                         ),
                       ),
                     ),
@@ -477,14 +441,14 @@ class _RewardsPageState extends State<RewardsPage> {
                   fontFamily: 'Recoleta',
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFF6B3A1A),
+                  color: Color(0xFF2E5E58),
                 ),
               ),
               const SizedBox(width: 16),
               Expanded(
                 child: Container(
                   height: 1,
-                  color: orangeColor.withValues(alpha: 0.5),
+                  color: const Color(0xFFCFDEDB),
                 ),
               ),
             ],
@@ -496,10 +460,10 @@ class _RewardsPageState extends State<RewardsPage> {
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Row(
             children: [
-              Expanded(child: _buildTierTab(0, 'Tier 1', 'C2 Core', false)),
-              Expanded(child: _buildTierTab(1, 'Tier 2', 'C2 Plus', false)),
-              Expanded(child: _buildTierTab(2, 'Tier 3', 'C2 Prime', true)),
-              Expanded(child: _buildTierTab(3, 'Tier 4', 'C2 Elite', true)),
+              Expanded(child: _buildTierTab(0, 'Tier 1', 'Kawan', false)),
+              Expanded(child: _buildTierTab(1, 'Tier 2', 'Dilamun', false)),
+              Expanded(child: _buildTierTab(2, 'Tier 3', 'Ketagih', true)),
+              Expanded(child: _buildTierTab(3, 'Tier 4', 'Legend', true)),
             ],
           ),
         ),
@@ -509,6 +473,10 @@ class _RewardsPageState extends State<RewardsPage> {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: Colors.white,
+            border: Border.all(
+              color: const Color(0xFFCFDEDB),
+              width: 1,
+            ),
             borderRadius: const BorderRadius.only(
               bottomLeft: Radius.circular(16),
               bottomRight: Radius.circular(16),
@@ -516,9 +484,9 @@ class _RewardsPageState extends State<RewardsPage> {
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 10,
-                offset: const Offset(0, 5),
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
               ),
             ],
           ),
@@ -563,9 +531,11 @@ class _RewardsPageState extends State<RewardsPage> {
   Widget _buildTierTab(int index, String title, String subtitle, bool locked) {
     bool isSelected = index == _selectedTier;
     Color bgColor = locked
-        ? Colors.grey.shade300
-        : (isSelected ? orangeColor : orangeColor.withValues(alpha: 0.5));
-    Color textColor = locked ? Colors.grey.shade600 : Colors.white;
+        ? const Color(0xFFEDF4F3)
+        : (isSelected ? const Color(0xFFEDF4F3) : Colors.white);
+    Color textColor = locked
+        ? Colors.grey.shade400
+        : (isSelected ? orangeColor : Colors.black87);
 
     return GestureDetector(
       onTap: () {
@@ -580,6 +550,11 @@ class _RewardsPageState extends State<RewardsPage> {
         padding: const EdgeInsets.symmetric(horizontal: 1, vertical: 12),
         decoration: BoxDecoration(
           color: bgColor,
+          border: Border.all(
+            color:
+                isSelected ? const Color(0xFFCFDEDB) : const Color(0xFFEDF4F3),
+            width: 1,
+          ),
           borderRadius: const BorderRadius.only(
             topLeft: Radius.circular(16),
             topRight: Radius.circular(16),
@@ -633,8 +608,8 @@ class _RewardsPageState extends State<RewardsPage> {
         children: [
           Container(
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: orangeColor.withValues(alpha: 0.1),
+            decoration: const BoxDecoration(
+              color: Color(0xFFEDF4F3),
               shape: BoxShape.circle,
             ),
             child: Icon(Icons.coffee, color: orangeColor, size: 24),
@@ -650,6 +625,7 @@ class _RewardsPageState extends State<RewardsPage> {
                     fontFamily: 'Recoleta',
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
+                    color: Color(0xFF2E5E58),
                   ),
                 ),
                 Text(
@@ -680,11 +656,15 @@ class _RewardsPageState extends State<RewardsPage> {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: const Color(0xFFCFDEDB),
+              width: 1,
+            ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 10,
-                offset: const Offset(0, 5),
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
               ),
             ],
           ),
@@ -692,8 +672,8 @@ class _RewardsPageState extends State<RewardsPage> {
             children: [
               Container(
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: orangeColor.withValues(alpha: 0.1),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFEDF4F3),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(Icons.help_outline, color: orangeColor, size: 24),
@@ -709,7 +689,7 @@ class _RewardsPageState extends State<RewardsPage> {
                         fontFamily: 'Recoleta',
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFF6B3A1A),
+                        color: Color(0xFF2E5E58),
                       ),
                     ),
                     Text(
@@ -726,14 +706,18 @@ class _RewardsPageState extends State<RewardsPage> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: orangeColor,
+                  color: const Color(0xFFEDF4F3),
                   borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: const Color(0xFFCFDEDB),
+                    width: 1,
+                  ),
                 ),
                 child: AnimatedRotation(
                   turns: _isFaqsOpen ? 0.25 : 0,
                   duration: const Duration(milliseconds: 300),
                   child: const Icon(Icons.chevron_right,
-                      color: Colors.white, size: 20),
+                      color: Color(0xFF2E5E58), size: 20),
                 ),
               ),
             ],
@@ -773,7 +757,7 @@ class _RewardsPageState extends State<RewardsPage> {
                         fontFamily: 'Recoleta',
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFF6B3A1A),
+                        color: Color(0xFF2E5E58),
                       ),
                     ),
                     Text(
@@ -793,7 +777,7 @@ class _RewardsPageState extends State<RewardsPage> {
           // Questions
           Expanded(
             child: ListView(
-              padding: EdgeInsets.zero,
+              padding: const EdgeInsets.only(bottom: 60),
               children: [
                 _buildExpansionTile(
                   'How do I place an order?',

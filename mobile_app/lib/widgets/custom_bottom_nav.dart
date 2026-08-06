@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 
 class CustomBottomNav extends StatelessWidget {
@@ -10,39 +9,41 @@ class CustomBottomNav extends StatelessWidget {
     super.key,
     required this.selectedIndex,
     required this.onItemTapped,
-    this.orangeColor = const Color(0xFFE66B00),
+    this.orangeColor = const Color(0xFF2E5E58),
   });
 
   @override
   Widget build(BuildContext context) {
     return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.only(left: 20, right: 20, bottom: 20),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(30),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-            child: Container(
-              decoration: BoxDecoration(
-                color: orangeColor.withValues(alpha: 0.9),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.5),
-                  width: 1,
-                ),
+        padding: const EdgeInsets.only(left: 20, right: 20, bottom: 16),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(
+              color: Colors.black.withValues(alpha: 0.06),
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.08),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
               ),
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _buildNavItem(Icons.home, Icons.home_outlined, 'Home', 0),
-                    _buildNavItem(Icons.local_cafe, Icons.local_cafe_outlined, 'Menu', 1),
-                    _buildNavItem(Icons.receipt_long, Icons.receipt_long_outlined, 'Orders', 2),
-                    _buildNavItem(Icons.card_giftcard, Icons.card_giftcard_outlined, 'Rewards', 3),
-                    _buildNavItem(Icons.person, Icons.person_outline, 'Account', 4),
-                  ],
-                ),
-              ),
+            ],
+          ),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildNavItem(Icons.home, Icons.home_outlined, 'Home', 0),
+                _buildNavItem(Icons.local_cafe, Icons.local_cafe_outlined, 'Menu', 1),
+                _buildNavItem(Icons.receipt_long, Icons.receipt_long_outlined, 'Orders', 2),
+                _buildNavItem(Icons.card_giftcard, Icons.card_giftcard_outlined, 'Rewards', 3),
+                _buildNavItem(Icons.person, Icons.person_outline, 'Account', 4),
+              ],
             ),
           ),
         ),
@@ -53,7 +54,7 @@ class CustomBottomNav extends StatelessWidget {
   Widget _buildNavItem(
       IconData activeIcon, IconData inactiveIcon, String label, int index) {
     final bool isSelected = selectedIndex == index;
-    final Color color = isSelected ? Colors.white : Colors.white.withValues(alpha: 0.6);
+    final Color color = isSelected ? orangeColor : Colors.grey.shade400;
 
     return GestureDetector(
       onTap: () => onItemTapped(index),
@@ -63,27 +64,27 @@ class CustomBottomNav extends StatelessWidget {
         children: [
           AnimatedContainer(
             duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
             decoration: BoxDecoration(
               color: isSelected
-                  ? Colors.white.withValues(alpha: 0.2)
+                  ? orangeColor.withValues(alpha: 0.12)
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(16),
             ),
             child: Icon(
               isSelected ? activeIcon : inactiveIcon,
               color: color,
-              size: 24,
+              size: 22,
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 2),
           Text(
             label,
             style: TextStyle(
               fontFamily: 'Afacad',
               fontSize: 10,
               fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-              color: color,
+              color: isSelected ? orangeColor : Colors.grey.shade600,
             ),
           ),
         ],

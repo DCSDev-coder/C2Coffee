@@ -10,6 +10,7 @@ import 'privacy_policy_page.dart';
 import 'terms_of_use_page.dart';
 import 'about_us_page.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import '../utils/app_colors.dart';
 
 class SettingsPage extends StatefulWidget {
   final VoidCallback? onProfileUpdated;
@@ -21,8 +22,8 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  final Color orangeColor = const Color(0xFFE66B00);
-  final Color bgColor = const Color(0xFFFAF4EE);
+  final Color orangeColor = const Color(0xFF2E5E58);
+  final Color bgColor = Colors.white;
 
   File? _pickedImage;
   String? _presetAvatarPath;
@@ -304,7 +305,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       }
                     },
                     child: const Text('Save',
-                        style: TextStyle(color: Color(0xFFE66B00))),
+                        style: TextStyle(color: Color(0xFF2E5E58))),
                   ),
                 ],
               );
@@ -322,13 +323,13 @@ class _SettingsPageState extends State<SettingsPage> {
           return Theme(
             data: Theme.of(context).copyWith(
               colorScheme: const ColorScheme.light(
-                primary: Color(0xFFE66B00), // header background color
+                primary: Color(0xFF2E5E58), // header background color
                 onPrimary: Colors.white, // header text color
                 onSurface: Colors.black, // body text color
               ),
               textButtonTheme: TextButtonThemeData(
                 style: TextButton.styleFrom(
-                  foregroundColor: const Color(0xFFE66B00), // button text color
+                  foregroundColor: const Color(0xFF2E5E58), // button text color
                 ),
               ),
             ),
@@ -356,7 +357,7 @@ class _SettingsPageState extends State<SettingsPage> {
               decoration: InputDecoration(
                 hintText: 'Enter $label',
                 focusedBorder: const UnderlineInputBorder(
-                    borderSide: BorderSide(color: Color(0xFFE66B00))),
+                    borderSide: BorderSide(color: Color(0xFF2E5E58))),
               ),
             ),
             actions: [
@@ -374,7 +375,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   if (context.mounted) Navigator.pop(context);
                 },
                 child: const Text('Save',
-                    style: TextStyle(color: Color(0xFFE66B00))),
+                    style: TextStyle(color: Color(0xFF2E5E58))),
               ),
             ],
           );
@@ -405,10 +406,10 @@ class _SettingsPageState extends State<SettingsPage> {
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.only(
-                      top: 60, bottom: 20, left: 20, right: 20),
-                  decoration: BoxDecoration(
-                    color: orangeColor,
-                    borderRadius: const BorderRadius.only(
+                      top: 50, bottom: 12, left: 20, right: 20),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF2E5E58),
+                    borderRadius: BorderRadius.only(
                       bottomLeft: Radius.circular(20),
                       bottomRight: Radius.circular(20),
                     ),
@@ -436,14 +437,15 @@ class _SettingsPageState extends State<SettingsPage> {
                             'SETTINGS',
                             style: TextStyle(
                               fontFamily: 'Recoleta',
-                              fontSize: 24,
+                              fontSize: 20,
                               fontWeight: FontWeight.bold,
                               color: Colors.white,
+                              letterSpacing: 1.0,
                             ),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 20), // Balance the back button
+                      const SizedBox(width: 20),
                     ],
                   ),
                 ),
@@ -470,11 +472,16 @@ class _SettingsPageState extends State<SettingsPage> {
                               decoration: BoxDecoration(
                                 color: Colors.white,
                                 borderRadius: BorderRadius.circular(20),
-                                boxShadow: const [
+                                border: Border.all(
+                                  color: const Color(0xFFCFDEDB),
+                                  width: 1,
+                                ),
+                                boxShadow: [
                                   BoxShadow(
-                                      color: Color(0x08000000),
-                                      blurRadius: 10,
-                                      offset: Offset(0, 4))
+                                      color:
+                                          Colors.black.withValues(alpha: 0.03),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2))
                                 ],
                               ),
                               child: Column(
@@ -528,7 +535,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                       fontFamily: 'Recoleta',
                                       fontSize: 18,
                                       fontWeight: FontWeight.bold,
-                                      color: Colors.black87)),
+                                      color: Color(0xFF2E5E58))),
                             ),
 
                             const SizedBox(height: 12),
@@ -542,11 +549,16 @@ class _SettingsPageState extends State<SettingsPage> {
                               decoration: BoxDecoration(
                                 color: Colors.white,
                                 borderRadius: BorderRadius.circular(20),
-                                boxShadow: const [
+                                border: Border.all(
+                                  color: const Color(0xFFCFDEDB),
+                                  width: 1,
+                                ),
+                                boxShadow: [
                                   BoxShadow(
-                                      color: Color(0x08000000),
-                                      blurRadius: 10,
-                                      offset: Offset(0, 4))
+                                      color:
+                                          Colors.black.withValues(alpha: 0.03),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2))
                                 ],
                               ),
                               child: Row(
@@ -580,11 +592,16 @@ class _SettingsPageState extends State<SettingsPage> {
                               decoration: BoxDecoration(
                                 color: Colors.white,
                                 borderRadius: BorderRadius.circular(20),
-                                boxShadow: const [
+                                border: Border.all(
+                                  color: const Color(0xFFCFDEDB),
+                                  width: 1,
+                                ),
+                                boxShadow: [
                                   BoxShadow(
-                                      color: Color(0x08000000),
-                                      blurRadius: 10,
-                                      offset: Offset(0, 4))
+                                      color:
+                                          Colors.black.withValues(alpha: 0.03),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2))
                                 ],
                               ),
                               child: Material(
@@ -676,25 +693,30 @@ class _SettingsPageState extends State<SettingsPage> {
                                 decoration: BoxDecoration(
                                   color: Colors.white,
                                   borderRadius: BorderRadius.circular(20),
-                                  boxShadow: const [
+                                  border: Border.all(
+                                    color: const Color(0xFFCFDEDB),
+                                    width: 1,
+                                  ),
+                                  boxShadow: [
                                     BoxShadow(
-                                        color: Color(0x08000000),
-                                        blurRadius: 10,
-                                        offset: Offset(0, 4))
+                                        color: Colors.black
+                                            .withValues(alpha: 0.03),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 2))
                                   ],
                                 ),
-                                child: Row(
+                                child: const Row(
                                   children: [
                                     Icon(Icons.logout,
                                         size: 24,
-                                        color: orangeColor),
-                                    const SizedBox(width: 16),
-                                    const Text('Log Out',
+                                        color: AppColors.terracotta),
+                                    SizedBox(width: 16),
+                                    Text('Log Out',
                                         style: TextStyle(
                                             fontFamily: 'Recoleta',
                                             fontSize: 18,
                                             fontWeight: FontWeight.bold,
-                                            color: Colors.black)),
+                                            color: AppColors.terracotta)),
                                   ],
                                 ),
                               ),
