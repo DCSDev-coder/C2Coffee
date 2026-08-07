@@ -14,6 +14,7 @@ class OtpVerificationPage extends StatefulWidget {
   final String requestId;
   final String deviceFingerprint;
   final String? debugOtpCode;
+  final bool bypassVerification;
   final bool isSignup;
   final Map<String, String>? signupProfile;
   final File? initialPickedImage;
@@ -26,6 +27,7 @@ class OtpVerificationPage extends StatefulWidget {
     required this.requestId,
     required this.deviceFingerprint,
     this.debugOtpCode,
+    this.bypassVerification = false,
     this.isSignup = false,
     this.signupProfile,
     this.initialPickedImage,
@@ -137,6 +139,21 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
         backgroundColor: Colors.red,
         duration: const Duration(seconds: 2),
       ),
+    );
+  }
+
+  Future<void> _completeLocalVerification() async {
+    if (!mounted) return;
+    Navigator.pushAndRemoveUntil(
+      context,
+      AuthPageRoute(
+        page: HomePage(
+          initialPickedImage: widget.initialPickedImage,
+          initialPresetPath: widget.initialPresetPath,
+          initialAvatarIndex: widget.initialAvatarIndex,
+        ),
+      ),
+      (route) => false,
     );
   }
 
@@ -430,6 +447,11 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
       return;
     }
 
+    if (widget.bypassVerification) {
+      await _completeLocalVerification();
+      return;
+    }
+
     setState(() => _isSubmitting = true);
 
     try {
@@ -487,6 +509,12 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
   }
 
   Future<void> _handleResendOtp() async {
+    if (widget.bypassVerification) {
+      _clearOtpCode();
+      startTimer();
+      return;
+    }
+
     setState(() => _isSubmitting = true);
 
     try {
@@ -726,7 +754,18 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                               ],
                             ),
                           ),
-                          if (_debugOtpCode != null) ...[
+                          if (widget.bypassVerification) ...[
+                            const SizedBox(height: 12),
+                            const Text(
+                              'Demo mode: enter any 6 digits.',
+                              style: TextStyle(
+                                fontFamily: 'Afacad',
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF1F3A34),
+                              ),
+                            ),
+                          ] else if (_debugOtpCode != null) ...[
                             const SizedBox(height: 12),
                             Text(
                               'Dev OTP: $_debugOtpCode',
