@@ -34,6 +34,7 @@ class _Signup1State extends State<Signup1> {
   DateTime? _selectedDate;
   bool _isPhoneValid = false;
   int _selectedAvatarIndex = -1;
+  String _fullPhoneNumber = '';
 
   final List<Map<String, dynamic>> _avatarOptions = [
     {'path': 'assets/images/dato.png', 'name': 'Dato'},
@@ -75,13 +76,12 @@ class _Signup1State extends State<Signup1> {
   bool get _isFormValid {
     final username = _usernameController.text.trim();
     final email = _emailController.text.trim();
-    final phone = _phoneController.text.trim();
     final birthday = _birthdayController.text.trim();
 
     final isUsernameValid = username.isNotEmpty;
     final isEmailValid = email.isNotEmpty &&
         RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email);
-    final isPhoneValid = phone.isNotEmpty && _isPhoneValid;
+    final isPhoneValid = _fullPhoneNumber.isNotEmpty && _isPhoneValid;
     final isBirthdayValid = birthday.isNotEmpty && _selectedDate != null;
 
     return isUsernameValid && isEmailValid && isPhoneValid && isBirthdayValid;
@@ -751,7 +751,7 @@ class _Signup1State extends State<Signup1> {
                                           'username':
                                               _usernameController.text.trim(),
                                           'email': _emailController.text.trim(),
-                                          'phone': _phoneController.text.trim(),
+                                          'phone': _fullPhoneNumber,
                                           'birthday':
                                               _birthdayController.text.trim(),
                                         });
@@ -1028,6 +1028,7 @@ class _Signup1State extends State<Signup1> {
                 fontFamily: 'Afacad', fontSize: 15, color: Colors.black87),
             onChanged: (phone) {
               setState(() {
+                _fullPhoneNumber = phone.completeNumber.trim();
                 try {
                   _isPhoneValid = phone.isValidNumber();
                 } catch (_) {

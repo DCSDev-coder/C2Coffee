@@ -1,0 +1,9 @@
+services:
+  c2-api:
+    build: .
+    container_name: c2coffee-api
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "8080:8080"

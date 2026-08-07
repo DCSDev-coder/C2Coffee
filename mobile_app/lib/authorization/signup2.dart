@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:intl/intl.dart';
 
 import 'otp_verification.dart';
 import 'login.dart';
 import 'auth_transition.dart';
+import '../services/auth_api_service.dart';
 import '../services/user_service.dart';
 
 class Signup2 extends StatefulWidget {
@@ -39,6 +41,7 @@ class _Signup2State extends State<Signup2> {
 
   String? _selectedGender;
   bool _agreedToTerms = false;
+  bool _isSubmitting = false;
 
   // Avatar State
   File? _pickedImage;
@@ -650,28 +653,148 @@ class _Signup2State extends State<Signup2> {
                               height: 48,
                               child: ElevatedButton(
                                 onPressed: _isFormValid
-                                    ? () async {
-                                        String fullAddress =
-                                            '${_houseController.text.trim()}, ${_streetController.text.trim()}, ${_postcodeController.text.trim()} ${_cityController.text.trim()}';
-                                        await UserService.saveUserProfile({
-                                          'gender': _selectedGender ?? '',
-                                          'address': fullAddress,
-                                        });
+                                    ? (_isSubmitting
+                                        ? null
+                                        : () async {
+                                            setState(() => _isSubmitting = true);
 
-                                        if (!context.mounted) return;
-                                        Navigator.push(
-                                          context,
-                                          AuthPageRoute(
-                                            page: OtpVerificationPage(
-                                              initialPickedImage: _pickedImage,
-                                              initialPresetPath:
-                                                  _presetAvatarPath,
-                                              initialAvatarIndex:
-                                                  _selectedAvatarIndex,
-                                            ),
-                                          ),
-                                        );
-                                      }
+                                            try {
+                                              final savedProfile =
+                                                  await UserService
+                                                      .getUserProfile();
+                                              final phone =
+                                                  savedProfile['phone']?.trim();
+
+                                              if (phone == null ||
+                                                  phone.isEmpty) {
+                                                throw ApiException(
+                                                  'Phone number is missing. Please restart signup.',
+                                                );
+                                              }
+
+                                              final fullAddress =
+                                                  '${_houseController.text.trim()}, ${_streetController.text.trim()}, ${_postcodeController.text.trim()} ${_cityController.text.trim()}';
+                                              await UserService.saveUserProfile({
+                                                'gender':
+                                                    _selectedGender ?? '',
+                                                'address': fullAddress,
+                                              });
+
+                                              String birthdayIso = '';
+                                              final rawBirthday =
+                                                  savedProfile['birthday']
+                                                      ?.trim();
+                                              if (rawBirthday != null &&
+                                                  rawBirthday.isNotEmpty) {
+                                                try {
+                                                  birthdayIso = DateFormat(
+                                                    'dd MMM yyyy',
+                                                  ).format(
+                                                    DateFormat(
+                                                      'dd MMM yyyy',
+                                                    ).parse(rawBirthday),
+                                                  );
+                                                  birthdayIso = DateFormat(
+                                                    'yyyy-MM-dd',
+                                                  ).format(
+                                                    DateFormat(
+                                                      'dd MMM yyyy',
+                                                    ).parse(rawBirthday),
+                                                  );
+                                                } catch (_) {
+                                                  birthdayIso = rawBirthday;
+                                                }
+                                              }
+
+                                              final signupProfile =
+                                                  <String, String>{
+                                                'display_name':
+                                                    savedProfile['username']
+                                                            ?.trim()
+                                                            .isNotEmpty ==
+                                                        true
+                                                    ? savedProfile['username']!
+                                                          .trim()
+                                                    : 'C2 Member',
+                                                'email':
+                                                    savedProfile['email'] ?? '',
+                                                'birthday': birthdayIso,
+                                                'gender':
+                                                    _selectedGender ?? '',
+                                                'house_line':
+                                                    _houseController.text.trim(),
+                                                'street_line':
+                                                    _streetController.text
+                                                        .trim(),
+                                                'postcode':
+                                                    _postcodeController.text
+                                                        .trim(),
+                                                'city':
+                                                    _cityController.text.trim(),
+                                              };
+
+                                              final deviceFingerprint =
+                                                  await AuthApiService.instance
+                                                      .getOrCreateDeviceFingerprint();
+                                              final otpRequest =
+                                                  await AuthApiService.instance
+                                                      .requestOtp(
+                                                phone: phone,
+                                                deviceFingerprint:
+                                                    deviceFingerprint,
+                                              );
+
+                                              if (!context.mounted) return;
+                                              Navigator.push(
+                                                context,
+                                                AuthPageRoute(
+                                                  page: OtpVerificationPage(
+                                                    phone: phone,
+                                                    requestId:
+                                                        otpRequest.requestId,
+                                                    deviceFingerprint:
+                                                        deviceFingerprint,
+                                                    debugOtpCode:
+                                                        otpRequest.debugOtpCode,
+                                                    isSignup: true,
+                                                    signupProfile:
+                                                        signupProfile,
+                                                    initialPickedImage:
+                                                        _pickedImage,
+                                                    initialPresetPath:
+                                                        _presetAvatarPath,
+                                                    initialAvatarIndex:
+                                                        _selectedAvatarIndex,
+                                                  ),
+                                                ),
+                                              );
+                                            } on ApiException catch (error) {
+                                              if (!context.mounted) return;
+                                              ScaffoldMessenger.of(context)
+                                                  .showSnackBar(
+                                                SnackBar(
+                                                  content: Text(error.message),
+                                                  backgroundColor: Colors.red,
+                                                ),
+                                              );
+                                            } catch (_) {
+                                              if (!context.mounted) return;
+                                              ScaffoldMessenger.of(context)
+                                                  .showSnackBar(
+                                                const SnackBar(
+                                                  content: Text(
+                                                    'Unable to start signup verification right now.',
+                                                  ),
+                                                  backgroundColor: Colors.red,
+                                                ),
+                                              );
+                                            } finally {
+                                              if (mounted) {
+                                                setState(() =>
+                                                    _isSubmitting = false);
+                                              }
+                                            }
+                                          })
                                     : null,
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: orangeColor,
@@ -682,14 +805,26 @@ class _Signup2State extends State<Signup2> {
                                   shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(30)),
                                 ),
-                                child: const Text(
-                                  'SIGN UP',
-                                  style: TextStyle(
-                                      fontFamily: 'Recoleta',
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 1.0),
-                                ),
+                                child: _isSubmitting
+                                    ? const SizedBox(
+                                        width: 22,
+                                        height: 22,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2.2,
+                                          valueColor:
+                                              AlwaysStoppedAnimation<Color>(
+                                            Colors.white,
+                                          ),
+                                        ),
+                                      )
+                                    : const Text(
+                                        'SIGN UP',
+                                        style: TextStyle(
+                                            fontFamily: 'Recoleta',
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                            letterSpacing: 1.0),
+                                      ),
                               ),
                             ),
 

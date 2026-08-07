@@ -5,14 +5,29 @@ import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../screens/home_page.dart';
 import 'auth_transition.dart';
+import '../services/auth_api_service.dart';
+import '../services/secure_session_service.dart';
+import '../services/user_service.dart';
 
 class OtpVerificationPage extends StatefulWidget {
+  final String phone;
+  final String requestId;
+  final String deviceFingerprint;
+  final String? debugOtpCode;
+  final bool isSignup;
+  final Map<String, String>? signupProfile;
   final File? initialPickedImage;
   final String? initialPresetPath;
   final int initialAvatarIndex;
 
   const OtpVerificationPage({
     super.key,
+    required this.phone,
+    required this.requestId,
+    required this.deviceFingerprint,
+    this.debugOtpCode,
+    this.isSignup = false,
+    this.signupProfile,
     this.initialPickedImage,
     this.initialPresetPath,
     this.initialAvatarIndex = 0,
@@ -38,6 +53,9 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
   Timer? _timer;
   int _start = 45;
   bool _isResendEnabled = false;
+  bool _isSubmitting = false;
+  late String _requestId;
+  String? _debugOtpCode;
 
   final List<Map<String, dynamic>> _avatarOptions = [
     {'path': 'assets/images/dato.png', 'name': 'Dato'},
@@ -56,6 +74,8 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
       _selectedAvatarIndex = widget.initialAvatarIndex;
     }
 
+    _requestId = widget.requestId;
+    _debugOtpCode = widget.debugOtpCode;
     startTimer();
     for (int i = 0; i < 6; i++) {
       _otpControllers[i].addListener(() {
@@ -63,6 +83,9 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
           _otpFocusNodes[i + 1].requestFocus();
         }
       });
+    }
+    if (_debugOtpCode != null && _debugOtpCode!.length == 6) {
+      _fillOtpCode(_debugOtpCode!);
     }
   }
 
@@ -75,6 +98,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
   }
 
   void startTimer() {
+    _timer?.cancel();
     _start = 45;
     _isResendEnabled = false;
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -89,6 +113,31 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
         });
       }
     });
+  }
+
+  void _fillOtpCode(String otp) {
+    for (int i = 0; i < _otpControllers.length && i < otp.length; i++) {
+      _otpControllers[i].text = otp[i];
+    }
+  }
+
+  void _clearOtpCode() {
+    for (final controller in _otpControllers) {
+      controller.clear();
+    }
+    if (_otpFocusNodes.isNotEmpty) {
+      _otpFocusNodes.first.requestFocus();
+    }
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   @override
@@ -370,41 +419,103 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
     );
   }
 
-  // Function to handle OTP verification
-  void _verifyOTP() {
-    // Get all OTP digits
+  Future<void> _verifyOTP() async {
     String otp = '';
     for (var controller in _otpControllers) {
       otp += controller.text;
     }
 
-    // Check if all fields are filled
     if (otp.length != 6) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter all 6 digits'),
-          backgroundColor: Colors.red,
-          duration: Duration(seconds: 2),
-        ),
-      );
+      _showError('Please enter all 6 digits');
       return;
     }
 
-    // Here you would normally verify the OTP with your backend
-    // For demo purposes, we'll accept any 6-digit code
+    setState(() => _isSubmitting = true);
 
-    // Navigate directly to HomePage
-    Navigator.pushAndRemoveUntil(
-      context,
-      AuthPageRoute(
-        page: HomePage(
-          initialPickedImage: widget.initialPickedImage,
-          initialPresetPath: widget.initialPresetPath,
-          initialAvatarIndex: widget.initialAvatarIndex,
+    try {
+      final result = await AuthApiService.instance.verifyOtp(
+        requestId: _requestId,
+        phone: widget.phone,
+        otpCode: otp,
+        deviceFingerprint: widget.deviceFingerprint,
+      );
+
+      if (widget.isSignup && widget.signupProfile != null) {
+        await AuthApiService.instance.updateProfile(
+          accessToken: result.accessToken,
+          profile: widget.signupProfile!,
+        );
+      }
+
+      await SecureSessionService.instance.saveSession(
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+      );
+
+      await UserService.saveUserProfile({
+        'phone': result.user.phone,
+        'username': widget.signupProfile?['display_name'] ?? result.user.displayName,
+        if (widget.signupProfile?['email'] != null)
+          'email': widget.signupProfile!['email']!,
+        if (widget.signupProfile?['gender'] != null)
+          'gender': widget.signupProfile!['gender']!,
+      });
+
+      if (!mounted) return;
+      Navigator.pushAndRemoveUntil(
+        context,
+        AuthPageRoute(
+          page: HomePage(
+            initialPickedImage: widget.initialPickedImage,
+            initialPresetPath: widget.initialPresetPath,
+            initialAvatarIndex: widget.initialAvatarIndex,
+          ),
         ),
-      ),
-      (route) => false,
-    );
+        (route) => false,
+      );
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      _showError(error.message);
+    } catch (_) {
+      if (!mounted) return;
+      _showError('Unable to verify OTP right now.');
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
+  }
+
+  Future<void> _handleResendOtp() async {
+    setState(() => _isSubmitting = true);
+
+    try {
+      final otpRequest = await AuthApiService.instance.requestOtp(
+        phone: widget.phone,
+        deviceFingerprint: widget.deviceFingerprint,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _requestId = otpRequest.requestId;
+        _debugOtpCode = otpRequest.debugOtpCode;
+      });
+      _clearOtpCode();
+      if (_debugOtpCode != null && _debugOtpCode!.length == 6) {
+        _fillOtpCode(_debugOtpCode!);
+      }
+      startTimer();
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      _showError(error.message);
+    } catch (_) {
+      if (!mounted) return;
+      _showError('Unable to resend OTP right now.');
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
   }
 
   @override
@@ -592,11 +703,9 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                                 if (_isResendEnabled)
                                   WidgetSpan(
                                     child: GestureDetector(
-                                      onTap: () {
-                                        setState(() {
-                                          startTimer();
-                                        });
-                                      },
+                                      onTap: _isSubmitting
+                                          ? null
+                                          : () => _handleResendOtp(),
                                       child: const Text(
                                         'Resend Code',
                                         style: TextStyle(
@@ -617,12 +726,24 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                               ],
                             ),
                           ),
+                          if (_debugOtpCode != null) ...[
+                            const SizedBox(height: 12),
+                            Text(
+                              'Dev OTP: $_debugOtpCode',
+                              style: const TextStyle(
+                                fontFamily: 'Afacad',
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF1F3A34),
+                              ),
+                            ),
+                          ],
                           const SizedBox(height: 32),
                           SizedBox(
                             width: double.infinity,
                             height: 48,
                             child: ElevatedButton(
-                              onPressed: _verifyOTP,
+                              onPressed: _isSubmitting ? null : _verifyOTP,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: orangeColor,
                                 disabledBackgroundColor: Colors.grey.shade400,
@@ -632,14 +753,26 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                                 shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(30)),
                               ),
-                              child: const Text(
-                                'VERIFY',
-                                style: TextStyle(
-                                    fontFamily: 'Recoleta',
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    letterSpacing: 1.0),
-                              ),
+                              child: _isSubmitting
+                                  ? const SizedBox(
+                                      width: 22,
+                                      height: 22,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2.2,
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                          Colors.white,
+                                        ),
+                                      ),
+                                    )
+                                  : const Text(
+                                      'VERIFY',
+                                      style: TextStyle(
+                                          fontFamily: 'Recoleta',
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          letterSpacing: 1.0),
+                                    ),
                             ),
                           ),
                         ],

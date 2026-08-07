@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'signup1.dart';
 import 'otp_verification.dart';
 import 'auth_transition.dart';
+import '../services/auth_api_service.dart';
 import '../services/user_service.dart';
 
 class LoginPage extends StatefulWidget {
@@ -29,6 +30,8 @@ class _LoginPageState extends State<LoginPage> {
   String? _presetAvatarPath = 'assets/images/dato.png';
   int _selectedAvatarIndex = 0;
   bool _isPhoneValid = false;
+  bool _isSubmitting = false;
+  String _fullPhoneNumber = '';
 
   final List<Map<String, dynamic>> _avatarOptions = [
     {'path': 'assets/images/dato.png', 'name': 'Dato'},
@@ -59,8 +62,7 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   bool get _isFormValid {
-    final phone = _phoneController.text.trim();
-    final isPhoneValid = phone.isNotEmpty && _isPhoneValid;
+    final isPhoneValid = _fullPhoneNumber.isNotEmpty && _isPhoneValid;
     return isPhoneValid;
   }
 
@@ -522,25 +524,75 @@ class _LoginPageState extends State<LoginPage> {
                               height: 48,
                               child: ElevatedButton(
                                 onPressed: _isFormValid
-                                    ? () async {
-                                        await UserService.saveUserProfile({
-                                          'phone': _phoneController.text.trim(),
-                                        });
+                                    ? (_isSubmitting
+                                        ? null
+                                        : () async {
+                                            setState(() => _isSubmitting = true);
 
-                                        if (!context.mounted) return;
-                                        Navigator.push(
-                                          context,
-                                          AuthPageRoute(
-                                            page: OtpVerificationPage(
-                                              initialPickedImage: _pickedImage,
-                                              initialPresetPath:
-                                                  _presetAvatarPath,
-                                              initialAvatarIndex:
-                                                  _selectedAvatarIndex,
-                                            ),
-                                          ),
-                                        );
-                                      }
+                                            try {
+                                              await UserService.saveUserProfile({
+                                                'phone': _fullPhoneNumber,
+                                              });
+
+                                              final deviceFingerprint =
+                                                  await AuthApiService.instance
+                                                      .getOrCreateDeviceFingerprint();
+                                              final otpRequest =
+                                                  await AuthApiService.instance
+                                                      .requestOtp(
+                                                phone: _fullPhoneNumber,
+                                                deviceFingerprint:
+                                                    deviceFingerprint,
+                                              );
+
+                                              if (!context.mounted) return;
+                                              Navigator.push(
+                                                context,
+                                                AuthPageRoute(
+                                                  page: OtpVerificationPage(
+                                                    phone: _fullPhoneNumber,
+                                                    requestId:
+                                                        otpRequest.requestId,
+                                                    deviceFingerprint:
+                                                        deviceFingerprint,
+                                                    debugOtpCode:
+                                                        otpRequest.debugOtpCode,
+                                                    initialPickedImage:
+                                                        _pickedImage,
+                                                    initialPresetPath:
+                                                        _presetAvatarPath,
+                                                    initialAvatarIndex:
+                                                        _selectedAvatarIndex,
+                                                  ),
+                                                ),
+                                              );
+                                            } on ApiException catch (error) {
+                                              if (!context.mounted) return;
+                                              ScaffoldMessenger.of(context)
+                                                  .showSnackBar(
+                                                SnackBar(
+                                                  content: Text(error.message),
+                                                  backgroundColor: Colors.red,
+                                                ),
+                                              );
+                                            } catch (_) {
+                                              if (!context.mounted) return;
+                                              ScaffoldMessenger.of(context)
+                                                  .showSnackBar(
+                                                const SnackBar(
+                                                  content: Text(
+                                                    'Unable to request OTP right now.',
+                                                  ),
+                                                  backgroundColor: Colors.red,
+                                                ),
+                                              );
+                                            } finally {
+                                              if (mounted) {
+                                                setState(() =>
+                                                    _isSubmitting = false);
+                                              }
+                                            }
+                                          })
                                     : null,
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: orangeColor,
@@ -551,14 +603,26 @@ class _LoginPageState extends State<LoginPage> {
                                   shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(30)),
                                 ),
-                                child: const Text(
-                                  'LOGIN',
-                                  style: TextStyle(
-                                      fontFamily: 'Recoleta',
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 1.0),
-                                ),
+                                child: _isSubmitting
+                                    ? const SizedBox(
+                                        width: 22,
+                                        height: 22,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2.2,
+                                          valueColor:
+                                              AlwaysStoppedAnimation<Color>(
+                                            Colors.white,
+                                          ),
+                                        ),
+                                      )
+                                    : const Text(
+                                        'LOGIN',
+                                        style: TextStyle(
+                                            fontFamily: 'Recoleta',
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
+                                            letterSpacing: 1.0),
+                                      ),
                               ),
                             ),
                           ],
@@ -662,6 +726,7 @@ class _LoginPageState extends State<LoginPage> {
                 fontFamily: 'Afacad', fontSize: 15, color: Colors.black87),
             onChanged: (phone) {
               setState(() {
+                _fullPhoneNumber = phone.completeNumber.trim();
                 try {
                   _isPhoneValid = phone.isValidNumber();
                 } catch (_) {
