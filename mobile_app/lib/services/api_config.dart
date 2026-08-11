@@ -3,6 +3,9 @@ import 'package:flutter/foundation.dart';
 class ApiConfig {
   ApiConfig._();
 
+  static const _productionBaseUrl = 'https://api.c2coffeeandcandle.com/v1';
+  static const _localWebBaseUrl = 'http://localhost:8080/v1';
+
   static String get baseUrl {
     const override = String.fromEnvironment('API_BASE_URL');
     if (override.isNotEmpty) {
@@ -10,14 +13,9 @@ class ApiConfig {
     }
 
     if (kIsWeb) {
-      return 'http://localhost:8080/v1';
+      return _localWebBaseUrl;
     }
 
-    switch (defaultTargetPlatform) {
-      case TargetPlatform.android:
-        return 'http://10.0.2.2:8080/v1';
-      default:
-        return 'http://127.0.0.1:8080/v1';
-    }
+    return _productionBaseUrl;
   }
 }

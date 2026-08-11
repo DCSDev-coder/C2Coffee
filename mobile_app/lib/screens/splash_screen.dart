@@ -1,91 +1,103 @@
 import 'package:flutter/material.dart';
-import '../authorization/signup1.dart';
-import '../authorization/auth_transition.dart';
+import 'package:flutter/services.dart';
 
-class SplashScreen extends StatelessWidget {
+import '../authorization/login.dart';
+import '../services/session_lifecycle_service.dart';
+import 'home_page.dart';
+
+class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
   @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  static const _minimumDisplayDuration = Duration(seconds: 3);
+
+  @override
+  void initState() {
+    super.initState();
+    _bootstrap();
+  }
+
+  Future<void> _bootstrap() async {
+    final results = await Future.wait<dynamic>([
+      Future<void>.delayed(_minimumDisplayDuration),
+      SessionLifecycleService.instance.restoreSession(),
+    ]);
+
+    if (!mounted) return;
+
+    final hasSession = results[1] as bool;
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => hasSession ? const HomePage() : const LoginPage(),
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Stack(
-        children: [
-          // Background
-          Positioned.fill(
-            child: Container(
-              color: Colors.black,
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+        statusBarBrightness: Brightness.dark,
+        systemNavigationBarColor: Colors.white,
+        systemNavigationBarIconBrightness: Brightness.dark,
+      ),
+      child: Scaffold(
+        body: Stack(
+          children: [
+            Positioned.fill(
+              child: Container(color: Colors.black),
             ),
-          ),
-
-          // Background Image
-          Positioned.fill(
-            child: Opacity(
-              opacity: 0.7,
-              child: Image.asset(
-                'assets/images/splashscreen.png',
-                fit: BoxFit.cover,
+            Positioned.fill(
+              child: ClipRect(
+                child: Transform.scale(
+                  scale: 1.18,
+                  alignment: Alignment.center,
+                  child: Image.asset(
+                    'assets/images/splashscreen.png',
+                    fit: BoxFit.cover,
+                    alignment: Alignment.center,
+                  ),
+                ),
               ),
             ),
-          ),
-
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 36,
-                vertical: 24,
+            Positioned.fill(
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                    colors: [
+                      Colors.black.withValues(alpha: 0.28),
+                      Colors.black.withValues(alpha: 0.36),
+                    ],
+                  ),
+                ),
               ),
+            ),
+            SafeArea(
               child: Column(
                 children: [
                   const Spacer(),
-
-                  // Logo
-                  Image.asset(
-                    'assets/images/c2_logo.png',
-                    width: 240,
-                    fit: BoxFit.contain,
-                  ),
-
-                  const Spacer(),
-
-                  // Get Started Button
-                  SizedBox(
-                    width: double.infinity,
-                    height: 56,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          AuthPageRoute(
-                            page: const Signup1(),
-                          ),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF2E5E58),
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                      ),
-                      child: const Text(
-                        'Get Started',
-                        style: TextStyle(
-                          fontFamily: 'Recoleta',
-                          fontSize: 18,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.white,
-                        ),
-                      ),
+                  Center(
+                    child: Image.asset(
+                      'assets/images/c2_logo.png',
+                      width: 240,
+                      fit: BoxFit.contain,
                     ),
                   ),
-
+                  const Spacer(),
                   const SizedBox(height: 20),
                 ],
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

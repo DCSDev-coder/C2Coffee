@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api_config.dart';
@@ -60,6 +61,71 @@ class VerifyOtpResult {
     required this.tokenBalance,
     required this.tier,
   });
+}
+
+class SessionTokens {
+  final String accessToken;
+  final String refreshToken;
+
+  const SessionTokens({
+    required this.accessToken,
+    required this.refreshToken,
+  });
+}
+
+class CurrentUserProfile {
+  final int id;
+  final String phone;
+  final String displayName;
+  final String status;
+  final String? email;
+  final String? birthday;
+  final String? gender;
+  final String? address;
+
+  const CurrentUserProfile({
+    required this.id,
+    required this.phone,
+    required this.displayName,
+    required this.status,
+    required this.email,
+    required this.birthday,
+    required this.gender,
+    required this.address,
+  });
+
+  factory CurrentUserProfile.fromApi(Map<String, dynamic> user) {
+    return CurrentUserProfile(
+      id: (user['id'] as num).toInt(),
+      phone: user['phone'] as String,
+      displayName: user['display_name'] as String? ?? 'C2 Member',
+      status: user['status'] as String? ?? 'active',
+      email: user['email'] as String?,
+      birthday: _formatBirthdayForDisplay(user['birthday'] as String?),
+      gender: user['gender'] as String?,
+      address: user['address'] as String?,
+    );
+  }
+
+  Map<String, String> toLocalProfileMap() {
+    return {
+      'username': displayName,
+      'phone': phone,
+      if (email != null) 'email': email!,
+      if (birthday != null) 'birthday': birthday!,
+      if (gender != null) 'gender': gender!,
+      if (address != null) 'address': address!,
+    };
+  }
+
+  static String? _formatBirthdayForDisplay(String? raw) {
+    if (raw == null || raw.isEmpty) return null;
+    try {
+      return DateFormat('dd MMM yyyy').format(DateTime.parse(raw));
+    } catch (_) {
+      return raw;
+    }
+  }
 }
 
 class AuthApiService {
@@ -141,11 +207,39 @@ class AuthApiService {
     );
   }
 
-  Future<Map<String, dynamic>> updateProfile({
+  Future<SessionTokens> refreshSession({
+    required String refreshToken,
+  }) async {
+    final response = await _post(
+      '/auth/refresh',
+      body: {
+        'refresh_token': refreshToken,
+      },
+    );
+
+    return SessionTokens(
+      accessToken: response['access_token'] as String,
+      refreshToken: response['refresh_token'] as String,
+    );
+  }
+
+  Future<CurrentUserProfile> getCurrentUser({
+    required String accessToken,
+  }) async {
+    final response = await _get(
+      '/me',
+      accessToken: accessToken,
+    );
+
+    final user = Map<String, dynamic>.from(response['user'] as Map);
+    return CurrentUserProfile.fromApi(user);
+  }
+
+  Future<CurrentUserProfile> updateProfile({
     required String accessToken,
     required Map<String, String> profile,
   }) async {
-    return _put(
+    final response = await _put(
       '/me/profile',
       accessToken: accessToken,
       body: {
@@ -159,6 +253,19 @@ class AuthApiService {
         'city': profile['city'] ?? '',
       },
     );
+
+    final user = Map<String, dynamic>.from(response['user'] as Map);
+    return CurrentUserProfile.fromApi(user);
+  }
+
+  Future<void> logout({
+    required String accessToken,
+  }) async {
+    await _post(
+      '/auth/logout',
+      accessToken: accessToken,
+      body: const {},
+    );
   }
 
   Future<Map<String, dynamic>> _post(
@@ -171,6 +278,20 @@ class AuthApiService {
           Uri.parse('${ApiConfig.baseUrl}$path'),
           headers: _headers(accessToken: accessToken),
           body: jsonEncode(body),
+        )
+        .timeout(const Duration(seconds: 15));
+
+    return _decodeResponse(response);
+  }
+
+  Future<Map<String, dynamic>> _get(
+    String path, {
+    String? accessToken,
+  }) async {
+    final response = await _client
+        .get(
+          Uri.parse('${ApiConfig.baseUrl}$path'),
+          headers: _headers(accessToken: accessToken),
         )
         .timeout(const Duration(seconds: 15));
 

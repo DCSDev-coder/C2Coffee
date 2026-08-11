@@ -18,7 +18,7 @@ export function normalizePhoneE164(input: string): string {
     e164 = `+60${e164.slice(1)}`;
   } else if (!e164.startsWith('+')) {
     throw new ApiError(
-      400,flutter run --dart-define=USE_MOCK_AUTH=false
+      400,
       'invalid_phone',
       'Phone number must be a valid Malaysian mobile number.'
     );

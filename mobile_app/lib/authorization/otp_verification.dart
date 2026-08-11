@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/services.dart';
 import '../screens/home_page.dart';
 import 'auth_transition.dart';
 import '../services/auth_api_service.dart';
@@ -14,7 +15,6 @@ class OtpVerificationPage extends StatefulWidget {
   final String requestId;
   final String deviceFingerprint;
   final String? debugOtpCode;
-  final bool bypassVerification;
   final bool isSignup;
   final Map<String, String>? signupProfile;
   final File? initialPickedImage;
@@ -27,7 +27,6 @@ class OtpVerificationPage extends StatefulWidget {
     required this.requestId,
     required this.deviceFingerprint,
     this.debugOtpCode,
-    this.bypassVerification = false,
     this.isSignup = false,
     this.signupProfile,
     this.initialPickedImage,
@@ -48,9 +47,8 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
   String? _presetAvatarPath = 'assets/images/dato.png';
   int _selectedAvatarIndex = 0;
 
-  final List<TextEditingController> _otpControllers =
-      List.generate(6, (_) => TextEditingController());
-  final List<FocusNode> _otpFocusNodes = List.generate(6, (_) => FocusNode());
+  final TextEditingController _otpInputController = TextEditingController();
+  final FocusNode _otpInputFocusNode = FocusNode();
 
   Timer? _timer;
   int _start = 45;
@@ -79,13 +77,6 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
     _requestId = widget.requestId;
     _debugOtpCode = widget.debugOtpCode;
     startTimer();
-    for (int i = 0; i < 6; i++) {
-      _otpControllers[i].addListener(() {
-        if (_otpControllers[i].text.length == 1 && i < 5) {
-          _otpFocusNodes[i + 1].requestFocus();
-        }
-      });
-    }
     if (_debugOtpCode != null && _debugOtpCode!.length == 6) {
       _fillOtpCode(_debugOtpCode!);
     }
@@ -118,18 +109,38 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
   }
 
   void _fillOtpCode(String otp) {
-    for (int i = 0; i < _otpControllers.length && i < otp.length; i++) {
-      _otpControllers[i].text = otp[i];
-    }
+    final sanitized = otp.replaceAll(RegExp(r'[^0-9]'), '');
+    _otpInputController.text = sanitized.length > 6
+        ? sanitized.substring(0, 6)
+        : sanitized;
+    _otpInputController.selection = TextSelection.fromPosition(
+      TextPosition(offset: _otpInputController.text.length),
+    );
   }
 
   void _clearOtpCode() {
-    for (final controller in _otpControllers) {
-      controller.clear();
+    _otpInputController.clear();
+    _otpInputFocusNode.requestFocus();
+  }
+
+  void _handleOtpChanged(String value) {
+    final sanitized = value.replaceAll(RegExp(r'[^0-9]'), '');
+    final nextValue = sanitized.length > 6
+        ? sanitized.substring(0, 6)
+        : sanitized;
+
+    if (nextValue != value) {
+      _otpInputController.value = TextEditingValue(
+        text: nextValue,
+        selection: TextSelection.collapsed(offset: nextValue.length),
+      );
     }
-    if (_otpFocusNodes.isNotEmpty) {
-      _otpFocusNodes.first.requestFocus();
+
+    if (nextValue.length == 6) {
+      _otpInputFocusNode.unfocus();
     }
+
+    setState(() {});
   }
 
   void _showError(String message) {
@@ -142,30 +153,11 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
     );
   }
 
-  Future<void> _completeLocalVerification() async {
-    if (!mounted) return;
-    Navigator.pushAndRemoveUntil(
-      context,
-      AuthPageRoute(
-        page: HomePage(
-          initialPickedImage: widget.initialPickedImage,
-          initialPresetPath: widget.initialPresetPath,
-          initialAvatarIndex: widget.initialAvatarIndex,
-        ),
-      ),
-      (route) => false,
-    );
-  }
-
   @override
   void dispose() {
     _timer?.cancel();
-    for (var controller in _otpControllers) {
-      controller.dispose();
-    }
-    for (var node in _otpFocusNodes) {
-      node.dispose();
-    }
+    _otpInputController.dispose();
+    _otpInputFocusNode.dispose();
     super.dispose();
   }
 
@@ -437,18 +429,10 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
   }
 
   Future<void> _verifyOTP() async {
-    String otp = '';
-    for (var controller in _otpControllers) {
-      otp += controller.text;
-    }
+    final otp = _otpInputController.text;
 
     if (otp.length != 6) {
       _showError('Please enter all 6 digits');
-      return;
-    }
-
-    if (widget.bypassVerification) {
-      await _completeLocalVerification();
       return;
     }
 
@@ -486,8 +470,8 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
       if (!mounted) return;
       Navigator.pushAndRemoveUntil(
         context,
-        AuthPageRoute(
-          page: HomePage(
+        buildAuthRoute(
+          HomePage(
             initialPickedImage: widget.initialPickedImage,
             initialPresetPath: widget.initialPresetPath,
             initialAvatarIndex: widget.initialAvatarIndex,
@@ -509,12 +493,6 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
   }
 
   Future<void> _handleResendOtp() async {
-    if (widget.bypassVerification) {
-      _clearOtpCode();
-      startTimer();
-      return;
-    }
-
     setState(() => _isSubmitting = true);
 
     try {
@@ -549,11 +527,26 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
   @override
   Widget build(BuildContext context) {
     const Color orangeColor = Color(0xFF1F3A34);
+    final mediaQuery = MediaQuery.of(context);
 
-    return Scaffold(
-      backgroundColor: orangeColor,
-      body: Stack(
-        children: [
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+        statusBarBrightness: Brightness.dark,
+        systemNavigationBarColor: Colors.white,
+        systemNavigationBarIconBrightness: Brightness.dark,
+      ),
+      child: Scaffold(
+        resizeToAvoidBottomInset: false,
+        // Keep the dark outer canvas when the keyboard opens so the rounded
+        // OTP panel still reads as a floating card instead of a full white box.
+        backgroundColor: orangeColor,
+        body: GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onTap: () => FocusScope.of(context).unfocus(),
+          child: Stack(
+            children: [
           // Header Background Picture
           Positioned(
             top: 0,
@@ -593,6 +586,17 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                       const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                   child: Column(
                     children: [
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: IconButton(
+                          onPressed: () => Navigator.maybePop(context),
+                          icon: const Icon(
+                            Icons.arrow_back_ios_new_rounded,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                      ),
                       GestureDetector(
                         onTap: _showAvatarPicker,
                         child: Stack(
@@ -656,8 +660,15 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                           BorderRadius.vertical(top: Radius.circular(40)),
                     ),
                     child: SingleChildScrollView(
+                      keyboardDismissBehavior:
+                          ScrollViewKeyboardDismissBehavior.onDrag,
                       physics: const ClampingScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
+                      padding: EdgeInsets.fromLTRB(
+                        24,
+                        24,
+                        24,
+                        32 + mediaQuery.padding.bottom,
+                      ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
@@ -670,52 +681,84 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                                 color: Color(0xFF1F3A34)),
                           ),
                           const SizedBox(height: 30),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: List.generate(6, (index) {
-                              return Container(
-                                width: 50,
-                                height: 60,
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                      color: orangeColor, width: 1.5),
-                                ),
-                                child: Center(
-                                  child: SizedBox(
-                                    width: 58,
-                                    child: TextFormField(
-                                      controller: _otpControllers[index],
-                                      focusNode: _otpFocusNodes[index],
-                                      textAlign: TextAlign.center,
-                                      textAlignVertical:
-                                          TextAlignVertical.center,
-                                      keyboardType: TextInputType.number,
-                                      maxLength: 1,
-                                      style: const TextStyle(
-                                          fontFamily: 'Afacad',
-                                          fontSize: 26,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.black87),
-                                      decoration: const InputDecoration(
-                                        counterText: '',
-                                        border: InputBorder.none,
-                                        isDense: true,
-                                        contentPadding:
-                                            EdgeInsets.symmetric(vertical: 0),
-                                      ),
-                                      onChanged: (value) {
-                                        if (value.isNotEmpty && index < 5) {
-                                          _otpFocusNodes[index + 1]
-                                              .requestFocus();
-                                        }
-                                      },
+                          GestureDetector(
+                            behavior: HitTestBehavior.translucent,
+                            onTap: () {
+                              if (_otpInputFocusNode.hasFocus) {
+                                FocusScope.of(context).unfocus();
+                                return;
+                              }
+
+                              _otpInputFocusNode.requestFocus();
+                            },
+                            child: Column(
+                              children: [
+                                SizedBox(
+                                  height: 0,
+                                  width: 0,
+                                  child: TextFormField(
+                                    controller: _otpInputController,
+                                    focusNode: _otpInputFocusNode,
+                                    keyboardType: TextInputType.number,
+                                    textInputAction: TextInputAction.done,
+                                    autofillHints: [
+                                      AutofillHints.oneTimeCode,
+                                    ],
+                                    inputFormatters: [
+                                      FilteringTextInputFormatter.digitsOnly,
+                                      LengthLimitingTextInputFormatter(6),
+                                    ],
+                                    decoration: const InputDecoration(
+                                      border: InputBorder.none,
+                                      counterText: '',
+                                      contentPadding: EdgeInsets.zero,
+                                      isCollapsed: true,
                                     ),
+                                    onChanged: _handleOtpChanged,
                                   ),
                                 ),
-                              );
-                            }),
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: List.generate(6, (index) {
+                                    final digits = _otpInputController.text;
+                                    final hasValue = index < digits.length;
+                                    final isActive = _otpInputFocusNode.hasFocus
+                                        ? index == digits.length.clamp(0, 5)
+                                        : false;
+
+                                    return AnimatedContainer(
+                                      duration:
+                                          const Duration(milliseconds: 120),
+                                      width: 50,
+                                      height: 60,
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius:
+                                            BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: isActive
+                                              ? const Color(0xFF2E5E58)
+                                              : orangeColor,
+                                          width: isActive ? 2 : 1.5,
+                                        ),
+                                      ),
+                                      child: Center(
+                                        child: Text(
+                                          hasValue ? digits[index] : '',
+                                          style: const TextStyle(
+                                            fontFamily: 'Afacad',
+                                            fontSize: 26,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.black87,
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  }),
+                                ),
+                              ],
+                            ),
                           ),
                           const SizedBox(height: 24),
                           RichText(
@@ -754,18 +797,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                               ],
                             ),
                           ),
-                          if (widget.bypassVerification) ...[
-                            const SizedBox(height: 12),
-                            const Text(
-                              'Demo mode: enter any 6 digits.',
-                              style: TextStyle(
-                                fontFamily: 'Afacad',
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF1F3A34),
-                              ),
-                            ),
-                          ] else if (_debugOtpCode != null) ...[
+                          if (_debugOtpCode != null) ...[
                             const SizedBox(height: 12),
                             Text(
                               'Dev OTP: $_debugOtpCode',
@@ -823,6 +855,8 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
             ),
           ),
         ],
+      ),
+    ),
       ),
     );
   }

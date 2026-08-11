@@ -30,6 +30,7 @@ npm run dev
 npm run typecheck
 npm run build
 npm run migrate
+npm run migrate:prod
 npm run seed:demo
 ```
 
@@ -70,3 +71,15 @@ Current migration files:
 GET /health
 GET /v1/health
 ```
+
+## Windows Server Deployment
+
+Recommended production-style deployment:
+
+- Docker container for the API
+- IIS reverse proxy for `https://api.c2coffeeandcandle.com`
+- MySQL remains external
+
+Deployment guide:
+
+- [DEPLOY_WINDOWS_SERVER.md](/Users/marketingdeveloper/DCStack/C2Coffee/api/DEPLOY_WINDOWS_SERVER.md)

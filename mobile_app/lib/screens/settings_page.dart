@@ -1,10 +1,13 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'loading_order_page.dart';
-import 'splash_screen.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import '../services/auth_api_service.dart';
+import '../services/secure_session_service.dart';
+import '../services/session_lifecycle_service.dart';
 import '../services/user_service.dart';
+import 'splash_screen.dart';
 import 'privacy_policy_page.dart';
 import 'terms_of_use_page.dart';
 import 'about_us_page.dart';
@@ -81,6 +84,111 @@ class _SettingsPageState extends State<SettingsPage> {
         userProfile['address'] = profileData['address'];
       }
     });
+  }
+
+  Future<void> _saveProfileValue(String key, String value) async {
+    final nextProfile = Map<String, String?>.from(userProfile);
+    nextProfile[key] = value;
+
+    await UserService.saveUserProfile({key: value});
+    userProfile = nextProfile;
+
+    final accessToken = await SecureSessionService.instance.getAccessToken();
+    if (accessToken != null &&
+        accessToken.isNotEmpty &&
+        key != 'phone') {
+      try {
+        final updatedUser = await AuthApiService.instance.updateProfile(
+          accessToken: accessToken,
+          profile: _buildApiProfilePayload(nextProfile),
+        );
+        await UserService.overwriteUserProfile(updatedUser.toLocalProfileMap());
+      } on ApiException catch (error) {
+        if (mounted) {
+          _showSnackBar(error.message);
+        }
+      } catch (_) {
+        if (mounted) {
+          _showSnackBar('Unable to sync profile changes right now.');
+        }
+      }
+    }
+
+    await _loadUserData();
+    widget.onProfileUpdated?.call();
+  }
+
+  Map<String, String> _buildApiProfilePayload(Map<String, String?> profile) {
+    final addressParts = _parseAddress(profile['address']);
+
+    return {
+      'display_name': profile['username']?.trim().isNotEmpty == true
+          ? profile['username']!.trim()
+          : 'C2 Member',
+      'email': profile['email']?.trim() ?? '',
+      'birthday': _formatBirthdayForApi(profile['birthday']),
+      'gender': profile['gender']?.trim() ?? '',
+      'house_line': '',
+      'street_line': addressParts.streetLine,
+      'postcode': addressParts.postcode,
+      'city': addressParts.city,
+    };
+  }
+
+  String _formatBirthdayForApi(String? value) {
+    if (value == null || value.trim().isEmpty) return '';
+    final raw = value.trim();
+
+    try {
+      return DateFormat('yyyy-MM-dd').format(DateFormat('dd MMM yyyy').parseStrict(raw));
+    } catch (_) {
+      try {
+        return DateFormat('yyyy-MM-dd').format(DateTime.parse(raw));
+      } catch (_) {
+        return raw;
+      }
+    }
+  }
+
+  _AddressParts _parseAddress(String? address) {
+    if (address == null || address.trim().isEmpty) {
+      return const _AddressParts(streetLine: '', postcode: '', city: '');
+    }
+
+    final parts = address.split(', ').map((part) => part.trim()).toList();
+    if (parts.length == 1) {
+      return _AddressParts(streetLine: '', postcode: '', city: parts.first);
+    }
+
+    final streetLine = parts.first;
+    var postcode = '';
+    var city = '';
+
+    if (parts.length >= 2) {
+      final postcodeAndCity = parts[1].split(' ');
+      if (postcodeAndCity.isNotEmpty) {
+        postcode = postcodeAndCity.first;
+      }
+      if (postcodeAndCity.length > 1) {
+        city = postcodeAndCity.sublist(1).join(' ');
+      }
+    }
+
+    if (parts.length > 2) {
+      city = city.isEmpty ? parts.sublist(2).join(', ') : '$city, ${parts.sublist(2).join(', ')}';
+    }
+
+    return _AddressParts(
+      streetLine: streetLine,
+      postcode: postcode,
+      city: city,
+    );
+  }
+
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   Future<void> _pickImageFromGallery() async {
@@ -212,41 +320,64 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Widget _buildRowItem(String label, String value,
-      {bool isAddress = false, VoidCallback? onTap}) {
+      {bool isAddress = false, VoidCallback? onTap, String? helperText}) {
+    final isEditable = onTap != null;
+
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 12),
-        child: Row(
-          crossAxisAlignment:
-              isAddress ? CrossAxisAlignment.start : CrossAxisAlignment.center,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(
-              width: 110,
-              child: Text(
-                label,
-                style: const TextStyle(
-                  fontFamily: 'Afacad',
-                  fontSize: 16,
-                  color: Colors.grey,
+            Row(
+              crossAxisAlignment:
+                  isAddress ? CrossAxisAlignment.start : CrossAxisAlignment.center,
+              children: [
+                SizedBox(
+                  width: 110,
+                  child: Text(
+                    label,
+                    style: const TextStyle(
+                      fontFamily: 'Afacad',
+                      fontSize: 16,
+                      color: Colors.grey,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Text(
+                    value.isEmpty ? 'Not set' : value,
+                    textAlign: TextAlign.right,
+                    style: TextStyle(
+                      fontFamily: 'Afacad',
+                      fontSize: 16,
+                      color: value.isEmpty ? Colors.grey : Colors.black87,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                if (isEditable) ...[
+                  const SizedBox(width: 8),
+                  const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+                ],
+              ],
+            ),
+            if (helperText != null) ...[
+              const SizedBox(height: 6),
+              Padding(
+                padding: const EdgeInsets.only(left: 110),
+                child: Text(
+                  helperText,
+                  style: const TextStyle(
+                    fontFamily: 'Afacad',
+                    fontSize: 12,
+                    color: Colors.grey,
+                  ),
                 ),
               ),
-            ),
-            Expanded(
-              child: Text(
-                value.isEmpty ? 'Not set' : value,
-                textAlign: TextAlign.right,
-                style: TextStyle(
-                  fontFamily: 'Afacad',
-                  fontSize: 16,
-                  color: value.isEmpty ? Colors.grey : Colors.black87,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+            ],
           ],
         ),
       ),
@@ -264,18 +395,29 @@ class _SettingsPageState extends State<SettingsPage> {
               return AlertDialog(
                 title: Text('Select Gender',
                     style: const TextStyle(fontFamily: 'Recoleta')),
-                content: Column(
-                  mainAxisSize: MainAxisSize.min,
+                content: Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
                   children: ['Female', 'Male'].map((gender) {
-                    return RadioListTile<String>(
-                      title: Text(gender,
-                          style: const TextStyle(fontFamily: 'Afacad')),
-                      value: gender,
-                      groupValue: selectedGender,
-                      activeColor: AppColors.deepTeal,
-                      onChanged: (val) {
+                    final isSelected = selectedGender == gender;
+                    return ChoiceChip(
+                      label: Text(
+                        gender,
+                        style: const TextStyle(fontFamily: 'Afacad'),
+                      ),
+                      selected: isSelected,
+                      selectedColor: AppColors.deepTeal.withValues(alpha: 0.14),
+                      side: BorderSide(
+                        color: isSelected ? AppColors.deepTeal : Colors.grey.shade300,
+                      ),
+                      labelStyle: TextStyle(
+                        fontFamily: 'Afacad',
+                        color: isSelected ? AppColors.deepTeal : Colors.black87,
+                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                      ),
+                      onSelected: (_) {
                         setDialogState(() {
-                          selectedGender = val!;
+                          selectedGender = gender;
                         });
                       },
                     );
@@ -289,9 +431,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                   TextButton(
                     onPressed: () async {
-                      await UserService.saveUserProfile({key: selectedGender});
-                      _loadUserData();
-                      widget.onProfileUpdated?.call();
+                      await _saveProfileValue(key, selectedGender);
                       if (context.mounted) Navigator.pop(context);
                     },
                     child: Text('Save',
@@ -420,9 +560,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       if (formKey.currentState!.validate()) {
                         String fullAddress =
                             '${streetController.text.trim()}, ${postcodeController.text.trim()} ${cityController.text.trim()}, ${stateController.text.trim()}';
-                        await UserService.saveUserProfile({key: fullAddress});
-                        _loadUserData();
-                        widget.onProfileUpdated?.call();
+                        await _saveProfileValue(key, fullAddress);
                         if (context.mounted) Navigator.pop(context);
                       }
                     },
@@ -461,9 +599,7 @@ class _SettingsPageState extends State<SettingsPage> {
       );
       if (pickedDate != null) {
         String formattedDate = DateFormat('dd MMM yyyy').format(pickedDate);
-        await UserService.saveUserProfile({key: formattedDate});
-        _loadUserData();
-        widget.onProfileUpdated?.call();
+        await _saveProfileValue(key, formattedDate);
       }
     } else {
       TextEditingController controller =
@@ -490,10 +626,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               TextButton(
                 onPressed: () async {
-                  await UserService.saveUserProfile(
-                      {key: controller.text.trim()});
-                  _loadUserData();
-                  widget.onProfileUpdated?.call();
+                  await _saveProfileValue(key, controller.text.trim());
                   if (context.mounted) Navigator.pop(context);
                 },
                 child: Text('Save',
@@ -605,10 +738,8 @@ class _SettingsPageState extends State<SettingsPage> {
                                           'email', userProfile['email'] ?? '')),
                                   _buildRowItem('Phone Number',
                                       userProfile['phone'] ?? '',
-                                      onTap: () => _showEditDialog(
-                                          'Phone Number',
-                                          'phone',
-                                          userProfile['phone'] ?? '')),
+                                      helperText:
+                                          'Phone number is your login identity and cannot be edited here.'),
                                   _buildRowItem(
                                       'Birthday', userProfile['birthday'] ?? '',
                                       onTap: () => _showEditDialog(
@@ -782,8 +913,9 @@ class _SettingsPageState extends State<SettingsPage> {
 
                             // Log Out Button
                             GestureDetector(
-                              onTap: () {
-                                // Perform logout
+                              onTap: () async {
+                                await SessionLifecycleService.instance.logout();
+                                if (!context.mounted) return;
                                 Navigator.pushAndRemoveUntil(
                                   context,
                                   MaterialPageRoute(
@@ -846,4 +978,16 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
     );
   }
+}
+
+class _AddressParts {
+  final String streetLine;
+  final String postcode;
+  final String city;
+
+  const _AddressParts({
+    required this.streetLine,
+    required this.postcode,
+    required this.city,
+  });
 }

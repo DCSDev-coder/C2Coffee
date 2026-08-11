@@ -134,6 +134,18 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
       }
     );
 
+    if (env.OTP_DELIVERY_MODE === 'log') {
+      app.log.warn(
+        {
+          phone,
+          requestId: insertResult.insertId,
+          channel: payload.preferred_channel,
+          otpCode
+        },
+        'OTP generated in log delivery mode. No provider dispatch was attempted.'
+      );
+    }
+
     const response: Record<string, unknown> = {
       request_id: String(insertResult.insertId),
       channel: payload.preferred_channel,
@@ -142,7 +154,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
       secondary_channel_available: 'sms'
     };
 
-    if (env.NODE_ENV !== 'production') {
+    if (env.NODE_ENV !== 'production' || env.OTP_DEBUG_EXPOSE_CODE) {
       response.debug_otp_code = otpCode;
     }
 

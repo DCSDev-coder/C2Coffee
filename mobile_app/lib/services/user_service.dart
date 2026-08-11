@@ -40,6 +40,16 @@ class UserService {
     if (data.containsKey('address')) await prefs.setString(_addressKey, data['address']!);
   }
 
+  static Future<void> overwriteUserProfile(Map<String, String?> data) async {
+    final prefs = await SharedPreferences.getInstance();
+    await _writeNullable(prefs, _usernameKey, data['username']);
+    await _writeNullable(prefs, _emailKey, data['email']);
+    await _writeNullable(prefs, _phoneKey, data['phone']);
+    await _writeNullable(prefs, _birthdayKey, data['birthday']);
+    await _writeNullable(prefs, _genderKey, data['gender']);
+    await _writeNullable(prefs, _addressKey, data['address']);
+  }
+
   static Future<Map<String, String?>> getUserProfile() async {
     final prefs = await SharedPreferences.getInstance();
     return {
@@ -50,5 +60,33 @@ class UserService {
       'gender': prefs.getString(_genderKey),
       'address': prefs.getString(_addressKey),
     };
+  }
+
+  static Future<void> clearUserProfile() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_usernameKey);
+    await prefs.remove(_emailKey);
+    await prefs.remove(_phoneKey);
+    await prefs.remove(_birthdayKey);
+    await prefs.remove(_genderKey);
+    await prefs.remove(_addressKey);
+  }
+
+  static Future<void> clearAvatar() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_presetKey);
+    await prefs.remove(_pickedImageKey);
+  }
+
+  static Future<void> _writeNullable(
+    SharedPreferences prefs,
+    String key,
+    String? value,
+  ) async {
+    if (value == null || value.isEmpty) {
+      await prefs.remove(key);
+    } else {
+      await prefs.setString(key, value);
+    }
   }
 }

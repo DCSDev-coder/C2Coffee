@@ -6,6 +6,8 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(8080),
   HOST: z.string().default('0.0.0.0'),
   LOG_LEVEL: z.string().default('info'),
+  OTP_DELIVERY_MODE: z.enum(['stub', 'log']).default('stub'),
+  OTP_DEBUG_EXPOSE_CODE: z.coerce.boolean().default(false),
   ACCESS_TOKEN_TTL_MINUTES: z.coerce.number().int().positive().default(15),
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(30),
   OTP_EXPIRY_SECONDS: z.coerce.number().int().positive().default(300),
@@ -22,14 +24,14 @@ const envSchema = z.object({
   DB_CONNECTION_LIMIT: z.coerce.number().int().positive().default(10),
   ACCESS_TOKEN_SECRET: z.string().min(32),
   REFRESH_TOKEN_SECRET: z.string().min(32),
-  BILLPLZ_BASE_URL: z.string().url(),
-  BILLPLZ_COLLECTION_ID: z.string().min(1),
-  BILLPLZ_API_KEY: z.string().min(1),
-  BILLPLZ_X_SIGNATURE_KEY: z.string().min(1),
-  WHATSAPP_CLOUD_API_TOKEN: z.string().min(1),
-  WHATSAPP_PHONE_NUMBER_ID: z.string().min(1),
-  SMS_PROVIDER_BASE_URL: z.string().min(1),
-  SMS_PROVIDER_API_KEY: z.string().min(1)
+  BILLPLZ_BASE_URL: z.string().optional().default(''),
+  BILLPLZ_COLLECTION_ID: z.string().optional().default(''),
+  BILLPLZ_API_KEY: z.string().optional().default(''),
+  BILLPLZ_X_SIGNATURE_KEY: z.string().optional().default(''),
+  WHATSAPP_CLOUD_API_TOKEN: z.string().optional().default(''),
+  WHATSAPP_PHONE_NUMBER_ID: z.string().optional().default(''),
+  SMS_PROVIDER_BASE_URL: z.string().optional().default(''),
+  SMS_PROVIDER_API_KEY: z.string().optional().default('')
 });
 
 const parsedEnv = envSchema.safeParse(process.env);

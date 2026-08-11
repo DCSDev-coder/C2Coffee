@@ -1,12 +1,14 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'login.dart';
 import 'auth_transition.dart';
 import 'otp_verification.dart';
+import '../services/auth_api_service.dart';
 import '../services/user_service.dart';
 
 class Signup2 extends StatefulWidget {
@@ -100,6 +102,16 @@ class _Signup2State extends State<Signup2> {
         _postcodeController.text.trim().isNotEmpty &&
         _selectedGender != null &&
         _agreedToTerms;
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   Future<void> _pickImageFromGallery() async {
@@ -372,11 +384,36 @@ class _Signup2State extends State<Signup2> {
   @override
   Widget build(BuildContext context) {
     const Color orangeColor = Color(0xFF1F3A34);
+    final mediaQuery = MediaQuery.of(context);
+    final keyboardInset = mediaQuery.viewInsets.bottom;
+    final cardBottomInset = keyboardInset > 0 ? keyboardInset : 0.0;
+    final keyboardBackdropHeight =
+        keyboardInset > 0 ? keyboardInset + mediaQuery.padding.bottom + 24 : 0.0;
 
-    return Scaffold(
-      backgroundColor: const Color(0xFF1F3A34),
-      body: Stack(
-        children: [
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+        statusBarBrightness: Brightness.dark,
+        systemNavigationBarColor: Colors.white,
+        systemNavigationBarIconBrightness: Brightness.dark,
+      ),
+      child: Scaffold(
+        resizeToAvoidBottomInset: false,
+        backgroundColor: const Color(0xFF1F3A34),
+        body: GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onTap: () => FocusScope.of(context).unfocus(),
+          child: Stack(
+            children: [
+          if (keyboardBackdropHeight > 0)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: keyboardBackdropHeight,
+              child: const ColoredBox(color: Colors.white),
+            ),
           // Header Background Picture
           Positioned(
             top: 0,
@@ -416,6 +453,17 @@ class _Signup2State extends State<Signup2> {
                       const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                   child: Column(
                     children: [
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: IconButton(
+                          onPressed: () => Navigator.maybePop(context),
+                          icon: const Icon(
+                            Icons.arrow_back_ios_new_rounded,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                      ),
                       GestureDetector(
                         onTap: _showAvatarPicker,
                         child: Stack(
@@ -478,22 +526,33 @@ class _Signup2State extends State<Signup2> {
 
                 // White Card Section
                 Expanded(
-                  child: Container(
-                    width: double.infinity,
-                    clipBehavior: Clip.antiAlias,
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      borderRadius:
-                          BorderRadius.vertical(top: Radius.circular(40)),
-                    ),
-                    child: SingleChildScrollView(
-                      physics: const ClampingScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(24, 16, 24, 20),
-                      child: Form(
-                        key: _formKey,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
+                  child: AnimatedPadding(
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeOutCubic,
+                    padding: EdgeInsets.only(bottom: cardBottomInset),
+                    child: Container(
+                      width: double.infinity,
+                      clipBehavior: Clip.antiAlias,
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        borderRadius:
+                            BorderRadius.vertical(top: Radius.circular(40)),
+                      ),
+                      child: SingleChildScrollView(
+                        keyboardDismissBehavior:
+                            ScrollViewKeyboardDismissBehavior.onDrag,
+                        physics: const ClampingScrollPhysics(),
+                        padding: EdgeInsets.fromLTRB(
+                          24,
+                          16,
+                          24,
+                          20 + mediaQuery.padding.bottom,
+                        ),
+                        child: Form(
+                          key: _formKey,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
                             // Address Header
                             const Text(
                               'Address',
@@ -586,10 +645,9 @@ class _Signup2State extends State<Signup2> {
                             Center(
                               child: GestureDetector(
                                   onTap: () {
-                                    Navigator.pushAndRemoveUntil(
+                                    Navigator.push(
                                       context,
-                                      AuthPageRoute(page: const LoginPage()),
-                                      (route) => false,
+                                      buildAuthRoute(const LoginPage()),
                                     );
                                   },
                                 child: RichText(
@@ -662,27 +720,79 @@ class _Signup2State extends State<Signup2> {
                                         final profile =
                                             await UserService.getUserProfile();
 
-                                        if (!context.mounted) return;
-                                        Navigator.pushAndRemoveUntil(
-                                          context,
-                                          AuthPageRoute(
-                                            page: OtpVerificationPage(
-                                              phone: profile['phone'] ?? '',
-                                              requestId:
-                                                  'demo-signup-request',
-                                              deviceFingerprint:
-                                                  'demo-signup-device',
-                                              bypassVerification: true,
-                                              isSignup: true,
-                                              initialPickedImage: _pickedImage,
-                                              initialPresetPath:
-                                                  _presetAvatarPath,
-                                              initialAvatarIndex:
-                                                  _selectedAvatarIndex,
+                                        final phone =
+                                            profile['phone']?.trim() ?? '';
+                                        if (phone.isEmpty) {
+                                          _showError(
+                                              'Phone number is missing. Please restart signup.');
+                                          return;
+                                        }
+
+                                        try {
+                                          final deviceFingerprint =
+                                              await AuthApiService.instance
+                                                  .getOrCreateDeviceFingerprint();
+                                          final otpRequest =
+                                              await AuthApiService.instance
+                                                  .requestOtp(
+                                            phone: phone,
+                                            deviceFingerprint:
+                                                deviceFingerprint,
+                                          );
+
+                                          if (!context.mounted) return;
+                                          Navigator.push(
+                                            context,
+                                            buildAuthRoute(
+                                              OtpVerificationPage(
+                                                phone: phone,
+                                                requestId:
+                                                    otpRequest.requestId,
+                                                deviceFingerprint:
+                                                    deviceFingerprint,
+                                                debugOtpCode:
+                                                    otpRequest.debugOtpCode,
+                                                isSignup: true,
+                                                signupProfile: {
+                                                  'display_name':
+                                                      profile['username'] ??
+                                                          'C2 Member',
+                                                  'email':
+                                                      profile['email'] ?? '',
+                                                  'birthday':
+                                                      profile['birthday'] ?? '',
+                                                  'gender':
+                                                      _selectedGender ?? '',
+                                                  'house_line':
+                                                      _houseController.text
+                                                          .trim(),
+                                                  'street_line':
+                                                      _streetController.text
+                                                          .trim(),
+                                                  'postcode':
+                                                      _postcodeController.text
+                                                          .trim(),
+                                                  'city':
+                                                      _cityController.text
+                                                          .trim(),
+                                                },
+                                                initialPickedImage:
+                                                    _pickedImage,
+                                                initialPresetPath:
+                                                    _presetAvatarPath,
+                                                initialAvatarIndex:
+                                                    _selectedAvatarIndex,
+                                              ),
                                             ),
-                                          ),
-                                          (route) => false,
-                                        );
+                                          );
+                                        } on ApiException catch (error) {
+                                          if (!context.mounted) return;
+                                          _showError(error.message);
+                                        } catch (_) {
+                                          if (!context.mounted) return;
+                                          _showError(
+                                              'Unable to request OTP right now.');
+                                        }
                                       }
                                     : null,
                                 style: ElevatedButton.styleFrom(
@@ -709,7 +819,8 @@ class _Signup2State extends State<Signup2> {
                             SizedBox(
                                 height: 20 +
                                     MediaQuery.of(context).padding.bottom),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -719,6 +830,8 @@ class _Signup2State extends State<Signup2> {
             ),
           ),
         ],
+          ),
+        ),
       ),
     );
   }
@@ -759,6 +872,7 @@ class _Signup2State extends State<Signup2> {
             controller: controller,
             keyboardType: keyboardType,
             readOnly: readOnly,
+            onTapOutside: (_) => FocusScope.of(context).unfocus(),
             style: const TextStyle(
                 fontFamily: 'Afacad', fontSize: 15, color: Colors.black87),
             decoration: InputDecoration(

@@ -27,6 +27,7 @@ class C2CoffeeApp extends StatelessWidget {
             '/login': (context) => const LoginPage(),
             '/login_backup': (context) => const LoginPage(),
             '/home': (context) => const HomePage(),
+            '/splash': (context) => const SplashScreen(),
           },
         );
       },
