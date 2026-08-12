@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'loading_order_page.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import '../services/app_session_service.dart';
 import '../services/auth_api_service.dart';
 import '../services/secure_session_service.dart';
 import '../services/session_lifecycle_service.dart';
@@ -94,15 +95,16 @@ class _SettingsPageState extends State<SettingsPage> {
     userProfile = nextProfile;
 
     final accessToken = await SecureSessionService.instance.getAccessToken();
-    if (accessToken != null &&
-        accessToken.isNotEmpty &&
-        key != 'phone') {
+    if (accessToken != null && accessToken.isNotEmpty && key != 'phone') {
       try {
         final updatedUser = await AuthApiService.instance.updateProfile(
           accessToken: accessToken,
           profile: _buildApiProfilePayload(nextProfile),
         );
         await UserService.overwriteUserProfile(updatedUser.toLocalProfileMap());
+        try {
+          await AppSessionService.instance.loadAuthenticatedState(force: true);
+        } catch (_) {}
       } on ApiException catch (error) {
         if (mounted) {
           _showSnackBar(error.message);
@@ -140,7 +142,8 @@ class _SettingsPageState extends State<SettingsPage> {
     final raw = value.trim();
 
     try {
-      return DateFormat('yyyy-MM-dd').format(DateFormat('dd MMM yyyy').parseStrict(raw));
+      return DateFormat('yyyy-MM-dd')
+          .format(DateFormat('dd MMM yyyy').parseStrict(raw));
     } catch (_) {
       try {
         return DateFormat('yyyy-MM-dd').format(DateTime.parse(raw));
@@ -175,7 +178,9 @@ class _SettingsPageState extends State<SettingsPage> {
     }
 
     if (parts.length > 2) {
-      city = city.isEmpty ? parts.sublist(2).join(', ') : '$city, ${parts.sublist(2).join(', ')}';
+      city = city.isEmpty
+          ? parts.sublist(2).join(', ')
+          : '$city, ${parts.sublist(2).join(', ')}';
     }
 
     return _AddressParts(
@@ -332,8 +337,9 @@ class _SettingsPageState extends State<SettingsPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              crossAxisAlignment:
-                  isAddress ? CrossAxisAlignment.start : CrossAxisAlignment.center,
+              crossAxisAlignment: isAddress
+                  ? CrossAxisAlignment.start
+                  : CrossAxisAlignment.center,
               children: [
                 SizedBox(
                   width: 110,
@@ -360,7 +366,8 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 if (isEditable) ...[
                   const SizedBox(width: 8),
-                  const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+                  const Icon(Icons.arrow_forward_ios,
+                      size: 14, color: Colors.grey),
                 ],
               ],
             ),
@@ -408,12 +415,15 @@ class _SettingsPageState extends State<SettingsPage> {
                       selected: isSelected,
                       selectedColor: AppColors.deepTeal.withValues(alpha: 0.14),
                       side: BorderSide(
-                        color: isSelected ? AppColors.deepTeal : Colors.grey.shade300,
+                        color: isSelected
+                            ? AppColors.deepTeal
+                            : Colors.grey.shade300,
                       ),
                       labelStyle: TextStyle(
                         fontFamily: 'Afacad',
                         color: isSelected ? AppColors.deepTeal : Colors.black87,
-                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                        fontWeight:
+                            isSelected ? FontWeight.w700 : FontWeight.w500,
                       ),
                       onSelected: (_) {
                         setDialogState(() {
@@ -493,7 +503,8 @@ class _SettingsPageState extends State<SettingsPage> {
                           decoration: InputDecoration(
                             labelText: 'Street Address',
                             focusedBorder: UnderlineInputBorder(
-                                borderSide: BorderSide(color: AppColors.deepTeal)),
+                                borderSide:
+                                    BorderSide(color: AppColors.deepTeal)),
                           ),
                           validator: (value) {
                             if (value == null || value.trim().isEmpty) {
@@ -507,7 +518,8 @@ class _SettingsPageState extends State<SettingsPage> {
                           decoration: InputDecoration(
                             labelText: 'City',
                             focusedBorder: UnderlineInputBorder(
-                                borderSide: BorderSide(color: AppColors.deepTeal)),
+                                borderSide:
+                                    BorderSide(color: AppColors.deepTeal)),
                           ),
                           validator: (value) {
                             if (value == null || value.trim().isEmpty) {
@@ -522,7 +534,8 @@ class _SettingsPageState extends State<SettingsPage> {
                           decoration: InputDecoration(
                             labelText: 'Postcode',
                             focusedBorder: UnderlineInputBorder(
-                                borderSide: BorderSide(color: AppColors.deepTeal)),
+                                borderSide:
+                                    BorderSide(color: AppColors.deepTeal)),
                           ),
                           validator: (value) {
                             if (value == null || value.trim().isEmpty) {
@@ -536,7 +549,8 @@ class _SettingsPageState extends State<SettingsPage> {
                           decoration: InputDecoration(
                             labelText: 'State',
                             focusedBorder: UnderlineInputBorder(
-                                borderSide: BorderSide(color: AppColors.deepTeal)),
+                                borderSide:
+                                    BorderSide(color: AppColors.deepTeal)),
                           ),
                           validator: (value) {
                             if (value == null || value.trim().isEmpty) {
@@ -629,8 +643,8 @@ class _SettingsPageState extends State<SettingsPage> {
                   await _saveProfileValue(key, controller.text.trim());
                   if (context.mounted) Navigator.pop(context);
                 },
-                child: Text('Save',
-                    style: TextStyle(color: AppColors.deepTeal)),
+                child:
+                    Text('Save', style: TextStyle(color: AppColors.deepTeal)),
               ),
             ],
           );
@@ -767,7 +781,8 @@ class _SettingsPageState extends State<SettingsPage> {
 
                             // Settings Text
                             Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 20),
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 20),
                               child: Text('Settings',
                                   style: TextStyle(
                                       fontFamily: 'Recoleta',

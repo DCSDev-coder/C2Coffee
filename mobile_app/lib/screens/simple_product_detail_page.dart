@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'loading_order_page.dart';
 import '../utils/app_colors.dart';
+import '../widgets/catalog_product_image.dart';
 
 class SimpleProductDetailPage extends StatefulWidget {
   final Map<String, dynamic> item;
@@ -127,18 +128,11 @@ class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
                 Center(
                   child: Transform.scale(
                     scale: _imageScale,
-                    child: Image.asset(
-                      _itemImage,
+                    child: CatalogProductImage(
+                      assetPath: _itemImage,
+                      imageUrl: widget.item['image_url']?.toString(),
                       height: 200,
                       fit: BoxFit.contain,
-                      errorBuilder: (context, error, stackTrace) =>
-                          const SizedBox(
-                        height: 200,
-                        child: Center(
-                          child: Icon(Icons.image_outlined,
-                              size: 70, color: Colors.grey),
-                        ),
-                      ),
                     ),
                   ),
                 ),

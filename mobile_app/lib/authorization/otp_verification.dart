@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import '../screens/home_page.dart';
 import 'auth_transition.dart';
+import '../services/app_session_service.dart';
 import '../services/auth_api_service.dart';
 import '../services/secure_session_service.dart';
 import '../services/user_service.dart';
@@ -15,6 +16,8 @@ class OtpVerificationPage extends StatefulWidget {
   final String requestId;
   final String deviceFingerprint;
   final String? debugOtpCode;
+  final int expiresInSeconds;
+  final int resendInSeconds;
   final bool isSignup;
   final Map<String, String>? signupProfile;
   final File? initialPickedImage;
@@ -27,6 +30,8 @@ class OtpVerificationPage extends StatefulWidget {
     required this.requestId,
     required this.deviceFingerprint,
     this.debugOtpCode,
+    this.expiresInSeconds = 300,
+    this.resendInSeconds = 45,
     this.isSignup = false,
     this.signupProfile,
     this.initialPickedImage,
@@ -51,9 +56,11 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
   final FocusNode _otpInputFocusNode = FocusNode();
 
   Timer? _timer;
-  int _start = 45;
+  int _resendCountdown = 45;
+  int _expiryCountdown = 300;
   bool _isResendEnabled = false;
   bool _isSubmitting = false;
+  bool _hasOtpExpired = false;
   late String _requestId;
   String? _debugOtpCode;
 
@@ -76,7 +83,10 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
 
     _requestId = widget.requestId;
     _debugOtpCode = widget.debugOtpCode;
-    startTimer();
+    _startOtpLifecycle(
+      resendInSeconds: widget.resendInSeconds,
+      expiresInSeconds: widget.expiresInSeconds,
+    );
     if (_debugOtpCode != null && _debugOtpCode!.length == 6) {
       _fillOtpCode(_debugOtpCode!);
     }
@@ -90,29 +100,56 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
     precacheImage(const AssetImage('assets/images/datin.png'), context);
   }
 
-  void startTimer() {
+  void _startOtpLifecycle({
+    required int resendInSeconds,
+    required int expiresInSeconds,
+  }) {
     _timer?.cancel();
-    _start = 45;
-    _isResendEnabled = false;
+    _resendCountdown = resendInSeconds;
+    _expiryCountdown = expiresInSeconds;
+    _hasOtpExpired = false;
+    _isResendEnabled = resendInSeconds <= 0;
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (_start == 0) {
-        setState(() {
-          _isResendEnabled = true;
-        });
+      if (!mounted) {
         timer.cancel();
-      } else {
-        setState(() {
-          _start--;
-        });
+        return;
+      }
+
+      setState(() {
+        if (_resendCountdown > 0) {
+          _resendCountdown--;
+          if (_resendCountdown == 0) {
+            _isResendEnabled = true;
+          }
+        }
+
+        if (_expiryCountdown > 0) {
+          _expiryCountdown--;
+          if (_expiryCountdown == 0) {
+            _markOtpExpired(showMessage: true);
+          }
+        }
+      });
+
+      if (_hasOtpExpired && _isResendEnabled) {
+        timer.cancel();
       }
     });
   }
 
+  void _markOtpExpired({bool showMessage = false}) {
+    _hasOtpExpired = true;
+    _isResendEnabled = true;
+    _clearOtpCode();
+    if (showMessage && mounted) {
+      _showError('OTP expired. Please request a new code.');
+    }
+  }
+
   void _fillOtpCode(String otp) {
     final sanitized = otp.replaceAll(RegExp(r'[^0-9]'), '');
-    _otpInputController.text = sanitized.length > 6
-        ? sanitized.substring(0, 6)
-        : sanitized;
+    _otpInputController.text =
+        sanitized.length > 6 ? sanitized.substring(0, 6) : sanitized;
     _otpInputController.selection = TextSelection.fromPosition(
       TextPosition(offset: _otpInputController.text.length),
     );
@@ -125,9 +162,8 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
 
   void _handleOtpChanged(String value) {
     final sanitized = value.replaceAll(RegExp(r'[^0-9]'), '');
-    final nextValue = sanitized.length > 6
-        ? sanitized.substring(0, 6)
-        : sanitized;
+    final nextValue =
+        sanitized.length > 6 ? sanitized.substring(0, 6) : sanitized;
 
     if (nextValue != value) {
       _otpInputController.value = TextEditingValue(
@@ -429,6 +465,11 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
   }
 
   Future<void> _verifyOTP() async {
+    if (_hasOtpExpired) {
+      _showError('OTP expired. Please request a new code.');
+      return;
+    }
+
     final otp = _otpInputController.text;
 
     if (otp.length != 6) {
@@ -460,12 +501,14 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
 
       await UserService.saveUserProfile({
         'phone': result.user.phone,
-        'username': widget.signupProfile?['display_name'] ?? result.user.displayName,
+        'username':
+            widget.signupProfile?['display_name'] ?? result.user.displayName,
         if (widget.signupProfile?['email'] != null)
           'email': widget.signupProfile!['email']!,
         if (widget.signupProfile?['gender'] != null)
           'gender': widget.signupProfile!['gender']!,
       });
+      await AppSessionService.instance.loadAuthenticatedState(force: true);
 
       if (!mounted) return;
       Navigator.pushAndRemoveUntil(
@@ -481,6 +524,14 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
       );
     } on ApiException catch (error) {
       if (!mounted) return;
+      if (error.code == 'otp_expired' ||
+          error.code == 'otp_not_pending' ||
+          error.code == 'otp_not_found' ||
+          error.code == 'otp_blocked') {
+        setState(() {
+          _markOtpExpired();
+        });
+      }
       _showError(error.message);
     } catch (_) {
       if (!mounted) return;
@@ -507,10 +558,13 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
         _debugOtpCode = otpRequest.debugOtpCode;
       });
       _clearOtpCode();
+      _startOtpLifecycle(
+        resendInSeconds: otpRequest.resendInSeconds,
+        expiresInSeconds: otpRequest.expiresInSeconds,
+      );
       if (_debugOtpCode != null && _debugOtpCode!.length == 6) {
         _fillOtpCode(_debugOtpCode!);
       }
-      startTimer();
     } on ApiException catch (error) {
       if (!mounted) return;
       _showError(error.message);
@@ -547,316 +601,348 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
           onTap: () => FocusScope.of(context).unfocus(),
           child: Stack(
             children: [
-          // Header Background Picture
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 320,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                Image.asset(
-                  'assets/images/FKP01925.jpg',
-                  fit: BoxFit.cover,
-                  alignment: Alignment.center,
-                ),
-                Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        const Color(0xFF1F3A34).withValues(alpha: 0.65),
-                        const Color(0xFF1F3A34).withValues(alpha: 0.90),
-                      ],
+              // Header Background Picture
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                height: 320,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Image.asset(
+                      'assets/images/FKP01925.jpg',
+                      fit: BoxFit.cover,
+                      alignment: Alignment.center,
                     ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          SafeArea(
-            bottom: false,
-            child: Column(
-              children: [
-                // Top Section
-                Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                  child: Column(
-                    children: [
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: IconButton(
-                          onPressed: () => Navigator.maybePop(context),
-                          icon: const Icon(
-                            Icons.arrow_back_ios_new_rounded,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: _showAvatarPicker,
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            _buildMainAvatar(),
-                            Positioned(
-                              right: 2,
-                              bottom: 2,
-                              child: Container(
-                                padding: const EdgeInsets.all(6),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                      color: const Color(0xFFFAF4EE), width: 2),
-                                  boxShadow: const [
-                                    BoxShadow(
-                                        color: Color(0x1A000000), blurRadius: 4)
-                                  ],
-                                ),
-                                child: const Icon(Icons.camera_alt,
-                                    size: 18, color: Color(0xFF1F3A34)),
-                              ),
-                            ),
+                    Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            const Color(0xFF1F3A34).withValues(alpha: 0.65),
+                            const Color(0xFF1F3A34).withValues(alpha: 0.90),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      // Spacer to match the "Step 1 of 2" line height in Signup1 (22px) for exact vertical symmetry
-                      const SizedBox(height: 22),
-                      const Text(
-                        'Verify Your Identity',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                            fontFamily: 'Recoleta',
-                            fontSize: 26,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white),
-                      ),
-                      const SizedBox(height: 2),
-                      const Text(
-                        'We\'ve sent a text to your phone number.\nPlease fill in the security code',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                            fontFamily: 'Afacad',
-                            fontSize: 12,
-                            color: Colors.white70),
-                      ),
-                    ],
-                  ),
-                ),
-                // White Card Section
-                Expanded(
-                  child: Container(
-                    width: double.infinity,
-                    clipBehavior: Clip.antiAlias,
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      borderRadius:
-                          BorderRadius.vertical(top: Radius.circular(40)),
                     ),
-                    child: SingleChildScrollView(
-                      keyboardDismissBehavior:
-                          ScrollViewKeyboardDismissBehavior.onDrag,
-                      physics: const ClampingScrollPhysics(),
-                      padding: EdgeInsets.fromLTRB(
-                        24,
-                        24,
-                        24,
-                        32 + mediaQuery.padding.bottom,
-                      ),
+                  ],
+                ),
+              ),
+              SafeArea(
+                bottom: false,
+                child: Column(
+                  children: [
+                    // Top Section
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 24, vertical: 12),
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: IconButton(
+                              onPressed: () => Navigator.maybePop(context),
+                              icon: const Icon(
+                                Icons.arrow_back_ios_new_rounded,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                            ),
+                          ),
+                          GestureDetector(
+                            onTap: _showAvatarPicker,
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                _buildMainAvatar(),
+                                Positioned(
+                                  right: 2,
+                                  bottom: 2,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(6),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                          color: const Color(0xFFFAF4EE),
+                                          width: 2),
+                                      boxShadow: const [
+                                        BoxShadow(
+                                            color: Color(0x1A000000),
+                                            blurRadius: 4)
+                                      ],
+                                    ),
+                                    child: const Icon(Icons.camera_alt,
+                                        size: 18, color: Color(0xFF1F3A34)),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          // Spacer to match the "Step 1 of 2" line height in Signup1 (22px) for exact vertical symmetry
+                          const SizedBox(height: 22),
                           const Text(
-                            'Please fill in the security code.',
+                            'Verify Your Identity',
+                            textAlign: TextAlign.center,
                             style: TextStyle(
                                 fontFamily: 'Recoleta',
-                                fontSize: 18,
-                                fontWeight: FontWeight.normal,
-                                color: Color(0xFF1F3A34)),
+                                fontSize: 26,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white),
                           ),
-                          const SizedBox(height: 30),
-                          GestureDetector(
-                            behavior: HitTestBehavior.translucent,
-                            onTap: () {
-                              if (_otpInputFocusNode.hasFocus) {
-                                FocusScope.of(context).unfocus();
-                                return;
-                              }
-
-                              _otpInputFocusNode.requestFocus();
-                            },
-                            child: Column(
-                              children: [
-                                SizedBox(
-                                  height: 0,
-                                  width: 0,
-                                  child: TextFormField(
-                                    controller: _otpInputController,
-                                    focusNode: _otpInputFocusNode,
-                                    keyboardType: TextInputType.number,
-                                    textInputAction: TextInputAction.done,
-                                    autofillHints: [
-                                      AutofillHints.oneTimeCode,
-                                    ],
-                                    inputFormatters: [
-                                      FilteringTextInputFormatter.digitsOnly,
-                                      LengthLimitingTextInputFormatter(6),
-                                    ],
-                                    decoration: const InputDecoration(
-                                      border: InputBorder.none,
-                                      counterText: '',
-                                      contentPadding: EdgeInsets.zero,
-                                      isCollapsed: true,
-                                    ),
-                                    onChanged: _handleOtpChanged,
-                                  ),
-                                ),
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: List.generate(6, (index) {
-                                    final digits = _otpInputController.text;
-                                    final hasValue = index < digits.length;
-                                    final isActive = _otpInputFocusNode.hasFocus
-                                        ? index == digits.length.clamp(0, 5)
-                                        : false;
-
-                                    return AnimatedContainer(
-                                      duration:
-                                          const Duration(milliseconds: 120),
-                                      width: 50,
-                                      height: 60,
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius:
-                                            BorderRadius.circular(12),
-                                        border: Border.all(
-                                          color: isActive
-                                              ? const Color(0xFF2E5E58)
-                                              : orangeColor,
-                                          width: isActive ? 2 : 1.5,
-                                        ),
-                                      ),
-                                      child: Center(
-                                        child: Text(
-                                          hasValue ? digits[index] : '',
-                                          style: const TextStyle(
-                                            fontFamily: 'Afacad',
-                                            fontSize: 26,
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.black87,
-                                          ),
-                                        ),
-                                      ),
-                                    );
-                                  }),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-                          RichText(
+                          const SizedBox(height: 2),
+                          const Text(
+                            'We\'ve sent a text to your phone number.\nPlease fill in the security code',
                             textAlign: TextAlign.center,
-                            text: TextSpan(
-                              style: const TextStyle(
-                                  fontFamily: 'Afacad',
-                                  fontSize: 14,
-                                  color: Colors.black54),
-                              children: [
-                                const TextSpan(
-                                    text: 'Didn\'t receive the code?\n'),
-                                if (_isResendEnabled)
-                                  WidgetSpan(
-                                    child: GestureDetector(
-                                      onTap: _isSubmitting
-                                          ? null
-                                          : () => _handleResendOtp(),
-                                      child: const Text(
-                                        'Resend Code',
-                                        style: TextStyle(
-                                          fontFamily: 'Recoleta',
-                                          fontWeight: FontWeight.bold,
-                                          color: orangeColor,
-                                        ),
-                                      ),
-                                    ),
-                                  )
-                                else
-                                  TextSpan(
-                                    text:
-                                        'Resend Code (00:${_start.toString().padLeft(2, '0')})',
-                                    style:
-                                        TextStyle(color: Colors.grey.shade500),
-                                  ),
-                              ],
-                            ),
-                          ),
-                          if (_debugOtpCode != null) ...[
-                            const SizedBox(height: 12),
-                            Text(
-                              'Dev OTP: $_debugOtpCode',
-                              style: const TextStyle(
+                            style: TextStyle(
                                 fontFamily: 'Afacad',
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF1F3A34),
-                              ),
-                            ),
-                          ],
-                          const SizedBox(height: 32),
-                          SizedBox(
-                            width: double.infinity,
-                            height: 48,
-                            child: ElevatedButton(
-                              onPressed: _isSubmitting ? null : _verifyOTP,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: orangeColor,
-                                disabledBackgroundColor: Colors.grey.shade400,
-                                foregroundColor: Colors.white,
-                                disabledForegroundColor: Colors.white70,
-                                elevation: 0,
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(30)),
-                              ),
-                              child: _isSubmitting
-                                  ? const SizedBox(
-                                      width: 22,
-                                      height: 22,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2.2,
-                                        valueColor:
-                                            AlwaysStoppedAnimation<Color>(
-                                          Colors.white,
-                                        ),
-                                      ),
-                                    )
-                                  : const Text(
-                                      'VERIFY',
-                                      style: TextStyle(
-                                          fontFamily: 'Recoleta',
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                          letterSpacing: 1.0),
-                                    ),
-                            ),
+                                fontSize: 12,
+                                color: Colors.white70),
                           ),
                         ],
                       ),
                     ),
-                  ),
+                    // White Card Section
+                    Expanded(
+                      child: Container(
+                        width: double.infinity,
+                        clipBehavior: Clip.antiAlias,
+                        decoration: const BoxDecoration(
+                          color: Colors.white,
+                          borderRadius:
+                              BorderRadius.vertical(top: Radius.circular(40)),
+                        ),
+                        child: SingleChildScrollView(
+                          keyboardDismissBehavior:
+                              ScrollViewKeyboardDismissBehavior.onDrag,
+                          physics: const ClampingScrollPhysics(),
+                          padding: EdgeInsets.fromLTRB(
+                            24,
+                            24,
+                            24,
+                            32 + mediaQuery.padding.bottom,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              const Text(
+                                'Please fill in the security code.',
+                                style: TextStyle(
+                                    fontFamily: 'Recoleta',
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.normal,
+                                    color: Color(0xFF1F3A34)),
+                              ),
+                              const SizedBox(height: 30),
+                              GestureDetector(
+                                behavior: HitTestBehavior.translucent,
+                                onTap: () {
+                                  if (_otpInputFocusNode.hasFocus) {
+                                    FocusScope.of(context).unfocus();
+                                    return;
+                                  }
+
+                                  _otpInputFocusNode.requestFocus();
+                                },
+                                child: Column(
+                                  children: [
+                                    Stack(
+                                      children: [
+                                        Positioned.fill(
+                                          child: Opacity(
+                                            opacity: 0.0,
+                                            child: TextFormField(
+                                              controller: _otpInputController,
+                                              focusNode: _otpInputFocusNode,
+                                              keyboardType:
+                                                  TextInputType.number,
+                                              textInputAction:
+                                                  TextInputAction.done,
+                                              autofillHints: const [
+                                                AutofillHints.oneTimeCode,
+                                              ],
+                                              inputFormatters: [
+                                                FilteringTextInputFormatter
+                                                    .digitsOnly,
+                                                LengthLimitingTextInputFormatter(
+                                                    6),
+                                              ],
+                                              decoration: const InputDecoration(
+                                                border: InputBorder.none,
+                                                counterText: '',
+                                                contentPadding: EdgeInsets.zero,
+                                                isCollapsed: true,
+                                              ),
+                                              onChanged: _handleOtpChanged,
+                                            ),
+                                          ),
+                                        ),
+                                        Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
+                                          children: List.generate(6, (index) {
+                                            final digits =
+                                                _otpInputController.text;
+                                            final hasValue =
+                                                index < digits.length;
+                                            final isActive = _otpInputFocusNode
+                                                    .hasFocus
+                                                ? index ==
+                                                    digits.length.clamp(0, 5)
+                                                : false;
+
+                                            return AnimatedContainer(
+                                              duration: const Duration(
+                                                  milliseconds: 120),
+                                              width: 50,
+                                              height: 60,
+                                              decoration: BoxDecoration(
+                                                color: Colors.white,
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                                border: Border.all(
+                                                  color: isActive
+                                                      ? const Color(0xFF2E5E58)
+                                                      : orangeColor,
+                                                  width: isActive ? 2 : 1.5,
+                                                ),
+                                              ),
+                                              child: Center(
+                                                child: Text(
+                                                  hasValue ? digits[index] : '',
+                                                  style: const TextStyle(
+                                                    fontFamily: 'Afacad',
+                                                    fontSize: 26,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Colors.black87,
+                                                  ),
+                                                ),
+                                              ),
+                                            );
+                                          }),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 24),
+                              RichText(
+                                textAlign: TextAlign.center,
+                                text: TextSpan(
+                                  style: const TextStyle(
+                                      fontFamily: 'Afacad',
+                                      fontSize: 14,
+                                      color: Colors.black54),
+                                  children: [
+                                    const TextSpan(
+                                        text: 'Didn\'t receive the code?\n'),
+                                    if (_isResendEnabled)
+                                      WidgetSpan(
+                                        child: GestureDetector(
+                                          onTap: _isSubmitting
+                                              ? null
+                                              : () => _handleResendOtp(),
+                                          child: const Text(
+                                            'Resend Code',
+                                            style: TextStyle(
+                                              fontFamily: 'Recoleta',
+                                              fontWeight: FontWeight.bold,
+                                              color: orangeColor,
+                                            ),
+                                          ),
+                                        ),
+                                      )
+                                    else
+                                      TextSpan(
+                                        text:
+                                            'Resend Code (00:${_resendCountdown.toString().padLeft(2, '0')})',
+                                        style: TextStyle(
+                                            color: Colors.grey.shade500),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                              if (_hasOtpExpired) ...[
+                                const SizedBox(height: 10),
+                                const Text(
+                                  'This security code has expired. Please request a new code.',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontFamily: 'Afacad',
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.redAccent,
+                                  ),
+                                ),
+                              ],
+                              if (_debugOtpCode != null) ...[
+                                const SizedBox(height: 12),
+                                Text(
+                                  'Dev OTP: $_debugOtpCode',
+                                  style: const TextStyle(
+                                    fontFamily: 'Afacad',
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF1F3A34),
+                                  ),
+                                ),
+                              ],
+                              const SizedBox(height: 32),
+                              SizedBox(
+                                width: double.infinity,
+                                height: 48,
+                                child: ElevatedButton(
+                                  onPressed: _isSubmitting || _hasOtpExpired
+                                      ? null
+                                      : _verifyOTP,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: orangeColor,
+                                    disabledBackgroundColor:
+                                        Colors.grey.shade400,
+                                    foregroundColor: Colors.white,
+                                    disabledForegroundColor: Colors.white70,
+                                    elevation: 0,
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(30)),
+                                  ),
+                                  child: _isSubmitting
+                                      ? const SizedBox(
+                                          width: 22,
+                                          height: 22,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2.2,
+                                            valueColor:
+                                                AlwaysStoppedAnimation<Color>(
+                                              Colors.white,
+                                            ),
+                                          ),
+                                        )
+                                      : const Text(
+                                          'VERIFY',
+                                          style: TextStyle(
+                                              fontFamily: 'Recoleta',
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                              letterSpacing: 1.0),
+                                        ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      ),
-    ),
+        ),
       ),
     );
   }

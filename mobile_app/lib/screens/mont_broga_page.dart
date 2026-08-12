@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'loading_order_page.dart';
 import '../utils/app_colors.dart';
+import '../widgets/catalog_product_image.dart';
 
 class MontBrogaPage extends StatefulWidget {
   final Map<String, dynamic> item;
@@ -490,19 +491,12 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Center(
-                  child: Image.asset(
-                    widget.item['image']?.toString() ??
+                  child: CatalogProductImage(
+                    assetPath: widget.item['image']?.toString() ??
                         'assets/images/drinks/MONT BROGA.png',
+                    imageUrl: widget.item['image_url']?.toString(),
                     height: 200,
                     fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) =>
-                        const SizedBox(
-                      height: 200,
-                      child: Center(
-                        child: Icon(Icons.local_cafe_rounded,
-                            size: 70, color: Colors.grey),
-                      ),
-                    ),
                   ),
                 ),
                 Padding(

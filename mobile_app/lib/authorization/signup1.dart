@@ -4,9 +4,9 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:intl_phone_field/intl_phone_field.dart';
-import 'package:intl_phone_field/countries.dart' as intl_countries;
 import 'package:flutter/foundation.dart' show kIsWeb;
 
+import 'allowed_countries.dart';
 import 'signup2.dart';
 import 'login.dart';
 import 'auth_transition.dart';
@@ -29,6 +29,7 @@ class _Signup1State extends State<Signup1> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _birthdayController = TextEditingController();
+  final FocusNode _phoneFocusNode = FocusNode();
 
   File? _pickedImage;
   String? _presetAvatarPath;
@@ -71,6 +72,7 @@ class _Signup1State extends State<Signup1> {
     _emailController.dispose();
     _phoneController.dispose();
     _birthdayController.dispose();
+    _phoneFocusNode.dispose();
     super.dispose();
   }
 
@@ -343,12 +345,104 @@ class _Signup1State extends State<Signup1> {
         int selectedYear = initialDate.year;
         int selectedMonth = initialDate.month;
         int selectedDay = initialDate.day;
+        const itemExtent = 42.0;
+        final currentYear = DateTime.now().year;
+        final monthLabels = List<String>.generate(12,
+            (index) => DateFormat('MMM').format(DateTime(2000, index + 1, 1)));
+        int daysInMonth(int year, int month) =>
+            DateTime(year, month + 1, 0).day;
+
+        final yearController = FixedExtentScrollController(
+          initialItem: currentYear - selectedYear,
+        );
+        final monthController = FixedExtentScrollController(
+          initialItem: selectedMonth - 1,
+        );
+        final dayController = FixedExtentScrollController(
+          initialItem: selectedDay - 1,
+        );
 
         return StatefulBuilder(
           builder: (context, setSheetState) {
+            final maxDays = daysInMonth(selectedYear, selectedMonth);
+            if (selectedDay > maxDays) {
+              selectedDay = maxDays;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (dayController.hasClients) {
+                  dayController.jumpToItem(selectedDay - 1);
+                }
+              });
+            }
+
+            Widget buildPickerColumn({
+              required String label,
+              required FixedExtentScrollController controller,
+              required int childCount,
+              required int selectedValue,
+              required String Function(int index) labelBuilder,
+              required ValueChanged<int> onChanged,
+            }) {
+              return Expanded(
+                child: Column(
+                  children: [
+                    Text(
+                      label,
+                      style: const TextStyle(
+                        color: Color(0xFF1F3A34),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: ListWheelScrollView.useDelegate(
+                        controller: controller,
+                        physics: const FixedExtentScrollPhysics(),
+                        itemExtent: itemExtent,
+                        perspective: 0.003,
+                        diameterRatio: 1.45,
+                        squeeze: 1.05,
+                        useMagnifier: true,
+                        magnification: 1.03,
+                        overAndUnderCenterOpacity: 0.45,
+                        onSelectedItemChanged: onChanged,
+                        childDelegate: ListWheelChildBuilderDelegate(
+                          childCount: childCount,
+                          builder: (context, index) {
+                            final itemText = labelBuilder(index);
+                            final numericValue = index + 1;
+                            final isSelected = label == 'Year'
+                                ? (currentYear - index) == selectedValue
+                                : numericValue == selectedValue;
+                            return Center(
+                              child: AnimatedDefaultTextStyle(
+                                duration: const Duration(milliseconds: 140),
+                                curve: Curves.easeOut,
+                                style: TextStyle(
+                                  fontFamily: 'Afacad',
+                                  fontSize: isSelected ? 20 : 16,
+                                  fontWeight: isSelected
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
+                                  color: isSelected
+                                      ? const Color(0xFF1F3A34)
+                                      : Colors.grey.shade400,
+                                ),
+                                child: Text(itemText),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+
             return Container(
-              height: MediaQuery.of(context).size.height * 0.50,
-              padding: const EdgeInsets.fromLTRB(24, 16, 24, 20),
+              height: MediaQuery.of(context).size.height * 0.44,
+              padding: const EdgeInsets.fromLTRB(24, 14, 24, 18),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -370,145 +464,69 @@ class _Signup1State extends State<Signup1> {
                       ),
                     ],
                   ),
-                  const Divider(height: 12),
-                  const SizedBox(height: 4),
+                  const Divider(height: 10),
+                  const SizedBox(height: 2),
                   Expanded(
-                    child: Row(
+                    child: Stack(
+                      alignment: Alignment.center,
                       children: [
-                        Expanded(
-                          child: Column(
-                            children: [
-                              const Text('Year',
-                                  style: TextStyle(
-                                      color: Color(0xFF1F3A34),
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 13)),
-                              Expanded(
-                                child: ListWheelScrollView.useDelegate(
-                                  itemExtent: 34,
-                                  perspective: 0.005,
-                                  diameterRatio: 1.2,
-                                  offAxisFraction: -0.5,
-                                  onSelectedItemChanged: (index) =>
-                                      setSheetState(() => selectedYear =
-                                          DateTime.now().year - index),
-                                  childDelegate: ListWheelChildBuilderDelegate(
-                                    childCount: 100,
-                                    builder: (context, index) {
-                                      int year = DateTime.now().year - index;
-                                      bool isSelected = year == selectedYear;
-                                      return Center(
-                                        child: Text(
-                                          year.toString(),
-                                          style: TextStyle(
-                                            fontSize: isSelected ? 18 : 14,
-                                            fontWeight: isSelected
-                                                ? FontWeight.bold
-                                                : FontWeight.normal,
-                                            color: isSelected
-                                                ? const Color(0xFF1F3A34)
-                                                : Colors.grey.shade400,
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                  ),
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          top: 110,
+                          child: IgnorePointer(
+                            child: Container(
+                              height: itemExtent,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF0F1F0),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: const Color(0xFF1F3A34)
+                                      .withValues(alpha: 0.08),
                                 ),
                               ),
-                            ],
+                            ),
                           ),
                         ),
-                        Expanded(
-                          child: Column(
-                            children: [
-                              const Text('Month',
-                                  style: TextStyle(
-                                      color: Color(0xFF1F3A34),
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 13)),
-                              Expanded(
-                                child: ListWheelScrollView.useDelegate(
-                                  itemExtent: 34,
-                                  perspective: 0.005,
-                                  diameterRatio: 1.2,
-                                  offAxisFraction: 0,
-                                  onSelectedItemChanged: (index) =>
-                                      setSheetState(
-                                          () => selectedMonth = index + 1),
-                                  childDelegate: ListWheelChildBuilderDelegate(
-                                    childCount: 12,
-                                    builder: (context, index) {
-                                      int month = index + 1;
-                                      bool isSelected = month == selectedMonth;
-                                      return Center(
-                                        child: Text(
-                                          DateFormat('MMM')
-                                              .format(DateTime(2000, month, 1)),
-                                          style: TextStyle(
-                                            fontSize: isSelected ? 18 : 14,
-                                            fontWeight: isSelected
-                                                ? FontWeight.bold
-                                                : FontWeight.normal,
-                                            color: isSelected
-                                                ? const Color(0xFF1F3A34)
-                                                : Colors.grey.shade400,
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Expanded(
-                          child: Column(
-                            children: [
-                              const Text('Day',
-                                  style: TextStyle(
-                                      color: Color(0xFF1F3A34),
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 13)),
-                              Expanded(
-                                child: ListWheelScrollView.useDelegate(
-                                  itemExtent: 34,
-                                  perspective: 0.005,
-                                  diameterRatio: 1.2,
-                                  offAxisFraction: 0.5,
-                                  onSelectedItemChanged: (index) =>
-                                      setSheetState(
-                                          () => selectedDay = index + 1),
-                                  childDelegate: ListWheelChildBuilderDelegate(
-                                    childCount: 31,
-                                    builder: (context, index) {
-                                      int day = index + 1;
-                                      bool isSelected = day == selectedDay;
-                                      return Center(
-                                        child: Text(
-                                          day.toString(),
-                                          style: TextStyle(
-                                            fontSize: isSelected ? 18 : 14,
-                                            fontWeight: isSelected
-                                                ? FontWeight.bold
-                                                : FontWeight.normal,
-                                            color: isSelected
-                                                ? const Color(0xFF1F3A34)
-                                                : Colors.grey.shade400,
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
+                        Row(
+                          children: [
+                            buildPickerColumn(
+                              label: 'Year',
+                              controller: yearController,
+                              childCount: 100,
+                              selectedValue: selectedYear,
+                              labelBuilder: (index) =>
+                                  (currentYear - index).toString(),
+                              onChanged: (index) => setSheetState(() {
+                                selectedYear = currentYear - index;
+                              }),
+                            ),
+                            buildPickerColumn(
+                              label: 'Month',
+                              controller: monthController,
+                              childCount: 12,
+                              selectedValue: selectedMonth,
+                              labelBuilder: (index) => monthLabels[index],
+                              onChanged: (index) => setSheetState(() {
+                                selectedMonth = index + 1;
+                              }),
+                            ),
+                            buildPickerColumn(
+                              label: 'Day',
+                              controller: dayController,
+                              childCount: maxDays,
+                              selectedValue: selectedDay,
+                              labelBuilder: (index) => (index + 1).toString(),
+                              onChanged: (index) => setSheetState(() {
+                                selectedDay = index + 1;
+                              }),
+                            ),
+                          ],
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
                     height: 50,
@@ -579,8 +597,9 @@ class _Signup1State extends State<Signup1> {
     final mediaQuery = MediaQuery.of(context);
     final keyboardInset = mediaQuery.viewInsets.bottom;
     final cardBottomInset = keyboardInset > 0 ? keyboardInset : 0.0;
-    final keyboardBackdropHeight =
-        keyboardInset > 0 ? keyboardInset + mediaQuery.padding.bottom + 24 : 0.0;
+    final keyboardBackdropHeight = keyboardInset > 0
+        ? keyboardInset + mediaQuery.padding.bottom + 24
+        : 0.0;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
@@ -598,266 +617,278 @@ class _Signup1State extends State<Signup1> {
           onTap: () => FocusScope.of(context).unfocus(),
           child: Stack(
             children: [
-          if (keyboardBackdropHeight > 0)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              height: keyboardBackdropHeight,
-              child: const ColoredBox(color: Colors.white),
-            ),
-          // Header Background Picture
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 320,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                Image.asset(
-                  'assets/images/FKP01925.jpg',
-                  fit: BoxFit.cover,
-                  alignment: Alignment.center,
+              if (keyboardBackdropHeight > 0)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  height: keyboardBackdropHeight,
+                  child: const ColoredBox(color: Colors.white),
                 ),
-                Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        const Color(0xFF1F3A34).withValues(alpha: 0.65),
-                        const Color(0xFF1F3A34).withValues(alpha: 0.90),
-                      ],
+              // Header Background Picture
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                height: 320,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Image.asset(
+                      'assets/images/FKP01925.jpg',
+                      fit: BoxFit.cover,
+                      alignment: Alignment.center,
                     ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          SafeArea(
-            bottom: false,
-            child: Column(
-              children: [
-                // Top Section (Fixed, non-scrolling top)
-                Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                  child: Column(
-                    children: [
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: IconButton(
-                          onPressed: () => Navigator.maybePop(context),
-                          icon: const Icon(
-                            Icons.arrow_back_ios_new_rounded,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: _showAvatarPicker,
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            _buildMainAvatar(),
-                            Positioned(
-                              right: 2,
-                              bottom: 2,
-                              child: Container(
-                                padding: const EdgeInsets.all(6),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                      color: const Color(0xFFFAF4EE), width: 2),
-                                  boxShadow: const [
-                                    BoxShadow(
-                                        color: Color(0x1A000000), blurRadius: 4)
-                                  ],
-                                ),
-                                child: const Icon(Icons.camera_alt,
-                                    size: 18, color: Color(0xFF1F3A34)),
-                              ),
-                            ),
+                    Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            const Color(0xFF1F3A34).withValues(alpha: 0.65),
+                            const Color(0xFF1F3A34).withValues(alpha: 0.90),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Step 1 of 2',
-                        style: TextStyle(
-                            fontFamily: 'Recoleta',
-                            fontSize: 20,
-                            fontStyle: FontStyle.italic,
-                            color: Colors.white),
-                      ),
-                      const SizedBox(height: 2),
-                      const Text(
-                        'Create Your Account',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                            fontFamily: 'Recoleta',
-                            fontSize: 26,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white),
-                      ),
-                      const SizedBox(height: 2),
-                      const Text(
-                        'Join C2 and start earning rewards with every sip.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                            fontFamily: 'Afacad',
-                            fontSize: 12,
-                            color: Colors.white70),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-
-                // White Card Section
-                Expanded(
-                  child: AnimatedPadding(
-                    duration: const Duration(milliseconds: 220),
-                    curve: Curves.easeOutCubic,
-                    padding: EdgeInsets.only(bottom: cardBottomInset),
-                    child: Container(
-                      width: double.infinity,
-                      clipBehavior: Clip.antiAlias,
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        borderRadius:
-                            BorderRadius.vertical(top: Radius.circular(40)),
-                      ),
-                      child: SingleChildScrollView(
-                        keyboardDismissBehavior:
-                            ScrollViewKeyboardDismissBehavior.onDrag,
-                        physics: const ClampingScrollPhysics(),
-                        padding: EdgeInsets.fromLTRB(
-                          24,
-                          16,
-                          24,
-                          20 + mediaQuery.padding.bottom,
-                        ),
-                        child: Form(
-                          key: _formKey,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                            _buildTextField(
-                              label: 'Username',
-                              hintText: 'Username',
-                              controller: _usernameController,
+              ),
+              SafeArea(
+                bottom: false,
+                child: Column(
+                  children: [
+                    // Top Section (Fixed, non-scrolling top)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 24, vertical: 12),
+                      child: Column(
+                        children: [
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: IconButton(
+                              onPressed: () => Navigator.maybePop(context),
+                              icon: const Icon(
+                                Icons.arrow_back_ios_new_rounded,
+                                color: Colors.white,
+                                size: 20,
+                              ),
                             ),
-                            const SizedBox(height: 10),
-                            _buildTextField(
-                              label: 'Email',
-                              hintText: 'Email@gmail.com',
-                              controller: _emailController,
-                              keyboardType: TextInputType.emailAddress,
-                            ),
-                            const SizedBox(height: 10),
-                            _buildPhoneField(),
-                            const SizedBox(height: 10),
-                            _buildBirthdayField(),
-
-                            const SizedBox(height: 12),
-
-                            Center(
-                              child: GestureDetector(
-                                  onTap: () {
-                                    Navigator.push(
-                                      context,
-                                      buildAuthRoute(const LoginPage()),
-                                    );
-                                  },
-                                child: RichText(
-                                  text: const TextSpan(
-                                    style: TextStyle(
-                                        fontFamily: 'Afacad',
-                                        fontSize: 14,
-                                        color: Colors.black87),
-                                    children: [
-                                      TextSpan(text: 'Already a member? '),
-                                      TextSpan(
-                                        text: 'Login',
-                                        style: TextStyle(
-                                            fontFamily: 'Recoleta',
-                                            fontWeight: FontWeight.bold,
-                                            color: Color(0xFF1F3A34)),
-                                      ),
-                                    ],
+                          ),
+                          GestureDetector(
+                            onTap: _showAvatarPicker,
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                _buildMainAvatar(),
+                                Positioned(
+                                  right: 2,
+                                  bottom: 2,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(6),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                          color: const Color(0xFFFAF4EE),
+                                          width: 2),
+                                      boxShadow: const [
+                                        BoxShadow(
+                                            color: Color(0x1A000000),
+                                            blurRadius: 4)
+                                      ],
+                                    ),
+                                    child: const Icon(Icons.camera_alt,
+                                        size: 18, color: Color(0xFF1F3A34)),
                                   ),
                                 ),
-                              ),
+                              ],
                             ),
-                            const SizedBox(height: 12),
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Step 1 of 2',
+                            style: TextStyle(
+                                fontFamily: 'Recoleta',
+                                fontSize: 20,
+                                fontStyle: FontStyle.italic,
+                                color: Colors.white),
+                          ),
+                          const SizedBox(height: 2),
+                          const Text(
+                            'Create Your Account',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                                fontFamily: 'Recoleta',
+                                fontSize: 26,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white),
+                          ),
+                          const SizedBox(height: 2),
+                          const Text(
+                            'Join C2 and start earning rewards with every sip.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                                fontFamily: 'Afacad',
+                                fontSize: 12,
+                                color: Colors.white70),
+                          ),
+                        ],
+                      ),
+                    ),
 
-                            SizedBox(
-                              width: double.infinity,
-                              height: 48,
-                              child: ElevatedButton(
-                                onPressed: _isFormValid
-                                    ? () async {
-                                        // Save profile details to UserService
-                                        await UserService.saveUserProfile({
-                                          'username':
-                                              _usernameController.text.trim(),
-                                          'email': _emailController.text.trim(),
-                                          'phone': _fullPhoneNumber,
-                                          'birthday': _birthdayApiValue,
-                                        });
+                    // White Card Section
+                    Expanded(
+                      child: AnimatedPadding(
+                        duration: const Duration(milliseconds: 220),
+                        curve: Curves.easeOutCubic,
+                        padding: EdgeInsets.only(bottom: cardBottomInset),
+                        child: Container(
+                          width: double.infinity,
+                          clipBehavior: Clip.antiAlias,
+                          decoration: const BoxDecoration(
+                            color: Colors.white,
+                            borderRadius:
+                                BorderRadius.vertical(top: Radius.circular(40)),
+                          ),
+                          child: SingleChildScrollView(
+                            keyboardDismissBehavior:
+                                ScrollViewKeyboardDismissBehavior.onDrag,
+                            physics: const ClampingScrollPhysics(),
+                            padding: EdgeInsets.fromLTRB(
+                              24,
+                              16,
+                              24,
+                              20 + mediaQuery.padding.bottom,
+                            ),
+                            child: Form(
+                              key: _formKey,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildTextField(
+                                    label: 'Username',
+                                    hintText: 'Username',
+                                    controller: _usernameController,
+                                  ),
+                                  const SizedBox(height: 10),
+                                  _buildTextField(
+                                    label: 'Email',
+                                    hintText: 'Email@gmail.com',
+                                    controller: _emailController,
+                                    keyboardType: TextInputType.emailAddress,
+                                  ),
+                                  const SizedBox(height: 10),
+                                  _buildPhoneField(),
+                                  const SizedBox(height: 10),
+                                  _buildBirthdayField(),
 
-                                        if (!context.mounted) return;
+                                  const SizedBox(height: 12),
+
+                                  Center(
+                                    child: GestureDetector(
+                                      onTap: () {
                                         Navigator.push(
                                           context,
-                                          buildAuthRoute(
-                                            Signup2(
-                                              initialPickedImage: _pickedImage,
-                                              initialPresetPath:
-                                                  _presetAvatarPath,
-                                              initialAvatarIndex:
-                                                  _selectedAvatarIndex,
-                                            ),
-                                          ),
+                                          buildAuthRoute(const LoginPage()),
                                         );
-                                      }
-                                    : null,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF1F3A34),
-                                  disabledBackgroundColor: Colors.grey.shade400,
-                                  foregroundColor: Colors.white,
-                                  disabledForegroundColor: Colors.white70,
-                                  elevation: 0,
-                                  shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(30)),
-                                ),
-                                child: const Text(
-                                  'NEXT STEP',
-                                  style: TextStyle(
-                                      fontFamily: 'Recoleta',
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 1.0),
-                                ),
+                                      },
+                                      child: RichText(
+                                        text: const TextSpan(
+                                          style: TextStyle(
+                                              fontFamily: 'Afacad',
+                                              fontSize: 14,
+                                              color: Colors.black87),
+                                          children: [
+                                            TextSpan(
+                                                text: 'Already a member? '),
+                                            TextSpan(
+                                              text: 'Login',
+                                              style: TextStyle(
+                                                  fontFamily: 'Recoleta',
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Color(0xFF1F3A34)),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+
+                                  SizedBox(
+                                    width: double.infinity,
+                                    height: 48,
+                                    child: ElevatedButton(
+                                      onPressed: _isFormValid
+                                          ? () async {
+                                              // Save profile details to UserService
+                                              await UserService
+                                                  .saveUserProfile({
+                                                'username': _usernameController
+                                                    .text
+                                                    .trim(),
+                                                'email': _emailController.text
+                                                    .trim(),
+                                                'phone': _fullPhoneNumber,
+                                                'birthday': _birthdayApiValue,
+                                              });
+
+                                              if (!context.mounted) return;
+                                              Navigator.push(
+                                                context,
+                                                buildAuthRoute(
+                                                  Signup2(
+                                                    initialPickedImage:
+                                                        _pickedImage,
+                                                    initialPresetPath:
+                                                        _presetAvatarPath,
+                                                    initialAvatarIndex:
+                                                        _selectedAvatarIndex,
+                                                  ),
+                                                ),
+                                              );
+                                            }
+                                          : null,
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor:
+                                            const Color(0xFF1F3A34),
+                                        disabledBackgroundColor:
+                                            Colors.grey.shade400,
+                                        foregroundColor: Colors.white,
+                                        disabledForegroundColor: Colors.white70,
+                                        elevation: 0,
+                                        shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(30)),
+                                      ),
+                                      child: const Text(
+                                        'NEXT STEP',
+                                        style: TextStyle(
+                                            fontFamily: 'Recoleta',
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                            letterSpacing: 1.0),
+                                      ),
+                                    ),
+                                  ),
+                                  // Bottom padding
+                                  SizedBox(
+                                      height: 20 +
+                                          MediaQuery.of(context)
+                                              .padding
+                                              .bottom),
+                                ],
                               ),
                             ),
-                            // Bottom padding
-                            SizedBox(
-                                height: 20 +
-                                    MediaQuery.of(context).padding.bottom),
-                            ],
                           ),
                         ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
-              ],
-            ),
-          ),
-        ],
+              ),
+            ],
           ),
         ),
       ),
@@ -965,9 +996,6 @@ class _Signup1State extends State<Signup1> {
               decoration: InputDecoration(
                 filled: true,
                 fillColor: Colors.white,
-                hintText: _selectedDate == null ? 'dd/mm/yy' : '',
-                hintStyle: const TextStyle(
-                    fontFamily: 'Afacad', fontSize: 15, color: Colors.grey),
                 suffixIcon: const Icon(Icons.calendar_today_rounded,
                     color: Color(0xFF2E5E58), size: 20),
                 border: OutlineInputBorder(
@@ -986,10 +1014,13 @@ class _Signup1State extends State<Signup1> {
               ),
               child: Text(
                 _selectedDate == null
-                    ? ''
+                    ? 'DD/MM/YY'
                     : DateFormat('dd/MM/yy').format(_selectedDate!),
-                style: const TextStyle(
-                    fontFamily: 'Afacad', fontSize: 15, color: Colors.black87),
+                style: TextStyle(
+                  fontFamily: 'Afacad',
+                  fontSize: 15,
+                  color: _selectedDate == null ? Colors.grey : Colors.black87,
+                ),
               ),
             ),
           ),
@@ -1026,35 +1057,9 @@ class _Signup1State extends State<Signup1> {
           ),
           child: IntlPhoneField(
             controller: _phoneController,
+            focusNode: _phoneFocusNode,
             initialCountryCode: 'MY',
-            countries: [
-              ...intl_countries.countries
-                  .where((c) => c.code == 'MY')
-                  .map((c) => intl_countries.Country(
-                        name: ' Malaysia',
-                        nameTranslations: {},
-                        flag: c.flag,
-                        code: c.code,
-                        dialCode: c.dialCode,
-                        minLength: c.minLength,
-                        maxLength: c.maxLength,
-                        regionCode: c.regionCode,
-                      )),
-              ...intl_countries.countries
-                  .where((c) => c.code == 'SG')
-                  .map((c) => intl_countries.Country(
-                        name: ' Singapore',
-                        nameTranslations: {},
-                        flag: c.flag,
-                        code: c.code,
-                        dialCode: c.dialCode,
-                        minLength: c.minLength,
-                        maxLength: c.maxLength,
-                        regionCode: c.regionCode,
-                      )),
-              ...intl_countries.countries
-                  .where((c) => c.code != 'MY' && c.code != 'SG'),
-            ],
+            countries: authCountries,
             disableLengthCheck: true,
             showDropdownIcon: false,
             dropdownIconPosition: IconPosition.trailing,
@@ -1083,6 +1088,7 @@ class _Signup1State extends State<Signup1> {
                 fontFamily: 'Afacad', fontSize: 15, color: Colors.black87),
             dropdownTextStyle: const TextStyle(
                 fontFamily: 'Afacad', fontSize: 15, color: Colors.black87),
+            autovalidateMode: AutovalidateMode.disabled,
             onChanged: (phone) {
               setState(() {
                 _fullPhoneNumber = phone.completeNumber.trim();
@@ -1093,7 +1099,6 @@ class _Signup1State extends State<Signup1> {
                 }
               });
             },
-            onCountryChanged: (_) => setState(() {}),
           ),
         ),
       ],

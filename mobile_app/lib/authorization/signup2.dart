@@ -387,8 +387,9 @@ class _Signup2State extends State<Signup2> {
     final mediaQuery = MediaQuery.of(context);
     final keyboardInset = mediaQuery.viewInsets.bottom;
     final cardBottomInset = keyboardInset > 0 ? keyboardInset : 0.0;
-    final keyboardBackdropHeight =
-        keyboardInset > 0 ? keyboardInset + mediaQuery.padding.bottom + 24 : 0.0;
+    final keyboardBackdropHeight = keyboardInset > 0
+        ? keyboardInset + mediaQuery.padding.bottom + 24
+        : 0.0;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
@@ -406,430 +407,457 @@ class _Signup2State extends State<Signup2> {
           onTap: () => FocusScope.of(context).unfocus(),
           child: Stack(
             children: [
-          if (keyboardBackdropHeight > 0)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              height: keyboardBackdropHeight,
-              child: const ColoredBox(color: Colors.white),
-            ),
-          // Header Background Picture
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 320,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                Image.asset(
-                  'assets/images/FKP01925.jpg',
-                  fit: BoxFit.cover,
-                  alignment: Alignment.center,
+              if (keyboardBackdropHeight > 0)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  height: keyboardBackdropHeight,
+                  child: const ColoredBox(color: Colors.white),
                 ),
-                Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        const Color(0xFF1F3A34).withValues(alpha: 0.65),
-                        const Color(0xFF1F3A34).withValues(alpha: 0.90),
-                      ],
+              // Header Background Picture
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                height: 320,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Image.asset(
+                      'assets/images/FKP01925.jpg',
+                      fit: BoxFit.cover,
+                      alignment: Alignment.center,
                     ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          SafeArea(
-            bottom: false,
-            child: Column(
-              children: [
-                // Top Section
-                Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                  child: Column(
-                    children: [
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: IconButton(
-                          onPressed: () => Navigator.maybePop(context),
-                          icon: const Icon(
-                            Icons.arrow_back_ios_new_rounded,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: _showAvatarPicker,
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            _buildMainAvatar(),
-                            Positioned(
-                              right: 2,
-                              bottom: 2,
-                              child: Container(
-                                padding: const EdgeInsets.all(6),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                      color: const Color(0xFFFAF4EE), width: 2),
-                                  boxShadow: const [
-                                    BoxShadow(
-                                        color: Color(0x1A000000), blurRadius: 4)
-                                  ],
-                                ),
-                                child: const Icon(Icons.camera_alt,
-                                    size: 18, color: Color(0xFF1F3A34)),
-                              ),
-                            ),
+                    Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            const Color(0xFF1F3A34).withValues(alpha: 0.65),
+                            const Color(0xFF1F3A34).withValues(alpha: 0.90),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Step 2 of 2',
-                        style: TextStyle(
-                            fontFamily: 'Recoleta',
-                            fontSize: 20,
-                            fontStyle: FontStyle.italic,
-                            color: Colors.white),
-                      ),
-                      const SizedBox(height: 2),
-                      const Text(
-                        'Refine Your Profile',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                            fontFamily: 'Recoleta',
-                            fontSize: 26,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white),
-                      ),
-                      const SizedBox(height: 2),
-                      const Text(
-                        'Complete your setup for exclusive member privileges.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                            fontFamily: 'Afacad',
-                            fontSize: 12,
-                            color: Colors.white70),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-
-                // White Card Section
-                Expanded(
-                  child: AnimatedPadding(
-                    duration: const Duration(milliseconds: 220),
-                    curve: Curves.easeOutCubic,
-                    padding: EdgeInsets.only(bottom: cardBottomInset),
-                    child: Container(
-                      width: double.infinity,
-                      clipBehavior: Clip.antiAlias,
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        borderRadius:
-                            BorderRadius.vertical(top: Radius.circular(40)),
+              ),
+              SafeArea(
+                bottom: false,
+                child: Column(
+                  children: [
+                    // Top Section
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 24, vertical: 12),
+                      child: Column(
+                        children: [
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: IconButton(
+                              onPressed: () => Navigator.maybePop(context),
+                              icon: const Icon(
+                                Icons.arrow_back_ios_new_rounded,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                            ),
+                          ),
+                          GestureDetector(
+                            onTap: _showAvatarPicker,
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                _buildMainAvatar(),
+                                Positioned(
+                                  right: 2,
+                                  bottom: 2,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(6),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                          color: const Color(0xFFFAF4EE),
+                                          width: 2),
+                                      boxShadow: const [
+                                        BoxShadow(
+                                            color: Color(0x1A000000),
+                                            blurRadius: 4)
+                                      ],
+                                    ),
+                                    child: const Icon(Icons.camera_alt,
+                                        size: 18, color: Color(0xFF1F3A34)),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Step 2 of 2',
+                            style: TextStyle(
+                                fontFamily: 'Recoleta',
+                                fontSize: 20,
+                                fontStyle: FontStyle.italic,
+                                color: Colors.white),
+                          ),
+                          const SizedBox(height: 2),
+                          const Text(
+                            'Refine Your Profile',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                                fontFamily: 'Recoleta',
+                                fontSize: 26,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white),
+                          ),
+                          const SizedBox(height: 2),
+                          const Text(
+                            'Complete your setup for exclusive member privileges.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                                fontFamily: 'Afacad',
+                                fontSize: 12,
+                                color: Colors.white70),
+                          ),
+                        ],
                       ),
-                      child: SingleChildScrollView(
-                        keyboardDismissBehavior:
-                            ScrollViewKeyboardDismissBehavior.onDrag,
-                        physics: const ClampingScrollPhysics(),
-                        padding: EdgeInsets.fromLTRB(
-                          24,
-                          16,
-                          24,
-                          20 + mediaQuery.padding.bottom,
-                        ),
-                        child: Form(
-                          key: _formKey,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                            // Address Header
-                            const Text(
-                              'Address',
-                              style: TextStyle(
-                                  fontFamily: 'Recoleta',
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF2E5E58)),
+                    ),
+
+                    // White Card Section
+                    Expanded(
+                      child: AnimatedPadding(
+                        duration: const Duration(milliseconds: 220),
+                        curve: Curves.easeOutCubic,
+                        padding: EdgeInsets.only(bottom: cardBottomInset),
+                        child: Container(
+                          width: double.infinity,
+                          clipBehavior: Clip.antiAlias,
+                          decoration: const BoxDecoration(
+                            color: Colors.white,
+                            borderRadius:
+                                BorderRadius.vertical(top: Radius.circular(40)),
+                          ),
+                          child: SingleChildScrollView(
+                            keyboardDismissBehavior:
+                                ScrollViewKeyboardDismissBehavior.onDrag,
+                            physics: const ClampingScrollPhysics(),
+                            padding: EdgeInsets.fromLTRB(
+                              24,
+                              16,
+                              24,
+                              20 + mediaQuery.padding.bottom,
                             ),
-                            const SizedBox(height: 6),
-                            _buildTextField(
-                              label: 'Unit / House No.',
-                              hintText: 'e.g. A-12-03, Residensi Eco Forest',
-                              controller: _houseController,
-                            ),
-                            const SizedBox(height: 10),
-                            _buildTextField(
-                              label: 'Street Name / Residential Area',
-                              hintText: 'e.g. Jalan Eco Forest 1',
-                              controller: _streetController,
-                            ),
-                            const SizedBox(height: 10),
-                            Row(
-                              children: [
-                                Expanded(
-                                  flex: 4,
-                                  child: _buildTextField(
-                                    label: 'Postcode',
-                                    hintText: '43500',
-                                    controller: _postcodeController,
-                                    keyboardType: TextInputType.number,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  flex: 6,
-                                  child: _buildTextField(
-                                    label: 'City',
-                                    hintText: 'Semenyih',
-                                    controller: _cityController,
-                                    readOnly: true,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Gender',
-                                  style: TextStyle(
-                                      fontFamily: 'Recoleta',
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      color: orangeColor),
-                                ),
-                                const SizedBox(height: 4),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                        child: _buildGenderButton(
-                                            'Female', Icons.female)),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                        child: _buildGenderButton(
-                                            'Male', Icons.male)),
-                                  ],
-                                ),
-                              ],
-                            ),
-
-                            const SizedBox(height: 10),
-
-                            // Referral Code
-                            _buildTextField(
-                                label:
-                                    "Add your friend's referral code (Optional)",
-                                hintText: "e.g. DSC123",
-                                controller: _referralCodeController),
-
-                            const SizedBox(height: 16),
-
-                            // Terms & Conditions (I agree)
-                            _buildTermsAndConditions(),
-
-                            const SizedBox(height: 16),
-
-                            // Already a member? Login
-                            Center(
-                              child: GestureDetector(
-                                  onTap: () {
-                                    Navigator.push(
-                                      context,
-                                      buildAuthRoute(const LoginPage()),
-                                    );
-                                  },
-                                child: RichText(
-                                  text: const TextSpan(
+                            child: Form(
+                              key: _formKey,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Address Header
+                                  const Text(
+                                    'Address',
                                     style: TextStyle(
-                                        fontFamily: 'Afacad',
-                                        fontSize: 14,
-                                        color: Colors.black87),
+                                        fontFamily: 'Recoleta',
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFF2E5E58)),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  _buildTextField(
+                                    label: 'Unit / House No.',
+                                    hintText:
+                                        'e.g. A-12-03, Residensi Eco Forest',
+                                    controller: _houseController,
+                                  ),
+                                  const SizedBox(height: 10),
+                                  _buildTextField(
+                                    label: 'Street Name / Residential Area',
+                                    hintText: 'e.g. Jalan Eco Forest 1',
+                                    controller: _streetController,
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Row(
                                     children: [
-                                      TextSpan(text: 'Already a member? '),
-                                      TextSpan(
-                                        text: 'Login',
-                                        style: TextStyle(
-                                            fontFamily: 'Recoleta',
-                                            fontWeight: FontWeight.bold,
-                                            color: Color(0xFF1F3A34)),
+                                      Expanded(
+                                        flex: 4,
+                                        child: _buildTextField(
+                                          label: 'Postcode',
+                                          hintText: '43500',
+                                          controller: _postcodeController,
+                                          keyboardType: TextInputType.number,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        flex: 6,
+                                        child: _buildTextField(
+                                          label: 'City',
+                                          hintText: 'Semenyih',
+                                          controller: _cityController,
+                                          readOnly: true,
+                                        ),
                                       ),
                                     ],
                                   ),
-                                ),
-                              ),
-                            ),
+                                  const SizedBox(height: 10),
+                                  Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Gender',
+                                        style: TextStyle(
+                                            fontFamily: 'Recoleta',
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                            color: orangeColor),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                              child: _buildGenderButton(
+                                                  'Female', Icons.female)),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                              child: _buildGenderButton(
+                                                  'Male', Icons.male)),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
 
-                            const SizedBox(height: 20),
+                                  const SizedBox(height: 10),
 
-                            // PREVIOUS STEP BUTTON
-                            SizedBox(
-                              width: double.infinity,
-                              height: 48,
-                              child: ElevatedButton(
-                                onPressed: () => Navigator.pop(context),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.white,
-                                  foregroundColor: orangeColor,
-                                  elevation: 0,
-                                  shadowColor: Colors.transparent,
-                                  side: BorderSide(
-                                      color: Colors.grey.shade300, width: 1),
-                                  shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(30)),
-                                ),
-                                child: const Text(
-                                  'PREVIOUS STEP',
-                                  style: TextStyle(
-                                      fontFamily: 'Recoleta',
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 1.0),
-                                ),
-                              ),
-                            ),
+                                  // Referral Code
+                                  _buildTextField(
+                                      label:
+                                          "Add your friend's referral code (Optional)",
+                                      hintText: "e.g. DSC123",
+                                      controller: _referralCodeController),
 
-                            const SizedBox(height: 10),
+                                  const SizedBox(height: 16),
 
-                            // SIGN UP BUTTON
-                            SizedBox(
-                              width: double.infinity,
-                              height: 48,
-                              child: ElevatedButton(
-                                onPressed: _isFormValid
-                                    ? () async {
-                                        final fullAddress =
-                                            '${_houseController.text.trim()}, ${_streetController.text.trim()}, ${_postcodeController.text.trim()} ${_cityController.text.trim()}';
-                                        await UserService.saveUserProfile({
-                                          'gender': _selectedGender ?? '',
-                                          'address': fullAddress,
-                                        });
+                                  // Terms & Conditions (I agree)
+                                  _buildTermsAndConditions(),
 
-                                        if (!context.mounted) return;
-                                        final profile =
-                                            await UserService.getUserProfile();
+                                  const SizedBox(height: 16),
 
-                                        final phone =
-                                            profile['phone']?.trim() ?? '';
-                                        if (phone.isEmpty) {
-                                          _showError(
-                                              'Phone number is missing. Please restart signup.');
-                                          return;
-                                        }
-
-                                        try {
-                                          final deviceFingerprint =
-                                              await AuthApiService.instance
-                                                  .getOrCreateDeviceFingerprint();
-                                          final otpRequest =
-                                              await AuthApiService.instance
-                                                  .requestOtp(
-                                            phone: phone,
-                                            deviceFingerprint:
-                                                deviceFingerprint,
-                                          );
-
-                                          if (!context.mounted) return;
-                                          Navigator.push(
-                                            context,
-                                            buildAuthRoute(
-                                              OtpVerificationPage(
-                                                phone: phone,
-                                                requestId:
-                                                    otpRequest.requestId,
-                                                deviceFingerprint:
-                                                    deviceFingerprint,
-                                                debugOtpCode:
-                                                    otpRequest.debugOtpCode,
-                                                isSignup: true,
-                                                signupProfile: {
-                                                  'display_name':
-                                                      profile['username'] ??
-                                                          'C2 Member',
-                                                  'email':
-                                                      profile['email'] ?? '',
-                                                  'birthday':
-                                                      profile['birthday'] ?? '',
-                                                  'gender':
-                                                      _selectedGender ?? '',
-                                                  'house_line':
-                                                      _houseController.text
-                                                          .trim(),
-                                                  'street_line':
-                                                      _streetController.text
-                                                          .trim(),
-                                                  'postcode':
-                                                      _postcodeController.text
-                                                          .trim(),
-                                                  'city':
-                                                      _cityController.text
-                                                          .trim(),
-                                                },
-                                                initialPickedImage:
-                                                    _pickedImage,
-                                                initialPresetPath:
-                                                    _presetAvatarPath,
-                                                initialAvatarIndex:
-                                                    _selectedAvatarIndex,
-                                              ),
+                                  // Already a member? Login
+                                  Center(
+                                    child: GestureDetector(
+                                      onTap: () {
+                                        Navigator.push(
+                                          context,
+                                          buildAuthRoute(const LoginPage()),
+                                        );
+                                      },
+                                      child: RichText(
+                                        text: const TextSpan(
+                                          style: TextStyle(
+                                              fontFamily: 'Afacad',
+                                              fontSize: 14,
+                                              color: Colors.black87),
+                                          children: [
+                                            TextSpan(
+                                                text: 'Already a member? '),
+                                            TextSpan(
+                                              text: 'Login',
+                                              style: TextStyle(
+                                                  fontFamily: 'Recoleta',
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Color(0xFF1F3A34)),
                                             ),
-                                          );
-                                        } on ApiException catch (error) {
-                                          if (!context.mounted) return;
-                                          _showError(error.message);
-                                        } catch (_) {
-                                          if (!context.mounted) return;
-                                          _showError(
-                                              'Unable to request OTP right now.');
-                                        }
-                                      }
-                                    : null,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: orangeColor,
-                                  disabledBackgroundColor: Colors.grey.shade400,
-                                  foregroundColor: Colors.white,
-                                  disabledForegroundColor: Colors.white70,
-                                  elevation: 0,
-                                  shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(30)),
-                                ),
-                                child: const Text(
-                                  'SIGN UP',
-                                  style: TextStyle(
-                                      fontFamily: 'Recoleta',
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 1.0),
-                                ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+
+                                  const SizedBox(height: 20),
+
+                                  // PREVIOUS STEP BUTTON
+                                  SizedBox(
+                                    width: double.infinity,
+                                    height: 48,
+                                    child: ElevatedButton(
+                                      onPressed: () => Navigator.pop(context),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.white,
+                                        foregroundColor: orangeColor,
+                                        elevation: 0,
+                                        shadowColor: Colors.transparent,
+                                        side: BorderSide(
+                                            color: Colors.grey.shade300,
+                                            width: 1),
+                                        shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(30)),
+                                      ),
+                                      child: const Text(
+                                        'PREVIOUS STEP',
+                                        style: TextStyle(
+                                            fontFamily: 'Recoleta',
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                            letterSpacing: 1.0),
+                                      ),
+                                    ),
+                                  ),
+
+                                  const SizedBox(height: 10),
+
+                                  // SIGN UP BUTTON
+                                  SizedBox(
+                                    width: double.infinity,
+                                    height: 48,
+                                    child: ElevatedButton(
+                                      onPressed: _isFormValid
+                                          ? () async {
+                                              final fullAddress =
+                                                  '${_houseController.text.trim()}, ${_streetController.text.trim()}, ${_postcodeController.text.trim()} ${_cityController.text.trim()}';
+                                              await UserService
+                                                  .saveUserProfile({
+                                                'gender': _selectedGender ?? '',
+                                                'address': fullAddress,
+                                              });
+
+                                              if (!context.mounted) return;
+                                              final profile = await UserService
+                                                  .getUserProfile();
+
+                                              final phone =
+                                                  profile['phone']?.trim() ??
+                                                      '';
+                                              if (phone.isEmpty) {
+                                                _showError(
+                                                    'Phone number is missing. Please restart signup.');
+                                                return;
+                                              }
+
+                                              try {
+                                                final deviceFingerprint =
+                                                    await AuthApiService
+                                                        .instance
+                                                        .getOrCreateDeviceFingerprint();
+                                                final otpRequest =
+                                                    await AuthApiService
+                                                        .instance
+                                                        .requestOtp(
+                                                  phone: phone,
+                                                  deviceFingerprint:
+                                                      deviceFingerprint,
+                                                );
+
+                                                if (!context.mounted) return;
+                                                Navigator.push(
+                                                  context,
+                                                  buildAuthRoute(
+                                                    OtpVerificationPage(
+                                                      phone: phone,
+                                                      requestId:
+                                                          otpRequest.requestId,
+                                                      deviceFingerprint:
+                                                          deviceFingerprint,
+                                                      debugOtpCode: otpRequest
+                                                          .debugOtpCode,
+                                                      expiresInSeconds:
+                                                          otpRequest
+                                                              .expiresInSeconds,
+                                                      resendInSeconds:
+                                                          otpRequest
+                                                              .resendInSeconds,
+                                                      isSignup: true,
+                                                      signupProfile: {
+                                                        'display_name': profile[
+                                                                'username'] ??
+                                                            'C2 Member',
+                                                        'email':
+                                                            profile['email'] ??
+                                                                '',
+                                                        'birthday': profile[
+                                                                'birthday'] ??
+                                                            '',
+                                                        'gender':
+                                                            _selectedGender ??
+                                                                '',
+                                                        'house_line':
+                                                            _houseController
+                                                                .text
+                                                                .trim(),
+                                                        'street_line':
+                                                            _streetController
+                                                                .text
+                                                                .trim(),
+                                                        'postcode':
+                                                            _postcodeController
+                                                                .text
+                                                                .trim(),
+                                                        'city': _cityController
+                                                            .text
+                                                            .trim(),
+                                                      },
+                                                      initialPickedImage:
+                                                          _pickedImage,
+                                                      initialPresetPath:
+                                                          _presetAvatarPath,
+                                                      initialAvatarIndex:
+                                                          _selectedAvatarIndex,
+                                                    ),
+                                                  ),
+                                                );
+                                              } on ApiException catch (error) {
+                                                if (!context.mounted) return;
+                                                _showError(error.message);
+                                              } catch (_) {
+                                                if (!context.mounted) return;
+                                                _showError(
+                                                    'Unable to request OTP right now.');
+                                              }
+                                            }
+                                          : null,
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: orangeColor,
+                                        disabledBackgroundColor:
+                                            Colors.grey.shade400,
+                                        foregroundColor: Colors.white,
+                                        disabledForegroundColor: Colors.white70,
+                                        elevation: 0,
+                                        shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(30)),
+                                      ),
+                                      child: const Text(
+                                        'SIGN UP',
+                                        style: TextStyle(
+                                            fontFamily: 'Recoleta',
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                            letterSpacing: 1.0),
+                                      ),
+                                    ),
+                                  ),
+
+                                  // Bottom padding
+                                  SizedBox(
+                                      height: 20 +
+                                          MediaQuery.of(context)
+                                              .padding
+                                              .bottom),
+                                ],
                               ),
                             ),
-
-                            // Bottom padding
-                            SizedBox(
-                                height: 20 +
-                                    MediaQuery.of(context).padding.bottom),
-                            ],
                           ),
                         ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
-              ],
-            ),
-          ),
-        ],
+              ),
+            ],
           ),
         ),
       ),

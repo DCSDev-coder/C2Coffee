@@ -3,9 +3,9 @@ import 'dart:ui' show lerpDouble;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl_phone_field/intl_phone_field.dart';
-import 'package:intl_phone_field/countries.dart' as intl_countries;
 
 import 'signup1.dart';
+import 'allowed_countries.dart';
 import 'auth_transition.dart';
 import 'otp_verification.dart';
 import '../services/auth_api_service.dart';
@@ -24,6 +24,7 @@ typedef LoginBackup = LoginPage;
 class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _phoneController = TextEditingController();
+  final FocusNode _phoneFocusNode = FocusNode();
   bool _isPhoneValid = false;
   String _fullPhoneNumber = '';
 
@@ -46,6 +47,7 @@ class _LoginPageState extends State<LoginPage> {
   void dispose() {
     _phoneController.removeListener(_onFieldChanged);
     _phoneController.dispose();
+    _phoneFocusNode.dispose();
     super.dispose();
   }
 
@@ -82,15 +84,16 @@ class _LoginPageState extends State<LoginPage> {
         (keyboardInset / keyboardTravel).clamp(0.0, 1.0).toDouble();
     final isKeyboardOpen = keyboardProgress > 0.0;
     final sheetBottom = keyboardInset;
-    final loginCardHeight =
-        lerpDouble(280.0, 220.0, keyboardProgress) ?? 280.0;
+    final loginCardHeight = lerpDouble(280.0, 220.0, keyboardProgress) ?? 280.0;
     final avatarTop = lerpDouble(150.0, 110.0, keyboardProgress) ?? 150.0;
     final logoWidth = lerpDouble(240.0, 180.0, keyboardProgress) ?? 240.0;
     final titleTop = avatarTop + (logoWidth * 0.85);
-    final subtitleBottom =
-        sheetBottom + loginCardHeight + (lerpDouble(32.0, 18.0, keyboardProgress) ?? 18.0);
-    final keyboardBackdropHeight =
-        keyboardInset > 0 ? keyboardInset + mediaQuery.padding.bottom + 24 : 0.0;
+    final subtitleBottom = sheetBottom +
+        loginCardHeight +
+        (lerpDouble(32.0, 18.0, keyboardProgress) ?? 18.0);
+    final keyboardBackdropHeight = keyboardInset > 0
+        ? keyboardInset + mediaQuery.padding.bottom + 24
+        : 0.0;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
@@ -208,103 +211,105 @@ class _LoginPageState extends State<LoginPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                            _buildPhoneField(),
-                            const SizedBox(height: 14),
-                            Center(
-                              child: GestureDetector(
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    buildAuthRoute(const Signup1()),
-                                  );
-                                },
-                                child: RichText(
-                                  text: const TextSpan(
-                                    style: TextStyle(
-                                        fontFamily: 'Afacad',
-                                        fontSize: 14,
-                                        color: Colors.black87),
-                                    children: [
-                                      TextSpan(text: 'New member? '),
-                                      TextSpan(
-                                        text: 'Join now',
-                                        style: TextStyle(
-                                            fontFamily: 'Recoleta',
-                                            fontWeight: FontWeight.bold,
-                                            color: Color(0xFF1F3A34)),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 14),
-                            SizedBox(
-                              width: double.infinity,
-                              height: 48,
-                              child: ElevatedButton(
-                                onPressed: _isFormValid
-                                    ? () async {
-                                        await UserService.saveUserProfile({
-                                          'phone': _fullPhoneNumber,
-                                        });
-
-                                        try {
-                                          final deviceFingerprint =
-                                              await AuthApiService.instance
-                                                  .getOrCreateDeviceFingerprint();
-                                          final otpRequest =
-                                              await AuthApiService.instance
-                                                  .requestOtp(
-                                            phone: _fullPhoneNumber,
-                                            deviceFingerprint:
-                                                deviceFingerprint,
-                                          );
-
-                                          if (!context.mounted) return;
-                                          Navigator.push(
-                                            context,
-                                            buildAuthRoute(
-                                              OtpVerificationPage(
-                                                phone: _fullPhoneNumber,
-                                                requestId:
-                                                    otpRequest.requestId,
-                                                deviceFingerprint:
-                                                    deviceFingerprint,
-                                                debugOtpCode:
-                                                    otpRequest.debugOtpCode,
-                                              ),
-                                            ),
-                                          );
-                                        } on ApiException catch (error) {
-                                          if (!context.mounted) return;
-                                          _showError(error.message);
-                                        } catch (_) {
-                                          if (!context.mounted) return;
-                                          _showError(
-                                              'Unable to request OTP right now.');
-                                        }
-                                      }
-                                    : null,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: orangeColor,
-                                  disabledBackgroundColor: Colors.grey.shade400,
-                                  foregroundColor: Colors.white,
-                                  disabledForegroundColor: Colors.white70,
-                                  elevation: 0,
-                                  shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(30)),
-                                ),
-                                child: const Text(
-                                  'LOGIN',
+                          _buildPhoneField(),
+                          const SizedBox(height: 14),
+                          Center(
+                            child: GestureDetector(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  buildAuthRoute(const Signup1()),
+                                );
+                              },
+                              child: RichText(
+                                text: const TextSpan(
                                   style: TextStyle(
-                                      fontFamily: 'Recoleta',
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 1.0),
+                                      fontFamily: 'Afacad',
+                                      fontSize: 14,
+                                      color: Colors.black87),
+                                  children: [
+                                    TextSpan(text: 'New member? '),
+                                    TextSpan(
+                                      text: 'Join now',
+                                      style: TextStyle(
+                                          fontFamily: 'Recoleta',
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF1F3A34)),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
+                          ),
+                          const SizedBox(height: 14),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 48,
+                            child: ElevatedButton(
+                              onPressed: _isFormValid
+                                  ? () async {
+                                      await UserService.saveUserProfile({
+                                        'phone': _fullPhoneNumber,
+                                      });
+
+                                      try {
+                                        final deviceFingerprint =
+                                            await AuthApiService.instance
+                                                .getOrCreateDeviceFingerprint();
+                                        final otpRequest = await AuthApiService
+                                            .instance
+                                            .requestOtp(
+                                          phone: _fullPhoneNumber,
+                                          deviceFingerprint: deviceFingerprint,
+                                        );
+
+                                        if (!context.mounted) return;
+                                        Navigator.push(
+                                          context,
+                                          buildAuthRoute(
+                                            OtpVerificationPage(
+                                              phone: _fullPhoneNumber,
+                                              requestId: otpRequest.requestId,
+                                              deviceFingerprint:
+                                                  deviceFingerprint,
+                                              debugOtpCode:
+                                                  otpRequest.debugOtpCode,
+                                              expiresInSeconds:
+                                                  otpRequest.expiresInSeconds,
+                                              resendInSeconds:
+                                                  otpRequest.resendInSeconds,
+                                            ),
+                                          ),
+                                        );
+                                      } on ApiException catch (error) {
+                                        if (!context.mounted) return;
+                                        _showError(error.message);
+                                      } catch (_) {
+                                        if (!context.mounted) return;
+                                        _showError(
+                                            'Unable to request OTP right now.');
+                                      }
+                                    }
+                                  : null,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: orangeColor,
+                                disabledBackgroundColor: Colors.grey.shade400,
+                                foregroundColor: Colors.white,
+                                disabledForegroundColor: Colors.white70,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(30)),
+                              ),
+                              child: const Text(
+                                'LOGIN',
+                                style: TextStyle(
+                                    fontFamily: 'Recoleta',
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 1.0),
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -346,35 +351,9 @@ class _LoginPageState extends State<LoginPage> {
           ),
           child: IntlPhoneField(
             controller: _phoneController,
+            focusNode: _phoneFocusNode,
             initialCountryCode: 'MY',
-            countries: [
-              ...intl_countries.countries
-                  .where((c) => c.code == 'MY')
-                  .map((c) => intl_countries.Country(
-                        name: ' Malaysia',
-                        nameTranslations: {},
-                        flag: c.flag,
-                        code: c.code,
-                        dialCode: c.dialCode,
-                        minLength: c.minLength,
-                        maxLength: c.maxLength,
-                        regionCode: c.regionCode,
-                      )),
-              ...intl_countries.countries
-                  .where((c) => c.code == 'SG')
-                  .map((c) => intl_countries.Country(
-                        name: ' Singapore',
-                        nameTranslations: {},
-                        flag: c.flag,
-                        code: c.code,
-                        dialCode: c.dialCode,
-                        minLength: c.minLength,
-                        maxLength: c.maxLength,
-                        regionCode: c.regionCode,
-                      )),
-              ...intl_countries.countries
-                  .where((c) => c.code != 'MY' && c.code != 'SG'),
-            ],
+            countries: authCountries,
             disableLengthCheck: true,
             showDropdownIcon: false,
             dropdownIconPosition: IconPosition.trailing,
@@ -403,6 +382,7 @@ class _LoginPageState extends State<LoginPage> {
                 fontFamily: 'Afacad', fontSize: 15, color: Colors.black87),
             dropdownTextStyle: const TextStyle(
                 fontFamily: 'Afacad', fontSize: 15, color: Colors.black87),
+            autovalidateMode: AutovalidateMode.disabled,
             onChanged: (phone) {
               setState(() {
                 _fullPhoneNumber = phone.completeNumber.trim();
@@ -413,7 +393,6 @@ class _LoginPageState extends State<LoginPage> {
                 }
               });
             },
-            onCountryChanged: (_) => setState(() {}),
           ),
         ),
       ],

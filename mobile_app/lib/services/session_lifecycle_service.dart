@@ -1,3 +1,4 @@
+import 'app_session_service.dart';
 import 'auth_api_service.dart';
 import 'secure_session_service.dart';
 import 'user_service.dart';
@@ -22,11 +23,7 @@ class SessionLifecycleService {
         accessToken: tokens.accessToken,
         refreshToken: tokens.refreshToken,
       );
-
-      final user = await AuthApiService.instance.getCurrentUser(
-        accessToken: tokens.accessToken,
-      );
-      await UserService.overwriteUserProfile(user.toLocalProfileMap());
+      await AppSessionService.instance.loadAuthenticatedState(force: true);
       return true;
     } catch (_) {
       await _clearLocalState();
@@ -82,6 +79,7 @@ class SessionLifecycleService {
 
   Future<void> _clearLocalState() async {
     await SecureSessionService.instance.clearSession();
+    AppSessionService.instance.clear();
     await UserService.clearUserProfile();
     await UserService.clearAvatar();
   }

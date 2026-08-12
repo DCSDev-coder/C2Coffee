@@ -5,6 +5,7 @@ import Fastify from 'fastify';
 import { env } from './config/env.js';
 import { errorHandler } from './http/errors.js';
 import { registerAuthRoutes } from './http/routes/auth.js';
+import { registerCatalogRoutes } from './http/routes/catalog.js';
 import { registerHealthRoutes } from './http/routes/health.js';
 import { registerMeRoutes } from './http/routes/me.js';
 
@@ -48,6 +49,7 @@ export async function buildApp() {
   await registerHealthRoutes(app);
   await registerAuthRoutes(app);
   await registerMeRoutes(app);
+  await registerCatalogRoutes(app);
 
   return app;
 }

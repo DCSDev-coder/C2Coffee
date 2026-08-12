@@ -618,15 +618,27 @@ async function findOrCreateUserForPhone(
   };
 }
 
-async function getBootstrapForUser(
+export async function getBootstrapForUser(
   userId: number,
   connection: PoolConnection | typeof mysqlPool = mysqlPool
-): Promise<{ token_balance: number; tier: string }> {
+): Promise<{
+  token_balance: number;
+  token_reserved: number;
+  token_cap: number;
+  tier: string;
+  cups_last_180d: number;
+}> {
   const [tokenRows] = await connection.query<
-    Array<RowDataPacket & { balance_available: number }>
+    Array<
+      RowDataPacket & {
+        balance_available: number;
+        balance_reserved: number;
+        balance_cap: number;
+      }
+    >
   >(
     `
-      SELECT balance_available
+      SELECT balance_available, balance_reserved, balance_cap
       FROM token_accounts
       WHERE user_id = :userId
       LIMIT 1
@@ -635,10 +647,15 @@ async function getBootstrapForUser(
   );
 
   const [tierRows] = await connection.query<
-    Array<RowDataPacket & { tier_code: string }>
+    Array<
+      RowDataPacket & {
+        tier_code: string;
+        qualifying_cups_last_180d: number;
+      }
+    >
   >(
     `
-      SELECT tier_code
+      SELECT tier_code, qualifying_cups_last_180d
       FROM loyalty_tier_snapshots
       WHERE user_id = :userId
       ORDER BY effective_at DESC, id DESC
@@ -649,6 +666,9 @@ async function getBootstrapForUser(
 
   return {
     token_balance: tokenRows[0]?.balance_available ?? 0,
-    tier: tierRows[0]?.tier_code ?? 'kawan'
+    token_reserved: tokenRows[0]?.balance_reserved ?? 0,
+    token_cap: tokenRows[0]?.balance_cap ?? 500,
+    tier: tierRows[0]?.tier_code ?? 'kawan',
+    cups_last_180d: tierRows[0]?.qualifying_cups_last_180d ?? 0
   };
 }

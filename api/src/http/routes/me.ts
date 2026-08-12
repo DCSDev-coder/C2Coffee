@@ -170,7 +170,7 @@ export async function registerMeRoutes(app: FastifyInstance): Promise<void> {
   });
 }
 
-async function getUserResponse(userId: number): Promise<{
+export async function getUserResponse(userId: number): Promise<{
   id: number;
   phone: string;
   display_name: string;
