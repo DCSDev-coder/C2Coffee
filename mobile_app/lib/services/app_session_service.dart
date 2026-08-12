@@ -40,6 +40,8 @@ class AppSessionService extends ChangeNotifier {
   List<StoreSummary> get stores => _stores;
   StoreSummary? get selectedStore => _selectedStore;
   List<MenuCategoryGroup> get menuCategories => _menuCategories;
+  Map<String, String?> get userProfileSnapshot =>
+      _user?.toLocalProfileMap() ?? const {};
 
   List<CatalogMenuItem> get allMenuItems => [
         for (final category in _menuCategories) ...category.items,
@@ -104,9 +106,10 @@ class AppSessionService extends ChangeNotifier {
         notifyListeners();
       }
     } catch (error) {
-      _bootstrapError = error is ApiException
-          ? error.message
-          : 'Unable to load your account data right now.';
+      _bootstrapError = _friendlyErrorMessage(
+        error,
+        fallback: 'Unable to load your account data right now.',
+      );
       _isBootstrapLoading = false;
       notifyListeners();
       rethrow;
@@ -165,7 +168,10 @@ class AppSessionService extends ChangeNotifier {
         storeId: storeId,
       );
     } on ApiException catch (error) {
-      _menuError = error.message;
+      _menuError = _friendlyErrorMessage(
+        error,
+        fallback: 'Unable to load the menu right now.',
+      );
       _menuCategories = const [];
     } catch (error) {
       _menuError = 'Unable to load the menu right now.';
@@ -206,6 +212,33 @@ class AppSessionService extends ChangeNotifier {
         return 3;
       default:
         return 0;
+    }
+  }
+
+  String _friendlyErrorMessage(
+    Object error, {
+    required String fallback,
+  }) {
+    if (error is! ApiException) return fallback;
+
+    if (_isSessionErrorCode(error.code)) {
+      return 'Your session has expired. Please log in again.';
+    }
+
+    return error.message;
+  }
+
+  bool _isSessionErrorCode(String? code) {
+    switch (code) {
+      case 'missing_access_token':
+      case 'missing_bearer_token':
+      case 'invalid_access_token':
+      case 'session_not_found':
+      case 'session_version_mismatch':
+      case 'user_not_active':
+        return true;
+      default:
+        return false;
     }
   }
 }

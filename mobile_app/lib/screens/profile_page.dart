@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import '../widgets/custom_bottom_nav.dart';
+import '../services/app_session_service.dart';
 import '../services/user_service.dart';
 import 'home_page.dart';
 import 'menu_page.dart';
@@ -35,9 +36,10 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
+  final AppSessionService _session = AppSessionService.instance;
   File? _persistedPickedImage;
   String? _persistedPresetPath;
-  String _username = 'Guest';
+  String _username = 'C2 Member';
 
   Color get orangeColor => AppColors.deepTeal;
   final Color bgColor = Colors.white;
@@ -51,6 +53,8 @@ class _ProfilePageState extends State<ProfilePage> {
   Future<void> _loadAvatarState() async {
     final avatarData = await UserService.getAvatar();
     final profileData = await UserService.getUserProfile();
+    final sessionProfile = _session.userProfileSnapshot;
+    if (!mounted) return;
     setState(() {
       if (avatarData['pickedImagePath'] != null) {
         _persistedPickedImage = File(avatarData['pickedImagePath']!);
@@ -59,10 +63,11 @@ class _ProfilePageState extends State<ProfilePage> {
       }
       _persistedPresetPath = avatarData['presetPath'];
 
-      if (profileData['username'] != null &&
-          profileData['username']!.isNotEmpty) {
-        _username = profileData['username']!;
-      }
+      _username = sessionProfile['username']?.trim().isNotEmpty == true
+          ? sessionProfile['username']!
+          : ((profileData['username']?.isNotEmpty == true)
+              ? profileData['username']!
+              : 'C2 Member');
     });
   }
 
@@ -735,8 +740,7 @@ class _CustomCalendarWidgetState extends State<CustomCalendarWidget> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               IconButton(
-                  icon:
-                      Icon(Icons.chevron_left, color: AppColors.deepTeal),
+                  icon: Icon(Icons.chevron_left, color: AppColors.deepTeal),
                   onPressed: _previousMonth),
               Text(
                 '${monthNames[_currentMonth.month - 1]} ${_currentMonth.year}',
@@ -747,8 +751,7 @@ class _CustomCalendarWidgetState extends State<CustomCalendarWidget> {
                     color: AppColors.deepTeal),
               ),
               IconButton(
-                  icon:
-                      Icon(Icons.chevron_right, color: AppColors.deepTeal),
+                  icon: Icon(Icons.chevron_right, color: AppColors.deepTeal),
                   onPressed: _nextMonth),
             ],
           ),
@@ -827,8 +830,7 @@ class _CustomCalendarWidgetState extends State<CustomCalendarWidget> {
                         fontFamily: 'Afacad',
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color:
-                            isBought ? AppColors.deepTeal : Colors.black87,
+                        color: isBought ? AppColors.deepTeal : Colors.black87,
                       ),
                     ),
                   ),

@@ -37,6 +37,7 @@ class _Signup2State extends State<Signup2> {
   final TextEditingController _streetController = TextEditingController();
   final TextEditingController _postcodeController = TextEditingController();
   final TextEditingController _cityController = TextEditingController();
+  final TextEditingController _stateController = TextEditingController();
   final TextEditingController _referralCodeController = TextEditingController();
 
   String? _selectedGender;
@@ -56,9 +57,12 @@ class _Signup2State extends State<Signup2> {
   void initState() {
     super.initState();
     _cityController.text = 'Semenyih';
+    _stateController.text = 'Selangor';
     _houseController.addListener(_onFieldChanged);
     _streetController.addListener(_onFieldChanged);
     _postcodeController.addListener(_onFieldChanged);
+    _cityController.addListener(_onFieldChanged);
+    _stateController.addListener(_onFieldChanged);
     _referralCodeController.addListener(_onFieldChanged);
 
     if (widget.initialPickedImage != null) {
@@ -87,11 +91,14 @@ class _Signup2State extends State<Signup2> {
     _houseController.removeListener(_onFieldChanged);
     _streetController.removeListener(_onFieldChanged);
     _postcodeController.removeListener(_onFieldChanged);
+    _cityController.removeListener(_onFieldChanged);
+    _stateController.removeListener(_onFieldChanged);
     _referralCodeController.removeListener(_onFieldChanged);
     _houseController.dispose();
     _streetController.dispose();
     _postcodeController.dispose();
     _cityController.dispose();
+    _stateController.dispose();
     _referralCodeController.dispose();
     super.dispose();
   }
@@ -100,6 +107,8 @@ class _Signup2State extends State<Signup2> {
     return _houseController.text.trim().isNotEmpty &&
         _streetController.text.trim().isNotEmpty &&
         _postcodeController.text.trim().isNotEmpty &&
+        _cityController.text.trim().isNotEmpty &&
+        _stateController.text.trim().isNotEmpty &&
         _selectedGender != null &&
         _agreedToTerms;
   }
@@ -597,10 +606,15 @@ class _Signup2State extends State<Signup2> {
                                           label: 'City',
                                           hintText: 'Semenyih',
                                           controller: _cityController,
-                                          readOnly: true,
                                         ),
                                       ),
                                     ],
+                                  ),
+                                  const SizedBox(height: 10),
+                                  _buildTextField(
+                                    label: 'State',
+                                    hintText: 'Selangor',
+                                    controller: _stateController,
                                   ),
                                   const SizedBox(height: 10),
                                   Column(
@@ -718,11 +732,13 @@ class _Signup2State extends State<Signup2> {
                                       onPressed: _isFormValid
                                           ? () async {
                                               final fullAddress =
-                                                  '${_houseController.text.trim()}, ${_streetController.text.trim()}, ${_postcodeController.text.trim()} ${_cityController.text.trim()}';
+                                                  '${_houseController.text.trim()}, ${_streetController.text.trim()}, ${_postcodeController.text.trim()} ${_cityController.text.trim()}, ${_stateController.text.trim()}';
                                               await UserService
                                                   .saveUserProfile({
                                                 'gender': _selectedGender ?? '',
                                                 'address': fullAddress,
+                                                'state': _stateController.text
+                                                    .trim(),
                                               });
 
                                               if (!context.mounted) return;
@@ -799,6 +815,10 @@ class _Signup2State extends State<Signup2> {
                                                         'city': _cityController
                                                             .text
                                                             .trim(),
+                                                        'state':
+                                                            _stateController
+                                                                .text
+                                                                .trim(),
                                                       },
                                                       initialPickedImage:
                                                           _pickedImage,

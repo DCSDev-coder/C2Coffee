@@ -25,6 +25,7 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
+  final AppSessionService _session = AppSessionService.instance;
   Color get orangeColor => AppColors.deepTeal;
   final Color bgColor = Colors.white;
 
@@ -32,12 +33,13 @@ class _SettingsPageState extends State<SettingsPage> {
   String? _presetAvatarPath;
 
   Map<String, String?> userProfile = {
-    'username': 'CoffeeLover1',
-    'email': 'name@example.com',
-    'phone': '+60 11 63793812',
-    'birthday': '11 Dec 2006',
-    'gender': 'Female',
-    'address': 'Kuala Lumpur',
+    'username': '',
+    'email': '',
+    'phone': '',
+    'birthday': '',
+    'gender': '',
+    'address': '',
+    'state': '',
   };
 
   bool pushNotifications = true;
@@ -56,6 +58,7 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _loadUserData() async {
     final avatarData = await UserService.getAvatar();
     final profileData = await UserService.getUserProfile();
+    final sessionProfile = _session.userProfileSnapshot;
 
     if (!mounted) return;
 
@@ -65,25 +68,29 @@ class _SettingsPageState extends State<SettingsPage> {
       }
       _presetAvatarPath = avatarData['presetPath'] ?? 'assets/images/dato.png';
 
-      // Update with stored profile data if available
-      if (profileData['username'] != null) {
-        userProfile['username'] = profileData['username'];
-      }
-      if (profileData['email'] != null) {
-        userProfile['email'] = profileData['email'];
-      }
-      if (profileData['phone'] != null) {
-        userProfile['phone'] = profileData['phone'];
-      }
-      if (profileData['birthday'] != null) {
-        userProfile['birthday'] = profileData['birthday'];
-      }
-      if (profileData['gender'] != null) {
-        userProfile['gender'] = profileData['gender'];
-      }
-      if (profileData['address'] != null) {
-        userProfile['address'] = profileData['address'];
-      }
+      userProfile = {
+        'username': sessionProfile['username']?.trim().isNotEmpty == true
+            ? sessionProfile['username']
+            : (profileData['username'] ?? ''),
+        'email': sessionProfile['email']?.trim().isNotEmpty == true
+            ? sessionProfile['email']
+            : (profileData['email'] ?? ''),
+        'phone': sessionProfile['phone']?.trim().isNotEmpty == true
+            ? sessionProfile['phone']
+            : (profileData['phone'] ?? ''),
+        'birthday': sessionProfile['birthday']?.trim().isNotEmpty == true
+            ? sessionProfile['birthday']
+            : (profileData['birthday'] ?? ''),
+        'gender': sessionProfile['gender']?.trim().isNotEmpty == true
+            ? sessionProfile['gender']
+            : (profileData['gender'] ?? ''),
+        'address': sessionProfile['address']?.trim().isNotEmpty == true
+            ? sessionProfile['address']
+            : (profileData['address'] ?? ''),
+        'state': sessionProfile['state']?.trim().isNotEmpty == true
+            ? sessionProfile['state']
+            : (profileData['state'] ?? ''),
+      };
     });
   }
 
@@ -130,10 +137,15 @@ class _SettingsPageState extends State<SettingsPage> {
       'email': profile['email']?.trim() ?? '',
       'birthday': _formatBirthdayForApi(profile['birthday']),
       'gender': profile['gender']?.trim() ?? '',
-      'house_line': '',
+      'house_line': addressParts.houseLine,
       'street_line': addressParts.streetLine,
       'postcode': addressParts.postcode,
-      'city': addressParts.city,
+      'city': [
+        addressParts.city,
+        profile['state']?.trim().isNotEmpty == true
+            ? profile['state']!.trim()
+            : null,
+      ].whereType<String>().join(', '),
     };
   }
 
@@ -155,20 +167,38 @@ class _SettingsPageState extends State<SettingsPage> {
 
   _AddressParts _parseAddress(String? address) {
     if (address == null || address.trim().isEmpty) {
-      return const _AddressParts(streetLine: '', postcode: '', city: '');
+      return const _AddressParts(
+        houseLine: '',
+        streetLine: '',
+        postcode: '',
+        city: '',
+      );
     }
 
     final parts = address.split(', ').map((part) => part.trim()).toList();
     if (parts.length == 1) {
-      return _AddressParts(streetLine: '', postcode: '', city: parts.first);
+      return _AddressParts(
+        houseLine: '',
+        streetLine: '',
+        postcode: '',
+        city: parts.first,
+      );
     }
 
-    final streetLine = parts.first;
+    final houseLine = parts.first;
+    var streetLine = '';
     var postcode = '';
     var city = '';
 
     if (parts.length >= 2) {
-      final postcodeAndCity = parts[1].split(' ');
+      streetLine = parts[1];
+    }
+
+    if (parts.length >= 3) {
+      final postcodeAndCity = parts[2]
+          .split(RegExp(r'\s+'))
+          .where((part) => part.isNotEmpty)
+          .toList();
       if (postcodeAndCity.isNotEmpty) {
         postcode = postcodeAndCity.first;
       }
@@ -177,13 +207,8 @@ class _SettingsPageState extends State<SettingsPage> {
       }
     }
 
-    if (parts.length > 2) {
-      city = city.isEmpty
-          ? parts.sublist(2).join(', ')
-          : '$city, ${parts.sublist(2).join(', ')}';
-    }
-
     return _AddressParts(
+      houseLine: houseLine,
       streetLine: streetLine,
       postcode: postcode,
       city: city,
@@ -454,26 +479,19 @@ class _SettingsPageState extends State<SettingsPage> {
         },
       );
     } else if (key == 'address') {
+      final parsedAddress = _parseAddress(currentValue);
+      String house = parsedAddress.houseLine;
       String street = '';
-      String city = '';
-      String postcode = '';
-      String stateVal = '';
+      String city =
+          parsedAddress.city.isEmpty ? 'Semenyih' : parsedAddress.city;
+      String postcode = parsedAddress.postcode;
+      String stateVal = userProfile['state']?.trim().isNotEmpty == true
+          ? userProfile['state']!.trim()
+          : 'Selangor';
+      street = parsedAddress.streetLine;
 
-      if (currentValue.isNotEmpty) {
-        List<String> parts = currentValue.split(', ');
-        if (parts.isNotEmpty) street = parts[0];
-        if (parts.length > 1) {
-          List<String> pcCity = parts[1].split(' ');
-          if (pcCity.length > 1) {
-            postcode = pcCity[0];
-            city = pcCity.sublist(1).join(' ');
-          } else {
-            city = parts[1];
-          }
-        }
-        if (parts.length > 2) stateVal = parts[2];
-      }
-
+      TextEditingController houseController =
+          TextEditingController(text: house);
       TextEditingController streetController =
           TextEditingController(text: street);
       TextEditingController cityController = TextEditingController(text: city);
@@ -498,6 +516,21 @@ class _SettingsPageState extends State<SettingsPage> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        TextFormField(
+                          controller: houseController,
+                          decoration: InputDecoration(
+                            labelText: 'Unit / House No.',
+                            focusedBorder: UnderlineInputBorder(
+                              borderSide: BorderSide(color: AppColors.deepTeal),
+                            ),
+                          ),
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Please enter house or unit';
+                            }
+                            return null;
+                          },
+                        ),
                         TextFormField(
                           controller: streetController,
                           decoration: InputDecoration(
@@ -573,7 +606,11 @@ class _SettingsPageState extends State<SettingsPage> {
                     onPressed: () async {
                       if (formKey.currentState!.validate()) {
                         String fullAddress =
-                            '${streetController.text.trim()}, ${postcodeController.text.trim()} ${cityController.text.trim()}, ${stateController.text.trim()}';
+                            '${houseController.text.trim()}, ${streetController.text.trim()}, ${postcodeController.text.trim()} ${cityController.text.trim()}';
+                        await UserService.saveUserProfile(
+                          {'state': stateController.text.trim()},
+                        );
+                        userProfile['state'] = stateController.text.trim();
                         await _saveProfileValue(key, fullAddress);
                         if (context.mounted) Navigator.pop(context);
                       }
@@ -769,6 +806,12 @@ class _SettingsPageState extends State<SettingsPage> {
                                   _buildRowItem(
                                       'Address', userProfile['address'] ?? '',
                                       isAddress: true,
+                                      onTap: () => _showEditDialog(
+                                          'Address',
+                                          'address',
+                                          userProfile['address'] ?? '')),
+                                  _buildRowItem(
+                                      'State', userProfile['state'] ?? '',
                                       onTap: () => _showEditDialog(
                                           'Address',
                                           'address',
@@ -996,11 +1039,13 @@ class _SettingsPageState extends State<SettingsPage> {
 }
 
 class _AddressParts {
+  final String houseLine;
   final String streetLine;
   final String postcode;
   final String city;
 
   const _AddressParts({
+    required this.houseLine,
     required this.streetLine,
     required this.postcode,
     required this.city,

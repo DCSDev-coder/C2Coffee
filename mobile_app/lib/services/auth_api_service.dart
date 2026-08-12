@@ -82,6 +82,7 @@ class CurrentUserProfile {
   final String? birthday;
   final String? gender;
   final String? address;
+  final String? state;
 
   const CurrentUserProfile({
     required this.id,
@@ -92,9 +93,11 @@ class CurrentUserProfile {
     required this.birthday,
     required this.gender,
     required this.address,
+    required this.state,
   });
 
   factory CurrentUserProfile.fromApi(Map<String, dynamic> user) {
+    final address = user['address'] as String?;
     return CurrentUserProfile(
       id: (user['id'] as num).toInt(),
       phone: user['phone'] as String,
@@ -103,7 +106,8 @@ class CurrentUserProfile {
       email: user['email'] as String?,
       birthday: _formatBirthdayForDisplay(user['birthday'] as String?),
       gender: user['gender'] as String?,
-      address: user['address'] as String?,
+      address: address,
+      state: _extractState(address),
     );
   }
 
@@ -115,6 +119,7 @@ class CurrentUserProfile {
       if (birthday != null) 'birthday': birthday!,
       if (gender != null) 'gender': gender!,
       if (address != null) 'address': address!,
+      if (state != null) 'state': state!,
     };
   }
 
@@ -125,6 +130,15 @@ class CurrentUserProfile {
     } catch (_) {
       return raw;
     }
+  }
+
+  static String? _extractState(String? address) {
+    if (address == null || address.trim().isEmpty) return null;
+    final parts = address.split(', ').map((part) => part.trim()).toList();
+    if (parts.length >= 4 && parts[3].isNotEmpty) {
+      return parts[3];
+    }
+    return null;
   }
 }
 
@@ -330,7 +344,9 @@ class AuthApiService {
       return Map<String, dynamic>.from(decoded as Map);
     }
 
-    final body = decoded is Map ? Map<String, dynamic>.from(decoded) : <String, dynamic>{};
+    final body = decoded is Map
+        ? Map<String, dynamic>.from(decoded)
+        : <String, dynamic>{};
     final error = body['error'];
     if (error is Map<String, dynamic>) {
       throw ApiException(
