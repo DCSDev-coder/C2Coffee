@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 
 import '../services/app_session_service.dart';
 import '../services/catalog_presentation.dart';
+import '../services/cart_service.dart';
 import '../utils/app_colors.dart';
 import '../widgets/catalog_product_image.dart';
 import '../widgets/custom_bottom_nav.dart';
 import '../widgets/order_status_banner.dart';
 import 'home_page.dart';
 import 'loading_order_page.dart';
+import 'order_confirmation_page.dart';
 import 'orders_page.dart';
 import 'profile_page.dart';
 import 'rewards_page.dart';
@@ -24,6 +26,7 @@ class MenuPage extends StatefulWidget {
 
 class _MenuPageState extends State<MenuPage> {
   final AppSessionService _session = AppSessionService.instance;
+  final CartService _cart = CartService.instance;
   final ScrollController _scrollController = ScrollController();
   final ScrollController _sidebarScrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
@@ -44,6 +47,8 @@ class _MenuPageState extends State<MenuPage> {
       try {
         await _session.loadAuthenticatedState();
       } catch (_) {}
+      if (!mounted) return;
+      await _precacheMenuImages();
       if (!mounted) return;
       _ensureSectionKeys(_uiSections.length);
       if (_uiSections.isNotEmpty) {
@@ -71,7 +76,10 @@ class _MenuPageState extends State<MenuPage> {
     for (final category in _session.menuCategories) {
       final items = category.items
           .where((item) => item.isAvailable)
-          .map((item) => CatalogPresentation.toLegacyItem(item, category.name))
+          .map(
+            (item) =>
+                CatalogPresentation.toLegacyItem(item, category.code, category.name),
+          )
           .where((item) {
         if (query.isEmpty) return true;
         final name = item['name']?.toString().toLowerCase() ?? '';
@@ -102,9 +110,18 @@ class _MenuPageState extends State<MenuPage> {
     }
   }
 
+  Future<void> _precacheMenuImages() async {
+    final imageUrls = _uiSections
+        .expand((section) => section.items)
+        .map((item) => item['image_url']?.toString())
+        .toList();
+    await precacheCatalogProductImages(context, imageUrls);
+  }
+
   void _onScroll() {
     if (_isAutoScrolling || _uiSections.isEmpty) return;
 
+    final activationLine = MediaQuery.sizeOf(context).height * 0.66;
     var newIndex = 0;
     for (var i = 0; i < _uiSections.length; i++) {
       final key = _sectionKeys[i];
@@ -112,7 +129,7 @@ class _MenuPageState extends State<MenuPage> {
       final box = key!.currentContext!.findRenderObject() as RenderBox?;
       if (box == null || !box.hasSize || !box.attached) continue;
       final position = box.localToGlobal(Offset.zero);
-      if (position.dy <= 220) {
+      if (position.dy <= activationLine) {
         newIndex = i;
       }
     }
@@ -173,7 +190,7 @@ class _MenuPageState extends State<MenuPage> {
     _ensureSectionKeys(sections.length);
 
     return AnimatedBuilder(
-      animation: _session,
+      animation: Listenable.merge([_session, _cart]),
       builder: (context, _) {
         return Scaffold(
           backgroundColor: Colors.white,
@@ -264,6 +281,57 @@ class _MenuPageState extends State<MenuPage> {
                   ),
                 ),
               ),
+              if (!_cart.isEmpty)
+                Positioned(
+                  bottom: 162 + MediaQuery.paddingOf(context).bottom,
+                  right: 20,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () {
+                      InteractiveFillingLoader.show(
+                        context,
+                        targetPage: const OrderConfirmationPage(),
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.deepTeal,
+                        borderRadius: BorderRadius.circular(22),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.18),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.shopping_bag_outlined,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${_cart.items.length} item${_cart.items.length == 1 ? '' : 's'}',
+                            style: const TextStyle(
+                              fontFamily: 'Afacad',
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
         );

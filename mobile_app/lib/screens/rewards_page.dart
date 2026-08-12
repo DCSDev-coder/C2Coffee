@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/app_session_service.dart';
 import '../widgets/custom_bottom_nav.dart';
 import 'home_page.dart';
 import 'menu_page.dart';
@@ -7,7 +8,6 @@ import 'profile_page.dart';
 import 'loading_order_page.dart';
 import 'referral_page.dart';
 import 'dart:io';
-import 'package:intl/intl.dart';
 import '../widgets/order_status_banner.dart';
 import 'my_rewards_page.dart';
 import '../utils/app_colors.dart';
@@ -30,6 +30,7 @@ class RewardsPage extends StatefulWidget {
 
 class _RewardsPageState extends State<RewardsPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  final AppSessionService _session = AppSessionService.instance;
   Color get orangeColor => AppColors.deepTeal;
   final Color beigeBg = Colors.white;
   int _selectedTier = 1;
@@ -38,7 +39,58 @@ class _RewardsPageState extends State<RewardsPage> {
   @override
   void initState() {
     super.initState();
-    _selectedTier = AppColors.currentTier.value;
+    _syncTierFromSession();
+    _session.addListener(_handleSessionChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _session.loadAuthenticatedState();
+    });
+  }
+
+  @override
+  void dispose() {
+    _session.removeListener(_handleSessionChanged);
+    super.dispose();
+  }
+
+  void _handleSessionChanged() {
+    _syncTierFromSession();
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  void _syncTierFromSession() {
+    _selectedTier = _tierToIndex(_session.tier);
+  }
+
+  int _tierToIndex(String tier) {
+    switch (tier.toLowerCase()) {
+      case 'kawan':
+        return 0;
+      case 'dilamun':
+        return 1;
+      case 'ketagih':
+        return 2;
+      case 'legend':
+        return 3;
+      default:
+        return 0;
+    }
+  }
+
+  String _tierLabel(int index) {
+    switch (index) {
+      case 0:
+        return 'Kawan';
+      case 1:
+        return 'Dilamun';
+      case 2:
+        return 'Ketagih';
+      case 3:
+        return 'Legend';
+      default:
+        return 'Kawan';
+    }
   }
 
   void _onBottomNavTapped(int index) {
@@ -162,7 +214,7 @@ class _RewardsPageState extends State<RewardsPage> {
               ),
               const SizedBox(height: 2),
               Text(
-                'member since ${DateFormat('d MMMM yyyy').format(DateTime.now())}',
+                'current tier ${_tierLabel(_tierToIndex(_session.tier))}',
                 style: const TextStyle(
                   fontFamily: 'Afacad',
                   fontSize: 12,
@@ -229,7 +281,7 @@ class _RewardsPageState extends State<RewardsPage> {
                         ),
                       ),
                       Text(
-                        '0 tokens',
+                        '${_session.tokenBalance} tokens',
                         style: TextStyle(
                           fontFamily: 'Recoleta',
                           fontSize: 26,
@@ -240,7 +292,7 @@ class _RewardsPageState extends State<RewardsPage> {
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        '0/1',
+                        '${_session.cupsLast180d}',
                         style: TextStyle(
                           fontFamily: 'Recoleta',
                           fontSize: 42,
@@ -251,7 +303,7 @@ class _RewardsPageState extends State<RewardsPage> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'cups to next tier',
+                        'cups collected in the last 180 days',
                         style: TextStyle(
                           fontFamily: 'Afacad',
                           fontSize: 12,
@@ -265,11 +317,12 @@ class _RewardsPageState extends State<RewardsPage> {
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          const Text(
-            "*Promo or free drinks don't earn cups and don't count toward rewards or tier upgrades.",
+        const SizedBox(height: 12),
+          Text(
+            _session.bootstrapError ??
+                "*Promo or free drinks don't earn cups and don't count toward rewards or tier upgrades.",
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: 'Afacad',
               fontSize: 10,
               color: Colors.black54,
@@ -624,7 +677,6 @@ class _RewardsPageState extends State<RewardsPage> {
           setState(() {
             _selectedTier = index;
           });
-          AppColors.setTier(index);
         }
       },
       child: Container(

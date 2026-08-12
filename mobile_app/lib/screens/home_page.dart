@@ -148,7 +148,9 @@ class _HomePageState extends State<HomePage> {
       for (final item in category.items) {
         if (item.isAvailable &&
             CatalogPresentation.isDrinkCategory(category.name, item)) {
-          items.add(CatalogPresentation.toLegacyItem(item, category.name));
+          items.add(
+            CatalogPresentation.toLegacyItem(item, category.code, category.name),
+          );
         }
       }
     }
@@ -161,7 +163,9 @@ class _HomePageState extends State<HomePage> {
       for (final item in category.items) {
         if (item.isAvailable &&
             CatalogPresentation.isLifestyleCategory(category.name, item)) {
-          items.add(CatalogPresentation.toLegacyItem(item, category.name));
+          items.add(
+            CatalogPresentation.toLegacyItem(item, category.code, category.name),
+          );
         }
       }
     }

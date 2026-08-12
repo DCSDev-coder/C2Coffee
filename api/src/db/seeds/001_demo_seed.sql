@@ -57,9 +57,402 @@ INSERT INTO menu_categories (code, name, sort_order, is_active)
 VALUES
   ('coffee', 'Coffee', 10, 1),
   ('non_coffee', 'Non Coffee', 20, 1),
-  ('food', 'Food', 30, 1)
+  ('food', 'Food', 30, 1),
+  ('merchandise', 'Merchandise', 40, 1),
+  ('candles', 'Candles', 50, 1)
 ON DUPLICATE KEY UPDATE
   name = VALUES(name),
+  sort_order = VALUES(sort_order),
+  is_active = VALUES(is_active);
+
+INSERT INTO menu_items (
+  category_id,
+  code,
+  name,
+  description,
+  base_price_rm,
+  is_handcrafted_drink,
+  is_qualifying_cup,
+  is_active,
+  image_url,
+  sort_order
+)
+SELECT
+  c.id,
+  seeded_items.item_code,
+  seeded_items.item_name,
+  seeded_items.item_description,
+  seeded_items.base_price_rm,
+  seeded_items.is_handcrafted_drink,
+  seeded_items.is_qualifying_cup,
+  1,
+  seeded_items.image_url,
+  seeded_items.sort_order
+FROM (
+  SELECT
+    'coffee' AS category_code,
+    'MONT_BROGA' AS item_code,
+    'Mont Broga' AS item_name,
+    'Black coffee layered with orangey cold foam and orange zest.' AS item_description,
+    16.90 AS base_price_rm,
+    1 AS is_handcrafted_drink,
+    1 AS is_qualifying_cup,
+    '/assets/menu/drinks/MONT%20BROGA.png' AS image_url,
+    10 AS sort_order
+  UNION ALL SELECT 'coffee', 'SHAKERATO_BIANCO', 'Shakerato Bianco', 'Chilled, shaken espresso with sweet silky and refreshing cream.', 16.90, 1, 1, '/assets/menu/drinks/SHAKERATO%20BIANCO.png', 20
+  UNION ALL SELECT 'coffee', 'YUZUKANO', 'Yuzukano', 'Aerated espresso topping the chilled yuzu puree.', 17.90, 1, 1, '/assets/menu/drinks/YUZUKANO.png', 30
+  UNION ALL SELECT 'coffee', 'SENJA_DI_BROGA', 'Senja Di Broga', 'Sweet sparkling orange juice topped with espresso.', 17.90, 1, 1, '/assets/menu/drinks/SENJA%20DI%20BROGA.png', 40
+  UNION ALL SELECT 'coffee', 'ESPRESSO_BOMB', 'Espresso Bomb', 'The trendy espresso bomb is here. Choice of sparkling ginger ade or tonic water.', 18.90, 1, 1, '/assets/menu/drinks/ESPRESSO%20BOMB.png', 50
+  UNION ALL SELECT 'coffee', 'V60_BREW', 'V60 Brew', 'Hand-poured coffee revealing delicate aroma and clarity.', 15.90, 1, 1, '/assets/menu/drinks/V60%20BREW.png', 60
+  UNION ALL SELECT 'coffee', 'ESPRESSO', 'Espresso', 'Pure, concentrated coffee with bold taste notes.', 9.90, 1, 1, '/assets/menu/drinks/ESPRESSO.png', 70
+  UNION ALL SELECT 'coffee', 'POCCO_LOCCO', 'Pocco Locco', 'An espresso and oatmilk, small in size and rich in flavour.', 12.90, 1, 1, '/assets/menu/drinks/POCCO%20LOCCO.png', 80
+  UNION ALL SELECT 'coffee', 'LATTE', 'Latte', 'Espresso topped with milk with layers of smooth foam.', 14.90, 1, 1, '/assets/menu/drinks/LATTE.png', 90
+  UNION ALL SELECT 'coffee', 'FLAT_WHITE', 'Flat White', 'Espresso topped with hot milk and a thin layer of smooth foam.', 14.90, 1, 1, '/assets/menu/drinks/FLAT%20WHITE.png', 100
+  UNION ALL SELECT 'coffee', 'CAPPUCCINO', 'Cappuccino', 'Espresso topped with light thick foam and delicate milk.', 14.90, 1, 1, '/assets/menu/drinks/CAPPUCCINO.png', 110
+  UNION ALL SELECT 'coffee', 'BUTTERSCOTCH_LATTE', 'Butterscotch Latte', 'Smooth espresso and milk mixed with butterscotch flavour.', 16.90, 1, 1, '/assets/menu/drinks/BUTTERSCOTH%20LATTE.png', 120
+  UNION ALL SELECT 'coffee', 'HAZELNUT_LATTE', 'Hazelnut Latte', 'Espresso and milk mixed with hazelnut flavour.', 16.90, 1, 1, '/assets/menu/drinks/HAZELNUT%20LATTE.png', 130
+  UNION ALL SELECT 'coffee', 'VANILLA_LATTE', 'Vanilla Latte', 'Gentle vanilla sweetness lifting smooth espresso.', 16.90, 1, 1, '/assets/menu/drinks/VANILLA%20LATTE.png', 140
+  UNION ALL SELECT 'coffee', 'BLUE_CLOUD_COCONUT_COFFEE', 'Blue Cloud Coconut Coffee', 'Black coffee with coconut flavour topped with creamy light blue cold foam.', 17.90, 1, 1, '/assets/menu/drinks/BLUE%20CLOUD%20COCONUT%20COFFEE.png', 150
+  UNION ALL SELECT 'coffee', 'MOCHA', 'Mocha', 'Chocolate and espresso mixed with milk.', 17.90, 1, 1, '/assets/menu/drinks/MOCHA.png', 160
+  UNION ALL SELECT 'non_coffee', 'BOIJITO', 'Boijito', 'Sparkling mojito with hand-picked mint and calamansi flavour.', 16.90, 1, 1, '/assets/menu/drinks/BOIJITO.png', 10
+  UNION ALL SELECT 'non_coffee', 'BLOODY_PEACH', 'Bloody Peach', 'Sparkling jasmine tea with peach flavour and topped with grenadine syrup.', 16.90, 1, 1, '/assets/menu/drinks/BLOODY%20PEACH.png', 20
+  UNION ALL SELECT 'non_coffee', 'FUJI_FIZZ', 'Fuji Fizz', 'Ginger, apple and cinnamon come together in a fizzy drink.', 16.90, 1, 1, '/assets/menu/drinks/FUJI%20FIZZ.png', 30
+  UNION ALL SELECT 'non_coffee', 'SPICY_MIMOSA', 'Spicy Mimosa', 'Hot and spicy orange juice topped with ginger ade and grenadine syrup.', 16.90, 1, 1, '/assets/menu/drinks/SPICY%20MIMOSA.png', 40
+  UNION ALL SELECT 'non_coffee', 'ONDE2POP', 'Onde2Pop', 'Green apple and coconut shaken together and topped with sparkling soda.', 16.90, 1, 1, '/assets/menu/drinks/ONDE-ONDE%20SODA.png', 50
+  UNION ALL SELECT 'non_coffee', 'MATCHA_LATTE', 'Matcha Latte', 'Ceremonial grade matcha with smooth creamy milk.', 16.90, 1, 1, '/assets/menu/drinks/MATCHA%20LATTE.png', 60
+  UNION ALL SELECT 'non_coffee', 'MONKEY_MATCHA', 'Monkey Matcha', 'Ceremonial grade matcha with ripe banana puree.', 17.90, 1, 1, '/assets/menu/drinks/MONKEY%20MATCHA.png', 70
+  UNION ALL SELECT 'non_coffee', 'PINKY_PROMISE_MATCHA', 'Pinky Promise Matcha', 'Ceremonial grade matcha with strawberry puree sweetness.', 17.90, 1, 1, '/assets/menu/drinks/PINKY%20PROMISE%20MATCHA.png', 80
+  UNION ALL SELECT 'non_coffee', 'MILK_CHOCOLATE', 'Milk Chocolate', 'Rich and smooth chocolate milk drink topped with marshmallows.', 15.90, 1, 1, '/assets/menu/drinks/MILK%20CHOCOLATE.png', 90
+  UNION ALL SELECT 'non_coffee', 'NUTTY_CHOCOLATE', 'Nutty Chocolate', 'Chocolate drink mixed with crunchy peanut butter.', 16.90, 1, 1, '/assets/menu/drinks/NUTTY%20CHOCOLATE.png', 100
+  UNION ALL SELECT 'non_coffee', 'PINKY_BLUSH', 'Pinky Blush Milkshake by Syah', 'Creamy strawberry, delicate banana puree, mixed and shaken with milk.', 18.90, 1, 1, '/assets/menu/drinks/PINKY%20BLUSH%20MILKSHAKE%20BY%20SYAH.png', 110
+  UNION ALL SELECT 'non_coffee', 'PADDLE_POP', 'Paddle Pop', 'Creamy strawberry, delicate banana puree, mixed and shaken with milk.', 18.90, 1, 1, '/assets/menu/drinks/PADDLE%20POP.png', 120
+  UNION ALL SELECT 'non_coffee', 'SOLERO_FIZZ', 'Solero Fizz', 'Bright citrus notes with sparkling soda and creamy silky cold foam.', 16.90, 1, 1, '/assets/menu/drinks/SOLERO%20FIZZ.png', 130
+  UNION ALL SELECT 'non_coffee', 'CLOUDY_JASMINE', 'Cloudy Jasmine', 'Refreshing jasmine tea soda with silky butterscotch cream foam.', 16.90, 1, 1, '/assets/menu/drinks/CLOUDY%20JASMINE.png', 140
+  UNION ALL SELECT 'food', 'LAMB_CURRY_PUFF', 'Lamb Curry Puff', 'Crispy golden pastry crust packed with savory spiced minced lamb filling.', 8.90, 0, 0, '/assets/menu/pastries/curry%20puff.png', 10
+  UNION ALL SELECT 'food', 'SHIO_PAN', 'Shio Pan', 'Japanese salted bread with soft chewy centre and buttery finish.', 7.90, 0, 0, '/assets/menu/pastries/shio%20pan.png', 20
+  UNION ALL SELECT 'food', 'BROWNIE', 'Brownie', 'Rich fudgy brownie with deep cocoa flavour.', 9.90, 0, 0, '/assets/menu/pastries/brownie.png', 30
+  UNION ALL SELECT 'food', 'CHEESECAKE_BISCOFF', 'Cheesecake Biscoff', 'Creamy cheesecake finished with Biscoff crumble.', 15.90, 0, 0, '/assets/menu/pastries/ck%20biscoff.png', 40
+  UNION ALL SELECT 'food', 'CHEESECAKE_OVOMALTINE', 'Cheesecake Ovomaltine', 'Creamy cheesecake topped with crunchy Ovomaltine.', 15.90, 0, 0, '/assets/menu/pastries/ck%20ovomaltine.png', 50
+  UNION ALL SELECT 'food', 'CHEESECAKE_RED_VELVET', 'Cheesecake Red Velvet', 'Velvety cheesecake with classic red velvet finish.', 15.90, 0, 0, '/assets/menu/pastries/ck%20red%20velvet.png', 60
+  UNION ALL SELECT 'merchandise', 'C2_CUP_CREAM', 'C2 Cup Cream', 'Premium durable tumbler designed for daily coffee rituals.', 49.90, 0, 0, '/assets/menu/merchandies/cream.png', 10
+  UNION ALL SELECT 'merchandise', 'C2_CUP_DARK_BLUE', 'C2 Cup Dark Blue', 'Premium durable tumbler designed for daily coffee rituals.', 49.90, 0, 0, '/assets/menu/merchandies/dark%20blue.png', 20
+  UNION ALL SELECT 'merchandise', 'C2_CUP_GREEN', 'C2 Cup Green', 'Premium durable tumbler designed for daily coffee rituals.', 49.90, 0, 0, '/assets/menu/merchandies/green.png', 30
+  UNION ALL SELECT 'merchandise', 'C2_CUP_LIGHT_BLUE', 'C2 Cup Light Blue', 'Premium durable tumbler designed for daily coffee rituals.', 49.90, 0, 0, '/assets/menu/merchandies/light%20blue.png', 40
+  UNION ALL SELECT 'merchandise', 'C2_CUP_LIGHT_PURPLE', 'C2 Cup Light Purple', 'Premium durable tumbler designed for daily coffee rituals.', 49.90, 0, 0, '/assets/menu/merchandies/light%20purple.png', 50
+  UNION ALL SELECT 'candles', 'GUNUNG_CANDLE', 'Gunung Candle', 'Earthy cedar and forest pine notes inspired by the misty Broga peaks.', 59.90, 0, 0, '/assets/menu/candles/gunung.png', 10
+  UNION ALL SELECT 'candles', 'CRUSHED_LIME_SEASALT_CANDLE', 'Crushed Lime Seasalt Candle', 'Zesty citrus lime blended with crisp sea salt minerals.', 59.90, 0, 0, '/assets/menu/candles/crushed%20lime%20and%20seasalt.png', 20
+  UNION ALL SELECT 'candles', 'FRESH_SAGE_DRIFTWOOD_CANDLE', 'Fresh Sage Driftwood Candle', 'Calming herbal sage paired with coastal driftwood notes.', 59.90, 0, 0, '/assets/menu/candles/fresh%20sage%20and%20driftwood.png', 30
+  UNION ALL SELECT 'candles', 'TOBACCO_VANILLA_CANDLE', 'Tobacco Vanilla Candle', 'Warm aromatic tobacco leaf layered with creamy vanilla and subtle spices.', 59.90, 0, 0, '/assets/menu/candles/tobacco%20vanilla.png', 40
+) seeded_items
+JOIN menu_categories c
+  ON c.code = seeded_items.category_code
+ON DUPLICATE KEY UPDATE
+  category_id = VALUES(category_id),
+  name = VALUES(name),
+  description = VALUES(description),
+  base_price_rm = VALUES(base_price_rm),
+  is_handcrafted_drink = VALUES(is_handcrafted_drink),
+  is_qualifying_cup = VALUES(is_qualifying_cup),
+  is_active = VALUES(is_active),
+  image_url = VALUES(image_url),
+  sort_order = VALUES(sort_order);
+
+INSERT INTO menu_item_store_availability (store_id, menu_item_id, is_available, unavailable_reason)
+SELECT
+  s.id,
+  mi.id,
+  1,
+  NULL
+FROM stores s
+JOIN menu_items mi
+  ON mi.is_active = 1
+WHERE s.code IN ('C2-BROGA', 'C2-KAJANG')
+ON DUPLICATE KEY UPDATE
+  is_available = VALUES(is_available),
+  unavailable_reason = VALUES(unavailable_reason);
+
+INSERT INTO menu_item_token_prices (
+  menu_item_id,
+  tier_code,
+  token_price,
+  is_enabled,
+  effective_from,
+  effective_to
+)
+SELECT
+  mi.id,
+  seeded_prices.tier_code,
+  seeded_prices.token_price,
+  1,
+  '2026-01-01 00:00:00',
+  NULL
+FROM (
+  SELECT 'MONT_BROGA' AS item_code, 'kawan' AS tier_code, 15 AS token_price
+  UNION ALL SELECT 'MONT_BROGA', 'dilamun', 14
+  UNION ALL SELECT 'MONT_BROGA', 'ketagih', 13
+  UNION ALL SELECT 'MONT_BROGA', 'legend', 12
+  UNION ALL SELECT 'SHAKERATO_BIANCO', 'kawan', 15
+  UNION ALL SELECT 'SHAKERATO_BIANCO', 'dilamun', 14
+  UNION ALL SELECT 'SHAKERATO_BIANCO', 'ketagih', 13
+  UNION ALL SELECT 'SHAKERATO_BIANCO', 'legend', 12
+  UNION ALL SELECT 'YUZUKANO', 'kawan', 16
+  UNION ALL SELECT 'YUZUKANO', 'dilamun', 15
+  UNION ALL SELECT 'YUZUKANO', 'ketagih', 14
+  UNION ALL SELECT 'YUZUKANO', 'legend', 13
+  UNION ALL SELECT 'SENJA_DI_BROGA', 'kawan', 16
+  UNION ALL SELECT 'SENJA_DI_BROGA', 'dilamun', 15
+  UNION ALL SELECT 'SENJA_DI_BROGA', 'ketagih', 14
+  UNION ALL SELECT 'SENJA_DI_BROGA', 'legend', 13
+  UNION ALL SELECT 'ESPRESSO_BOMB', 'kawan', 17
+  UNION ALL SELECT 'ESPRESSO_BOMB', 'dilamun', 16
+  UNION ALL SELECT 'ESPRESSO_BOMB', 'ketagih', 15
+  UNION ALL SELECT 'ESPRESSO_BOMB', 'legend', 14
+  UNION ALL SELECT 'V60_BREW', 'kawan', 14
+  UNION ALL SELECT 'V60_BREW', 'dilamun', 13
+  UNION ALL SELECT 'V60_BREW', 'ketagih', 12
+  UNION ALL SELECT 'V60_BREW', 'legend', 11
+  UNION ALL SELECT 'ESPRESSO', 'kawan', 9
+  UNION ALL SELECT 'ESPRESSO', 'dilamun', 8
+  UNION ALL SELECT 'ESPRESSO', 'ketagih', 8
+  UNION ALL SELECT 'ESPRESSO', 'legend', 7
+  UNION ALL SELECT 'POCCO_LOCCO', 'kawan', 12
+  UNION ALL SELECT 'POCCO_LOCCO', 'dilamun', 11
+  UNION ALL SELECT 'POCCO_LOCCO', 'ketagih', 10
+  UNION ALL SELECT 'POCCO_LOCCO', 'legend', 9
+  UNION ALL SELECT 'LATTE', 'kawan', 13
+  UNION ALL SELECT 'LATTE', 'dilamun', 12
+  UNION ALL SELECT 'LATTE', 'ketagih', 11
+  UNION ALL SELECT 'LATTE', 'legend', 10
+  UNION ALL SELECT 'FLAT_WHITE', 'kawan', 13
+  UNION ALL SELECT 'FLAT_WHITE', 'dilamun', 12
+  UNION ALL SELECT 'FLAT_WHITE', 'ketagih', 11
+  UNION ALL SELECT 'FLAT_WHITE', 'legend', 10
+  UNION ALL SELECT 'CAPPUCCINO', 'kawan', 13
+  UNION ALL SELECT 'CAPPUCCINO', 'dilamun', 12
+  UNION ALL SELECT 'CAPPUCCINO', 'ketagih', 11
+  UNION ALL SELECT 'CAPPUCCINO', 'legend', 10
+  UNION ALL SELECT 'BUTTERSCOTCH_LATTE', 'kawan', 15
+  UNION ALL SELECT 'BUTTERSCOTCH_LATTE', 'dilamun', 14
+  UNION ALL SELECT 'BUTTERSCOTCH_LATTE', 'ketagih', 13
+  UNION ALL SELECT 'BUTTERSCOTCH_LATTE', 'legend', 12
+  UNION ALL SELECT 'HAZELNUT_LATTE', 'kawan', 15
+  UNION ALL SELECT 'HAZELNUT_LATTE', 'dilamun', 14
+  UNION ALL SELECT 'HAZELNUT_LATTE', 'ketagih', 13
+  UNION ALL SELECT 'HAZELNUT_LATTE', 'legend', 12
+  UNION ALL SELECT 'VANILLA_LATTE', 'kawan', 15
+  UNION ALL SELECT 'VANILLA_LATTE', 'dilamun', 14
+  UNION ALL SELECT 'VANILLA_LATTE', 'ketagih', 13
+  UNION ALL SELECT 'VANILLA_LATTE', 'legend', 12
+  UNION ALL SELECT 'BLUE_CLOUD_COCONUT_COFFEE', 'kawan', 16
+  UNION ALL SELECT 'BLUE_CLOUD_COCONUT_COFFEE', 'dilamun', 15
+  UNION ALL SELECT 'BLUE_CLOUD_COCONUT_COFFEE', 'ketagih', 14
+  UNION ALL SELECT 'BLUE_CLOUD_COCONUT_COFFEE', 'legend', 13
+  UNION ALL SELECT 'MOCHA', 'kawan', 16
+  UNION ALL SELECT 'MOCHA', 'dilamun', 15
+  UNION ALL SELECT 'MOCHA', 'ketagih', 14
+  UNION ALL SELECT 'MOCHA', 'legend', 13
+  UNION ALL SELECT 'BOIJITO', 'kawan', 15
+  UNION ALL SELECT 'BOIJITO', 'dilamun', 14
+  UNION ALL SELECT 'BOIJITO', 'ketagih', 13
+  UNION ALL SELECT 'BOIJITO', 'legend', 12
+  UNION ALL SELECT 'BLOODY_PEACH', 'kawan', 15
+  UNION ALL SELECT 'BLOODY_PEACH', 'dilamun', 14
+  UNION ALL SELECT 'BLOODY_PEACH', 'ketagih', 13
+  UNION ALL SELECT 'BLOODY_PEACH', 'legend', 12
+  UNION ALL SELECT 'FUJI_FIZZ', 'kawan', 15
+  UNION ALL SELECT 'FUJI_FIZZ', 'dilamun', 14
+  UNION ALL SELECT 'FUJI_FIZZ', 'ketagih', 13
+  UNION ALL SELECT 'FUJI_FIZZ', 'legend', 12
+  UNION ALL SELECT 'SPICY_MIMOSA', 'kawan', 15
+  UNION ALL SELECT 'SPICY_MIMOSA', 'dilamun', 14
+  UNION ALL SELECT 'SPICY_MIMOSA', 'ketagih', 13
+  UNION ALL SELECT 'SPICY_MIMOSA', 'legend', 12
+  UNION ALL SELECT 'ONDE2POP', 'kawan', 15
+  UNION ALL SELECT 'ONDE2POP', 'dilamun', 14
+  UNION ALL SELECT 'ONDE2POP', 'ketagih', 13
+  UNION ALL SELECT 'ONDE2POP', 'legend', 12
+  UNION ALL SELECT 'MATCHA_LATTE', 'kawan', 15
+  UNION ALL SELECT 'MATCHA_LATTE', 'dilamun', 14
+  UNION ALL SELECT 'MATCHA_LATTE', 'ketagih', 13
+  UNION ALL SELECT 'MATCHA_LATTE', 'legend', 12
+  UNION ALL SELECT 'MONKEY_MATCHA', 'kawan', 16
+  UNION ALL SELECT 'MONKEY_MATCHA', 'dilamun', 15
+  UNION ALL SELECT 'MONKEY_MATCHA', 'ketagih', 14
+  UNION ALL SELECT 'MONKEY_MATCHA', 'legend', 13
+  UNION ALL SELECT 'PINKY_PROMISE_MATCHA', 'kawan', 16
+  UNION ALL SELECT 'PINKY_PROMISE_MATCHA', 'dilamun', 15
+  UNION ALL SELECT 'PINKY_PROMISE_MATCHA', 'ketagih', 14
+  UNION ALL SELECT 'PINKY_PROMISE_MATCHA', 'legend', 13
+  UNION ALL SELECT 'MILK_CHOCOLATE', 'kawan', 14
+  UNION ALL SELECT 'MILK_CHOCOLATE', 'dilamun', 13
+  UNION ALL SELECT 'MILK_CHOCOLATE', 'ketagih', 12
+  UNION ALL SELECT 'MILK_CHOCOLATE', 'legend', 11
+  UNION ALL SELECT 'NUTTY_CHOCOLATE', 'kawan', 15
+  UNION ALL SELECT 'NUTTY_CHOCOLATE', 'dilamun', 14
+  UNION ALL SELECT 'NUTTY_CHOCOLATE', 'ketagih', 13
+  UNION ALL SELECT 'NUTTY_CHOCOLATE', 'legend', 12
+  UNION ALL SELECT 'PINKY_BLUSH', 'kawan', 17
+  UNION ALL SELECT 'PINKY_BLUSH', 'dilamun', 16
+  UNION ALL SELECT 'PINKY_BLUSH', 'ketagih', 15
+  UNION ALL SELECT 'PINKY_BLUSH', 'legend', 14
+  UNION ALL SELECT 'PADDLE_POP', 'kawan', 17
+  UNION ALL SELECT 'PADDLE_POP', 'dilamun', 16
+  UNION ALL SELECT 'PADDLE_POP', 'ketagih', 15
+  UNION ALL SELECT 'PADDLE_POP', 'legend', 14
+  UNION ALL SELECT 'SOLERO_FIZZ', 'kawan', 15
+  UNION ALL SELECT 'SOLERO_FIZZ', 'dilamun', 14
+  UNION ALL SELECT 'SOLERO_FIZZ', 'ketagih', 13
+  UNION ALL SELECT 'SOLERO_FIZZ', 'legend', 12
+  UNION ALL SELECT 'CLOUDY_JASMINE', 'kawan', 15
+  UNION ALL SELECT 'CLOUDY_JASMINE', 'dilamun', 14
+  UNION ALL SELECT 'CLOUDY_JASMINE', 'ketagih', 13
+  UNION ALL SELECT 'CLOUDY_JASMINE', 'legend', 12
+) seeded_prices
+JOIN menu_items mi
+  ON mi.code = seeded_prices.item_code
+ON DUPLICATE KEY UPDATE
+  token_price = VALUES(token_price),
+  is_enabled = VALUES(is_enabled),
+  effective_from = VALUES(effective_from),
+  effective_to = VALUES(effective_to);
+
+INSERT INTO item_modifier_groups (
+  menu_item_id,
+  code,
+  name,
+  selection_type,
+  min_select,
+  max_select,
+  is_required,
+  sort_order
+)
+SELECT
+  mi.id,
+  seeded_groups.group_code,
+  seeded_groups.group_name,
+  'single',
+  seeded_groups.min_select,
+  seeded_groups.max_select,
+  seeded_groups.is_required,
+  seeded_groups.sort_order
+FROM (
+  SELECT 'MONT_BROGA' AS item_code, 'beans' AS group_code, 'Choice of Beans' AS group_name, 1 AS min_select, 1 AS max_select, 1 AS is_required, 10 AS sort_order
+  UNION ALL SELECT 'MONT_BROGA', 'sweetness', 'Choice of Sweetness', 1, 1, 1, 20
+  UNION ALL SELECT 'MONT_BROGA', 'ice', 'Ice Level', 1, 1, 1, 30
+  UNION ALL SELECT 'SHAKERATO_BIANCO', 'beans', 'Choice of Beans', 1, 1, 1, 10
+  UNION ALL SELECT 'SHAKERATO_BIANCO', 'sweetness', 'Choice of Sweetness', 1, 1, 1, 20
+  UNION ALL SELECT 'SHAKERATO_BIANCO', 'ice', 'Ice Level', 1, 1, 1, 30
+  UNION ALL SELECT 'YUZUKANO', 'beans', 'Choice of Beans', 1, 1, 1, 10
+  UNION ALL SELECT 'YUZUKANO', 'sweetness', 'Choice of Sweetness', 1, 1, 1, 20
+  UNION ALL SELECT 'YUZUKANO', 'ice', 'Ice Level', 1, 1, 1, 30
+  UNION ALL SELECT 'SENJA_DI_BROGA', 'beans', 'Choice of Beans', 1, 1, 1, 10
+  UNION ALL SELECT 'SENJA_DI_BROGA', 'sweetness', 'Choice of Sweetness', 1, 1, 1, 20
+  UNION ALL SELECT 'SENJA_DI_BROGA', 'ice', 'Ice Level', 1, 1, 1, 30
+  UNION ALL SELECT 'ESPRESSO_BOMB', 'sparkling', 'Choice of Sparkling', 1, 1, 1, 10
+  UNION ALL SELECT 'ESPRESSO_BOMB', 'beans', 'Choice of Beans', 1, 1, 1, 20
+  UNION ALL SELECT 'ESPRESSO_BOMB', 'sweetness', 'Choice of Sweetness', 1, 1, 1, 30
+  UNION ALL SELECT 'ESPRESSO_BOMB', 'ice', 'Ice Level', 1, 1, 1, 40
+  UNION ALL SELECT 'V60_BREW', 'beans', 'Choice of Beans', 1, 1, 1, 10
+  UNION ALL SELECT 'LATTE', 'temperature', 'Choice of Temperature', 1, 1, 1, 10
+  UNION ALL SELECT 'LATTE', 'milk', 'Choice of Milk', 1, 1, 1, 20
+  UNION ALL SELECT 'LATTE', 'sweetness', 'Choice of Sweetness', 1, 1, 1, 30
+  UNION ALL SELECT 'LATTE', 'ice', 'Ice Level', 0, 1, 0, 40
+  UNION ALL SELECT 'FLAT_WHITE', 'milk', 'Choice of Milk', 1, 1, 1, 10
+  UNION ALL SELECT 'CAPPUCCINO', 'temperature', 'Choice of Temperature', 1, 1, 1, 10
+  UNION ALL SELECT 'CAPPUCCINO', 'milk', 'Choice of Milk', 1, 1, 1, 20
+  UNION ALL SELECT 'CAPPUCCINO', 'sweetness', 'Choice of Sweetness', 1, 1, 1, 30
+  UNION ALL SELECT 'CAPPUCCINO', 'ice', 'Ice Level', 0, 1, 0, 40
+  UNION ALL SELECT 'BUTTERSCOTCH_LATTE', 'temperature', 'Choice of Temperature', 1, 1, 1, 10
+  UNION ALL SELECT 'BUTTERSCOTCH_LATTE', 'milk', 'Choice of Milk', 1, 1, 1, 20
+  UNION ALL SELECT 'BUTTERSCOTCH_LATTE', 'sweetness', 'Choice of Sweetness', 1, 1, 1, 30
+  UNION ALL SELECT 'BUTTERSCOTCH_LATTE', 'ice', 'Ice Level', 0, 1, 0, 40
+  UNION ALL SELECT 'HAZELNUT_LATTE', 'temperature', 'Choice of Temperature', 1, 1, 1, 10
+  UNION ALL SELECT 'HAZELNUT_LATTE', 'milk', 'Choice of Milk', 1, 1, 1, 20
+  UNION ALL SELECT 'HAZELNUT_LATTE', 'sweetness', 'Choice of Sweetness', 1, 1, 1, 30
+  UNION ALL SELECT 'HAZELNUT_LATTE', 'ice', 'Ice Level', 0, 1, 0, 40
+  UNION ALL SELECT 'VANILLA_LATTE', 'temperature', 'Choice of Temperature', 1, 1, 1, 10
+  UNION ALL SELECT 'VANILLA_LATTE', 'milk', 'Choice of Milk', 1, 1, 1, 20
+  UNION ALL SELECT 'VANILLA_LATTE', 'sweetness', 'Choice of Sweetness', 1, 1, 1, 30
+  UNION ALL SELECT 'VANILLA_LATTE', 'ice', 'Ice Level', 0, 1, 0, 40
+  UNION ALL SELECT 'MOCHA', 'temperature', 'Choice of Temperature', 1, 1, 1, 10
+  UNION ALL SELECT 'MOCHA', 'milk', 'Choice of Milk', 1, 1, 1, 20
+  UNION ALL SELECT 'MOCHA', 'sweetness', 'Choice of Sweetness', 1, 1, 1, 30
+  UNION ALL SELECT 'MOCHA', 'ice', 'Ice Level', 0, 1, 0, 40
+  UNION ALL SELECT 'MATCHA_LATTE', 'temperature', 'Choice of Temperature', 1, 1, 1, 10
+  UNION ALL SELECT 'MATCHA_LATTE', 'milk', 'Choice of Milk', 1, 1, 1, 20
+  UNION ALL SELECT 'MATCHA_LATTE', 'sweetness', 'Choice of Sweetness', 1, 1, 1, 30
+  UNION ALL SELECT 'MATCHA_LATTE', 'ice', 'Ice Level', 0, 1, 0, 40
+  UNION ALL SELECT 'MONKEY_MATCHA', 'temperature', 'Choice of Temperature', 1, 1, 1, 10
+  UNION ALL SELECT 'MONKEY_MATCHA', 'milk', 'Choice of Milk', 1, 1, 1, 20
+  UNION ALL SELECT 'MONKEY_MATCHA', 'sweetness', 'Choice of Sweetness', 1, 1, 1, 30
+  UNION ALL SELECT 'MONKEY_MATCHA', 'ice', 'Ice Level', 0, 1, 0, 40
+  UNION ALL SELECT 'PINKY_PROMISE_MATCHA', 'temperature', 'Choice of Temperature', 1, 1, 1, 10
+  UNION ALL SELECT 'PINKY_PROMISE_MATCHA', 'milk', 'Choice of Milk', 1, 1, 1, 20
+  UNION ALL SELECT 'PINKY_PROMISE_MATCHA', 'sweetness', 'Choice of Sweetness', 1, 1, 1, 30
+  UNION ALL SELECT 'PINKY_PROMISE_MATCHA', 'ice', 'Ice Level', 0, 1, 0, 40
+  UNION ALL SELECT 'MILK_CHOCOLATE', 'temperature', 'Choice of Temperature', 1, 1, 1, 10
+  UNION ALL SELECT 'MILK_CHOCOLATE', 'milk', 'Choice of Milk', 1, 1, 1, 20
+  UNION ALL SELECT 'MILK_CHOCOLATE', 'sweetness', 'Choice of Sweetness', 1, 1, 1, 30
+  UNION ALL SELECT 'MILK_CHOCOLATE', 'ice', 'Ice Level', 0, 1, 0, 40
+  UNION ALL SELECT 'NUTTY_CHOCOLATE', 'temperature', 'Choice of Temperature', 1, 1, 1, 10
+  UNION ALL SELECT 'NUTTY_CHOCOLATE', 'milk', 'Choice of Milk', 1, 1, 1, 20
+  UNION ALL SELECT 'NUTTY_CHOCOLATE', 'sweetness', 'Choice of Sweetness', 1, 1, 1, 30
+  UNION ALL SELECT 'NUTTY_CHOCOLATE', 'ice', 'Ice Level', 0, 1, 0, 40
+  UNION ALL SELECT 'PINKY_BLUSH', 'sweetness', 'Choice of Sweetness', 1, 1, 1, 10
+  UNION ALL SELECT 'PADDLE_POP', 'sweetness', 'Choice of Sweetness', 1, 1, 1, 10
+  UNION ALL SELECT 'SOLERO_FIZZ', 'sweetness', 'Choice of Sweetness', 1, 1, 1, 10
+  UNION ALL SELECT 'SOLERO_FIZZ', 'ice', 'Ice Level', 1, 1, 1, 20
+  UNION ALL SELECT 'CLOUDY_JASMINE', 'sweetness', 'Choice of Sweetness', 1, 1, 1, 10
+  UNION ALL SELECT 'CLOUDY_JASMINE', 'ice', 'Ice Level', 1, 1, 1, 20
+) seeded_groups
+JOIN menu_items mi
+  ON mi.code = seeded_groups.item_code
+ON DUPLICATE KEY UPDATE
+  name = VALUES(name),
+  selection_type = VALUES(selection_type),
+  min_select = VALUES(min_select),
+  max_select = VALUES(max_select),
+  is_required = VALUES(is_required),
+  sort_order = VALUES(sort_order);
+
+INSERT INTO item_modifier_options (
+  modifier_group_id,
+  code,
+  name,
+  price_delta_rm,
+  token_price_delta,
+  sort_order,
+  is_active
+)
+SELECT
+  img.id,
+  seeded_options.option_code,
+  seeded_options.option_name,
+  seeded_options.price_delta_rm,
+  seeded_options.token_price_delta,
+  seeded_options.sort_order,
+  1
+FROM (
+  SELECT 'beans' AS group_code, 'dato_blend' AS option_code, 'Dato Blend' AS option_name, 0.00 AS price_delta_rm, 0 AS token_price_delta, 10 AS sort_order
+  UNION ALL SELECT 'beans', 'datin_blend', 'Datin Blend', 0.00, 0, 20
+  UNION ALL SELECT 'temperature', 'hot', 'Hot', 0.00, 0, 10
+  UNION ALL SELECT 'temperature', 'cold', 'Cold', 0.00, 0, 20
+  UNION ALL SELECT 'milk', 'fresh_milk', 'Fresh Milk', 0.00, 0, 10
+  UNION ALL SELECT 'milk', 'oat_milk', 'Oat Milk', 3.00, 3, 20
+  UNION ALL SELECT 'sweetness', 'no_sugar', 'No Sugar', 0.00, 0, 10
+  UNION ALL SELECT 'sweetness', 'less_sweet', 'Less Sweet', 0.00, 0, 20
+  UNION ALL SELECT 'sweetness', 'regular_sweet', 'Regular Sweet', 0.00, 0, 30
+  UNION ALL SELECT 'ice', 'less_ice', 'Less Ice', 0.00, 0, 10
+  UNION ALL SELECT 'ice', 'regular_ice', 'Regular Ice', 0.00, 0, 20
+  UNION ALL SELECT 'sparkling', 'ginger_ade', 'Ginger Ade', 0.00, 0, 10
+  UNION ALL SELECT 'sparkling', 'tonic_water', 'Tonic Water', 0.00, 0, 20
+) seeded_options
+JOIN item_modifier_groups img
+  ON img.code = seeded_options.group_code
+ON DUPLICATE KEY UPDATE
+  name = VALUES(name),
+  price_delta_rm = VALUES(price_delta_rm),
+  token_price_delta = VALUES(token_price_delta),
   sort_order = VALUES(sort_order),
   is_active = VALUES(is_active);
 

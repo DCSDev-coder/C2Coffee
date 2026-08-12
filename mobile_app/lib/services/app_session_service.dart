@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/app_colors.dart';
 import 'auth_api_service.dart';
 import 'catalog_api_service.dart';
+import 'checkout_api_service.dart';
 import 'secure_session_service.dart';
 import 'user_service.dart';
 
@@ -46,6 +47,13 @@ class AppSessionService extends ChangeNotifier {
   List<CatalogMenuItem> get allMenuItems => [
         for (final category in _menuCategories) ...category.items,
       ];
+
+  void applyCheckoutResult(CheckoutResult result) {
+    _tokenBalance = result.tokenBalance;
+    _tokenReserved = result.tokenReserved;
+    _tokenCap = result.tokenCap;
+    notifyListeners();
+  }
 
   Future<void> loadAuthenticatedState({bool force = false}) async {
     if (_isBootstrapLoading || _isMenuLoading) return;

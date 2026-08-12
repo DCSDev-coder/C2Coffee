@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../services/app_session_service.dart';
+import '../services/cart_service.dart';
 import 'loading_order_page.dart';
 import '../utils/app_colors.dart';
 import '../widgets/catalog_product_image.dart';
@@ -36,6 +38,7 @@ class MontBrogaPage extends StatefulWidget {
 }
 
 class _MontBrogaPageState extends State<MontBrogaPage> {
+  final AppSessionService _session = AppSessionService.instance;
   Color get orangeColor => AppColors.deepTeal;
   final Color bgColor = Colors.white;
 
@@ -325,6 +328,127 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
     return basePrice * quantity;
   }
 
+  int get _baseTokenPrice {
+    final itemId = widget.item['id'];
+    if (itemId is! int) return _itemBasePrice.round();
+    final catalogItem = _session.allMenuItems.cast<dynamic>().firstWhere(
+          (item) => item?.id == itemId,
+          orElse: () => null,
+        );
+    if (catalogItem == null) return _itemBasePrice.round();
+    final tierPrice = catalogItem.tokenPrices[_session.tier];
+    return tierPrice ?? _itemBasePrice.round();
+  }
+
+  List<CartModifier> get _cartModifiers {
+    final modifiers = <CartModifier>[];
+
+    if (_hasChoiceOfBeans) {
+      modifiers.add(
+        CartModifier(
+          groupName: 'Choice of Beans',
+          optionName: selectedBean,
+        ),
+      );
+    }
+
+    if (_hasEspressoShot) {
+      final priceDelta = espressoShots == 2
+          ? 3.0
+          : espressoShots == 3
+              ? 6.0
+              : 0.0;
+      final tokenDelta = espressoShots == 2
+          ? 3
+          : espressoShots == 3
+              ? 6
+              : 0;
+      modifiers.add(
+        CartModifier(
+          groupName: 'Espresso Shot',
+          optionName: '$espressoShots shot${espressoShots > 1 ? 's' : ''}',
+          priceDeltaRm: priceDelta,
+          tokenPriceDelta: tokenDelta,
+        ),
+      );
+    }
+
+    if (_hasTemperatureOption) {
+      modifiers.add(
+        CartModifier(
+          groupName: 'Choice of Temperature',
+          optionName: temperature,
+        ),
+      );
+    }
+
+    if (_hasSparklingMixerOption) {
+      modifiers.add(
+        CartModifier(
+          groupName: 'Choice of Sparkling',
+          optionName: sparklingMixer,
+        ),
+      );
+    }
+
+    if (_hasChoiceOfMilk) {
+      modifiers.add(
+        CartModifier(
+          groupName: 'Choice of Milk',
+          optionName: milk,
+          priceDeltaRm: milk == 'Oat Milk' ? 3.0 : 0.0,
+          tokenPriceDelta: milk == 'Oat Milk' ? 3 : 0,
+        ),
+      );
+    }
+
+    modifiers.add(
+      CartModifier(
+        groupName: 'Choice of Sweetness',
+        optionName: sweetness,
+      ),
+    );
+
+    if (_hasIceOption) {
+      modifiers.add(
+        CartModifier(
+          groupName: 'Ice Level',
+          optionName: iceLevel,
+        ),
+      );
+    }
+
+    modifiers.add(
+      CartModifier(
+        groupName: 'Order Type',
+        optionName: orderType,
+      ),
+    );
+
+    return modifiers;
+  }
+
+  String get _displayDetails {
+    final values = <String>[];
+    if (_hasTemperatureOption || _isColdOnly || _isHotOnly) {
+      values.add(temperature);
+    }
+    values.add(sweetness);
+    if (_hasIceOption) {
+      values.add(iceLevel);
+    }
+    if (_hasChoiceOfMilk) {
+      values.add(milk);
+    }
+    if (_hasChoiceOfBeans) {
+      values.add(selectedBean);
+    }
+    if (_hasSparklingMixerOption) {
+      values.add(sparklingMixer);
+    }
+    return values.join(' / ');
+  }
+
   @override
   void dispose() {
     remarksController.dispose();
@@ -492,8 +616,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
               children: [
                 Center(
                   child: CatalogProductImage(
-                    assetPath: widget.item['image']?.toString() ??
-                        'assets/images/drinks/MONT BROGA.png',
+                    assetPath: widget.item['image']?.toString(),
                     imageUrl: widget.item['image_url']?.toString(),
                     height: 200,
                     fit: BoxFit.contain,
@@ -990,8 +1113,50 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                   Expanded(
                     child: ElevatedButton(
                       onPressed: () {
-                        // TODO: Add to cart logic
-                        Navigator.pop(context);
+                        final selectedStore = _session.selectedStore;
+                        if (selectedStore == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: const Text('Please select a store first.'),
+                              backgroundColor: orangeColor,
+                            ),
+                          );
+                          return;
+                        }
+
+                        CartService.instance.addItem(
+                          storeId: selectedStore.id,
+                          storeName: selectedStore.name,
+                          item: CartItem(
+                            id: '${widget.item['code'] ?? _itemName}-${DateTime.now().microsecondsSinceEpoch}',
+                            menuItemId: (widget.item['id'] as num?)?.toInt() ?? 0,
+                            menuItemCode: widget.item['code']?.toString() ?? _itemName,
+                            name: _itemName,
+                            imageAssetPath: widget.item['image']?.toString(),
+                            imageUrl: widget.item['image_url']?.toString(),
+                            basePriceRm: _itemBasePrice,
+                            tokenPrice: _baseTokenPrice,
+                            quantity: quantity,
+                            remarks: remarksController.text.trim().isEmpty
+                                ? null
+                                : remarksController.text.trim(),
+                            displayDetails: _displayDetails,
+                            modifiers: _cartModifiers,
+                          ),
+                        );
+
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Added $quantity x $_itemName to cart!'),
+                            duration: const Duration(seconds: 2),
+                            backgroundColor: orangeColor,
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        );
+                        InteractiveFillingLoader.showPop(context);
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: orangeColor,

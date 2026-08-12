@@ -1,0 +1,112 @@
+PS D:\C2Coffee\api> docker compose up -d --build
+#1 [internal] load local bake definitions
+#1 reading from stdin 479B 0.1s done
+#1 DONE 0.1s
+
+#2 [internal] load build definition from Dockerfile
+#2 transferring dockerfile: 746B 0.0s done
+#2 DONE 0.0s
+
+#3 [internal] load metadata for docker.io/library/node:22-alpine
+#3 ...
+
+#4 [auth] library/node:pull token for registry-1.docker.io
+#4 DONE 0.0s
+
+#3 [internal] load metadata for docker.io/library/node:22-alpine
+#3 DONE 1.8s
+
+#5 [internal] load .dockerignore
+#5 transferring context: 146B 0.0s done
+#5 DONE 0.1s
+
+#6 [internal] load build context
+#6 DONE 0.0s
+
+#7 [deps 1/4] FROM docker.io/library/node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32
+#7 resolve docker.io/library/node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 0.1s done
+#7 DONE 0.1s
+
+#6 [internal] load build context
+#6 transferring context: 32.86kB 0.0s done
+#6 DONE 0.1s
+
+#8 [deps 2/4] WORKDIR /app
+#8 CACHED
+
+#9 [deps 3/4] COPY package.json package-lock.json* ./
+#9 CACHED
+
+#10 [deps 4/4] RUN npm ci
+#10 CACHED
+
+#11 [build 3/5] COPY --from=deps /app/node_modules ./node_modules
+#11 CACHED
+
+#12 [build 4/5] COPY . .
+#12 DONE 1.5s
+
+#13 [build 5/5] RUN npm run build
+#13 4.314
+#13 4.314 > @c2coffee/api@0.1.0 build
+#13 4.314 > tsc -p tsconfig.json && node scripts/copy-sql.mjs
+#13 4.314
+#13 19.67 npm notice
+#13 19.67 npm notice New major version of npm available! 10.9.8 -> 12.0.2
+#13 19.67 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
+#13 19.67 npm notice To update run: npm install -g npm@12.0.2
+#13 19.67 npm notice
+#13 DONE 19.9s
+
+#14 [runtime 4/6] RUN npm ci --omit=dev && npm cache clean --force
+#14 CACHED
+
+#15 [runtime 5/6] COPY --from=build /app/dist ./dist
+#15 DONE 0.4s
+
+#16 [runtime 6/6] RUN chown -R node:node /app
+#16 DONE 23.5s
+
+#17 exporting to image
+#17 exporting layers
+#17 exporting layers 24.9s done
+#17 exporting manifest sha256:e4ae1b70d19df2328b21b4f853d1dd1b83798ee14e67d074ac6f823af0e5ceaf 0.0s done
+#17 exporting config sha256:1ad189ba62edb1b126f587804db62e5a484dd55a9efcc2c6d1ae539e06ba430d 0.0s done
+#17 exporting attestation manifest sha256:bc79a3e4abea0d55530d5f8d0a54b175bc19a1c1582a61c142dfbafe39678fdf
+#17 exporting attestation manifest sha256:bc79a3e4abea0d55530d5f8d0a54b175bc19a1c1582a61c142dfbafe39678fdf 0.1s done
+#17 exporting manifest list sha256:6952aae194427f80bae40af1cb22465d70aa579010611b995445de66f0680598 0.0s done
+#17 naming to docker.io/library/api-c2-api:latest done
+#17 unpacking to docker.io/library/api-c2-api:latest
+#17 unpacking to docker.io/library/api-c2-api:latest 12.1s done
+#17 DONE 37.3s
+
+#18 resolving provenance for metadata file
+#18 DONE 0.1s
+[+] up 2/2
+ ✔ Image api-c2-api       Built                                                                          90.2s
+ ✔ Container c2coffee-api Started                                                                        18.3s
+
+What's next:
+    Filter, search, and stream logs from all your Compose services
+    in one place with Docker Desktop's Logs view. docker-desktop://dashboard/logs?appId=api
+PS D:\C2Coffee\api> docker compose run --rm --no-deps c2-api npm run seed:demo:prod
+Container api-c2-api-run-3c01ddd59f26 Creating
+Container api-c2-api-run-3c01ddd59f26 Created
+
+> @c2coffee/api@0.1.0 seed:demo:prod
+> node dist/db/migrate.js --seed-demo
+
+Applied demo seed: 001_demo_seed.sql
+npm notice
+npm notice New major version of npm available! 10.9.8 -> 12.0.2
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
+npm notice To update run: npm install -g npm@12.0.2
+npm notice
+PS D:\C2Coffee\api> docker compose up -d
+[+] up 1/1
+ ✔ Container c2coffee-api Running                                                                         0.0s
+
+What's next:
+    Filter, search, and stream logs from all your Compose services
+    in one place with Docker Desktop's Logs view. docker-desktop://dashboard/logs?appId=api
+PS D:\C2Coffee\api>

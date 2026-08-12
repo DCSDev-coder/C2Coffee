@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../services/app_session_service.dart';
+import '../services/cart_service.dart';
 import 'loading_order_page.dart';
 import '../utils/app_colors.dart';
 import '../widgets/catalog_product_image.dart';
@@ -19,6 +21,7 @@ class SimpleProductDetailPage extends StatefulWidget {
 }
 
 class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
+  final AppSessionService _session = AppSessionService.instance;
   int quantity = 1;
 
   @override
@@ -31,25 +34,13 @@ class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
 
   String get _itemName => widget.item['name']?.toString() ?? 'Item';
   String get _itemImage => widget.item['image']?.toString() ?? '';
+  bool get _isDrink => widget.item['isDrink'] == true;
+  bool get _isFood => widget.item['isFood'] == true;
+  bool get _isMerchandise => widget.item['isMerchandise'] == true;
+  bool get _isCandle => widget.item['isCandle'] == true;
 
   bool get _isPastry {
-    final img = _itemImage.toLowerCase();
-    final name = _itemName.toLowerCase();
-    return img.contains('pastries') || name.contains('curry puff');
-  }
-
-  bool get _isMerchandise {
-    final img = _itemImage.toLowerCase();
-    final name = _itemName.toLowerCase();
-    return img.contains('merchandies') ||
-        img.contains('merchandise') ||
-        name.contains('cup');
-  }
-
-  bool get _isCandle {
-    final img = _itemImage.toLowerCase();
-    final name = _itemName.toLowerCase();
-    return img.contains('candle') || name.contains('candle');
+    return _isFood;
   }
 
   double get _imageScale {
@@ -67,12 +58,26 @@ class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
       return parsed;
     } else if (_isMerchandise || _isCandle) {
       return AppColors.getDiscountedMerchPrice(parsed);
+    } else if (_isDrink) {
+      return AppColors.getDiscountedDrinkPrice(parsed);
     } else {
       return parsed;
     }
   }
 
   double get _totalPrice => _itemBasePrice * quantity;
+
+  int get _tokenPrice {
+    final itemId = widget.item['id'];
+    if (itemId is! int) return _itemBasePrice.round();
+    final catalogItem = _session.allMenuItems.cast<dynamic>().firstWhere(
+          (item) => item?.id == itemId,
+          orElse: () => null,
+        );
+    if (catalogItem == null) return _itemBasePrice.round();
+    final tierPrice = catalogItem.tokenPrices[_session.tier];
+    return tierPrice ?? _itemBasePrice.round();
+  }
 
   String get _itemDescription {
     if (widget.item['desc'] != null &&
@@ -291,6 +296,34 @@ class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
                   Expanded(
                     child: ElevatedButton(
                       onPressed: () {
+                        final selectedStore = _session.selectedStore;
+                        if (selectedStore == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: const Text('Please select a store first.'),
+                              backgroundColor: orangeColor,
+                            ),
+                          );
+                          return;
+                        }
+
+                        CartService.instance.addItem(
+                          storeId: selectedStore.id,
+                          storeName: selectedStore.name,
+                          item: CartItem(
+                            id: '${widget.item['code'] ?? _itemName}-${DateTime.now().microsecondsSinceEpoch}',
+                            menuItemId: (widget.item['id'] as num?)?.toInt() ?? 0,
+                            menuItemCode: widget.item['code']?.toString() ?? _itemName,
+                            name: _itemName,
+                            imageAssetPath: _itemImage,
+                            imageUrl: widget.item['image_url']?.toString(),
+                            basePriceRm: _itemBasePrice,
+                            tokenPrice: _tokenPrice,
+                            quantity: quantity,
+                            remarks: null,
+                            displayDetails: null,
+                          ),
+                        );
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content:

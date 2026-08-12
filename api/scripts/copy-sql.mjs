@@ -7,7 +7,8 @@ const rootDir = path.resolve(scriptDir, '..');
 
 const copyTargets = [
   ['src/db/migrations', 'dist/db/migrations'],
-  ['src/db/seeds', 'dist/db/seeds']
+  ['src/db/seeds', 'dist/db/seeds'],
+  ['public', 'dist/public']
 ];
 
 for (const [sourceRelative, destinationRelative] of copyTargets) {

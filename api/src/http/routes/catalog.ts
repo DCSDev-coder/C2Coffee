@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import type { RowDataPacket } from 'mysql2/promise';
 import { z } from 'zod';
 import { authenticateRequest } from '../../auth/guard.js';
+import { env } from '../../config/env.js';
 import { mysqlPool } from '../../db/mysql.js';
 import { ApiError } from '../errors.js';
 import { getBootstrapForUser } from './auth.js';
@@ -36,6 +37,61 @@ type MenuRow = RowDataPacket & {
   is_qualifying_cup: number;
   tier_code: 'kawan' | 'dilamun' | 'ketagih' | 'legend' | null;
   token_price: number | null;
+  modifier_group_id: number | null;
+  modifier_group_code: string | null;
+  modifier_group_name: string | null;
+  modifier_selection_type: 'single' | 'multi' | null;
+  modifier_min_select: number | null;
+  modifier_max_select: number | null;
+  modifier_is_required: number | null;
+  modifier_group_sort_order: number | null;
+  modifier_option_id: number | null;
+  modifier_option_code: string | null;
+  modifier_option_name: string | null;
+  modifier_option_price_delta_rm: string | null;
+  modifier_option_token_price_delta: number | null;
+  modifier_option_sort_order: number | null;
+};
+
+type MenuModifierOption = {
+  id: number;
+  code: string;
+  name: string;
+  price_delta_rm: string;
+  token_price_delta: number;
+};
+
+type MenuModifierGroup = {
+  id: number;
+  code: string;
+  name: string;
+  selection_type: 'single' | 'multi';
+  min_select: number;
+  max_select: number;
+  is_required: boolean;
+  options: Array<MenuModifierOption>;
+};
+
+type MenuItemResponse = {
+  id: number;
+  code: string;
+  name: string;
+  description: string | null;
+  base_price_rm: string;
+  image_url: string | null;
+  is_available: boolean;
+  is_handcrafted_drink: boolean;
+  is_qualifying_cup: boolean;
+  token_prices: Record<string, number>;
+  modifier_groups: Array<MenuModifierGroup>;
+};
+
+type MenuCategoryResponse = {
+  id: number;
+  code: string;
+  name: string;
+  sort_order: number;
+  items: Array<MenuItemResponse>;
 };
 
 const homeBanners = [
@@ -99,7 +155,21 @@ export async function registerCatalogRoutes(app: FastifyInstance): Promise<void>
           i.is_handcrafted_drink,
           i.is_qualifying_cup,
           tp.tier_code,
-          tp.token_price
+          tp.token_price,
+          img.id AS modifier_group_id,
+          img.code AS modifier_group_code,
+          img.name AS modifier_group_name,
+          img.selection_type AS modifier_selection_type,
+          img.min_select AS modifier_min_select,
+          img.max_select AS modifier_max_select,
+          img.is_required AS modifier_is_required,
+          img.sort_order AS modifier_group_sort_order,
+          imo.id AS modifier_option_id,
+          imo.code AS modifier_option_code,
+          imo.name AS modifier_option_name,
+          CAST(imo.price_delta_rm AS CHAR) AS modifier_option_price_delta_rm,
+          imo.token_price_delta AS modifier_option_token_price_delta,
+          imo.sort_order AS modifier_option_sort_order
         FROM menu_categories c
         JOIN menu_items i
           ON i.category_id = c.id
@@ -112,33 +182,27 @@ export async function registerCatalogRoutes(app: FastifyInstance): Promise<void>
          AND tp.is_enabled = 1
          AND tp.effective_from <= UTC_TIMESTAMP()
          AND (tp.effective_to IS NULL OR tp.effective_to > UTC_TIMESTAMP())
+        LEFT JOIN item_modifier_groups img
+          ON img.menu_item_id = i.id
+        LEFT JOIN item_modifier_options imo
+          ON imo.modifier_group_id = img.id
+         AND imo.is_active = 1
         WHERE c.is_active = 1
-        ORDER BY c.sort_order, c.id, i.sort_order, i.id, tp.tier_code
+        ORDER BY
+          c.sort_order,
+          c.id,
+          i.sort_order,
+          i.id,
+          tp.tier_code,
+          img.sort_order,
+          img.id,
+          imo.sort_order,
+          imo.id
       `,
       { storeId }
     );
 
-    const categories = new Map<
-      number,
-      {
-        id: number;
-        code: string;
-        name: string;
-        sort_order: number;
-        items: Array<{
-          id: number;
-          code: string;
-          name: string;
-          description: string | null;
-          base_price_rm: string;
-          image_url: string | null;
-          is_available: boolean;
-          is_handcrafted_drink: boolean;
-          is_qualifying_cup: boolean;
-          token_prices: Record<string, number>;
-        }>;
-      }
-    >();
+    const categories = new Map<number, MenuCategoryResponse>();
 
     const itemsByCategory = new Map<string, number>();
 
@@ -166,18 +230,56 @@ export async function registerCatalogRoutes(app: FastifyInstance): Promise<void>
           name: row.item_name,
           description: row.item_description,
           base_price_rm: row.base_price_rm,
-          image_url: row.image_url,
+          image_url: _resolveImageUrl(row.image_url),
           is_available: row.is_available === 1,
           is_handcrafted_drink: row.is_handcrafted_drink === 1,
           is_qualifying_cup: row.is_qualifying_cup === 1,
-          token_prices: {}
+          token_prices: {},
+          modifier_groups: []
         });
         itemIndex = category.items.length - 1;
         itemsByCategory.set(itemKey, itemIndex);
       }
 
+      const item = category.items[itemIndex];
+
       if (row.tier_code && row.token_price !== null) {
-        category.items[itemIndex].token_prices[row.tier_code] = row.token_price;
+        item.token_prices[row.tier_code] = row.token_price;
+      }
+
+      if (row.modifier_group_id !== null) {
+        let modifierGroup = item.modifier_groups.find(
+          (group) => group.id === row.modifier_group_id,
+        );
+
+        if (!modifierGroup) {
+          modifierGroup = {
+            id: row.modifier_group_id,
+            code: row.modifier_group_code ?? '',
+            name: row.modifier_group_name ?? '',
+            selection_type: row.modifier_selection_type ?? 'single',
+            min_select: row.modifier_min_select ?? 0,
+            max_select: row.modifier_max_select ?? 1,
+            is_required: row.modifier_is_required === 1,
+            options: [],
+          };
+          item.modifier_groups.push(modifierGroup);
+        }
+
+        if (row.modifier_option_id !== null) {
+          const alreadyExists = modifierGroup.options.some(
+            (option) => option.id === row.modifier_option_id,
+          );
+          if (!alreadyExists) {
+            modifierGroup.options.push({
+              id: row.modifier_option_id,
+              code: row.modifier_option_code ?? '',
+              name: row.modifier_option_name ?? '',
+              price_delta_rm: row.modifier_option_price_delta_rm ?? '0.00',
+              token_price_delta: row.modifier_option_token_price_delta ?? 0,
+            });
+          }
+        }
       }
     }
 
@@ -186,6 +288,20 @@ export async function registerCatalogRoutes(app: FastifyInstance): Promise<void>
       categories: [...categories.values()]
     };
   });
+}
+
+function _resolveImageUrl(imageUrl: string | null): string | null {
+  if (!imageUrl) return null;
+  if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+    return imageUrl;
+  }
+
+  const baseOrigin = env.PUBLIC_API_BASE_URL.replace(/\/v1\/?$/, '');
+  if (imageUrl.startsWith('/')) {
+    return `${baseOrigin}${imageUrl}`;
+  }
+
+  return `${baseOrigin}/${imageUrl}`;
 }
 
 async function listActiveStores(): Promise<
