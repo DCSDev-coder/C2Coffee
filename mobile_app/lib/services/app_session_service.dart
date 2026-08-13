@@ -1,9 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/app_colors.dart';
+import '../utils/global_state.dart';
 import 'auth_api_service.dart';
+import 'cart_service.dart';
 import 'catalog_api_service.dart';
+import 'customer_data_service.dart';
 import 'checkout_api_service.dart';
 import 'secure_session_service.dart';
 import 'user_service.dart';
@@ -27,6 +32,10 @@ class AppSessionService extends ChangeNotifier {
   List<StoreSummary> _stores = const [];
   StoreSummary? _selectedStore;
   List<MenuCategoryGroup> _menuCategories = const [];
+  CustomerOrder? _temporarySandboxActiveOrder;
+  final List<CustomerOrder> _temporarySandboxHistoryOrders = [];
+  Timer? _temporarySandboxPreparingTimer;
+  Timer? _temporarySandboxReadyTimer;
 
   CurrentUserProfile? get user => _user;
   int get tokenBalance => _tokenBalance;
@@ -41,6 +50,9 @@ class AppSessionService extends ChangeNotifier {
   List<StoreSummary> get stores => _stores;
   StoreSummary? get selectedStore => _selectedStore;
   List<MenuCategoryGroup> get menuCategories => _menuCategories;
+  CustomerOrder? get temporarySandboxActiveOrder => _temporarySandboxActiveOrder;
+  List<CustomerOrder> get temporarySandboxHistoryOrders =>
+      List.unmodifiable(_temporarySandboxHistoryOrders);
   Map<String, String?> get userProfileSnapshot =>
       _user?.toLocalProfileMap() ?? const {};
 
@@ -52,6 +64,120 @@ class AppSessionService extends ChangeNotifier {
     _tokenBalance = result.tokenBalance;
     _tokenReserved = result.tokenReserved;
     _tokenCap = result.tokenCap;
+    globalOrderStatusRawStatus.value = result.order.status;
+    notifyListeners();
+  }
+
+  void seedTemporarySandboxOrder({
+    required CheckoutResult result,
+    required CartSnapshot cart,
+  }) {
+    _temporarySandboxPreparingTimer?.cancel();
+    _temporarySandboxReadyTimer?.cancel();
+
+    final items = cart.items
+        .asMap()
+        .entries
+        .map(
+          (entry) => CustomerOrderItem(
+            id: entry.key + 1,
+            name: entry.value.name,
+            basePriceRm: entry.value.basePriceRm.toStringAsFixed(2),
+            tokenPrice: entry.value.tokenPrice,
+            quantity: entry.value.quantity,
+            lineSubtotalRm: entry.value.lineTotalRm.toStringAsFixed(2),
+            lineTokenAmount: entry.value.lineTotalTokens,
+            isQualifyingCup: true,
+          ),
+        )
+        .toList();
+
+    _temporarySandboxActiveOrder = CustomerOrder(
+      id: result.order.id,
+      orderRef: result.order.orderRef,
+      status: result.order.status,
+      paymentMode: result.order.paymentMode,
+      finalTotalRm: result.order.finalTotalRm,
+      tokenAmountCharged: result.order.tokenAmountCharged,
+      pickupSlotAt: DateTime.now().add(const Duration(minutes: 5)),
+      createdAt: DateTime.now(),
+      store: CustomerOrderStore(
+        id: cart.storeId,
+        name: cart.storeName,
+      ),
+      itemCount: cart.items.fold<int>(0, (sum, item) => sum + item.quantity),
+      primaryItemName: cart.items.isEmpty ? null : cart.items.first.name,
+      items: items,
+      statusHistory: const [],
+    );
+    globalOrderStatusRawStatus.value = result.order.status;
+    globalOrderStatusVisible.value = true;
+    notifyListeners();
+
+    _temporarySandboxPreparingTimer = Timer(const Duration(seconds: 8), () {
+      final current = _temporarySandboxActiveOrder;
+      if (current == null) return;
+
+      _temporarySandboxActiveOrder = current.copyWith(status: 'preparing');
+      globalOrderStatusRawStatus.value = 'preparing';
+      globalOrderStatusVisible.value = true;
+      notifyListeners();
+    });
+
+    _temporarySandboxReadyTimer = Timer(const Duration(minutes: 1), () {
+      final current = _temporarySandboxActiveOrder;
+      if (current == null) return;
+
+      _temporarySandboxActiveOrder = current.copyWith(status: 'ready_for_pickup');
+      globalOrderStatusRawStatus.value = 'ready_for_pickup';
+      globalOrderStatusVisible.value = true;
+      notifyListeners();
+    });
+  }
+
+  void markTemporarySandboxCollected() {
+    final current = _temporarySandboxActiveOrder;
+    if (current == null) return;
+
+    _temporarySandboxPreparingTimer?.cancel();
+    _temporarySandboxReadyTimer?.cancel();
+    _temporarySandboxHistoryOrders.insert(
+      0,
+      current.copyWith(status: 'collected'),
+    );
+    _temporarySandboxActiveOrder = null;
+    globalOrderStatusRawStatus.value = 'collected';
+    globalOrderStatusVisible.value = false;
+    notifyListeners();
+  }
+
+  void markTemporarySandboxReadyForPickup() {
+    final current = _temporarySandboxActiveOrder;
+    if (current == null) return;
+
+    _temporarySandboxActiveOrder = current.copyWith(status: 'ready_for_pickup');
+    globalOrderStatusRawStatus.value = 'ready_for_pickup';
+    globalOrderStatusVisible.value = true;
+    notifyListeners();
+  }
+
+  void markTemporarySandboxPreparing() {
+    final current = _temporarySandboxActiveOrder;
+    if (current == null) return;
+
+    _temporarySandboxActiveOrder = current.copyWith(status: 'preparing');
+    globalOrderStatusRawStatus.value = 'preparing';
+    globalOrderStatusVisible.value = true;
+    notifyListeners();
+  }
+
+  void markTemporarySandboxPaymentConfirmed() {
+    final current = _temporarySandboxActiveOrder;
+    if (current == null) return;
+
+    _temporarySandboxActiveOrder = current.copyWith(status: 'paid');
+    globalOrderStatusRawStatus.value = 'paid';
+    globalOrderStatusVisible.value = true;
     notifyListeners();
   }
 
@@ -146,6 +272,14 @@ class AppSessionService extends ChangeNotifier {
   }
 
   void clear() {
+    _temporarySandboxPreparingTimer?.cancel();
+    _temporarySandboxReadyTimer?.cancel();
+    _temporarySandboxPreparingTimer = null;
+    _temporarySandboxReadyTimer = null;
+    _temporarySandboxActiveOrder = null;
+    _temporarySandboxHistoryOrders.clear();
+    globalOrderStatusRawStatus.value = null;
+    globalOrderStatusVisible.value = false;
     _user = null;
     _tokenBalance = 0;
     _tokenReserved = 0;

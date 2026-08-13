@@ -1,112 +1,475 @@
-PS D:\C2Coffee\api> docker compose up -d --build
-#1 [internal] load local bake definitions
-#1 reading from stdin 479B 0.1s done
-#1 DONE 0.1s
-
-#2 [internal] load build definition from Dockerfile
-#2 transferring dockerfile: 746B 0.0s done
-#2 DONE 0.0s
-
-#3 [internal] load metadata for docker.io/library/node:22-alpine
-#3 ...
-
-#4 [auth] library/node:pull token for registry-1.docker.io
-#4 DONE 0.0s
-
-#3 [internal] load metadata for docker.io/library/node:22-alpine
-#3 DONE 1.8s
-
-#5 [internal] load .dockerignore
-#5 transferring context: 146B 0.0s done
-#5 DONE 0.1s
-
-#6 [internal] load build context
-#6 DONE 0.0s
-
-#7 [deps 1/4] FROM docker.io/library/node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32
-#7 resolve docker.io/library/node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 0.1s done
-#7 DONE 0.1s
-
-#6 [internal] load build context
-#6 transferring context: 32.86kB 0.0s done
-#6 DONE 0.1s
-
-#8 [deps 2/4] WORKDIR /app
-#8 CACHED
-
-#9 [deps 3/4] COPY package.json package-lock.json* ./
-#9 CACHED
-
-#10 [deps 4/4] RUN npm ci
-#10 CACHED
-
-#11 [build 3/5] COPY --from=deps /app/node_modules ./node_modules
-#11 CACHED
-
-#12 [build 4/5] COPY . .
-#12 DONE 1.5s
-
-#13 [build 5/5] RUN npm run build
-#13 4.314
-#13 4.314 > @c2coffee/api@0.1.0 build
-#13 4.314 > tsc -p tsconfig.json && node scripts/copy-sql.mjs
-#13 4.314
-#13 19.67 npm notice
-#13 19.67 npm notice New major version of npm available! 10.9.8 -> 12.0.2
-#13 19.67 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
-#13 19.67 npm notice To update run: npm install -g npm@12.0.2
-#13 19.67 npm notice
-#13 DONE 19.9s
-
-#14 [runtime 4/6] RUN npm ci --omit=dev && npm cache clean --force
-#14 CACHED
-
-#15 [runtime 5/6] COPY --from=build /app/dist ./dist
-#15 DONE 0.4s
-
-#16 [runtime 6/6] RUN chown -R node:node /app
-#16 DONE 23.5s
-
-#17 exporting to image
-#17 exporting layers
-#17 exporting layers 24.9s done
-#17 exporting manifest sha256:e4ae1b70d19df2328b21b4f853d1dd1b83798ee14e67d074ac6f823af0e5ceaf 0.0s done
-#17 exporting config sha256:1ad189ba62edb1b126f587804db62e5a484dd55a9efcc2c6d1ae539e06ba430d 0.0s done
-#17 exporting attestation manifest sha256:bc79a3e4abea0d55530d5f8d0a54b175bc19a1c1582a61c142dfbafe39678fdf
-#17 exporting attestation manifest sha256:bc79a3e4abea0d55530d5f8d0a54b175bc19a1c1582a61c142dfbafe39678fdf 0.1s done
-#17 exporting manifest list sha256:6952aae194427f80bae40af1cb22465d70aa579010611b995445de66f0680598 0.0s done
-#17 naming to docker.io/library/api-c2-api:latest done
-#17 unpacking to docker.io/library/api-c2-api:latest
-#17 unpacking to docker.io/library/api-c2-api:latest 12.1s done
-#17 DONE 37.3s
-
-#18 resolving provenance for metadata file
-#18 DONE 0.1s
-[+] up 2/2
- ✔ Image api-c2-api       Built                                                                          90.2s
- ✔ Container c2coffee-api Started                                                                        18.3s
-
-What's next:
-    Filter, search, and stream logs from all your Compose services
-    in one place with Docker Desktop's Logs view. docker-desktop://dashboard/logs?appId=api
-PS D:\C2Coffee\api> docker compose run --rm --no-deps c2-api npm run seed:demo:prod
-Container api-c2-api-run-3c01ddd59f26 Creating
-Container api-c2-api-run-3c01ddd59f26 Created
-
-> @c2coffee/api@0.1.0 seed:demo:prod
-> node dist/db/migrate.js --seed-demo
-
-Applied demo seed: 001_demo_seed.sql
-npm notice
-npm notice New major version of npm available! 10.9.8 -> 12.0.2
-npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
-npm notice To update run: npm install -g npm@12.0.2
-npm notice
-PS D:\C2Coffee\api> docker compose up -d
-[+] up 1/1
- ✔ Container c2coffee-api Running                                                                         0.0s
-
-What's next:
-    Filter, search, and stream logs from all your Compose services
-    in one place with Docker Desktop's Logs view. docker-desktop://dashboard/logs?appId=api
-PS D:\C2Coffee\api>
+PS D:\C2Coffee\api> docker logs -f c2coffee-api
+{"level":30,"time":1786595227449,"pid":1,"hostname":"ccc2434c6aa0","msg":"Server listening at http://127.0.0.1:8080"}
+{"level":30,"time":1786595227452,"pid":1,"hostname":"ccc2434c6aa0","msg":"Server listening at http://172.19.0.2:8080"}
+{"level":30,"time":1786595231310,"pid":1,"hostname":"ccc2434c6aa0","reqId":"bc8a6d94-6f84-4ade-8ec6-4a79f238442c","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":58964},"msg":"incoming request"}
+{"level":30,"time":1786595231446,"pid":1,"hostname":"ccc2434c6aa0","reqId":"bc8a6d94-6f84-4ade-8ec6-4a79f238442c","res":{"statusCode":200},"responseTime":133.16953399999966,"msg":"request completed"}
+{"level":30,"time":1786595262422,"pid":1,"hostname":"ccc2434c6aa0","reqId":"b44101e6-495c-42f9-af8c-95e35b5ce481","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":37142},"msg":"incoming request"}
+{"level":30,"time":1786595262443,"pid":1,"hostname":"ccc2434c6aa0","reqId":"b44101e6-495c-42f9-af8c-95e35b5ce481","res":{"statusCode":200},"responseTime":20.19038200000068,"msg":"request completed"}
+{"level":30,"time":1786595293417,"pid":1,"hostname":"ccc2434c6aa0","reqId":"824b1bd2-c8cd-4f7d-b6b3-4a2766641a72","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":36680},"msg":"incoming request"}
+{"level":30,"time":1786595293435,"pid":1,"hostname":"ccc2434c6aa0","reqId":"824b1bd2-c8cd-4f7d-b6b3-4a2766641a72","res":{"statusCode":200},"responseTime":17.252026000001933,"msg":"request completed"}
+{"level":30,"time":1786595324367,"pid":1,"hostname":"ccc2434c6aa0","reqId":"95c8f800-74f7-4fb9-9f47-bbf969c75352","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":52936},"msg":"incoming request"}
+{"level":30,"time":1786595324384,"pid":1,"hostname":"ccc2434c6aa0","reqId":"95c8f800-74f7-4fb9-9f47-bbf969c75352","res":{"statusCode":200},"responseTime":15.71330499999749,"msg":"request completed"}
+{"level":30,"time":1786595355306,"pid":1,"hostname":"ccc2434c6aa0","reqId":"4446e4ff-a583-4d9f-b9f5-61b259a14cb1","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":53464},"msg":"incoming request"}
+{"level":30,"time":1786595355325,"pid":1,"hostname":"ccc2434c6aa0","reqId":"4446e4ff-a583-4d9f-b9f5-61b259a14cb1","res":{"statusCode":200},"responseTime":17.69654000000446,"msg":"request completed"}
+{"level":30,"time":1786595386241,"pid":1,"hostname":"ccc2434c6aa0","reqId":"2ca9637a-752e-4ca9-8c8f-f5c8b1fb2a3a","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":55148},"msg":"incoming request"}
+{"level":30,"time":1786595386257,"pid":1,"hostname":"ccc2434c6aa0","reqId":"2ca9637a-752e-4ca9-8c8f-f5c8b1fb2a3a","res":{"statusCode":200},"responseTime":15.615861999976914,"msg":"request completed"}
+{"level":30,"time":1786595416999,"pid":1,"hostname":"ccc2434c6aa0","reqId":"f274f124-31ed-4a49-a195-e80279817a9f","req":{"method":"POST","url":"/v1/auth/refresh","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":47152},"msg":"incoming request"}
+{"level":30,"time":1786595417096,"pid":1,"hostname":"ccc2434c6aa0","reqId":"f274f124-31ed-4a49-a195-e80279817a9f","res":{"statusCode":200},"responseTime":96.44691699999385,"msg":"request completed"}
+{"level":30,"time":1786595417175,"pid":1,"hostname":"ccc2434c6aa0","reqId":"ed0bf4f2-f058-40ce-8c60-abeed9558c4b","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":35094},"msg":"incoming request"}
+{"level":30,"time":1786595417191,"pid":1,"hostname":"ccc2434c6aa0","reqId":"ed0bf4f2-f058-40ce-8c60-abeed9558c4b","res":{"statusCode":200},"responseTime":15.195566999987932,"msg":"request completed"}
+{"level":30,"time":1786595417408,"pid":1,"hostname":"ccc2434c6aa0","reqId":"8b8b12a7-2781-4e2d-abea-d105194711e5","req":{"method":"GET","url":"/v1/me","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":47152},"msg":"incoming request"}
+{"level":30,"time":1786595417459,"pid":1,"hostname":"ccc2434c6aa0","reqId":"8b8b12a7-2781-4e2d-abea-d105194711e5","res":{"statusCode":200},"responseTime":49.93729100000928,"msg":"request completed"}
+{"level":30,"time":1786595417464,"pid":1,"hostname":"ccc2434c6aa0","reqId":"681947f0-7059-4f0d-a779-7e4580be826f","req":{"method":"GET","url":"/v1/stores","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":47154},"msg":"incoming request"}
+{"level":30,"time":1786595417470,"pid":1,"hostname":"ccc2434c6aa0","reqId":"ae1d6232-4482-482d-9e82-da56c5cf698b","req":{"method":"GET","url":"/v1/bootstrap","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":47152},"msg":"incoming request"}
+{"level":30,"time":1786595417501,"pid":1,"hostname":"ccc2434c6aa0","reqId":"681947f0-7059-4f0d-a779-7e4580be826f","res":{"statusCode":200},"responseTime":36.284734000015305,"msg":"request completed"}
+{"level":30,"time":1786595417566,"pid":1,"hostname":"ccc2434c6aa0","reqId":"ae1d6232-4482-482d-9e82-da56c5cf698b","res":{"statusCode":200},"responseTime":95.65780900002574,"msg":"request completed"}
+{"level":30,"time":1786595417589,"pid":1,"hostname":"ccc2434c6aa0","reqId":"f36fde9a-2e9e-4546-876a-4e08919589cf","req":{"method":"GET","url":"/v1/menu?store_id=3","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":47154},"msg":"incoming request"}
+{"level":30,"time":1786595417715,"pid":1,"hostname":"ccc2434c6aa0","reqId":"f36fde9a-2e9e-4546-876a-4e08919589cf","res":{"statusCode":200},"responseTime":125.18172500000219,"msg":"request completed"}
+{"level":30,"time":1786595419499,"pid":1,"hostname":"ccc2434c6aa0","reqId":"2d1d9fc3-ca04-4285-a00b-c902e04e5348","req":{"method":"GET","url":"/assets/menu/merchandies/green.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":47152},"msg":"incoming request"}
+{"level":30,"time":1786595419502,"pid":1,"hostname":"ccc2434c6aa0","reqId":"c096a6cd-c5b2-466b-8549-f5cf8fbe0f03","req":{"method":"GET","url":"/assets/menu/drinks/SENJA%20DI%20BROGA.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":47154},"msg":"incoming request"}
+{"level":30,"time":1786595419509,"pid":1,"hostname":"ccc2434c6aa0","reqId":"765ca206-2d05-4937-b88c-c1bb2382041a","req":{"method":"GET","url":"/assets/menu/merchandies/cream.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":47166},"msg":"incoming request"}
+{"level":30,"time":1786595419515,"pid":1,"hostname":"ccc2434c6aa0","reqId":"13520109-6295-4f3c-a8fa-df17a6978704","req":{"method":"GET","url":"/assets/menu/drinks/YUZUKANO.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":47170},"msg":"incoming request"}
+{"level":30,"time":1786595419518,"pid":1,"hostname":"ccc2434c6aa0","reqId":"5bb95cea-3c05-4d43-a0a5-52fe19d5b956","req":{"method":"GET","url":"/assets/menu/merchandies/light%20blue.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":47182},"msg":"incoming request"}
+{"level":30,"time":1786595419521,"pid":1,"hostname":"ccc2434c6aa0","reqId":"272bb531-e5e8-45fe-9a0c-40292f628395","req":{"method":"GET","url":"/assets/menu/drinks/MONT%20BROGA.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":47184},"msg":"incoming request"}
+{"level":30,"time":1786595419526,"pid":1,"hostname":"ccc2434c6aa0","reqId":"e82e2163-685a-47cc-a23c-68f8e0343d07","req":{"method":"GET","url":"/assets/menu/drinks/SHAKERATO%20BIANCO.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":47188},"msg":"incoming request"}
+{"level":30,"time":1786595419532,"pid":1,"hostname":"ccc2434c6aa0","reqId":"314be555-6719-419f-b067-34093e5ca709","req":{"method":"GET","url":"/assets/menu/merchandies/dark%20blue.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":47196},"msg":"incoming request"}
+{"level":30,"time":1786595419542,"pid":1,"hostname":"ccc2434c6aa0","reqId":"2d1d9fc3-ca04-4285-a00b-c902e04e5348","res":{"statusCode":200},"responseTime":43.199838000000454,"msg":"request completed"}
+{"level":30,"time":1786595419545,"pid":1,"hostname":"ccc2434c6aa0","reqId":"765ca206-2d05-4937-b88c-c1bb2382041a","res":{"statusCode":200},"responseTime":36.3623990000051,"msg":"request completed"}
+{"level":30,"time":1786595419546,"pid":1,"hostname":"ccc2434c6aa0","reqId":"5bb95cea-3c05-4d43-a0a5-52fe19d5b956","res":{"statusCode":200},"responseTime":28.526121999981115,"msg":"request completed"}
+{"level":30,"time":1786595419566,"pid":1,"hostname":"ccc2434c6aa0","reqId":"314be555-6719-419f-b067-34093e5ca709","res":{"statusCode":200},"responseTime":33.03204099999857,"msg":"request completed"}
+{"level":30,"time":1786595419591,"pid":1,"hostname":"ccc2434c6aa0","reqId":"13520109-6295-4f3c-a8fa-df17a6978704","res":{"statusCode":200},"responseTime":75.05131700000493,"msg":"request completed"}
+{"level":30,"time":1786595419604,"pid":1,"hostname":"ccc2434c6aa0","reqId":"272bb531-e5e8-45fe-9a0c-40292f628395","res":{"statusCode":200},"responseTime":83.19733699999051,"msg":"request completed"}
+{"level":30,"time":1786595419685,"pid":1,"hostname":"ccc2434c6aa0","reqId":"e82e2163-685a-47cc-a23c-68f8e0343d07","res":{"statusCode":200},"responseTime":156.7850529999996,"msg":"request completed"}
+{"level":30,"time":1786595419737,"pid":1,"hostname":"ccc2434c6aa0","reqId":"c096a6cd-c5b2-466b-8549-f5cf8fbe0f03","res":{"statusCode":200},"responseTime":235.1019189999788,"msg":"request completed"}
+{"level":30,"time":1786595448109,"pid":1,"hostname":"ccc2434c6aa0","reqId":"d78e0237-2e33-4f4c-971d-a0e05bd29bc5","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":60200},"msg":"incoming request"}
+{"level":30,"time":1786595448124,"pid":1,"hostname":"ccc2434c6aa0","reqId":"d78e0237-2e33-4f4c-971d-a0e05bd29bc5","res":{"statusCode":200},"responseTime":14.624611000006553,"msg":"request completed"}
+{"level":30,"time":1786595479024,"pid":1,"hostname":"ccc2434c6aa0","reqId":"4e1b5ac6-b107-4c53-950e-fee70a1f7678","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":49936},"msg":"incoming request"}
+{"level":30,"time":1786595479041,"pid":1,"hostname":"ccc2434c6aa0","reqId":"4e1b5ac6-b107-4c53-950e-fee70a1f7678","res":{"statusCode":200},"responseTime":16.593889000010677,"msg":"request completed"}
+{"level":30,"time":1786595509902,"pid":1,"hostname":"ccc2434c6aa0","reqId":"bddb689b-5723-4b29-91cd-2c9f93856122","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":38156},"msg":"incoming request"}
+{"level":30,"time":1786595509919,"pid":1,"hostname":"ccc2434c6aa0","reqId":"bddb689b-5723-4b29-91cd-2c9f93856122","res":{"statusCode":200},"responseTime":16.207430999958888,"msg":"request completed"}
+{"level":30,"time":1786595540925,"pid":1,"hostname":"ccc2434c6aa0","reqId":"b7e6d961-2686-4eda-98ec-0fe6c6af0749","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":46618},"msg":"incoming request"}
+{"level":30,"time":1786595540940,"pid":1,"hostname":"ccc2434c6aa0","reqId":"b7e6d961-2686-4eda-98ec-0fe6c6af0749","res":{"statusCode":200},"responseTime":14.612907000002451,"msg":"request completed"}
+{"level":30,"time":1786595557597,"pid":1,"hostname":"ccc2434c6aa0","reqId":"941d8b2a-4ec5-41a9-9a71-a3961fc31274","req":{"method":"GET","url":"/v1/orders?limit=20","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":46682},"msg":"incoming request"}
+{"level":30,"time":1786595557635,"pid":1,"hostname":"ccc2434c6aa0","reqId":"941d8b2a-4ec5-41a9-9a71-a3961fc31274","res":{"statusCode":200},"responseTime":37.10063000000082,"msg":"request completed"}
+{"level":30,"time":1786595559421,"pid":1,"hostname":"ccc2434c6aa0","reqId":"fae67350-8b0e-405c-af9d-3475014d9204","req":{"method":"GET","url":"/assets/menu/drinks/ESPRESSO.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":46682},"msg":"incoming request"}
+{"level":30,"time":1786595559430,"pid":1,"hostname":"ccc2434c6aa0","reqId":"da43a962-4984-46c9-972e-dc2b94adf63e","req":{"method":"GET","url":"/assets/menu/drinks/POCCO%20LOCCO.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":46698},"msg":"incoming request"}
+{"level":30,"time":1786595559438,"pid":1,"hostname":"ccc2434c6aa0","reqId":"22c42155-734f-44e9-9214-90ee33eafbe9","req":{"method":"GET","url":"/assets/menu/drinks/ESPRESSO%20BOMB.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":46714},"msg":"incoming request"}
+{"level":30,"time":1786595559449,"pid":1,"hostname":"ccc2434c6aa0","reqId":"2285b932-1070-4cf8-8333-95f74c6b9397","req":{"method":"GET","url":"/assets/menu/drinks/MONKEY%20MATCHA.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":46720},"msg":"incoming request"}
+{"level":30,"time":1786595559452,"pid":1,"hostname":"ccc2434c6aa0","reqId":"fae67350-8b0e-405c-af9d-3475014d9204","res":{"statusCode":200},"responseTime":30.97389900003327,"msg":"request completed"}
+{"level":30,"time":1786595559453,"pid":1,"hostname":"ccc2434c6aa0","reqId":"dec16751-f83a-4243-9fcc-0d3ea8d4a177","req":{"method":"GET","url":"/assets/menu/drinks/PINKY%20BLUSH%20MILKSHAKE%20BY%20SYAH.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":46732},"msg":"incoming request"}
+{"level":30,"time":1786595559456,"pid":1,"hostname":"ccc2434c6aa0","reqId":"67df67a3-1384-4c36-a7ad-bed55779847c","req":{"method":"GET","url":"/assets/menu/pastries/ck%20red%20velvet.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":46734},"msg":"incoming request"}
+{"level":30,"time":1786595559464,"pid":1,"hostname":"ccc2434c6aa0","reqId":"8dae9efa-88cd-4a62-8433-57979fc60a46","req":{"method":"GET","url":"/assets/menu/pastries/brownie.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":46738},"msg":"incoming request"}
+{"level":30,"time":1786595559479,"pid":1,"hostname":"ccc2434c6aa0","reqId":"e47550f0-9c9e-4b71-a6e0-6f333b023ae8","req":{"method":"GET","url":"/assets/menu/pastries/shio%20pan.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":46740},"msg":"incoming request"}
+{"level":30,"time":1786595559494,"pid":1,"hostname":"ccc2434c6aa0","reqId":"795f2aaa-acde-4893-89c9-22362e3e7674","req":{"method":"GET","url":"/assets/menu/pastries/curry%20puff.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":46748},"msg":"incoming request"}
+{"level":30,"time":1786595559514,"pid":1,"hostname":"ccc2434c6aa0","reqId":"b3775d1c-58b1-4a89-9dda-9713e4cee4bc","req":{"method":"GET","url":"/assets/menu/drinks/FLAT%20WHITE.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":46760},"msg":"incoming request"}
+{"level":30,"time":1786595559525,"pid":1,"hostname":"ccc2434c6aa0","reqId":"606e986b-8164-4bd7-9f75-7c169ff69f27","req":{"method":"GET","url":"/assets/menu/drinks/MILK%20CHOCOLATE.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":46770},"msg":"incoming request"}
+{"level":30,"time":1786595559540,"pid":1,"hostname":"ccc2434c6aa0","reqId":"da43a962-4984-46c9-972e-dc2b94adf63e","res":{"statusCode":200},"responseTime":110.15353399998276,"msg":"request completed"}
+{"level":30,"time":1786595559542,"pid":1,"hostname":"ccc2434c6aa0","reqId":"2dc2282f-6026-4453-a469-b7f6d11e85d4","req":{"method":"GET","url":"/assets/menu/drinks/PINKY%20PROMISE%20MATCHA.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":46772},"msg":"incoming request"}
+{"level":30,"time":1786595559562,"pid":1,"hostname":"ccc2434c6aa0","reqId":"ebdcf16a-fc59-446c-9a86-ce1def96dd49","req":{"method":"GET","url":"/assets/menu/merchandies/light%20purple.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":46774},"msg":"incoming request"}
+{"level":30,"time":1786595559577,"pid":1,"hostname":"ccc2434c6aa0","reqId":"1fdb83e1-2bac-4465-8247-8b7af5be486b","req":{"method":"GET","url":"/assets/menu/drinks/ONDE-ONDE%20SODA.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":46778},"msg":"incoming request"}
+{"level":30,"time":1786595559582,"pid":1,"hostname":"ccc2434c6aa0","reqId":"22c42155-734f-44e9-9214-90ee33eafbe9","res":{"statusCode":200},"responseTime":143.125103999977,"msg":"request completed"}
+{"level":30,"time":1786595559588,"pid":1,"hostname":"ccc2434c6aa0","reqId":"066addd2-7750-4354-acd3-8bcd4849c99e","req":{"method":"GET","url":"/assets/menu/drinks/BUTTERSCOTH%20LATTE.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":46782},"msg":"incoming request"}
+{"level":30,"time":1786595559608,"pid":1,"hostname":"ccc2434c6aa0","reqId":"8720ecf2-17ac-46db-8a20-6e4ac731c7a8","req":{"method":"GET","url":"/assets/menu/drinks/CAPPUCCINO.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":46794},"msg":"incoming request"}
+{"level":30,"time":1786595559611,"pid":1,"hostname":"ccc2434c6aa0","reqId":"e47550f0-9c9e-4b71-a6e0-6f333b023ae8","res":{"statusCode":200},"responseTime":131.41541700001108,"msg":"request completed"}
+{"level":30,"time":1786595559612,"pid":1,"hostname":"ccc2434c6aa0","reqId":"8dae9efa-88cd-4a62-8433-57979fc60a46","res":{"statusCode":200},"responseTime":147.5453029999626,"msg":"request completed"}
+{"level":30,"time":1786595559612,"pid":1,"hostname":"ccc2434c6aa0","reqId":"67df67a3-1384-4c36-a7ad-bed55779847c","res":{"statusCode":200},"responseTime":156.04995700001018,"msg":"request completed"}
+{"level":30,"time":1786595559619,"pid":1,"hostname":"ccc2434c6aa0","reqId":"ab1dfd21-9edf-4d9e-9578-df55a800aa4e","req":{"method":"GET","url":"/assets/menu/drinks/LATTE.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":46806},"msg":"incoming request"}
+{"level":30,"time":1786595559624,"pid":1,"hostname":"ccc2434c6aa0","reqId":"76cd9b2d-a76f-4fa1-99c2-65228982ec88","req":{"method":"GET","url":"/assets/menu/drinks/SPICY%20MIMOSA.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":46814},"msg":"incoming request"}
+{"level":30,"time":1786595559627,"pid":1,"hostname":"ccc2434c6aa0","reqId":"795f2aaa-acde-4893-89c9-22362e3e7674","res":{"statusCode":200},"responseTime":132.62948200001847,"msg":"request completed"}
+{"level":30,"time":1786595559628,"pid":1,"hostname":"ccc2434c6aa0","reqId":"dec16751-f83a-4243-9fcc-0d3ea8d4a177","res":{"statusCode":200},"responseTime":174.675981999957,"msg":"request completed"}
+{"level":30,"time":1786595559629,"pid":1,"hostname":"ccc2434c6aa0","reqId":"38118ef7-f84f-4046-923e-c349dac6ac49","req":{"method":"GET","url":"/assets/menu/drinks/BLUE%20CLOUD%20COCONUT%20COFFEE.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":46802},"msg":"incoming request"}
+{"level":30,"time":1786595559633,"pid":1,"hostname":"ccc2434c6aa0","reqId":"d0b4f6af-eeb2-4603-9a9d-9ef11b56c7c2","req":{"method":"GET","url":"/assets/menu/candles/fresh%20sage%20and%20driftwood.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":46830},"msg":"incoming request"}
+{"level":30,"time":1786595559643,"pid":1,"hostname":"ccc2434c6aa0","reqId":"bd54012d-ace1-44cd-9b8c-c935a62f8633","req":{"method":"GET","url":"/assets/menu/candles/gunung.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":46844},"msg":"incoming request"}
+{"level":30,"time":1786595559657,"pid":1,"hostname":"ccc2434c6aa0","reqId":"9daeaceb-58cb-4a61-9dc1-6f58d84d2644","req":{"method":"GET","url":"/assets/menu/pastries/ck%20ovomaltine.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":46848},"msg":"incoming request"}
+{"level":30,"time":1786595559676,"pid":1,"hostname":"ccc2434c6aa0","reqId":"f114817a-2ed8-47ef-ade8-8051274e741c","req":{"method":"GET","url":"/assets/menu/drinks/VANILLA%20LATTE.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":46860},"msg":"incoming request"}
+{"level":30,"time":1786595559683,"pid":1,"hostname":"ccc2434c6aa0","reqId":"ebdcf16a-fc59-446c-9a86-ce1def96dd49","res":{"statusCode":200},"responseTime":121.32754899997963,"msg":"request completed"}
+{"level":30,"time":1786595559688,"pid":1,"hostname":"ccc2434c6aa0","reqId":"04e52e04-b165-4c05-a73b-d1e9bd20f5c8","req":{"method":"GET","url":"/assets/menu/drinks/BOIJITO.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":46866},"msg":"incoming request"}
+{"level":30,"time":1786595559699,"pid":1,"hostname":"ccc2434c6aa0","reqId":"7029efb0-c73d-4175-ad86-b71a5b288dce","req":{"method":"GET","url":"/assets/menu/drinks/NUTTY%20CHOCOLATE.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":46880},"msg":"incoming request"}
+{"level":30,"time":1786595559729,"pid":1,"hostname":"ccc2434c6aa0","reqId":"1046b14f-a047-4032-b1d9-d7c532527e3f","req":{"method":"GET","url":"/assets/menu/candles/crushed%20lime%20and%20seasalt.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":46892},"msg":"incoming request"}
+{"level":30,"time":1786595559748,"pid":1,"hostname":"ccc2434c6aa0","reqId":"d5c8df85-0601-4012-8db0-2196695ab3dc","req":{"method":"GET","url":"/assets/menu/drinks/MOCHA.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":46896},"msg":"incoming request"}
+{"level":30,"time":1786595559765,"pid":1,"hostname":"ccc2434c6aa0","reqId":"d0b4f6af-eeb2-4603-9a9d-9ef11b56c7c2","res":{"statusCode":200},"responseTime":132.10001000005286,"msg":"request completed"}
+{"level":30,"time":1786595559772,"pid":1,"hostname":"ccc2434c6aa0","reqId":"4ba5d378-017a-41a0-926f-a6999e325fab","req":{"method":"GET","url":"/assets/menu/drinks/HAZELNUT%20LATTE.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":46918},"msg":"incoming request"}
+{"level":30,"time":1786595559829,"pid":1,"hostname":"ccc2434c6aa0","reqId":"d4bac6fd-8121-4d3e-adac-5ff97e920279","req":{"method":"GET","url":"/assets/menu/drinks/CLOUDY%20JASMINE.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":46922},"msg":"incoming request"}
+{"level":30,"time":1786595559835,"pid":1,"hostname":"ccc2434c6aa0","reqId":"1fdb83e1-2bac-4465-8247-8b7af5be486b","res":{"statusCode":200},"responseTime":258.4464390000212,"msg":"request completed"}
+{"level":30,"time":1786595559843,"pid":1,"hostname":"ccc2434c6aa0","reqId":"bd54012d-ace1-44cd-9b8c-c935a62f8633","res":{"statusCode":200},"responseTime":199.7131759999902,"msg":"request completed"}
+{"level":30,"time":1786595559862,"pid":1,"hostname":"ccc2434c6aa0","reqId":"ba56e00f-1d03-4815-8da5-17cc15cf99f2","req":{"method":"GET","url":"/assets/menu/drinks/MATCHA%20LATTE.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":46928},"msg":"incoming request"}
+{"level":30,"time":1786595559870,"pid":1,"hostname":"ccc2434c6aa0","reqId":"066addd2-7750-4354-acd3-8bcd4849c99e","res":{"statusCode":200},"responseTime":281.84991200000513,"msg":"request completed"}
+{"level":30,"time":1786595559871,"pid":1,"hostname":"ccc2434c6aa0","reqId":"ab1dfd21-9edf-4d9e-9578-df55a800aa4e","res":{"statusCode":200},"responseTime":251.7138280000072,"msg":"request completed"}
+{"level":30,"time":1786595559887,"pid":1,"hostname":"ccc2434c6aa0","reqId":"b3775d1c-58b1-4a89-9dda-9713e4cee4bc","res":{"statusCode":200},"responseTime":373.53354299999774,"msg":"request completed"}
+{"level":30,"time":1786595559888,"pid":1,"hostname":"ccc2434c6aa0","reqId":"06ae1336-eb6e-4fc0-b4c4-4dbf7cd1a35c","req":{"method":"GET","url":"/assets/menu/drinks/SOLERO%20FIZZ.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":46910},"msg":"incoming request"}
+{"level":30,"time":1786595559912,"pid":1,"hostname":"ccc2434c6aa0","reqId":"19972e7d-fefe-4d8e-bc7a-71ae4be3873e","req":{"method":"GET","url":"/assets/menu/drinks/PADDLE%20POP.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":46944},"msg":"incoming request"}
+{"level":30,"time":1786595559926,"pid":1,"hostname":"ccc2434c6aa0","reqId":"de0bb1a6-055b-4f41-8391-7a0549068aeb","req":{"method":"GET","url":"/assets/menu/candles/tobacco%20vanilla.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":46992},"msg":"incoming request"}
+{"level":30,"time":1786595559932,"pid":1,"hostname":"ccc2434c6aa0","reqId":"76cd9b2d-a76f-4fa1-99c2-65228982ec88","res":{"statusCode":200},"responseTime":308.70445399999153,"msg":"request completed"}
+{"level":30,"time":1786595559934,"pid":1,"hostname":"ccc2434c6aa0","reqId":"606e986b-8164-4bd7-9f75-7c169ff69f27","res":{"statusCode":200},"responseTime":407.7942879999755,"msg":"request completed"}
+{"level":30,"time":1786595559935,"pid":1,"hostname":"ccc2434c6aa0","reqId":"bfacc631-4f38-4a2b-b464-92628c7febf8","req":{"method":"GET","url":"/assets/menu/drinks/FUJI%20FIZZ.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":46978},"msg":"incoming request"}
+{"level":30,"time":1786595559977,"pid":1,"hostname":"ccc2434c6aa0","reqId":"1046b14f-a047-4032-b1d9-d7c532527e3f","res":{"statusCode":200},"responseTime":247.84210200002417,"msg":"request completed"}
+{"level":30,"time":1786595559979,"pid":1,"hostname":"ccc2434c6aa0","reqId":"9daeaceb-58cb-4a61-9dc1-6f58d84d2644","res":{"statusCode":200},"responseTime":321.98705400002655,"msg":"request completed"}
+{"level":30,"time":1786595559983,"pid":1,"hostname":"ccc2434c6aa0","reqId":"e6e63368-c75e-440b-a38b-6acb56b72797","req":{"method":"GET","url":"/assets/menu/drinks/BLOODY%20PEACH.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":46966},"msg":"incoming request"}
+{"level":30,"time":1786595559999,"pid":1,"hostname":"ccc2434c6aa0","reqId":"8720ecf2-17ac-46db-8a20-6e4ac731c7a8","res":{"statusCode":200},"responseTime":391.1841359999962,"msg":"request completed"}
+{"level":30,"time":1786595560000,"pid":1,"hostname":"ccc2434c6aa0","reqId":"685746a4-69ae-4da4-8f1c-c666f8a5677e","req":{"method":"GET","url":"/assets/menu/pastries/ck%20biscoff.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":46994},"msg":"incoming request"}
+{"level":30,"time":1786595560018,"pid":1,"hostname":"ccc2434c6aa0","reqId":"04e52e04-b165-4c05-a73b-d1e9bd20f5c8","res":{"statusCode":200},"responseTime":329.87262400001055,"msg":"request completed"}
+{"level":30,"time":1786595560023,"pid":1,"hostname":"ccc2434c6aa0","reqId":"fbf6dafe-b244-4084-a941-5c7694076659","req":{"method":"GET","url":"/assets/menu/drinks/V60%20BREW.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":46950},"msg":"incoming request"}
+{"level":30,"time":1786595560094,"pid":1,"hostname":"ccc2434c6aa0","reqId":"de0bb1a6-055b-4f41-8391-7a0549068aeb","res":{"statusCode":200},"responseTime":167.473404999997,"msg":"request completed"}
+{"level":30,"time":1786595560150,"pid":1,"hostname":"ccc2434c6aa0","reqId":"d5c8df85-0601-4012-8db0-2196695ab3dc","res":{"statusCode":200},"responseTime":401.60204899997916,"msg":"request completed"}
+{"level":30,"time":1786595560157,"pid":1,"hostname":"ccc2434c6aa0","reqId":"38118ef7-f84f-4046-923e-c349dac6ac49","res":{"statusCode":200},"responseTime":528.0378910000436,"msg":"request completed"}
+{"level":30,"time":1786595560203,"pid":1,"hostname":"ccc2434c6aa0","reqId":"685746a4-69ae-4da4-8f1c-c666f8a5677e","res":{"statusCode":200},"responseTime":201.6928450000123,"msg":"request completed"}
+{"level":30,"time":1786595560404,"pid":1,"hostname":"ccc2434c6aa0","reqId":"2285b932-1070-4cf8-8333-95f74c6b9397","res":{"statusCode":200},"responseTime":955.2921170000336,"msg":"request completed"}
+{"level":30,"time":1786595560469,"pid":1,"hostname":"ccc2434c6aa0","reqId":"f114817a-2ed8-47ef-ade8-8051274e741c","res":{"statusCode":200},"responseTime":793.1836389999953,"msg":"request completed"}
+{"level":30,"time":1786595560555,"pid":1,"hostname":"ccc2434c6aa0","reqId":"e6e63368-c75e-440b-a38b-6acb56b72797","res":{"statusCode":200},"responseTime":571.7475160000031,"msg":"request completed"}
+{"level":30,"time":1786595560589,"pid":1,"hostname":"ccc2434c6aa0","reqId":"d4bac6fd-8121-4d3e-adac-5ff97e920279","res":{"statusCode":200},"responseTime":759.4526659999974,"msg":"request completed"}
+{"level":30,"time":1786595560611,"pid":1,"hostname":"ccc2434c6aa0","reqId":"fbf6dafe-b244-4084-a941-5c7694076659","res":{"statusCode":200},"responseTime":588.0130219999701,"msg":"request completed"}
+{"level":30,"time":1786595560616,"pid":1,"hostname":"ccc2434c6aa0","reqId":"7029efb0-c73d-4175-ad86-b71a5b288dce","res":{"statusCode":200},"responseTime":916.1272079999908,"msg":"request completed"}
+{"level":30,"time":1786595560629,"pid":1,"hostname":"ccc2434c6aa0","reqId":"2dc2282f-6026-4453-a469-b7f6d11e85d4","res":{"statusCode":200},"responseTime":1086.6919329999946,"msg":"request completed"}
+{"level":30,"time":1786595560649,"pid":1,"hostname":"ccc2434c6aa0","reqId":"19972e7d-fefe-4d8e-bc7a-71ae4be3873e","res":{"statusCode":200},"responseTime":736.1836110000149,"msg":"request completed"}
+{"level":30,"time":1786595560674,"pid":1,"hostname":"ccc2434c6aa0","reqId":"bfacc631-4f38-4a2b-b464-92628c7febf8","res":{"statusCode":200},"responseTime":739.0022929999977,"msg":"request completed"}
+{"level":30,"time":1786595560767,"pid":1,"hostname":"ccc2434c6aa0","reqId":"06ae1336-eb6e-4fc0-b4c4-4dbf7cd1a35c","res":{"statusCode":200},"responseTime":878.572015999991,"msg":"request completed"}
+{"level":30,"time":1786595560918,"pid":1,"hostname":"ccc2434c6aa0","reqId":"4ba5d378-017a-41a0-926f-a6999e325fab","res":{"statusCode":200},"responseTime":1145.453398999991,"msg":"request completed"}
+{"level":30,"time":1786595561112,"pid":1,"hostname":"ccc2434c6aa0","reqId":"ba56e00f-1d03-4815-8da5-17cc15cf99f2","res":{"statusCode":200},"responseTime":1249.286476999987,"msg":"request completed"}
+{"level":30,"time":1786595569930,"pid":1,"hostname":"ccc2434c6aa0","reqId":"9d6452c6-3d05-4596-9822-d29802d95434","req":{"method":"POST","url":"/v1/orders","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":46682},"msg":"incoming request"}
+{"level":30,"time":1786595570279,"pid":1,"hostname":"ccc2434c6aa0","reqId":"9d6452c6-3d05-4596-9822-d29802d95434","res":{"statusCode":200},"responseTime":348.50288000004366,"msg":"request completed"}
+{"level":30,"time":1786595570363,"pid":1,"hostname":"ccc2434c6aa0","reqId":"47f0d169-a7f8-4b1a-a6eb-698115f1d194","req":{"method":"POST","url":"/v1/orders/1/direct-payment/confirm","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":46698},"msg":"incoming request"}
+{"level":50,"time":1786595570366,"pid":1,"hostname":"ccc2434c6aa0","reqId":"47f0d169-a7f8-4b1a-a6eb-698115f1d194","error":{"code":"FST_ERR_CTP_EMPTY_JSON_BODY","name":"FastifyError","statusCode":400,"message":"Body cannot be empty when content-type is set to 'application/json'"},"statusCode":500,"code":"internal_server_error","msg":"request failed"}
+{"level":30,"time":1786595570369,"pid":1,"hostname":"ccc2434c6aa0","reqId":"47f0d169-a7f8-4b1a-a6eb-698115f1d194","res":{"statusCode":500},"responseTime":5.658870999992359,"msg":"request completed"}
+{"level":30,"time":1786595571854,"pid":1,"hostname":"ccc2434c6aa0","reqId":"ee0f53de-52fa-4af0-8848-a44de0829512","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":34930},"msg":"incoming request"}
+{"level":30,"time":1786595571869,"pid":1,"hostname":"ccc2434c6aa0","reqId":"ee0f53de-52fa-4af0-8848-a44de0829512","res":{"statusCode":200},"responseTime":14.66011100000469,"msg":"request completed"}
+{"level":30,"time":1786595580401,"pid":1,"hostname":"ccc2434c6aa0","reqId":"b65b0bb3-283d-4e4e-a820-1ed912fcce33","req":{"method":"POST","url":"/v1/orders","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":46740},"msg":"incoming request"}
+{"level":30,"time":1786595580631,"pid":1,"hostname":"ccc2434c6aa0","reqId":"b65b0bb3-283d-4e4e-a820-1ed912fcce33","res":{"statusCode":200},"responseTime":228.88149599998724,"msg":"request completed"}
+{"level":30,"time":1786595580703,"pid":1,"hostname":"ccc2434c6aa0","reqId":"69710949-6b20-4475-8c87-24c56987c614","req":{"method":"POST","url":"/v1/orders/2/direct-payment/confirm","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":46738},"msg":"incoming request"}
+{"level":50,"time":1786595580705,"pid":1,"hostname":"ccc2434c6aa0","reqId":"69710949-6b20-4475-8c87-24c56987c614","error":{"code":"FST_ERR_CTP_EMPTY_JSON_BODY","name":"FastifyError","statusCode":400,"message":"Body cannot be empty when content-type is set to 'application/json'"},"statusCode":500,"code":"internal_server_error","msg":"request failed"}
+{"level":30,"time":1786595580707,"pid":1,"hostname":"ccc2434c6aa0","reqId":"69710949-6b20-4475-8c87-24c56987c614","res":{"statusCode":500},"responseTime":3.492278999998234,"msg":"request completed"}
+{"level":30,"time":1786595602758,"pid":1,"hostname":"ccc2434c6aa0","reqId":"a6bd5041-508c-4cc4-bdf2-6fa736df46b0","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":45166},"msg":"incoming request"}
+{"level":30,"time":1786595602772,"pid":1,"hostname":"ccc2434c6aa0","reqId":"a6bd5041-508c-4cc4-bdf2-6fa736df46b0","res":{"statusCode":200},"responseTime":13.891506000014488,"msg":"request completed"}
+{"level":30,"time":1786595633645,"pid":1,"hostname":"ccc2434c6aa0","reqId":"ba15c34f-c381-4e12-9f8e-2b0302bd42f9","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":40834},"msg":"incoming request"}
+{"level":30,"time":1786595633658,"pid":1,"hostname":"ccc2434c6aa0","reqId":"ba15c34f-c381-4e12-9f8e-2b0302bd42f9","res":{"statusCode":200},"responseTime":13.18482300004689,"msg":"request completed"}
+{"level":30,"time":1786595664582,"pid":1,"hostname":"ccc2434c6aa0","reqId":"e08bc424-baec-4b45-be79-acb60c09d30a","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":41638},"msg":"incoming request"}
+{"level":30,"time":1786595664596,"pid":1,"hostname":"ccc2434c6aa0","reqId":"e08bc424-baec-4b45-be79-acb60c09d30a","res":{"statusCode":200},"responseTime":13.712404999998398,"msg":"request completed"}
+{"level":30,"time":1786595695392,"pid":1,"hostname":"ccc2434c6aa0","reqId":"bd85721e-cae9-408a-ae36-9d19d5b98126","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":58884},"msg":"incoming request"}
+{"level":30,"time":1786595695406,"pid":1,"hostname":"ccc2434c6aa0","reqId":"bd85721e-cae9-408a-ae36-9d19d5b98126","res":{"statusCode":200},"responseTime":13.420742999995127,"msg":"request completed"}
+{"level":30,"time":1786595726267,"pid":1,"hostname":"ccc2434c6aa0","reqId":"fe662d04-6a70-4ab1-b230-65ab5266b3fe","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":52274},"msg":"incoming request"}
+{"level":30,"time":1786595726281,"pid":1,"hostname":"ccc2434c6aa0","reqId":"fe662d04-6a70-4ab1-b230-65ab5266b3fe","res":{"statusCode":200},"responseTime":14.447502999973949,"msg":"request completed"}
+{"level":30,"time":1786595757188,"pid":1,"hostname":"ccc2434c6aa0","reqId":"19f826b6-1182-4e14-90cb-dfdf6ac899b5","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":39738},"msg":"incoming request"}
+{"level":30,"time":1786595757202,"pid":1,"hostname":"ccc2434c6aa0","reqId":"19f826b6-1182-4e14-90cb-dfdf6ac899b5","res":{"statusCode":200},"responseTime":14.310442000045441,"msg":"request completed"}
+{"level":30,"time":1786595788076,"pid":1,"hostname":"ccc2434c6aa0","reqId":"e694f361-a3a9-4b03-96cc-6403bf89da28","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":33212},"msg":"incoming request"}
+{"level":30,"time":1786595788093,"pid":1,"hostname":"ccc2434c6aa0","reqId":"e694f361-a3a9-4b03-96cc-6403bf89da28","res":{"statusCode":200},"responseTime":15.852193999919109,"msg":"request completed"}
+{"level":30,"time":1786595819325,"pid":1,"hostname":"ccc2434c6aa0","reqId":"19677146-534e-4261-9288-57de8a2d362b","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":49852},"msg":"incoming request"}
+{"level":30,"time":1786595819344,"pid":1,"hostname":"ccc2434c6aa0","reqId":"19677146-534e-4261-9288-57de8a2d362b","res":{"statusCode":200},"responseTime":18.775369999930263,"msg":"request completed"}
+{"level":30,"time":1786595850199,"pid":1,"hostname":"ccc2434c6aa0","reqId":"88971f83-9187-4a6a-843b-78d48772c3c1","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":49184},"msg":"incoming request"}
+{"level":30,"time":1786595850213,"pid":1,"hostname":"ccc2434c6aa0","reqId":"88971f83-9187-4a6a-843b-78d48772c3c1","res":{"statusCode":200},"responseTime":12.93077400000766,"msg":"request completed"}
+{"level":30,"time":1786595881139,"pid":1,"hostname":"ccc2434c6aa0","reqId":"3874bdd0-a0bc-4a4f-9273-56f93eb8261f","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":33188},"msg":"incoming request"}
+{"level":30,"time":1786595881153,"pid":1,"hostname":"ccc2434c6aa0","reqId":"3874bdd0-a0bc-4a4f-9273-56f93eb8261f","res":{"statusCode":200},"responseTime":13.943113000015728,"msg":"request completed"}
+{"level":30,"time":1786595912035,"pid":1,"hostname":"ccc2434c6aa0","reqId":"2ed59427-4ec6-4dec-bba2-32e779915c9b","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":51986},"msg":"incoming request"}
+{"level":30,"time":1786595912050,"pid":1,"hostname":"ccc2434c6aa0","reqId":"2ed59427-4ec6-4dec-bba2-32e779915c9b","res":{"statusCode":200},"responseTime":14.614751000073738,"msg":"request completed"}
+{"level":30,"time":1786595942958,"pid":1,"hostname":"ccc2434c6aa0","reqId":"6d24392e-775d-48af-bf3a-f1c1ac30b3ac","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":50848},"msg":"incoming request"}
+{"level":30,"time":1786595942975,"pid":1,"hostname":"ccc2434c6aa0","reqId":"6d24392e-775d-48af-bf3a-f1c1ac30b3ac","res":{"statusCode":200},"responseTime":15.861771999974735,"msg":"request completed"}
+{"level":30,"time":1786595973907,"pid":1,"hostname":"ccc2434c6aa0","reqId":"39eb363d-1598-4ab9-88e5-57058188cf94","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":38020},"msg":"incoming request"}
+{"level":30,"time":1786595973921,"pid":1,"hostname":"ccc2434c6aa0","reqId":"39eb363d-1598-4ab9-88e5-57058188cf94","res":{"statusCode":200},"responseTime":13.604464000090957,"msg":"request completed"}
+{"level":30,"time":1786596004784,"pid":1,"hostname":"ccc2434c6aa0","reqId":"84ddfd9a-d2a1-4e64-87f7-3f1289d23435","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":48480},"msg":"incoming request"}
+{"level":30,"time":1786596004798,"pid":1,"hostname":"ccc2434c6aa0","reqId":"84ddfd9a-d2a1-4e64-87f7-3f1289d23435","res":{"statusCode":200},"responseTime":13.73292599990964,"msg":"request completed"}
+{"level":30,"time":1786596035680,"pid":1,"hostname":"ccc2434c6aa0","reqId":"655a28ae-62e0-4070-92c3-2eecfb82a594","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":45676},"msg":"incoming request"}
+{"level":30,"time":1786596035694,"pid":1,"hostname":"ccc2434c6aa0","reqId":"655a28ae-62e0-4070-92c3-2eecfb82a594","res":{"statusCode":200},"responseTime":13.291569999884814,"msg":"request completed"}
+{"level":30,"time":1786596066578,"pid":1,"hostname":"ccc2434c6aa0","reqId":"e0743cd0-4bc1-4976-8f11-8b2ba77af7c8","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":36108},"msg":"incoming request"}
+{"level":30,"time":1786596066593,"pid":1,"hostname":"ccc2434c6aa0","reqId":"e0743cd0-4bc1-4976-8f11-8b2ba77af7c8","res":{"statusCode":200},"responseTime":13.758476000046358,"msg":"request completed"}
+{"level":30,"time":1786596097463,"pid":1,"hostname":"ccc2434c6aa0","reqId":"6b1db641-7316-4203-ab6a-77c09a17963a","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":48714},"msg":"incoming request"}
+{"level":30,"time":1786596097476,"pid":1,"hostname":"ccc2434c6aa0","reqId":"6b1db641-7316-4203-ab6a-77c09a17963a","res":{"statusCode":200},"responseTime":13.245492000016384,"msg":"request completed"}
+{"level":30,"time":1786596128309,"pid":1,"hostname":"ccc2434c6aa0","reqId":"404a15e8-b0e7-4d14-9f7f-598d4f3db2a5","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":44140},"msg":"incoming request"}
+{"level":30,"time":1786596128324,"pid":1,"hostname":"ccc2434c6aa0","reqId":"404a15e8-b0e7-4d14-9f7f-598d4f3db2a5","res":{"statusCode":200},"responseTime":13.881984999985434,"msg":"request completed"}
+{"level":30,"time":1786596159200,"pid":1,"hostname":"ccc2434c6aa0","reqId":"5719591a-a5bc-4aab-8ba6-63d5b5ca2f65","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":59700},"msg":"incoming request"}
+{"level":30,"time":1786596159215,"pid":1,"hostname":"ccc2434c6aa0","reqId":"5719591a-a5bc-4aab-8ba6-63d5b5ca2f65","res":{"statusCode":200},"responseTime":14.19512799999211,"msg":"request completed"}
+{"level":30,"time":1786596190072,"pid":1,"hostname":"ccc2434c6aa0","reqId":"9a7ec1a8-424d-4646-8e32-0de8a6b08916","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":46984},"msg":"incoming request"}
+{"level":30,"time":1786596190163,"pid":1,"hostname":"ccc2434c6aa0","reqId":"9a7ec1a8-424d-4646-8e32-0de8a6b08916","res":{"statusCode":200},"responseTime":90.23563100001775,"msg":"request completed"}
+{"level":30,"time":1786596221100,"pid":1,"hostname":"ccc2434c6aa0","reqId":"4eb93382-312a-4916-bf6a-b8f3730b8b52","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":38228},"msg":"incoming request"}
+{"level":30,"time":1786596221117,"pid":1,"hostname":"ccc2434c6aa0","reqId":"4eb93382-312a-4916-bf6a-b8f3730b8b52","res":{"statusCode":200},"responseTime":14.79630599997472,"msg":"request completed"}
+{"level":30,"time":1786596251998,"pid":1,"hostname":"ccc2434c6aa0","reqId":"07530fdd-cd8e-4f4d-8a2d-3d66ce5d8a19","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":34180},"msg":"incoming request"}
+{"level":30,"time":1786596252012,"pid":1,"hostname":"ccc2434c6aa0","reqId":"07530fdd-cd8e-4f4d-8a2d-3d66ce5d8a19","res":{"statusCode":200},"responseTime":13.208400000003166,"msg":"request completed"}
+{"level":30,"time":1786596282888,"pid":1,"hostname":"ccc2434c6aa0","reqId":"11679ebd-1feb-4a38-8085-8026beba5b51","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":42808},"msg":"incoming request"}
+{"level":30,"time":1786596282902,"pid":1,"hostname":"ccc2434c6aa0","reqId":"11679ebd-1feb-4a38-8085-8026beba5b51","res":{"statusCode":200},"responseTime":13.814655999885872,"msg":"request completed"}
+{"level":30,"time":1786596313766,"pid":1,"hostname":"ccc2434c6aa0","reqId":"e32b8de4-3f5e-4716-9de1-afc9759df70b","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":37366},"msg":"incoming request"}
+{"level":30,"time":1786596313780,"pid":1,"hostname":"ccc2434c6aa0","reqId":"e32b8de4-3f5e-4716-9de1-afc9759df70b","res":{"statusCode":200},"responseTime":14.296638999832794,"msg":"request completed"}
+{"level":30,"time":1786596344657,"pid":1,"hostname":"ccc2434c6aa0","reqId":"7c472642-562b-4421-b951-fe991e11418f","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":38174},"msg":"incoming request"}
+{"level":30,"time":1786596344671,"pid":1,"hostname":"ccc2434c6aa0","reqId":"7c472642-562b-4421-b951-fe991e11418f","res":{"statusCode":200},"responseTime":13.263776000123471,"msg":"request completed"}
+{"level":30,"time":1786596375579,"pid":1,"hostname":"ccc2434c6aa0","reqId":"08ac1e9c-80a5-4556-a359-b03d4edf7649","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":39078},"msg":"incoming request"}
+{"level":30,"time":1786596375594,"pid":1,"hostname":"ccc2434c6aa0","reqId":"08ac1e9c-80a5-4556-a359-b03d4edf7649","res":{"statusCode":200},"responseTime":13.764881999930367,"msg":"request completed"}
+{"level":30,"time":1786596406512,"pid":1,"hostname":"ccc2434c6aa0","reqId":"1bd6202a-c73c-4216-8b7f-4df5d845e063","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":51988},"msg":"incoming request"}
+{"level":30,"time":1786596406528,"pid":1,"hostname":"ccc2434c6aa0","reqId":"1bd6202a-c73c-4216-8b7f-4df5d845e063","res":{"statusCode":200},"responseTime":15.513565999921411,"msg":"request completed"}
+{"level":30,"time":1786596437401,"pid":1,"hostname":"ccc2434c6aa0","reqId":"cd2e886b-7174-48bd-ae9c-c055e731c7a7","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":55646},"msg":"incoming request"}
+{"level":30,"time":1786596437415,"pid":1,"hostname":"ccc2434c6aa0","reqId":"cd2e886b-7174-48bd-ae9c-c055e731c7a7","res":{"statusCode":200},"responseTime":13.463233000133187,"msg":"request completed"}
+{"level":30,"time":1786596468271,"pid":1,"hostname":"ccc2434c6aa0","reqId":"dccb3daa-037e-4c26-8c53-f073912b1707","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":57720},"msg":"incoming request"}
+{"level":30,"time":1786596468286,"pid":1,"hostname":"ccc2434c6aa0","reqId":"dccb3daa-037e-4c26-8c53-f073912b1707","res":{"statusCode":200},"responseTime":14.658209000015631,"msg":"request completed"}
+{"level":30,"time":1786596499175,"pid":1,"hostname":"ccc2434c6aa0","reqId":"7b0f9eff-d2b9-4397-bbeb-2203089ae5ba","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":44786},"msg":"incoming request"}
+{"level":30,"time":1786596499190,"pid":1,"hostname":"ccc2434c6aa0","reqId":"7b0f9eff-d2b9-4397-bbeb-2203089ae5ba","res":{"statusCode":200},"responseTime":15.336620999965817,"msg":"request completed"}
+{"level":30,"time":1786596530024,"pid":1,"hostname":"ccc2434c6aa0","reqId":"9a8c1583-74a4-4fae-b427-c436012f226d","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":49048},"msg":"incoming request"}
+{"level":30,"time":1786596530039,"pid":1,"hostname":"ccc2434c6aa0","reqId":"9a8c1583-74a4-4fae-b427-c436012f226d","res":{"statusCode":200},"responseTime":14.626400999957696,"msg":"request completed"}
+{"level":30,"time":1786596560919,"pid":1,"hostname":"ccc2434c6aa0","reqId":"ae564fef-3dd9-4d60-a22d-0d9079b0d878","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":45404},"msg":"incoming request"}
+{"level":30,"time":1786596560934,"pid":1,"hostname":"ccc2434c6aa0","reqId":"ae564fef-3dd9-4d60-a22d-0d9079b0d878","res":{"statusCode":200},"responseTime":14.413997000083327,"msg":"request completed"}
+{"level":30,"time":1786596591868,"pid":1,"hostname":"ccc2434c6aa0","reqId":"de389847-2393-4e9a-b40e-cd10f063b76e","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":45184},"msg":"incoming request"}
+{"level":30,"time":1786596591883,"pid":1,"hostname":"ccc2434c6aa0","reqId":"de389847-2393-4e9a-b40e-cd10f063b76e","res":{"statusCode":200},"responseTime":14.5795470001176,"msg":"request completed"}
+{"level":30,"time":1786596622755,"pid":1,"hostname":"ccc2434c6aa0","reqId":"ec0b8cfc-0ba0-4cbf-bdb9-9f2571269280","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":47394},"msg":"incoming request"}
+{"level":30,"time":1786596622769,"pid":1,"hostname":"ccc2434c6aa0","reqId":"ec0b8cfc-0ba0-4cbf-bdb9-9f2571269280","res":{"statusCode":200},"responseTime":13.458884000079706,"msg":"request completed"}
+{"level":30,"time":1786596653622,"pid":1,"hostname":"ccc2434c6aa0","reqId":"1a0e3668-ec6b-43bc-8e21-169e97eb53cd","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":55102},"msg":"incoming request"}
+{"level":30,"time":1786596653636,"pid":1,"hostname":"ccc2434c6aa0","reqId":"1a0e3668-ec6b-43bc-8e21-169e97eb53cd","res":{"statusCode":200},"responseTime":13.821012999862432,"msg":"request completed"}
+{"level":30,"time":1786596684505,"pid":1,"hostname":"ccc2434c6aa0","reqId":"1f51bd9a-c1c4-4af2-80cb-92d82446ec8c","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":40564},"msg":"incoming request"}
+{"level":30,"time":1786596684520,"pid":1,"hostname":"ccc2434c6aa0","reqId":"1f51bd9a-c1c4-4af2-80cb-92d82446ec8c","res":{"statusCode":200},"responseTime":13.837886000052094,"msg":"request completed"}
+{"level":30,"time":1786596715381,"pid":1,"hostname":"ccc2434c6aa0","reqId":"2dc6a1b0-4cf3-48c3-a44d-b21ce032260c","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":37926},"msg":"incoming request"}
+{"level":30,"time":1786596715395,"pid":1,"hostname":"ccc2434c6aa0","reqId":"2dc6a1b0-4cf3-48c3-a44d-b21ce032260c","res":{"statusCode":200},"responseTime":13.678211000049487,"msg":"request completed"}
+{"level":30,"time":1786596746167,"pid":1,"hostname":"ccc2434c6aa0","reqId":"b2a35bd2-9270-4a99-a22d-ba92edc8d9a6","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":60122},"msg":"incoming request"}
+{"level":30,"time":1786596746180,"pid":1,"hostname":"ccc2434c6aa0","reqId":"b2a35bd2-9270-4a99-a22d-ba92edc8d9a6","res":{"statusCode":200},"responseTime":12.3380279999692,"msg":"request completed"}
+{"level":30,"time":1786596777049,"pid":1,"hostname":"ccc2434c6aa0","reqId":"43efe5f7-9fa4-429d-8a1b-240ad6b81dcb","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":47496},"msg":"incoming request"}
+{"level":30,"time":1786596777063,"pid":1,"hostname":"ccc2434c6aa0","reqId":"43efe5f7-9fa4-429d-8a1b-240ad6b81dcb","res":{"statusCode":200},"responseTime":13.913881000131369,"msg":"request completed"}
+{"level":30,"time":1786596807966,"pid":1,"hostname":"ccc2434c6aa0","reqId":"9a72da45-77cb-498d-897f-be8e01525ee9","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":34788},"msg":"incoming request"}
+{"level":30,"time":1786596807980,"pid":1,"hostname":"ccc2434c6aa0","reqId":"9a72da45-77cb-498d-897f-be8e01525ee9","res":{"statusCode":200},"responseTime":14.052508999826387,"msg":"request completed"}
+{"level":30,"time":1786596838870,"pid":1,"hostname":"ccc2434c6aa0","reqId":"19248a0f-19cc-4418-b773-58cc9267f8a0","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":39476},"msg":"incoming request"}
+{"level":30,"time":1786596838884,"pid":1,"hostname":"ccc2434c6aa0","reqId":"19248a0f-19cc-4418-b773-58cc9267f8a0","res":{"statusCode":200},"responseTime":13.361390999983996,"msg":"request completed"}
+{"level":30,"time":1786596869761,"pid":1,"hostname":"ccc2434c6aa0","reqId":"2aea743e-390e-40ce-a79e-a0b47ac851c0","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":33796},"msg":"incoming request"}
+{"level":30,"time":1786596869775,"pid":1,"hostname":"ccc2434c6aa0","reqId":"2aea743e-390e-40ce-a79e-a0b47ac851c0","res":{"statusCode":200},"responseTime":13.344069000100717,"msg":"request completed"}
+{"level":30,"time":1786596888456,"pid":1,"hostname":"ccc2434c6aa0","reqId":"cd6fee0a-fab2-406b-8a18-6a4d0177117f","req":{"method":"POST","url":"/v1/auth/refresh","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":42556},"msg":"incoming request"}
+{"level":30,"time":1786596888494,"pid":1,"hostname":"ccc2434c6aa0","reqId":"cd6fee0a-fab2-406b-8a18-6a4d0177117f","res":{"statusCode":200},"responseTime":37.446659999899566,"msg":"request completed"}
+{"level":30,"time":1786596888798,"pid":1,"hostname":"ccc2434c6aa0","reqId":"79799be4-6bbe-41ab-9898-6ced87036aa1","req":{"method":"GET","url":"/v1/me","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":42556},"msg":"incoming request"}
+{"level":30,"time":1786596888828,"pid":1,"hostname":"ccc2434c6aa0","reqId":"79799be4-6bbe-41ab-9898-6ced87036aa1","res":{"statusCode":200},"responseTime":29.038578999927267,"msg":"request completed"}
+{"level":30,"time":1786596888835,"pid":1,"hostname":"ccc2434c6aa0","reqId":"88450c6d-36e1-4dda-b26c-1796462cee07","req":{"method":"GET","url":"/v1/bootstrap","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":42556},"msg":"incoming request"}
+{"level":30,"time":1786596888842,"pid":1,"hostname":"ccc2434c6aa0","reqId":"8070be1d-1273-466a-a8c7-34638cf6a6a1","req":{"method":"GET","url":"/v1/stores","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":42564},"msg":"incoming request"}
+{"level":30,"time":1786596888872,"pid":1,"hostname":"ccc2434c6aa0","reqId":"8070be1d-1273-466a-a8c7-34638cf6a6a1","res":{"statusCode":200},"responseTime":29.222604000009596,"msg":"request completed"}
+{"level":30,"time":1786596888920,"pid":1,"hostname":"ccc2434c6aa0","reqId":"88450c6d-36e1-4dda-b26c-1796462cee07","res":{"statusCode":200},"responseTime":84.6044830000028,"msg":"request completed"}
+{"level":30,"time":1786596888938,"pid":1,"hostname":"ccc2434c6aa0","reqId":"7d28c943-4791-4461-825d-7c6b326f97f0","req":{"method":"GET","url":"/v1/menu?store_id=3","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":42564},"msg":"incoming request"}
+{"level":30,"time":1786596889034,"pid":1,"hostname":"ccc2434c6aa0","reqId":"7d28c943-4791-4461-825d-7c6b326f97f0","res":{"statusCode":200},"responseTime":96.05009000003338,"msg":"request completed"}
+{"level":30,"time":1786596890667,"pid":1,"hostname":"ccc2434c6aa0","reqId":"5bf98950-0e57-4185-b489-ac1e68186b1f","req":{"method":"GET","url":"/assets/menu/merchandies/light%20blue.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":42556},"msg":"incoming request"}
+{"level":30,"time":1786596890670,"pid":1,"hostname":"ccc2434c6aa0","reqId":"a3ba18f9-9a6c-4ec4-9b7d-57b658575ef5","req":{"method":"GET","url":"/assets/menu/merchandies/cream.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":42564},"msg":"incoming request"}
+{"level":30,"time":1786596890679,"pid":1,"hostname":"ccc2434c6aa0","reqId":"9f677325-a428-4ec5-ab0b-c48ddf0c9921","req":{"method":"GET","url":"/assets/menu/drinks/SHAKERATO%20BIANCO.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":57812},"msg":"incoming request"}
+{"level":30,"time":1786596890681,"pid":1,"hostname":"ccc2434c6aa0","reqId":"d06fdd8d-3d0c-404e-92f2-607c6c7fb8dd","req":{"method":"GET","url":"/assets/menu/drinks/SENJA%20DI%20BROGA.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":57822},"msg":"incoming request"}
+{"level":30,"time":1786596890683,"pid":1,"hostname":"ccc2434c6aa0","reqId":"f059c233-08d9-46cb-93df-8123de859c7c","req":{"method":"GET","url":"/assets/menu/merchandies/green.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":57826},"msg":"incoming request"}
+{"level":30,"time":1786596890687,"pid":1,"hostname":"ccc2434c6aa0","reqId":"f3b834d1-69e0-4d5b-9f50-a3286c30492a","req":{"method":"GET","url":"/assets/menu/drinks/MONT%20BROGA.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":57840},"msg":"incoming request"}
+{"level":30,"time":1786596890690,"pid":1,"hostname":"ccc2434c6aa0","reqId":"7f14cb39-ccdb-4bee-b291-e3599756d59a","req":{"method":"GET","url":"/assets/menu/drinks/YUZUKANO.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":57844},"msg":"incoming request"}
+{"level":30,"time":1786596890694,"pid":1,"hostname":"ccc2434c6aa0","reqId":"5bf98950-0e57-4185-b489-ac1e68186b1f","res":{"statusCode":200},"responseTime":26.739555000094697,"msg":"request completed"}
+{"level":30,"time":1786596890697,"pid":1,"hostname":"ccc2434c6aa0","reqId":"298ee727-199e-4e12-8691-d3e3b67115b5","req":{"method":"GET","url":"/assets/menu/merchandies/dark%20blue.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":57850},"msg":"incoming request"}
+{"level":30,"time":1786596890709,"pid":1,"hostname":"ccc2434c6aa0","reqId":"a3ba18f9-9a6c-4ec4-9b7d-57b658575ef5","res":{"statusCode":200},"responseTime":38.248172000050545,"msg":"request completed"}
+{"level":30,"time":1786596890723,"pid":1,"hostname":"ccc2434c6aa0","reqId":"f059c233-08d9-46cb-93df-8123de859c7c","res":{"statusCode":200},"responseTime":38.733239999972284,"msg":"request completed"}
+{"level":30,"time":1786596890752,"pid":1,"hostname":"ccc2434c6aa0","reqId":"298ee727-199e-4e12-8691-d3e3b67115b5","res":{"statusCode":200},"responseTime":54.2507199998945,"msg":"request completed"}
+{"level":30,"time":1786596890763,"pid":1,"hostname":"ccc2434c6aa0","reqId":"f3b834d1-69e0-4d5b-9f50-a3286c30492a","res":{"statusCode":200},"responseTime":75.39248899999075,"msg":"request completed"}
+{"level":30,"time":1786596890870,"pid":1,"hostname":"ccc2434c6aa0","reqId":"d06fdd8d-3d0c-404e-92f2-607c6c7fb8dd","res":{"statusCode":200},"responseTime":188.6265930000227,"msg":"request completed"}
+{"level":30,"time":1786596890872,"pid":1,"hostname":"ccc2434c6aa0","reqId":"9f677325-a428-4ec5-ab0b-c48ddf0c9921","res":{"statusCode":200},"responseTime":192.1873940001242,"msg":"request completed"}
+{"level":30,"time":1786596890929,"pid":1,"hostname":"ccc2434c6aa0","reqId":"7f14cb39-ccdb-4bee-b291-e3599756d59a","res":{"statusCode":200},"responseTime":238.8487460000906,"msg":"request completed"}
+{"level":30,"time":1786596900647,"pid":1,"hostname":"ccc2434c6aa0","reqId":"93a18ebc-c126-47b4-9393-11f06e2a4e7a","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":54420},"msg":"incoming request"}
+{"level":30,"time":1786596900662,"pid":1,"hostname":"ccc2434c6aa0","reqId":"93a18ebc-c126-47b4-9393-11f06e2a4e7a","res":{"statusCode":200},"responseTime":15.084344000089914,"msg":"request completed"}
+{"level":30,"time":1786596931591,"pid":1,"hostname":"ccc2434c6aa0","reqId":"57256452-75f4-46fa-9634-3335ded51082","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":58050},"msg":"incoming request"}
+{"level":30,"time":1786596931607,"pid":1,"hostname":"ccc2434c6aa0","reqId":"57256452-75f4-46fa-9634-3335ded51082","res":{"statusCode":200},"responseTime":15.29341799998656,"msg":"request completed"}
+{"level":30,"time":1786596937896,"pid":1,"hostname":"ccc2434c6aa0","reqId":"4dc847c8-b545-48a1-9d1f-0c346ea7a415","req":{"method":"GET","url":"/assets/menu/drinks/PINKY%20PROMISE%20MATCHA.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":57850},"msg":"incoming request"}
+{"level":30,"time":1786596937897,"pid":1,"hostname":"ccc2434c6aa0","reqId":"1af16ae9-4923-4e00-a8bc-ba99fb2838d8","req":{"method":"GET","url":"/assets/menu/drinks/MILK%20CHOCOLATE.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":42564},"msg":"incoming request"}
+{"level":30,"time":1786596937898,"pid":1,"hostname":"ccc2434c6aa0","reqId":"70d66b47-fcb0-49e1-a35f-6d6309d81e1a","req":{"method":"GET","url":"/assets/menu/drinks/NUTTY%20CHOCOLATE.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":57826},"msg":"incoming request"}
+{"level":30,"time":1786596937899,"pid":1,"hostname":"ccc2434c6aa0","reqId":"193bcf16-cf89-4c50-b43f-d4027964ffd0","req":{"method":"GET","url":"/assets/menu/drinks/FLAT%20WHITE.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":42556},"msg":"incoming request"}
+{"level":30,"time":1786596937901,"pid":1,"hostname":"ccc2434c6aa0","reqId":"aa3a8b7a-6966-49d6-9586-1cbc2a5c16b8","req":{"method":"GET","url":"/assets/menu/pastries/ck%20biscoff.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":57840},"msg":"incoming request"}
+{"level":30,"time":1786596937903,"pid":1,"hostname":"ccc2434c6aa0","reqId":"c4fa24f1-8fd1-466d-89b9-ad23dd2439c9","req":{"method":"GET","url":"/assets/menu/pastries/curry%20puff.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":57844},"msg":"incoming request"}
+{"level":30,"time":1786596937904,"pid":1,"hostname":"ccc2434c6aa0","reqId":"f579157b-0dc6-4dd9-accc-6a018c614ee2","req":{"method":"GET","url":"/assets/menu/drinks/ESPRESSO.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":57822},"msg":"incoming request"}
+{"level":30,"time":1786596937907,"pid":1,"hostname":"ccc2434c6aa0","reqId":"d37548f4-ab38-46cd-9270-c5856b4ec271","req":{"method":"GET","url":"/assets/menu/drinks/BUTTERSCOTH%20LATTE.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":57812},"msg":"incoming request"}
+{"level":30,"time":1786596937910,"pid":1,"hostname":"ccc2434c6aa0","reqId":"2ccd9834-928d-4233-b166-b9298db57cff","req":{"method":"GET","url":"/assets/menu/drinks/CAPPUCCINO.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":43328},"msg":"incoming request"}
+{"level":30,"time":1786596937920,"pid":1,"hostname":"ccc2434c6aa0","reqId":"fc769a6e-6c11-47cd-8354-5605f9c5e41c","req":{"method":"GET","url":"/assets/menu/merchandies/light%20purple.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":43338},"msg":"incoming request"}
+{"level":30,"time":1786596937926,"pid":1,"hostname":"ccc2434c6aa0","reqId":"4017998f-c165-44be-9a42-5e45a7b1e4ef","req":{"method":"GET","url":"/assets/menu/pastries/ck%20ovomaltine.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":43342},"msg":"incoming request"}
+{"level":30,"time":1786596937933,"pid":1,"hostname":"ccc2434c6aa0","reqId":"e4b96306-19a4-4d58-8ea0-a26146c1a8bb","req":{"method":"GET","url":"/assets/menu/drinks/VANILLA%20LATTE.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":43358},"msg":"incoming request"}
+{"level":30,"time":1786596937939,"pid":1,"hostname":"ccc2434c6aa0","reqId":"a7e4964a-90e5-4977-8e20-38a49f31fd19","req":{"method":"GET","url":"/assets/menu/drinks/BLOODY%20PEACH.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":43360},"msg":"incoming request"}
+{"level":30,"time":1786596937947,"pid":1,"hostname":"ccc2434c6aa0","reqId":"7d38dde5-fd0f-4517-85b8-24a30dad3373","req":{"method":"GET","url":"/assets/menu/drinks/SOLERO%20FIZZ.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":43376},"msg":"incoming request"}
+{"level":30,"time":1786596937976,"pid":1,"hostname":"ccc2434c6aa0","reqId":"81142d8f-381a-48a8-b210-45314183c816","req":{"method":"GET","url":"/assets/menu/drinks/ONDE-ONDE%20SODA.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":43390},"msg":"incoming request"}
+{"level":30,"time":1786596937996,"pid":1,"hostname":"ccc2434c6aa0","reqId":"c4fa24f1-8fd1-466d-89b9-ad23dd2439c9","res":{"statusCode":200},"responseTime":92.26931499992497,"msg":"request completed"}
+{"level":30,"time":1786596938007,"pid":1,"hostname":"ccc2434c6aa0","reqId":"e64beae0-4cce-4d97-a0f1-d5debcd36877","req":{"method":"GET","url":"/assets/menu/drinks/PADDLE%20POP.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":43402},"msg":"incoming request"}
+{"level":30,"time":1786596938021,"pid":1,"hostname":"ccc2434c6aa0","reqId":"1addb52a-f5cd-4975-8b32-e1943a2ea72c","req":{"method":"GET","url":"/assets/menu/drinks/BLUE%20CLOUD%20COCONUT%20COFFEE.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":43410},"msg":"incoming request"}
+{"level":30,"time":1786596938035,"pid":1,"hostname":"ccc2434c6aa0","reqId":"f579157b-0dc6-4dd9-accc-6a018c614ee2","res":{"statusCode":200},"responseTime":129.86943700001575,"msg":"request completed"}
+{"level":30,"time":1786596938052,"pid":1,"hostname":"ccc2434c6aa0","reqId":"aa3a8b7a-6966-49d6-9586-1cbc2a5c16b8","res":{"statusCode":200},"responseTime":151.28741200012155,"msg":"request completed"}
+{"level":30,"time":1786596938078,"pid":1,"hostname":"ccc2434c6aa0","reqId":"d507d482-8215-4294-9f53-7ea385efdcfe","req":{"method":"GET","url":"/assets/menu/pastries/brownie.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":43426},"msg":"incoming request"}
+{"level":30,"time":1786596938093,"pid":1,"hostname":"ccc2434c6aa0","reqId":"db246b84-4f63-4fb6-a3f7-e7b0814c442e","req":{"method":"GET","url":"/assets/menu/drinks/BOIJITO.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":43432},"msg":"incoming request"}
+{"level":30,"time":1786596938107,"pid":1,"hostname":"ccc2434c6aa0","reqId":"4c27e108-8e9f-4d99-979d-a73b1edab717","req":{"method":"GET","url":"/assets/menu/drinks/FUJI%20FIZZ.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":43438},"msg":"incoming request"}
+{"level":30,"time":1786596938110,"pid":1,"hostname":"ccc2434c6aa0","reqId":"fc769a6e-6c11-47cd-8354-5605f9c5e41c","res":{"statusCode":200},"responseTime":189.8203640000429,"msg":"request completed"}
+{"level":30,"time":1786596938114,"pid":1,"hostname":"ccc2434c6aa0","reqId":"0b40b4b3-c1cf-42f5-b33c-3a2bb7662003","req":{"method":"GET","url":"/assets/menu/drinks/MATCHA%20LATTE.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":43450},"msg":"incoming request"}
+{"level":30,"time":1786596938127,"pid":1,"hostname":"ccc2434c6aa0","reqId":"d37548f4-ab38-46cd-9270-c5856b4ec271","res":{"statusCode":200},"responseTime":220.06716400012374,"msg":"request completed"}
+{"level":30,"time":1786596938130,"pid":1,"hostname":"ccc2434c6aa0","reqId":"a051f74e-e966-447e-be4f-77f2587696d8","req":{"method":"GET","url":"/assets/menu/drinks/HAZELNUT%20LATTE.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":43466},"msg":"incoming request"}
+{"level":30,"time":1786596938138,"pid":1,"hostname":"ccc2434c6aa0","reqId":"1af16ae9-4923-4e00-a8bc-ba99fb2838d8","res":{"statusCode":200},"responseTime":240.85935199982487,"msg":"request completed"}
+{"level":30,"time":1786596938140,"pid":1,"hostname":"ccc2434c6aa0","reqId":"4dc847c8-b545-48a1-9d1f-0c346ea7a415","res":{"statusCode":200},"responseTime":244.42904799990356,"msg":"request completed"}
+{"level":30,"time":1786596938143,"pid":1,"hostname":"ccc2434c6aa0","reqId":"273a0343-774e-4585-81cf-6e18e2a64048","req":{"method":"GET","url":"/assets/menu/candles/crushed%20lime%20and%20seasalt.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":43478},"msg":"incoming request"}
+{"level":30,"time":1786596938147,"pid":1,"hostname":"ccc2434c6aa0","reqId":"70d66b47-fcb0-49e1-a35f-6d6309d81e1a","res":{"statusCode":200},"responseTime":248.79125399980694,"msg":"request completed"}
+{"level":30,"time":1786596938148,"pid":1,"hostname":"ccc2434c6aa0","reqId":"193bcf16-cf89-4c50-b43f-d4027964ffd0","res":{"statusCode":200},"responseTime":248.2931840000674,"msg":"request completed"}
+{"level":30,"time":1786596938155,"pid":1,"hostname":"ccc2434c6aa0","reqId":"e7e3797e-6df4-4ac9-a202-6c6b7d67a023","req":{"method":"GET","url":"/assets/menu/drinks/POCCO%20LOCCO.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":43458},"msg":"incoming request"}
+{"level":30,"time":1786596938175,"pid":1,"hostname":"ccc2434c6aa0","reqId":"9c32705f-5c22-486d-a905-1e1bf5546655","req":{"method":"GET","url":"/assets/menu/pastries/ck%20red%20velvet.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":43474},"msg":"incoming request"}
+{"level":30,"time":1786596938202,"pid":1,"hostname":"ccc2434c6aa0","reqId":"4017998f-c165-44be-9a42-5e45a7b1e4ef","res":{"statusCode":200},"responseTime":276.36308300006203,"msg":"request completed"}
+{"level":30,"time":1786596938212,"pid":1,"hostname":"ccc2434c6aa0","reqId":"36f90fc1-0d18-43aa-9fb5-04dbe032b969","req":{"method":"GET","url":"/assets/menu/drinks/V60%20BREW.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":43480},"msg":"incoming request"}
+{"level":30,"time":1786596938221,"pid":1,"hostname":"ccc2434c6aa0","reqId":"2ccd9834-928d-4233-b166-b9298db57cff","res":{"statusCode":200},"responseTime":310.3570040001068,"msg":"request completed"}
+{"level":30,"time":1786596938228,"pid":1,"hostname":"ccc2434c6aa0","reqId":"b9930cd6-1960-4a06-a0f3-3ef9eab47ed3","req":{"method":"GET","url":"/assets/menu/drinks/CLOUDY%20JASMINE.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":43490},"msg":"incoming request"}
+{"level":30,"time":1786596938237,"pid":1,"hostname":"ccc2434c6aa0","reqId":"22a9014c-ee7e-4dbf-83f9-e8282894cbde","req":{"method":"GET","url":"/assets/menu/drinks/ESPRESSO%20BOMB.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":43496},"msg":"incoming request"}
+{"level":30,"time":1786596938250,"pid":1,"hostname":"ccc2434c6aa0","reqId":"a7c00383-587c-4994-b33b-7d291b2b4d88","req":{"method":"GET","url":"/assets/menu/drinks/LATTE.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":43502},"msg":"incoming request"}
+{"level":30,"time":1786596938306,"pid":1,"hostname":"ccc2434c6aa0","reqId":"d507d482-8215-4294-9f53-7ea385efdcfe","res":{"statusCode":200},"responseTime":227.68552200007252,"msg":"request completed"}
+{"level":30,"time":1786596938304,"pid":1,"hostname":"ccc2434c6aa0","reqId":"d256b27e-ed65-445b-b981-a6e91bf5ec26","req":{"method":"GET","url":"/assets/menu/drinks/MOCHA.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":43512},"msg":"incoming request"}
+{"level":30,"time":1786596938309,"pid":1,"hostname":"ccc2434c6aa0","reqId":"273a0343-774e-4585-81cf-6e18e2a64048","res":{"statusCode":200},"responseTime":170.7502150000073,"msg":"request completed"}
+{"level":30,"time":1786596938315,"pid":1,"hostname":"ccc2434c6aa0","reqId":"0198ec86-5151-424e-abb7-5553a39f63f5","req":{"method":"GET","url":"/assets/menu/drinks/PINKY%20BLUSH%20MILKSHAKE%20BY%20SYAH.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":43518},"msg":"incoming request"}
+{"level":30,"time":1786596938324,"pid":1,"hostname":"ccc2434c6aa0","reqId":"7d38dde5-fd0f-4517-85b8-24a30dad3373","res":{"statusCode":200},"responseTime":382.1796800000593,"msg":"request completed"}
+{"level":30,"time":1786596938326,"pid":1,"hostname":"ccc2434c6aa0","reqId":"0543e692-4e05-493b-9b29-9d101e6e630d","req":{"method":"GET","url":"/assets/menu/candles/fresh%20sage%20and%20driftwood.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":43528},"msg":"incoming request"}
+{"level":30,"time":1786596938334,"pid":1,"hostname":"ccc2434c6aa0","reqId":"c62b8ce6-5664-49f0-afa7-5772079aefe3","req":{"method":"GET","url":"/assets/menu/drinks/SPICY%20MIMOSA.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":43538},"msg":"incoming request"}
+{"level":30,"time":1786596938344,"pid":1,"hostname":"ccc2434c6aa0","reqId":"ca31dec3-fe04-4071-8496-f084336fb6fa","req":{"method":"GET","url":"/assets/menu/pastries/shio%20pan.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":43536},"msg":"incoming request"}
+{"level":30,"time":1786596938354,"pid":1,"hostname":"ccc2434c6aa0","reqId":"211c2fc7-0691-49c1-8fb7-59aaa999a3c1","req":{"method":"GET","url":"/assets/menu/candles/gunung.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":43552},"msg":"incoming request"}
+{"level":30,"time":1786596938364,"pid":1,"hostname":"ccc2434c6aa0","reqId":"bacb62f2-c366-44a4-a3c8-64f314e3b184","req":{"method":"GET","url":"/assets/menu/drinks/MONKEY%20MATCHA.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":43568},"msg":"incoming request"}
+{"level":30,"time":1786596938370,"pid":1,"hostname":"ccc2434c6aa0","reqId":"c5989465-1419-49fb-b472-2d55faa0f4c1","req":{"method":"GET","url":"/assets/menu/candles/tobacco%20vanilla.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":43574},"msg":"incoming request"}
+{"level":30,"time":1786596938381,"pid":1,"hostname":"ccc2434c6aa0","reqId":"e7e3797e-6df4-4ac9-a202-6c6b7d67a023","res":{"statusCode":200},"responseTime":231.04999000020325,"msg":"request completed"}
+{"level":30,"time":1786596938423,"pid":1,"hostname":"ccc2434c6aa0","reqId":"4c27e108-8e9f-4d99-979d-a73b1edab717","res":{"statusCode":200},"responseTime":320.9902820000425,"msg":"request completed"}
+{"level":30,"time":1786596938429,"pid":1,"hostname":"ccc2434c6aa0","reqId":"e64beae0-4cce-4d97-a0f1-d5debcd36877","res":{"statusCode":200},"responseTime":426.61765099992044,"msg":"request completed"}
+{"level":30,"time":1786596938442,"pid":1,"hostname":"ccc2434c6aa0","reqId":"0543e692-4e05-493b-9b29-9d101e6e630d","res":{"statusCode":200},"responseTime":116.2392440000549,"msg":"request completed"}
+{"level":30,"time":1786596938498,"pid":1,"hostname":"ccc2434c6aa0","reqId":"211c2fc7-0691-49c1-8fb7-59aaa999a3c1","res":{"statusCode":200},"responseTime":143.06537000020035,"msg":"request completed"}
+{"level":30,"time":1786596938501,"pid":1,"hostname":"ccc2434c6aa0","reqId":"ca31dec3-fe04-4071-8496-f084336fb6fa","res":{"statusCode":200},"responseTime":156.6483559999615,"msg":"request completed"}
+{"level":30,"time":1786596938502,"pid":1,"hostname":"ccc2434c6aa0","reqId":"81142d8f-381a-48a8-b210-45314183c816","res":{"statusCode":200},"responseTime":530.0484159998596,"msg":"request completed"}
+{"level":30,"time":1786596938510,"pid":1,"hostname":"ccc2434c6aa0","reqId":"c5989465-1419-49fb-b472-2d55faa0f4c1","res":{"statusCode":200},"responseTime":139.31664899992757,"msg":"request completed"}
+{"level":30,"time":1786596938533,"pid":1,"hostname":"ccc2434c6aa0","reqId":"0198ec86-5151-424e-abb7-5553a39f63f5","res":{"statusCode":200},"responseTime":218.0194800000172,"msg":"request completed"}
+{"level":30,"time":1786596938579,"pid":1,"hostname":"ccc2434c6aa0","reqId":"1addb52a-f5cd-4975-8b32-e1943a2ea72c","res":{"statusCode":200},"responseTime":561.4794819999952,"msg":"request completed"}
+{"level":30,"time":1786596938690,"pid":1,"hostname":"ccc2434c6aa0","reqId":"db246b84-4f63-4fb6-a3f7-e7b0814c442e","res":{"statusCode":200},"responseTime":602.4122679999564,"msg":"request completed"}
+{"level":30,"time":1786596938767,"pid":1,"hostname":"ccc2434c6aa0","reqId":"a7e4964a-90e5-4977-8e20-38a49f31fd19","res":{"statusCode":200},"responseTime":832.9864900000393,"msg":"request completed"}
+{"level":30,"time":1786596938831,"pid":1,"hostname":"ccc2434c6aa0","reqId":"e4b96306-19a4-4d58-8ea0-a26146c1a8bb","res":{"statusCode":200},"responseTime":903.3335609999485,"msg":"request completed"}
+{"level":30,"time":1786596938842,"pid":1,"hostname":"ccc2434c6aa0","reqId":"9c32705f-5c22-486d-a905-1e1bf5546655","res":{"statusCode":200},"responseTime":671.1758169999812,"msg":"request completed"}
+{"level":30,"time":1786596939016,"pid":1,"hostname":"ccc2434c6aa0","reqId":"36f90fc1-0d18-43aa-9fb5-04dbe032b969","res":{"statusCode":200},"responseTime":809.0378650000785,"msg":"request completed"}
+{"level":30,"time":1786596939034,"pid":1,"hostname":"ccc2434c6aa0","reqId":"a7c00383-587c-4994-b33b-7d291b2b4d88","res":{"statusCode":200},"responseTime":788.2039719999302,"msg":"request completed"}
+{"level":30,"time":1786596939054,"pid":1,"hostname":"ccc2434c6aa0","reqId":"b9930cd6-1960-4a06-a0f3-3ef9eab47ed3","res":{"statusCode":200},"responseTime":830.3937310001347,"msg":"request completed"}
+{"level":30,"time":1786596939147,"pid":1,"hostname":"ccc2434c6aa0","reqId":"22a9014c-ee7e-4dbf-83f9-e8282894cbde","res":{"statusCode":200},"responseTime":914.9347719999496,"msg":"request completed"}
+{"level":30,"time":1786596939160,"pid":1,"hostname":"ccc2434c6aa0","reqId":"0b40b4b3-c1cf-42f5-b33c-3a2bb7662003","res":{"statusCode":200},"responseTime":1050.8291459998582,"msg":"request completed"}
+{"level":30,"time":1786596939247,"pid":1,"hostname":"ccc2434c6aa0","reqId":"bacb62f2-c366-44a4-a3c8-64f314e3b184","res":{"statusCode":200},"responseTime":882.5783780000638,"msg":"request completed"}
+{"level":30,"time":1786596939310,"pid":1,"hostname":"ccc2434c6aa0","reqId":"c62b8ce6-5664-49f0-afa7-5772079aefe3","res":{"statusCode":200},"responseTime":976.0849659999367,"msg":"request completed"}
+{"level":30,"time":1786596939426,"pid":1,"hostname":"ccc2434c6aa0","reqId":"a051f74e-e966-447e-be4f-77f2587696d8","res":{"statusCode":200},"responseTime":1300.9408829999156,"msg":"request completed"}
+{"level":30,"time":1786596940821,"pid":1,"hostname":"ccc2434c6aa0","reqId":"d256b27e-ed65-445b-b981-a6e91bf5ec26","res":{"statusCode":200},"responseTime":2517.167401000159,"msg":"request completed"}
+{"level":30,"time":1786596960462,"pid":1,"hostname":"ccc2434c6aa0","reqId":"24ad0322-0646-4725-a559-980121bf0900","req":{"method":"POST","url":"/v1/orders","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":57844},"msg":"incoming request"}
+{"level":30,"time":1786596960768,"pid":1,"hostname":"ccc2434c6aa0","reqId":"24ad0322-0646-4725-a559-980121bf0900","res":{"statusCode":200},"responseTime":306.0110019999556,"msg":"request completed"}
+{"level":30,"time":1786596960871,"pid":1,"hostname":"ccc2434c6aa0","reqId":"c4e93677-188e-4715-a3db-d1d3bc0bbe1c","req":{"method":"POST","url":"/v1/orders/3/direct-payment/confirm","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":57822},"msg":"incoming request"}
+{"level":30,"time":1786596961019,"pid":1,"hostname":"ccc2434c6aa0","reqId":"c4e93677-188e-4715-a3db-d1d3bc0bbe1c","res":{"statusCode":200},"responseTime":147.95942800003104,"msg":"request completed"}
+{"level":30,"time":1786596962549,"pid":1,"hostname":"ccc2434c6aa0","reqId":"8db94bce-1769-42ab-a7dc-53a1a15ea2fc","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":43896},"msg":"incoming request"}
+{"level":30,"time":1786596962564,"pid":1,"hostname":"ccc2434c6aa0","reqId":"8db94bce-1769-42ab-a7dc-53a1a15ea2fc","res":{"statusCode":200},"responseTime":14.482377999927849,"msg":"request completed"}
+{"level":30,"time":1786596985847,"pid":1,"hostname":"ccc2434c6aa0","reqId":"406f0ae2-4a1f-47f3-8c06-5d987e164489","req":{"method":"GET","url":"/v1/orders?limit=20","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":43338},"msg":"incoming request"}
+{"level":30,"time":1786596985909,"pid":1,"hostname":"ccc2434c6aa0","reqId":"406f0ae2-4a1f-47f3-8c06-5d987e164489","res":{"statusCode":200},"responseTime":61.19329999992624,"msg":"request completed"}
+{"level":30,"time":1786596993505,"pid":1,"hostname":"ccc2434c6aa0","reqId":"17ed4189-039a-45e8-b70c-4f54b3ef3074","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":60334},"msg":"incoming request"}
+{"level":30,"time":1786596993520,"pid":1,"hostname":"ccc2434c6aa0","reqId":"17ed4189-039a-45e8-b70c-4f54b3ef3074","res":{"statusCode":200},"responseTime":14.277111999923363,"msg":"request completed"}
+{"level":30,"time":1786597014460,"pid":1,"hostname":"ccc2434c6aa0","reqId":"1d393d77-7b0f-4407-b3ab-a04ea27f4f4c","req":{"method":"GET","url":"/v1/orders?limit=20","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":57844},"msg":"incoming request"}
+{"level":30,"time":1786597014517,"pid":1,"hostname":"ccc2434c6aa0","reqId":"1d393d77-7b0f-4407-b3ab-a04ea27f4f4c","res":{"statusCode":200},"responseTime":56.683630999876186,"msg":"request completed"}
+{"level":30,"time":1786597024465,"pid":1,"hostname":"ccc2434c6aa0","reqId":"2c3e471f-430d-4ef4-ba41-c0813681427f","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":34530},"msg":"incoming request"}
+{"level":30,"time":1786597024484,"pid":1,"hostname":"ccc2434c6aa0","reqId":"2c3e471f-430d-4ef4-ba41-c0813681427f","res":{"statusCode":200},"responseTime":18.303678000112996,"msg":"request completed"}
+{"level":30,"time":1786597026446,"pid":1,"hostname":"ccc2434c6aa0","reqId":"65ff3192-a61b-41c5-ac67-19e8a08399b5","req":{"method":"GET","url":"/v1/orders?limit=20","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":43338},"msg":"incoming request"}
+{"level":30,"time":1786597026505,"pid":1,"hostname":"ccc2434c6aa0","reqId":"65ff3192-a61b-41c5-ac67-19e8a08399b5","res":{"statusCode":200},"responseTime":58.836984999943525,"msg":"request completed"}
+{"level":30,"time":1786597055381,"pid":1,"hostname":"ccc2434c6aa0","reqId":"1e955448-b785-4770-85b5-261cf8c55a2e","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":35380},"msg":"incoming request"}
+{"level":30,"time":1786597055396,"pid":1,"hostname":"ccc2434c6aa0","reqId":"1e955448-b785-4770-85b5-261cf8c55a2e","res":{"statusCode":200},"responseTime":14.404031000100076,"msg":"request completed"}
+{"level":30,"time":1786597086326,"pid":1,"hostname":"ccc2434c6aa0","reqId":"b444521e-3fa6-4b4a-9339-f8db1a9954e1","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":42006},"msg":"incoming request"}
+{"level":30,"time":1786597086340,"pid":1,"hostname":"ccc2434c6aa0","reqId":"b444521e-3fa6-4b4a-9339-f8db1a9954e1","res":{"statusCode":200},"responseTime":13.846587999956682,"msg":"request completed"}
+{"level":30,"time":1786597117311,"pid":1,"hostname":"ccc2434c6aa0","reqId":"d4abefe0-3245-4ce4-90ea-cb8a000bc002","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":33018},"msg":"incoming request"}
+{"level":30,"time":1786597117327,"pid":1,"hostname":"ccc2434c6aa0","reqId":"d4abefe0-3245-4ce4-90ea-cb8a000bc002","res":{"statusCode":200},"responseTime":15.262084999820217,"msg":"request completed"}
+{"level":30,"time":1786597148277,"pid":1,"hostname":"ccc2434c6aa0","reqId":"a6542515-fe95-4988-9a85-e307eecb8d1b","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":36494},"msg":"incoming request"}
+{"level":30,"time":1786597148298,"pid":1,"hostname":"ccc2434c6aa0","reqId":"a6542515-fe95-4988-9a85-e307eecb8d1b","res":{"statusCode":200},"responseTime":20.983784000156447,"msg":"request completed"}
+{"level":30,"time":1786597179236,"pid":1,"hostname":"ccc2434c6aa0","reqId":"81f3996a-982d-4a5c-b523-7c17b2d29ddb","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":45366},"msg":"incoming request"}
+{"level":30,"time":1786597179252,"pid":1,"hostname":"ccc2434c6aa0","reqId":"81f3996a-982d-4a5c-b523-7c17b2d29ddb","res":{"statusCode":200},"responseTime":15.635921000037342,"msg":"request completed"}
+{"level":30,"time":1786597210115,"pid":1,"hostname":"ccc2434c6aa0","reqId":"927ae822-878b-4577-8704-87cd763ba327","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":56054},"msg":"incoming request"}
+{"level":30,"time":1786597210129,"pid":1,"hostname":"ccc2434c6aa0","reqId":"927ae822-878b-4577-8704-87cd763ba327","res":{"statusCode":200},"responseTime":14.201715999981388,"msg":"request completed"}
+{"level":30,"time":1786597229080,"pid":1,"hostname":"ccc2434c6aa0","reqId":"900a1d39-8b2a-455a-af01-d5233c2cf46e","req":{"method":"POST","url":"/v1/auth/refresh","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45604},"msg":"incoming request"}
+{"level":30,"time":1786597229127,"pid":1,"hostname":"ccc2434c6aa0","reqId":"900a1d39-8b2a-455a-af01-d5233c2cf46e","res":{"statusCode":200},"responseTime":46.48391399998218,"msg":"request completed"}
+{"level":30,"time":1786597229348,"pid":1,"hostname":"ccc2434c6aa0","reqId":"ca7c6058-fcfe-44bd-a832-32ef789d7595","req":{"method":"GET","url":"/v1/me","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45604},"msg":"incoming request"}
+{"level":30,"time":1786597229378,"pid":1,"hostname":"ccc2434c6aa0","reqId":"ca7c6058-fcfe-44bd-a832-32ef789d7595","res":{"statusCode":200},"responseTime":29.91695600003004,"msg":"request completed"}
+{"level":30,"time":1786597229381,"pid":1,"hostname":"ccc2434c6aa0","reqId":"c70a1b94-9488-4a92-81b9-d43f06d1f645","req":{"method":"GET","url":"/v1/bootstrap","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45604},"msg":"incoming request"}
+{"level":30,"time":1786597229411,"pid":1,"hostname":"ccc2434c6aa0","reqId":"d6ac089b-a960-49c4-b321-677b4917e191","req":{"method":"GET","url":"/v1/stores","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45612},"msg":"incoming request"}
+{"level":30,"time":1786597229422,"pid":1,"hostname":"ccc2434c6aa0","reqId":"c70a1b94-9488-4a92-81b9-d43f06d1f645","res":{"statusCode":200},"responseTime":40.99873299989849,"msg":"request completed"}
+{"level":30,"time":1786597229441,"pid":1,"hostname":"ccc2434c6aa0","reqId":"d6ac089b-a960-49c4-b321-677b4917e191","res":{"statusCode":200},"responseTime":29.771135000046343,"msg":"request completed"}
+{"level":30,"time":1786597229462,"pid":1,"hostname":"ccc2434c6aa0","reqId":"9984aa3b-b34c-47e6-aa33-4d0bd5337c4e","req":{"method":"GET","url":"/v1/menu?store_id=3","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45604},"msg":"incoming request"}
+{"level":30,"time":1786597229583,"pid":1,"hostname":"ccc2434c6aa0","reqId":"9984aa3b-b34c-47e6-aa33-4d0bd5337c4e","res":{"statusCode":200},"responseTime":121.29375599999912,"msg":"request completed"}
+{"level":30,"time":1786597231912,"pid":1,"hostname":"ccc2434c6aa0","reqId":"46178d27-d1b9-4b45-b24e-3986347ccb65","req":{"method":"GET","url":"/assets/menu/merchandies/cream.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45612},"msg":"incoming request"}
+{"level":30,"time":1786597231917,"pid":1,"hostname":"ccc2434c6aa0","reqId":"1fd14f49-ecf8-44ef-b111-69d818e58e0e","req":{"method":"GET","url":"/assets/menu/drinks/MONT%20BROGA.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45604},"msg":"incoming request"}
+{"level":30,"time":1786597231923,"pid":1,"hostname":"ccc2434c6aa0","reqId":"44b4baee-5d38-4e34-aa49-3c05633e26cc","req":{"method":"GET","url":"/assets/menu/merchandies/light%20blue.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":35838},"msg":"incoming request"}
+{"level":30,"time":1786597231935,"pid":1,"hostname":"ccc2434c6aa0","reqId":"de4b99fb-4d90-4d9e-aefb-fab8e1ab327e","req":{"method":"GET","url":"/assets/menu/drinks/SENJA%20DI%20BROGA.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":35848},"msg":"incoming request"}
+{"level":30,"time":1786597231939,"pid":1,"hostname":"ccc2434c6aa0","reqId":"2ea39703-f648-467c-97ce-7b5497721853","req":{"method":"GET","url":"/assets/menu/merchandies/dark%20blue.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":35860},"msg":"incoming request"}
+{"level":30,"time":1786597231945,"pid":1,"hostname":"ccc2434c6aa0","reqId":"a70c65ed-fd68-41f7-b7a7-058e55447548","req":{"method":"GET","url":"/assets/menu/drinks/YUZUKANO.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":35872},"msg":"incoming request"}
+{"level":30,"time":1786597231950,"pid":1,"hostname":"ccc2434c6aa0","reqId":"fc227826-af74-45a2-a028-2cf0602cb4b7","req":{"method":"GET","url":"/assets/menu/merchandies/green.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":35884},"msg":"incoming request"}
+{"level":30,"time":1786597231955,"pid":1,"hostname":"ccc2434c6aa0","reqId":"46178d27-d1b9-4b45-b24e-3986347ccb65","res":{"statusCode":200},"responseTime":42.78759500011802,"msg":"request completed"}
+{"level":30,"time":1786597231956,"pid":1,"hostname":"ccc2434c6aa0","reqId":"07307e0f-4981-4b3e-b969-347b84082605","req":{"method":"GET","url":"/assets/menu/drinks/SHAKERATO%20BIANCO.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":35888},"msg":"incoming request"}
+{"level":30,"time":1786597231973,"pid":1,"hostname":"ccc2434c6aa0","reqId":"44b4baee-5d38-4e34-aa49-3c05633e26cc","res":{"statusCode":200},"responseTime":49.52185500017367,"msg":"request completed"}
+{"level":30,"time":1786597232018,"pid":1,"hostname":"ccc2434c6aa0","reqId":"1fd14f49-ecf8-44ef-b111-69d818e58e0e","res":{"statusCode":200},"responseTime":100.21207599993795,"msg":"request completed"}
+{"level":30,"time":1786597232020,"pid":1,"hostname":"ccc2434c6aa0","reqId":"fc227826-af74-45a2-a028-2cf0602cb4b7","res":{"statusCode":200},"responseTime":69.7878409998957,"msg":"request completed"}
+{"level":30,"time":1786597232021,"pid":1,"hostname":"ccc2434c6aa0","reqId":"2ea39703-f648-467c-97ce-7b5497721853","res":{"statusCode":200},"responseTime":81.74144400004297,"msg":"request completed"}
+{"level":30,"time":1786597232118,"pid":1,"hostname":"ccc2434c6aa0","reqId":"07307e0f-4981-4b3e-b969-347b84082605","res":{"statusCode":200},"responseTime":162.30622099991888,"msg":"request completed"}
+{"level":30,"time":1786597232183,"pid":1,"hostname":"ccc2434c6aa0","reqId":"a70c65ed-fd68-41f7-b7a7-058e55447548","res":{"statusCode":200},"responseTime":237.63105100020766,"msg":"request completed"}
+{"level":30,"time":1786597232254,"pid":1,"hostname":"ccc2434c6aa0","reqId":"de4b99fb-4d90-4d9e-aefb-fab8e1ab327e","res":{"statusCode":200},"responseTime":318.53167599998415,"msg":"request completed"}
+{"level":30,"time":1786597240999,"pid":1,"hostname":"ccc2434c6aa0","reqId":"5799a5f5-5bf9-43a4-b5f3-728eeb9134ab","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":36236},"msg":"incoming request"}
+{"level":30,"time":1786597241014,"pid":1,"hostname":"ccc2434c6aa0","reqId":"5799a5f5-5bf9-43a4-b5f3-728eeb9134ab","res":{"statusCode":200},"responseTime":14.457844999851659,"msg":"request completed"}
+{"level":30,"time":1786597242657,"pid":1,"hostname":"ccc2434c6aa0","reqId":"c84334bb-cdf6-404e-80e4-f47a58fcba5b","req":{"method":"GET","url":"/assets/menu/drinks/ESPRESSO%20BOMB.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":35838},"msg":"incoming request"}
+{"level":30,"time":1786597242659,"pid":1,"hostname":"ccc2434c6aa0","reqId":"3b0db8c1-859d-4155-8362-ea11ea1520cc","req":{"method":"GET","url":"/assets/menu/drinks/V60%20BREW.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45612},"msg":"incoming request"}
+{"level":30,"time":1786597242660,"pid":1,"hostname":"ccc2434c6aa0","reqId":"9e63f960-ac2c-45f1-9a35-e8faaf0fe340","req":{"method":"GET","url":"/assets/menu/drinks/FLAT%20WHITE.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45604},"msg":"incoming request"}
+{"level":30,"time":1786597242661,"pid":1,"hostname":"ccc2434c6aa0","reqId":"4c8a48d8-06b5-486d-82ec-488f39cb747f","req":{"method":"GET","url":"/assets/menu/drinks/CAPPUCCINO.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":35884},"msg":"incoming request"}
+{"level":30,"time":1786597242662,"pid":1,"hostname":"ccc2434c6aa0","reqId":"5d756c20-2d7a-49c0-af44-fe778bc5bd72","req":{"method":"GET","url":"/assets/menu/drinks/LATTE.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":35860},"msg":"incoming request"}
+{"level":30,"time":1786597242664,"pid":1,"hostname":"ccc2434c6aa0","reqId":"0b608aab-cbf8-4421-9067-5af118bec4e5","req":{"method":"GET","url":"/assets/menu/drinks/ESPRESSO.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":35848},"msg":"incoming request"}
+{"level":30,"time":1786597242669,"pid":1,"hostname":"ccc2434c6aa0","reqId":"68d754f6-a3d6-42bb-aec9-850f189b5492","req":{"method":"GET","url":"/assets/menu/drinks/POCCO%20LOCCO.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":35872},"msg":"incoming request"}
+{"level":30,"time":1786597242670,"pid":1,"hostname":"ccc2434c6aa0","reqId":"894f96db-5b0e-424b-852f-c57e3c294a93","req":{"method":"GET","url":"/assets/menu/drinks/BUTTERSCOTH%20LATTE.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":35888},"msg":"incoming request"}
+{"level":30,"time":1786597242706,"pid":1,"hostname":"ccc2434c6aa0","reqId":"0f410559-ec32-430a-92dc-c1189a91106e","req":{"method":"GET","url":"/assets/menu/drinks/PINKY%20PROMISE%20MATCHA.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":50304},"msg":"incoming request"}
+{"level":30,"time":1786597242708,"pid":1,"hostname":"ccc2434c6aa0","reqId":"4d9a1115-5af3-4f66-9f4c-728b92556b1d","req":{"method":"GET","url":"/assets/menu/pastries/ck%20biscoff.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":50308},"msg":"incoming request"}
+{"level":30,"time":1786597242713,"pid":1,"hostname":"ccc2434c6aa0","reqId":"099c93e4-01d2-4b63-8ee8-f5e7a1734dcd","req":{"method":"GET","url":"/assets/menu/drinks/PADDLE%20POP.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":50302},"msg":"incoming request"}
+{"level":30,"time":1786597242719,"pid":1,"hostname":"ccc2434c6aa0","reqId":"03dd5b5f-bc10-49ff-a973-b9b0525c8027","req":{"method":"GET","url":"/assets/menu/drinks/MONKEY%20MATCHA.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":50312},"msg":"incoming request"}
+{"level":30,"time":1786597242724,"pid":1,"hostname":"ccc2434c6aa0","reqId":"40911b8d-5de0-4a32-844c-a6dd77fbfbc9","req":{"method":"GET","url":"/assets/menu/drinks/BOIJITO.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":50322},"msg":"incoming request"}
+{"level":30,"time":1786597242742,"pid":1,"hostname":"ccc2434c6aa0","reqId":"b431e709-19f4-46fa-bf85-c923fca96572","req":{"method":"GET","url":"/assets/menu/pastries/ck%20red%20velvet.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":50334},"msg":"incoming request"}
+{"level":30,"time":1786597242752,"pid":1,"hostname":"ccc2434c6aa0","reqId":"68d754f6-a3d6-42bb-aec9-850f189b5492","res":{"statusCode":200},"responseTime":83.25217600003816,"msg":"request completed"}
+{"level":30,"time":1786597242787,"pid":1,"hostname":"ccc2434c6aa0","reqId":"8c195d9a-d84f-41f6-8127-a119afa451d5","req":{"method":"GET","url":"/assets/menu/pastries/ck%20ovomaltine.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":50350},"msg":"incoming request"}
+{"level":30,"time":1786597242839,"pid":1,"hostname":"ccc2434c6aa0","reqId":"252080c6-6a6a-4694-b78a-9c1b048ca1e1","req":{"method":"GET","url":"/assets/menu/candles/gunung.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":50364},"msg":"incoming request"}
+{"level":30,"time":1786597242848,"pid":1,"hostname":"ccc2434c6aa0","reqId":"9e63f960-ac2c-45f1-9a35-e8faaf0fe340","res":{"statusCode":200},"responseTime":187.6375410000328,"msg":"request completed"}
+{"level":30,"time":1786597242861,"pid":1,"hostname":"ccc2434c6aa0","reqId":"0b608aab-cbf8-4421-9067-5af118bec4e5","res":{"statusCode":200},"responseTime":196.6961209999863,"msg":"request completed"}
+{"level":30,"time":1786597242863,"pid":1,"hostname":"ccc2434c6aa0","reqId":"b8053dcc-91e6-4ff2-aa31-1e855a298b06","req":{"method":"GET","url":"/assets/menu/candles/fresh%20sage%20and%20driftwood.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":50370},"msg":"incoming request"}
+{"level":30,"time":1786597242873,"pid":1,"hostname":"ccc2434c6aa0","reqId":"3b0db8c1-859d-4155-8362-ea11ea1520cc","res":{"statusCode":200},"responseTime":213.7414319999516,"msg":"request completed"}
+{"level":30,"time":1786597242873,"pid":1,"hostname":"ccc2434c6aa0","reqId":"c84334bb-cdf6-404e-80e4-f47a58fcba5b","res":{"statusCode":200},"responseTime":215.9191399998963,"msg":"request completed"}
+{"level":30,"time":1786597242874,"pid":1,"hostname":"ccc2434c6aa0","reqId":"b4fb94e5-30e7-41e1-ade6-452f3589ed27","req":{"method":"GET","url":"/assets/menu/pastries/shio%20pan.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":50376},"msg":"incoming request"}
+{"level":30,"time":1786597242886,"pid":1,"hostname":"ccc2434c6aa0","reqId":"894f96db-5b0e-424b-852f-c57e3c294a93","res":{"statusCode":200},"responseTime":215.5854929999914,"msg":"request completed"}
+{"level":30,"time":1786597242888,"pid":1,"hostname":"ccc2434c6aa0","reqId":"5d756c20-2d7a-49c0-af44-fe778bc5bd72","res":{"statusCode":200},"responseTime":225.1565469999332,"msg":"request completed"}
+{"level":30,"time":1786597242889,"pid":1,"hostname":"ccc2434c6aa0","reqId":"cefddfd0-b735-4cb8-852a-4b2d1d6eff0f","req":{"method":"GET","url":"/assets/menu/candles/tobacco%20vanilla.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":50392},"msg":"incoming request"}
+{"level":30,"time":1786597242899,"pid":1,"hostname":"ccc2434c6aa0","reqId":"308acadc-a21c-4e75-ac0d-6e086da35bbe","req":{"method":"GET","url":"/assets/menu/drinks/BLUE%20CLOUD%20COCONUT%20COFFEE.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":50404},"msg":"incoming request"}
+{"level":30,"time":1786597242906,"pid":1,"hostname":"ccc2434c6aa0","reqId":"daf68caa-c9c7-454e-b9a4-bf77c35623bc","req":{"method":"GET","url":"/assets/menu/drinks/MOCHA.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":50412},"msg":"incoming request"}
+{"level":30,"time":1786597242915,"pid":1,"hostname":"ccc2434c6aa0","reqId":"dca9335b-e47a-4a77-9688-fa44e62b8aff","req":{"method":"GET","url":"/assets/menu/drinks/CLOUDY%20JASMINE.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":50426},"msg":"incoming request"}
+{"level":30,"time":1786597242929,"pid":1,"hostname":"ccc2434c6aa0","reqId":"c607adcf-2723-4c27-88fd-5930de5fc737","req":{"method":"GET","url":"/assets/menu/drinks/SPICY%20MIMOSA.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":50432},"msg":"incoming request"}
+{"level":30,"time":1786597242938,"pid":1,"hostname":"ccc2434c6aa0","reqId":"92f57c2a-6d13-4958-8cda-d0276aa31e5a","req":{"method":"GET","url":"/assets/menu/drinks/SOLERO%20FIZZ.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":50434},"msg":"incoming request"}
+{"level":30,"time":1786597242947,"pid":1,"hostname":"ccc2434c6aa0","reqId":"252080c6-6a6a-4694-b78a-9c1b048ca1e1","res":{"statusCode":200},"responseTime":107.48710299981758,"msg":"request completed"}
+{"level":30,"time":1786597242952,"pid":1,"hostname":"ccc2434c6aa0","reqId":"b8053dcc-91e6-4ff2-aa31-1e855a298b06","res":{"statusCode":200},"responseTime":89.63477800018154,"msg":"request completed"}
+{"level":30,"time":1786597242955,"pid":1,"hostname":"ccc2434c6aa0","reqId":"4d9a1115-5af3-4f66-9f4c-728b92556b1d","res":{"statusCode":200},"responseTime":245.10396900004707,"msg":"request completed"}
+{"level":30,"time":1786597242956,"pid":1,"hostname":"ccc2434c6aa0","reqId":"586ca71a-3d8a-4538-8de8-3da89b00584b","req":{"method":"GET","url":"/assets/menu/drinks/FUJI%20FIZZ.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":50438},"msg":"incoming request"}
+{"level":30,"time":1786597242963,"pid":1,"hostname":"ccc2434c6aa0","reqId":"b4fb94e5-30e7-41e1-ade6-452f3589ed27","res":{"statusCode":200},"responseTime":89.0420949999243,"msg":"request completed"}
+{"level":30,"time":1786597242972,"pid":1,"hostname":"ccc2434c6aa0","reqId":"9d4df693-42c4-4dbd-979d-b5dcec88e1cf","req":{"method":"GET","url":"/assets/menu/drinks/MILK%20CHOCOLATE.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":50448},"msg":"incoming request"}
+{"level":30,"time":1786597242979,"pid":1,"hostname":"ccc2434c6aa0","reqId":"0f410559-ec32-430a-92dc-c1189a91106e","res":{"statusCode":200},"responseTime":272.41113100014627,"msg":"request completed"}
+{"level":30,"time":1786597242980,"pid":1,"hostname":"ccc2434c6aa0","reqId":"b431e709-19f4-46fa-bf85-c923fca96572","res":{"statusCode":200},"responseTime":237.59800700005144,"msg":"request completed"}
+{"level":30,"time":1786597242981,"pid":1,"hostname":"ccc2434c6aa0","reqId":"cefddfd0-b735-4cb8-852a-4b2d1d6eff0f","res":{"statusCode":200},"responseTime":91.3666240000166,"msg":"request completed"}
+{"level":30,"time":1786597242981,"pid":1,"hostname":"ccc2434c6aa0","reqId":"21a05b06-8c20-4b2d-98c4-35570c971333","req":{"method":"GET","url":"/assets/menu/drinks/MATCHA%20LATTE.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":50462},"msg":"incoming request"}
+{"level":30,"time":1786597243025,"pid":1,"hostname":"ccc2434c6aa0","reqId":"8a10b778-2158-4e3a-b73b-e9bdcc6a8857","req":{"method":"GET","url":"/assets/menu/pastries/brownie.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":50464},"msg":"incoming request"}
+{"level":30,"time":1786597243033,"pid":1,"hostname":"ccc2434c6aa0","reqId":"8c195d9a-d84f-41f6-8127-a119afa451d5","res":{"statusCode":200},"responseTime":244.4959829999134,"msg":"request completed"}
+{"level":30,"time":1786597243034,"pid":1,"hostname":"ccc2434c6aa0","reqId":"486cb171-fc13-40c2-ac34-19b7202869a6","req":{"method":"GET","url":"/assets/menu/pastries/curry%20puff.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":50496},"msg":"incoming request"}
+{"level":30,"time":1786597243058,"pid":1,"hostname":"ccc2434c6aa0","reqId":"4516f775-871c-4d63-939a-f29a7158df1e","req":{"method":"GET","url":"/assets/menu/drinks/ONDE-ONDE%20SODA.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":50478},"msg":"incoming request"}
+{"level":30,"time":1786597243069,"pid":1,"hostname":"ccc2434c6aa0","reqId":"d805cb3e-87ad-4db4-bc05-21098ba249be","req":{"method":"GET","url":"/assets/menu/merchandies/light%20purple.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":50476},"msg":"incoming request"}
+{"level":30,"time":1786597243100,"pid":1,"hostname":"ccc2434c6aa0","reqId":"8f644cf0-c2ea-4fee-bc63-5378bb4c93ec","req":{"method":"GET","url":"/assets/menu/drinks/PINKY%20BLUSH%20MILKSHAKE%20BY%20SYAH.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":50504},"msg":"incoming request"}
+{"level":30,"time":1786597243109,"pid":1,"hostname":"ccc2434c6aa0","reqId":"b4f2a3ec-e62c-45f9-af2b-487160bd49ba","req":{"method":"GET","url":"/assets/menu/drinks/BLOODY%20PEACH.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":50502},"msg":"incoming request"}
+{"level":30,"time":1786597243121,"pid":1,"hostname":"ccc2434c6aa0","reqId":"7a36f2ba-ca72-4867-95e5-6c0b6cf9a7ef","req":{"method":"GET","url":"/assets/menu/drinks/NUTTY%20CHOCOLATE.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":50494},"msg":"incoming request"}
+{"level":30,"time":1786597243140,"pid":1,"hostname":"ccc2434c6aa0","reqId":"308acadc-a21c-4e75-ac0d-6e086da35bbe","res":{"statusCode":200},"responseTime":240.36659900005907,"msg":"request completed"}
+{"level":30,"time":1786597243146,"pid":1,"hostname":"ccc2434c6aa0","reqId":"261b9b2d-fbd4-41a8-a7e8-8858fc3a8ae7","req":{"method":"GET","url":"/assets/menu/drinks/HAZELNUT%20LATTE.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":50536},"msg":"incoming request"}
+{"level":30,"time":1786597243156,"pid":1,"hostname":"ccc2434c6aa0","reqId":"40911b8d-5de0-4a32-844c-a6dd77fbfbc9","res":{"statusCode":200},"responseTime":431.557741999859,"msg":"request completed"}
+{"level":30,"time":1786597243160,"pid":1,"hostname":"ccc2434c6aa0","reqId":"7d8e1c91-1353-444b-bb49-d774a8a21cbb","req":{"method":"GET","url":"/assets/menu/candles/crushed%20lime%20and%20seasalt.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":50520},"msg":"incoming request"}
+{"level":30,"time":1786597243174,"pid":1,"hostname":"ccc2434c6aa0","reqId":"2719d8f4-feb4-458d-a920-144e3ff0a474","req":{"method":"GET","url":"/assets/menu/drinks/VANILLA%20LATTE.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":50542},"msg":"incoming request"}
+{"level":30,"time":1786597243201,"pid":1,"hostname":"ccc2434c6aa0","reqId":"8a10b778-2158-4e3a-b73b-e9bdcc6a8857","res":{"statusCode":200},"responseTime":175.21608399995603,"msg":"request completed"}
+{"level":30,"time":1786597243215,"pid":1,"hostname":"ccc2434c6aa0","reqId":"92f57c2a-6d13-4958-8cda-d0276aa31e5a","res":{"statusCode":200},"responseTime":275.9403310001362,"msg":"request completed"}
+{"level":30,"time":1786597243215,"pid":1,"hostname":"ccc2434c6aa0","reqId":"c607adcf-2723-4c27-88fd-5930de5fc737","res":{"statusCode":200},"responseTime":285.9101400000509,"msg":"request completed"}
+{"level":30,"time":1786597243239,"pid":1,"hostname":"ccc2434c6aa0","reqId":"daf68caa-c9c7-454e-b9a4-bf77c35623bc","res":{"statusCode":200},"responseTime":332.45332399988547,"msg":"request completed"}
+{"level":30,"time":1786597243261,"pid":1,"hostname":"ccc2434c6aa0","reqId":"d805cb3e-87ad-4db4-bc05-21098ba249be","res":{"statusCode":200},"responseTime":191.60090099996887,"msg":"request completed"}
+{"level":30,"time":1786597243268,"pid":1,"hostname":"ccc2434c6aa0","reqId":"7d8e1c91-1353-444b-bb49-d774a8a21cbb","res":{"statusCode":200},"responseTime":107.51410800009035,"msg":"request completed"}
+{"level":30,"time":1786597243296,"pid":1,"hostname":"ccc2434c6aa0","reqId":"586ca71a-3d8a-4538-8de8-3da89b00584b","res":{"statusCode":200},"responseTime":340.1483119998593,"msg":"request completed"}
+{"level":30,"time":1786597243299,"pid":1,"hostname":"ccc2434c6aa0","reqId":"dca9335b-e47a-4a77-9688-fa44e62b8aff","res":{"statusCode":200},"responseTime":383.6097599999048,"msg":"request completed"}
+{"level":30,"time":1786597243368,"pid":1,"hostname":"ccc2434c6aa0","reqId":"2719d8f4-feb4-458d-a920-144e3ff0a474","res":{"statusCode":200},"responseTime":193.4139580000192,"msg":"request completed"}
+{"level":30,"time":1786597243403,"pid":1,"hostname":"ccc2434c6aa0","reqId":"b4f2a3ec-e62c-45f9-af2b-487160bd49ba","res":{"statusCode":200},"responseTime":293.3196890000254,"msg":"request completed"}
+{"level":30,"time":1786597243416,"pid":1,"hostname":"ccc2434c6aa0","reqId":"4c8a48d8-06b5-486d-82ec-488f39cb747f","res":{"statusCode":200},"responseTime":755.0343959999736,"msg":"request completed"}
+{"level":30,"time":1786597243598,"pid":1,"hostname":"ccc2434c6aa0","reqId":"8f644cf0-c2ea-4fee-bc63-5378bb4c93ec","res":{"statusCode":200},"responseTime":498.2141700000502,"msg":"request completed"}
+{"level":30,"time":1786597243693,"pid":1,"hostname":"ccc2434c6aa0","reqId":"099c93e4-01d2-4b63-8ee8-f5e7a1734dcd","res":{"statusCode":200},"responseTime":979.6187619999982,"msg":"request completed"}
+{"level":30,"time":1786597243791,"pid":1,"hostname":"ccc2434c6aa0","reqId":"03dd5b5f-bc10-49ff-a973-b9b0525c8027","res":{"statusCode":200},"responseTime":1071.9212180001196,"msg":"request completed"}
+{"level":30,"time":1786597243799,"pid":1,"hostname":"ccc2434c6aa0","reqId":"486cb171-fc13-40c2-ac34-19b7202869a6","res":{"statusCode":200},"responseTime":764.8344819999766,"msg":"request completed"}
+{"level":30,"time":1786597243858,"pid":1,"hostname":"ccc2434c6aa0","reqId":"7a36f2ba-ca72-4867-95e5-6c0b6cf9a7ef","res":{"statusCode":200},"responseTime":735.9118910001125,"msg":"request completed"}
+{"level":30,"time":1786597244012,"pid":1,"hostname":"ccc2434c6aa0","reqId":"21a05b06-8c20-4b2d-98c4-35570c971333","res":{"statusCode":200},"responseTime":1029.9128759999294,"msg":"request completed"}
+{"level":30,"time":1786597244119,"pid":1,"hostname":"ccc2434c6aa0","reqId":"4516f775-871c-4d63-939a-f29a7158df1e","res":{"statusCode":200},"responseTime":1060.6981309999246,"msg":"request completed"}
+{"level":30,"time":1786597244161,"pid":1,"hostname":"ccc2434c6aa0","reqId":"9d4df693-42c4-4dbd-979d-b5dcec88e1cf","res":{"statusCode":200},"responseTime":1188.407295000041,"msg":"request completed"}
+{"level":30,"time":1786597244743,"pid":1,"hostname":"ccc2434c6aa0","reqId":"261b9b2d-fbd4-41a8-a7e8-8858fc3a8ae7","res":{"statusCode":200},"responseTime":1596.234780000057,"msg":"request completed"}
+{"level":30,"time":1786597256325,"pid":1,"hostname":"ccc2434c6aa0","reqId":"bf6e480c-7838-4603-ac22-3387fc6e20b9","req":{"method":"POST","url":"/v1/orders","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":35872},"msg":"incoming request"}
+{"level":30,"time":1786597256567,"pid":1,"hostname":"ccc2434c6aa0","reqId":"bf6e480c-7838-4603-ac22-3387fc6e20b9","res":{"statusCode":200},"responseTime":241.9884299999103,"msg":"request completed"}
+{"level":30,"time":1786597256607,"pid":1,"hostname":"ccc2434c6aa0","reqId":"bce80f02-9095-44bb-9ccf-8c024c57e1bf","req":{"method":"POST","url":"/v1/orders/4/direct-payment/confirm","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":35848},"msg":"incoming request"}
+{"level":30,"time":1786597256933,"pid":1,"hostname":"ccc2434c6aa0","reqId":"bce80f02-9095-44bb-9ccf-8c024c57e1bf","res":{"statusCode":200},"responseTime":325.8992720001843,"msg":"request completed"}
+{"level":30,"time":1786597271987,"pid":1,"hostname":"ccc2434c6aa0","reqId":"9624205d-a4c1-4081-9dec-73b44479f8ed","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":39248},"msg":"incoming request"}
+{"level":30,"time":1786597272002,"pid":1,"hostname":"ccc2434c6aa0","reqId":"9624205d-a4c1-4081-9dec-73b44479f8ed","res":{"statusCode":200},"responseTime":15.345759000163525,"msg":"request completed"}
+{"level":30,"time":1786597278450,"pid":1,"hostname":"ccc2434c6aa0","reqId":"02fcb931-a0e2-4f5f-932d-c7887b3159ec","req":{"method":"GET","url":"/assets/menu/drinks/POCCO%20LOCCO.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":50392},"msg":"incoming request"}
+{"level":30,"time":1786597278453,"pid":1,"hostname":"ccc2434c6aa0","reqId":"56b0ef4c-5e60-4f61-a12f-610a5082d49f","req":{"method":"GET","url":"/assets/menu/pastries/ck%20ovomaltine.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":50364},"msg":"incoming request"}
+{"level":30,"time":1786597278454,"pid":1,"hostname":"ccc2434c6aa0","reqId":"cbb678c1-4de6-4fd9-bb8e-c57f9b665467","req":{"method":"GET","url":"/assets/menu/candles/gunung.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":50370},"msg":"incoming request"}
+{"level":30,"time":1786597278455,"pid":1,"hostname":"ccc2434c6aa0","reqId":"8696971d-ec1a-4da4-b9ca-f792c3c81348","req":{"method":"GET","url":"/assets/menu/drinks/NUTTY%20CHOCOLATE.png","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":50376},"msg":"incoming request"}
+{"level":30,"time":1786597278464,"pid":1,"hostname":"ccc2434c6aa0","reqId":"cbb678c1-4de6-4fd9-bb8e-c57f9b665467","res":{"statusCode":200},"responseTime":9.403439000016078,"msg":"request completed"}
+{"level":30,"time":1786597278471,"pid":1,"hostname":"ccc2434c6aa0","reqId":"02fcb931-a0e2-4f5f-932d-c7887b3159ec","res":{"statusCode":200},"responseTime":20.921879000030458,"msg":"request completed"}
+{"level":30,"time":1786597278477,"pid":1,"hostname":"ccc2434c6aa0","reqId":"56b0ef4c-5e60-4f61-a12f-610a5082d49f","res":{"statusCode":200},"responseTime":23.763483999995515,"msg":"request completed"}
+{"level":30,"time":1786597278483,"pid":1,"hostname":"ccc2434c6aa0","reqId":"8696971d-ec1a-4da4-b9ca-f792c3c81348","res":{"statusCode":200},"responseTime":27.64473699987866,"msg":"request completed"}
+{"level":30,"time":1786597288810,"pid":1,"hostname":"ccc2434c6aa0","reqId":"b44ab50e-84d2-4472-9e27-94854ece3726","req":{"method":"GET","url":"/v1/orders?limit=20","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45612},"msg":"incoming request"}
+{"level":30,"time":1786597288871,"pid":1,"hostname":"ccc2434c6aa0","reqId":"b44ab50e-84d2-4472-9e27-94854ece3726","res":{"statusCode":200},"responseTime":60.63413400016725,"msg":"request completed"}
+{"level":30,"time":1786597303275,"pid":1,"hostname":"ccc2434c6aa0","reqId":"e46a4c73-51f2-47a7-998d-94afe2d8241c","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":50754},"msg":"incoming request"}
+{"level":30,"time":1786597303290,"pid":1,"hostname":"ccc2434c6aa0","reqId":"e46a4c73-51f2-47a7-998d-94afe2d8241c","res":{"statusCode":200},"responseTime":14.570372000103816,"msg":"request completed"}

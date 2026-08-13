@@ -40,12 +40,14 @@ class CheckoutResult {
   final int tokenBalance;
   final int tokenReserved;
   final int tokenCap;
+  final Map<String, dynamic>? payment;
 
   const CheckoutResult({
     required this.order,
     required this.tokenBalance,
     required this.tokenReserved,
     required this.tokenCap,
+    this.payment,
   });
 
   factory CheckoutResult.fromApi(Map<String, dynamic> json) {
@@ -56,6 +58,9 @@ class CheckoutResult {
       tokenBalance: (json['token_balance'] as num?)?.toInt() ?? 0,
       tokenReserved: (json['token_reserved'] as num?)?.toInt() ?? 0,
       tokenCap: (json['token_cap'] as num?)?.toInt() ?? 0,
+      payment: json['payment'] is Map
+          ? Map<String, dynamic>.from(json['payment'] as Map)
+          : null,
     );
   }
 }
@@ -71,6 +76,80 @@ class CheckoutApiService {
     required String accessToken,
     required CartSnapshot cart,
   }) async {
+    return _createOrder(
+      accessToken: accessToken,
+      cart: cart,
+      paymentMode: 'token',
+    );
+  }
+
+  Future<CheckoutResult> createDirectPayOrder({
+    required String accessToken,
+    required CartSnapshot cart,
+  }) async {
+    final created = await _createOrder(
+      accessToken: accessToken,
+      cart: cart,
+      paymentMode: 'direct',
+    );
+
+    final payment = created.payment;
+    final orderId = created.order.id;
+    if (payment == null || orderId <= 0) {
+      return created;
+    }
+
+    final confirmResponse = await _client
+        .post(
+          Uri.parse('${ApiConfig.baseUrl}/orders/$orderId/direct-payment/confirm'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $accessToken',
+          },
+          body: jsonEncode(<String, dynamic>{}),
+        )
+        .timeout(const Duration(seconds: 20));
+
+    final confirmText = utf8.decode(confirmResponse.bodyBytes);
+    final confirmDecoded =
+        confirmText.isEmpty ? <String, dynamic>{} : jsonDecode(confirmText);
+
+    if (confirmResponse.statusCode >= 200 && confirmResponse.statusCode < 300) {
+      final data = Map<String, dynamic>.from(confirmDecoded as Map);
+      return CheckoutResult(
+        order: CheckoutOrderSummary.fromApi(
+          Map<String, dynamic>.from(data['order'] as Map),
+        ),
+        tokenBalance: created.tokenBalance,
+        tokenReserved: created.tokenReserved,
+        tokenCap: created.tokenCap,
+        payment: data['payment'] is Map
+            ? Map<String, dynamic>.from(data['payment'] as Map)
+            : created.payment,
+      );
+    }
+
+    final body = confirmDecoded is Map
+        ? Map<String, dynamic>.from(confirmDecoded)
+        : <String, dynamic>{};
+    final error = body['error'];
+    if (error is Map<String, dynamic>) {
+      throw ApiException(
+        (error['message'] as String?) ?? 'Direct payment confirmation failed.',
+        code: error['code'] as String?,
+      );
+    }
+
+    throw ApiException(
+      'Direct payment confirmation failed with status ${confirmResponse.statusCode}.',
+    );
+  }
+
+  Future<CheckoutResult> _createOrder({
+    required String accessToken,
+    required CartSnapshot cart,
+    required String paymentMode,
+  }) async {
     final response = await _client
         .post(
           Uri.parse('${ApiConfig.baseUrl}/orders'),
@@ -80,7 +159,7 @@ class CheckoutApiService {
           },
           body: jsonEncode({
             'store_id': cart.storeId,
-            'payment_mode': 'token',
+            'payment_mode': paymentMode,
             'items': cart.items.map((item) => item.toApi()).toList(),
           }),
         )

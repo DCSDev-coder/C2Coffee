@@ -231,6 +231,27 @@ class CustomerOrder {
     required this.statusHistory,
   });
 
+  CustomerOrder copyWith({
+    String? status,
+    List<CustomerOrderStatusEvent>? statusHistory,
+  }) {
+    return CustomerOrder(
+      id: id,
+      orderRef: orderRef,
+      status: status ?? this.status,
+      paymentMode: paymentMode,
+      finalTotalRm: finalTotalRm,
+      tokenAmountCharged: tokenAmountCharged,
+      pickupSlotAt: pickupSlotAt,
+      createdAt: createdAt,
+      store: store,
+      itemCount: itemCount,
+      primaryItemName: primaryItemName,
+      items: items,
+      statusHistory: statusHistory ?? this.statusHistory,
+    );
+  }
+
   bool get isActive {
     switch (status) {
       case 'pending_payment':

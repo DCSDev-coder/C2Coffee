@@ -15,7 +15,7 @@ import { getBootstrapForUser } from './auth.js';
 
 const createOrderSchema = z.object({
   store_id: z.coerce.number().int().positive(),
-  payment_mode: z.literal('token'),
+  payment_mode: z.enum(['token', 'direct']),
   items: z
     .array(
       z.object({
@@ -73,6 +73,20 @@ type OrderResponseRow = RowDataPacket & {
   token_amount_charged: number;
 };
 
+type PaymentResponseRow = RowDataPacket & {
+  id: number;
+  provider: string;
+  provider_payment_ref: string;
+  provider_bill_id: string | null;
+  amount_rm: string;
+  status: string;
+  paid_at: Date | string | null;
+};
+
+const DIRECT_PAYMENT_PROVIDER = 'direct_sandbox';
+const DIRECT_PAYMENT_PENDING_REASON = 'Awaiting direct payment confirmation.';
+const DIRECT_PAYMENT_CONFIRMED_REASON = 'Direct payment confirmed in sandbox.';
+
 export async function registerCheckoutRoutes(
   app: FastifyInstance
 ): Promise<void> {
@@ -99,6 +113,7 @@ export async function registerCheckoutRoutes(
 
       const itemsById = new Map(menuItems.map((item) => [item.id, item]));
       const pickupSlot = new Date(Date.now() + store.pickup_lead_minutes * 60 * 1000);
+      const isTokenCheckout = payload.payment_mode === 'token';
 
       let subtotalRm = 0;
       let modifierTotalRm = 0;
@@ -135,7 +150,9 @@ export async function registerCheckoutRoutes(
 
         subtotalRm += basePriceRm * item.quantity;
         modifierTotalRm += modifierRm * item.quantity;
-        tokenAmountCharged += (tokenPrice + modifierTokens) * item.quantity;
+        if (isTokenCheckout) {
+          tokenAmountCharged += (tokenPrice + modifierTokens) * item.quantity;
+        }
 
         return {
           payload: item,
@@ -147,7 +164,7 @@ export async function registerCheckoutRoutes(
         };
       });
 
-      if (bootstrap.token_balance < tokenAmountCharged) {
+      if (isTokenCheckout && bootstrap.token_balance < tokenAmountCharged) {
         throw new ApiError(
           400,
           'insufficient_token_balance',
@@ -157,38 +174,70 @@ export async function registerCheckoutRoutes(
 
       const finalTotalRm = subtotalRm + modifierTotalRm;
       const orderRef = _generateOrderRef();
+      const paymentRef = isTokenCheckout ? null : _generatePaymentRef(orderRef);
 
       const [orderResult] = await connection.execute<ResultSetHeader>(
-        `
-          INSERT INTO orders (
-            order_ref,
-            user_id,
-            store_id,
-            status,
-            payment_mode,
-            subtotal_rm,
-            modifier_total_rm,
-            discount_total_rm,
-            final_total_rm,
-            token_amount_charged,
-            pickup_slot_at,
-            paid_at
-          )
-          VALUES (
-            :orderRef,
-            :userId,
-            :storeId,
-            'paid',
-            'token',
-            :subtotalRm,
-            :modifierTotalRm,
-            0.00,
-            :finalTotalRm,
-            :tokenAmountCharged,
-            :pickupSlotAt,
-            UTC_TIMESTAMP()
-          )
-        `,
+        isTokenCheckout
+          ? `
+            INSERT INTO orders (
+              order_ref,
+              user_id,
+              store_id,
+              status,
+              payment_mode,
+              subtotal_rm,
+              modifier_total_rm,
+              discount_total_rm,
+              final_total_rm,
+              token_amount_charged,
+              pickup_slot_at,
+              paid_at
+            )
+            VALUES (
+              :orderRef,
+              :userId,
+              :storeId,
+              'paid',
+              'token',
+              :subtotalRm,
+              :modifierTotalRm,
+              0.00,
+              :finalTotalRm,
+              :tokenAmountCharged,
+              :pickupSlotAt,
+              UTC_TIMESTAMP()
+            )
+          `
+          : `
+            INSERT INTO orders (
+              order_ref,
+              user_id,
+              store_id,
+              status,
+              payment_mode,
+              subtotal_rm,
+              modifier_total_rm,
+              discount_total_rm,
+              final_total_rm,
+              token_amount_charged,
+              pickup_slot_at,
+              paid_at
+            )
+            VALUES (
+              :orderRef,
+              :userId,
+              :storeId,
+              'pending_payment',
+              'direct',
+              :subtotalRm,
+              :modifierTotalRm,
+              0.00,
+              :finalTotalRm,
+              0,
+              :pickupSlotAt,
+              NULL
+            )
+          `,
         {
           orderRef,
           userId: request.auth.userId,
@@ -202,11 +251,13 @@ export async function registerCheckoutRoutes(
       );
 
       const orderId = orderResult.insertId;
+      let paymentResponse: PaymentResponseRow | null = null;
 
       for (const item of normalizedItems) {
         const lineSubtotalRm = (item.basePriceRm + item.modifierRm) * item.payload.quantity;
-        const lineTokenAmount =
-          (item.tokenPrice + item.modifierTokens) * item.payload.quantity;
+        const lineTokenAmount = isTokenCheckout
+          ? (item.tokenPrice + item.modifierTokens) * item.payload.quantity
+          : null;
 
         const [itemResult] = await connection.execute<ResultSetHeader>(
           `
@@ -288,112 +339,180 @@ export async function registerCheckoutRoutes(
           VALUES (
             :orderId,
             NULL,
-            'paid',
+            :toStatus,
             'customer',
             :userId,
-            'Token checkout completed in app.'
+            :reason
           )
         `,
         {
           orderId,
-          userId: request.auth.userId
+          toStatus: isTokenCheckout ? 'paid' : 'pending_payment',
+          userId: request.auth.userId,
+          reason: isTokenCheckout
+            ? 'Token checkout completed in app.'
+            : DIRECT_PAYMENT_PENDING_REASON
         }
       );
 
-      const [accountRows] = await connection.query<Array<TokenAccountRow>>(
-        `
-          SELECT balance_available, balance_reserved, balance_cap
-          FROM token_accounts
-          WHERE user_id = :userId
-          LIMIT 1
-          FOR UPDATE
-        `,
-        { userId: request.auth.userId }
-      );
+      let accountBalanceAvailable = bootstrap.token_balance;
+      let accountBalanceReserved = bootstrap.token_reserved;
+      let accountBalanceCap = bootstrap.token_cap;
 
-      const account = accountRows[0];
-      if (!account) {
-        throw new ApiError(400, 'token_account_missing', 'Wallet account was not found.');
-      }
-
-      const newAvailable = account.balance_available - tokenAmountCharged;
-      if (newAvailable < 0) {
-        throw new ApiError(
-          400,
-          'insufficient_token_balance',
-          'Your wallet balance is not enough to complete this checkout.'
+      if (isTokenCheckout) {
+        const [accountRows] = await connection.query<Array<TokenAccountRow>>(
+          `
+            SELECT balance_available, balance_reserved, balance_cap
+            FROM token_accounts
+            WHERE user_id = :userId
+            LIMIT 1
+            FOR UPDATE
+          `,
+          { userId: request.auth.userId }
         );
+
+        const account = accountRows[0];
+        if (!account) {
+          throw new ApiError(400, 'token_account_missing', 'Wallet account was not found.');
+        }
+
+        const newAvailable = account.balance_available - tokenAmountCharged;
+        if (newAvailable < 0) {
+          throw new ApiError(
+            400,
+            'insufficient_token_balance',
+            'Your wallet balance is not enough to complete this checkout.'
+          );
+        }
+
+        await connection.execute(
+          `
+            UPDATE token_accounts
+            SET balance_available = :balanceAvailable
+            WHERE user_id = :userId
+          `,
+          {
+            balanceAvailable: newAvailable,
+            userId: request.auth.userId
+          }
+        );
+
+        await connection.execute(
+          `
+            INSERT INTO token_reservations (
+              user_id,
+              order_id,
+              amount_reserved,
+              status,
+              created_at,
+              committed_at
+            )
+            VALUES (
+              :userId,
+              :orderId,
+              :amountReserved,
+              'committed',
+              UTC_TIMESTAMP(),
+              UTC_TIMESTAMP()
+            )
+          `,
+          {
+            userId: request.auth.userId,
+            orderId,
+            amountReserved: tokenAmountCharged
+          }
+        );
+
+        await connection.execute(
+          `
+            INSERT INTO token_ledger (
+              user_id,
+              token_lot_id,
+              direction,
+              source_type,
+              source_id,
+              amount,
+              balance_after,
+              remarks
+            )
+            VALUES (
+              :userId,
+              NULL,
+              'debit',
+              'order_spend',
+              :orderId,
+              :amount,
+              :balanceAfter,
+              :remarks
+            )
+          `,
+          {
+            userId: request.auth.userId,
+            orderId,
+            amount: tokenAmountCharged,
+            balanceAfter: newAvailable,
+            remarks: `Token checkout for order ${orderRef}`
+          }
+        );
+
+        accountBalanceAvailable = newAvailable;
+        accountBalanceReserved = account.balance_reserved;
+        accountBalanceCap = account.balance_cap;
+      } else {
+        if (!paymentRef) {
+          throw new ApiError(500, 'payment_reference_missing', 'Payment reference was not generated.');
+        }
+
+        const [paymentResult] = await connection.execute<ResultSetHeader>(
+          `
+            INSERT INTO payments (
+              order_id,
+              topup_id,
+              provider,
+              provider_payment_ref,
+              provider_bill_id,
+              amount_rm,
+              status,
+              created_at
+            )
+            VALUES (
+              :orderId,
+              NULL,
+              :provider,
+              :providerPaymentRef,
+              NULL,
+              :amountRm,
+              'pending',
+              UTC_TIMESTAMP()
+            )
+          `,
+          {
+            orderId,
+            provider: DIRECT_PAYMENT_PROVIDER,
+            providerPaymentRef: paymentRef,
+            amountRm: finalTotalRm.toFixed(2)
+          }
+        );
+
+        const [paymentRows] = await connection.query<Array<PaymentResponseRow>>(
+          `
+            SELECT
+              id,
+              provider,
+              provider_payment_ref,
+              provider_bill_id,
+              CAST(amount_rm AS CHAR) AS amount_rm,
+              status,
+              paid_at
+            FROM payments
+            WHERE id = :paymentId
+            LIMIT 1
+          `,
+          { paymentId: paymentResult.insertId }
+        );
+
+        paymentResponse = paymentRows[0] ?? null;
       }
-
-      await connection.execute(
-        `
-          UPDATE token_accounts
-          SET balance_available = :balanceAvailable
-          WHERE user_id = :userId
-        `,
-        {
-          balanceAvailable: newAvailable,
-          userId: request.auth.userId
-        }
-      );
-
-      await connection.execute(
-        `
-          INSERT INTO token_reservations (
-            user_id,
-            order_id,
-            amount_reserved,
-            status,
-            created_at,
-            committed_at
-          )
-          VALUES (
-            :userId,
-            :orderId,
-            :amountReserved,
-            'committed',
-            UTC_TIMESTAMP(),
-            UTC_TIMESTAMP()
-          )
-        `,
-        {
-          userId: request.auth.userId,
-          orderId,
-          amountReserved: tokenAmountCharged
-        }
-      );
-
-      await connection.execute(
-        `
-          INSERT INTO token_ledger (
-            user_id,
-            token_lot_id,
-            direction,
-            source_type,
-            source_id,
-            amount,
-            balance_after,
-            remarks
-          )
-          VALUES (
-            :userId,
-            NULL,
-            'debit',
-            'order_spend',
-            :orderId,
-            :amount,
-            :balanceAfter,
-            :remarks
-          )
-        `,
-        {
-          userId: request.auth.userId,
-          orderId,
-          amount: tokenAmountCharged,
-          balanceAfter: newAvailable,
-          remarks: `Token checkout for order ${orderRef}`
-        }
-      );
 
       await connection.commit();
       committed = true;
@@ -414,7 +533,7 @@ export async function registerCheckoutRoutes(
         { orderId }
       );
 
-      return {
+      const response: Record<string, unknown> = {
         order: {
           id: orderRows[0].id,
           order_ref: orderRows[0].order_ref,
@@ -423,9 +542,171 @@ export async function registerCheckoutRoutes(
           final_total_rm: orderRows[0].final_total_rm,
           token_amount_charged: orderRows[0].token_amount_charged
         },
-        token_balance: newAvailable,
-        token_reserved: account.balance_reserved,
-        token_cap: account.balance_cap
+        token_balance: accountBalanceAvailable,
+        token_reserved: accountBalanceReserved,
+        token_cap: accountBalanceCap
+      };
+
+      if (paymentResponse) {
+        response.payment = {
+          id: paymentResponse.id,
+          provider: paymentResponse.provider,
+          provider_payment_ref: paymentResponse.provider_payment_ref,
+          provider_bill_id: paymentResponse.provider_bill_id,
+          amount_rm: paymentResponse.amount_rm,
+          status: paymentResponse.status,
+          paid_at: _formatNullableIsoDate(paymentResponse.paid_at)
+        };
+      }
+
+      return response;
+    } catch (error) {
+      if (!committed) {
+        await connection.rollback();
+      }
+      throw error;
+    } finally {
+      connection.release();
+    }
+  });
+
+  app.post('/v1/orders/:orderId/direct-payment/confirm', { preHandler: authenticateRequest }, async (request) => {
+    const params = z.object({
+      orderId: z.coerce.number().int().positive()
+    }).parse(request.params);
+
+    const connection = await mysqlPool.getConnection();
+    let committed = false;
+
+    try {
+      await connection.beginTransaction();
+
+      const [orderRows] = await connection.query<Array<RowDataPacket & OrderResponseRow & { user_id: number }>>(
+        `
+          SELECT
+            id,
+            user_id,
+            order_ref,
+            status,
+            payment_mode,
+            CAST(final_total_rm AS CHAR) AS final_total_rm,
+            token_amount_charged
+          FROM orders
+          WHERE id = :orderId
+          LIMIT 1
+          FOR UPDATE
+        `,
+        { orderId: params.orderId }
+      );
+
+      const order = orderRows[0];
+      if (!order || order.user_id !== request.auth.userId) {
+        throw new ApiError(404, 'order_not_found', 'Order was not found.');
+      }
+
+      if (order.payment_mode !== 'direct') {
+        throw new ApiError(400, 'invalid_payment_mode', 'Only direct-pay orders can be confirmed here.');
+      }
+
+      if (order.status !== 'pending_payment') {
+        throw new ApiError(400, 'invalid_order_status', 'This order is not waiting for payment confirmation.');
+      }
+
+      const [paymentRows] = await connection.query<Array<PaymentResponseRow & { order_id: number }>>(
+        `
+          SELECT
+            id,
+            order_id,
+            provider,
+            provider_payment_ref,
+            provider_bill_id,
+            CAST(amount_rm AS CHAR) AS amount_rm,
+            status,
+            paid_at
+          FROM payments
+          WHERE order_id = :orderId
+            AND provider = :provider
+          LIMIT 1
+          FOR UPDATE
+        `,
+        {
+          orderId: params.orderId,
+          provider: DIRECT_PAYMENT_PROVIDER
+        }
+      );
+
+      const payment = paymentRows[0];
+      if (!payment) {
+        throw new ApiError(404, 'payment_not_found', 'Direct payment record was not found.');
+      }
+
+      await connection.execute(
+        `
+          UPDATE payments
+          SET status = 'paid',
+              paid_at = UTC_TIMESTAMP()
+          WHERE id = :paymentId
+        `,
+        { paymentId: payment.id }
+      );
+
+      await connection.execute(
+        `
+          UPDATE orders
+          SET status = 'paid',
+              paid_at = UTC_TIMESTAMP()
+          WHERE id = :orderId
+        `,
+        { orderId: order.id }
+      );
+
+      await connection.execute(
+        `
+          INSERT INTO order_status_history (
+            order_id,
+            from_status,
+            to_status,
+            changed_by_type,
+            changed_by_id,
+            reason
+          )
+          VALUES (
+            :orderId,
+            'pending_payment',
+            'paid',
+            'customer',
+            :userId,
+            :reason
+          )
+        `,
+        {
+          orderId: order.id,
+          userId: request.auth.userId,
+          reason: DIRECT_PAYMENT_CONFIRMED_REASON
+        }
+      );
+
+      await connection.commit();
+      committed = true;
+
+      return {
+        order: {
+          id: order.id,
+          order_ref: order.order_ref,
+          status: 'paid',
+          payment_mode: order.payment_mode,
+          final_total_rm: order.final_total_rm,
+          token_amount_charged: order.token_amount_charged
+        },
+        payment: {
+          id: payment.id,
+          provider: payment.provider,
+          provider_payment_ref: payment.provider_payment_ref,
+          provider_bill_id: payment.provider_bill_id,
+          amount_rm: payment.amount_rm,
+          status: 'paid',
+          paid_at: _formatNullableIsoDate(payment.paid_at) ?? new Date().toISOString()
+        }
       };
     } catch (error) {
       if (!committed) {
@@ -507,6 +788,11 @@ function _generateOrderRef(): string {
   return `C2-${year}${month}${day}-${suffix}`;
 }
 
+function _generatePaymentRef(orderRef: string): string {
+  const suffix = Math.random().toString(36).slice(2, 8).toUpperCase();
+  return `DP-${orderRef}-${suffix}`;
+}
+
 function _normalizeMoney(value: number): number {
   return Number(value.toFixed(2));
 }
@@ -519,4 +805,17 @@ function _formatMySqlDateTime(value: Date): string {
   const minutes = String(value.getUTCMinutes()).padStart(2, '0');
   const seconds = String(value.getUTCSeconds()).padStart(2, '0');
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
+
+function _formatNullableIsoDate(value: Date | string | null): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return parsed.toISOString();
 }

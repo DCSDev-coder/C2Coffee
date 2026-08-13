@@ -66,6 +66,35 @@ class CartItem {
 
   int get lineTotalTokens => unitTotalTokens * quantity;
 
+  bool matchesMergeKey(CartItem other) {
+    return menuItemId == other.menuItemId &&
+        menuItemCode == other.menuItemCode &&
+        name == other.name &&
+        basePriceRm == other.basePriceRm &&
+        tokenPrice == other.tokenPrice &&
+        remarks == other.remarks &&
+        displayDetails == other.displayDetails &&
+        _sameModifiers(modifiers, other.modifiers);
+  }
+
+  static bool _sameModifiers(
+    List<CartModifier> left,
+    List<CartModifier> right,
+  ) {
+    if (left.length != right.length) return false;
+    for (var i = 0; i < left.length; i++) {
+      final a = left[i];
+      final b = right[i];
+      if (a.groupName != b.groupName ||
+          a.optionName != b.optionName ||
+          a.priceDeltaRm != b.priceDeltaRm ||
+          a.tokenPriceDelta != b.tokenPriceDelta) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   CartItem copyWith({
     int? quantity,
     String? remarks,
@@ -152,7 +181,16 @@ class CartService extends ChangeNotifier {
 
     _storeId = storeId;
     _storeName = storeName;
-    _items.add(item);
+
+    final existingIndex =
+        _items.indexWhere((existing) => existing.matchesMergeKey(item));
+    if (existingIndex == -1) {
+      _items.add(item);
+    } else {
+      final existing = _items[existingIndex];
+      _items[existingIndex] =
+          existing.copyWith(quantity: existing.quantity + item.quantity);
+    }
     notifyListeners();
   }
 

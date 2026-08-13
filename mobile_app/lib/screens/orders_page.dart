@@ -70,6 +70,16 @@ class _OrdersPageState extends State<OrdersPage>
     }
   }
 
+  CustomerOrder? get _displayActiveOrder =>
+      _session.temporarySandboxActiveOrder ?? _activeOrder;
+
+  List<CustomerOrder> get _displayHistoryOrders {
+    final historyOrders =
+        _orders.where((order) => !order.isActive).toList(growable: true);
+    historyOrders.insertAll(0, _session.temporarySandboxHistoryOrders);
+    return historyOrders;
+  }
+
   Future<void> _loadOrders({bool forceSessionReload = false}) async {
     setState(() {
       _isOrdersLoading = true;
@@ -280,11 +290,12 @@ class _OrdersPageState extends State<OrdersPage>
       );
     }
 
-    if (_activeOrder != null) {
+    final activeOrder = _displayActiveOrder;
+    if (activeOrder != null) {
       return ListView(
         padding: const EdgeInsets.only(left: 16, right: 16, top: 20, bottom: 120),
         children: [
-          _buildOrderCard(_activeOrder!, isActive: true),
+          _buildOrderCard(activeOrder, isActive: true),
         ],
       );
     }
@@ -309,7 +320,7 @@ class _OrdersPageState extends State<OrdersPage>
       );
     }
 
-    final historyOrders = _orders.where((order) => !order.isActive).toList();
+    final historyOrders = _displayHistoryOrders;
     if (historyOrders.isNotEmpty) {
       return ListView.separated(
         padding: const EdgeInsets.only(left: 16, right: 16, top: 20, bottom: 120),
@@ -329,6 +340,10 @@ class _OrdersPageState extends State<OrdersPage>
     final createdLabel = DateFormat('dd MMM yyyy, h:mm a').format(order.createdAt);
     final pickupLabel = DateFormat('dd MMM yyyy, h:mm a').format(order.pickupSlotAt);
     final primaryItem = order.primaryItemName ?? 'Order #${order.orderRef}';
+    final isTempSandboxActive =
+        _session.temporarySandboxActiveOrder?.id == order.id;
+    final showCollectedAction =
+        isActive && isTempSandboxActive && order.status == 'ready_for_pickup';
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -474,18 +489,52 @@ class _OrdersPageState extends State<OrdersPage>
                 ),
             ],
           ),
+          if (showCollectedAction) ...[
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: _session.markTemporarySandboxCollected,
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(color: AppColors.deepTeal, width: 1.5),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  backgroundColor: AppColors.deepTeal.withValues(alpha: 0.06),
+                ),
+                child: Text(
+                  'Collected',
+                  style: TextStyle(
+                    fontFamily: 'Recoleta',
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.deepTeal,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
 
   String _formatStatus(String status) {
-    return status
-        .split('_')
-        .map((part) => part.isEmpty
-            ? part
-            : '${part[0].toUpperCase()}${part.substring(1)}')
-        .join(' ');
+    switch (status) {
+      case 'ready_for_pickup':
+        return 'Ready For Pickup';
+      case 'pending_payment':
+        return 'Pending Payment';
+      case 'payment_failed':
+        return 'Payment Failed';
+      default:
+        return status
+            .split('_')
+            .map((part) => part.isEmpty
+                ? part
+                : '${part[0].toUpperCase()}${part.substring(1)}')
+            .join(' ');
+    }
   }
 
   Widget _buildLoadingState(String label) {

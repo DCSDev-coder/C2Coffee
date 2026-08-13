@@ -455,6 +455,10 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
     super.dispose();
   }
 
+  void _dismissKeyboard() {
+    FocusScope.of(context).unfocus();
+  }
+
   Widget _buildSectionTitle(String title,
       {bool required = true, String subtitle = ''}) {
     return Padding(
@@ -596,37 +600,41 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: bgColor,
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            backgroundColor: bgColor,
-            elevation: 0,
-            pinned: true,
-            leading: const SizedBox.shrink(),
-            actions: [
-              IconButton(
-                icon: Icon(Icons.close, color: AppColors.deepTeal),
-                onPressed: () => InteractiveFillingLoader.showPop(context),
-              ),
-            ],
-          ),
-          SliverToBoxAdapter(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: CatalogProductImage(
-                    assetPath: widget.item['image']?.toString(),
-                    imageUrl: widget.item['image_url']?.toString(),
-                    height: 200,
-                    fit: BoxFit.contain,
-                  ),
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: _dismissKeyboard,
+        child: CustomScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          slivers: [
+            SliverAppBar(
+              backgroundColor: bgColor,
+              elevation: 0,
+              pinned: true,
+              leading: const SizedBox.shrink(),
+              actions: [
+                IconButton(
+                  icon: Icon(Icons.close, color: AppColors.deepTeal),
+                  onPressed: () => InteractiveFillingLoader.showPop(context),
                 ),
-                Padding(
-                  padding: const EdgeInsets.all(20.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+              ],
+            ),
+            SliverToBoxAdapter(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: CatalogProductImage(
+                      assetPath: widget.item['image']?.toString(),
+                      imageUrl: widget.item['image_url']?.toString(),
+                      height: 200,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(20.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                       Text(
                         widget.item['name']?.toString() ?? 'Mont Broga',
                         style: const TextStyle(
@@ -986,6 +994,9 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                       TextField(
                         controller: remarksController,
                         maxLines: 4,
+                        textInputAction: TextInputAction.done,
+                        onSubmitted: (_) => _dismissKeyboard(),
+                        onTapOutside: (_) => _dismissKeyboard(),
                         decoration: InputDecoration(
                           hintText: 'Add your remark',
                           hintStyle: const TextStyle(
@@ -1009,13 +1020,14 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                         ),
                       ),
                       const SizedBox(height: 40),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
       bottomNavigationBar: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),

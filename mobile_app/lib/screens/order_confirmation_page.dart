@@ -23,6 +23,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
   final AppSessionService _session = AppSessionService.instance;
 
   bool _isSubmitting = false;
+  bool _useDirectPayTest = false;
   String? _checkoutError;
 
   Color get orangeColor => AppColors.deepTeal;
@@ -100,7 +101,11 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                                 const SizedBox(height: 16),
                                 _buildPaymentMethodCard(snapshot),
                                 const SizedBox(height: 16),
+                                _buildDirectPayToggle(),
+                                const SizedBox(height: 16),
                                 _buildSummaryCard(snapshot),
+                                const SizedBox(height: 12),
+                                _buildCheckoutModeBadge(),
                                 if (_checkoutError != null) ...[
                                   const SizedBox(height: 16),
                                   Text(
@@ -576,6 +581,64 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
     );
   }
 
+  Widget _buildDirectPayToggle() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppColors.border,
+          width: 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.bolt,
+            color: orangeColor,
+            size: 28,
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Direct pay test mode',
+                  style: TextStyle(
+                    fontFamily: 'Recoleta',
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'Use sandbox direct payment instead of token checkout.',
+                  style: TextStyle(
+                    fontFamily: 'Afacad',
+                    fontSize: 13,
+                    color: Colors.black54,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Switch.adaptive(
+            value: _useDirectPayTest,
+            activeThumbColor: orangeColor,
+            onChanged: (value) {
+              setState(() {
+                _useDirectPayTest = value;
+              });
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildSummaryCard(CartSnapshot snapshot) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -627,7 +690,8 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
   }
 
   Widget _buildCheckoutButton(CartSnapshot snapshot) {
-    final hasEnoughBalance = _session.tokenBalance >= snapshot.subtotalTokens;
+    final hasEnoughBalance =
+        _useDirectPayTest || _session.tokenBalance >= snapshot.subtotalTokens;
 
     return GestureDetector(
       onTap: _isSubmitting || !hasEnoughBalance
@@ -644,7 +708,11 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
         ),
         child: Center(
           child: Text(
-            hasEnoughBalance ? 'CHECKOUT' : 'INSUFFICIENT TOKENS',
+            _useDirectPayTest
+                ? 'DIRECT PAY TEST'
+                : hasEnoughBalance
+                    ? 'CHECKOUT'
+                    : 'INSUFFICIENT TOKENS',
             style: const TextStyle(
               fontFamily: 'Afacad',
               fontSize: 18,
@@ -653,6 +721,48 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildCheckoutModeBadge() {
+    final isDirectPay = _useDirectPayTest;
+    final backgroundColor = isDirectPay
+        ? orangeColor.withValues(alpha: 0.12)
+        : AppColors.border.withValues(alpha: 0.35);
+    final borderColor = isDirectPay ? orangeColor : AppColors.border;
+    final textColor = isDirectPay ? orangeColor : Colors.black54;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: borderColor, width: 1),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            isDirectPay ? Icons.bolt : Icons.account_balance_wallet_outlined,
+            size: 18,
+            color: textColor,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              isDirectPay
+                  ? 'Mode: Direct pay test. Sandbox payment will auto-confirm.'
+                  : 'Mode: Token checkout. Wallet balance will be charged.',
+              style: TextStyle(
+                fontFamily: 'Afacad',
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: textColor,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -669,12 +779,21 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
         throw Exception('Missing access token.');
       }
 
-      final result = await CheckoutApiService.instance.createTokenOrder(
-        accessToken: accessToken,
+      final checkoutResult = _useDirectPayTest
+          ? await CheckoutApiService.instance.createDirectPayOrder(
+              accessToken: accessToken,
+              cart: snapshot,
+            )
+          : await CheckoutApiService.instance.createTokenOrder(
+              accessToken: accessToken,
+              cart: snapshot,
+            );
+
+      _session.applyCheckoutResult(checkoutResult);
+      _session.seedTemporarySandboxOrder(
+        result: checkoutResult,
         cart: snapshot,
       );
-
-      _session.applyCheckoutResult(result);
       _cart.clear();
       globalOrderStatusVisible.value = true;
 
