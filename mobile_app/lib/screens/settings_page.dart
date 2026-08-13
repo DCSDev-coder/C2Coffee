@@ -12,6 +12,7 @@ import 'splash_screen.dart';
 import 'privacy_policy_page.dart';
 import 'terms_of_use_page.dart';
 import 'about_us_page.dart';
+import 'contact_support_page.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../utils/app_colors.dart';
 
@@ -886,7 +887,6 @@ class _SettingsPageState extends State<SettingsPage> {
                               margin:
                                   const EdgeInsets.symmetric(horizontal: 20),
                               decoration: BoxDecoration(
-                                color: Colors.white,
                                 borderRadius: BorderRadius.circular(20),
                                 border: Border.all(
                                   color: AppColors.border,
@@ -901,7 +901,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                 ],
                               ),
                               child: Material(
-                                color: Colors.transparent,
+                                color: Colors.white,
                                 borderRadius: BorderRadius.circular(20),
                                 clipBehavior: Clip.antiAlias,
                                 child: Padding(
@@ -909,6 +909,24 @@ class _SettingsPageState extends State<SettingsPage> {
                                       const EdgeInsets.symmetric(vertical: 8),
                                   child: Column(
                                     children: [
+                                      ListTile(
+                                        title: const Text('Contact Support',
+                                            style: TextStyle(
+                                                fontFamily: 'Afacad',
+                                                fontSize: 16,
+                                                color: Colors.black87)),
+                                        trailing: const Icon(
+                                            Icons.arrow_forward_ios,
+                                            size: 16,
+                                            color: Colors.grey),
+                                        onTap: () => Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                                builder: (_) =>
+                                                    const ContactSupportPage())),
+                                      ),
+                                      const Divider(
+                                          height: 1, indent: 16, endIndent: 16),
                                       ListTile(
                                         title: const Text('Privacy Policy',
                                             style: TextStyle(

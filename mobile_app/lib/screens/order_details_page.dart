@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'loading_order_page.dart';
-import 'mont_broga_page.dart';
+import 'product_detail_page.dart';
 import '../utils/app_colors.dart';
 
 class OrderDetailsPage extends StatelessWidget {
@@ -75,7 +75,7 @@ class OrderDetailsPage extends StatelessWidget {
 
     InteractiveFillingLoader.show(
       context,
-      targetPage: MontBrogaPage(
+      targetPage: ProductDetailPage(
         item: drinkItem,
         initialBean: bean,
         initialTemperature: temp,

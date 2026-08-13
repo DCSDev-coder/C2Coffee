@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'loading_order_page.dart';
-import 'mont_broga_page.dart';
+import 'product_detail_page.dart';
 import '../utils/app_colors.dart';
 
 class BaristaPage extends StatefulWidget {
@@ -225,7 +225,7 @@ class _BaristaPageState extends State<BaristaPage> {
       onTap: () {
         InteractiveFillingLoader.show(
           context,
-          targetPage: MontBrogaPage(item: item),
+          targetPage: ProductDetailPage(item: item),
         );
       },
       child: Container(

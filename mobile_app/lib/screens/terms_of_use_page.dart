@@ -116,7 +116,7 @@ class TermsOfUsePage extends StatelessWidget {
                   body:
                       '8.1 Once an order is confirmed and sent to the barista queue, it cannot be cancelled by the user in-app.\n\n'
                       '8.2 In the rare event of store unavailability, equipment breakdown, or out-of-stock items, C2 Coffee store management will initiate a full refund or token balance credit through our official administrative channels.\n\n'
-                      '8.3 Billing or payment discrepancy claims must be submitted to C2 Support with relevant transaction references within fourteen (14) days of the transaction date.',
+                      '8.3 Billing or payment discrepancy claims must be submitted to C2 Support (accessible under Profile > Settings > Contact Support or support@c2coffee.com) with relevant transaction references within fourteen (14) days of the transaction date.',
                 ),
                 _buildSection(
                   number: '9',
@@ -131,6 +131,12 @@ class TermsOfUsePage extends StatelessWidget {
                   body:
                       '10.1 We reserve the right to revise these Terms at any time. Updated versions will be published within the App with a revised date stamp. Continued use of the App following updates constitutes binding agreement to the amended Terms.\n\n'
                       '10.2 These Terms and Conditions are governed by and construed in accordance with the laws of Malaysia. Any disputes shall be subject to the exclusive jurisdiction of the courts of Malaysia.',
+                ),
+                _buildSection(
+                  number: '11',
+                  title: 'Customer Support & Inquiries',
+                  body:
+                      'For assistance with store pickup orders, prepaid C2 Tokens, membership rewards, or billing inquiries, customer support is accessible directly under Profile > Settings > Contact Support, WhatsApp (+60 11-6379 3812), or via email at support@c2coffee.com.',
                 ),
                 const SizedBox(height: 24),
               ],
