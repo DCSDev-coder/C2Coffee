@@ -21,6 +21,7 @@ import 'profile_page.dart';
 import 'referral_page.dart';
 import 'rewards_page.dart';
 import 'settings_page.dart';
+import 'mont_broga_page.dart';
 import 'simple_product_detail_page.dart';
 import 'top_up_wallet_page.dart';
 
@@ -782,7 +783,9 @@ class _HomePageState extends State<HomePage> {
                   onTap: () {
                     InteractiveFillingLoader.show(
                       context,
-                      targetPage: SimpleProductDetailPage(item: item),
+                      targetPage: (item['isDrink'] as bool? ?? false)
+                          ? MontBrogaPage(item: item)
+                          : SimpleProductDetailPage(item: item),
                     );
                   },
                   child: Container(

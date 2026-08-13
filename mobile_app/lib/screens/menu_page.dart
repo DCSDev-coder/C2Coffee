@@ -13,6 +13,7 @@ import 'order_confirmation_page.dart';
 import 'orders_page.dart';
 import 'profile_page.dart';
 import 'rewards_page.dart';
+import 'mont_broga_page.dart';
 import 'simple_product_detail_page.dart';
 
 class MenuPage extends StatefulWidget {
@@ -645,7 +646,7 @@ class _MenuPageState extends State<MenuPage> {
               onTap: () {
                 InteractiveFillingLoader.show(
                   context,
-                  targetPage: SimpleProductDetailPage(item: item),
+                  targetPage: _detailPageForItem(item),
                 );
               },
               child: _buildMenuItemCard(item),
@@ -655,6 +656,14 @@ class _MenuPageState extends State<MenuPage> {
         const SizedBox(height: 16),
       ],
     );
+  }
+
+  Widget _detailPageForItem(Map<String, dynamic> item) {
+    final isDrink = item['isDrink'] as bool? ?? false;
+    if (isDrink) {
+      return MontBrogaPage(item: item);
+    }
+    return SimpleProductDetailPage(item: item);
   }
 
   Widget _buildMenuItemCard(Map<String, dynamic> item) {

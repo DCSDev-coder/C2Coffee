@@ -6,6 +6,7 @@ import '../services/checkout_api_service.dart';
 import '../services/secure_session_service.dart';
 import '../utils/app_colors.dart';
 import '../utils/global_state.dart';
+import '../widgets/catalog_product_image.dart';
 import 'loading_order_page.dart';
 
 class OrderConfirmationPage extends StatefulWidget {
@@ -219,184 +220,217 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
   }
 
   Widget _buildOrderCard(CartItem item) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+    return Dismissible(
+      key: ValueKey(item.id),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        decoration: BoxDecoration(
+          color: Colors.red.shade600,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: const Icon(Icons.delete_outline, color: Colors.white, size: 28),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  color: Colors.transparent,
-                  borderRadius: BorderRadius.circular(12),
+      onDismissed: (_) {
+        _cart.removeItem(item.id);
+        if (_cart.isEmpty && mounted) {
+          Navigator.pop(context);
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.border),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    color: Colors.transparent,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: CatalogProductImage(
+                    assetPath: item.imageAssetPath,
+                    imageUrl: item.imageUrl,
+                    width: 80,
+                    height: 80,
+                    fit: BoxFit.contain,
+                  ),
                 ),
-                child: item.imageAssetPath != null &&
-                        item.imageAssetPath!.isNotEmpty
-                    ? Image.asset(
-                        item.imageAssetPath!,
-                        fit: BoxFit.contain,
-                      )
-                    : const Icon(Icons.local_cafe_outlined, size: 40),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            item.name,
-                            style: const TextStyle(
-                              fontFamily: 'Recoleta',
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black87,
-                            ),
-                          ),
-                        ),
-                        RichText(
-                          text: TextSpan(
-                            children: [
-                              const TextSpan(
-                                text: 'RM ',
-                                style: TextStyle(
-                                  fontFamily: 'Afacad',
-                                  fontSize: 10,
-                                  color: Colors.black87,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              TextSpan(
-                                text: item.unitTotalRm.toStringAsFixed(2),
-                                style: const TextStyle(
-                                  fontFamily: 'Afacad',
-                                  fontSize: 14,
-                                  color: Colors.black87,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      [
-                        if (item.displayDetails != null &&
-                            item.displayDetails!.trim().isNotEmpty)
-                          item.displayDetails!,
-                        'Remarks: ${item.remarks?.trim().isNotEmpty == true ? item.remarks!.trim() : 'None'}',
-                      ].join('\n'),
-                      style: const TextStyle(
-                        fontFamily: 'Afacad',
-                        fontSize: 13,
-                        color: Colors.black87,
-                        height: 1.3,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Container(
-                      width: 92,
-                      height: 30,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: orangeColor, width: 1),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          GestureDetector(
-                            onTap: () {
-                              _cart.updateQuantity(item.id, item.quantity - 1);
-                              if (_cart.isEmpty && mounted) {
-                                Navigator.pop(context);
-                              }
-                            },
+                          Expanded(
                             child: Text(
-                              '-',
-                              style: TextStyle(
-                                color: orangeColor,
-                                fontSize: 16,
+                              item.name,
+                              style: const TextStyle(
+                                fontFamily: 'Recoleta',
+                                fontSize: 18,
                                 fontWeight: FontWeight.bold,
+                                color: Colors.black87,
                               ),
                             ),
                           ),
-                          Text(
-                            '${item.quantity}',
-                            style: TextStyle(
-                              color: orangeColor,
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          GestureDetector(
-                            onTap: () {
-                              _cart.updateQuantity(item.id, item.quantity + 1);
-                            },
-                            child: Text(
-                              '+',
-                              style: TextStyle(
-                                color: orangeColor,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
+                          RichText(
+                            text: TextSpan(
+                              children: [
+                                const TextSpan(
+                                  text: 'RM ',
+                                  style: TextStyle(
+                                    fontFamily: 'Afacad',
+                                    fontSize: 10,
+                                    color: Colors.black87,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                TextSpan(
+                                  text: item.unitTotalRm.toStringAsFixed(2),
+                                  style: const TextStyle(
+                                    fontFamily: 'Afacad',
+                                    fontSize: 14,
+                                    color: Colors.black87,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 4),
+                      Text(
+                        [
+                          if (item.displayDetails != null &&
+                              item.displayDetails!.trim().isNotEmpty)
+                            item.displayDetails!,
+                          'Remarks: ${item.remarks?.trim().isNotEmpty == true ? item.remarks!.trim() : 'None'}',
+                        ].join('\n'),
+                        style: const TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 13,
+                          color: Colors.black87,
+                          height: 1.3,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        width: 128,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: orangeColor, width: 1),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            _buildQuantityTapTarget(
+                              icon: Icons.remove,
+                              onTap: () {
+                                _cart.updateQuantity(
+                                  item.id,
+                                  item.quantity - 1,
+                                );
+                                if (_cart.isEmpty && mounted) {
+                                  Navigator.pop(context);
+                                }
+                              },
+                            ),
+                            Text(
+                              '${item.quantity}',
+                              style: TextStyle(
+                                color: orangeColor,
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            _buildQuantityTapTarget(
+                              icon: Icons.add,
+                              onTap: () {
+                                _cart.updateQuantity(
+                                  item.id,
+                                  item.quantity + 1,
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
+            const SizedBox(height: 16),
+            Divider(color: AppColors.border, height: 1),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Line Total',
+                  style: TextStyle(
+                    fontFamily: 'Recoleta',
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+                Text(
+                  '${item.lineTotalTokens} tokens',
+                  style: TextStyle(
+                    fontFamily: 'Afacad',
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: orangeColor,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuantityTapTarget({
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: SizedBox(
+          width: 38,
+          height: 38,
+          child: Icon(
+            icon,
+            size: 24,
+            color: orangeColor,
           ),
-          const SizedBox(height: 16),
-          Divider(color: AppColors.border, height: 1),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Line Total',
-                style: TextStyle(
-                  fontFamily: 'Recoleta',
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-              ),
-              Text(
-                '${item.lineTotalTokens} tokens',
-                style: TextStyle(
-                  fontFamily: 'Afacad',
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: orangeColor,
-                ),
-              ),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }
