@@ -1029,13 +1029,28 @@ class _RewardsPageState extends State<RewardsPage> {
                 ),
                 const Divider(height: 1),
                 _buildExpansionTile(
-                  'How do I earn reward tokens?',
-                  'You earn 1 cup for every handcrafted beverage purchased. Collect enough cups to level up your tier and unlock exclusive benefits!',
+                  'How do I earn reward tokens & cups?',
+                  'You earn 1 cup for every handcrafted beverage purchased. Collect enough cups to level up your tier (Kawan → Dilamun → Ketagih → Legend) and unlock exclusive benefits and vouchers!',
                 ),
                 const Divider(height: 1),
                 _buildExpansionTile(
                   'Can I cancel my order?',
                   'Orders can be cancelled through the app within 2 minutes of placing them. After the barista begins brewing, cancellation is no longer possible.',
+                ),
+                const Divider(height: 1),
+                _buildExpansionTile(
+                  'What is the order pickup lead time?',
+                  'Standard pickup preparation lead time is approximately 15 minutes. Uncollected orders will be held safely before disposal according to food safety standards.',
+                ),
+                const Divider(height: 1),
+                _buildExpansionTile(
+                  'Are C2 Tokens refundable or transferable?',
+                  'Per Section 5 of our Terms & Conditions, C2 Token is a closed-loop prepaid balance intended strictly for store purchases. Tokens cannot be exchanged for cash or transferred between accounts, and top-ups are non-refundable except for verified technical billing errors.',
+                ),
+                const Divider(height: 1),
+                _buildExpansionTile(
+                  'How do I submit a billing or payment claim?',
+                  'As stated in Section 8.3 of our Terms & Conditions, billing and payment discrepancy claims must be submitted to C2 Support with your transaction reference within fourteen (14) days of the transaction date.',
                 ),
                 const Divider(height: 1),
               ],

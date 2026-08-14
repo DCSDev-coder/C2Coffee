@@ -860,9 +860,9 @@ class _HomePageState extends State<HomePage> {
               },
             ),
           ),
-      ],
-    );
-  }
+        ],
+      );
+    }
 
   Widget _buildErrorCard(String message, {required VoidCallback onRetry}) {
     return Padding(
