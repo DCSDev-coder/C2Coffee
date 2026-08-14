@@ -1,3 +1,4 @@
+import 'dart:ui' as dart_ui;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/app_colors.dart';
@@ -73,8 +74,11 @@ class _PosterPopupState extends State<PosterPopup>
                   opacity: _fadeAnimation,
                   child: GestureDetector(
                     onTap: _closePopup,
-                    child: Container(
-                      color: Colors.black.withValues(alpha: 0.6),
+                    child: BackdropFilter(
+                      filter: dart_ui.ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                      child: Container(
+                        color: Colors.black.withValues(alpha: 0.25),
+                      ),
                     ),
                   ),
                 ),
@@ -256,6 +260,7 @@ void showPosterPopup(BuildContext context, {VoidCallback? onClose}) {
     context: context,
     barrierDismissible: false,
     barrierColor: Colors.transparent,
+    useSafeArea: false,
     builder: (context) => PosterPopup(onClose: onClose),
   );
 }

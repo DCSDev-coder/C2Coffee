@@ -37,6 +37,7 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   final AppSessionService _session = AppSessionService.instance;
+  final ScrollController _scrollController = ScrollController();
   File? _persistedPickedImage;
   String? _persistedPresetPath;
   String _username = 'C2 Member';
@@ -71,32 +72,38 @@ class _ProfilePageState extends State<ProfilePage> {
     });
   }
 
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
   void _onBottomNavTapped(int index) {
     if (index == 4) return;
     if (index == 0) {
-      InteractiveFillingLoader.show(
+      CustomBottomNav.switchTab(
         context,
-        targetPage: HomePage(
+        HomePage(
           initialPickedImage: widget.initialPickedImage,
           initialPresetPath: widget.initialPresetPath,
           initialAvatarIndex: widget.initialAvatarIndex,
         ),
       );
     } else if (index == 1) {
-      InteractiveFillingLoader.show(context, targetPage: const MenuPage());
+      CustomBottomNav.switchTab(context, const MenuPage());
     } else if (index == 2) {
-      InteractiveFillingLoader.show(
+      CustomBottomNav.switchTab(
         context,
-        targetPage: OrdersPage(
+        OrdersPage(
           initialPickedImage: widget.initialPickedImage,
           initialPresetPath: widget.initialPresetPath,
           initialAvatarIndex: widget.initialAvatarIndex,
         ),
       );
     } else if (index == 3) {
-      InteractiveFillingLoader.show(
+      CustomBottomNav.switchTab(
         context,
-        targetPage: RewardsPage(
+        RewardsPage(
           initialPickedImage: widget.initialPickedImage,
           initialPresetPath: widget.initialPresetPath,
           initialAvatarIndex: widget.initialAvatarIndex,
@@ -138,6 +145,7 @@ class _ProfilePageState extends State<ProfilePage> {
       bottomNavigationBar: CustomBottomNav(
         selectedIndex: 4,
         onItemTapped: _onBottomNavTapped,
+        scrollController: _scrollController,
       ),
       body: Stack(
         children: [
@@ -145,95 +153,99 @@ class _ProfilePageState extends State<ProfilePage> {
             children: [
               // Header
               Container(
-                width: double.infinity,
-                padding: EdgeInsets.only(
-                    top: MediaQuery.paddingOf(context).top + 14,
-                    bottom: 16,
-                    left: 20,
-                    right: 20),
-                decoration: BoxDecoration(
-                  color: AppColors.deepTeal,
-                  borderRadius: const BorderRadius.only(
-                    bottomLeft: Radius.circular(20),
-                    bottomRight: Radius.circular(20),
+                  width: double.infinity,
+                  padding: EdgeInsets.only(
+                      top: MediaQuery.paddingOf(context).top + 14,
+                      bottom: 16,
+                      left: 20,
+                      right: 20),
+                  decoration: BoxDecoration(
+                    color: AppColors.deepTeal,
+                    borderRadius: const BorderRadius.only(
+                      bottomLeft: Radius.circular(20),
+                      bottomRight: Radius.circular(20),
+                    ),
                   ),
-                ),
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: GestureDetector(
-                        onTap: () => InteractiveFillingLoader.showPop(context),
-                        child: const Icon(Icons.arrow_back_ios,
-                            color: Colors.white, size: 20),
-                      ),
-                    ),
-                    const Text(
-                      'PROFILE',
-                      style: TextStyle(
-                        fontFamily: 'Recoleta',
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        letterSpacing: 1.0,
-                      ),
-                    ),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          GestureDetector(
-                            onTap: () {
-                              InteractiveFillingLoader.show(
-                                context,
-                                targetPage: SettingsPage(
-                                  onProfileUpdated: _loadAvatarState,
-                                  returnPage: const ProfilePage(),
-                                ),
-                              );
-                            },
-                            child: const Icon(Icons.settings_outlined,
-                                color: Colors.white, size: 22),
+                  child: SizedBox(
+                    height: 48,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: GestureDetector(
+                            onTap: () =>
+                                InteractiveFillingLoader.showPop(context),
+                            child: const Icon(Icons.arrow_back_ios,
+                                color: Colors.white, size: 20),
                           ),
-                          const SizedBox(width: 14),
-                          GestureDetector(
-                            onTap: () {
-                              InteractiveFillingLoader.show(
-                                context,
-                                targetPage: const NotificationPage(),
-                              );
-                            },
-                            child: Stack(
-                              clipBehavior: Clip.none,
-                              children: [
-                                const Icon(Icons.notifications_outlined,
-                                    color: Colors.white, size: 26),
-                                Positioned(
-                                  top: 1,
-                                  right: 1,
-                                  child: Container(
-                                    width: 8,
-                                    height: 8,
-                                    decoration: BoxDecoration(
-                                      color: AppColors.accent,
-                                      shape: BoxShape.circle,
+                        ),
+                        const Text(
+                          'PROFILE',
+                          style: TextStyle(
+                            fontFamily: 'Recoleta',
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            letterSpacing: 1.0,
+                          ),
+                        ),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              GestureDetector(
+                                onTap: () {
+                                  InteractiveFillingLoader.show(
+                                    context,
+                                    targetPage: SettingsPage(
+                                      onProfileUpdated: _loadAvatarState,
+                                      returnPage: const ProfilePage(),
                                     ),
-                                  ),
+                                  );
+                                },
+                                child: const Icon(Icons.settings_outlined,
+                                    color: Colors.white, size: 22),
+                              ),
+                              const SizedBox(width: 14),
+                              GestureDetector(
+                                onTap: () {
+                                  InteractiveFillingLoader.show(
+                                    context,
+                                    targetPage: const NotificationPage(),
+                                  );
+                                },
+                                child: Stack(
+                                  clipBehavior: Clip.none,
+                                  children: [
+                                    const Icon(Icons.notifications_outlined,
+                                        color: Colors.white, size: 26),
+                                    Positioned(
+                                      top: 1,
+                                      right: 1,
+                                      child: Container(
+                                        width: 8,
+                                        height: 8,
+                                        decoration: BoxDecoration(
+                                          color: AppColors.accent,
+                                          shape: BoxShape.circle,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              ),
+                  )),
               // Content
               Expanded(
                 child: SingleChildScrollView(
+                  controller: _scrollController,
                   padding: const EdgeInsets.only(
                       left: 16, right: 16, top: 20, bottom: 130),
                   child: Column(

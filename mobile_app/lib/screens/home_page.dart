@@ -44,6 +44,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final AppSessionService _session = AppSessionService.instance;
   final PageController _pageController = PageController();
+  final ScrollController _scrollController = ScrollController();
 
   File? _persistedPickedImage;
   String? _persistedPresetPath;
@@ -83,6 +84,7 @@ class _HomePageState extends State<HomePage> {
   void dispose() {
     _carouselTimer?.cancel();
     _pageController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -112,29 +114,29 @@ class _HomePageState extends State<HomePage> {
 
   void _onBottomNavTapped(int index) {
     if (index == 1) {
-      InteractiveFillingLoader.show(context, targetPage: const MenuPage());
+      CustomBottomNav.switchTab(context, const MenuPage());
     } else if (index == 2) {
-      InteractiveFillingLoader.show(
+      CustomBottomNav.switchTab(
         context,
-        targetPage: OrdersPage(
+        OrdersPage(
           initialPickedImage: widget.initialPickedImage,
           initialPresetPath: widget.initialPresetPath,
           initialAvatarIndex: widget.initialAvatarIndex,
         ),
       );
     } else if (index == 3) {
-      InteractiveFillingLoader.show(
+      CustomBottomNav.switchTab(
         context,
-        targetPage: RewardsPage(
+        RewardsPage(
           initialPickedImage: widget.initialPickedImage,
           initialPresetPath: widget.initialPresetPath,
           initialAvatarIndex: widget.initialAvatarIndex,
         ),
       );
     } else if (index == 4) {
-      InteractiveFillingLoader.show(
+      CustomBottomNav.switchTab(
         context,
-        targetPage: ProfilePage(
+        ProfilePage(
           initialPickedImage: widget.initialPickedImage,
           initialPresetPath: widget.initialPresetPath,
           initialAvatarIndex: widget.initialAvatarIndex,
@@ -208,6 +210,7 @@ class _HomePageState extends State<HomePage> {
           bottomNavigationBar: CustomBottomNav(
             selectedIndex: 0,
             onItemTapped: _onBottomNavTapped,
+            scrollController: _scrollController,
           ),
           body: Stack(
             children: [
@@ -216,6 +219,7 @@ class _HomePageState extends State<HomePage> {
                 child: RefreshIndicator(
                   onRefresh: () => _session.loadAuthenticatedState(force: true),
                   child: SingleChildScrollView(
+                    controller: _scrollController,
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.only(bottom: 220),
                     child: Column(

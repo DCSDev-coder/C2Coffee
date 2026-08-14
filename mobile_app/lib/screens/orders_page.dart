@@ -75,8 +75,7 @@ class _OrdersPageState extends State<OrdersPage>
     }
   }
 
-  CustomerOrder? get _displayActiveOrder =>
-      _activeOrder;
+  CustomerOrder? get _displayActiveOrder => _activeOrder;
 
   List<CustomerOrder> get _displayHistoryOrders {
     final backendHistoryOrders =
@@ -190,7 +189,7 @@ class _OrdersPageState extends State<OrdersPage>
         return;
     }
 
-    InteractiveFillingLoader.show(context, targetPage: target);
+    CustomBottomNav.switchTab(context, target);
   }
 
   @override
@@ -255,47 +254,49 @@ class _OrdersPageState extends State<OrdersPage>
 
   Widget _buildHeader() {
     return Container(
-      width: double.infinity,
-      padding: EdgeInsets.only(
-        top: MediaQuery.paddingOf(context).top + 14,
-        bottom: 16,
-        left: 20,
-        right: 20,
-      ),
-      decoration: BoxDecoration(
-        color: AppColors.deepTeal,
-        borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(20),
-          bottomRight: Radius.circular(20),
+        width: double.infinity,
+        padding: EdgeInsets.only(
+          top: MediaQuery.paddingOf(context).top + 14,
+          bottom: 16,
+          left: 20,
+          right: 20,
         ),
-      ),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Align(
-            alignment: Alignment.centerLeft,
-            child: GestureDetector(
-              onTap: () => InteractiveFillingLoader.showPop(context),
-              child: const Icon(
-                Icons.arrow_back_ios,
-                color: Colors.white,
-                size: 20,
+        decoration: BoxDecoration(
+          color: AppColors.deepTeal,
+          borderRadius: const BorderRadius.only(
+            bottomLeft: Radius.circular(20),
+            bottomRight: Radius.circular(20),
+          ),
+        ),
+        child: SizedBox(
+          height: 48,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: GestureDetector(
+                  onTap: () => InteractiveFillingLoader.showPop(context),
+                  child: const Icon(
+                    Icons.arrow_back_ios,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
               ),
-            ),
+              const Text(
+                'MY ORDER',
+                style: TextStyle(
+                  fontFamily: 'Recoleta',
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  letterSpacing: 1.0,
+                ),
+              ),
+            ],
           ),
-          const Text(
-            'MY ORDER',
-            style: TextStyle(
-              fontFamily: 'Recoleta',
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-              letterSpacing: 1.0,
-            ),
-          ),
-        ],
-      ),
-    );
+        ));
   }
 
   Widget _buildActiveOrdersTab() {

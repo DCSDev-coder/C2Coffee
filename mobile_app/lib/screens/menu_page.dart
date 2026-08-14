@@ -78,8 +78,8 @@ class _MenuPageState extends State<MenuPage> {
       final items = category.items
           .where((item) => item.isAvailable)
           .map(
-            (item) =>
-                CatalogPresentation.toLegacyItem(item, category.code, category.name),
+            (item) => CatalogPresentation.toLegacyItem(
+                item, category.code, category.name),
           )
           .where((item) {
         if (query.isEmpty) return true;
@@ -213,27 +213,16 @@ class _MenuPageState extends State<MenuPage> {
                 right: 0,
                 child: CustomBottomNav(
                   selectedIndex: 1,
+                  scrollController: _scrollController,
                   onItemTapped: (index) {
                     if (index == 0) {
-                      InteractiveFillingLoader.show(
-                        context,
-                        targetPage: const HomePage(),
-                      );
+                      CustomBottomNav.switchTab(context, const HomePage());
                     } else if (index == 2) {
-                      InteractiveFillingLoader.show(
-                        context,
-                        targetPage: const OrdersPage(),
-                      );
+                      CustomBottomNav.switchTab(context, const OrdersPage());
                     } else if (index == 3) {
-                      InteractiveFillingLoader.show(
-                        context,
-                        targetPage: const RewardsPage(),
-                      );
+                      CustomBottomNav.switchTab(context, const RewardsPage());
                     } else if (index == 4) {
-                      InteractiveFillingLoader.show(
-                        context,
-                        targetPage: const ProfilePage(),
-                      );
+                      CustomBottomNav.switchTab(context, const ProfilePage());
                     }
                   },
                 ),
@@ -357,7 +346,7 @@ class _MenuPageState extends State<MenuPage> {
         ),
       ),
       child: SizedBox(
-        height: 38,
+        height: 48,
         child: AnimatedSwitcher(
           duration: const Duration(milliseconds: 300),
           child: _isSearching
