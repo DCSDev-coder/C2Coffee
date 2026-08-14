@@ -22,7 +22,7 @@ const ordersData = [
   { time: '8PM', value: 35 },
 ];
 
-const TopCard = ({ title, value, change, iconColor, icon: Icon }) => (
+const TopCard = ({ title, value, change, iconColor, icon: Icon, onClickChange }) => (
   <div className="bg-white p-4 rounded-xl border border-gray-200 flex items-center space-x-4 shadow-sm">
     <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white ${iconColor}`}>
       <Icon size={24} strokeWidth={2} />
@@ -31,7 +31,13 @@ const TopCard = ({ title, value, change, iconColor, icon: Icon }) => (
       <h3 className="text-gray-700 text-xs font-semibold">{title}</h3>
       <p className="text-xl font-bold text-gray-900">{value}</p>
       {change && (
-        <p className="text-[10px] text-green-500 font-medium mt-0.5">^ {change}</p>
+        onClickChange ? (
+          <button onClick={onClickChange} className="text-[10px] text-green-600 font-semibold mt-0.5 hover:underline cursor-pointer">
+            {change}
+          </button>
+        ) : (
+          <p className="text-[10px] text-green-500 font-medium mt-0.5">^ {change}</p>
+        )
       )}
     </div>
   </div>
@@ -88,8 +94,8 @@ const ChartCard = ({ title, value, change, data, dataKey, color, id }) => {
   );
 };
 
-const ActionItem = ({ title, desc, iconColor, icon: Icon }) => (
-  <button className="w-full flex items-center justify-between p-3 border-b border-gray-100 hover:bg-gray-50 transition-colors last:border-0">
+const ActionItem = ({ title, desc, iconColor, icon: Icon, onClick }) => (
+  <button onClick={onClick} className="w-full flex items-center justify-between p-3 border-b border-gray-100 hover:bg-gray-50 transition-colors last:border-0 cursor-pointer text-left">
     <div className="flex items-center space-x-3">
       <div className={`w-10 h-10 rounded-full ${iconColor} flex items-center justify-center text-white`}>
         <Icon size={18} strokeWidth={2.5} />
@@ -103,9 +109,9 @@ const ActionItem = ({ title, desc, iconColor, icon: Icon }) => (
   </button>
 );
 
-const DashboardHome = () => {
+const DashboardHome = ({ setCurrentPage }) => {
   const [selectedDate, setSelectedDate] = useState(new Date('2026-05-05'));
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPageNumber] = useState(1);
 
   const CustomDateInput = forwardRef(({ value, onClick }, ref) => (
     <div
@@ -163,7 +169,7 @@ const DashboardHome = () => {
         <TopCard title="Revenue Today" value="RM 2,560" change="12.6% vs yesterday" iconColor="bg-[#1F3A34]" icon={Wallet} />
         <TopCard title="Orders Today" value="218" change="8.2% vs yesterday" iconColor="bg-[#2E5E58]" icon={ShoppingBag} />
         <TopCard title="New Customers" value="19" change="17.1% vs yesterday" iconColor="bg-[#6F9F96]" icon={UserPlus} />
-        <TopCard title="Active Promotions" value="4" change="View all" iconColor="bg-[#A8C4A2]" icon={Megaphone} />
+        <TopCard title="Active Promotions" value="4" change="View all" iconColor="bg-[#A8C4A2]" icon={Megaphone} onClickChange={() => setCurrentPage && setCurrentPage('Marketing')} />
         <TopCard title="Loyalty Members" value="1,245" change="9.3% vs yesterday" iconColor="bg-[#E07A5F]" icon={Users} />
         <TopCard title="Tokens Issued" value="128,560" change="6.6% vs yesterday" iconColor="bg-[#D4AF7A]" icon={Coins} />
       </div>
@@ -195,10 +201,10 @@ const DashboardHome = () => {
         <div className="col-span-3 bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex flex-col h-72">
           <h2 className="text-lg font-bold text-gray-900 mb-4">Quick Actions</h2>
           <div className="flex-1 overflow-y-auto pr-1">
-            <ActionItem title="Create Voucher" desc="Create a new voucher template" iconColor="bg-[#1F3A34]" icon={Ticket} />
-            <ActionItem title="Send Campaign" desc="Send notification campaign" iconColor="bg-[#2E5E58]" icon={Megaphone} />
-            <ActionItem title="Add Menu Item" desc="Add new drink or food" iconColor="bg-[#E07A5F]" icon={Coffee} />
-            <ActionItem title="View Refunds" desc="Review refund requests" iconColor="bg-[#D4AF7A]" icon={BadgeDollarSign} />
+            <ActionItem title="Create Voucher" desc="Create a new voucher template" iconColor="bg-[#1F3A34]" icon={Ticket} onClick={() => setCurrentPage && setCurrentPage('Voucher')} />
+            <ActionItem title="Send Campaign" desc="Send notification campaign" iconColor="bg-[#2E5E58]" icon={Megaphone} onClick={() => setCurrentPage && setCurrentPage('Marketing')} />
+            <ActionItem title="Add Menu Item" desc="Add new drink or food" iconColor="bg-[#E07A5F]" icon={Coffee} onClick={() => setCurrentPage && setCurrentPage('Menu')} />
+            <ActionItem title="View Refunds" desc="Review refund requests" iconColor="bg-[#D4AF7A]" icon={BadgeDollarSign} onClick={() => setCurrentPage && setCurrentPage('Refunds')} />
           </div>
         </div>
       </div>
@@ -208,7 +214,12 @@ const DashboardHome = () => {
         <div className="col-span-8 bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-bold text-gray-900">Recent Orders</h2>
-            <a href="#" className="text-xs font-semibold text-gray-600 hover:underline">View all orders</a>
+            <button
+              onClick={() => setCurrentPage && setCurrentPage('Orders')}
+              className="text-xs font-semibold text-gray-600 hover:text-gray-900 hover:underline cursor-pointer"
+            >
+              View all orders
+            </button>
           </div>
           <table className="w-full text-left text-xs">
             <thead>
@@ -245,12 +256,12 @@ const DashboardHome = () => {
             <div className="flex space-x-2 items-center">
               <span
                 className={`cursor-pointer ${currentPage === 1 ? 'opacity-50 pointer-events-none' : 'hover:text-gray-800 transition-colors'}`}
-                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                onClick={() => setCurrentPageNumber(prev => Math.max(1, prev - 1))}
               >{'<'}</span>
               {[1, 2, 3, 4, 5].map((page) => (
                 <span
                   key={page}
-                  onClick={() => setCurrentPage(page)}
+                  onClick={() => setCurrentPageNumber(page)}
                   className={`cursor-pointer w-5 h-5 flex items-center justify-center rounded transition-colors ${currentPage === page ? 'bg-[#2E5E58] text-white' : 'hover:bg-gray-100 hover:text-gray-800'}`}
                 >
                   {page}
@@ -258,7 +269,7 @@ const DashboardHome = () => {
               ))}
               <span
                 className={`cursor-pointer ${currentPage === 5 ? 'opacity-50 pointer-events-none' : 'hover:text-gray-800 transition-colors'}`}
-                onClick={() => setCurrentPage(prev => Math.min(5, prev + 1))}
+                onClick={() => setCurrentPageNumber(prev => Math.min(5, prev + 1))}
               >{'>'}</span>
             </div>
           </div>
@@ -267,7 +278,12 @@ const DashboardHome = () => {
           <div>
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-lg font-bold text-gray-900">Recent Activity</h2>
-              <a href="#" className="text-xs font-semibold text-gray-600 hover:underline">View all</a>
+              <button
+                onClick={() => setCurrentPage && setCurrentPage('Recent Activities')}
+                className="text-xs font-semibold text-gray-600 hover:text-gray-900 hover:underline cursor-pointer"
+              >
+                View all
+              </button>
             </div>
             <div className="space-y-4">
               <div className="flex items-start space-x-3">

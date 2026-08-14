@@ -1,7 +1,7 @@
 import React, { useState, forwardRef, useEffect } from 'react';
 import {
   Wallet, ShoppingBag, Users, Megaphone, Search, ChevronDown, Download, Plus,
-  Eye, MoreVertical, X, Crown, ChevronRight, User, ClipboardList, Coins, Ticket, BarChart3, Calendar, Trash2
+  Eye, MoreVertical, X, Crown, ChevronRight, User, ClipboardList, Coins, Ticket, BarChart3, Calendar, Trash2, Pencil
 } from 'lucide-react';
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -35,21 +35,21 @@ const KPICard = ({ title, value, change, icon: Icon, iconBg, iconColor }) => (
 );
 
 const initialCustomerData = [
-  { id: 'cust-0', username: 'miraelys', email: 'mira@gmail.com', tier: 'Legend', tokens: '1,560', orders: '48', spent: 'RM 2,600.50', lastOrder: 'May 5, 2026', status: 'Paid', phone: '+60 11-63793812' },
-  { id: 'cust-1', username: 'alex_chong', email: 'alex.c@yahoo.com', tier: 'Legend', tokens: '2,100', orders: '102', spent: 'RM 5,230.00', lastOrder: 'Aug 2, 2026', status: 'Paid', phone: '+60 12-3456789' },
-  { id: 'cust-2', username: 'sarah_lee', email: 'sarah.lee88@gmail.com', tier: 'Dilamun', tokens: '450', orders: '12', spent: 'RM 450.25', lastOrder: 'Aug 10, 2026', status: 'Refund', phone: '+60 17-9876543' },
-  { id: 'cust-3', username: 'khai_rul', email: 'khairul.dev@gmail.com', tier: 'Ketagih', tokens: '3,200', orders: '25', spent: 'RM 8,400.90', lastOrder: 'Aug 12, 2026', status: 'Paid', phone: '+60 19-1122334' },
-  { id: 'cust-4', username: 'jane_doe', email: 'janedoe99@outlook.com', tier: 'Kawan', tokens: '120', orders: '3', spent: 'RM 85.00', lastOrder: 'July 15, 2026', status: 'Paid', phone: '+60 13-5557777' },
-  { id: 'cust-5', username: 'ahmad_z', email: 'ahmad.z@gmail.com', tier: 'Dilamun', tokens: '1,890', orders: '18', spent: 'RM 4,120.00', lastOrder: 'Aug 11, 2026', status: 'Paid', phone: '+60 14-2223333' },
-  { id: 'cust-6', username: 'lily_tan', email: 'lily.tan@company.com', tier: 'Ketagih', tokens: '4,500', orders: '28', spent: 'RM 12,300.50', lastOrder: 'Aug 13, 2026', status: 'Paid', phone: '+60 16-8889999' },
-  { id: 'cust-7', username: 'ravi_s', email: 'ravi.shankar@gmail.com', tier: 'Dilamun', tokens: '670', orders: '15', spent: 'RM 890.75', lastOrder: 'June 20, 2026', status: 'Paid', phone: '+60 11-1234123' },
-  { id: 'cust-8', username: 'fatimah_n', email: 'fatimah.n@yahoo.com', tier: 'Legend', tokens: '2,340', orders: '32', spent: 'RM 5,100.00', lastOrder: 'Aug 5, 2026', status: 'Paid', phone: '+60 12-4445555' },
-  { id: 'cust-9', username: 'wei_jie', email: 'weijie_w@gmail.com', tier: 'Kawan', tokens: '250', orders: '8', spent: 'RM 150.00', lastOrder: 'May 18, 2026', status: 'Refund', phone: '+60 17-6667777' },
-  { id: 'cust-10', username: 'nur_aini', email: 'nur.aini@outlook.com', tier: 'Ketagih', tokens: '3,800', orders: '22', spent: 'RM 9,200.00', lastOrder: 'Aug 9, 2026', status: 'Paid', phone: '+60 19-8887777' },
-  { id: 'cust-11', username: 'danial_h', email: 'danial.hakim@gmail.com', tier: 'Legend', tokens: '1,650', orders: '45', spent: 'RM 3,200.20', lastOrder: 'July 25, 2026', status: 'Paid', phone: '+60 13-9990000' },
-  { id: 'cust-12', username: 'mei_ling', email: 'mei.l@yahoo.com', tier: 'Dilamun', tokens: '890', orders: '19', spent: 'RM 1,450.50', lastOrder: 'Aug 1, 2026', status: 'Paid', phone: '+60 14-7778888' },
-  { id: 'cust-13', username: 'kumar_a', email: 'kumar.a@gmail.com', tier: 'Kawan', tokens: '180', orders: '5', spent: 'RM 120.00', lastOrder: 'March 12, 2026', status: 'Refund', phone: '+60 16-1112222' },
-  { id: 'cust-14', username: 'syahirah', email: 'syahirah_o@gmail.com', tier: 'Legend', tokens: '2,750', orders: '31', spent: 'RM 6,800.00', lastOrder: 'Aug 13, 2026', status: 'Paid', phone: '+60 11-3334444' }
+  { id: 'cust-0', username: 'miraelys', email: 'mira@gmail.com', tier: 'Legend', tokens: '1,560', orders: '48', spent: 'RM 2,600.50', lastOrder: 'May 5, 2026', status: 'Paid', phone: '+60 11-63793812', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80' },
+  { id: 'cust-1', username: 'alex_chong', email: 'alex.c@yahoo.com', tier: 'Legend', tokens: '2,100', orders: '102', spent: 'RM 5,230.00', lastOrder: 'Aug 2, 2026', status: 'Paid', phone: '+60 12-3456789', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&auto=format&fit=crop&q=80' },
+  { id: 'cust-2', username: 'sarah_lee', email: 'sarah.lee88@gmail.com', tier: 'Dilamun', tokens: '450', orders: '12', spent: 'RM 450.25', lastOrder: 'Aug 10, 2026', status: 'Refund', phone: '+60 17-9876543', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&auto=format&fit=crop&q=80' },
+  { id: 'cust-3', username: 'khai_rul', email: 'khairul.dev@gmail.com', tier: 'Ketagih', tokens: '3,200', orders: '25', spent: 'RM 8,400.90', lastOrder: 'Aug 12, 2026', status: 'Paid', phone: '+60 19-1122334', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&auto=format&fit=crop&q=80' },
+  { id: 'cust-4', username: 'jane_doe', email: 'janedoe99@outlook.com', tier: 'Kawan', tokens: '120', orders: '3', spent: 'RM 85.00', lastOrder: 'July 15, 2026', status: 'Paid', phone: '+60 13-5557777', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&auto=format&fit=crop&q=80' },
+  { id: 'cust-5', username: 'ahmad_z', email: 'ahmad.z@gmail.com', tier: 'Dilamun', tokens: '1,890', orders: '18', spent: 'RM 4,120.00', lastOrder: 'Aug 11, 2026', status: 'Paid', phone: '+60 14-2223333', avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&auto=format&fit=crop&q=80' },
+  { id: 'cust-6', username: 'lily_tan', email: 'lily.tan@company.com', tier: 'Ketagih', tokens: '4,500', orders: '28', spent: 'RM 12,300.50', lastOrder: 'Aug 13, 2026', status: 'Paid', phone: '+60 16-8889999', avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&auto=format&fit=crop&q=80' },
+  { id: 'cust-7', username: 'ravi_s', email: 'ravi.shankar@gmail.com', tier: 'Dilamun', tokens: '670', orders: '15', spent: 'RM 890.75', lastOrder: 'June 20, 2026', status: 'Paid', phone: '+60 11-1234123', avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=100&auto=format&fit=crop&q=80' },
+  { id: 'cust-8', username: 'fatimah_n', email: 'fatimah.n@yahoo.com', tier: 'Legend', tokens: '2,340', orders: '32', spent: 'RM 5,100.00', lastOrder: 'Aug 5, 2026', status: 'Paid', phone: '+60 12-4445555', avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=100&auto=format&fit=crop&q=80' },
+  { id: 'cust-9', username: 'wei_jie', email: 'weijie_w@gmail.com', tier: 'Kawan', tokens: '250', orders: '8', spent: 'RM 150.00', lastOrder: 'May 18, 2026', status: 'Refund', phone: '+60 17-6667777', avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=100&auto=format&fit=crop&q=80' },
+  { id: 'cust-10', username: 'nur_aini', email: 'nur.aini@outlook.com', tier: 'Ketagih', tokens: '3,800', orders: '22', spent: 'RM 9,200.00', lastOrder: 'Aug 9, 2026', status: 'Paid', phone: '+60 19-8887777', avatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=100&auto=format&fit=crop&q=80' },
+  { id: 'cust-11', username: 'danial_h', email: 'danial.hakim@gmail.com', tier: 'Legend', tokens: '1,650', orders: '45', spent: 'RM 3,200.20', lastOrder: 'July 25, 2026', status: 'Paid', phone: '+60 13-9990000', avatar: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=100&auto=format&fit=crop&q=80' },
+  { id: 'cust-12', username: 'mei_ling', email: 'mei.l@yahoo.com', tier: 'Dilamun', tokens: '890', orders: '19', spent: 'RM 1,450.50', lastOrder: 'Aug 1, 2026', status: 'Paid', phone: '+60 14-7778888', avatar: 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=100&auto=format&fit=crop&q=80' },
+  { id: 'cust-13', username: 'kumar_a', email: 'kumar.a@gmail.com', tier: 'Kawan', tokens: '180', orders: '5', spent: 'RM 120.00', lastOrder: 'March 12, 2026', status: 'Refund', phone: '+60 16-1112222', avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=100&auto=format&fit=crop&q=80' },
+  { id: 'cust-14', username: 'syahirah', email: 'syahirah_o@gmail.com', tier: 'Legend', tokens: '2,750', orders: '31', spent: 'RM 6,800.00', lastOrder: 'Aug 13, 2026', status: 'Paid', phone: '+60 11-3334444', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80' }
 ];
 
 const getTierColor = (tier) => {
@@ -114,7 +114,7 @@ const CustomDateInput = forwardRef(({ value, onClick, onClear }, ref) => (
 
 const Customers = () => {
   const [customers, setCustomers] = useState(initialCustomerData);
-  const [selectedCustomer, setSelectedCustomer] = useState(initialCustomerData[0]);
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTier, setSelectedTier] = useState('All Tiers');
   const [selectedStatus, setSelectedStatus] = useState('All Status');
@@ -126,7 +126,14 @@ const Customers = () => {
   const [statusOpen, setStatusOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
   const [activeView, setActiveView] = useState('list');
+  const [menuOpenId, setMenuOpenId] = useState(null);
   const itemsPerPage = 12;
+
+  useEffect(() => {
+    const handleClickOutside = () => setMenuOpenId(null);
+    window.addEventListener('click', handleClickOutside);
+    return () => window.removeEventListener('click', handleClickOutside);
+  }, []);
 
   // Render Sub-Views Early
   const renderView = () => {
@@ -337,8 +344,7 @@ const Customers = () => {
                           onChange={() => handleSelectRow(customer.id)}
                           className="mr-3 rounded border-gray-300 text-[#2E5E58] focus:ring-[#2E5E58]"
                         />
-                        <div className="h-10 w-10 rounded-full bg-[#2E5E58] flex-shrink-0 flex items-center justify-center text-white font-medium shadow-sm">
-                        </div>
+                        <div className="h-10 w-10 rounded-full bg-[#2E5E58] flex-shrink-0 shadow-sm"></div>
                         <div className="ml-4">
                           <div className="text-sm font-bold text-gray-900">{customer.username}</div>
                           <div className="text-xs text-gray-500">{customer.email}</div>
@@ -360,19 +366,58 @@ const Customers = () => {
                       </span>
                     </td>
                     <td className="px-6 py-3 whitespace-nowrap text-sm font-medium">
-                      <div className="flex space-x-2">
-                        <button
-                          className="p-1 text-gray-400 hover:text-gray-900 bg-gray-100 rounded-md"
-                          onClick={() => setSelectedCustomer(customer)}
-                        >
-                          <Eye size={16} />
-                        </button>
-                        <button
-                          onClick={() => setEditingCustomer(customer)}
-                          className="p-1 text-gray-400 hover:text-gray-900 bg-gray-100 rounded-md"
-                        >
-                          <MoreVertical size={16} />
-                        </button>
+                      <div className="relative inline-block text-left">
+                        <div className="bg-[#1E293B] hover:bg-[#0F172A] text-white px-2.5 py-1.5 rounded-lg inline-flex items-center gap-2 shadow-sm transition-colors">
+                          <button
+                            className="text-white/90 hover:text-white cursor-pointer transition-colors"
+                            onClick={() => setSelectedCustomer(selectedCustomer?.id === customer.id ? null : customer)}
+                            title="View Details"
+                          >
+                            <Eye size={15} />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setMenuOpenId(menuOpenId === customer.id ? null : customer.id);
+                            }}
+                            className="text-white/90 hover:text-white cursor-pointer transition-colors"
+                            title="More Options"
+                          >
+                            <MoreVertical size={15} />
+                          </button>
+                        </div>
+
+                        {menuOpenId === customer.id && (
+                          <div className="absolute right-0 top-full mt-1.5 w-32 bg-white rounded-xl shadow-lg border border-gray-200 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingCustomer(customer);
+                                setMenuOpenId(null);
+                              }}
+                              className="w-full px-3 py-2 text-left text-xs font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2 cursor-pointer transition-colors"
+                            >
+                              <Pencil size={13} className="text-gray-500" />
+                              Edit
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (confirm(`Are you sure you want to delete customer "${customer.username}"?`)) {
+                                  setCustomers(prev => prev.filter(c => c.id !== customer.id));
+                                  if (selectedCustomer?.id === customer.id) {
+                                    setSelectedCustomer(null);
+                                  }
+                                }
+                                setMenuOpenId(null);
+                              }}
+                              className="w-full px-3 py-2 text-left text-xs font-medium text-red-600 hover:bg-red-50 flex items-center gap-2 cursor-pointer transition-colors"
+                            >
+                              <Trash2 size={13} className="text-red-500" />
+                              Delete
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </td>
                   </tr>
