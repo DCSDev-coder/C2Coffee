@@ -218,9 +218,9 @@ const VouchersAnalytics = ({ onBack }) => {
             </button>
           </div>
 
-          <div className="h-48 w-full mt-2">
+          <div className="h-52 w-full mt-2">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={timeSeriesData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <AreaChart data={timeSeriesData} margin={{ top: 10, right: 10, left: -5, bottom: 5 }}>
                 <defs>
                   <linearGradient id="issuedGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#E07A5F" stopOpacity={0.3} />
@@ -231,11 +231,26 @@ const VouchersAnalytics = ({ onBack }) => {
                     <stop offset="95%" stopColor="#2E5E58" stopOpacity={0.0} />
                   </linearGradient>
                 </defs>
-                <XAxis dataKey="day" tick={{ fontSize: 10, fill: '#6B7280' }} tickLine={false} axisLine={false} />
-                <YAxis tick={{ fontSize: 10, fill: '#6B7280' }} tickLine={false} axisLine={false} domain={[0, 1400]} ticks={[0, 200, 400, 600, 800, 1000, 1200]} />
-                <Tooltip />
-                <Area type="monotone" dataKey="issued" stroke="#E07A5F" strokeWidth={2.5} fillOpacity={1} fill="url(#issuedGrad)" />
-                <Area type="monotone" dataKey="redeemed" stroke="#2E5E58" strokeWidth={2.5} fillOpacity={1} fill="url(#redeemedGrad)" />
+                <XAxis
+                  dataKey="day"
+                  tick={{ fontSize: 11, fill: '#4B5563', fontWeight: 600 }}
+                  tickLine={{ stroke: '#D1D5DB' }}
+                  axisLine={{ stroke: '#D1D5DB' }}
+                />
+                <YAxis
+                  tick={{ fontSize: 11, fill: '#4B5563', fontWeight: 600 }}
+                  tickLine={{ stroke: '#D1D5DB' }}
+                  axisLine={{ stroke: '#D1D5DB' }}
+                  domain={[0, 1200]}
+                  ticks={[0, 200, 400, 600, 800, 1000, 1200]}
+                  tickFormatter={(v) => (v >= 1000 ? `${(v / 1000).toFixed(1)}K`.replace('.0', '') : v)}
+                />
+                <Tooltip
+                  contentStyle={{ backgroundColor: '#1F3A34', borderRadius: '8px', border: 'none', color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
+                  itemStyle={{ color: '#fff' }}
+                />
+                <Area type="monotone" dataKey="issued" name="Issued" stroke="#E07A5F" strokeWidth={2.5} fillOpacity={1} fill="url(#issuedGrad)" />
+                <Area type="monotone" dataKey="redeemed" name="Redeemed" stroke="#2E5E58" strokeWidth={2.5} fillOpacity={1} fill="url(#redeemedGrad)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -253,13 +268,29 @@ const VouchersAnalytics = ({ onBack }) => {
             </button>
           </div>
 
-          <div className="h-48 w-full mt-2">
+          <div className="h-52 w-full mt-2">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={timeSeriesData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <XAxis dataKey="day" tick={{ fontSize: 10, fill: '#6B7280' }} tickLine={false} axisLine={false} />
-                <YAxis tick={{ fontSize: 10, fill: '#6B7280' }} tickLine={false} axisLine={false} domain={[0, 100]} ticks={[0, 20, 40, 60, 80, 100]} tickFormatter={(v) => `${v}%`} />
-                <Tooltip formatter={(val) => [`${val}%`, 'Redemption Rate']} />
-                <Line type="monotone" dataKey="rate" stroke="#2E5E58" strokeWidth={2.5} dot={{ r: 3, fill: '#2E5E58' }} />
+              <LineChart data={timeSeriesData} margin={{ top: 10, right: 10, left: -5, bottom: 5 }}>
+                <XAxis
+                  dataKey="day"
+                  tick={{ fontSize: 11, fill: '#4B5563', fontWeight: 600 }}
+                  tickLine={{ stroke: '#D1D5DB' }}
+                  axisLine={{ stroke: '#D1D5DB' }}
+                />
+                <YAxis
+                  tick={{ fontSize: 11, fill: '#4B5563', fontWeight: 600 }}
+                  tickLine={{ stroke: '#D1D5DB' }}
+                  axisLine={{ stroke: '#D1D5DB' }}
+                  domain={[0, 100]}
+                  ticks={[0, 20, 40, 60, 80, 100]}
+                  tickFormatter={(v) => `${v}%`}
+                />
+                <Tooltip
+                  formatter={(val) => [`${val}%`, 'Redemption Rate']}
+                  contentStyle={{ backgroundColor: '#1F3A34', borderRadius: '8px', border: 'none', color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
+                  itemStyle={{ color: '#fff' }}
+                />
+                <Line type="monotone" dataKey="rate" name="Redemption Rate" stroke="#2E5E58" strokeWidth={2.5} dot={{ r: 3.5, fill: '#2E5E58' }} activeDot={{ r: 5 }} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -305,13 +336,18 @@ const VouchersAnalytics = ({ onBack }) => {
           <h3 className="text-sm font-bold text-gray-900 mb-4">Voucher Type Performance</h3>
           <div className="flex flex-col sm:flex-row items-center gap-6">
             {/* Center-labeled Donut Chart */}
-            <div className="relative w-44 h-44 shrink-0 flex items-center justify-center">
+            <div className="relative w-48 h-48 shrink-0 flex items-center justify-center">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
+                  <Tooltip
+                    formatter={(value, name, item) => [`${item.payload.percentage} (${value.toLocaleString()} redeemed)`, item.payload.name]}
+                    contentStyle={{ backgroundColor: '#1F3A34', borderRadius: '8px', border: 'none', color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
+                    itemStyle={{ color: '#fff' }}
+                  />
                   <Pie
                     data={voucherTypeData}
-                    innerRadius={52}
-                    outerRadius={75}
+                    innerRadius={54}
+                    outerRadius={78}
                     paddingAngle={3}
                     dataKey="value"
                   >
@@ -354,13 +390,18 @@ const VouchersAnalytics = ({ onBack }) => {
           <h3 className="text-sm font-bold text-gray-900 mb-4">Usage by Customer Tier</h3>
           <div className="flex flex-col sm:flex-row items-center gap-6">
             {/* Center-labeled Donut Chart */}
-            <div className="relative w-44 h-44 shrink-0 flex items-center justify-center">
+            <div className="relative w-48 h-48 shrink-0 flex items-center justify-center">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
+                  <Tooltip
+                    formatter={(value, name, item) => [`${item.payload.percentage} (${value.toLocaleString()} redeemed)`, `${item.payload.name} Tier`]}
+                    contentStyle={{ backgroundColor: '#1F3A34', borderRadius: '8px', border: 'none', color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
+                    itemStyle={{ color: '#fff' }}
+                  />
                   <Pie
                     data={tierUsageData}
-                    innerRadius={52}
-                    outerRadius={75}
+                    innerRadius={54}
+                    outerRadius={78}
                     paddingAngle={3}
                     dataKey="value"
                   >
