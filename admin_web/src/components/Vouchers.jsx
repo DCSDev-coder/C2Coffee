@@ -1,11 +1,36 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, forwardRef } from "react";
 import {
   Search, ChevronDown, Download, Plus,
   Eye, Edit3, MoreVertical, X, Copy,
   Trash2, ArrowLeft, Percent, Gift,
   CreditCard, Tag, Users, Check, Clock
 } from "lucide-react";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 import VouchersAnalytics from "./VouchersAnalytics";
+
+const CustomDateInput = forwardRef(({ value, onClick, onClear }, ref) => (
+  <div className="relative">
+    <button
+      ref={ref}
+      onClick={(e) => { e.preventDefault(); onClick(e); }}
+      className="flex items-center pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 whitespace-nowrap cursor-pointer"
+    >
+      {value || "Select Date"}
+    </button>
+    <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+      <ChevronDown size={16} className="text-gray-500" />
+    </div>
+    {value && (
+      <button
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClear(); }}
+        className="absolute right-7 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 rounded-full bg-gray-100 p-0.5 cursor-pointer"
+      >
+        <X size={12} strokeWidth={2.5} />
+      </button>
+    )}
+  </div>
+));
 
 // ─── Stat Card Component (Matched to Customers & Orders KPICard) ─────────────
 const StatCard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-white" }) => (
@@ -174,6 +199,9 @@ const Vouchers = ({ onBack }) => {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("All Type");
   const [statusFilter, setStatusFilter] = useState("All Status");
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [typeOpen, setTypeOpen] = useState(false);
+  const [statusOpen, setStatusOpen] = useState(false);
   const [selectedVoucher, setSelectedVoucher] = useState(null);
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -360,12 +388,17 @@ const Vouchers = ({ onBack }) => {
             <select
               value={typeFilter}
               onChange={(e) => { setTypeFilter(e.target.value); resetPage(); }}
-              className="pl-4 pr-9 py-2 border border-gray-800 rounded-lg text-xs font-bold text-gray-800 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer"
+              onFocus={() => setTypeOpen(true)}
+              onBlur={() => setTypeOpen(false)}
+              className="pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer"
             >
               {VOUCHER_TYPES.map((t) => (
-                <option key={t} value={t}>{t} ^</option>
+                <option key={t} value={t}>{t}</option>
               ))}
             </select>
+            <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+              <ChevronDown size={16} className={`text-gray-500 transition-transform duration-200 ${typeOpen ? 'rotate-180' : ''}`} />
+            </div>
           </div>
 
           {/* Status Filter */}
@@ -373,18 +406,33 @@ const Vouchers = ({ onBack }) => {
             <select
               value={statusFilter}
               onChange={(e) => { setStatusFilter(e.target.value); resetPage(); }}
-              className="pl-4 pr-9 py-2 border border-gray-800 rounded-lg text-xs font-bold text-gray-800 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer"
+              onFocus={() => setStatusOpen(true)}
+              onBlur={() => setStatusOpen(false)}
+              className="pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer"
             >
               {STATUS_TYPES.map((s) => (
-                <option key={s} value={s}>{s} ^</option>
+                <option key={s} value={s}>{s}</option>
               ))}
             </select>
+            <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+              <ChevronDown size={16} className={`text-gray-500 transition-transform duration-200 ${statusOpen ? 'rotate-180' : ''}`} />
+            </div>
+          </div>
+
+          {/* Date Picker */}
+          <div className="relative">
+            <DatePicker
+              selected={selectedDate}
+              onChange={(d) => { setSelectedDate(d); resetPage(); }}
+              customInput={<CustomDateInput onClear={() => { setSelectedDate(null); resetPage(); }} />}
+              dateFormat="MMM d, yyyy"
+            />
           </div>
 
           {/* View Analytics Button */}
           <button
             onClick={() => setShowAnalytics(true)}
-            className="px-4 py-2 border border-gray-800 rounded-lg text-xs font-bold text-gray-800 bg-white hover:bg-gray-50 transition-colors cursor-pointer"
+            className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer transition-colors"
           >
             View Analytics
           </button>
@@ -392,17 +440,17 @@ const Vouchers = ({ onBack }) => {
           {/* Export Button */}
           <button
             onClick={() => alert("Exporting vouchers CSV...")}
-            className="flex items-center gap-1.5 px-4 py-2 border border-gray-800 rounded-lg text-xs font-bold text-gray-800 bg-white hover:bg-gray-50 transition-colors cursor-pointer"
+            className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer transition-colors"
           >
-            <Download size={14} /> Export
+            <Download size={16} className="mr-2" /> Export
           </button>
 
           {/* + New Voucher Button */}
           <button
             onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-1 px-4 py-2 border border-gray-800 rounded-lg text-xs font-bold text-gray-800 bg-white hover:bg-gray-50 transition-colors cursor-pointer"
+            className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer transition-colors"
           >
-            <Plus size={14} /> New Voucher
+            <Plus size={16} className="mr-2" /> New Voucher
           </button>
         </div>
       </div>
