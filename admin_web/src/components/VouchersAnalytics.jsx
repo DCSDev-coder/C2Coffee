@@ -9,18 +9,20 @@ import {
   PieChart, Pie, Cell
 } from "recharts";
 
-// ─── Stat Card Component ────────────────────────────────────────────────────────
-const StatCard = ({ title, value, change, icon: Icon, iconBg }) => (
-  <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between">
-    <div className="min-w-0">
-      <p className="text-gray-500 text-xs font-semibold">{title}</p>
-      <h3 className="text-xl font-bold text-gray-900 mt-1">{value}</h3>
-      <p className="text-[11px] text-green-600 font-semibold mt-0.5 flex items-center">
-        <span>▲ {change}</span>
-      </p>
+// ─── Stat Card Component (Matched to Customers & Orders KPICard) ─────────────
+const StatCard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-white" }) => (
+  <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center space-x-4">
+    <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 ${iconBg} ${iconColor} shadow-sm`}>
+      <Icon size={26} strokeWidth={2.2} />
     </div>
-    <div className={`w-11 h-11 rounded-xl ${iconBg} flex items-center justify-center text-white shrink-0 shadow-sm ml-3`}>
-      <Icon size={20} strokeWidth={2.2} />
+    <div className="min-w-0">
+      <h3 className="text-gray-500 text-xs sm:text-sm font-medium truncate">{title}</h3>
+      <p className="text-xl font-bold text-gray-900 mt-0.5">{value}</p>
+      {change && (
+        <p className="text-xs text-green-500 font-medium mt-0.5 truncate">
+          ^ {change}
+        </p>
+      )}
     </div>
   </div>
 );
