@@ -220,7 +220,7 @@ const VouchersAnalytics = ({ onBack }) => {
 
           <div className="h-52 w-full mt-2">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={timeSeriesData} margin={{ top: 10, right: 10, left: -5, bottom: 5 }}>
+              <AreaChart data={timeSeriesData} margin={{ top: 10, right: 10, left: -20, bottom: 10 }}>
                 <defs>
                   <linearGradient id="issuedGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#E07A5F" stopOpacity={0.3} />
@@ -233,14 +233,15 @@ const VouchersAnalytics = ({ onBack }) => {
                 </defs>
                 <XAxis
                   dataKey="day"
-                  tick={{ fontSize: 11, fill: '#4B5563', fontWeight: 600 }}
-                  tickLine={{ stroke: '#D1D5DB' }}
-                  axisLine={{ stroke: '#D1D5DB' }}
+                  axisLine={{ stroke: '#E5E7EB' }}
+                  tickLine={false}
+                  tick={{ fontSize: 10, fill: '#9CA3AF' }}
+                  dy={10}
                 />
                 <YAxis
-                  tick={{ fontSize: 11, fill: '#4B5563', fontWeight: 600 }}
-                  tickLine={{ stroke: '#D1D5DB' }}
-                  axisLine={{ stroke: '#D1D5DB' }}
+                  axisLine={{ stroke: '#E5E7EB' }}
+                  tickLine={false}
+                  tick={{ fontSize: 10, fill: '#9CA3AF' }}
                   domain={[0, 1200]}
                   ticks={[0, 200, 400, 600, 800, 1000, 1200]}
                   tickFormatter={(v) => (v >= 1000 ? `${(v / 1000).toFixed(1)}K`.replace('.0', '') : v)}
@@ -249,8 +250,8 @@ const VouchersAnalytics = ({ onBack }) => {
                   contentStyle={{ backgroundColor: '#1F3A34', borderRadius: '8px', border: 'none', color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
                   itemStyle={{ color: '#fff' }}
                 />
-                <Area type="monotone" dataKey="issued" name="Issued" stroke="#E07A5F" strokeWidth={2.5} fillOpacity={1} fill="url(#issuedGrad)" />
-                <Area type="monotone" dataKey="redeemed" name="Redeemed" stroke="#2E5E58" strokeWidth={2.5} fillOpacity={1} fill="url(#redeemedGrad)" />
+                <Area type="monotone" dataKey="issued" name="Issued" stroke="#E07A5F" strokeWidth={2} fillOpacity={1} fill="url(#issuedGrad)" />
+                <Area type="monotone" dataKey="redeemed" name="Redeemed" stroke="#2E5E58" strokeWidth={2} fillOpacity={1} fill="url(#redeemedGrad)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -270,17 +271,18 @@ const VouchersAnalytics = ({ onBack }) => {
 
           <div className="h-52 w-full mt-2">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={timeSeriesData} margin={{ top: 10, right: 10, left: -5, bottom: 5 }}>
+              <LineChart data={timeSeriesData} margin={{ top: 10, right: 10, left: -20, bottom: 10 }}>
                 <XAxis
                   dataKey="day"
-                  tick={{ fontSize: 11, fill: '#4B5563', fontWeight: 600 }}
-                  tickLine={{ stroke: '#D1D5DB' }}
-                  axisLine={{ stroke: '#D1D5DB' }}
+                  axisLine={{ stroke: '#E5E7EB' }}
+                  tickLine={false}
+                  tick={{ fontSize: 10, fill: '#9CA3AF' }}
+                  dy={10}
                 />
                 <YAxis
-                  tick={{ fontSize: 11, fill: '#4B5563', fontWeight: 600 }}
-                  tickLine={{ stroke: '#D1D5DB' }}
-                  axisLine={{ stroke: '#D1D5DB' }}
+                  axisLine={{ stroke: '#E5E7EB' }}
+                  tickLine={false}
+                  tick={{ fontSize: 10, fill: '#9CA3AF' }}
                   domain={[0, 100]}
                   ticks={[0, 20, 40, 60, 80, 100]}
                   tickFormatter={(v) => `${v}%`}
@@ -290,7 +292,7 @@ const VouchersAnalytics = ({ onBack }) => {
                   contentStyle={{ backgroundColor: '#1F3A34', borderRadius: '8px', border: 'none', color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
                   itemStyle={{ color: '#fff' }}
                 />
-                <Line type="monotone" dataKey="rate" name="Redemption Rate" stroke="#2E5E58" strokeWidth={2.5} dot={{ r: 3.5, fill: '#2E5E58' }} activeDot={{ r: 5 }} />
+                <Line type="monotone" dataKey="rate" name="Redemption Rate" stroke="#2E5E58" strokeWidth={2} dot={{ r: 3, fill: '#2E5E58' }} activeDot={{ r: 5 }} />
               </LineChart>
             </ResponsiveContainer>
           </div>
