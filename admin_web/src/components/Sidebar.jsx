@@ -35,7 +35,7 @@ const Sidebar = ({ currentPage, setCurrentPage }) => {
               href="#"
               onClick={(e) => {
                 e.preventDefault();
-                if (setCurrentPage && (item.name === 'Dashboard' || item.name === 'Customers' || item.name === 'Orders' || item.name === 'Audit Logs')) {
+                if (setCurrentPage && (item.name === 'Dashboard' || item.name === 'Customers' || item.name === 'Orders' || item.name === 'Voucher' || item.name === 'Audit Logs')) {
                   setCurrentPage(item.name);
                 }
               }}

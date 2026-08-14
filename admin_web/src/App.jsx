@@ -6,6 +6,7 @@ import Orders from './components/Orders';
 import RecentActivities from './components/RecentActivities';
 import Notifications from './components/Notifications';
 import Profile from './components/Profile';
+import Vouchers from './components/Vouchers';
 
 function App() {
   const [currentPage, setCurrentPage] = useState('Orders');
@@ -34,6 +35,7 @@ function App() {
       {currentPage === 'Recent Activities' && <RecentActivities onBack={() => handleNavigate('Dashboard')} />}
       {currentPage === 'Notifications' && <Notifications onBack={() => handleNavigate(prevPage || 'Orders')} />}
       {currentPage === 'Profile' && <Profile onBack={() => handleNavigate(prevPage || 'Dashboard')} />}
+      {currentPage === 'Voucher' && <Vouchers onBack={() => handleNavigate(prevPage || 'Dashboard')} />}
     </Layout>
   );
 }
