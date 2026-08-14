@@ -4,6 +4,10 @@ import { z } from 'zod';
 
 import { authenticateRequest } from '../../auth/guard.js';
 import { mysqlPool } from '../../db/mysql.js';
+import {
+  isCustomerActiveOrderStatus,
+  resolveOrderLifecycleStatus
+} from '../order-lifecycle.js';
 
 const listQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional().default(20)
@@ -58,6 +62,7 @@ type VoucherRow = RowDataPacket & {
 type OrderSummaryRow = RowDataPacket & {
   id: number;
   order_ref: string;
+  daily_order_number: number;
   status:
     | 'draft'
     | 'pending_payment'
@@ -73,7 +78,12 @@ type OrderSummaryRow = RowDataPacket & {
   final_total_rm: string;
   token_amount_charged: number;
   pickup_slot_at: Date;
+  paid_at: Date | null;
+  accepted_at: Date | null;
+  ready_at: Date | null;
+  collected_at: Date | null;
   created_at: Date;
+  updated_at: Date;
   store_id: number;
   store_name: string;
   item_count: number;
@@ -83,6 +93,7 @@ type OrderSummaryRow = RowDataPacket & {
 type OrderItemRow = RowDataPacket & {
   order_id: number;
   item_id: number;
+  menu_item_id: number;
   item_name_snapshot: string;
   base_price_rm_snapshot: string;
   token_price_snapshot: number | null;
@@ -90,6 +101,14 @@ type OrderItemRow = RowDataPacket & {
   line_subtotal_rm: string;
   line_token_amount: number | null;
   is_qualifying_cup: number;
+};
+
+type OrderItemModifierRow = RowDataPacket & {
+  order_item_id: number;
+  modifier_group_name_snapshot: string;
+  modifier_option_name_snapshot: string;
+  price_delta_rm_snapshot: string;
+  token_price_delta_snapshot: number;
 };
 
 type OrderStatusHistoryRow = RowDataPacket & {
@@ -210,15 +229,21 @@ export async function registerCustomerDataRoutes(
 
     const [rows] = await mysqlPool.query<Array<OrderSummaryRow>>(
       `
-        SELECT
-          o.id,
-          o.order_ref,
-          o.status,
+          SELECT
+            o.id,
+            o.order_ref,
+            o.daily_order_number,
+            o.status,
           o.payment_mode,
           CAST(o.final_total_rm AS CHAR) AS final_total_rm,
           o.token_amount_charged,
           o.pickup_slot_at,
+          o.paid_at,
+          o.accepted_at,
+          o.ready_at,
+          o.collected_at,
           o.created_at,
+          o.updated_at,
           s.id AS store_id,
           s.name AS store_name,
           COUNT(oi.id) AS item_count,
@@ -232,12 +257,18 @@ export async function registerCustomerDataRoutes(
         GROUP BY
           o.id,
           o.order_ref,
+          o.daily_order_number,
           o.status,
           o.payment_mode,
           o.final_total_rm,
           o.token_amount_charged,
           o.pickup_slot_at,
+          o.paid_at,
+          o.accepted_at,
+          o.ready_at,
+          o.collected_at,
           o.created_at,
+          o.updated_at,
           s.id,
           s.name
         ORDER BY o.created_at DESC, o.id DESC
@@ -263,6 +294,7 @@ export async function registerCustomerDataRoutes(
         SELECT
           order_id,
           id AS item_id,
+          menu_item_id,
           item_name_snapshot,
           CAST(base_price_rm_snapshot AS CHAR) AS base_price_rm_snapshot,
           token_price_snapshot,
@@ -273,6 +305,25 @@ export async function registerCustomerDataRoutes(
         FROM order_items
         WHERE order_id IN (:orderIds)
         ORDER BY order_id ASC, id ASC
+      `,
+      { orderIds }
+    );
+
+    const [modifierRows] = await mysqlPool.query<Array<OrderItemModifierRow>>(
+      `
+        SELECT
+          order_item_id,
+          modifier_group_name_snapshot,
+          modifier_option_name_snapshot,
+          CAST(price_delta_rm_snapshot AS CHAR) AS price_delta_rm_snapshot,
+          token_price_delta_snapshot
+        FROM order_item_modifiers
+        WHERE order_item_id IN (
+          SELECT id
+          FROM order_items
+          WHERE order_id IN (:orderIds)
+        )
+        ORDER BY order_item_id ASC, id ASC
       `,
       { orderIds }
     );
@@ -293,17 +344,33 @@ export async function registerCustomerDataRoutes(
     );
 
     const itemsByOrder = new Map<number, Array<Record<string, unknown>>>();
+    const modifiersByOrderItem = new Map<number, Array<Record<string, unknown>>>();
+    for (const row of modifierRows) {
+      const modifiers = modifiersByOrderItem.get(row.order_item_id) ?? [];
+      modifiers.push({
+        group_name: row.modifier_group_name_snapshot,
+        option_name: row.modifier_option_name_snapshot,
+        price_delta_rm: row.price_delta_rm_snapshot,
+        token_price_delta: row.token_price_delta_snapshot
+      });
+      modifiersByOrderItem.set(row.order_item_id, modifiers);
+    }
+
     for (const row of itemRows) {
       const items = itemsByOrder.get(row.order_id) ?? [];
+      const itemModifiers =
+        modifiersByOrderItem.get(row.item_id) ?? [];
       items.push({
         id: row.item_id,
+        menu_item_id: row.menu_item_id,
         name: row.item_name_snapshot,
         base_price_rm: row.base_price_rm_snapshot,
         token_price: row.token_price_snapshot,
         quantity: row.quantity,
         line_subtotal_rm: row.line_subtotal_rm,
         line_token_amount: row.line_token_amount,
-        is_qualifying_cup: row.is_qualifying_cup === 1
+        is_qualifying_cup: row.is_qualifying_cup === 1,
+        modifiers: itemModifiers
       });
       itemsByOrder.set(row.order_id, items);
     }
@@ -320,44 +387,44 @@ export async function registerCustomerDataRoutes(
       historyByOrder.set(row.order_id, history);
     }
 
-    const orders = rows.map((row) => ({
-      id: row.id,
-      order_ref: row.order_ref,
-      status: row.status,
-      payment_mode: row.payment_mode,
-      final_total_rm: row.final_total_rm,
-      token_amount_charged: row.token_amount_charged,
-      pickup_slot_at: row.pickup_slot_at.toISOString(),
-      created_at: row.created_at.toISOString(),
-      store: {
-        id: row.store_id,
-        name: row.store_name
-      },
-      item_count: row.item_count,
-      primary_item_name: row.primary_item_name,
-      items: itemsByOrder.get(row.id) ?? [],
-      status_history: historyByOrder.get(row.id) ?? []
-    }));
+    const orders = rows.map((row) => {
+      const status = resolveOrderLifecycleStatus({
+        status: row.status,
+        createdAt: row.created_at,
+        paidAt: row.paid_at,
+        acceptedAt: row.accepted_at,
+        readyAt: row.ready_at,
+        collectedAt: row.collected_at
+      });
+
+      return {
+        id: row.id,
+        order_ref: row.order_ref,
+        daily_order_number: row.daily_order_number,
+        status,
+        payment_mode: row.payment_mode,
+        final_total_rm: row.final_total_rm,
+        token_amount_charged: row.token_amount_charged,
+        pickup_slot_at: row.pickup_slot_at.toISOString(),
+        created_at: row.created_at.toISOString(),
+        updated_at: row.updated_at.toISOString(),
+        store: {
+          id: row.store_id,
+          name: row.store_name
+        },
+        item_count: row.item_count,
+        primary_item_name: row.primary_item_name,
+        items: itemsByOrder.get(row.id) ?? [],
+        status_history: historyByOrder.get(row.id) ?? []
+      };
+    });
 
     const activeOrder =
-      orders.find((order) => _isActiveOrderStatus(order.status)) ?? null;
+      orders.find((order) => isCustomerActiveOrderStatus(order.status)) ?? null;
 
     return {
       active_order: activeOrder,
       orders
     };
   });
-}
-
-function _isActiveOrderStatus(status: string): boolean {
-  switch (status) {
-    case 'pending_payment':
-    case 'paid':
-    case 'accepted':
-    case 'preparing':
-    case 'ready_for_pickup':
-      return true;
-    default:
-      return false;
-  }
 }

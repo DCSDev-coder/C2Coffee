@@ -12,6 +12,7 @@ import { authenticateRequest } from '../../auth/guard.js';
 import { mysqlPool } from '../../db/mysql.js';
 import { ApiError } from '../errors.js';
 import { getBootstrapForUser } from './auth.js';
+import { resolveOrderLifecycleStatus } from '../order-lifecycle.js';
 
 const createOrderSchema = z.object({
   store_id: z.coerce.number().int().positive(),
@@ -67,6 +68,7 @@ type TokenAccountRow = RowDataPacket & {
 type OrderResponseRow = RowDataPacket & {
   id: number;
   order_ref: string;
+  daily_order_number: number;
   status: string;
   payment_mode: string;
   final_total_rm: string;
@@ -81,6 +83,22 @@ type PaymentResponseRow = RowDataPacket & {
   amount_rm: string;
   status: string;
   paid_at: Date | string | null;
+};
+
+type OrderCollectRow = RowDataPacket & {
+  id: number;
+  user_id: number;
+  order_ref: string;
+  daily_order_number: number;
+  status: string;
+  payment_mode: string;
+  final_total_rm: string;
+  token_amount_charged: number;
+  created_at: Date;
+  paid_at: Date | null;
+  accepted_at: Date | null;
+  ready_at: Date | null;
+  collected_at: Date | null;
 };
 
 const DIRECT_PAYMENT_PROVIDER = 'direct_sandbox';
@@ -173,6 +191,10 @@ export async function registerCheckoutRoutes(
       }
 
       const finalTotalRm = subtotalRm + modifierTotalRm;
+      const dailyOrderNumber = await _allocateDailyOrderNumber(
+        connection,
+        payload.store_id
+      );
       const orderRef = _generateOrderRef();
       const paymentRef = isTokenCheckout ? null : _generatePaymentRef(orderRef);
 
@@ -181,6 +203,7 @@ export async function registerCheckoutRoutes(
           ? `
             INSERT INTO orders (
               order_ref,
+              daily_order_number,
               user_id,
               store_id,
               status,
@@ -195,6 +218,7 @@ export async function registerCheckoutRoutes(
             )
             VALUES (
               :orderRef,
+              :dailyOrderNumber,
               :userId,
               :storeId,
               'paid',
@@ -211,6 +235,7 @@ export async function registerCheckoutRoutes(
           : `
             INSERT INTO orders (
               order_ref,
+              daily_order_number,
               user_id,
               store_id,
               status,
@@ -225,6 +250,7 @@ export async function registerCheckoutRoutes(
             )
             VALUES (
               :orderRef,
+              :dailyOrderNumber,
               :userId,
               :storeId,
               'pending_payment',
@@ -240,6 +266,7 @@ export async function registerCheckoutRoutes(
           `,
         {
           orderRef,
+          dailyOrderNumber,
           userId: request.auth.userId,
           storeId: payload.store_id,
           subtotalRm: subtotalRm.toFixed(2),
@@ -522,6 +549,7 @@ export async function registerCheckoutRoutes(
           SELECT
             id,
             order_ref,
+            daily_order_number,
             status,
             payment_mode,
             CAST(final_total_rm AS CHAR) AS final_total_rm,
@@ -537,6 +565,7 @@ export async function registerCheckoutRoutes(
         order: {
           id: orderRows[0].id,
           order_ref: orderRows[0].order_ref,
+          daily_order_number: orderRows[0].daily_order_number,
           status: orderRows[0].status,
           payment_mode: orderRows[0].payment_mode,
           final_total_rm: orderRows[0].final_total_rm,
@@ -587,6 +616,7 @@ export async function registerCheckoutRoutes(
             id,
             user_id,
             order_ref,
+            daily_order_number,
             status,
             payment_mode,
             CAST(final_total_rm AS CHAR) AS final_total_rm,
@@ -693,6 +723,7 @@ export async function registerCheckoutRoutes(
         order: {
           id: order.id,
           order_ref: order.order_ref,
+          daily_order_number: order.daily_order_number,
           status: 'paid',
           payment_mode: order.payment_mode,
           final_total_rm: order.final_total_rm,
@@ -706,6 +737,140 @@ export async function registerCheckoutRoutes(
           amount_rm: payment.amount_rm,
           status: 'paid',
           paid_at: _formatNullableIsoDate(payment.paid_at) ?? new Date().toISOString()
+        }
+      };
+    } catch (error) {
+      if (!committed) {
+        await connection.rollback();
+      }
+      throw error;
+    } finally {
+      connection.release();
+    }
+  });
+
+  app.post('/v1/orders/:orderId/collect', { preHandler: authenticateRequest }, async (request) => {
+    const params = z.object({
+      orderId: z.coerce.number().int().positive()
+    }).parse(request.params);
+
+    const connection = await mysqlPool.getConnection();
+    let committed = false;
+
+    try {
+      await connection.beginTransaction();
+
+      const [orderRows] = await connection.query<Array<OrderCollectRow>>(
+        `
+          SELECT
+            id,
+            user_id,
+            order_ref,
+            daily_order_number,
+            status,
+            payment_mode,
+            CAST(final_total_rm AS CHAR) AS final_total_rm,
+            token_amount_charged,
+            created_at,
+            paid_at,
+            accepted_at,
+            ready_at,
+            collected_at
+          FROM orders
+          WHERE id = :orderId
+          LIMIT 1
+          FOR UPDATE
+        `,
+        { orderId: params.orderId }
+      );
+
+      const order = orderRows[0];
+      if (!order || order.user_id !== request.auth.userId) {
+        throw new ApiError(404, 'order_not_found', 'Order was not found.');
+      }
+
+      const effectiveStatus = resolveOrderLifecycleStatus({
+        status: order.status,
+        createdAt: order.created_at,
+        paidAt: order.paid_at,
+        acceptedAt: order.accepted_at,
+        readyAt: order.ready_at,
+        collectedAt: order.collected_at
+      });
+
+      if (effectiveStatus === 'collected') {
+        await connection.commit();
+        committed = true;
+        return {
+          order: {
+            id: order.id,
+            order_ref: order.order_ref,
+            daily_order_number: order.daily_order_number,
+            status: 'collected',
+            payment_mode: order.payment_mode,
+            final_total_rm: order.final_total_rm,
+            token_amount_charged: order.token_amount_charged
+          }
+        };
+      }
+
+      if (effectiveStatus !== 'ready_for_pickup') {
+        throw new ApiError(
+          409,
+          'order_not_ready_for_collection',
+          'This order is not ready to be collected yet.'
+        );
+      }
+
+      await connection.execute(
+        `
+          UPDATE orders
+          SET status = 'collected',
+              collected_at = UTC_TIMESTAMP()
+          WHERE id = :orderId
+        `,
+        { orderId: order.id }
+      );
+
+      await connection.execute(
+        `
+          INSERT INTO order_status_history (
+            order_id,
+            from_status,
+            to_status,
+            changed_by_type,
+            changed_by_id,
+            reason
+          )
+          VALUES (
+            :orderId,
+            :fromStatus,
+            'collected',
+            'customer',
+            :userId,
+            :reason
+          )
+        `,
+        {
+          orderId: order.id,
+          fromStatus: effectiveStatus,
+          userId: request.auth.userId,
+          reason: 'Order collected in app.'
+        }
+      );
+
+      await connection.commit();
+      committed = true;
+
+      return {
+        order: {
+          id: order.id,
+          order_ref: order.order_ref,
+          daily_order_number: order.daily_order_number,
+          status: 'collected',
+          payment_mode: order.payment_mode,
+          final_total_rm: order.final_total_rm,
+          token_amount_charged: order.token_amount_charged
         }
       };
     } catch (error) {
@@ -791,6 +956,39 @@ function _generateOrderRef(): string {
 function _generatePaymentRef(orderRef: string): string {
   const suffix = Math.random().toString(36).slice(2, 8).toUpperCase();
   return `DP-${orderRef}-${suffix}`;
+}
+
+async function _allocateDailyOrderNumber(
+  connection: PoolConnection,
+  storeId: number
+): Promise<number> {
+  const [insertResult] = await connection.execute<ResultSetHeader>(
+    `
+      INSERT INTO store_daily_order_sequences (
+        sequence_date,
+        store_id,
+        next_number
+      )
+      VALUES (
+        UTC_DATE(),
+        :storeId,
+        1
+      )
+      ON DUPLICATE KEY UPDATE
+        next_number = LAST_INSERT_ID(next_number + 1)
+    `,
+    { storeId }
+  );
+
+  if (insertResult.affectedRows === 1) {
+    return 1;
+  }
+
+  const [rows] = await connection.query<Array<RowDataPacket & { allocated_number: number }>>(
+    'SELECT LAST_INSERT_ID() AS allocated_number'
+  );
+
+  return rows[0]?.allocated_number ?? 0;
 }
 
 function _normalizeMoney(value: number): number {

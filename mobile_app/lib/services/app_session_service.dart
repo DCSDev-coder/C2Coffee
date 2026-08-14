@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -18,6 +19,10 @@ class AppSessionService extends ChangeNotifier {
 
   static final AppSessionService instance = AppSessionService._();
   static const _selectedStoreIdKey = 'selected_store_id';
+  static const _sandboxActiveOrderKey = 'temporary_sandbox_active_order';
+  static const _sandboxHistoryOrdersKey = 'temporary_sandbox_history_orders';
+  static const _sandboxCompletedOrderIdKey =
+      'temporary_sandbox_completed_order_id';
 
   CurrentUserProfile? _user;
   int _tokenBalance = 0;
@@ -34,6 +39,7 @@ class AppSessionService extends ChangeNotifier {
   List<MenuCategoryGroup> _menuCategories = const [];
   CustomerOrder? _temporarySandboxActiveOrder;
   final List<CustomerOrder> _temporarySandboxHistoryOrders = [];
+  int? _temporarySandboxCompletedOrderId;
   Timer? _temporarySandboxPreparingTimer;
   Timer? _temporarySandboxReadyTimer;
 
@@ -50,9 +56,12 @@ class AppSessionService extends ChangeNotifier {
   List<StoreSummary> get stores => _stores;
   StoreSummary? get selectedStore => _selectedStore;
   List<MenuCategoryGroup> get menuCategories => _menuCategories;
-  CustomerOrder? get temporarySandboxActiveOrder => _temporarySandboxActiveOrder;
+  CustomerOrder? get temporarySandboxActiveOrder =>
+      _temporarySandboxActiveOrder;
   List<CustomerOrder> get temporarySandboxHistoryOrders =>
       List.unmodifiable(_temporarySandboxHistoryOrders);
+  int? get temporarySandboxCompletedOrderId =>
+      _temporarySandboxCompletedOrderId;
   Map<String, String?> get userProfileSnapshot =>
       _user?.toLocalProfileMap() ?? const {};
 
@@ -65,6 +74,50 @@ class AppSessionService extends ChangeNotifier {
     _tokenReserved = result.tokenReserved;
     _tokenCap = result.tokenCap;
     globalOrderStatusRawStatus.value = result.order.status;
+    notifyListeners();
+  }
+
+  void syncBackendOrderState(CustomerOrder? activeOrder) {
+    if (activeOrder == null) {
+      if (_temporarySandboxActiveOrder == null) {
+        globalOrderStatusRawStatus.value = null;
+        globalOrderStatusVisible.value = false;
+      }
+      notifyListeners();
+      return;
+    }
+
+    if (_temporarySandboxActiveOrder != null) {
+      if (_temporarySandboxActiveOrder!.id == activeOrder.id) {
+        _temporarySandboxActiveOrder =
+            _temporarySandboxActiveOrder!.copyWith(status: activeOrder.status);
+      } else {
+        _temporarySandboxPreparingTimer?.cancel();
+        _temporarySandboxReadyTimer?.cancel();
+        _temporarySandboxPreparingTimer = null;
+        _temporarySandboxReadyTimer = null;
+        _temporarySandboxActiveOrder = null;
+        _temporarySandboxHistoryOrders.clear();
+        _temporarySandboxCompletedOrderId = null;
+      }
+    }
+
+    globalOrderStatusRawStatus.value = activeOrder.status;
+    globalOrderStatusVisible.value = activeOrder.isActive;
+    notifyListeners();
+  }
+
+  Future<void> clearTemporarySandboxOrderState() async {
+    _temporarySandboxPreparingTimer?.cancel();
+    _temporarySandboxReadyTimer?.cancel();
+    _temporarySandboxPreparingTimer = null;
+    _temporarySandboxReadyTimer = null;
+    _temporarySandboxActiveOrder = null;
+    _temporarySandboxHistoryOrders.clear();
+    _temporarySandboxCompletedOrderId = null;
+    globalOrderStatusRawStatus.value = null;
+    globalOrderStatusVisible.value = false;
+    await _clearTemporarySandboxPersistence();
     notifyListeners();
   }
 
@@ -81,6 +134,7 @@ class AppSessionService extends ChangeNotifier {
         .map(
           (entry) => CustomerOrderItem(
             id: entry.key + 1,
+            menuItemId: entry.value.menuItemId,
             name: entry.value.name,
             basePriceRm: entry.value.basePriceRm.toStringAsFixed(2),
             tokenPrice: entry.value.tokenPrice,
@@ -88,6 +142,7 @@ class AppSessionService extends ChangeNotifier {
             lineSubtotalRm: entry.value.lineTotalRm.toStringAsFixed(2),
             lineTokenAmount: entry.value.lineTotalTokens,
             isQualifyingCup: true,
+            modifiers: const [],
           ),
         )
         .toList();
@@ -95,12 +150,13 @@ class AppSessionService extends ChangeNotifier {
     _temporarySandboxActiveOrder = CustomerOrder(
       id: result.order.id,
       orderRef: result.order.orderRef,
+      dailyOrderNumber: result.order.dailyOrderNumber,
       status: result.order.status,
       paymentMode: result.order.paymentMode,
       finalTotalRm: result.order.finalTotalRm,
       tokenAmountCharged: result.order.tokenAmountCharged,
-      pickupSlotAt: DateTime.now().add(const Duration(minutes: 5)),
       createdAt: DateTime.now(),
+      pickupSlotAt: DateTime.now(),
       store: CustomerOrderStore(
         id: cart.storeId,
         name: cart.storeName,
@@ -110,29 +166,10 @@ class AppSessionService extends ChangeNotifier {
       items: items,
       statusHistory: const [],
     );
-    globalOrderStatusRawStatus.value = result.order.status;
-    globalOrderStatusVisible.value = true;
+    _temporarySandboxCompletedOrderId = null;
+    _persistTemporarySandboxState();
+    _reconcileTemporarySandboxOrder();
     notifyListeners();
-
-    _temporarySandboxPreparingTimer = Timer(const Duration(seconds: 8), () {
-      final current = _temporarySandboxActiveOrder;
-      if (current == null) return;
-
-      _temporarySandboxActiveOrder = current.copyWith(status: 'preparing');
-      globalOrderStatusRawStatus.value = 'preparing';
-      globalOrderStatusVisible.value = true;
-      notifyListeners();
-    });
-
-    _temporarySandboxReadyTimer = Timer(const Duration(minutes: 1), () {
-      final current = _temporarySandboxActiveOrder;
-      if (current == null) return;
-
-      _temporarySandboxActiveOrder = current.copyWith(status: 'ready_for_pickup');
-      globalOrderStatusRawStatus.value = 'ready_for_pickup';
-      globalOrderStatusVisible.value = true;
-      notifyListeners();
-    });
   }
 
   void markTemporarySandboxCollected() {
@@ -146,8 +183,10 @@ class AppSessionService extends ChangeNotifier {
       current.copyWith(status: 'collected'),
     );
     _temporarySandboxActiveOrder = null;
+    _temporarySandboxCompletedOrderId = current.id;
     globalOrderStatusRawStatus.value = 'collected';
     globalOrderStatusVisible.value = false;
+    _persistTemporarySandboxState();
     notifyListeners();
   }
 
@@ -158,6 +197,7 @@ class AppSessionService extends ChangeNotifier {
     _temporarySandboxActiveOrder = current.copyWith(status: 'ready_for_pickup');
     globalOrderStatusRawStatus.value = 'ready_for_pickup';
     globalOrderStatusVisible.value = true;
+    _persistTemporarySandboxState();
     notifyListeners();
   }
 
@@ -168,6 +208,7 @@ class AppSessionService extends ChangeNotifier {
     _temporarySandboxActiveOrder = current.copyWith(status: 'preparing');
     globalOrderStatusRawStatus.value = 'preparing';
     globalOrderStatusVisible.value = true;
+    _persistTemporarySandboxState();
     notifyListeners();
   }
 
@@ -178,7 +219,17 @@ class AppSessionService extends ChangeNotifier {
     _temporarySandboxActiveOrder = current.copyWith(status: 'paid');
     globalOrderStatusRawStatus.value = 'paid';
     globalOrderStatusVisible.value = true;
+    _persistTemporarySandboxState();
     notifyListeners();
+  }
+
+  Future<void> reconcileTemporarySandboxState() async {
+    if (_temporarySandboxActiveOrder != null) {
+      _reconcileTemporarySandboxOrder(persist: true);
+      return;
+    }
+
+    await _restoreTemporarySandboxState();
   }
 
   Future<void> loadAuthenticatedState({bool force = false}) async {
@@ -239,6 +290,8 @@ class AppSessionService extends ChangeNotifier {
         _menuError = null;
         notifyListeners();
       }
+
+      await _clearTemporarySandboxPersistence();
     } catch (error) {
       _bootstrapError = _friendlyErrorMessage(
         error,
@@ -278,8 +331,10 @@ class AppSessionService extends ChangeNotifier {
     _temporarySandboxReadyTimer = null;
     _temporarySandboxActiveOrder = null;
     _temporarySandboxHistoryOrders.clear();
+    _temporarySandboxCompletedOrderId = null;
     globalOrderStatusRawStatus.value = null;
     globalOrderStatusVisible.value = false;
+    _clearTemporarySandboxPersistence();
     _user = null;
     _tokenBalance = 0;
     _tokenReserved = 0;
@@ -382,5 +437,274 @@ class AppSessionService extends ChangeNotifier {
       default:
         return false;
     }
+  }
+
+  Future<void> _restoreTemporarySandboxState() async {
+    final prefs = await SharedPreferences.getInstance();
+    final activeOrderJson = prefs.getString(_sandboxActiveOrderKey);
+    final historyOrderJson =
+        prefs.getStringList(_sandboxHistoryOrdersKey) ?? const [];
+    final completedOrderId = prefs.getInt(_sandboxCompletedOrderIdKey);
+
+    _temporarySandboxPreparingTimer?.cancel();
+    _temporarySandboxReadyTimer?.cancel();
+    _temporarySandboxPreparingTimer = null;
+    _temporarySandboxReadyTimer = null;
+    _temporarySandboxActiveOrder = null;
+    _temporarySandboxHistoryOrders.clear();
+    _temporarySandboxCompletedOrderId = completedOrderId;
+
+    for (final entry in historyOrderJson) {
+      final decoded = jsonDecode(entry);
+      if (decoded is Map<String, dynamic>) {
+        _temporarySandboxHistoryOrders.add(
+          _customerOrderFromStoredJson(decoded),
+        );
+      } else if (decoded is Map) {
+        _temporarySandboxHistoryOrders.add(
+          _customerOrderFromStoredJson(Map<String, dynamic>.from(decoded)),
+        );
+      }
+    }
+
+    if (activeOrderJson != null && activeOrderJson.isNotEmpty) {
+      final decoded = jsonDecode(activeOrderJson);
+      final orderMap = decoded is Map<String, dynamic>
+          ? decoded
+          : Map<String, dynamic>.from(decoded as Map);
+      _temporarySandboxActiveOrder =
+          _customerOrderFromStoredJson(orderMap);
+      _reconcileTemporarySandboxOrder(persist: true);
+      return;
+    }
+
+    if (_temporarySandboxHistoryOrders.isNotEmpty ||
+        _temporarySandboxCompletedOrderId != null) {
+      globalOrderStatusRawStatus.value = null;
+      globalOrderStatusVisible.value = false;
+      notifyListeners();
+      return;
+    }
+
+    globalOrderStatusRawStatus.value = null;
+    globalOrderStatusVisible.value = false;
+    notifyListeners();
+  }
+
+  void _reconcileTemporarySandboxOrder({bool persist = false}) {
+    final current = _temporarySandboxActiveOrder;
+    if (current == null) return;
+
+    final age = DateTime.now().difference(current.createdAt);
+    final effectiveStatus = _temporarySandboxStatusForAge(current.status, age);
+    final updated = current.copyWith(status: effectiveStatus);
+    if (updated.status != current.status) {
+      _temporarySandboxActiveOrder = updated;
+    }
+
+    _temporarySandboxPreparingTimer?.cancel();
+    _temporarySandboxReadyTimer?.cancel();
+    _temporarySandboxPreparingTimer = null;
+    _temporarySandboxReadyTimer = null;
+
+    globalOrderStatusRawStatus.value = effectiveStatus;
+    globalOrderStatusVisible.value = true;
+
+    if (effectiveStatus == 'paid') {
+      final preparingDelay = const Duration(seconds: 8) - age;
+      final readyDelay = const Duration(minutes: 1) - age;
+
+      if (preparingDelay > Duration.zero) {
+        _temporarySandboxPreparingTimer = Timer(preparingDelay, () {
+          final active = _temporarySandboxActiveOrder;
+          if (active == null) return;
+
+          _temporarySandboxActiveOrder = active.copyWith(status: 'preparing');
+          globalOrderStatusRawStatus.value = 'preparing';
+          globalOrderStatusVisible.value = true;
+          _persistTemporarySandboxState();
+          notifyListeners();
+          _reconcileTemporarySandboxOrder();
+        });
+      }
+
+      if (readyDelay > Duration.zero) {
+        _temporarySandboxReadyTimer = Timer(readyDelay, () {
+          final active = _temporarySandboxActiveOrder;
+          if (active == null) return;
+
+          _temporarySandboxActiveOrder =
+              active.copyWith(status: 'ready_for_pickup');
+          globalOrderStatusRawStatus.value = 'ready_for_pickup';
+          globalOrderStatusVisible.value = true;
+          _persistTemporarySandboxState();
+          notifyListeners();
+        });
+      }
+    } else if (effectiveStatus == 'preparing') {
+      final readyDelay = const Duration(minutes: 1) - age;
+      if (readyDelay > Duration.zero) {
+        _temporarySandboxReadyTimer = Timer(readyDelay, () {
+          final active = _temporarySandboxActiveOrder;
+          if (active == null) return;
+
+          _temporarySandboxActiveOrder =
+              active.copyWith(status: 'ready_for_pickup');
+          globalOrderStatusRawStatus.value = 'ready_for_pickup';
+          globalOrderStatusVisible.value = true;
+          _persistTemporarySandboxState();
+          notifyListeners();
+        });
+      }
+    }
+
+    if (persist) {
+      _persistTemporarySandboxState();
+    }
+  }
+
+  String _temporarySandboxStatusForAge(String status, Duration age) {
+    if (status == 'collected') {
+      return 'collected';
+    }
+
+    if (age >= const Duration(minutes: 1)) {
+      return 'ready_for_pickup';
+    }
+
+    if (age >= const Duration(seconds: 8)) {
+      return 'preparing';
+    }
+
+    return status;
+  }
+
+  CustomerOrder _customerOrderFromStoredJson(Map<String, dynamic> json) {
+    return CustomerOrder(
+      id: (json['id'] as num).toInt(),
+      orderRef: json['order_ref'] as String? ?? '',
+      dailyOrderNumber: (json['daily_order_number'] as num?)?.toInt() ?? 0,
+      status: json['status'] as String? ?? '',
+      paymentMode: json['payment_mode'] as String? ?? '',
+      finalTotalRm: json['final_total_rm'] as String? ?? '0.00',
+      tokenAmountCharged: (json['token_amount_charged'] as num?)?.toInt() ?? 0,
+      pickupSlotAt: DateTime.parse(json['pickup_slot_at'] as String),
+      createdAt: DateTime.parse(json['created_at'] as String),
+      store: CustomerOrderStore.fromApi(
+        Map<String, dynamic>.from(json['store'] as Map),
+      ),
+      itemCount: (json['item_count'] as num?)?.toInt() ?? 0,
+      primaryItemName: json['primary_item_name'] as String?,
+      items: (json['items'] as List? ?? const [])
+          .map(
+            (item) => CustomerOrderItem.fromApi(
+              Map<String, dynamic>.from(item as Map),
+            ),
+          )
+          .toList(),
+      statusHistory: (json['status_history'] as List? ?? const [])
+          .map(
+            (item) => CustomerOrderStatusEvent.fromApi(
+              Map<String, dynamic>.from(item as Map),
+            ),
+          )
+          .toList(),
+    );
+  }
+
+  Map<String, dynamic> _serializeOrder(CustomerOrder order) {
+    return {
+      'id': order.id,
+      'order_ref': order.orderRef,
+      'daily_order_number': order.dailyOrderNumber,
+      'status': order.status,
+      'payment_mode': order.paymentMode,
+      'final_total_rm': order.finalTotalRm,
+      'token_amount_charged': order.tokenAmountCharged,
+      'pickup_slot_at': order.pickupSlotAt.toIso8601String(),
+      'created_at': order.createdAt.toIso8601String(),
+      'store': {
+        'id': order.store.id,
+        'name': order.store.name,
+      },
+      'item_count': order.itemCount,
+      'primary_item_name': order.primaryItemName,
+      'items': order.items.map(_serializeOrderItem).toList(),
+      'status_history': order.statusHistory.map(_serializeStatusEvent).toList(),
+    };
+  }
+
+  Map<String, dynamic> _serializeOrderItem(CustomerOrderItem item) {
+    return {
+      'id': item.id,
+      'menu_item_id': item.menuItemId,
+      'name': item.name,
+      'base_price_rm': item.basePriceRm,
+      'token_price': item.tokenPrice,
+      'quantity': item.quantity,
+      'line_subtotal_rm': item.lineSubtotalRm,
+      'line_token_amount': item.lineTokenAmount,
+      'is_qualifying_cup': item.isQualifyingCup,
+      'modifiers': item.modifiers.map(_serializeOrderItemModifier).toList(),
+    };
+  }
+
+  Map<String, dynamic> _serializeOrderItemModifier(
+    CustomerOrderItemModifier modifier,
+  ) {
+    return {
+      'group_name': modifier.groupName,
+      'option_name': modifier.optionName,
+      'price_delta_rm': modifier.priceDeltaRm,
+      'token_price_delta': modifier.tokenPriceDelta,
+    };
+  }
+
+  Map<String, dynamic> _serializeStatusEvent(CustomerOrderStatusEvent event) {
+    return {
+      'from_status': event.fromStatus,
+      'to_status': event.toStatus,
+      'reason': event.reason,
+      'created_at': event.createdAt.toIso8601String(),
+    };
+  }
+
+  Future<void> _persistTemporarySandboxState() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (_temporarySandboxActiveOrder != null) {
+      await prefs.setString(
+        _sandboxActiveOrderKey,
+        jsonEncode(_serializeOrder(_temporarySandboxActiveOrder!)),
+      );
+    } else {
+      await prefs.remove(_sandboxActiveOrderKey);
+    }
+
+    if (_temporarySandboxHistoryOrders.isNotEmpty) {
+      await prefs.setStringList(
+        _sandboxHistoryOrdersKey,
+        _temporarySandboxHistoryOrders
+            .map((order) => jsonEncode(_serializeOrder(order)))
+            .toList(),
+      );
+    } else {
+      await prefs.remove(_sandboxHistoryOrdersKey);
+    }
+
+    if (_temporarySandboxCompletedOrderId != null) {
+      await prefs.setInt(
+        _sandboxCompletedOrderIdKey,
+        _temporarySandboxCompletedOrderId!,
+      );
+    } else {
+      await prefs.remove(_sandboxCompletedOrderIdKey);
+    }
+  }
+
+  Future<void> _clearTemporarySandboxPersistence() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_sandboxActiveOrderKey);
+    await prefs.remove(_sandboxHistoryOrdersKey);
+    await prefs.remove(_sandboxCompletedOrderIdKey);
   }
 }

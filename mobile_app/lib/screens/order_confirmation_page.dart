@@ -790,10 +790,6 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
             );
 
       _session.applyCheckoutResult(checkoutResult);
-      _session.seedTemporarySandboxOrder(
-        result: checkoutResult,
-        cart: snapshot,
-      );
       _cart.clear();
       globalOrderStatusVisible.value = true;
 

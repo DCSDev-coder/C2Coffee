@@ -144,6 +144,7 @@ class CustomerOrderStore {
 
 class CustomerOrderItem {
   final int id;
+  final int menuItemId;
   final String name;
   final String basePriceRm;
   final int? tokenPrice;
@@ -151,9 +152,11 @@ class CustomerOrderItem {
   final String lineSubtotalRm;
   final int? lineTokenAmount;
   final bool isQualifyingCup;
+  final List<CustomerOrderItemModifier> modifiers;
 
   const CustomerOrderItem({
     required this.id,
+    required this.menuItemId,
     required this.name,
     required this.basePriceRm,
     required this.tokenPrice,
@@ -161,11 +164,13 @@ class CustomerOrderItem {
     required this.lineSubtotalRm,
     required this.lineTokenAmount,
     required this.isQualifyingCup,
+    required this.modifiers,
   });
 
   factory CustomerOrderItem.fromApi(Map<String, dynamic> json) {
     return CustomerOrderItem(
       id: (json['id'] as num).toInt(),
+      menuItemId: (json['menu_item_id'] as num?)?.toInt() ?? 0,
       name: json['name'] as String? ?? '',
       basePriceRm: json['base_price_rm'] as String? ?? '0.00',
       tokenPrice: (json['token_price'] as num?)?.toInt(),
@@ -173,6 +178,34 @@ class CustomerOrderItem {
       lineSubtotalRm: json['line_subtotal_rm'] as String? ?? '0.00',
       lineTokenAmount: (json['line_token_amount'] as num?)?.toInt(),
       isQualifyingCup: json['is_qualifying_cup'] as bool? ?? false,
+      modifiers: (json['modifiers'] as List? ?? const [])
+          .map((item) => CustomerOrderItemModifier.fromApi(
+                Map<String, dynamic>.from(item as Map),
+              ))
+          .toList(),
+    );
+  }
+}
+
+class CustomerOrderItemModifier {
+  final String groupName;
+  final String optionName;
+  final String priceDeltaRm;
+  final int tokenPriceDelta;
+
+  const CustomerOrderItemModifier({
+    required this.groupName,
+    required this.optionName,
+    required this.priceDeltaRm,
+    required this.tokenPriceDelta,
+  });
+
+  factory CustomerOrderItemModifier.fromApi(Map<String, dynamic> json) {
+    return CustomerOrderItemModifier(
+      groupName: json['group_name'] as String? ?? '',
+      optionName: json['option_name'] as String? ?? '',
+      priceDeltaRm: json['price_delta_rm'] as String? ?? '0.00',
+      tokenPriceDelta: (json['token_price_delta'] as num?)?.toInt() ?? 0,
     );
   }
 }
@@ -203,6 +236,7 @@ class CustomerOrderStatusEvent {
 class CustomerOrder {
   final int id;
   final String orderRef;
+  final int dailyOrderNumber;
   final String status;
   final String paymentMode;
   final String finalTotalRm;
@@ -218,6 +252,7 @@ class CustomerOrder {
   const CustomerOrder({
     required this.id,
     required this.orderRef,
+    required this.dailyOrderNumber,
     required this.status,
     required this.paymentMode,
     required this.finalTotalRm,
@@ -238,6 +273,7 @@ class CustomerOrder {
     return CustomerOrder(
       id: id,
       orderRef: orderRef,
+      dailyOrderNumber: dailyOrderNumber,
       status: status ?? this.status,
       paymentMode: paymentMode,
       finalTotalRm: finalTotalRm,
@@ -269,6 +305,7 @@ class CustomerOrder {
     return CustomerOrder(
       id: (json['id'] as num).toInt(),
       orderRef: json['order_ref'] as String? ?? '',
+      dailyOrderNumber: (json['daily_order_number'] as num?)?.toInt() ?? 0,
       status: json['status'] as String? ?? '',
       paymentMode: json['payment_mode'] as String? ?? '',
       finalTotalRm: json['final_total_rm'] as String? ?? '0.00',
@@ -371,15 +408,13 @@ class CustomerDataService {
     String path, {
     required String accessToken,
   }) async {
-    final response = await _client
-        .get(
-          Uri.parse('${ApiConfig.baseUrl}$path'),
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer $accessToken',
-          },
-        )
-        .timeout(const Duration(seconds: 15));
+    final response = await _client.get(
+      Uri.parse('${ApiConfig.baseUrl}$path'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $accessToken',
+      },
+    ).timeout(const Duration(seconds: 15));
 
     final text = utf8.decode(response.bodyBytes);
     final decoded = text.isEmpty ? <String, dynamic>{} : jsonDecode(text);

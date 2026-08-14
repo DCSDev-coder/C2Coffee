@@ -5,11 +5,15 @@ import 'package:intl/intl.dart';
 
 import '../services/app_session_service.dart';
 import '../services/auth_api_service.dart';
+import '../services/checkout_api_service.dart';
 import '../services/customer_data_service.dart';
+import '../services/catalog_api_service.dart';
+import '../services/cart_service.dart';
 import '../services/secure_session_service.dart';
 import '../utils/app_colors.dart';
 import '../widgets/custom_bottom_nav.dart';
 import '../widgets/order_status_banner.dart';
+import 'order_confirmation_page.dart';
 import 'home_page.dart';
 import 'loading_order_page.dart';
 import 'menu_page.dart';
@@ -42,6 +46,7 @@ class _OrdersPageState extends State<OrdersPage>
   String? _ordersError;
   CustomerOrder? _activeOrder;
   List<CustomerOrder> _orders = const [];
+  int _historyDisplayLimit = 10;
 
   @override
   void initState() {
@@ -71,13 +76,27 @@ class _OrdersPageState extends State<OrdersPage>
   }
 
   CustomerOrder? get _displayActiveOrder =>
-      _session.temporarySandboxActiveOrder ?? _activeOrder;
+      _activeOrder;
 
   List<CustomerOrder> get _displayHistoryOrders {
-    final historyOrders =
+    final backendHistoryOrders =
         _orders.where((order) => !order.isActive).toList(growable: true);
-    historyOrders.insertAll(0, _session.temporarySandboxHistoryOrders);
-    return historyOrders;
+    return backendHistoryOrders
+        .take(_historyDisplayLimit)
+        .toList(growable: false);
+  }
+
+  int get _totalHistoryOrderCount {
+    return _orders.where((order) => !order.isActive).length;
+  }
+
+  bool get _canLoadMoreHistory =>
+      _totalHistoryOrderCount > _historyDisplayLimit;
+
+  void _loadOlderHistory() {
+    setState(() {
+      _historyDisplayLimit = (_historyDisplayLimit + 10).clamp(10, 100);
+    });
   }
 
   Future<void> _loadOrders({bool forceSessionReload = false}) async {
@@ -98,12 +117,15 @@ class _OrdersPageState extends State<OrdersPage>
 
       final snapshot = await CustomerDataService.instance.getOrders(
         accessToken: accessToken,
+        limit: 100,
       );
 
+      _session.syncBackendOrderState(snapshot.activeOrder);
       if (!mounted) return;
       setState(() {
         _activeOrder = snapshot.activeOrder;
         _orders = snapshot.orders;
+        _historyDisplayLimit = 10;
         _isOrdersLoading = false;
       });
     } on ApiException catch (error) {
@@ -293,7 +315,8 @@ class _OrdersPageState extends State<OrdersPage>
     final activeOrder = _displayActiveOrder;
     if (activeOrder != null) {
       return ListView(
-        padding: const EdgeInsets.only(left: 16, right: 16, top: 20, bottom: 120),
+        padding:
+            const EdgeInsets.only(left: 16, right: 16, top: 20, bottom: 120),
         children: [
           _buildOrderCard(activeOrder, isActive: true),
         ],
@@ -322,28 +345,48 @@ class _OrdersPageState extends State<OrdersPage>
 
     final historyOrders = _displayHistoryOrders;
     if (historyOrders.isNotEmpty) {
-      return ListView.separated(
-        padding: const EdgeInsets.only(left: 16, right: 16, top: 20, bottom: 120),
-        itemBuilder: (context, index) => _buildOrderCard(historyOrders[index]),
-        separatorBuilder: (_, __) => const SizedBox(height: 12),
-        itemCount: historyOrders.length,
+      return ListView(
+        padding:
+            const EdgeInsets.only(left: 16, right: 16, top: 20, bottom: 120),
+        children: [
+          for (var i = 0; i < historyOrders.length; i++) ...[
+            if (i > 0) const SizedBox(height: 12),
+            _buildOrderCard(historyOrders[i]),
+          ],
+          if (_canLoadMoreHistory) ...[
+            const SizedBox(height: 12),
+            TextButton(
+              onPressed: _loadOlderHistory,
+              child: Text(
+                'Load older orders (${_totalHistoryOrderCount - historyOrders.length} more)',
+                style: TextStyle(
+                  fontFamily: 'Afacad',
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.deepTeal,
+                ),
+              ),
+            ),
+          ],
+        ],
       );
     }
 
     return _buildMessageState(
       title: 'No order history available yet',
-      message: 'Past orders will appear here after you complete your first order.',
+      message:
+          'Past orders will appear here after you complete your first order.',
     );
   }
 
   Widget _buildOrderCard(CustomerOrder order, {bool isActive = false}) {
-    final createdLabel = DateFormat('dd MMM yyyy, h:mm a').format(order.createdAt);
-    final pickupLabel = DateFormat('dd MMM yyyy, h:mm a').format(order.pickupSlotAt);
-    final primaryItem = order.primaryItemName ?? 'Order #${order.orderRef}';
-    final isTempSandboxActive =
-        _session.temporarySandboxActiveOrder?.id == order.id;
-    final showCollectedAction =
-        isActive && isTempSandboxActive && order.status == 'ready_for_pickup';
+    final createdLabel =
+        DateFormat('dd MMM yyyy, h:mm a').format(order.createdAt);
+    final pickupLabel =
+        DateFormat('dd MMM yyyy, h:mm a').format(order.pickupSlotAt);
+    final orderNumber =
+        order.dailyOrderNumber > 0 ? order.dailyOrderNumber : order.id;
+    final orderTitle = 'Order #$orderNumber';
+    final showCollectedAction = isActive && order.status == 'ready_for_pickup';
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -370,7 +413,7 @@ class _OrdersPageState extends State<OrdersPage>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      primaryItem,
+                      orderTitle,
                       style: TextStyle(
                         fontFamily: 'Recoleta',
                         fontSize: 20,
@@ -391,7 +434,8 @@ class _OrdersPageState extends State<OrdersPage>
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
                   color: isActive
                       ? AppColors.deepTeal.withValues(alpha: 0.10)
@@ -494,7 +538,7 @@ class _OrdersPageState extends State<OrdersPage>
             SizedBox(
               width: double.infinity,
               child: OutlinedButton(
-                onPressed: _session.markTemporarySandboxCollected,
+                onPressed: () => _collectOrder(order),
                 style: OutlinedButton.styleFrom(
                   side: BorderSide(color: AppColors.deepTeal, width: 1.5),
                   padding: const EdgeInsets.symmetric(vertical: 14),
@@ -513,10 +557,170 @@ class _OrdersPageState extends State<OrdersPage>
                 ),
               ),
             ),
+          ] else if (!isActive) ...[
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => _reorderOrder(order),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.deepTeal,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                child: const Text(
+                  'Reorder',
+                  style: TextStyle(
+                    fontFamily: 'Recoleta',
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
           ],
         ],
       ),
     );
+  }
+
+  Future<void> _reorderOrder(CustomerOrder order) async {
+    try {
+      final selectedStore = _session.selectedStore;
+      if (selectedStore?.id != order.store.id) {
+        await _session.selectStore(
+          StoreSummary(
+            id: order.store.id,
+            code: 'reorder',
+            name: order.store.name,
+            supportsPickup: true,
+            pickupLeadMinutes: 0,
+            status: 'active',
+          ),
+        );
+      }
+
+      final menuItemsById = {
+        for (final item in _session.allMenuItems) item.id: item,
+      };
+      final itemsToAdd = <CartItem>[];
+
+      for (final orderItem in order.items) {
+        final currentMenuItem = menuItemsById[orderItem.menuItemId];
+        if (currentMenuItem == null || !currentMenuItem.isAvailable) {
+          throw ApiException(
+            'One or more items from this order are no longer available.',
+            code: 'order_item_unavailable',
+          );
+        }
+
+        final modifiers = orderItem.modifiers
+            .map(
+              (modifier) => CartModifier(
+                groupName: modifier.groupName,
+                optionName: modifier.optionName,
+                priceDeltaRm: double.tryParse(modifier.priceDeltaRm) ?? 0.0,
+                tokenPriceDelta: modifier.tokenPriceDelta,
+              ),
+            )
+            .toList();
+
+        final currentTokenPrice = currentMenuItem.tokenPrices[_session.tier] ??
+            orderItem.tokenPrice ??
+            0;
+
+        itemsToAdd.add(
+          CartItem(
+            id: 'reorder-${order.id}-${orderItem.id}',
+            menuItemId: currentMenuItem.id,
+            menuItemCode: currentMenuItem.code,
+            name: currentMenuItem.name,
+            imageAssetPath: null,
+            imageUrl: currentMenuItem.imageUrl,
+            basePriceRm: double.tryParse(currentMenuItem.basePriceRm) ??
+                double.tryParse(orderItem.basePriceRm) ??
+                0.0,
+            tokenPrice: currentTokenPrice,
+            quantity: orderItem.quantity,
+            remarks: null,
+            displayDetails: null,
+            modifiers: modifiers,
+          ),
+        );
+      }
+
+      if (itemsToAdd.isEmpty) {
+        throw ApiException(
+          'This order has no items to reorder.',
+          code: 'order_empty',
+        );
+      }
+
+      CartService.instance.clear();
+      for (final item in itemsToAdd) {
+        CartService.instance.addItem(
+          storeId: order.store.id,
+          storeName: order.store.name,
+          item: item,
+        );
+      }
+
+      if (!mounted) return;
+      InteractiveFillingLoader.show(
+        context,
+        targetPage: const OrderConfirmationPage(),
+      );
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.message),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Unable to reorder this order right now.'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
+  }
+
+  Future<void> _collectOrder(CustomerOrder order) async {
+    try {
+      final accessToken = await SecureSessionService.instance.getAccessToken();
+      if (accessToken == null || accessToken.isEmpty) {
+        throw ApiException(
+          'Missing access token.',
+          code: 'missing_access_token',
+        );
+      }
+
+      await CheckoutApiService.instance.collectOrder(
+        accessToken: accessToken,
+        orderId: order.id,
+      );
+
+      if (!mounted) return;
+      await _loadOrders(forceSessionReload: true);
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_friendlyMessage(error))),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Unable to mark the order as collected right now.'),
+        ),
+      );
+    }
   }
 
   String _formatStatus(String status) {
