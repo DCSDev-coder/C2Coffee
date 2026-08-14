@@ -19,13 +19,21 @@ const Header = ({ setCurrentPage, currentPage }) => {
           <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white"></span>
         </button>
 
-        <div className="flex items-center space-x-3 cursor-pointer">
-          <div className="w-10 h-10 rounded-full bg-black flex items-center justify-center text-white overflow-hidden shadow-sm">
-            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" /></svg>
+        <div
+          onClick={() => setCurrentPage && setCurrentPage('Profile')}
+          className={`flex items-center space-x-3 p-1.5 rounded-xl transition-all cursor-pointer ${
+            currentPage === 'Profile'
+              ? 'bg-[#2E5E58]/10 ring-1 ring-[#2E5E58]'
+              : 'hover:bg-gray-100/80'
+          }`}
+          title="View Profile"
+        >
+          <div className="w-10 h-10 rounded-full bg-[#1F3A34] flex items-center justify-center text-white font-bold text-sm overflow-hidden shadow-sm">
+            M
           </div>
           <div className="flex flex-col">
-            <p className="text-sm font-bold text-gray-900 leading-tight">Amirah Balqis</p>
-            <p className="text-xs text-gray-500 leading-tight">amirahbalqis951@gmail.com</p>
+            <p className="text-sm font-bold text-gray-900 leading-tight">miraelys</p>
+            <p className="text-xs text-gray-500 leading-tight">mira@gmail.com</p>
           </div>
         </div>
       </div>

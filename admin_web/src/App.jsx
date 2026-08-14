@@ -5,6 +5,7 @@ import Customers from './components/Customers';
 import Orders from './components/Orders';
 import RecentActivities from './components/RecentActivities';
 import Notifications from './components/Notifications';
+import Profile from './components/Profile';
 
 function App() {
   const [currentPage, setCurrentPage] = useState('Orders');
@@ -12,7 +13,7 @@ function App() {
 
   const handleNavigate = (newPage) => {
     if (currentPage !== newPage) {
-      if (currentPage !== 'Notifications') {
+      if (currentPage !== 'Notifications' && currentPage !== 'Profile') {
         setPrevPage(currentPage);
       }
       setCurrentPage(newPage);
@@ -32,6 +33,7 @@ function App() {
       )}
       {currentPage === 'Recent Activities' && <RecentActivities onBack={() => handleNavigate('Dashboard')} />}
       {currentPage === 'Notifications' && <Notifications onBack={() => handleNavigate(prevPage || 'Orders')} />}
+      {currentPage === 'Profile' && <Profile onBack={() => handleNavigate(prevPage || 'Dashboard')} />}
     </Layout>
   );
 }
