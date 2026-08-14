@@ -124,7 +124,6 @@ const Customers = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [tierOpen, setTierOpen] = useState(false);
   const [statusOpen, setStatusOpen] = useState(false);
-  const [selectedIds, setSelectedIds] = useState([]);
   const [activeView, setActiveView] = useState('list');
   const [menuOpenId, setMenuOpenId] = useState(null);
   const itemsPerPage = 12;
@@ -187,31 +186,6 @@ const Customers = () => {
     e.preventDefault();
     alert("Customer details updated!");
     setEditingCustomer(null);
-  };
-
-  const handleDeleteSelected = () => {
-    if (confirm(`Are you sure you want to delete ${selectedIds.length} customer(s)?`)) {
-      setCustomers(customers.filter(c => !selectedIds.includes(c.id)));
-      setSelectedIds([]);
-      // Clear sidebar if the viewed customer was deleted
-      if (selectedCustomer && selectedIds.includes(selectedCustomer.id)) {
-        setSelectedCustomer(null);
-      }
-    }
-  };
-
-  const handleSelectAll = (e) => {
-    if (e.target.checked) {
-      setSelectedIds(paginatedData.map(c => c.id));
-    } else {
-      setSelectedIds([]);
-    }
-  };
-
-  const handleSelectRow = (id) => {
-    setSelectedIds(prev =>
-      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
-    );
   };
 
   return (
@@ -292,19 +266,13 @@ const Customers = () => {
             />
           </div>
 
-          <button onClick={handleExport} className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 lg:ml-4">
+          <button onClick={handleExport} className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 lg:ml-4 cursor-pointer">
             <Download size={16} className="mr-2" /> Export
           </button>
 
-          {selectedIds.length > 0 ? (
-            <button onClick={handleDeleteSelected} className="flex items-center px-4 py-2 border border-red-300 rounded-lg shadow-sm text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 transition-colors">
-              <Trash2 size={16} className="mr-2" /> Delete ({selectedIds.length})
-            </button>
-          ) : (
-            <button onClick={() => setIsAddModalOpen(true)} className="flex items-center px-4 py-2 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
-              <Plus size={16} className="mr-2" /> Add Customer
-            </button>
-          )}
+          <button onClick={() => setIsAddModalOpen(true)} className="flex items-center px-4 py-2 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer">
+            <Plus size={16} className="mr-2" /> Add Customer
+          </button>
         </div>
       </div>
 
@@ -315,14 +283,8 @@ const Customers = () => {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-white">
                 <tr>
-                  <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-900 flex items-center h-full">
-                    <input
-                      type="checkbox"
-                      checked={paginatedData.length > 0 && selectedIds.length === paginatedData.length}
-                      onChange={handleSelectAll}
-                      className="mr-3 rounded border-gray-300 text-[#2E5E58] focus:ring-[#2E5E58]"
-                    />
-                    Customer
+                  <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-900">
+                    Username
                   </th>
                   <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-900">Tier</th>
                   <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-900">Tokens Balance</th>
@@ -335,17 +297,11 @@ const Customers = () => {
               </thead>
               <tbody className="bg-white divide-y divide-gray-100">
                 {paginatedData.length > 0 ? paginatedData.map((customer, idx) => (
-                  <tr key={customer.id} className={`hover:bg-gray-50 transition-colors ${selectedIds.includes(customer.id) ? 'bg-gray-50' : ''}`}>
-                    <td className="px-6 py-3 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <input
-                          type="checkbox"
-                          checked={selectedIds.includes(customer.id)}
-                          onChange={() => handleSelectRow(customer.id)}
-                          className="mr-3 rounded border-gray-300 text-[#2E5E58] focus:ring-[#2E5E58]"
-                        />
+                  <tr key={customer.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-3.5 whitespace-nowrap">
+                      <div className="flex items-center space-x-3">
                         <div className="h-10 w-10 rounded-full bg-[#2E5E58] flex-shrink-0 shadow-sm"></div>
-                        <div className="ml-4">
+                        <div>
                           <div className="text-sm font-bold text-gray-900">{customer.username}</div>
                           <div className="text-xs text-gray-500">{customer.email}</div>
                         </div>
