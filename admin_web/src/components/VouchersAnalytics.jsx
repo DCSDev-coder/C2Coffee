@@ -1,27 +1,45 @@
 import React, { useState } from "react";
 import {
   ArrowLeft, Download, Percent, Gift,
-  CreditCard, Tag, Users, ChevronDown
+  CreditCard, Tag, Users, ChevronDown, ArrowUp
 } from "lucide-react";
 import {
   ResponsiveContainer, AreaChart, Area,
   LineChart, Line, XAxis, YAxis, Tooltip,
   PieChart, Pie, Cell
 } from "recharts";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
+
+const CustomInput = React.forwardRef(({ value, onClick }, ref) => (
+  <button
+    onClick={onClick}
+    ref={ref}
+    className="flex items-center gap-1 px-2.5 py-1 bg-[#1F3A34] text-white rounded-lg text-[11px] font-semibold cursor-pointer shadow-xs focus:outline-none"
+  >
+    <span>{value}</span>
+    <ChevronDown size={12} />
+  </button>
+));
+CustomInput.displayName = "CustomInput";
 
 // ─── Stat Card Component (Matched to Customers & Orders KPICard) ─────────────
 const StatCard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-white" }) => (
-  <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center space-x-4">
+  <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center space-x-4 min-w-0">
     <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 ${iconBg} ${iconColor} shadow-sm`}>
       <Icon size={26} strokeWidth={2.2} />
     </div>
-    <div className="min-w-0">
-      <h3 className="text-gray-500 text-xs sm:text-sm font-medium truncate">{title}</h3>
-      <p className="text-xl font-bold text-gray-900 mt-0.5">{value}</p>
+    <div className="flex-1 min-w-0">
+      <h3 className="text-gray-500 text-[11px] sm:text-xs xl:text-sm font-medium leading-tight mt-0.5 whitespace-normal">
+        {title}
+      </h3>
+      <p className="text-2xl font-bold text-gray-900 mt-1 leading-tight">{value}</p>
       {change && (
-        <p className="text-xs text-green-500 font-medium mt-0.5 truncate">
-          ^ {change}
-        </p>
+        <div className="flex items-center gap-1 mt-1">
+          <p className="text-[11px] text-gray-500 font-medium leading-tight whitespace-normal">
+            {change.includes('%') && !change.includes('of total') && !change.includes('↑') && !change.includes('↓') && change.includes('vs') ? `↑ ${change}` : change}
+          </p>
+        </div>
       )}
     </div>
   </div>
@@ -120,7 +138,7 @@ const recentActivityData = [
 ];
 
 const VouchersAnalytics = ({ onBack }) => {
-  const [dateRange, setDateRange] = useState("7 Aug 2026");
+  const [selectedDate, setSelectedDate] = useState(new Date("2026-08-07"));
   const [currentPage, setCurrentPage] = useState(1);
 
   return (
@@ -212,10 +230,13 @@ const VouchersAnalytics = ({ onBack }) => {
                 </div>
               </div>
             </div>
-            <button className="flex items-center gap-1 px-2.5 py-1 bg-[#1F3A34] text-white rounded-lg text-[11px] font-semibold cursor-pointer shadow-xs">
-              <span>{dateRange}</span>
-              <ChevronDown size={12} />
-            </button>
+            <DatePicker
+              selected={selectedDate}
+              onChange={(date) => setSelectedDate(date)}
+              dateFormat="d MMM yyyy"
+              customInput={<CustomInput />}
+              portalId="root"
+            />
           </div>
 
           <div className="h-52 w-full mt-2">
@@ -263,10 +284,13 @@ const VouchersAnalytics = ({ onBack }) => {
             <h3 className="text-sm font-bold text-gray-900 leading-tight">
               Redemption Rate Over Time
             </h3>
-            <button className="flex items-center gap-1 px-2.5 py-1 bg-[#1F3A34] text-white rounded-lg text-[11px] font-semibold cursor-pointer shadow-xs">
-              <span>{dateRange}</span>
-              <ChevronDown size={12} />
-            </button>
+            <DatePicker
+              selected={selectedDate}
+              onChange={(date) => setSelectedDate(date)}
+              dateFormat="d MMM yyyy"
+              customInput={<CustomInput />}
+              portalId="root"
+            />
           </div>
 
           <div className="h-52 w-full mt-2">

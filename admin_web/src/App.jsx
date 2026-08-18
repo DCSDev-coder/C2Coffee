@@ -7,10 +7,13 @@ import RecentActivities from './components/RecentActivities';
 import Notifications from './components/Notifications';
 import Profile from './components/Profile';
 import Vouchers from './components/Vouchers';
+import LoyaltyTokens from './components/LoyaltyTokens';
+import Menu from './components/Menu';
+import Marketing from './components/Marketing';
 
 function App() {
-  const [currentPage, setCurrentPage] = useState('Orders');
-  const [prevPage, setPrevPage] = useState('Orders');
+  const [currentPage, setCurrentPage] = useState('Dashboard');
+  const [prevPage, setPrevPage] = useState('Dashboard');
 
   const handleNavigate = (newPage) => {
     if (currentPage !== newPage) {
@@ -36,6 +39,9 @@ function App() {
       {currentPage === 'Notifications' && <Notifications onBack={() => handleNavigate(prevPage || 'Orders')} />}
       {currentPage === 'Profile' && <Profile onBack={() => handleNavigate(prevPage || 'Dashboard')} />}
       {currentPage === 'Voucher' && <Vouchers onBack={() => handleNavigate(prevPage || 'Dashboard')} />}
+      {currentPage === 'Loyalty & Tokens' && <LoyaltyTokens onBack={() => handleNavigate(prevPage || 'Dashboard')} />}
+      {currentPage === 'Menu' && <Menu />}
+      {currentPage === 'Marketing' && <Marketing />}
     </Layout>
   );
 }

@@ -1,5 +1,6 @@
 import React, { useState, forwardRef } from 'react';
-import { Wallet, ShoppingBag, UserPlus, Megaphone, Users, Coins, Ticket, Coffee, BadgeDollarSign, Calendar, Gift, ShoppingCart, User, AlertCircle, Clock, TrendingUp, CheckCircle } from 'lucide-react';
+import { Wallet, ShoppingBag, UserPlus, Megaphone, Users, Coins, Ticket, Coffee, BadgeDollarSign, Calendar, Gift, ShoppingCart, User, AlertCircle, Clock, TrendingUp, CheckCircle, ArrowUp } from 'lucide-react';
+import Pagination from './Pagination';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -23,20 +24,28 @@ const ordersData = [
 ];
 
 const TopCard = ({ title, value, change, iconColor, icon: Icon, onClickChange }) => (
-  <div className="bg-white p-4 rounded-xl border border-gray-200 flex items-center space-x-4 shadow-sm">
-    <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white ${iconColor}`}>
-      <Icon size={24} strokeWidth={2} />
+  <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center space-x-4 min-w-0">
+    <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 text-white ${iconColor} shadow-sm`}>
+      <Icon size={26} strokeWidth={2.2} />
     </div>
-    <div>
-      <h3 className="text-gray-700 text-xs font-semibold">{title}</h3>
-      <p className="text-xl font-bold text-gray-900">{value}</p>
+    <div className="flex-1 min-w-0">
+      <h3 className="text-gray-500 text-[11px] sm:text-xs xl:text-sm font-medium leading-tight mt-0.5 whitespace-normal">
+        {title}
+      </h3>
+      <p className="text-2xl font-bold text-gray-900 mt-1 leading-tight">{value}</p>
       {change && (
         onClickChange ? (
-          <button onClick={onClickChange} className="text-[10px] text-green-600 font-semibold mt-0.5 hover:underline cursor-pointer">
-            {change}
-          </button>
+          <div className="flex items-center gap-1 mt-1">
+            <button onClick={onClickChange} className="text-[11px] text-green-600 font-medium leading-tight hover:underline cursor-pointer whitespace-normal">
+              {change}
+            </button>
+          </div>
         ) : (
-          <p className="text-[10px] text-green-500 font-medium mt-0.5">^ {change}</p>
+          <div className="flex items-center gap-1 mt-1">
+            <p className="text-[11px] text-gray-500 font-medium leading-tight whitespace-normal">
+              {change.includes('%') && !change.includes('of total') && !change.includes('↑') && !change.includes('↓') && change.includes('vs') ? `↑ ${change}` : change}
+            </p>
+          </div>
         )
       )}
     </div>
@@ -72,7 +81,11 @@ const ChartCard = ({ title, value, change, data, dataKey, color, id }) => {
       </div>
       <div className="mb-4 flex items-end space-x-3">
         <p className="text-2xl font-bold text-gray-900">{value}</p>
-        <p className="text-xs text-green-500 font-medium pb-1">^ {change}</p>
+        <div className="flex items-center gap-1 pb-1">
+          <p className="text-xs text-gray-500 font-medium whitespace-normal">
+            {change.includes('%') && !change.includes('of total') && !change.includes('↑') && !change.includes('↓') && change.includes('vs') ? `↑ ${change}` : change}
+          </p>
+        </div>
       </div>
       <div className="flex-1 w-full h-full min-h-0">
         <ResponsiveContainer width="100%" height="100%">
@@ -251,27 +264,15 @@ const DashboardHome = ({ setCurrentPage }) => {
               ))}
             </tbody>
           </table>
-          <div className="mt-4 flex justify-between items-center text-[10px] font-semibold text-gray-500">
-            <span>Showing {currentPage * 5} of 218 orders</span>
-            <div className="flex space-x-2 items-center">
-              <span
-                className={`cursor-pointer ${currentPage === 1 ? 'opacity-50 pointer-events-none' : 'hover:text-gray-800 transition-colors'}`}
-                onClick={() => setCurrentPageNumber(prev => Math.max(1, prev - 1))}
-              >{'<'}</span>
-              {[1, 2, 3, 4, 5].map((page) => (
-                <span
-                  key={page}
-                  onClick={() => setCurrentPageNumber(page)}
-                  className={`cursor-pointer w-5 h-5 flex items-center justify-center rounded transition-colors ${currentPage === page ? 'bg-[#2E5E58] text-white' : 'hover:bg-gray-100 hover:text-gray-800'}`}
-                >
-                  {page}
-                </span>
-              ))}
-              <span
-                className={`cursor-pointer ${currentPage === 5 ? 'opacity-50 pointer-events-none' : 'hover:text-gray-800 transition-colors'}`}
-                onClick={() => setCurrentPageNumber(prev => Math.min(5, prev + 1))}
-              >{'>'}</span>
-            </div>
+          <div className="mt-4 flex w-full">
+            <Pagination 
+              currentPage={currentPage}
+              totalPages={Math.ceil(218 / 5)}
+              setCurrentPage={setCurrentPageNumber}
+              itemsPerPage={5}
+              totalItems={218}
+              itemName="orders"
+            />
           </div>
         </div>
         <div className="col-span-4 bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex flex-col justify-between">

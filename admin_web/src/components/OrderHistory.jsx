@@ -10,14 +10,22 @@ const OrderHistory = ({ customer, onBack }) => {
 
   return (
     <div className="px-8 pb-8 pt-2 h-full flex flex-col">
-      <div className="flex items-center space-x-4 mb-6">
-        <button onClick={onBack} className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-600 transition-colors">
-          <ArrowLeft size={20} />
-        </button>
-        <div>
+      <div className="mb-6 shrink-0">
+        <div className="flex items-center gap-2.5">
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="p-1 -ml-1 text-gray-700 hover:text-black rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+              title="Back"
+            >
+              <ArrowLeft size={22} strokeWidth={2.5} />
+            </button>
+          )}
           <h1 className="text-2xl font-bold text-gray-900">Order History</h1>
-          <p className="text-gray-500">Past orders for {customer.username}</p>
         </div>
+        <p className={`text-gray-500 text-sm mt-0.5 ${onBack ? "ml-8" : ""}`}>
+          Past orders for {customer.username}
+        </p>
       </div>
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden flex-1">
         <table className="min-w-full divide-y divide-gray-200">

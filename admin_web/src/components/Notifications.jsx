@@ -1,9 +1,10 @@
 import React, { useState } from "react";
-import {
-  Bell, ShoppingBag, CreditCard, User,
-  Percent, Megaphone, Laptop, ChevronDown,
-  CheckCheck, Clock, ArrowLeft
+import { 
+  Bell, ChevronDown, CheckCircle2, Search, X, Filter,
+  MessageSquare, UserPlus, Gift, AlertCircle, ShoppingBag, Truck,
+  Settings, Check
 } from "lucide-react";
+import Pagination from './Pagination';
 
 // Custom icons matching exact mockup style
 const BasketIcon = ({ size = 20, className = "" }) => (
@@ -243,7 +244,7 @@ const filterCategories = [
   { name: "System", icon: DeviceIcon, key: "System" }
 ];
 
-const ITEMS_PER_PAGE = 8;
+const ITEMS_PER_PAGE = 10;
 
 const Notifications = ({ onBack }) => {
   const [notifications, setNotifications] = useState(allNotificationsData);
@@ -465,36 +466,15 @@ const Notifications = ({ onBack }) => {
           </div>
 
           {/* Pagination */}
-          <div className="pt-4 border-t border-gray-100 flex items-center justify-center shrink-0">
-            <div className="flex space-x-1.5 items-center">
-              <button
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-                className="px-2.5 py-1 text-gray-500 hover:bg-gray-100 rounded-md disabled:opacity-40 cursor-pointer text-xs font-semibold"
-              >
-                ←
-              </button>
-              {[1, 2, 3, 4, 5].map((pageNum) => (
-                <button
-                  key={pageNum}
-                  onClick={() => setCurrentPage(pageNum)}
-                  className={`w-7 h-7 flex items-center justify-center rounded-md text-xs font-bold transition-colors cursor-pointer ${
-                    currentPage === pageNum
-                      ? "bg-[#2E5E58] text-white"
-                      : "text-gray-700 hover:bg-gray-100"
-                  }`}
-                >
-                  {pageNum}
-                </button>
-              ))}
-              <button
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-                className="px-2.5 py-1 text-gray-500 hover:bg-gray-100 rounded-md disabled:opacity-40 cursor-pointer text-xs font-semibold"
-              >
-                →
-              </button>
-            </div>
+          <div className="pt-4 border-t border-gray-100 flex shrink-0">
+            <Pagination 
+              currentPage={currentPage}
+              totalPages={totalPages}
+              setCurrentPage={setCurrentPage}
+              itemsPerPage={itemsPerPage}
+              totalItems={filtered.length}
+              itemName="notifications"
+            />
           </div>
         </div>
       </div>

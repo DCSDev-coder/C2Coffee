@@ -10,14 +10,22 @@ const TiersHistory = ({ customer, onBack }) => {
 
   return (
     <div className="px-8 pb-8 pt-2 h-full flex flex-col">
-      <div className="flex items-center space-x-4 mb-6">
-        <button onClick={onBack} className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-600 transition-colors">
-          <ArrowLeft size={20} />
-        </button>
-        <div>
+      <div className="mb-6 shrink-0">
+        <div className="flex items-center gap-2.5">
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="p-1 -ml-1 text-gray-700 hover:text-black rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+              title="Back"
+            >
+              <ArrowLeft size={22} strokeWidth={2.5} />
+            </button>
+          )}
           <h1 className="text-2xl font-bold text-gray-900">Tiers History</h1>
-          <p className="text-gray-500">Progression timeline for {customer.username}</p>
         </div>
+        <p className={`text-gray-500 text-sm mt-0.5 ${onBack ? "ml-8" : ""}`}>
+          Progression timeline for {customer.username}
+        </p>
       </div>
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8 flex-1">
         <div className="relative border-l-2 border-gray-100 ml-4 space-y-10">

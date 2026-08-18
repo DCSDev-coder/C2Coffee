@@ -6,14 +6,22 @@ const ViewProfile = ({ customer, onBack }) => {
   const progress = calculateTierProgress(customer.orders);
   return (
     <div className="px-8 pb-8 pt-2 h-full flex flex-col">
-      <div className="flex items-center space-x-4 mb-6">
-        <button onClick={onBack} className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-600 transition-colors">
-          <ArrowLeft size={20} />
-        </button>
-        <div>
+      <div className="mb-6 shrink-0">
+        <div className="flex items-center gap-2.5">
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="p-1 -ml-1 text-gray-700 hover:text-black rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+              title="Back"
+            >
+              <ArrowLeft size={22} strokeWidth={2.5} />
+            </button>
+          )}
           <h1 className="text-2xl font-bold text-gray-900">Customer Profile</h1>
-          <p className="text-gray-500">Details for {customer.username}</p>
         </div>
+        <p className={`text-gray-500 text-sm mt-0.5 ${onBack ? "ml-8" : ""}`}>
+          Details for {customer.username}
+        </p>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 flex-1">
         <div className="col-span-1 bg-white border border-gray-200 rounded-2xl p-6 flex flex-col items-center shadow-sm h-fit">

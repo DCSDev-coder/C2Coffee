@@ -3,10 +3,11 @@ import {
   Search, ChevronDown, Download, Plus,
   Eye, Edit3, MoreVertical, X, Copy,
   Trash2, ArrowLeft, Percent, Gift,
-  CreditCard, Tag, Users, Check, Clock
+  CreditCard, Tag, Users, Check, Clock, ArrowUp
 } from "lucide-react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
+import Pagination from './Pagination';
 import VouchersAnalytics from "./VouchersAnalytics";
 
 const CustomDateInput = forwardRef(({ value, onClick, onClear }, ref) => (
@@ -34,17 +35,21 @@ const CustomDateInput = forwardRef(({ value, onClick, onClear }, ref) => (
 
 // ─── Stat Card Component (Matched to Customers & Orders KPICard) ─────────────
 const StatCard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-white" }) => (
-  <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center space-x-4">
+  <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center space-x-4 min-w-0">
     <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 ${iconBg} ${iconColor} shadow-sm`}>
       <Icon size={26} strokeWidth={2.2} />
     </div>
-    <div className="min-w-0">
-      <h3 className="text-gray-500 text-xs sm:text-sm font-medium truncate">{title}</h3>
-      <p className="text-xl font-bold text-gray-900 mt-0.5">{value}</p>
+    <div className="flex-1 min-w-0">
+      <h3 className="text-gray-500 text-[11px] sm:text-xs xl:text-sm font-medium leading-tight mt-0.5 whitespace-normal">
+        {title}
+      </h3>
+      <p className="text-2xl font-bold text-gray-900 mt-1 leading-tight">{value}</p>
       {change && (
-        <p className="text-xs text-green-500 font-medium mt-0.5 truncate">
-          ^ {change}
-        </p>
+        <div className="flex items-center gap-1 mt-1">
+          <p className="text-[11px] text-gray-500 font-medium leading-tight whitespace-normal">
+            {change.includes('%') && !change.includes('of total') && !change.includes('↑') && !change.includes('↓') && change.includes('vs') ? `↑ ${change}` : change}
+          </p>
+        </div>
       )}
     </div>
   </div>
@@ -192,7 +197,7 @@ const initialVouchersList = [
 
 const VOUCHER_TYPES = ["All Type", "Free Drink", "Percentage Off", "Token Discount", "Free Food", "Cash Voucher"];
 const STATUS_TYPES = ["All Status", "Active", "Expired", "Draft"];
-const ITEMS_PER_PAGE = 8;
+const ITEMS_PER_PAGE = 10;
 
 const Vouchers = ({ onBack }) => {
   const [vouchers, setVouchers] = useState(initialVouchersList);
@@ -634,39 +639,15 @@ const Vouchers = ({ onBack }) => {
           </div>
 
           {/* Pagination */}
-          <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between shrink-0">
-            <p className="text-xs text-gray-600 font-medium">
-              Showing {paginated.length} of {vouchers.length} vouchers
-            </p>
-            <div className="flex space-x-1.5 items-center">
-              <button
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-                className="px-2.5 py-1 text-gray-500 hover:bg-gray-100 rounded-md disabled:opacity-40 cursor-pointer text-xs font-semibold"
-              >
-                ←
-              </button>
-              {[1, 2, 3, 4, 5].map((pageNum) => (
-                <button
-                  key={pageNum}
-                  onClick={() => setCurrentPage(pageNum)}
-                  className={`w-7 h-7 flex items-center justify-center rounded-md text-xs font-bold transition-colors cursor-pointer ${
-                    currentPage === pageNum
-                      ? "bg-[#2E5E58] text-white"
-                      : "text-gray-700 hover:bg-gray-100"
-                  }`}
-                >
-                  {pageNum}
-                </button>
-              ))}
-              <button
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-                className="px-2.5 py-1 text-gray-500 hover:bg-gray-100 rounded-md disabled:opacity-40 cursor-pointer text-xs font-semibold"
-              >
-                →
-              </button>
-            </div>
+          <div className="px-6 py-4 border-t border-gray-100 flex shrink-0 bg-white">
+            <Pagination 
+              currentPage={currentPage}
+              totalPages={totalPages}
+              setCurrentPage={setCurrentPage}
+              itemsPerPage={ITEMS_PER_PAGE}
+              totalItems={filtered.length}
+              itemName="vouchers"
+            />
           </div>
         </div>
 

@@ -4,6 +4,7 @@ import {
   ShieldCheck, FileX, Receipt, Eye, MoreVertical,
   ArrowLeft, CheckCircle2, RotateCcw, MessageSquare, AlertCircle
 } from "lucide-react";
+import Pagination from './Pagination';
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 
@@ -361,25 +362,27 @@ const getRefundStatusBadge = (status) => {
 };
 
 const fmtPrice = (n) => `RM ${n.toFixed(2)}`;
-const ITEMS_PER_PAGE = 13;
+const ITEMS_PER_PAGE = 10;
 const STATUSES = ["All Status", "Pending", "Under Review", "Approved", "Rejected"];
 
 // ─── KPI Card Component ───────────────────────────────────────────────────────
 
 const KPICard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-white" }) => (
-  <div className="bg-white p-3.5 xl:p-4 rounded-xl border border-gray-200 shadow-sm flex items-center space-x-3 min-w-0">
-    <div className={`w-12 h-12 xl:w-14 xl:h-14 rounded-xl flex items-center justify-center shrink-0 ${iconBg} ${iconColor} shadow-sm`}>
-      <Icon size={24} strokeWidth={2} />
+  <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center space-x-4 min-w-0">
+    <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 ${iconBg} ${iconColor} shadow-sm`}>
+      <Icon size={26} strokeWidth={2.2} />
     </div>
-    <div className="min-w-0 flex-1">
-      <h3 className="text-gray-500 text-[11px] xl:text-xs font-semibold leading-tight mb-0.5 whitespace-normal">
+    <div className="flex-1 min-w-0">
+      <h3 className="text-gray-500 text-[11px] sm:text-xs xl:text-sm font-medium leading-tight mt-0.5 whitespace-normal">
         {title}
       </h3>
-      <p className="text-lg xl:text-xl font-bold text-gray-900 leading-tight">{value}</p>
+      <p className="text-2xl font-bold text-gray-900 mt-1 leading-tight">{value}</p>
       {change && (
-        <p className="text-[11px] text-green-500 font-medium mt-0.5 leading-tight flex items-center gap-0.5">
-          <span>^</span> {change}
-        </p>
+        <div className="flex items-center gap-1 mt-1">
+          <p className="text-[11px] text-gray-500 font-medium leading-tight whitespace-normal">
+            {change.includes('%') && !change.includes('of total') && !change.includes('↑') && !change.includes('↓') && change.includes('vs') ? `↑ ${change}` : change}
+          </p>
+        </div>
       )}
     </div>
   </div>
@@ -817,39 +820,15 @@ const RefundDetails = ({ onBack }) => {
           </div>
 
           {/* Pagination */}
-          <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
-            <p className="text-sm text-gray-700">
-              Showing {paginated.length} of {refunds.length} refund requests
-            </p>
-            <div className="flex space-x-1 items-center">
-              <button
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-                className="px-3 py-1 text-gray-500 hover:bg-gray-100 rounded-md disabled:opacity-50 cursor-pointer text-sm"
-              >
-                ←
-              </button>
-              {[1, 2, 3, 4, 5].map((pageNum) => (
-                <button
-                  key={pageNum}
-                  onClick={() => setCurrentPage(pageNum)}
-                  className={`w-7 h-7 flex items-center justify-center rounded-md text-sm font-medium transition-colors cursor-pointer ${
-                    currentPage === pageNum
-                      ? "bg-[#2E5E58] text-white"
-                      : "text-gray-700 hover:bg-gray-100"
-                  }`}
-                >
-                  {pageNum}
-                </button>
-              ))}
-              <button
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-                className="px-3 py-1 text-gray-500 hover:bg-gray-100 rounded-md disabled:opacity-50 cursor-pointer text-sm"
-              >
-                →
-              </button>
-            </div>
+          <div className="px-6 py-4 border-t border-gray-200 flex shrink-0 bg-white">
+            <Pagination 
+              currentPage={currentPage}
+              totalPages={totalPages}
+              setCurrentPage={setCurrentPage}
+              itemsPerPage={ITEMS_PER_PAGE}
+              totalItems={filtered.length}
+              itemName="refund requests"
+            />
           </div>
         </div>
 

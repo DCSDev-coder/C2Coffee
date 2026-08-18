@@ -1,8 +1,9 @@
 import React, { useState, forwardRef, useEffect } from 'react';
 import {
   Wallet, ShoppingBag, Users, Megaphone, Search, ChevronDown, Download, Plus,
-  Eye, MoreVertical, X, Crown, ChevronRight, User, ClipboardList, Coins, Ticket, BarChart3, Calendar, Trash2, Pencil
+  Eye, MoreVertical, X, Crown, ChevronRight, User, ClipboardList, Coins, Ticket, BarChart3, Calendar, Trash2, Pencil, ArrowUp, Filter, Edit2, MessageSquare, Mail, AlertCircle, Smartphone, MapPin, Tag, Gift, Clock, ShieldCheck
 } from 'lucide-react';
+import Pagination from './Pagination';
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import ViewProfile from './ViewProfile';
@@ -19,16 +20,22 @@ export const calculateTierProgress = (cupsStr) => {
   return { tier: 'Legend', nextTier: 'Max Tier', target: cups, current: cups, percentage: 100, remaining: 0 };
 };
 
-const KPICard = ({ title, value, change, icon: Icon, iconBg, iconColor }) => (
-  <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center space-x-4">
-    <div className={`w-14 h-14 rounded-xl flex items-center justify-center ${iconBg} ${iconColor}`}>
-      <Icon size={28} strokeWidth={2} />
+const KPICard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-white" }) => (
+  <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center space-x-4 min-w-0">
+    <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 ${iconBg} ${iconColor} shadow-sm`}>
+      <Icon size={26} strokeWidth={2.2} />
     </div>
-    <div>
-      <h3 className="text-gray-500 text-sm font-medium">{title}</h3>
-      <p className="text-xl font-bold text-gray-900">{value}</p>
+    <div className="flex-1 min-w-0">
+      <h3 className="text-gray-500 text-[11px] sm:text-xs xl:text-sm font-medium leading-tight mt-0.5 whitespace-normal">
+        {title}
+      </h3>
+      <p className="text-2xl font-bold text-gray-900 mt-1 leading-tight">{value}</p>
       {change && (
-        <p className="text-xs text-green-500 font-medium mt-0.5">^ {change}</p>
+        <div className="flex items-center gap-1 mt-1">
+          <p className="text-[11px] text-gray-500 font-medium leading-tight whitespace-normal">
+            {change.includes('%') && !change.includes('of total') && !change.includes('↑') && !change.includes('↓') && change.includes('vs') ? `↑ ${change}` : change}
+          </p>
+        </div>
       )}
     </div>
   </div>
@@ -126,7 +133,7 @@ const Customers = () => {
   const [statusOpen, setStatusOpen] = useState(false);
   const [activeView, setActiveView] = useState('list');
   const [menuOpenId, setMenuOpenId] = useState(null);
-  const itemsPerPage = 12;
+  const itemsPerPage = 10;
 
   useEffect(() => {
     const handleClickOutside = () => setMenuOpenId(null);
@@ -387,33 +394,15 @@ const Customers = () => {
               </tbody>
             </table>
           </div>
-          <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
-            <p className="text-sm text-gray-700">
-              Showing {filteredData.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredData.length)} of {filteredData.length} customers
-            </p>
-            <div className="flex space-x-1">
-              <button
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-                className="px-3 py-1 text-gray-500 hover:bg-gray-100 rounded-md disabled:opacity-50"
-              >←</button>
-
-              {[...Array(totalPages)].map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => setCurrentPage(i + 1)}
-                  className={`px-3 py-1 rounded-md ${currentPage === i + 1 ? 'bg-[#2E5E58] text-white' : 'text-gray-700 hover:bg-gray-100'}`}
-                >
-                  {i + 1}
-                </button>
-              ))}
-
-              <button
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages || totalPages === 0}
-                className="px-3 py-1 text-gray-500 hover:bg-gray-100 rounded-md disabled:opacity-50"
-              >→</button>
-            </div>
+          <div className="px-6 py-4 border-t border-gray-200 flex shrink-0 bg-white">
+            <Pagination 
+              currentPage={currentPage}
+              totalPages={totalPages}
+              setCurrentPage={setCurrentPage}
+              itemsPerPage={itemsPerPage}
+              totalItems={filteredData.length}
+              itemName="customers"
+            />
           </div>
         </div>
 
