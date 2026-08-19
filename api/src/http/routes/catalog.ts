@@ -94,10 +94,41 @@ type MenuCategoryResponse = {
   items: Array<MenuItemResponse>;
 };
 
-const homeBanners = [
-  { code: 'operation_hours', image: 'operationhour.jpeg' },
-  { code: 'happy_hour', image: 'happyhour.jpeg' },
-  { code: 'emergency_notice', image: 'incaseofemergency.jpeg' }
+type HomeBannerRow = RowDataPacket & {
+  code: string;
+  title: string;
+  subtitle: string;
+  image_source: string;
+  placement: 'home' | 'profile' | 'both';
+  sort_order: number;
+  is_active: number;
+};
+
+const defaultHomeBanners = [
+  {
+    code: 'operation_hours',
+    title: 'Operation Hours',
+    subtitle: 'Open daily with updated store hours and pickup coverage.',
+    image_source: 'assets/images/operationhour.jpeg',
+    placement: 'both' as const,
+    sort_order: 10
+  },
+  {
+    code: 'happy_hour',
+    title: 'Happy Hour',
+    subtitle: 'Limited-time rewards and extra reasons to stop by.',
+    image_source: 'assets/images/happyhour.jpeg',
+    placement: 'both' as const,
+    sort_order: 20
+  },
+  {
+    code: 'emergency_notice',
+    title: 'Emergency Notice',
+    subtitle: 'Important store advisories and service updates from the team.',
+    image_source: 'assets/images/incaseofemergency.jpeg',
+    placement: 'both' as const,
+    sort_order: 30
+  }
 ];
 
 export async function registerCatalogRoutes(app: FastifyInstance): Promise<void> {
@@ -120,7 +151,7 @@ export async function registerCatalogRoutes(app: FastifyInstance): Promise<void>
         next_tier: null
       },
       active_order: null,
-      home_banners: homeBanners
+      home_banners: await listActiveHomeBanners()
     };
   });
 
@@ -339,4 +370,54 @@ async function listActiveStores(): Promise<
     is_open_now: null,
     status: row.status
   }));
+}
+
+async function listActiveHomeBanners(): Promise<
+  Array<{
+    code: string;
+    title: string;
+    subtitle: string;
+    image_source: string;
+    placement: 'home' | 'profile' | 'both';
+    sort_order: number;
+  }>
+> {
+  try {
+    const [rows] = await mysqlPool.query<Array<HomeBannerRow>>(
+      `
+        SELECT
+          code,
+          title,
+          subtitle,
+          image_source,
+          placement,
+          sort_order,
+          is_active
+        FROM home_banners
+        WHERE is_active = 1
+        ORDER BY sort_order ASC, id ASC
+      `
+    );
+
+    return rows
+      .filter((row) => row.is_active === 1)
+      .map((row) => ({
+        code: row.code,
+        title: row.title,
+        subtitle: row.subtitle,
+        image_source: row.image_source,
+        placement: row.placement,
+        sort_order: row.sort_order
+      }));
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      'code' in error &&
+      (error as { code?: string }).code === 'ER_NO_SUCH_TABLE'
+    ) {
+      return defaultHomeBanners;
+    }
+
+    throw error;
+  }
 }

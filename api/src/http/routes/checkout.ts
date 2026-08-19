@@ -9,13 +9,17 @@ import type {
 import { z } from 'zod';
 
 import { authenticateRequest } from '../../auth/guard.js';
-import { mysqlPool } from '../../db/mysql.js';
+import { env } from '../../config/env.js';
+import { getUtcConnection, mysqlPool } from '../../db/mysql.js';
+import { processOrderLoyalty } from '../../services/loyalty.js';
 import { ApiError } from '../errors.js';
 import { getBootstrapForUser } from './auth.js';
+import { resolveOrderLifecycleStatus } from '../order-lifecycle.js';
 
 const createOrderSchema = z.object({
   store_id: z.coerce.number().int().positive(),
   payment_mode: z.literal('token'),
+  applied_voucher_id: z.coerce.number().int().positive().nullish(),
   items: z
     .array(
       z.object({
@@ -56,6 +60,7 @@ type MenuItemRow = RowDataPacket & {
   base_price_rm: string;
   is_available: number;
   token_price: number | null;
+  is_qualifying_cup: number;
 };
 
 type TokenAccountRow = RowDataPacket & {
@@ -67,10 +72,45 @@ type TokenAccountRow = RowDataPacket & {
 type OrderResponseRow = RowDataPacket & {
   id: number;
   order_ref: string;
+  daily_order_number: number;
   status: string;
   payment_mode: string;
   final_total_rm: string;
   token_amount_charged: number;
+};
+
+type OrderCollectRow = RowDataPacket & {
+  id: number;
+  user_id: number;
+  order_ref: string;
+  daily_order_number: number;
+  status: string;
+  payment_mode: string;
+  final_total_rm: string;
+  token_amount_charged: number;
+  created_at: Date;
+  paid_at: Date | null;
+  accepted_at: Date | null;
+  ready_at: Date | null;
+  collected_at: Date | null;
+};
+
+type AppliedVoucherRow = RowDataPacket & {
+  id: number;
+  user_id: number;
+  status: 'active' | 'redeemed' | 'expired' | 'revoked';
+  expires_at: Date;
+  template_id: number;
+  template_code: string;
+  template_name: string;
+  voucher_type: string;
+  discount_mode: 'fixed_rm' | 'percent_rm' | 'fixed_token' | 'free_drink';
+  discount_value: string;
+  token_value: number | null;
+  min_spend_rm: string | null;
+  requires_drink_in_cart: number;
+  eligible_scope_json: unknown;
+  exclude_scope_json: unknown;
 };
 
 export async function registerCheckoutRoutes(
@@ -78,7 +118,7 @@ export async function registerCheckoutRoutes(
 ): Promise<void> {
   app.post('/v1/orders', { preHandler: authenticateRequest }, async (request) => {
     const payload = createOrderSchema.parse(request.body);
-    const connection = await mysqlPool.getConnection();
+    const connection = await getUtcConnection();
     let committed = false;
 
     try {
@@ -99,6 +139,7 @@ export async function registerCheckoutRoutes(
 
       const itemsById = new Map(menuItems.map((item) => [item.id, item]));
       const pickupSlot = new Date(Date.now() + store.pickup_lead_minutes * 60 * 1000);
+      const isTokenCheckout = true;
 
       let subtotalRm = 0;
       let modifierTotalRm = 0;
@@ -135,7 +176,9 @@ export async function registerCheckoutRoutes(
 
         subtotalRm += basePriceRm * item.quantity;
         modifierTotalRm += modifierRm * item.quantity;
-        tokenAmountCharged += (tokenPrice + modifierTokens) * item.quantity;
+        if (isTokenCheckout) {
+          tokenAmountCharged += (tokenPrice + modifierTokens) * item.quantity;
+        }
 
         return {
           payload: item,
@@ -147,7 +190,105 @@ export async function registerCheckoutRoutes(
         };
       });
 
-      if (bootstrap.token_balance < tokenAmountCharged) {
+      let appliedVoucher: AppliedVoucherRow | null = null;
+      let discountRm = 0;
+      let discountTokens = 0;
+
+      if (payload.applied_voucher_id) {
+        const [voucherRows] = await connection.query<Array<AppliedVoucherRow>>(
+          `
+            SELECT
+              uv.id,
+              uv.user_id,
+              uv.status,
+              uv.expires_at,
+              vt.id AS template_id,
+              vt.code AS template_code,
+              vt.name AS template_name,
+              vt.voucher_type,
+              vt.discount_mode,
+              CAST(vt.discount_value AS CHAR) AS discount_value,
+              vt.token_value,
+              CAST(vt.min_spend_rm AS CHAR) AS min_spend_rm,
+              vt.requires_drink_in_cart,
+              vt.eligible_scope_json,
+              vt.exclude_scope_json
+            FROM user_vouchers uv
+            JOIN voucher_templates vt ON vt.id = uv.voucher_template_id
+            WHERE uv.id = :voucherId AND uv.user_id = :userId
+            LIMIT 1
+            FOR UPDATE
+          `,
+          {
+            voucherId: payload.applied_voucher_id,
+            userId: request.auth.userId
+          }
+        );
+
+        appliedVoucher = voucherRows[0] ?? null;
+        if (!appliedVoucher || appliedVoucher.status !== 'active') {
+          throw new ApiError(
+            400,
+            'voucher_not_active',
+            'Selected voucher is not active or has already been used.'
+          );
+        }
+
+        if (new Date(appliedVoucher.expires_at).getTime() < Date.now()) {
+          throw new ApiError(
+            400,
+            'voucher_expired',
+            'Selected voucher has expired.'
+          );
+        }
+
+        const totalBeforeDiscountRm = subtotalRm + modifierTotalRm;
+        if (appliedVoucher.min_spend_rm !== null) {
+          const minSpend = Number(appliedVoucher.min_spend_rm);
+          if (!isNaN(minSpend) && minSpend > 0 && totalBeforeDiscountRm < minSpend) {
+            throw new ApiError(
+              400,
+              'voucher_min_spend_not_met',
+              `Minimum spend requirement of RM ${minSpend.toFixed(2)} is not met.`
+            );
+          }
+        }
+
+        if (appliedVoucher.voucher_type === 'campaign_direct_pay') {
+          throw new ApiError(
+            400,
+            'voucher_payment_mode_mismatch',
+            'This voucher is not available for token checkout.'
+          );
+        }
+
+        if (appliedVoucher.discount_mode === 'fixed_rm') {
+          discountRm = Math.min(totalBeforeDiscountRm, Number(appliedVoucher.discount_value));
+        } else if (appliedVoucher.discount_mode === 'percent_rm') {
+          const pct = Number(appliedVoucher.discount_value) / 100;
+          discountRm = Math.min(totalBeforeDiscountRm, totalBeforeDiscountRm * pct);
+        } else if (appliedVoucher.discount_mode === 'fixed_token') {
+          const tokenDiscountVal = appliedVoucher.token_value ?? Math.round(Number(appliedVoucher.discount_value));
+          discountTokens = Math.min(tokenAmountCharged, tokenDiscountVal);
+        } else if (appliedVoucher.discount_mode === 'free_drink') {
+          const highestItem = [...normalizedItems].sort((a, b) => b.basePriceRm - a.basePriceRm)[0];
+          if (isTokenCheckout) {
+            if (highestItem) {
+              discountTokens = Math.min(tokenAmountCharged, highestItem.tokenPrice);
+            }
+          } else {
+            if (highestItem) {
+              discountRm = Math.min(totalBeforeDiscountRm, highestItem.basePriceRm);
+            }
+          }
+        }
+      }
+
+      if (isTokenCheckout) {
+        tokenAmountCharged = Math.max(0, tokenAmountCharged - discountTokens);
+      }
+
+      if (isTokenCheckout && bootstrap.token_balance < tokenAmountCharged) {
         throw new ApiError(
           400,
           'insufficient_token_balance',
@@ -155,13 +296,19 @@ export async function registerCheckoutRoutes(
         );
       }
 
-      const finalTotalRm = subtotalRm + modifierTotalRm;
+      const finalTotalRm = 0.00;
+
+      const dailyOrderNumber = await _allocateDailyOrderNumber(
+        connection,
+        payload.store_id
+      );
       const orderRef = _generateOrderRef();
 
       const [orderResult] = await connection.execute<ResultSetHeader>(
         `
           INSERT INTO orders (
             order_ref,
+            daily_order_number,
             user_id,
             store_id,
             status,
@@ -171,32 +318,40 @@ export async function registerCheckoutRoutes(
             discount_total_rm,
             final_total_rm,
             token_amount_charged,
+            voucher_id,
             pickup_slot_at,
-            paid_at
+            paid_at,
+            created_at
           )
           VALUES (
             :orderRef,
+            :dailyOrderNumber,
             :userId,
             :storeId,
             'paid',
             'token',
             :subtotalRm,
             :modifierTotalRm,
-            0.00,
+            :discountTotalRm,
             :finalTotalRm,
             :tokenAmountCharged,
+            :voucherId,
             :pickupSlotAt,
+            UTC_TIMESTAMP(),
             UTC_TIMESTAMP()
           )
         `,
         {
           orderRef,
+          dailyOrderNumber,
           userId: request.auth.userId,
           storeId: payload.store_id,
           subtotalRm: subtotalRm.toFixed(2),
           modifierTotalRm: modifierTotalRm.toFixed(2),
+          discountTotalRm: (isTokenCheckout ? 0 : discountRm).toFixed(2),
           finalTotalRm: finalTotalRm.toFixed(2),
           tokenAmountCharged,
+          voucherId: appliedVoucher ? appliedVoucher.id : null,
           pickupSlotAt: _formatMySqlDateTime(pickupSlot)
         }
       );
@@ -205,8 +360,9 @@ export async function registerCheckoutRoutes(
 
       for (const item of normalizedItems) {
         const lineSubtotalRm = (item.basePriceRm + item.modifierRm) * item.payload.quantity;
-        const lineTokenAmount =
-          (item.tokenPrice + item.modifierTokens) * item.payload.quantity;
+        const lineTokenAmount = isTokenCheckout
+          ? (item.tokenPrice + item.modifierTokens) * item.payload.quantity
+          : null;
 
         const [itemResult] = await connection.execute<ResultSetHeader>(
           `
@@ -242,7 +398,7 @@ export async function registerCheckoutRoutes(
             quantity: item.payload.quantity,
             lineSubtotalRm: lineSubtotalRm.toFixed(2),
             lineTokenAmount,
-            isQualifyingCup: 0
+            isQualifyingCup: item.menuItem.is_qualifying_cup
           }
         );
 
@@ -283,117 +439,263 @@ export async function registerCheckoutRoutes(
             to_status,
             changed_by_type,
             changed_by_id,
-            reason
+            reason,
+            created_at
           )
           VALUES (
             :orderId,
             NULL,
-            'paid',
+            :toStatus,
             'customer',
             :userId,
-            'Token checkout completed in app.'
+            :reason,
+            UTC_TIMESTAMP()
           )
         `,
         {
           orderId,
-          userId: request.auth.userId
+          toStatus: isTokenCheckout ? 'paid' : 'pending_payment',
+          userId: request.auth.userId,
+          reason: 'Token checkout completed in app.'
         }
       );
 
-      const [accountRows] = await connection.query<Array<TokenAccountRow>>(
+      if (appliedVoucher) {
+        await connection.execute(
+          `
+            INSERT INTO voucher_redemptions (
+              user_voucher_id,
+              order_id,
+              discount_rm,
+              discount_token_amount,
+              created_at
+            )
+            VALUES (
+              :userVoucherId,
+              :orderId,
+              :discountRm,
+              :discountTokenAmount,
+              UTC_TIMESTAMP()
+            )
+          `,
+          {
+            userVoucherId: appliedVoucher.id,
+            orderId,
+            discountRm: discountRm.toFixed(2),
+            discountTokenAmount: discountTokens > 0 ? discountTokens : null
+          }
+        );
+
+        await connection.execute(
+          `
+            UPDATE user_vouchers
+            SET status = 'redeemed',
+                redeemed_at = UTC_TIMESTAMP()
+            WHERE id = :voucherId
+          `,
+          {
+            voucherId: appliedVoucher.id
+          }
+        );
+      }
+
+      let accountBalanceAvailable = bootstrap.token_balance;
+      let accountBalanceReserved = bootstrap.token_reserved;
+      let accountBalanceCap = bootstrap.token_cap;
+
+      if (isTokenCheckout) {
+        const [accountRows] = await connection.query<Array<TokenAccountRow>>(
+          `
+            SELECT balance_available, balance_reserved, balance_cap
+            FROM token_accounts
+            WHERE user_id = :userId
+            LIMIT 1
+            FOR UPDATE
+          `,
+          { userId: request.auth.userId }
+        );
+
+        const account = accountRows[0];
+        if (!account) {
+          throw new ApiError(400, 'token_account_missing', 'Wallet account was not found.');
+        }
+
+        const newAvailable = account.balance_available - tokenAmountCharged;
+        if (newAvailable < 0) {
+          throw new ApiError(
+            400,
+            'insufficient_token_balance',
+            'Your wallet balance is not enough to complete this checkout.'
+          );
+        }
+
+        await connection.execute(
+          `
+            UPDATE token_accounts
+            SET balance_available = :balanceAvailable
+            WHERE user_id = :userId
+          `,
+          {
+            balanceAvailable: newAvailable,
+            userId: request.auth.userId
+          }
+        );
+
+        await connection.execute(
+          `
+            INSERT INTO token_reservations (
+              user_id,
+              order_id,
+              amount_reserved,
+              status,
+              created_at,
+              committed_at
+            )
+            VALUES (
+              :userId,
+              :orderId,
+              :amountReserved,
+              'committed',
+              UTC_TIMESTAMP(),
+              UTC_TIMESTAMP()
+            )
+          `,
+          {
+            userId: request.auth.userId,
+            orderId,
+            amountReserved: tokenAmountCharged
+          }
+        );
+
+        await connection.execute(
+          `
+            INSERT INTO token_ledger (
+              user_id,
+              token_lot_id,
+              direction,
+              source_type,
+              source_id,
+              amount,
+              balance_after,
+              remarks
+            )
+            VALUES (
+              :userId,
+              NULL,
+              'debit',
+              'order_spend',
+              :orderId,
+              :amount,
+              :balanceAfter,
+              :remarks
+            )
+          `,
+          {
+            userId: request.auth.userId,
+            orderId,
+            amount: tokenAmountCharged,
+            balanceAfter: newAvailable,
+            remarks: `Token checkout for order ${orderRef}`
+          }
+        );
+
+        accountBalanceAvailable = newAvailable;
+        accountBalanceReserved = account.balance_reserved;
+        accountBalanceCap = account.balance_cap;
+      }
+
+      // Automatically qualify and reward pending referral when referred user completes their first order
+      const [pendingReferralRows] = await connection.query<
+        Array<RowDataPacket & { id: number; referrer_user_id: number }>
+      >(
         `
-          SELECT balance_available, balance_reserved, balance_cap
-          FROM token_accounts
-          WHERE user_id = :userId
+          SELECT id, referrer_user_id
+          FROM referrals
+          WHERE referred_user_id = :userId
+            AND status = 'pending'
           LIMIT 1
           FOR UPDATE
         `,
         { userId: request.auth.userId }
       );
 
-      const account = accountRows[0];
-      if (!account) {
-        throw new ApiError(400, 'token_account_missing', 'Wallet account was not found.');
-      }
-
-      const newAvailable = account.balance_available - tokenAmountCharged;
-      if (newAvailable < 0) {
-        throw new ApiError(
-          400,
-          'insufficient_token_balance',
-          'Your wallet balance is not enough to complete this checkout.'
+      if (pendingReferralRows.length > 0) {
+        const referral = pendingReferralRows[0]!;
+        await connection.execute(
+          `
+            UPDATE referrals
+            SET status = 'rewarded',
+                qualified_order_id = :orderId,
+                qualified_at = UTC_TIMESTAMP(),
+                rewarded_at = UTC_TIMESTAMP()
+            WHERE id = :referralId
+          `,
+          {
+            referralId: referral.id,
+            orderId
+          }
         );
+
+        // Check how many rewarded referrals the referrer now has
+        const [rewardedCountRows] = await connection.query<Array<RowDataPacket & { count: number }>>(
+          `
+            SELECT COUNT(*) AS count
+            FROM referrals
+            WHERE referrer_user_id = :referrerUserId
+              AND status = 'rewarded'
+          `,
+          { referrerUserId: referral.referrer_user_id }
+        );
+        const rewardedCount = rewardedCountRows[0]?.count ?? 0;
+
+        // Issue 1 Free Drink reward voucher to the referrer for every 10 successful referrals
+        if (rewardedCount > 0 && rewardedCount % 10 === 0) {
+          const [rewardTemplates] = await connection.query<
+            Array<RowDataPacket & { id: number; expires_in_days: number }>
+          >(
+            `
+              SELECT id, expires_in_days
+              FROM voucher_templates
+              WHERE code = 'WELCOME10'
+                 OR discount_mode = 'free_drink'
+              ORDER BY id ASC
+              LIMIT 1
+            `
+          );
+
+          if (rewardTemplates.length > 0) {
+            const tpl = rewardTemplates[0]!;
+            await connection.execute(
+              `
+                INSERT INTO user_vouchers (
+                  user_id,
+                  voucher_template_id,
+                  status,
+                  issued_by_type,
+                  issued_reason,
+                  issued_at,
+                  expires_at
+                )
+                VALUES (
+                  :referrerUserId,
+                  :templateId,
+                  'active',
+                  'system',
+                  'Referral Friend 1st Order Reward',
+                  UTC_TIMESTAMP(),
+                  DATE_ADD(UTC_TIMESTAMP(), INTERVAL :days DAY)
+                )
+              `,
+              {
+                referrerUserId: referral.referrer_user_id,
+                templateId: tpl.id,
+                days: tpl.expires_in_days || 30
+              }
+            );
+          }
+        }
       }
-
-      await connection.execute(
-        `
-          UPDATE token_accounts
-          SET balance_available = :balanceAvailable
-          WHERE user_id = :userId
-        `,
-        {
-          balanceAvailable: newAvailable,
-          userId: request.auth.userId
-        }
-      );
-
-      await connection.execute(
-        `
-          INSERT INTO token_reservations (
-            user_id,
-            order_id,
-            amount_reserved,
-            status,
-            created_at,
-            committed_at
-          )
-          VALUES (
-            :userId,
-            :orderId,
-            :amountReserved,
-            'committed',
-            UTC_TIMESTAMP(),
-            UTC_TIMESTAMP()
-          )
-        `,
-        {
-          userId: request.auth.userId,
-          orderId,
-          amountReserved: tokenAmountCharged
-        }
-      );
-
-      await connection.execute(
-        `
-          INSERT INTO token_ledger (
-            user_id,
-            token_lot_id,
-            direction,
-            source_type,
-            source_id,
-            amount,
-            balance_after,
-            remarks
-          )
-          VALUES (
-            :userId,
-            NULL,
-            'debit',
-            'order_spend',
-            :orderId,
-            :amount,
-            :balanceAfter,
-            :remarks
-          )
-        `,
-        {
-          userId: request.auth.userId,
-          orderId,
-          amount: tokenAmountCharged,
-          balanceAfter: newAvailable,
-          remarks: `Token checkout for order ${orderRef}`
-        }
-      );
+      await processOrderLoyalty(orderId, request.auth.userId, connection);
 
       await connection.commit();
       committed = true;
@@ -403,6 +705,7 @@ export async function registerCheckoutRoutes(
           SELECT
             id,
             order_ref,
+            daily_order_number,
             status,
             payment_mode,
             CAST(final_total_rm AS CHAR) AS final_total_rm,
@@ -414,18 +717,216 @@ export async function registerCheckoutRoutes(
         { orderId }
       );
 
-      return {
+      const response: Record<string, unknown> = {
         order: {
           id: orderRows[0].id,
           order_ref: orderRows[0].order_ref,
+          daily_order_number: orderRows[0].daily_order_number,
           status: orderRows[0].status,
           payment_mode: orderRows[0].payment_mode,
           final_total_rm: orderRows[0].final_total_rm,
           token_amount_charged: orderRows[0].token_amount_charged
         },
-        token_balance: newAvailable,
-        token_reserved: account.balance_reserved,
-        token_cap: account.balance_cap
+        token_balance: accountBalanceAvailable,
+        token_reserved: accountBalanceReserved,
+        token_cap: accountBalanceCap
+      };
+
+      return response;
+    } catch (error) {
+      if (!committed) {
+        await connection.rollback();
+      }
+      throw error;
+    } finally {
+      connection.release();
+    }
+  });
+
+  app.post('/v1/orders/:orderId/direct-payment/confirm', { preHandler: authenticateRequest }, async (request) => {
+    const params = z.object({
+      orderId: z.coerce.number().int().positive()
+    }).parse(request.params);
+
+    if (!env.LEGACY_DIRECT_PAYMENT_BYPASS) {
+      throw new ApiError(
+        410,
+        'legacy_route_disabled',
+        'Legacy direct payment is disabled. Drink checkout is token-only.'
+      );
+    }
+
+    const connection = await getUtcConnection();
+
+    try {
+      const [orderRows] = await connection.query<Array<RowDataPacket & OrderResponseRow & { user_id: number }>>(
+        `
+          SELECT
+            id,
+            user_id,
+            order_ref,
+            daily_order_number,
+            status,
+            payment_mode,
+            CAST(final_total_rm AS CHAR) AS final_total_rm,
+            token_amount_charged
+          FROM orders
+          WHERE id = :orderId
+          LIMIT 1
+        `,
+        { orderId: params.orderId }
+      );
+
+      const order = orderRows[0];
+      if (!order || order.user_id !== request.auth.userId) {
+        throw new ApiError(404, 'order_not_found', 'Order was not found.');
+      }
+
+      return {
+        bypass: true,
+        message: 'Legacy direct payment bypassed during testing.',
+        order: {
+          id: order.id,
+          order_ref: order.order_ref,
+          daily_order_number: order.daily_order_number,
+          status: order.status,
+          payment_mode: order.payment_mode,
+          final_total_rm: order.final_total_rm,
+          token_amount_charged: order.token_amount_charged
+        }
+      };
+    } catch (error) {
+      throw error;
+    } finally {
+      connection.release();
+    }
+  });
+
+  app.post('/v1/orders/:orderId/collect', { preHandler: authenticateRequest }, async (request) => {
+    const params = z.object({
+      orderId: z.coerce.number().int().positive()
+    }).parse(request.params);
+
+    const connection = await getUtcConnection();
+    let committed = false;
+
+    try {
+      await connection.beginTransaction();
+
+      const [orderRows] = await connection.query<Array<OrderCollectRow>>(
+        `
+          SELECT
+            id,
+            user_id,
+            order_ref,
+            daily_order_number,
+            status,
+            payment_mode,
+            CAST(final_total_rm AS CHAR) AS final_total_rm,
+            token_amount_charged,
+            created_at,
+            paid_at,
+            accepted_at,
+            ready_at,
+            collected_at
+          FROM orders
+          WHERE id = :orderId
+          LIMIT 1
+          FOR UPDATE
+        `,
+        { orderId: params.orderId }
+      );
+
+      const order = orderRows[0];
+      if (!order || order.user_id !== request.auth.userId) {
+        throw new ApiError(404, 'order_not_found', 'Order was not found.');
+      }
+
+      const effectiveStatus = resolveOrderLifecycleStatus({
+        status: order.status,
+        createdAt: order.created_at,
+        paidAt: order.paid_at,
+        acceptedAt: order.accepted_at,
+        readyAt: order.ready_at,
+        collectedAt: order.collected_at
+      });
+
+      if (effectiveStatus === 'collected') {
+        await connection.commit();
+        committed = true;
+        return {
+          order: {
+            id: order.id,
+            order_ref: order.order_ref,
+            daily_order_number: order.daily_order_number,
+            status: 'collected',
+            payment_mode: order.payment_mode,
+            final_total_rm: order.final_total_rm,
+            token_amount_charged: order.token_amount_charged
+          }
+        };
+      }
+
+      if (effectiveStatus !== 'ready_for_pickup') {
+        throw new ApiError(
+          409,
+          'order_not_ready_for_collection',
+          'This order is not ready to be collected yet.'
+        );
+      }
+
+      await connection.execute(
+        `
+          UPDATE orders
+          SET status = 'collected',
+              collected_at = UTC_TIMESTAMP()
+          WHERE id = :orderId
+        `,
+        { orderId: order.id }
+      );
+
+      await connection.execute(
+        `
+          INSERT INTO order_status_history (
+            order_id,
+            from_status,
+            to_status,
+            changed_by_type,
+            changed_by_id,
+            reason,
+            created_at
+          )
+          VALUES (
+            :orderId,
+            :fromStatus,
+            'collected',
+            'customer',
+            :userId,
+            :reason,
+            UTC_TIMESTAMP()
+          )
+        `,
+        {
+          orderId: order.id,
+          fromStatus: effectiveStatus,
+          userId: request.auth.userId,
+          reason: 'Order collected in app.'
+        }
+      );
+
+      await connection.commit();
+      committed = true;
+
+      return {
+        order: {
+          id: order.id,
+          order_ref: order.order_ref,
+          daily_order_number: order.daily_order_number,
+          status: 'collected',
+          payment_mode: order.payment_mode,
+          final_total_rm: order.final_total_rm,
+          token_amount_charged: order.token_amount_charged
+        }
       };
     } catch (error) {
       if (!committed) {
@@ -474,7 +975,8 @@ async function _loadMenuItems(
         i.name,
         CAST(i.base_price_rm AS CHAR) AS base_price_rm,
         COALESCE(a.is_available, 1) AS is_available,
-        tp.token_price
+        tp.token_price,
+        i.is_qualifying_cup
       FROM menu_items i
       LEFT JOIN menu_item_store_availability a
         ON a.store_id = :storeId
@@ -507,6 +1009,44 @@ function _generateOrderRef(): string {
   return `C2-${year}${month}${day}-${suffix}`;
 }
 
+function _generatePaymentRef(orderRef: string): string {
+  const suffix = Math.random().toString(36).slice(2, 8).toUpperCase();
+  return `DP-${orderRef}-${suffix}`;
+}
+
+async function _allocateDailyOrderNumber(
+  connection: PoolConnection,
+  storeId: number
+): Promise<number> {
+  const [insertResult] = await connection.execute<ResultSetHeader>(
+    `
+      INSERT INTO store_daily_order_sequences (
+        sequence_date,
+        store_id,
+        next_number
+      )
+      VALUES (
+        UTC_DATE(),
+        :storeId,
+        1
+      )
+      ON DUPLICATE KEY UPDATE
+        next_number = LAST_INSERT_ID(next_number + 1)
+    `,
+    { storeId }
+  );
+
+  if (insertResult.affectedRows === 1) {
+    return 1;
+  }
+
+  const [rows] = await connection.query<Array<RowDataPacket & { allocated_number: number }>>(
+    'SELECT LAST_INSERT_ID() AS allocated_number'
+  );
+
+  return rows[0]?.allocated_number ?? 0;
+}
+
 function _normalizeMoney(value: number): number {
   return Number(value.toFixed(2));
 }
@@ -519,4 +1059,17 @@ function _formatMySqlDateTime(value: Date): string {
   const minutes = String(value.getUTCMinutes()).padStart(2, '0');
   const seconds = String(value.getUTCSeconds()).padStart(2, '0');
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
+
+function _formatNullableIsoDate(value: Date | string | null): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return parsed.toISOString();
 }

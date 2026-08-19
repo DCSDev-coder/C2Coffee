@@ -1,3 +1,4 @@
+import 'dart:ui' as dart_ui;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/app_colors.dart';
@@ -41,15 +42,30 @@ class _PosterPopupState extends State<PosterPopup>
   Future<void> _loadDontShowAgainState() async {
     final prefs = await SharedPreferences.getInstance();
     if (mounted) {
+      final expiryString = prefs.getString('hide_menu_ad_popup_expiry');
+      bool isHidden = false;
+      if (expiryString != null) {
+        final expiryDate = DateTime.tryParse(expiryString);
+        if (expiryDate != null && DateTime.now().isBefore(expiryDate)) {
+          isHidden = true;
+        }
+      }
       setState(() {
-        _dontShowAgain = prefs.getBool('hide_menu_ad_popup') ?? false;
+        _dontShowAgain = isHidden;
       });
     }
   }
 
   Future<void> _saveDontShowAgainState(bool value) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('hide_menu_ad_popup', value);
+    if (value) {
+      // Hide for 24 hours
+      final expiry = DateTime.now().add(const Duration(hours: 24));
+      await prefs.setString(
+          'hide_menu_ad_popup_expiry', expiry.toIso8601String());
+    } else {
+      await prefs.remove('hide_menu_ad_popup_expiry');
+    }
   }
 
   @override
@@ -73,8 +89,11 @@ class _PosterPopupState extends State<PosterPopup>
                   opacity: _fadeAnimation,
                   child: GestureDetector(
                     onTap: _closePopup,
-                    child: Container(
-                      color: Colors.black.withValues(alpha: 0.6),
+                    child: BackdropFilter(
+                      filter: dart_ui.ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                      child: Container(
+                        color: Colors.black.withValues(alpha: 0.25),
+                      ),
                     ),
                   ),
                 ),
@@ -251,11 +270,25 @@ class _PosterPopupState extends State<PosterPopup>
 }
 
 // Helper function to show the poster popup
-void showPosterPopup(BuildContext context, {VoidCallback? onClose}) {
+Future<void> showPosterPopup(BuildContext context,
+    {VoidCallback? onClose}) async {
+  final prefs = await SharedPreferences.getInstance();
+  final expiryString = prefs.getString('hide_menu_ad_popup_expiry');
+  if (expiryString != null) {
+    final expiryDate = DateTime.tryParse(expiryString);
+    if (expiryDate != null && DateTime.now().isBefore(expiryDate)) {
+      onClose?.call();
+      return;
+    }
+  }
+
+  if (!context.mounted) return;
+
   showDialog(
     context: context,
     barrierDismissible: false,
     barrierColor: Colors.transparent,
+    useSafeArea: false,
     builder: (context) => PosterPopup(onClose: onClose),
   );
 }

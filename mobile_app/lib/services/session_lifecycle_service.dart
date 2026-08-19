@@ -32,7 +32,7 @@ class SessionLifecycleService {
   }
 
   Future<void> logout() async {
-    final accessToken = await SecureSessionService.instance.getAccessToken();
+    final accessToken = await SecureSessionService.instance.getValidAccessToken();
     final refreshToken = await SecureSessionService.instance.getRefreshToken();
 
     try {

@@ -31,6 +31,7 @@ class RewardsPage extends StatefulWidget {
 class _RewardsPageState extends State<RewardsPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final AppSessionService _session = AppSessionService.instance;
+  final ScrollController _scrollController = ScrollController();
   Color get orangeColor => AppColors.deepTeal;
   final Color beigeBg = Colors.white;
   int _selectedTier = 1;
@@ -49,6 +50,7 @@ class _RewardsPageState extends State<RewardsPage> {
   @override
   void dispose() {
     _session.removeListener(_handleSessionChanged);
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -96,29 +98,29 @@ class _RewardsPageState extends State<RewardsPage> {
   void _onBottomNavTapped(int index) {
     if (index == 3) return;
     if (index == 0) {
-      InteractiveFillingLoader.show(
+      CustomBottomNav.switchTab(
         context,
-        targetPage: HomePage(
+        HomePage(
           initialPickedImage: widget.initialPickedImage,
           initialPresetPath: widget.initialPresetPath,
           initialAvatarIndex: widget.initialAvatarIndex,
         ),
       );
     } else if (index == 1) {
-      InteractiveFillingLoader.show(context, targetPage: const MenuPage());
+      CustomBottomNav.switchTab(context, const MenuPage());
     } else if (index == 2) {
-      InteractiveFillingLoader.show(
+      CustomBottomNav.switchTab(
         context,
-        targetPage: OrdersPage(
+        OrdersPage(
           initialPickedImage: widget.initialPickedImage,
           initialPresetPath: widget.initialPresetPath,
           initialAvatarIndex: widget.initialAvatarIndex,
         ),
       );
     } else if (index == 4) {
-      InteractiveFillingLoader.show(
+      CustomBottomNav.switchTab(
         context,
-        targetPage: ProfilePage(
+        ProfilePage(
           initialPickedImage: widget.initialPickedImage,
           initialPresetPath: widget.initialPresetPath,
           initialAvatarIndex: widget.initialAvatarIndex,
@@ -142,6 +144,7 @@ class _RewardsPageState extends State<RewardsPage> {
       bottomNavigationBar: CustomBottomNav(
         selectedIndex: 3,
         onItemTapped: _onBottomNavTapped,
+        scrollController: _scrollController,
       ),
       body: Stack(
         children: [
@@ -150,6 +153,7 @@ class _RewardsPageState extends State<RewardsPage> {
               _buildHeader(),
               Expanded(
                 child: SingleChildScrollView(
+                  controller: _scrollController,
                   padding: const EdgeInsets.only(bottom: 130),
                   child: Column(
                     children: [
@@ -176,56 +180,58 @@ class _RewardsPageState extends State<RewardsPage> {
 
   Widget _buildHeader() {
     return Container(
-      width: double.infinity,
-      padding: EdgeInsets.only(
-          top: MediaQuery.paddingOf(context).top + 14,
-          bottom: 16,
-          left: 20,
-          right: 20),
-      decoration: BoxDecoration(
-        color: AppColors.deepTeal,
-        borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(20),
-          bottomRight: Radius.circular(20),
-        ),
-      ),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Align(
-            alignment: Alignment.centerLeft,
-            child: GestureDetector(
-              onTap: () => InteractiveFillingLoader.showPop(context),
-              child: const Icon(Icons.arrow_back_ios,
-                  color: Colors.white, size: 20),
-            ),
+        width: double.infinity,
+        padding: EdgeInsets.only(
+            top: MediaQuery.paddingOf(context).top + 14,
+            bottom: 16,
+            left: 20,
+            right: 20),
+        decoration: BoxDecoration(
+          color: AppColors.deepTeal,
+          borderRadius: const BorderRadius.only(
+            bottomLeft: Radius.circular(20),
+            bottomRight: Radius.circular(20),
           ),
-          Column(
+        ),
+        child: SizedBox(
+          height: 48,
+          child: Stack(
+            alignment: Alignment.center,
             children: [
-              const Text(
-                'C2 COFFEE SQUAD',
-                style: TextStyle(
-                  fontFamily: 'Recoleta',
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                  letterSpacing: 1.0,
+              Align(
+                alignment: Alignment.centerLeft,
+                child: GestureDetector(
+                  onTap: () => InteractiveFillingLoader.showPop(context),
+                  child: const Icon(Icons.arrow_back_ios,
+                      color: Colors.white, size: 20),
                 ),
               ),
-              const SizedBox(height: 2),
-              Text(
-                'current tier ${_tierLabel(_tierToIndex(_session.tier))}',
-                style: const TextStyle(
-                  fontFamily: 'Afacad',
-                  fontSize: 12,
-                  color: Colors.white70,
-                ),
+              Column(
+                children: [
+                  const Text(
+                    'C2 COFFEE SQUAD',
+                    style: TextStyle(
+                      fontFamily: 'Recoleta',
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      letterSpacing: 1.0,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'current tier ${_tierLabel(_tierToIndex(_session.tier))}',
+                    style: const TextStyle(
+                      fontFamily: 'Afacad',
+                      fontSize: 12,
+                      color: Colors.white70,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
-        ],
-      ),
-    );
+        ));
   }
 
   Widget _buildPointsCard() {
@@ -317,7 +323,7 @@ class _RewardsPageState extends State<RewardsPage> {
               ),
             ],
           ),
-        const SizedBox(height: 12),
+          const SizedBox(height: 12),
           Text(
             _session.bootstrapError ??
                 "*Promo or free drinks don't earn cups and don't count toward rewards or tier upgrades.",
@@ -497,10 +503,10 @@ class _RewardsPageState extends State<RewardsPage> {
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Row(
             children: [
-              Expanded(child: _buildTierTab(0, 'Tier 1', 'Kawan', false)),
-              Expanded(child: _buildTierTab(1, 'Tier 2', 'Dilamun', false)),
-              Expanded(child: _buildTierTab(2, 'Tier 3', 'Ketagih', false)),
-              Expanded(child: _buildTierTab(3, 'Tier 4', 'Legend', false)),
+              Expanded(child: _buildTierTab(0, 'Tier 1', 'Kawan', 0 > _tierToIndex(_session.tier))),
+              Expanded(child: _buildTierTab(1, 'Tier 2', 'Dilamun', 1 > _tierToIndex(_session.tier))),
+              Expanded(child: _buildTierTab(2, 'Tier 3', 'Ketagih', 2 > _tierToIndex(_session.tier))),
+              Expanded(child: _buildTierTab(3, 'Tier 4', 'Legend', 3 > _tierToIndex(_session.tier))),
             ],
           ),
         ),

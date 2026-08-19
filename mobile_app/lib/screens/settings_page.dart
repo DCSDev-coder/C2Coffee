@@ -102,7 +102,7 @@ class _SettingsPageState extends State<SettingsPage> {
     await UserService.saveUserProfile({key: value});
     userProfile = nextProfile;
 
-    final accessToken = await SecureSessionService.instance.getAccessToken();
+    final accessToken = await SecureSessionService.instance.getValidAccessToken();
     if (accessToken != null && accessToken.isNotEmpty && key != 'phone') {
       try {
         final updatedUser = await AuthApiService.instance.updateProfile(

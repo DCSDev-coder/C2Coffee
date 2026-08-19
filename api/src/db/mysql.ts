@@ -15,10 +15,16 @@ export const mysqlPool = mysql.createPool({
 });
 
 export async function assertDatabaseConnection(): Promise<void> {
-  const connection = await mysqlPool.getConnection();
+  const connection = await getUtcConnection();
   try {
     await connection.ping();
   } finally {
     connection.release();
   }
+}
+
+export async function getUtcConnection() {
+  const connection = await mysqlPool.getConnection();
+  await connection.query("SET time_zone = '+00:00'");
+  return connection;
 }

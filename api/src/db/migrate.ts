@@ -2,7 +2,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { RowDataPacket } from 'mysql2';
-import { mysqlPool } from './mysql.js';
+import { getUtcConnection, mysqlPool } from './mysql.js';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 const migrationsDir = path.join(dirname, 'migrations');
@@ -66,7 +66,7 @@ async function applySqlFile(
   trackMigration: boolean
 ): Promise<void> {
   const sql = await readFile(fullPath, 'utf8');
-  const connection = await mysqlPool.getConnection();
+  const connection = await getUtcConnection();
 
   try {
     await connection.beginTransaction();

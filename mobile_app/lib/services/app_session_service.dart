@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/app_colors.dart';
+import '../utils/global_state.dart';
 import 'auth_api_service.dart';
 import 'catalog_api_service.dart';
+import 'customer_data_service.dart';
 import 'checkout_api_service.dart';
 import 'secure_session_service.dart';
 import 'user_service.dart';
@@ -27,6 +31,7 @@ class AppSessionService extends ChangeNotifier {
   List<StoreSummary> _stores = const [];
   StoreSummary? _selectedStore;
   List<MenuCategoryGroup> _menuCategories = const [];
+  List<HomeBanner> _homeBanners = const [];
 
   CurrentUserProfile? get user => _user;
   int get tokenBalance => _tokenBalance;
@@ -41,6 +46,7 @@ class AppSessionService extends ChangeNotifier {
   List<StoreSummary> get stores => _stores;
   StoreSummary? get selectedStore => _selectedStore;
   List<MenuCategoryGroup> get menuCategories => _menuCategories;
+  List<HomeBanner> get homeBanners => _homeBanners;
   Map<String, String?> get userProfileSnapshot =>
       _user?.toLocalProfileMap() ?? const {};
 
@@ -48,11 +54,81 @@ class AppSessionService extends ChangeNotifier {
         for (final category in _menuCategories) ...category.items,
       ];
 
+  Timer? _activeOrderTimer;
+
   void applyCheckoutResult(CheckoutResult result) {
     _tokenBalance = result.tokenBalance;
     _tokenReserved = result.tokenReserved;
     _tokenCap = result.tokenCap;
+    globalOrderStatusRawStatus.value = result.order.status;
+    globalOrderStatusVisible.value = true;
+    startActiveOrderPolling();
     notifyListeners();
+  }
+
+  void syncBackendOrderState(CustomerOrder? activeOrder) {
+    if (activeOrder == null) {
+      globalOrderStatusRawStatus.value = null;
+      globalOrderStatusVisible.value = false;
+      stopActiveOrderPolling();
+      notifyListeners();
+      return;
+    }
+
+    globalOrderStatusRawStatus.value = activeOrder.status;
+    globalOrderStatusVisible.value = activeOrder.isActive;
+    if (activeOrder.isActive) {
+      startActiveOrderPolling();
+    } else {
+      stopActiveOrderPolling();
+    }
+    notifyListeners();
+  }
+
+  void startActiveOrderPolling() {
+    _activeOrderTimer?.cancel();
+    _activeOrderTimer = Timer.periodic(const Duration(seconds: 8), (_) async {
+      await pollActiveOrder();
+    });
+  }
+
+  void stopActiveOrderPolling() {
+    _activeOrderTimer?.cancel();
+    _activeOrderTimer = null;
+  }
+
+  Future<void> pollActiveOrder() async {
+    try {
+      final accessToken =
+          await SecureSessionService.instance.getValidAccessToken();
+      if (accessToken == null || accessToken.isEmpty) return;
+
+      final snapshot = await CustomerDataService.instance.getOrders(
+        accessToken: accessToken,
+        limit: 5,
+      );
+
+      final activeOrder = snapshot.activeOrder;
+      if (activeOrder != null && activeOrder.isActive) {
+        if (globalOrderStatusRawStatus.value != activeOrder.status) {
+          globalOrderStatusRawStatus.value = activeOrder.status;
+          notifyListeners();
+        }
+        if (!globalOrderStatusVisible.value) {
+          globalOrderStatusVisible.value = true;
+          notifyListeners();
+        }
+      } else {
+        if (globalOrderStatusVisible.value) {
+          globalOrderStatusVisible.value = false;
+          globalOrderStatusRawStatus.value = null;
+          stopActiveOrderPolling();
+          notifyListeners();
+        }
+      }
+    } catch (_) {
+      // Ignore background poll errors silently
+    }
   }
 
   Future<void> loadAuthenticatedState({bool force = false}) async {
@@ -70,25 +146,55 @@ class AppSessionService extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final accessToken = await SecureSessionService.instance.getAccessToken();
+      String? accessToken =
+          await SecureSessionService.instance.getValidAccessToken();
       if (accessToken == null || accessToken.isEmpty) {
         throw ApiException('Missing access token.',
             code: 'missing_access_token');
       }
 
-      final bootstrapFuture = CatalogApiService.instance.getBootstrap(
-        accessToken: accessToken,
-      );
-      final storesFuture = CatalogApiService.instance.getStores(
-        accessToken: accessToken,
-      );
-      final currentUserFuture = AuthApiService.instance.getCurrentUser(
-        accessToken: accessToken,
-      );
+      BootstrapSnapshot bootstrap;
+      List<StoreSummary> stores;
+      CurrentUserProfile currentUser;
 
-      final bootstrap = await bootstrapFuture;
-      final stores = await storesFuture;
-      final currentUser = await currentUserFuture;
+      try {
+        final bootstrapFuture = CatalogApiService.instance.getBootstrap(
+          accessToken: accessToken,
+        );
+        final storesFuture = CatalogApiService.instance.getStores(
+          accessToken: accessToken,
+        );
+        final currentUserFuture = AuthApiService.instance.getCurrentUser(
+          accessToken: accessToken,
+        );
+
+        bootstrap = await bootstrapFuture;
+        stores = await storesFuture;
+        currentUser = await currentUserFuture;
+      } on ApiException catch (e) {
+        if (e.message.toLowerCase().contains('expired') ||
+            e.code == 'invalid_access_token' ||
+            e.code == 'session_not_found') {
+          final refreshed =
+              await SecureSessionService.instance.refreshTokenSilently();
+          if (refreshed != null && refreshed.isNotEmpty) {
+            accessToken = refreshed;
+            bootstrap = await CatalogApiService.instance.getBootstrap(
+              accessToken: accessToken,
+            );
+            stores = await CatalogApiService.instance.getStores(
+              accessToken: accessToken,
+            );
+            currentUser = await AuthApiService.instance.getCurrentUser(
+              accessToken: accessToken,
+            );
+          } else {
+            rethrow;
+          }
+        } else {
+          rethrow;
+        }
+      }
 
       _user = currentUser;
       _tokenBalance = bootstrap.tokenBalance;
@@ -97,6 +203,7 @@ class AppSessionService extends ChangeNotifier {
       _tier = bootstrap.tier;
       _cupsLast180d = bootstrap.cupsLast180d;
       _stores = stores;
+      _homeBanners = bootstrap.homeBanners;
 
       await UserService.overwriteUserProfile(_user!.toLocalProfileMap());
 
@@ -105,6 +212,8 @@ class AppSessionService extends ChangeNotifier {
       _selectedStore = await _resolveSelectedStore(_stores);
       _isBootstrapLoading = false;
       notifyListeners();
+
+      unawaited(pollActiveOrder());
 
       if (_selectedStore != null) {
         await _loadMenu(accessToken: accessToken, storeId: _selectedStore!.id);
@@ -134,7 +243,8 @@ class AppSessionService extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_selectedStoreIdKey, store.id);
 
-    final accessToken = await SecureSessionService.instance.getAccessToken();
+    final accessToken =
+        await SecureSessionService.instance.getValidAccessToken();
     if (accessToken == null || accessToken.isEmpty) {
       _menuCategories = const [];
       _menuError = 'Missing access token.';
@@ -146,6 +256,8 @@ class AppSessionService extends ChangeNotifier {
   }
 
   void clear() {
+    globalOrderStatusRawStatus.value = null;
+    globalOrderStatusVisible.value = false;
     _user = null;
     _tokenBalance = 0;
     _tokenReserved = 0;
@@ -159,6 +271,7 @@ class AppSessionService extends ChangeNotifier {
     _stores = const [];
     _selectedStore = null;
     _menuCategories = const [];
+    _homeBanners = const [];
     notifyListeners();
   }
 

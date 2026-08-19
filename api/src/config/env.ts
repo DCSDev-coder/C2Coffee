@@ -14,6 +14,7 @@ const envSchema = z.object({
   OTP_RESEND_SECONDS: z.coerce.number().int().positive().default(45),
   OTP_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),
   ACCOUNT_RETENTION_YEARS: z.coerce.number().int().positive().default(7),
+  LEGACY_DIRECT_PAYMENT_BYPASS: z.coerce.boolean().default(false),
   PUBLIC_API_BASE_URL: z.string().url(),
   CORS_ALLOWED_ORIGINS: z.string().default(''),
   DB_HOST: z.string().min(1),

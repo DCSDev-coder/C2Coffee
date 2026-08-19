@@ -35,6 +35,109 @@ FROM admin_users au
 JOIN admin_roles ar ON ar.code = 'support_admin'
 WHERE au.email = 'support.lead@c2coffee.local';
 
+INSERT INTO users (phone_e164, status)
+VALUES
+  ('+601200000101', 'active'),
+  ('+601200000102', 'active')
+ON DUPLICATE KEY UPDATE
+  status = VALUES(status);
+
+INSERT INTO user_profiles (
+  user_id,
+  display_name,
+  email,
+  avatar_type,
+  created_at,
+  updated_at
+)
+SELECT
+  u.id,
+  seeded_users.display_name,
+  seeded_users.email,
+  'preset',
+  UTC_TIMESTAMP(),
+  UTC_TIMESTAMP()
+FROM (
+  SELECT '+601200000101' AS phone_e164, 'QA Tester One' AS display_name, 'qa.one@c2coffee.local' AS email
+  UNION ALL
+  SELECT '+601200000102', 'QA Tester Two', 'qa.two@c2coffee.local'
+) seeded_users
+JOIN users u
+  ON u.phone_e164 = seeded_users.phone_e164
+ON DUPLICATE KEY UPDATE
+  display_name = VALUES(display_name),
+  email = VALUES(email),
+  avatar_type = VALUES(avatar_type),
+  updated_at = VALUES(updated_at);
+
+INSERT INTO token_accounts (
+  user_id,
+  balance_available,
+  balance_reserved,
+  balance_cap,
+  created_at,
+  updated_at
+)
+SELECT
+  u.id,
+  1000,
+  0,
+  1000,
+  UTC_TIMESTAMP(),
+  UTC_TIMESTAMP()
+FROM (
+  SELECT '+601200000101' AS phone_e164
+  UNION ALL
+  SELECT '+601200000102'
+) seeded_users
+JOIN users u
+  ON u.phone_e164 = seeded_users.phone_e164
+ON DUPLICATE KEY UPDATE
+  balance_available = VALUES(balance_available),
+  balance_reserved = VALUES(balance_reserved),
+  balance_cap = VALUES(balance_cap),
+  updated_at = VALUES(updated_at);
+
+INSERT INTO token_ledger (
+  user_id,
+  token_lot_id,
+  direction,
+  source_type,
+  source_id,
+  amount,
+  balance_after,
+  remarks,
+  created_by_admin_id,
+  created_at
+)
+SELECT
+  u.id,
+  NULL,
+  'credit',
+  'admin_adjustment',
+  seeded_wallets.source_id,
+  1000,
+  1000,
+  seeded_wallets.remarks,
+  admin_user.id,
+  UTC_TIMESTAMP()
+FROM (
+  SELECT '+601200000101' AS phone_e164, 910101 AS source_id, 'QA seed wallet credit' AS remarks
+  UNION ALL
+  SELECT '+601200000102', 910102, 'QA seed wallet credit'
+) seeded_wallets
+JOIN users u
+  ON u.phone_e164 = seeded_wallets.phone_e164
+LEFT JOIN admin_users admin_user
+  ON admin_user.email = 'ops.manager@c2coffee.local'
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM token_ledger tl
+  WHERE tl.user_id = u.id
+    AND tl.source_type = 'admin_adjustment'
+    AND tl.source_id = seeded_wallets.source_id
+);
+
 INSERT INTO stores (
   code, name, status, timezone, address_line_1, city, state, postcode,
   supports_pickup, pickup_lead_minutes
@@ -52,6 +155,51 @@ ON DUPLICATE KEY UPDATE
   postcode = VALUES(postcode),
   supports_pickup = VALUES(supports_pickup),
   pickup_lead_minutes = VALUES(pickup_lead_minutes);
+
+INSERT INTO home_banners (
+  code,
+  title,
+  subtitle,
+  image_source,
+  placement,
+  sort_order,
+  is_active
+)
+VALUES
+  (
+    'operation_hours',
+    'Operation Hours',
+    'Open daily with updated store hours and pickup coverage.',
+    'assets/images/operationhour.jpeg',
+    'both',
+    10,
+    1
+  ),
+  (
+    'happy_hour',
+    'Happy Hour',
+    'Limited-time rewards and extra reasons to stop by.',
+    'assets/images/happyhour.jpeg',
+    'both',
+    20,
+    1
+  ),
+  (
+    'emergency_notice',
+    'Emergency Notice',
+    'Important store advisories and service updates from the team.',
+    'assets/images/incaseofemergency.jpeg',
+    'both',
+    30,
+    1
+  )
+ON DUPLICATE KEY UPDATE
+  title = VALUES(title),
+  subtitle = VALUES(subtitle),
+  image_source = VALUES(image_source),
+  placement = VALUES(placement),
+  sort_order = VALUES(sort_order),
+  is_active = VALUES(is_active);
 
 INSERT INTO menu_categories (code, name, sort_order, is_active)
 VALUES
@@ -307,6 +455,66 @@ FROM (
   UNION ALL SELECT 'CLOUDY_JASMINE', 'dilamun', 14
   UNION ALL SELECT 'CLOUDY_JASMINE', 'ketagih', 13
   UNION ALL SELECT 'CLOUDY_JASMINE', 'legend', 12
+  UNION ALL SELECT 'LAMB_CURRY_PUFF', 'kawan', 9
+  UNION ALL SELECT 'LAMB_CURRY_PUFF', 'dilamun', 8
+  UNION ALL SELECT 'LAMB_CURRY_PUFF', 'ketagih', 8
+  UNION ALL SELECT 'LAMB_CURRY_PUFF', 'legend', 7
+  UNION ALL SELECT 'SHIO_PAN', 'kawan', 8
+  UNION ALL SELECT 'SHIO_PAN', 'dilamun', 7
+  UNION ALL SELECT 'SHIO_PAN', 'ketagih', 7
+  UNION ALL SELECT 'SHIO_PAN', 'legend', 6
+  UNION ALL SELECT 'BROWNIE', 'kawan', 10
+  UNION ALL SELECT 'BROWNIE', 'dilamun', 9
+  UNION ALL SELECT 'BROWNIE', 'ketagih', 8
+  UNION ALL SELECT 'BROWNIE', 'legend', 8
+  UNION ALL SELECT 'CHEESECAKE_BISCOFF', 'kawan', 16
+  UNION ALL SELECT 'CHEESECAKE_BISCOFF', 'dilamun', 15
+  UNION ALL SELECT 'CHEESECAKE_BISCOFF', 'ketagih', 14
+  UNION ALL SELECT 'CHEESECAKE_BISCOFF', 'legend', 13
+  UNION ALL SELECT 'CHEESECAKE_OVOMALTINE', 'kawan', 16
+  UNION ALL SELECT 'CHEESECAKE_OVOMALTINE', 'dilamun', 15
+  UNION ALL SELECT 'CHEESECAKE_OVOMALTINE', 'ketagih', 14
+  UNION ALL SELECT 'CHEESECAKE_OVOMALTINE', 'legend', 13
+  UNION ALL SELECT 'CHEESECAKE_RED_VELVET', 'kawan', 16
+  UNION ALL SELECT 'CHEESECAKE_RED_VELVET', 'dilamun', 15
+  UNION ALL SELECT 'CHEESECAKE_RED_VELVET', 'ketagih', 14
+  UNION ALL SELECT 'CHEESECAKE_RED_VELVET', 'legend', 13
+  UNION ALL SELECT 'C2_CUP_CREAM', 'kawan', 50
+  UNION ALL SELECT 'C2_CUP_CREAM', 'dilamun', 49
+  UNION ALL SELECT 'C2_CUP_CREAM', 'ketagih', 48
+  UNION ALL SELECT 'C2_CUP_CREAM', 'legend', 47
+  UNION ALL SELECT 'C2_CUP_DARK_BLUE', 'kawan', 50
+  UNION ALL SELECT 'C2_CUP_DARK_BLUE', 'dilamun', 49
+  UNION ALL SELECT 'C2_CUP_DARK_BLUE', 'ketagih', 48
+  UNION ALL SELECT 'C2_CUP_DARK_BLUE', 'legend', 47
+  UNION ALL SELECT 'C2_CUP_GREEN', 'kawan', 50
+  UNION ALL SELECT 'C2_CUP_GREEN', 'dilamun', 49
+  UNION ALL SELECT 'C2_CUP_GREEN', 'ketagih', 48
+  UNION ALL SELECT 'C2_CUP_GREEN', 'legend', 47
+  UNION ALL SELECT 'C2_CUP_LIGHT_BLUE', 'kawan', 50
+  UNION ALL SELECT 'C2_CUP_LIGHT_BLUE', 'dilamun', 49
+  UNION ALL SELECT 'C2_CUP_LIGHT_BLUE', 'ketagih', 48
+  UNION ALL SELECT 'C2_CUP_LIGHT_BLUE', 'legend', 47
+  UNION ALL SELECT 'C2_CUP_LIGHT_PURPLE', 'kawan', 50
+  UNION ALL SELECT 'C2_CUP_LIGHT_PURPLE', 'dilamun', 49
+  UNION ALL SELECT 'C2_CUP_LIGHT_PURPLE', 'ketagih', 48
+  UNION ALL SELECT 'C2_CUP_LIGHT_PURPLE', 'legend', 47
+  UNION ALL SELECT 'GUNUNG_CANDLE', 'kawan', 60
+  UNION ALL SELECT 'GUNUNG_CANDLE', 'dilamun', 59
+  UNION ALL SELECT 'GUNUNG_CANDLE', 'ketagih', 58
+  UNION ALL SELECT 'GUNUNG_CANDLE', 'legend', 57
+  UNION ALL SELECT 'CRUSHED_LIME_SEASALT_CANDLE', 'kawan', 60
+  UNION ALL SELECT 'CRUSHED_LIME_SEASALT_CANDLE', 'dilamun', 59
+  UNION ALL SELECT 'CRUSHED_LIME_SEASALT_CANDLE', 'ketagih', 58
+  UNION ALL SELECT 'CRUSHED_LIME_SEASALT_CANDLE', 'legend', 57
+  UNION ALL SELECT 'FRESH_SAGE_DRIFTWOOD_CANDLE', 'kawan', 60
+  UNION ALL SELECT 'FRESH_SAGE_DRIFTWOOD_CANDLE', 'dilamun', 59
+  UNION ALL SELECT 'FRESH_SAGE_DRIFTWOOD_CANDLE', 'ketagih', 58
+  UNION ALL SELECT 'FRESH_SAGE_DRIFTWOOD_CANDLE', 'legend', 57
+  UNION ALL SELECT 'TOBACCO_VANILLA_CANDLE', 'kawan', 60
+  UNION ALL SELECT 'TOBACCO_VANILLA_CANDLE', 'dilamun', 59
+  UNION ALL SELECT 'TOBACCO_VANILLA_CANDLE', 'ketagih', 58
+  UNION ALL SELECT 'TOBACCO_VANILLA_CANDLE', 'legend', 57
 ) seeded_prices
 JOIN menu_items mi
   ON mi.code = seeded_prices.item_code
@@ -535,3 +743,48 @@ ON DUPLICATE KEY UPDATE
   stack_rule = VALUES(stack_rule),
   expires_in_days = VALUES(expires_in_days),
   is_active = VALUES(is_active);
+
+-- Seed active vouchers for QA users
+INSERT INTO user_vouchers (
+  user_id,
+  voucher_template_id,
+  status,
+  issued_by_type,
+  issued_reason,
+  issued_at,
+  expires_at
+)
+SELECT
+  u.id,
+  vt.id,
+  'active',
+  'system',
+  'QA Demo Seed Welcome Voucher',
+  UTC_TIMESTAMP(),
+  DATE_ADD(UTC_TIMESTAMP(), INTERVAL 30 DAY)
+FROM users u
+JOIN voucher_templates vt ON vt.code = 'WELCOME10'
+WHERE u.phone_e164 IN ('+601200000101', '+601200000102')
+ON DUPLICATE KEY UPDATE status = VALUES(status);
+
+INSERT INTO user_vouchers (
+  user_id,
+  voucher_template_id,
+  status,
+  issued_by_type,
+  issued_reason,
+  issued_at,
+  expires_at
+)
+SELECT
+  u.id,
+  vt.id,
+  'active',
+  'system',
+  'QA Demo Seed Direct Pay Discount',
+  UTC_TIMESTAMP(),
+  DATE_ADD(UTC_TIMESTAMP(), INTERVAL 30 DAY)
+FROM users u
+JOIN voucher_templates vt ON vt.code = 'DIRECTPAY_RM5'
+WHERE u.phone_e164 IN ('+601200000101', '+601200000102')
+ON DUPLICATE KEY UPDATE status = VALUES(status);
