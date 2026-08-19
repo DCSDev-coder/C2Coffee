@@ -18,7 +18,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class AppColors {
   AppColors._();
 
-  // Reactive Tier State
+  // ── Reactive Tier State ───────────────────────────────────────────
   static const String _tierPrefKey = 'selected_user_tier';
 
   /// 0 = Tier 1 (Novice), 1 = Tier 2 (Explorer), 2 = Tier 3 (Master), 3 = Tier 4 (Legend)
@@ -44,7 +44,7 @@ class AppColors {
     }
   }
 
-  // Dynamic Tier Discounts
+  // ── Dynamic Tier Discounts ─────────────────────────────────────────
 
   /// Drink discount amount in RM according to current tier:
   /// - Tier 1: RM 1.00 OFF
@@ -92,8 +92,7 @@ class AppColors {
     bool isMerchandise = false,
   }) {
     if (rawPrice == null || rawPrice.isEmpty) return '';
-    final cleanPrice =
-        rawPrice.replaceAll('RM', '').replaceAll(r'$', '').trim();
+    final cleanPrice = rawPrice.replaceAll('RM', '').replaceAll(r'$', '').trim();
     final val = double.tryParse(cleanPrice);
     if (val == null) return rawPrice;
 
@@ -110,28 +109,28 @@ class AppColors {
   }
 
   // ── Static Theme 1 Constants (Tier 1 & 2) ──────────────────────────
-  static const Color t1DeepTeal = Color(0xFF2E5E58);
-  static const Color t1SageTeal = Color(0xFF6F9F96);
+  static const Color t1DeepTeal   = Color(0xFF2E5E58);
+  static const Color t1SageTeal   = Color(0xFF6F9F96);
   static const Color t1Terracotta = Color(0xFFE0715F);
-  static const Color t1SoftGold = Color(0xFFD4AF7A);
+  static const Color t1SoftGold   = Color(0xFFD4AF7A);
   static const Color t1SurfaceLight = Color(0xFFEDF4F3);
-  static const Color t1SurfaceMid = Color(0xFFE4EEEC);
-  static const Color t1Border = Color(0xFFCFDEDB);
-  static const Color t1NavInactive = Color(0xFFADB9B7);
+  static const Color t1SurfaceMid   = Color(0xFFE4EEEC);
+  static const Color t1Border       = Color(0xFFCFDEDB);
+  static const Color t1NavInactive  = Color(0xFFADB9B7);
 
   // ── Static Theme 2 Constants (Tier 3 & 4) ──────────────────────────
   static const Color t2DeepForest = Color(0xFF1F3A34);
-  static const Color t2SageGreen = Color(0xFFA8C4A2);
-  static const Color t2AmberGold = Color(0xFFAD6D15);
+  static const Color t2SageGreen  = Color(0xFFA8C4A2);
+  static const Color t2AmberGold  = Color(0xFFAD6D15);
   static const Color t2SurfaceLight = Color(0xFFEFF5EE);
-  static const Color t2SurfaceMid = Color(0xFFE4EDE3);
-  static const Color t2Border = Color(0xFFC8DBC6);
-  static const Color t2NavInactive = Color(0xFFA5B6A3);
+  static const Color t2SurfaceMid   = Color(0xFFE4EDE3);
+  static const Color t2Border       = Color(0xFFC8DBC6);
+  static const Color t2NavInactive  = Color(0xFFA5B6A3);
 
   // ── Shared Neutral Constants ──────────────────────────────────────
-  static const Color charcoal = Color(0xFF2C2C2C);
-  static const Color white = Color(0xFFFFFFFF);
-  static const Color textMuted = Color(0xFF6B7280);
+  static const Color charcoal     = Color(0xFF2C2C2C);
+  static const Color white        = Color(0xFFFFFFFF);
+  static const Color textMuted    = Color(0xFF6B7280);
 
   // ── Dynamic Dynamic Theme Getters ─────────────────────────────────
 
