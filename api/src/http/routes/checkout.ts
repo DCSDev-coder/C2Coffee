@@ -9,14 +9,17 @@ import type {
 import { z } from 'zod';
 
 import { authenticateRequest } from '../../auth/guard.js';
-import { mysqlPool } from '../../db/mysql.js';
+import { env } from '../../config/env.js';
+import { getUtcConnection, mysqlPool } from '../../db/mysql.js';
+import { processOrderLoyalty } from '../../services/loyalty.js';
 import { ApiError } from '../errors.js';
 import { getBootstrapForUser } from './auth.js';
 import { resolveOrderLifecycleStatus } from '../order-lifecycle.js';
 
 const createOrderSchema = z.object({
   store_id: z.coerce.number().int().positive(),
-  payment_mode: z.enum(['token', 'direct']),
+  payment_mode: z.literal('token'),
+  applied_voucher_id: z.coerce.number().int().positive().nullish(),
   items: z
     .array(
       z.object({
@@ -57,6 +60,7 @@ type MenuItemRow = RowDataPacket & {
   base_price_rm: string;
   is_available: number;
   token_price: number | null;
+  is_qualifying_cup: number;
 };
 
 type TokenAccountRow = RowDataPacket & {
@@ -75,16 +79,6 @@ type OrderResponseRow = RowDataPacket & {
   token_amount_charged: number;
 };
 
-type PaymentResponseRow = RowDataPacket & {
-  id: number;
-  provider: string;
-  provider_payment_ref: string;
-  provider_bill_id: string | null;
-  amount_rm: string;
-  status: string;
-  paid_at: Date | string | null;
-};
-
 type OrderCollectRow = RowDataPacket & {
   id: number;
   user_id: number;
@@ -101,16 +95,30 @@ type OrderCollectRow = RowDataPacket & {
   collected_at: Date | null;
 };
 
-const DIRECT_PAYMENT_PROVIDER = 'direct_sandbox';
-const DIRECT_PAYMENT_PENDING_REASON = 'Awaiting direct payment confirmation.';
-const DIRECT_PAYMENT_CONFIRMED_REASON = 'Direct payment confirmed in sandbox.';
+type AppliedVoucherRow = RowDataPacket & {
+  id: number;
+  user_id: number;
+  status: 'active' | 'redeemed' | 'expired' | 'revoked';
+  expires_at: Date;
+  template_id: number;
+  template_code: string;
+  template_name: string;
+  voucher_type: string;
+  discount_mode: 'fixed_rm' | 'percent_rm' | 'fixed_token' | 'free_drink';
+  discount_value: string;
+  token_value: number | null;
+  min_spend_rm: string | null;
+  requires_drink_in_cart: number;
+  eligible_scope_json: unknown;
+  exclude_scope_json: unknown;
+};
 
 export async function registerCheckoutRoutes(
   app: FastifyInstance
 ): Promise<void> {
   app.post('/v1/orders', { preHandler: authenticateRequest }, async (request) => {
     const payload = createOrderSchema.parse(request.body);
-    const connection = await mysqlPool.getConnection();
+    const connection = await getUtcConnection();
     let committed = false;
 
     try {
@@ -131,7 +139,7 @@ export async function registerCheckoutRoutes(
 
       const itemsById = new Map(menuItems.map((item) => [item.id, item]));
       const pickupSlot = new Date(Date.now() + store.pickup_lead_minutes * 60 * 1000);
-      const isTokenCheckout = payload.payment_mode === 'token';
+      const isTokenCheckout = true;
 
       let subtotalRm = 0;
       let modifierTotalRm = 0;
@@ -182,6 +190,104 @@ export async function registerCheckoutRoutes(
         };
       });
 
+      let appliedVoucher: AppliedVoucherRow | null = null;
+      let discountRm = 0;
+      let discountTokens = 0;
+
+      if (payload.applied_voucher_id) {
+        const [voucherRows] = await connection.query<Array<AppliedVoucherRow>>(
+          `
+            SELECT
+              uv.id,
+              uv.user_id,
+              uv.status,
+              uv.expires_at,
+              vt.id AS template_id,
+              vt.code AS template_code,
+              vt.name AS template_name,
+              vt.voucher_type,
+              vt.discount_mode,
+              CAST(vt.discount_value AS CHAR) AS discount_value,
+              vt.token_value,
+              CAST(vt.min_spend_rm AS CHAR) AS min_spend_rm,
+              vt.requires_drink_in_cart,
+              vt.eligible_scope_json,
+              vt.exclude_scope_json
+            FROM user_vouchers uv
+            JOIN voucher_templates vt ON vt.id = uv.voucher_template_id
+            WHERE uv.id = :voucherId AND uv.user_id = :userId
+            LIMIT 1
+            FOR UPDATE
+          `,
+          {
+            voucherId: payload.applied_voucher_id,
+            userId: request.auth.userId
+          }
+        );
+
+        appliedVoucher = voucherRows[0] ?? null;
+        if (!appliedVoucher || appliedVoucher.status !== 'active') {
+          throw new ApiError(
+            400,
+            'voucher_not_active',
+            'Selected voucher is not active or has already been used.'
+          );
+        }
+
+        if (new Date(appliedVoucher.expires_at).getTime() < Date.now()) {
+          throw new ApiError(
+            400,
+            'voucher_expired',
+            'Selected voucher has expired.'
+          );
+        }
+
+        const totalBeforeDiscountRm = subtotalRm + modifierTotalRm;
+        if (appliedVoucher.min_spend_rm !== null) {
+          const minSpend = Number(appliedVoucher.min_spend_rm);
+          if (!isNaN(minSpend) && minSpend > 0 && totalBeforeDiscountRm < minSpend) {
+            throw new ApiError(
+              400,
+              'voucher_min_spend_not_met',
+              `Minimum spend requirement of RM ${minSpend.toFixed(2)} is not met.`
+            );
+          }
+        }
+
+        if (appliedVoucher.voucher_type === 'campaign_direct_pay') {
+          throw new ApiError(
+            400,
+            'voucher_payment_mode_mismatch',
+            'This voucher is not available for token checkout.'
+          );
+        }
+
+        if (appliedVoucher.discount_mode === 'fixed_rm') {
+          discountRm = Math.min(totalBeforeDiscountRm, Number(appliedVoucher.discount_value));
+        } else if (appliedVoucher.discount_mode === 'percent_rm') {
+          const pct = Number(appliedVoucher.discount_value) / 100;
+          discountRm = Math.min(totalBeforeDiscountRm, totalBeforeDiscountRm * pct);
+        } else if (appliedVoucher.discount_mode === 'fixed_token') {
+          const tokenDiscountVal = appliedVoucher.token_value ?? Math.round(Number(appliedVoucher.discount_value));
+          discountTokens = Math.min(tokenAmountCharged, tokenDiscountVal);
+        } else if (appliedVoucher.discount_mode === 'free_drink') {
+          const highestItem = [...normalizedItems].sort((a, b) => b.basePriceRm - a.basePriceRm)[0];
+          if (isTokenCheckout) {
+            if (highestItem) {
+              discountTokens = Math.min(tokenAmountCharged, highestItem.tokenPrice);
+            }
+          } else {
+            if (highestItem) {
+              discountRm = Math.min(totalBeforeDiscountRm, highestItem.basePriceRm);
+            }
+          }
+        }
+      }
+
+      if (isTokenCheckout) {
+        tokenAmountCharged = Math.max(0, tokenAmountCharged - discountTokens);
+      }
+
       if (isTokenCheckout && bootstrap.token_balance < tokenAmountCharged) {
         throw new ApiError(
           400,
@@ -190,80 +296,51 @@ export async function registerCheckoutRoutes(
         );
       }
 
-      const finalTotalRm = subtotalRm + modifierTotalRm;
+      const finalTotalRm = 0.00;
+
       const dailyOrderNumber = await _allocateDailyOrderNumber(
         connection,
         payload.store_id
       );
       const orderRef = _generateOrderRef();
-      const paymentRef = isTokenCheckout ? null : _generatePaymentRef(orderRef);
 
       const [orderResult] = await connection.execute<ResultSetHeader>(
-        isTokenCheckout
-          ? `
-            INSERT INTO orders (
-              order_ref,
-              daily_order_number,
-              user_id,
-              store_id,
-              status,
-              payment_mode,
-              subtotal_rm,
-              modifier_total_rm,
-              discount_total_rm,
-              final_total_rm,
-              token_amount_charged,
-              pickup_slot_at,
-              paid_at
-            )
-            VALUES (
-              :orderRef,
-              :dailyOrderNumber,
-              :userId,
-              :storeId,
-              'paid',
-              'token',
-              :subtotalRm,
-              :modifierTotalRm,
-              0.00,
-              :finalTotalRm,
-              :tokenAmountCharged,
-              :pickupSlotAt,
-              UTC_TIMESTAMP()
-            )
-          `
-          : `
-            INSERT INTO orders (
-              order_ref,
-              daily_order_number,
-              user_id,
-              store_id,
-              status,
-              payment_mode,
-              subtotal_rm,
-              modifier_total_rm,
-              discount_total_rm,
-              final_total_rm,
-              token_amount_charged,
-              pickup_slot_at,
-              paid_at
-            )
-            VALUES (
-              :orderRef,
-              :dailyOrderNumber,
-              :userId,
-              :storeId,
-              'pending_payment',
-              'direct',
-              :subtotalRm,
-              :modifierTotalRm,
-              0.00,
-              :finalTotalRm,
-              0,
-              :pickupSlotAt,
-              NULL
-            )
-          `,
+        `
+          INSERT INTO orders (
+            order_ref,
+            daily_order_number,
+            user_id,
+            store_id,
+            status,
+            payment_mode,
+            subtotal_rm,
+            modifier_total_rm,
+            discount_total_rm,
+            final_total_rm,
+            token_amount_charged,
+            voucher_id,
+            pickup_slot_at,
+            paid_at,
+            created_at
+          )
+          VALUES (
+            :orderRef,
+            :dailyOrderNumber,
+            :userId,
+            :storeId,
+            'paid',
+            'token',
+            :subtotalRm,
+            :modifierTotalRm,
+            :discountTotalRm,
+            :finalTotalRm,
+            :tokenAmountCharged,
+            :voucherId,
+            :pickupSlotAt,
+            UTC_TIMESTAMP(),
+            UTC_TIMESTAMP()
+          )
+        `,
         {
           orderRef,
           dailyOrderNumber,
@@ -271,14 +348,15 @@ export async function registerCheckoutRoutes(
           storeId: payload.store_id,
           subtotalRm: subtotalRm.toFixed(2),
           modifierTotalRm: modifierTotalRm.toFixed(2),
+          discountTotalRm: (isTokenCheckout ? 0 : discountRm).toFixed(2),
           finalTotalRm: finalTotalRm.toFixed(2),
           tokenAmountCharged,
+          voucherId: appliedVoucher ? appliedVoucher.id : null,
           pickupSlotAt: _formatMySqlDateTime(pickupSlot)
         }
       );
 
       const orderId = orderResult.insertId;
-      let paymentResponse: PaymentResponseRow | null = null;
 
       for (const item of normalizedItems) {
         const lineSubtotalRm = (item.basePriceRm + item.modifierRm) * item.payload.quantity;
@@ -320,7 +398,7 @@ export async function registerCheckoutRoutes(
             quantity: item.payload.quantity,
             lineSubtotalRm: lineSubtotalRm.toFixed(2),
             lineTokenAmount,
-            isQualifyingCup: 0
+            isQualifyingCup: item.menuItem.is_qualifying_cup
           }
         );
 
@@ -361,7 +439,8 @@ export async function registerCheckoutRoutes(
             to_status,
             changed_by_type,
             changed_by_id,
-            reason
+            reason,
+            created_at
           )
           VALUES (
             :orderId,
@@ -369,18 +448,56 @@ export async function registerCheckoutRoutes(
             :toStatus,
             'customer',
             :userId,
-            :reason
+            :reason,
+            UTC_TIMESTAMP()
           )
         `,
         {
           orderId,
           toStatus: isTokenCheckout ? 'paid' : 'pending_payment',
           userId: request.auth.userId,
-          reason: isTokenCheckout
-            ? 'Token checkout completed in app.'
-            : DIRECT_PAYMENT_PENDING_REASON
+          reason: 'Token checkout completed in app.'
         }
       );
+
+      if (appliedVoucher) {
+        await connection.execute(
+          `
+            INSERT INTO voucher_redemptions (
+              user_voucher_id,
+              order_id,
+              discount_rm,
+              discount_token_amount,
+              created_at
+            )
+            VALUES (
+              :userVoucherId,
+              :orderId,
+              :discountRm,
+              :discountTokenAmount,
+              UTC_TIMESTAMP()
+            )
+          `,
+          {
+            userVoucherId: appliedVoucher.id,
+            orderId,
+            discountRm: discountRm.toFixed(2),
+            discountTokenAmount: discountTokens > 0 ? discountTokens : null
+          }
+        );
+
+        await connection.execute(
+          `
+            UPDATE user_vouchers
+            SET status = 'redeemed',
+                redeemed_at = UTC_TIMESTAMP()
+            WHERE id = :voucherId
+          `,
+          {
+            voucherId: appliedVoucher.id
+          }
+        );
+      }
 
       let accountBalanceAvailable = bootstrap.token_balance;
       let accountBalanceReserved = bootstrap.token_reserved;
@@ -485,61 +602,100 @@ export async function registerCheckoutRoutes(
         accountBalanceAvailable = newAvailable;
         accountBalanceReserved = account.balance_reserved;
         accountBalanceCap = account.balance_cap;
-      } else {
-        if (!paymentRef) {
-          throw new ApiError(500, 'payment_reference_missing', 'Payment reference was not generated.');
-        }
+      }
 
-        const [paymentResult] = await connection.execute<ResultSetHeader>(
+      // Automatically qualify and reward pending referral when referred user completes their first order
+      const [pendingReferralRows] = await connection.query<
+        Array<RowDataPacket & { id: number; referrer_user_id: number }>
+      >(
+        `
+          SELECT id, referrer_user_id
+          FROM referrals
+          WHERE referred_user_id = :userId
+            AND status = 'pending'
+          LIMIT 1
+          FOR UPDATE
+        `,
+        { userId: request.auth.userId }
+      );
+
+      if (pendingReferralRows.length > 0) {
+        const referral = pendingReferralRows[0]!;
+        await connection.execute(
           `
-            INSERT INTO payments (
-              order_id,
-              topup_id,
-              provider,
-              provider_payment_ref,
-              provider_bill_id,
-              amount_rm,
-              status,
-              created_at
-            )
-            VALUES (
-              :orderId,
-              NULL,
-              :provider,
-              :providerPaymentRef,
-              NULL,
-              :amountRm,
-              'pending',
-              UTC_TIMESTAMP()
-            )
+            UPDATE referrals
+            SET status = 'rewarded',
+                qualified_order_id = :orderId,
+                qualified_at = UTC_TIMESTAMP(),
+                rewarded_at = UTC_TIMESTAMP()
+            WHERE id = :referralId
           `,
           {
-            orderId,
-            provider: DIRECT_PAYMENT_PROVIDER,
-            providerPaymentRef: paymentRef,
-            amountRm: finalTotalRm.toFixed(2)
+            referralId: referral.id,
+            orderId
           }
         );
 
-        const [paymentRows] = await connection.query<Array<PaymentResponseRow>>(
+        // Check how many rewarded referrals the referrer now has
+        const [rewardedCountRows] = await connection.query<Array<RowDataPacket & { count: number }>>(
           `
-            SELECT
-              id,
-              provider,
-              provider_payment_ref,
-              provider_bill_id,
-              CAST(amount_rm AS CHAR) AS amount_rm,
-              status,
-              paid_at
-            FROM payments
-            WHERE id = :paymentId
-            LIMIT 1
+            SELECT COUNT(*) AS count
+            FROM referrals
+            WHERE referrer_user_id = :referrerUserId
+              AND status = 'rewarded'
           `,
-          { paymentId: paymentResult.insertId }
+          { referrerUserId: referral.referrer_user_id }
         );
+        const rewardedCount = rewardedCountRows[0]?.count ?? 0;
 
-        paymentResponse = paymentRows[0] ?? null;
+        // Issue 1 Free Drink reward voucher to the referrer for every 10 successful referrals
+        if (rewardedCount > 0 && rewardedCount % 10 === 0) {
+          const [rewardTemplates] = await connection.query<
+            Array<RowDataPacket & { id: number; expires_in_days: number }>
+          >(
+            `
+              SELECT id, expires_in_days
+              FROM voucher_templates
+              WHERE code = 'WELCOME10'
+                 OR discount_mode = 'free_drink'
+              ORDER BY id ASC
+              LIMIT 1
+            `
+          );
+
+          if (rewardTemplates.length > 0) {
+            const tpl = rewardTemplates[0]!;
+            await connection.execute(
+              `
+                INSERT INTO user_vouchers (
+                  user_id,
+                  voucher_template_id,
+                  status,
+                  issued_by_type,
+                  issued_reason,
+                  issued_at,
+                  expires_at
+                )
+                VALUES (
+                  :referrerUserId,
+                  :templateId,
+                  'active',
+                  'system',
+                  'Referral Friend 1st Order Reward',
+                  UTC_TIMESTAMP(),
+                  DATE_ADD(UTC_TIMESTAMP(), INTERVAL :days DAY)
+                )
+              `,
+              {
+                referrerUserId: referral.referrer_user_id,
+                templateId: tpl.id,
+                days: tpl.expires_in_days || 30
+              }
+            );
+          }
+        }
       }
+      await processOrderLoyalty(orderId, request.auth.userId, connection);
 
       await connection.commit();
       committed = true;
@@ -576,18 +732,6 @@ export async function registerCheckoutRoutes(
         token_cap: accountBalanceCap
       };
 
-      if (paymentResponse) {
-        response.payment = {
-          id: paymentResponse.id,
-          provider: paymentResponse.provider,
-          provider_payment_ref: paymentResponse.provider_payment_ref,
-          provider_bill_id: paymentResponse.provider_bill_id,
-          amount_rm: paymentResponse.amount_rm,
-          status: paymentResponse.status,
-          paid_at: _formatNullableIsoDate(paymentResponse.paid_at)
-        };
-      }
-
       return response;
     } catch (error) {
       if (!committed) {
@@ -604,12 +748,17 @@ export async function registerCheckoutRoutes(
       orderId: z.coerce.number().int().positive()
     }).parse(request.params);
 
-    const connection = await mysqlPool.getConnection();
-    let committed = false;
+    if (!env.LEGACY_DIRECT_PAYMENT_BYPASS) {
+      throw new ApiError(
+        410,
+        'legacy_route_disabled',
+        'Legacy direct payment is disabled. Drink checkout is token-only.'
+      );
+    }
+
+    const connection = await getUtcConnection();
 
     try {
-      await connection.beginTransaction();
-
       const [orderRows] = await connection.query<Array<RowDataPacket & OrderResponseRow & { user_id: number }>>(
         `
           SELECT
@@ -624,7 +773,6 @@ export async function registerCheckoutRoutes(
           FROM orders
           WHERE id = :orderId
           LIMIT 1
-          FOR UPDATE
         `,
         { orderId: params.orderId }
       );
@@ -634,115 +782,20 @@ export async function registerCheckoutRoutes(
         throw new ApiError(404, 'order_not_found', 'Order was not found.');
       }
 
-      if (order.payment_mode !== 'direct') {
-        throw new ApiError(400, 'invalid_payment_mode', 'Only direct-pay orders can be confirmed here.');
-      }
-
-      if (order.status !== 'pending_payment') {
-        throw new ApiError(400, 'invalid_order_status', 'This order is not waiting for payment confirmation.');
-      }
-
-      const [paymentRows] = await connection.query<Array<PaymentResponseRow & { order_id: number }>>(
-        `
-          SELECT
-            id,
-            order_id,
-            provider,
-            provider_payment_ref,
-            provider_bill_id,
-            CAST(amount_rm AS CHAR) AS amount_rm,
-            status,
-            paid_at
-          FROM payments
-          WHERE order_id = :orderId
-            AND provider = :provider
-          LIMIT 1
-          FOR UPDATE
-        `,
-        {
-          orderId: params.orderId,
-          provider: DIRECT_PAYMENT_PROVIDER
-        }
-      );
-
-      const payment = paymentRows[0];
-      if (!payment) {
-        throw new ApiError(404, 'payment_not_found', 'Direct payment record was not found.');
-      }
-
-      await connection.execute(
-        `
-          UPDATE payments
-          SET status = 'paid',
-              paid_at = UTC_TIMESTAMP()
-          WHERE id = :paymentId
-        `,
-        { paymentId: payment.id }
-      );
-
-      await connection.execute(
-        `
-          UPDATE orders
-          SET status = 'paid',
-              paid_at = UTC_TIMESTAMP()
-          WHERE id = :orderId
-        `,
-        { orderId: order.id }
-      );
-
-      await connection.execute(
-        `
-          INSERT INTO order_status_history (
-            order_id,
-            from_status,
-            to_status,
-            changed_by_type,
-            changed_by_id,
-            reason
-          )
-          VALUES (
-            :orderId,
-            'pending_payment',
-            'paid',
-            'customer',
-            :userId,
-            :reason
-          )
-        `,
-        {
-          orderId: order.id,
-          userId: request.auth.userId,
-          reason: DIRECT_PAYMENT_CONFIRMED_REASON
-        }
-      );
-
-      await connection.commit();
-      committed = true;
-
       return {
+        bypass: true,
+        message: 'Legacy direct payment bypassed during testing.',
         order: {
           id: order.id,
           order_ref: order.order_ref,
           daily_order_number: order.daily_order_number,
-          status: 'paid',
+          status: order.status,
           payment_mode: order.payment_mode,
           final_total_rm: order.final_total_rm,
           token_amount_charged: order.token_amount_charged
-        },
-        payment: {
-          id: payment.id,
-          provider: payment.provider,
-          provider_payment_ref: payment.provider_payment_ref,
-          provider_bill_id: payment.provider_bill_id,
-          amount_rm: payment.amount_rm,
-          status: 'paid',
-          paid_at: _formatNullableIsoDate(payment.paid_at) ?? new Date().toISOString()
         }
       };
     } catch (error) {
-      if (!committed) {
-        await connection.rollback();
-      }
       throw error;
     } finally {
       connection.release();
@@ -754,7 +807,7 @@ export async function registerCheckoutRoutes(
       orderId: z.coerce.number().int().positive()
     }).parse(request.params);
 
-    const connection = await mysqlPool.getConnection();
+    const connection = await getUtcConnection();
     let committed = false;
 
     try {
@@ -840,7 +893,8 @@ export async function registerCheckoutRoutes(
             to_status,
             changed_by_type,
             changed_by_id,
-            reason
+            reason,
+            created_at
           )
           VALUES (
             :orderId,
@@ -848,7 +902,8 @@ export async function registerCheckoutRoutes(
             'collected',
             'customer',
             :userId,
-            :reason
+            :reason,
+            UTC_TIMESTAMP()
           )
         `,
         {
@@ -920,7 +975,8 @@ async function _loadMenuItems(
         i.name,
         CAST(i.base_price_rm AS CHAR) AS base_price_rm,
         COALESCE(a.is_available, 1) AS is_available,
-        tp.token_price
+        tp.token_price,
+        i.is_qualifying_cup
       FROM menu_items i
       LEFT JOIN menu_item_store_availability a
         ON a.store_id = :storeId

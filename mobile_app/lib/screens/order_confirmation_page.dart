@@ -1,12 +1,17 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 
 import '../services/app_session_service.dart';
 import '../services/cart_service.dart';
 import '../services/checkout_api_service.dart';
+import '../services/customer_data_service.dart';
 import '../services/secure_session_service.dart';
 import '../utils/app_colors.dart';
 import '../utils/global_state.dart';
 import '../widgets/catalog_product_image.dart';
+import '../widgets/voucher_modal.dart';
+import 'orders_page.dart';
 import 'loading_order_page.dart';
 
 class OrderConfirmationPage extends StatefulWidget {
@@ -23,7 +28,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
   final AppSessionService _session = AppSessionService.instance;
 
   bool _isSubmitting = false;
-  bool _useDirectPayTest = false;
+  RewardVoucher? _selectedVoucher;
   String? _checkoutError;
 
   Color get orangeColor => AppColors.deepTeal;
@@ -101,11 +106,8 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                                 const SizedBox(height: 16),
                                 _buildPaymentMethodCard(snapshot),
                                 const SizedBox(height: 16),
-                                _buildDirectPayToggle(),
-                                const SizedBox(height: 16),
                                 _buildSummaryCard(snapshot),
                                 const SizedBox(height: 12),
-                                _buildCheckoutModeBadge(),
                                 if (_checkoutError != null) ...[
                                   const SizedBox(height: 16),
                                   Text(
@@ -440,57 +442,104 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
     );
   }
 
+  int _calculateDiscountTokens(CartSnapshot snapshot) {
+    if (_selectedVoucher == null) return 0;
+    final t = _selectedVoucher!.template;
+    final subtotalTokens = snapshot.subtotalTokens;
+    if (t.discountMode == 'fixed_token') {
+      final val = t.tokenValue ?? int.tryParse(t.discountValue) ?? 0;
+      return min(subtotalTokens, val);
+    } else if (t.discountMode == 'free_drink') {
+      final highestTokenItem = snapshot.items.isEmpty
+          ? 0
+          : snapshot.items.map((e) => e.tokenPrice).reduce(max);
+      return min(subtotalTokens, highestTokenItem);
+    }
+    return 0;
+  }
+
   Widget _buildVoucherCard() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: orangeColor.withValues(alpha: 0.5),
-          width: 1,
+    final voucher = _selectedVoucher;
+
+    return InkWell(
+      onTap: () {
+        VoucherModal.show(
+          context,
+          selectedVoucherId: voucher?.id,
+          onVoucherSelected: (selected) {
+            setState(() {
+              _selectedVoucher = selected;
+            });
+          },
+        );
+      },
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: voucher != null
+              ? orangeColor.withValues(alpha: 0.05)
+              : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: voucher != null
+                ? orangeColor
+                : orangeColor.withValues(alpha: 0.5),
+            width: voucher != null ? 1.5 : 1,
+          ),
         ),
-      ),
-      child: Row(
-        children: [
-          Image.asset(
-            'assets/images/voucher.png',
-            width: 46,
-            height: 46,
-          ),
-          const SizedBox(width: 8),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Voucher',
-                  style: TextStyle(
-                    fontFamily: 'Recoleta',
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  'Voucher redemption will be connected after token checkout is stable.',
-                  style: TextStyle(
-                    fontFamily: 'Afacad',
-                    fontSize: 13,
-                    color: Colors.black54,
-                  ),
-                ),
-              ],
+        child: Row(
+          children: [
+            Image.asset(
+              'assets/images/voucher.png',
+              width: 46,
+              height: 46,
             ),
-          ),
-        ],
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    voucher != null ? voucher.template.name : 'Apply Voucher',
+                    style: const TextStyle(
+                      fontFamily: 'Recoleta',
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    voucher != null
+                        ? 'Tap to change or remove'
+                        : 'Select an available voucher for discount',
+                    style: TextStyle(
+                      fontFamily: 'Afacad',
+                      fontSize: 13,
+                      color: voucher != null ? orangeColor : Colors.black54,
+                      fontWeight:
+                          voucher != null ? FontWeight.bold : FontWeight.normal,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              voucher != null ? Icons.check_circle : Icons.chevron_right,
+              color: voucher != null ? AppColors.gold : Colors.black45,
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildPaymentMethodCard(CartSnapshot snapshot) {
-    final remainingBalance = _session.tokenBalance - snapshot.subtotalTokens;
+    final discountTokens = _calculateDiscountTokens(snapshot);
+    final effectiveTokenCharge =
+        max(0, snapshot.subtotalTokens - discountTokens);
+    final remainingBalance = _session.tokenBalance - effectiveTokenCharge;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -581,65 +630,10 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
     );
   }
 
-  Widget _buildDirectPayToggle() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppColors.border,
-          width: 1,
-        ),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.bolt,
-            color: orangeColor,
-            size: 28,
-          ),
-          const SizedBox(width: 12),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Direct pay test mode',
-                  style: TextStyle(
-                    fontFamily: 'Recoleta',
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  'Use sandbox direct payment instead of token checkout.',
-                  style: TextStyle(
-                    fontFamily: 'Afacad',
-                    fontSize: 13,
-                    color: Colors.black54,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Switch.adaptive(
-            value: _useDirectPayTest,
-            activeThumbColor: orangeColor,
-            onChanged: (value) {
-              setState(() {
-                _useDirectPayTest = value;
-              });
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildSummaryCard(CartSnapshot snapshot) {
+    final discountTokens = _calculateDiscountTokens(snapshot);
+    final finalTokens = max(0, snapshot.subtotalTokens - discountTokens);
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -653,17 +647,26 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
             'Subtotal',
             'RM ${snapshot.subtotalRm.toStringAsFixed(2)}',
           ),
+          if (discountTokens > 0) ...[
+            const SizedBox(height: 10),
+            _buildSummaryRow(
+              'Voucher Discount',
+              '-$discountTokens tokens',
+              isDiscount: true,
+            ),
+          ],
           const SizedBox(height: 10),
           _buildSummaryRow(
             'Token Charge',
-            '${snapshot.subtotalTokens} tokens',
+            '$finalTokens tokens',
           ),
         ],
       ),
     );
   }
 
-  Widget _buildSummaryRow(String label, String value) {
+  Widget _buildSummaryRow(String label, String value,
+      {bool isDiscount = false}) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -682,7 +685,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
             fontFamily: 'Afacad',
             fontSize: 14,
             fontWeight: FontWeight.bold,
-            color: orangeColor,
+            color: isDiscount ? Colors.green.shade700 : orangeColor,
           ),
         ),
       ],
@@ -690,8 +693,10 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
   }
 
   Widget _buildCheckoutButton(CartSnapshot snapshot) {
-    final hasEnoughBalance =
-        _useDirectPayTest || _session.tokenBalance >= snapshot.subtotalTokens;
+    final discountTokens = _calculateDiscountTokens(snapshot);
+    final effectiveTokenCharge =
+        max(0, snapshot.subtotalTokens - discountTokens);
+    final hasEnoughBalance = _session.tokenBalance >= effectiveTokenCharge;
 
     return GestureDetector(
       onTap: _isSubmitting || !hasEnoughBalance
@@ -708,11 +713,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
         ),
         child: Center(
           child: Text(
-            _useDirectPayTest
-                ? 'DIRECT PAY TEST'
-                : hasEnoughBalance
-                    ? 'CHECKOUT'
-                    : 'INSUFFICIENT TOKENS',
+            hasEnoughBalance ? 'CHECKOUT' : 'INSUFFICIENT TOKENS',
             style: const TextStyle(
               fontFamily: 'Afacad',
               fontSize: 18,
@@ -725,48 +726,6 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
     );
   }
 
-  Widget _buildCheckoutModeBadge() {
-    final isDirectPay = _useDirectPayTest;
-    final backgroundColor = isDirectPay
-        ? orangeColor.withValues(alpha: 0.12)
-        : AppColors.border.withValues(alpha: 0.35);
-    final borderColor = isDirectPay ? orangeColor : AppColors.border;
-    final textColor = isDirectPay ? orangeColor : Colors.black54;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: borderColor, width: 1),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            isDirectPay ? Icons.bolt : Icons.account_balance_wallet_outlined,
-            size: 18,
-            color: textColor,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              isDirectPay
-                  ? 'Mode: Direct pay test. Sandbox payment will auto-confirm.'
-                  : 'Mode: Token checkout. Wallet balance will be charged.',
-              style: TextStyle(
-                fontFamily: 'Afacad',
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-                color: textColor,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Future<void> _submitCheckout(CartSnapshot snapshot) async {
     setState(() {
       _isSubmitting = true;
@@ -774,27 +733,32 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
     });
 
     try {
-      final accessToken = await SecureSessionService.instance.getAccessToken();
+      final accessToken = await SecureSessionService.instance.getValidAccessToken();
       if (accessToken == null || accessToken.isEmpty) {
         throw Exception('Missing access token.');
       }
 
-      final checkoutResult = _useDirectPayTest
-          ? await CheckoutApiService.instance.createDirectPayOrder(
-              accessToken: accessToken,
-              cart: snapshot,
-            )
-          : await CheckoutApiService.instance.createTokenOrder(
-              accessToken: accessToken,
-              cart: snapshot,
-            );
+      final checkoutResult = await CheckoutApiService.instance.createTokenOrder(
+        accessToken: accessToken,
+        cart: snapshot,
+        appliedVoucherId: _selectedVoucher?.id,
+      );
 
       _session.applyCheckoutResult(checkoutResult);
       _cart.clear();
       globalOrderStatusVisible.value = true;
 
       if (!mounted) return;
-      Navigator.pop(context, true);
+      Navigator.of(context).pushReplacement(
+        PageRouteBuilder(
+          transitionDuration: const Duration(milliseconds: 220),
+          pageBuilder: (context, animation, secondaryAnimation) =>
+              FadeTransition(
+            opacity: animation,
+            child: const OrdersPage(initialTabIndex: 0),
+          ),
+        ),
+      );
     } catch (error) {
       if (!mounted) return;
       setState(() {

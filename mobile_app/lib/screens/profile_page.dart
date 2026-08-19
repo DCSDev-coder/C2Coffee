@@ -48,7 +48,19 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   void initState() {
     super.initState();
+    _session.addListener(_handleSessionChanged);
     _loadAvatarState();
+    Future.microtask(() async {
+      try {
+        await _session.loadAuthenticatedState();
+      } catch (_) {}
+    });
+  }
+
+  void _handleSessionChanged() {
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   Future<void> _loadAvatarState() async {
@@ -74,6 +86,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   void dispose() {
+    _session.removeListener(_handleSessionChanged);
     _scrollController.dispose();
     super.dispose();
   }
@@ -508,114 +521,17 @@ class _ProfilePageState extends State<ProfilePage> {
                       const SizedBox(height: 24),
 
                       // News Section
-                      Text('News',
-                          style: TextStyle(
-                              fontFamily: 'Recoleta',
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.deepTeal)),
+                      Text(
+                        'News',
+                        style: TextStyle(
+                          fontFamily: 'Recoleta',
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.deepTeal,
+                        ),
+                      ),
                       const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: AppColors.border,
-                            width: 1,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.03),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2))
-                          ],
-                        ),
-                        child: Row(
-                          children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: Image.asset(
-                                  'assets/images/barista_craft_banner.png',
-                                  width: 100,
-                                  height: 100,
-                                  fit: BoxFit.cover),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text('C2 Barista Craft',
-                                      style: TextStyle(
-                                          fontFamily: 'Recoleta',
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                          color: AppColors.deepTeal)),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                      'Discover our new handcrafted joy and playful sips.',
-                                      style: TextStyle(
-                                          fontFamily: 'Afacad',
-                                          fontSize: 16,
-                                          color: Colors.grey)),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: AppColors.border,
-                            width: 1,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.03),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2))
-                          ],
-                        ),
-                        child: Row(
-                          children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: Image.asset(
-                                  'assets/images/promo_banner_2.png',
-                                  width: 100,
-                                  height: 100,
-                                  fit: BoxFit.cover),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text('Skip the Queue',
-                                      style: TextStyle(
-                                          fontFamily: 'Recoleta',
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                          color: AppColors.deepTeal)),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                      'Order ahead with mobile ordering and save time.',
-                                      style: TextStyle(
-                                          fontFamily: 'Afacad',
-                                          fontSize: 16,
-                                          color: Colors.grey)),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      _buildNewsSection(),
                       const SizedBox(height: 24),
 
                       // Calendar Section
@@ -655,6 +571,115 @@ class _ProfilePageState extends State<ProfilePage> {
         ],
       ),
     );
+  }
+
+  Widget _buildNewsSection() {
+    final banners = _session.homeBanners
+        .where((banner) => banner.appearsOnProfile)
+        .toList();
+
+    if (banners.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: AppColors.border,
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Text(
+          'News and promotions will appear here once marketing updates them.',
+          style: TextStyle(
+            fontFamily: 'Afacad',
+            fontSize: 15,
+            color: Colors.grey,
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        for (var i = 0; i < banners.length; i++) ...[
+          _buildNewsCard(banners[i]),
+          if (i < banners.length - 1) const SizedBox(height: 16),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildNewsCard(dynamic banner) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppColors.border,
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: _buildBannerImage(banner.imageSource),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  banner.title,
+                  style: TextStyle(
+                    fontFamily: 'Recoleta',
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.deepTeal,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  banner.subtitle,
+                  style: TextStyle(
+                    fontFamily: 'Afacad',
+                    fontSize: 16,
+                    color: Colors.grey,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBannerImage(String source) {
+    final image = source.startsWith('http://') || source.startsWith('https://')
+        ? Image.network(source, width: 100, height: 100, fit: BoxFit.cover)
+        : Image.asset(source, width: 100, height: 100, fit: BoxFit.cover);
+
+    return image;
   }
 }
 

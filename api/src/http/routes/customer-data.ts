@@ -1,9 +1,10 @@
 import type { FastifyInstance } from 'fastify';
-import type { RowDataPacket } from 'mysql2/promise';
+import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { z } from 'zod';
 
 import { authenticateRequest } from '../../auth/guard.js';
-import { mysqlPool } from '../../db/mysql.js';
+import { getUtcConnection, mysqlPool } from '../../db/mysql.js';
+import { ApiError } from '../errors.js';
 import {
   isCustomerActiveOrderStatus,
   resolveOrderLifecycleStatus
@@ -163,6 +164,48 @@ export async function registerCustomerDataRoutes(
 
   app.get('/v1/rewards/vouchers', { preHandler: authenticateRequest }, async (request) => {
     const { limit } = listQuerySchema.parse(request.query);
+    const userId = request.auth.userId;
+
+    const [existingCount] = await mysqlPool.query<Array<RowDataPacket & { count: number }>>(
+      `SELECT COUNT(*) AS count FROM user_vouchers WHERE user_id = :userId`,
+      { userId }
+    );
+
+    if ((existingCount[0]?.count ?? 0) === 0) {
+      const [templates] = await mysqlPool.query<Array<RowDataPacket & { id: number; expires_in_days: number }>>(
+        `SELECT id, expires_in_days FROM voucher_templates WHERE code IN ('WELCOME10', 'DIRECTPAY_RM5') AND is_active = 1`
+      );
+
+      for (const tpl of templates) {
+        await mysqlPool.execute(
+          `
+            INSERT IGNORE INTO user_vouchers (
+              user_id,
+              voucher_template_id,
+              status,
+              issued_by_type,
+              issued_reason,
+              issued_at,
+              expires_at
+            )
+            VALUES (
+              :userId,
+              :templateId,
+              'active',
+              'system',
+              'Welcome Gift Voucher',
+              UTC_TIMESTAMP(),
+              DATE_ADD(UTC_TIMESTAMP(), INTERVAL :days DAY)
+            )
+          `,
+          {
+            userId,
+            templateId: tpl.id,
+            days: tpl.expires_in_days || 30
+          }
+        );
+      }
+    }
 
     const [rows] = await mysqlPool.query<Array<VoucherRow>>(
       `
@@ -193,7 +236,7 @@ export async function registerCustomerDataRoutes(
         LIMIT :limit
       `,
       {
-        userId: request.auth.userId,
+        userId,
         limit
       }
     );
@@ -271,7 +314,7 @@ export async function registerCustomerDataRoutes(
           o.updated_at,
           s.id,
           s.name
-        ORDER BY o.created_at DESC, o.id DESC
+        ORDER BY o.id DESC
         LIMIT :limit
       `,
       {
@@ -406,6 +449,7 @@ export async function registerCustomerDataRoutes(
         final_total_rm: row.final_total_rm,
         token_amount_charged: row.token_amount_charged,
         pickup_slot_at: row.pickup_slot_at.toISOString(),
+        collected_at: row.collected_at?.toISOString() ?? null,
         created_at: row.created_at.toISOString(),
         updated_at: row.updated_at.toISOString(),
         store: {
@@ -425,6 +469,453 @@ export async function registerCustomerDataRoutes(
     return {
       active_order: activeOrder,
       orders
+    };
+  });
+
+  const topupSchema = z.object({
+    token_amount: z.coerce.number().int().min(1).max(500),
+    provider: z.literal('touch_n_go_sandbox').default('touch_n_go_sandbox')
+  });
+
+  app.post('/v1/wallet/topup', { preHandler: authenticateRequest }, async (request) => {
+    const payload = topupSchema.parse(request.body ?? {});
+    const connection = await getUtcConnection();
+    let committed = false;
+
+    try {
+      await connection.beginTransaction();
+
+      const [accountRows] = await connection.query<
+        Array<RowDataPacket & {
+          balance_available: number;
+          balance_reserved: number;
+          balance_cap: number;
+        }>
+      >(
+        `
+          SELECT balance_available, balance_reserved, balance_cap
+          FROM token_accounts
+          WHERE user_id = :userId
+          LIMIT 1
+          FOR UPDATE
+        `,
+        { userId: request.auth.userId }
+      );
+
+      const account = accountRows[0];
+      if (!account) {
+        throw new ApiError(404, 'token_account_missing', 'Wallet account was not found.');
+      }
+
+      const newBalance = account.balance_available + payload.token_amount;
+      if (newBalance > account.balance_cap) {
+        throw new ApiError(
+          400,
+          'token_cap_exceeded',
+          `Top-up would exceed maximum wallet balance cap of ${account.balance_cap} tokens.`
+        );
+      }
+
+      const topupRef = `TOP-${Date.now().toString(36).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
+      const rmAmount = (payload.token_amount * 1.0).toFixed(2);
+
+      const [topupResult] = await connection.execute<ResultSetHeader>(
+        `
+          INSERT INTO token_topups (
+            user_id,
+            topup_ref,
+            token_amount,
+            rm_amount,
+            status,
+            created_at,
+            paid_at
+          )
+          VALUES (
+            :userId,
+            :topupRef,
+            :tokenAmount,
+            :rmAmount,
+            'paid',
+            UTC_TIMESTAMP(),
+            UTC_TIMESTAMP()
+          )
+        `,
+        {
+          userId: request.auth.userId,
+          topupRef,
+          tokenAmount: payload.token_amount,
+          rmAmount
+        }
+      );
+
+      const topupId = topupResult.insertId;
+
+      const [lotResult] = await connection.execute<ResultSetHeader>(
+        `
+          INSERT INTO token_lots (
+            user_id,
+            source_topup_id,
+            original_amount,
+            remaining_amount,
+            expires_at,
+            status,
+            created_at
+          )
+          VALUES (
+            :userId,
+            :topupId,
+            :tokenAmount,
+            :tokenAmount,
+            DATE_ADD(UTC_TIMESTAMP(), INTERVAL 180 DAY),
+            'active',
+            UTC_TIMESTAMP()
+          )
+        `,
+        {
+          userId: request.auth.userId,
+          topupId,
+          tokenAmount: payload.token_amount
+        }
+      );
+
+      const lotId = lotResult.insertId;
+
+      await connection.execute(
+        `
+          INSERT INTO token_ledger (
+            user_id,
+            token_lot_id,
+            direction,
+            source_type,
+            source_id,
+            amount,
+            balance_after,
+            remarks,
+            created_at
+          )
+          VALUES (
+            :userId,
+            :lotId,
+            'credit',
+            'topup_paid',
+            :topupId,
+            :tokenAmount,
+            :balanceAfter,
+            :remarks,
+            UTC_TIMESTAMP()
+          )
+        `,
+        {
+          userId: request.auth.userId,
+          lotId,
+          topupId,
+          tokenAmount: payload.token_amount,
+          balanceAfter: newBalance,
+          remarks: `Top up ${payload.token_amount} tokens via Touch 'n Go sandbox payment`
+        }
+      );
+
+      await connection.execute(
+        `
+          UPDATE token_accounts
+          SET balance_available = :newBalance,
+              updated_at = UTC_TIMESTAMP()
+          WHERE user_id = :userId
+        `,
+        {
+          newBalance,
+          userId: request.auth.userId
+        }
+      );
+
+      const paymentRef = `PAY-${topupRef}`;
+      await connection.execute(
+        `
+          INSERT INTO payments (
+            order_id,
+            topup_id,
+            provider,
+            provider_payment_ref,
+            provider_bill_id,
+            amount_rm,
+            status,
+            paid_at,
+            created_at
+          )
+          VALUES (
+            NULL,
+            :topupId,
+            :provider,
+            :paymentRef,
+            NULL,
+            :amountRm,
+            'paid',
+            UTC_TIMESTAMP(),
+            UTC_TIMESTAMP()
+          )
+        `,
+        {
+          topupId,
+          provider: payload.provider,
+          paymentRef,
+          amountRm: rmAmount
+        }
+      );
+
+      await connection.commit();
+      committed = true;
+
+      return {
+        success: true,
+        topup_ref: topupRef,
+        token_amount_added: payload.token_amount,
+        token_balance: newBalance,
+        token_reserved: account.balance_reserved,
+        token_cap: account.balance_cap
+      };
+    } finally {
+      if (!committed) {
+        await connection.rollback();
+      }
+      connection.release();
+    }
+  });
+
+  app.get('/v1/referrals', { preHandler: authenticateRequest }, async (request) => {
+    const userId = request.auth.userId;
+
+    const [userRows] = await mysqlPool.query<
+      Array<RowDataPacket & { id: number; phone_e164: string }>
+    >(
+      `
+        SELECT id, phone_e164
+        FROM users
+        WHERE id = :userId
+        LIMIT 1
+      `,
+      { userId }
+    );
+
+    const user = userRows[0];
+    if (!user) {
+      throw new ApiError(404, 'user_not_found', 'User not found.');
+    }
+
+    const phoneDigits = user.phone_e164.replace(/[^0-9]/g, '');
+    const phoneSuffix = phoneDigits.slice(-4);
+    const referralCode = `C2-${phoneSuffix || user.id.toString().padStart(4, '0')}`.toUpperCase();
+
+    const [referredRows] = await mysqlPool.query<
+      Array<RowDataPacket & {
+        id: number;
+        status: 'pending' | 'qualified' | 'rewarded' | 'rejected';
+        created_at: Date;
+        rewarded_at: Date | null;
+      }>
+    >(
+      `
+        SELECT id, status, created_at, rewarded_at
+        FROM referrals
+        WHERE referrer_user_id = :userId
+        ORDER BY created_at DESC
+        LIMIT 50
+      `,
+      { userId }
+    );
+
+    const [claimedRows] = await mysqlPool.query<
+      Array<RowDataPacket & { id: number; referral_code_snapshot: string }>
+    >(
+      `
+        SELECT id, referral_code_snapshot
+        FROM referrals
+        WHERE referred_user_id = :userId
+        LIMIT 1
+      `,
+      { userId }
+    );
+
+    const [pastOrders] = await mysqlPool.query<Array<RowDataPacket & { count: number }>>(
+      `
+        SELECT COUNT(*) AS count
+        FROM orders
+        WHERE user_id = :userId
+          AND status IN ('paid', 'accepted', 'ready_for_pickup', 'collected')
+      `,
+      { userId }
+    );
+
+    const friendsInvited = referredRows.length;
+    const rewardsClaimed = referredRows.filter(
+      (r) => r.status === 'rewarded' || r.status === 'qualified'
+    ).length;
+    const hasClaimedReferrer = claimedRows.length > 0;
+    const claimedCode = claimedRows[0]?.referral_code_snapshot ?? null;
+    const hasOrders = (pastOrders[0]?.count ?? 0) > 0;
+    const isEligibleToClaim = !hasClaimedReferrer && !hasOrders;
+
+    return {
+      referral_code: referralCode,
+      share_url: `https://c2coffee.app/r/${referralCode}`,
+      friends_invited: friendsInvited,
+      rewards_claimed: rewardsClaimed,
+      has_claimed_referrer: hasClaimedReferrer,
+      is_eligible_to_claim: isEligibleToClaim,
+      claimed_code: claimedCode,
+      referrals: referredRows.map((r) => ({
+        id: r.id,
+        status: r.status,
+        created_at: r.created_at.toISOString(),
+        rewarded_at: r.rewarded_at?.toISOString() ?? null
+      }))
+    };
+  });
+
+  const claimReferralSchema = z.object({
+    code: z.string().trim().min(2).max(50)
+  });
+
+  app.post('/v1/referrals/claim', { preHandler: authenticateRequest }, async (request) => {
+    const { code } = claimReferralSchema.parse(request.body ?? {});
+    const userId = request.auth.userId;
+    const cleanCode = code.trim().toUpperCase();
+
+    const [pastOrders] = await mysqlPool.query<Array<RowDataPacket & { count: number }>>(
+      `
+        SELECT COUNT(*) AS count
+        FROM orders
+        WHERE user_id = :userId
+          AND status IN ('paid', 'accepted', 'ready_for_pickup', 'collected')
+      `,
+      { userId }
+    );
+
+    if ((pastOrders[0]?.count ?? 0) > 0) {
+      throw new ApiError(
+        400,
+        'referral_not_eligible',
+        'Referral codes can only be claimed by new customers before placing their first order.'
+      );
+    }
+
+    const [existingClaim] = await mysqlPool.query<Array<RowDataPacket & { id: number }>>(
+      `
+        SELECT id
+        FROM referrals
+        WHERE referred_user_id = :userId
+        LIMIT 1
+      `,
+      { userId }
+    );
+
+    if (existingClaim.length > 0) {
+      throw new ApiError(
+        400,
+        'referral_already_claimed',
+        'You have already claimed a referral code.'
+      );
+    }
+
+    const codeSuffix = cleanCode.replace(/^C2-?/, '');
+    const [referrerRows] = await mysqlPool.query<
+      Array<RowDataPacket & { id: number; phone_e164: string }>
+    >(
+      `
+        SELECT id, phone_e164
+        FROM users
+        WHERE id != :userId
+          AND (
+            phone_e164 LIKE :phonePattern
+            OR id = :possibleId
+          )
+        LIMIT 1
+      `,
+      {
+        userId,
+        phonePattern: `%${codeSuffix}`,
+        possibleId: isNaN(Number(codeSuffix)) ? -1 : Number(codeSuffix)
+      }
+    );
+
+    const referrer = referrerRows[0];
+    if (!referrer) {
+      throw new ApiError(
+        404,
+        'referral_code_not_found',
+        'Invalid referral code. Please check and try again.'
+      );
+    }
+
+    if (referrer.id === userId) {
+      throw new ApiError(
+        400,
+        'cannot_refer_self',
+        'You cannot claim your own referral code.'
+      );
+    }
+
+    await mysqlPool.execute(
+      `
+        INSERT INTO referrals (
+          referrer_user_id,
+          referred_user_id,
+          referral_code_snapshot,
+          status,
+          created_at
+        )
+        VALUES (
+          :referrerUserId,
+          :referredUserId,
+          :codeSnapshot,
+          'pending',
+          UTC_TIMESTAMP()
+        )
+      `,
+      {
+        referrerUserId: referrer.id,
+        referredUserId: userId,
+        codeSnapshot: cleanCode
+      }
+    );
+
+    // Also grant new user a welcome voucher if they don't have one
+    const [templates] = await mysqlPool.query<Array<RowDataPacket & { id: number; expires_in_days: number }>>(
+      `SELECT id, expires_in_days FROM voucher_templates WHERE code IN ('WELCOME10', 'DIRECTPAY_RM5') AND is_active = 1`
+    );
+
+    for (const tpl of templates) {
+      await mysqlPool.execute(
+        `
+          INSERT IGNORE INTO user_vouchers (
+            user_id,
+            voucher_template_id,
+            status,
+            issued_by_type,
+            issued_reason,
+            issued_at,
+            expires_at
+          )
+          VALUES (
+            :userId,
+            :templateId,
+            'active',
+            'system',
+            'Referral Welcome Voucher',
+            UTC_TIMESTAMP(),
+            DATE_ADD(UTC_TIMESTAMP(), INTERVAL :days DAY)
+          )
+        `,
+        {
+          userId,
+          templateId: tpl.id,
+          days: tpl.expires_in_days || 30
+        }
+      );
+    }
+
+    return {
+      success: true,
+      message: 'Referral code claimed successfully!'
     };
   });
 }

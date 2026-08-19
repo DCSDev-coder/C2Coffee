@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 
 import 'api_config.dart';
 import 'auth_api_service.dart';
+import 'secure_session_service.dart';
 
 class StoreSummary {
   final int id;
@@ -109,6 +110,41 @@ class MenuCategoryGroup {
   }
 }
 
+class HomeBanner {
+  final String code;
+  final String title;
+  final String subtitle;
+  final String imageSource;
+  final String placement;
+  final int sortOrder;
+
+  const HomeBanner({
+    required this.code,
+    required this.title,
+    required this.subtitle,
+    required this.imageSource,
+    required this.placement,
+    required this.sortOrder,
+  });
+
+  bool get appearsOnHome =>
+      placement == 'home' || placement == 'both' || placement.isEmpty;
+
+  bool get appearsOnProfile =>
+      placement == 'profile' || placement == 'both' || placement.isEmpty;
+
+  factory HomeBanner.fromApi(Map<String, dynamic> json) {
+    return HomeBanner(
+      code: json['code'] as String? ?? '',
+      title: json['title'] as String? ?? '',
+      subtitle: json['subtitle'] as String? ?? '',
+      imageSource: json['image_source'] as String? ?? '',
+      placement: json['placement'] as String? ?? 'both',
+      sortOrder: (json['sort_order'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
 class BootstrapSnapshot {
   final CurrentUserProfile user;
   final int tokenBalance;
@@ -116,6 +152,7 @@ class BootstrapSnapshot {
   final int tokenCap;
   final String tier;
   final int cupsLast180d;
+  final List<HomeBanner> homeBanners;
 
   const BootstrapSnapshot({
     required this.user,
@@ -124,6 +161,7 @@ class BootstrapSnapshot {
     required this.tokenCap,
     required this.tier,
     required this.cupsLast180d,
+    required this.homeBanners,
   });
 }
 
@@ -144,6 +182,12 @@ class CatalogApiService {
     );
     final token = Map<String, dynamic>.from(response['token'] as Map);
     final loyalty = Map<String, dynamic>.from(response['loyalty'] as Map);
+    final homeBanners = (response['home_banners'] as List? ?? const [])
+        .map((banner) => HomeBanner.fromApi(
+              Map<String, dynamic>.from(banner as Map),
+            ))
+        .toList()
+      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
 
     return BootstrapSnapshot(
       user: user,
@@ -152,6 +196,7 @@ class CatalogApiService {
       tokenCap: (token['balance_cap'] as num?)?.toInt() ?? 0,
       tier: loyalty['tier'] as String? ?? 'kawan',
       cupsLast180d: (loyalty['cups_last_180d'] as num?)?.toInt() ?? 0,
+      homeBanners: homeBanners,
     );
   }
 
@@ -187,13 +232,27 @@ class CatalogApiService {
     String path, {
     required String accessToken,
   }) async {
-    final response = await _client.get(
+    http.Response response = await _client.get(
       Uri.parse('${ApiConfig.baseUrl}$path'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $accessToken',
       },
     ).timeout(const Duration(seconds: 15));
+
+    if (response.statusCode == 401) {
+      final refreshed =
+          await SecureSessionService.instance.refreshTokenSilently();
+      if (refreshed != null && refreshed.isNotEmpty) {
+        response = await _client.get(
+          Uri.parse('${ApiConfig.baseUrl}$path'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $refreshed',
+          },
+        ).timeout(const Duration(seconds: 15));
+      }
+    }
 
     final text = utf8.decode(response.bodyBytes);
     final decoded = text.isEmpty ? <String, dynamic>{} : jsonDecode(text);

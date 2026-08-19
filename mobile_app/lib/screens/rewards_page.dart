@@ -503,10 +503,10 @@ class _RewardsPageState extends State<RewardsPage> {
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Row(
             children: [
-              Expanded(child: _buildTierTab(0, 'Tier 1', 'Kawan', false)),
-              Expanded(child: _buildTierTab(1, 'Tier 2', 'Dilamun', false)),
-              Expanded(child: _buildTierTab(2, 'Tier 3', 'Ketagih', false)),
-              Expanded(child: _buildTierTab(3, 'Tier 4', 'Legend', false)),
+              Expanded(child: _buildTierTab(0, 'Tier 1', 'Kawan', 0 > _tierToIndex(_session.tier))),
+              Expanded(child: _buildTierTab(1, 'Tier 2', 'Dilamun', 1 > _tierToIndex(_session.tier))),
+              Expanded(child: _buildTierTab(2, 'Tier 3', 'Ketagih', 2 > _tierToIndex(_session.tier))),
+              Expanded(child: _buildTierTab(3, 'Tier 4', 'Legend', 3 > _tierToIndex(_session.tier))),
             ],
           ),
         ),

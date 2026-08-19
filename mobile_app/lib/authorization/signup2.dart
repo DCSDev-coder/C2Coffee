@@ -38,7 +38,6 @@ class _Signup2State extends State<Signup2> {
   final TextEditingController _postcodeController = TextEditingController();
   final TextEditingController _cityController = TextEditingController();
   final TextEditingController _stateController = TextEditingController();
-  final TextEditingController _referralCodeController = TextEditingController();
 
   String? _selectedGender;
   bool _agreedToTerms = false;
@@ -63,7 +62,6 @@ class _Signup2State extends State<Signup2> {
     _postcodeController.addListener(_onFieldChanged);
     _cityController.addListener(_onFieldChanged);
     _stateController.addListener(_onFieldChanged);
-    _referralCodeController.addListener(_onFieldChanged);
 
     if (widget.initialPickedImage != null) {
       _pickedImage = widget.initialPickedImage;
@@ -93,13 +91,11 @@ class _Signup2State extends State<Signup2> {
     _postcodeController.removeListener(_onFieldChanged);
     _cityController.removeListener(_onFieldChanged);
     _stateController.removeListener(_onFieldChanged);
-    _referralCodeController.removeListener(_onFieldChanged);
     _houseController.dispose();
     _streetController.dispose();
     _postcodeController.dispose();
     _cityController.dispose();
     _stateController.dispose();
-    _referralCodeController.dispose();
     super.dispose();
   }
 
@@ -643,15 +639,6 @@ class _Signup2State extends State<Signup2> {
                                       ),
                                     ],
                                   ),
-
-                                  const SizedBox(height: 10),
-
-                                  // Referral Code
-                                  _buildTextField(
-                                      label:
-                                          "Add your friend's referral code (Optional)",
-                                      hintText: "e.g. DSC123",
-                                      controller: _referralCodeController),
 
                                   const SizedBox(height: 16),
 

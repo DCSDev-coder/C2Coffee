@@ -11,6 +11,7 @@ import '../services/catalog_api_service.dart';
 import '../services/cart_service.dart';
 import '../services/secure_session_service.dart';
 import '../utils/app_colors.dart';
+import '../utils/global_state.dart';
 import '../widgets/custom_bottom_nav.dart';
 import '../widgets/order_status_banner.dart';
 import 'order_confirmation_page.dart';
@@ -57,22 +58,32 @@ class _OrdersPageState extends State<OrdersPage>
       initialIndex: widget.initialTabIndex,
     );
     _session.addListener(_handleSessionChanged);
+    globalOrderStatusRawStatus.addListener(_handleGlobalStatusChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadOrders();
     });
   }
 
+  void _handleGlobalStatusChanged() {
+    if (mounted && _activeOrder != null) {
+      if (_activeOrder!.status != globalOrderStatusRawStatus.value) {
+        _loadOrders(silent: true);
+      }
+    } else if (mounted && _activeOrder == null && globalOrderStatusRawStatus.value != null) {
+      _loadOrders(silent: true);
+    }
+  }
+
   @override
   void dispose() {
     _session.removeListener(_handleSessionChanged);
+    globalOrderStatusRawStatus.removeListener(_handleGlobalStatusChanged);
     _tabController.dispose();
     super.dispose();
   }
 
   void _handleSessionChanged() {
-    if (mounted) {
-      setState(() {});
-    }
+    // No-op: this page updates from explicit order refreshes only.
   }
 
   CustomerOrder? get _displayActiveOrder => _activeOrder;
@@ -80,6 +91,7 @@ class _OrdersPageState extends State<OrdersPage>
   List<CustomerOrder> get _displayHistoryOrders {
     final backendHistoryOrders =
         _orders.where((order) => !order.isActive).toList(growable: true);
+    backendHistoryOrders.sort((a, b) => b.id.compareTo(a.id));
     return backendHistoryOrders
         .take(_historyDisplayLimit)
         .toList(growable: false);
@@ -98,15 +110,24 @@ class _OrdersPageState extends State<OrdersPage>
     });
   }
 
-  Future<void> _loadOrders({bool forceSessionReload = false}) async {
-    setState(() {
-      _isOrdersLoading = true;
-      _ordersError = null;
-    });
+  Future<void> _loadOrders({
+    bool forceSessionReload = false,
+    bool silent = false,
+  }) async {
+    if (silent && _isOrdersLoading) {
+      return;
+    }
+
+    if (!silent) {
+      setState(() {
+        _isOrdersLoading = true;
+        _ordersError = null;
+      });
+    }
 
     try {
       await _session.loadAuthenticatedState(force: forceSessionReload);
-      final accessToken = await SecureSessionService.instance.getAccessToken();
+      final accessToken = await SecureSessionService.instance.getValidAccessToken();
       if (accessToken == null || accessToken.isEmpty) {
         throw ApiException(
           'Missing access token.',
@@ -129,16 +150,24 @@ class _OrdersPageState extends State<OrdersPage>
       });
     } on ApiException catch (error) {
       if (!mounted) return;
-      setState(() {
-        _ordersError = _friendlyMessage(error);
-        _isOrdersLoading = false;
-      });
+      if (!silent) {
+        setState(() {
+          _ordersError = _friendlyMessage(error);
+        });
+      }
     } catch (_) {
       if (!mounted) return;
-      setState(() {
-        _ordersError = 'Unable to load orders right now.';
-        _isOrdersLoading = false;
-      });
+      if (!silent) {
+        setState(() {
+          _ordersError = 'Unable to load orders right now.';
+        });
+      }
+    } finally {
+      if (mounted && !silent) {
+        setState(() {
+          _isOrdersLoading = false;
+        });
+      }
     }
   }
 
@@ -380,10 +409,10 @@ class _OrdersPageState extends State<OrdersPage>
   }
 
   Widget _buildOrderCard(CustomerOrder order, {bool isActive = false}) {
-    final createdLabel =
-        DateFormat('dd MMM yyyy, h:mm a').format(order.createdAt);
-    final pickupLabel =
-        DateFormat('dd MMM yyyy, h:mm a').format(order.pickupSlotAt);
+    final createdAt = _displayCreatedAt(order, isActive: isActive);
+    final createdLabel = DateFormat('dd MMM yyyy, h:mm a').format(createdAt);
+    final pickupAt = _displayPickupAt(order, isActive: isActive);
+    final pickupLabel = DateFormat('dd MMM yyyy, h:mm a').format(pickupAt);
     final orderNumber =
         order.dailyOrderNumber > 0 ? order.dailyOrderNumber : order.id;
     final orderTitle = 'Order #$orderNumber';
@@ -474,14 +503,15 @@ class _OrdersPageState extends State<OrdersPage>
             ),
           ),
           const SizedBox(height: 4),
-          Text(
-            'Pickup: $pickupLabel',
-            style: const TextStyle(
-              fontFamily: 'Afacad',
-              fontSize: 14,
-              color: Colors.black54,
+          if (!isActive)
+            Text(
+              'Pickup: $pickupLabel',
+              style: const TextStyle(
+                fontFamily: 'Afacad',
+                fontSize: 14,
+                color: Colors.black54,
+              ),
             ),
-          ),
           const SizedBox(height: 12),
           const Divider(height: 1),
           const SizedBox(height: 12),
@@ -509,31 +539,47 @@ class _OrdersPageState extends State<OrdersPage>
                 ),
               ),
           const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                order.paymentMode == 'token'
-                    ? '${order.tokenAmountCharged} tokens'
-                    : 'RM ${order.finalTotalRm}',
-                style: TextStyle(
-                  fontFamily: 'Recoleta',
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.gold,
-                ),
-              ),
-              if (order.paymentMode == 'token')
+          if (isActive)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
                 Text(
-                  'RM ${order.finalTotalRm}',
-                  style: const TextStyle(
-                    fontFamily: 'Afacad',
-                    fontSize: 14,
-                    color: Colors.black54,
+                  order.paymentMode == 'token'
+                      ? '${order.tokenAmountCharged} tokens'
+                      : 'RM ${order.finalTotalRm}',
+                  style: TextStyle(
+                    fontFamily: 'Recoleta',
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.gold,
                   ),
                 ),
-            ],
-          ),
+                if (order.paymentMode == 'token')
+                  Text(
+                    'RM ${order.finalTotalRm}',
+                    style: const TextStyle(
+                      fontFamily: 'Afacad',
+                      fontSize: 14,
+                      color: Colors.black54,
+                    ),
+                  ),
+              ],
+            )
+          else
+            Row(
+              children: [
+                const Spacer(),
+                Text(
+                  '${order.tokenAmountCharged} tokens',
+                  style: TextStyle(
+                    fontFamily: 'Recoleta',
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.gold,
+                  ),
+                ),
+              ],
+            ),
           if (showCollectedAction) ...[
             const SizedBox(height: 14),
             SizedBox(
@@ -585,6 +631,26 @@ class _OrdersPageState extends State<OrdersPage>
         ],
       ),
     );
+  }
+
+  DateTime _displayCreatedAt(CustomerOrder order, {required bool isActive}) {
+    if (isActive) {
+      return order.createdAt;
+    }
+
+    if (order.createdAt.isAfter(order.pickupSlotAt)) {
+      return order.createdAt.subtract(const Duration(hours: 8));
+    }
+
+    return order.createdAt;
+  }
+
+  DateTime _displayPickupAt(CustomerOrder order, {required bool isActive}) {
+    if (isActive) {
+      return order.pickupSlotAt;
+    }
+
+    return order.collectedAt ?? order.pickupSlotAt;
   }
 
   Future<void> _reorderOrder(CustomerOrder order) async {
@@ -694,7 +760,7 @@ class _OrdersPageState extends State<OrdersPage>
 
   Future<void> _collectOrder(CustomerOrder order) async {
     try {
-      final accessToken = await SecureSessionService.instance.getAccessToken();
+      final accessToken = await SecureSessionService.instance.getValidAccessToken();
       if (accessToken == null || accessToken.isEmpty) {
         throw ApiException(
           'Missing access token.',
@@ -708,7 +774,7 @@ class _OrdersPageState extends State<OrdersPage>
       );
 
       if (!mounted) return;
-      await _loadOrders(forceSessionReload: true);
+      await _loadOrders(forceSessionReload: true, silent: true);
     } on ApiException catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

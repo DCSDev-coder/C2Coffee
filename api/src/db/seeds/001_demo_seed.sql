@@ -156,6 +156,51 @@ ON DUPLICATE KEY UPDATE
   supports_pickup = VALUES(supports_pickup),
   pickup_lead_minutes = VALUES(pickup_lead_minutes);
 
+INSERT INTO home_banners (
+  code,
+  title,
+  subtitle,
+  image_source,
+  placement,
+  sort_order,
+  is_active
+)
+VALUES
+  (
+    'operation_hours',
+    'Operation Hours',
+    'Open daily with updated store hours and pickup coverage.',
+    'assets/images/operationhour.jpeg',
+    'both',
+    10,
+    1
+  ),
+  (
+    'happy_hour',
+    'Happy Hour',
+    'Limited-time rewards and extra reasons to stop by.',
+    'assets/images/happyhour.jpeg',
+    'both',
+    20,
+    1
+  ),
+  (
+    'emergency_notice',
+    'Emergency Notice',
+    'Important store advisories and service updates from the team.',
+    'assets/images/incaseofemergency.jpeg',
+    'both',
+    30,
+    1
+  )
+ON DUPLICATE KEY UPDATE
+  title = VALUES(title),
+  subtitle = VALUES(subtitle),
+  image_source = VALUES(image_source),
+  placement = VALUES(placement),
+  sort_order = VALUES(sort_order),
+  is_active = VALUES(is_active);
+
 INSERT INTO menu_categories (code, name, sort_order, is_active)
 VALUES
   ('coffee', 'Coffee', 10, 1),
@@ -698,3 +743,48 @@ ON DUPLICATE KEY UPDATE
   stack_rule = VALUES(stack_rule),
   expires_in_days = VALUES(expires_in_days),
   is_active = VALUES(is_active);
+
+-- Seed active vouchers for QA users
+INSERT INTO user_vouchers (
+  user_id,
+  voucher_template_id,
+  status,
+  issued_by_type,
+  issued_reason,
+  issued_at,
+  expires_at
+)
+SELECT
+  u.id,
+  vt.id,
+  'active',
+  'system',
+  'QA Demo Seed Welcome Voucher',
+  UTC_TIMESTAMP(),
+  DATE_ADD(UTC_TIMESTAMP(), INTERVAL 30 DAY)
+FROM users u
+JOIN voucher_templates vt ON vt.code = 'WELCOME10'
+WHERE u.phone_e164 IN ('+601200000101', '+601200000102')
+ON DUPLICATE KEY UPDATE status = VALUES(status);
+
+INSERT INTO user_vouchers (
+  user_id,
+  voucher_template_id,
+  status,
+  issued_by_type,
+  issued_reason,
+  issued_at,
+  expires_at
+)
+SELECT
+  u.id,
+  vt.id,
+  'active',
+  'system',
+  'QA Demo Seed Direct Pay Discount',
+  UTC_TIMESTAMP(),
+  DATE_ADD(UTC_TIMESTAMP(), INTERVAL 30 DAY)
+FROM users u
+JOIN voucher_templates vt ON vt.code = 'DIRECTPAY_RM5'
+WHERE u.phone_e164 IN ('+601200000101', '+601200000102')
+ON DUPLICATE KEY UPDATE status = VALUES(status);

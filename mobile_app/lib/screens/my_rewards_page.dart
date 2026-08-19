@@ -18,7 +18,6 @@ class MyRewardsPage extends StatefulWidget {
 
 class _MyRewardsPageState extends State<MyRewardsPage> {
   final AppSessionService _session = AppSessionService.instance;
-  int _selectedSubTab = 0;
   bool _isRewardsLoading = true;
   String? _rewardsError;
   List<RewardVoucher> _vouchers = const [];
@@ -52,7 +51,8 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
 
     try {
       await _session.loadAuthenticatedState(force: forceSessionReload);
-      final accessToken = await SecureSessionService.instance.getAccessToken();
+      final accessToken =
+          await SecureSessionService.instance.getValidAccessToken();
       if (accessToken == null || accessToken.isEmpty) {
         throw ApiException(
           'Missing access token.',
@@ -100,6 +100,8 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final activeCount = _vouchers.where((voucher) => voucher.isActive).length;
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: Stack(
@@ -122,31 +124,35 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
                       bottomRight: Radius.circular(20),
                     ),
                   ),
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: GestureDetector(
-                          onTap: () => InteractiveFillingLoader.showPop(context),
-                          child: const Icon(
-                            Icons.arrow_back_ios,
-                            color: Colors.white,
-                            size: 20,
+                  child: SizedBox(
+                    height: 48,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: GestureDetector(
+                            onTap: () =>
+                                InteractiveFillingLoader.showPop(context),
+                            child: const Icon(
+                              Icons.arrow_back_ios,
+                              color: Colors.white,
+                              size: 20,
+                            ),
                           ),
                         ),
-                      ),
-                      const Text(
-                        'MY REWARDS',
-                        style: TextStyle(
-                          fontFamily: 'Recoleta',
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                          letterSpacing: 1.0,
+                        const Text(
+                          'MY REWARDS',
+                          style: TextStyle(
+                            fontFamily: 'Recoleta',
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            letterSpacing: 1.0,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
                 Container(
@@ -154,16 +160,7 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
                   padding: const EdgeInsets.all(20),
                   child: Column(
                     children: [
-                      _buildTokensCard(),
-                      const SizedBox(height: 20),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _buildTabPill(0, 'Active'),
-                          const SizedBox(width: 12),
-                          _buildTabPill(1, 'Past'),
-                        ],
-                      ),
+                      _buildRewardsHeroCard(activeCount),
                     ],
                   ),
                 ),
@@ -171,9 +168,7 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(20),
-                  child: _selectedSubTab == 0
-                      ? _buildActiveRewards()
-                      : _buildPastRewards(),
+                  child: _buildActiveRewards(),
                 ),
               ],
             ),
@@ -186,51 +181,121 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
     );
   }
 
-  Widget _buildTokensCard() {
+  Widget _buildRewardsHeroCard(int activeCount) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border, width: 1),
+        gradient: LinearGradient(
+          colors: [
+            AppColors.deepTeal,
+            AppColors.deepTeal.withValues(alpha: 0.88),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(22),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: AppColors.deepTeal.withValues(alpha: 0.18),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Stack(
         children: [
-          Text(
-            'Reward tokens',
-            style: TextStyle(
-              fontFamily: 'Afacad',
-              fontSize: 16,
-              color: AppColors.deepTeal,
-              fontWeight: FontWeight.w600,
+          Positioned(
+            right: -10,
+            top: -12,
+            child: Container(
+              width: 92,
+              height: 92,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withValues(alpha: 0.08),
+              ),
+            ),
+          ),
+          Positioned(
+            right: 72,
+            bottom: -30,
+            child: Container(
+              width: 70,
+              height: 70,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.gold.withValues(alpha: 0.12),
+              ),
             ),
           ),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Image.asset(
-                'assets/images/coin.png',
-                width: 32,
-                height: 32,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                '${_session.tokenBalance}',
-                style: TextStyle(
-                  fontFamily: 'Recoleta',
-                  fontSize: 48,
-                  fontWeight: FontWeight.normal,
-                  color: AppColors.deepTeal,
-                  height: 1.0,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: const Text(
+                        'Rewards hub',
+                        style: TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    const Text(
+                      'Your rewards, all in one place',
+                      style: TextStyle(
+                        fontFamily: 'Recoleta',
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        height: 1.15,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Active vouchers stay aligned with checkout and reward history.',
+                      style: TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 14,
+                        color: Colors.white.withValues(alpha: 0.88),
+                        height: 1.35,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [
+                        _buildHeroStatChip('$activeCount',
+                            'Active voucher${activeCount == 1 ? '' : 's'}'),
+                      ],
+                    ),
+                  ],
                 ),
+              ),
+              const SizedBox(width: 14),
+              Image.asset(
+                'assets/images/voucher.png',
+                width: 90,
+                height: 90,
+                fit: BoxFit.contain,
+                color: Colors.white,
+                colorBlendMode: BlendMode.srcIn,
               ),
             ],
           ),
@@ -239,30 +304,37 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
     );
   }
 
-  Widget _buildTabPill(int index, String label) {
-    final selected = _selectedSubTab == index;
-    return GestureDetector(
-      onTap: () => setState(() => _selectedSubTab = index),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 10),
-        decoration: BoxDecoration(
-          color: selected ? AppColors.deepTeal : AppColors.surfaceLight,
-          borderRadius: BorderRadius.circular(50),
-          border: Border.all(
-            color: selected ? AppColors.deepTeal : AppColors.border,
-            width: 1,
+  Widget _buildHeroStatChip(String value, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            value,
+            style: const TextStyle(
+              fontFamily: 'Recoleta',
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
           ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontFamily: 'Afacad',
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-            color: selected ? Colors.white : AppColors.deepTeal,
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'Afacad',
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Colors.white.withValues(alpha: 0.9),
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -285,7 +357,8 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
       );
     }
 
-    final activeVouchers = _vouchers.where((voucher) => voucher.isActive).toList();
+    final activeVouchers =
+        _vouchers.where((voucher) => voucher.isActive).toList();
     if (activeVouchers.isNotEmpty) {
       return Column(
         children: [
@@ -303,55 +376,27 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
     );
   }
 
-  Widget _buildPastRewards() {
-    if (_isRewardsLoading) {
-      return _buildMessageCard(
-        title: 'Loading reward history...',
-        message: 'Please wait while we refresh your rewards.',
-        showSpinner: true,
-      );
-    }
-
-    if (_rewardsError != null) {
-      return _buildMessageCard(
-        title: 'Unable to load rewards',
-        message: _rewardsError!,
-        actionLabel: 'Try Again',
-        onPressed: () => _loadRewards(forceSessionReload: true),
-      );
-    }
-
-    final pastVouchers = _vouchers.where((voucher) => !voucher.isActive).toList();
-    if (pastVouchers.isNotEmpty) {
-      return Column(
-        children: [
-          for (var i = 0; i < pastVouchers.length; i++) ...[
-            _buildVoucherCard(pastVouchers[i]),
-            if (i < pastVouchers.length - 1) const SizedBox(height: 12),
-          ],
-        ],
-      );
-    }
-
-    return _buildMessageCard(
-      title: 'No past rewards found',
-      message: 'Used, expired, or revoked rewards will appear here.',
-    );
-  }
-
   Widget _buildVoucherCard(RewardVoucher voucher) {
-    final expiryLabel = DateFormat('dd MMM yyyy, h:mm a').format(voucher.expiresAt);
+    final expiryLabel = DateFormat('dd MMM yyyy').format(voucher.expiresAt);
+    final isActive = voucher.isActive;
+    final statusColor = isActive ? AppColors.deepTeal : Colors.grey.shade600;
+    final accentColor = isActive ? AppColors.gold : AppColors.border;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border, width: 1),
+        color: isActive ? Colors.white : AppColors.surfaceLight,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: isActive
+              ? AppColors.deepTeal.withValues(alpha: 0.18)
+              : AppColors.border,
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 8,
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
             offset: const Offset(0, 2),
           ),
         ],
@@ -363,19 +408,11 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                width: 6,
+                height: 56,
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceLight,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  _voucherBadge(voucher),
-                  style: TextStyle(
-                    fontFamily: 'Recoleta',
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.deepTeal,
-                  ),
+                  color: accentColor,
+                  borderRadius: BorderRadius.circular(999),
                 ),
               ),
               const SizedBox(width: 12),
@@ -383,23 +420,67 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      voucher.template.name,
-                      style: TextStyle(
-                        fontFamily: 'Recoleta',
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.deepTeal,
-                      ),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            voucher.template.name,
+                            style: TextStyle(
+                              fontFamily: 'Recoleta',
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.deepTeal,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isActive
+                                ? AppColors.surfaceLight
+                                : Colors.white,
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(color: accentColor, width: 1),
+                          ),
+                          child: Text(
+                            _voucherBadge(voucher),
+                            style: TextStyle(
+                              fontFamily: 'Afacad',
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.deepTeal,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 4),
                     Text(
                       'Status: ${_capitalize(voucher.status)}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: 'Afacad',
                         fontSize: 13,
-                        color: Colors.black54,
+                        color: statusColor,
                       ),
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _buildInfoChip('Code', voucher.template.code),
+                        _buildInfoChip('Expires', expiryLabel),
+                        if (voucher.template.minSpendRm != null)
+                          _buildInfoChip(
+                            'Min spend',
+                            'RM ${voucher.template.minSpendRm}',
+                          ),
+                      ],
                     ),
                   ],
                 ),
@@ -407,44 +488,79 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
             ],
           ),
           const SizedBox(height: 14),
-          Text(
-            'Code: ${voucher.template.code}',
-            style: const TextStyle(
-              fontFamily: 'Afacad',
-              fontSize: 14,
-              color: Colors.black87,
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.border, width: 1),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Issued for',
+                  style: TextStyle(
+                    fontFamily: 'Afacad',
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black45,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  voucher.issuedReason,
+                  style: const TextStyle(
+                    fontFamily: 'Afacad',
+                    fontSize: 14,
+                    color: Colors.black87,
+                    height: 1.35,
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 10),
           Text(
-            'Expires: $expiryLabel',
+            isActive
+                ? 'Use this voucher during checkout.'
+                : voucher.redeemedAt != null
+                    ? 'This voucher has already been redeemed.'
+                    : 'This voucher is part of your reward history.',
             style: const TextStyle(
               fontFamily: 'Afacad',
-              fontSize: 14,
+              fontSize: 13,
               color: Colors.black54,
             ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            'Issued reason: ${voucher.issuedReason}',
-            style: const TextStyle(
-              fontFamily: 'Afacad',
-              fontSize: 14,
-              color: Colors.black54,
-            ),
-          ),
-          if (voucher.template.minSpendRm != null) ...[
-            const SizedBox(height: 4),
-            Text(
-              'Min spend: RM ${voucher.template.minSpendRm}',
-              style: const TextStyle(
-                fontFamily: 'Afacad',
-                fontSize: 14,
-                color: Colors.black54,
-              ),
-            ),
-          ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildInfoChip(String label, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceLight,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: RichText(
+        text: TextSpan(
+          style: TextStyle(
+            fontFamily: 'Afacad',
+            fontSize: 12,
+            color: Colors.black87,
+          ),
+          children: [
+            TextSpan(
+              text: '$label: ',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            TextSpan(text: value),
+          ],
+        ),
       ),
     );
   }

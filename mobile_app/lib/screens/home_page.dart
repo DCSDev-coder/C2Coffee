@@ -53,12 +53,6 @@ class _HomePageState extends State<HomePage> {
   Timer? _carouselTimer;
   int _currentBannerIndex = 0;
 
-  final List<String> _banners = const [
-    'assets/images/operationhour.jpeg',
-    'assets/images/happyhour.jpeg',
-    'assets/images/incaseofemergency.jpeg',
-  ];
-
   @override
   void initState() {
     super.initState();
@@ -69,8 +63,10 @@ class _HomePageState extends State<HomePage> {
       } catch (_) {}
     });
     _carouselTimer = Timer.periodic(const Duration(seconds: 4), (_) {
-      if (!_pageController.hasClients) return;
-      _currentBannerIndex = (_currentBannerIndex + 1) % _banners.length;
+      final banners =
+          _session.homeBanners.where((banner) => banner.appearsOnHome).toList();
+      if (!_pageController.hasClients || banners.isEmpty) return;
+      _currentBannerIndex = (_currentBannerIndex + 1) % banners.length;
       _pageController.animateToPage(
         _currentBannerIndex,
         duration: const Duration(milliseconds: 350),
@@ -152,7 +148,8 @@ class _HomePageState extends State<HomePage> {
         if (item.isAvailable &&
             CatalogPresentation.isDrinkCategory(category.name, item)) {
           items.add(
-            CatalogPresentation.toLegacyItem(item, category.code, category.name),
+            CatalogPresentation.toLegacyItem(
+                item, category.code, category.name),
           );
         }
       }
@@ -167,7 +164,8 @@ class _HomePageState extends State<HomePage> {
         if (item.isAvailable &&
             CatalogPresentation.isLifestyleCategory(category.name, item)) {
           items.add(
-            CatalogPresentation.toLegacyItem(item, category.code, category.name),
+            CatalogPresentation.toLegacyItem(
+                item, category.code, category.name),
           );
         }
       }
@@ -478,6 +476,35 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildHeroBanner() {
+    final banners =
+        _session.homeBanners.where((banner) => banner.appearsOnHome).toList();
+
+    if (banners.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: Container(
+          decoration: BoxDecoration(
+            color: AppColors.surfaceLight,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: AppColors.border, width: 1),
+          ),
+          child: const Center(
+            child: Padding(
+              padding: EdgeInsets.all(24),
+              child: Text(
+                'Promotions will appear here once marketing updates them.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'Afacad',
+                  color: Colors.black54,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: ClipRRect(
@@ -486,14 +513,56 @@ class _HomePageState extends State<HomePage> {
           children: [
             PageView.builder(
               controller: _pageController,
-              itemCount: _banners.length,
+              itemCount: banners.length,
               onPageChanged: (index) =>
                   setState(() => _currentBannerIndex = index),
               itemBuilder: (context, index) {
-                return Image.asset(
-                  _banners[index],
-                  width: double.infinity,
-                  fit: BoxFit.cover,
+                final banner = banners[index];
+                return Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    _buildBannerImage(banner.imageSource),
+                    Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.transparent,
+                            Colors.black.withValues(alpha: 0.55),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(18),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            banner.title,
+                            style: const TextStyle(
+                              fontFamily: 'Recoleta',
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            banner.subtitle,
+                            style: const TextStyle(
+                              fontFamily: 'Afacad',
+                              fontSize: 14,
+                              color: Colors.white,
+                              height: 1.35,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 );
               },
             ),
@@ -504,7 +573,7 @@ class _HomePageState extends State<HomePage> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: List.generate(
-                  _banners.length,
+                  banners.length,
                   (index) => AnimatedContainer(
                     duration: const Duration(milliseconds: 300),
                     margin: const EdgeInsets.symmetric(horizontal: 4),
@@ -523,6 +592,22 @@ class _HomePageState extends State<HomePage> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildBannerImage(String source) {
+    if (source.startsWith('http://') || source.startsWith('https://')) {
+      return Image.network(
+        source,
+        width: double.infinity,
+        fit: BoxFit.cover,
+      );
+    }
+
+    return Image.asset(
+      source,
+      width: double.infinity,
+      fit: BoxFit.cover,
     );
   }
 
@@ -864,9 +949,9 @@ class _HomePageState extends State<HomePage> {
               },
             ),
           ),
-        ],
-      );
-    }
+      ],
+    );
+  }
 
   Widget _buildErrorCard(String message, {required VoidCallback onRetry}) {
     return Padding(

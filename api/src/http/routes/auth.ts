@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import type { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { z } from 'zod';
 import { env } from '../../config/env.js';
-import { mysqlPool } from '../../db/mysql.js';
+import { getUtcConnection, mysqlPool } from '../../db/mysql.js';
 import { ApiError } from '../errors.js';
 import { generateOpaqueToken, generateOtpCode, hashSha256, otpMatches } from '../../lib/crypto.js';
 import { normalizePhoneE164 } from '../../lib/phone.js';
@@ -170,7 +170,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
       throw new ApiError(400, 'invalid_request_id', 'OTP request ID is invalid.');
     }
 
-    const connection = await mysqlPool.getConnection();
+    const connection = await getUtcConnection();
     let transactionClosed = false;
 
     try {
@@ -608,6 +608,32 @@ async function findOrCreateUserForPhone(
       userId: userInsert.insertId,
       deviceId
     }
+  );
+
+  await connection.execute(
+    `
+      INSERT INTO user_vouchers (
+        user_id,
+        voucher_template_id,
+        status,
+        issued_by_type,
+        issued_reason,
+        issued_at,
+        expires_at
+      )
+      SELECT
+        :userId,
+        vt.id,
+        'active',
+        'system',
+        'Welcome drink voucher upon registration',
+        UTC_TIMESTAMP(),
+        DATE_ADD(UTC_TIMESTAMP(), INTERVAL vt.expires_in_days DAY)
+      FROM voucher_templates vt
+      WHERE vt.code = 'WELCOME10' AND vt.is_active = 1
+      LIMIT 1
+    `,
+    { userId: userInsert.insertId }
   );
 
   return {

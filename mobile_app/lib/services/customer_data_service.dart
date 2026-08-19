@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 
 import 'api_config.dart';
 import 'auth_api_service.dart';
+import 'secure_session_service.dart';
 
 class WalletTransaction {
   final int id;
@@ -37,7 +38,7 @@ class WalletTransaction {
       amount: (json['amount'] as num?)?.toInt() ?? 0,
       balanceAfter: (json['balance_after'] as num?)?.toInt() ?? 0,
       remarks: json['remarks'] as String?,
-      createdAt: DateTime.parse(json['created_at'] as String),
+      createdAt: _parseApiDate(json['created_at'] as String),
     );
   }
 }
@@ -113,8 +114,8 @@ class RewardVoucher {
       issuedReason: json['issued_reason'] as String? ?? '',
       issueCaseRef: json['issue_case_ref'] as String?,
       tierAtIssue: json['tier_at_issue'] as String?,
-      issuedAt: DateTime.parse(json['issued_at'] as String),
-      expiresAt: DateTime.parse(json['expires_at'] as String),
+      issuedAt: _parseApiDate(json['issued_at'] as String),
+      expiresAt: _parseApiDate(json['expires_at'] as String),
       redeemedAt: _parseNullableDate(json['redeemed_at'] as String?),
       revokedAt: _parseNullableDate(json['revoked_at'] as String?),
       revokedReason: json['revoked_reason'] as String?,
@@ -228,7 +229,7 @@ class CustomerOrderStatusEvent {
       fromStatus: json['from_status'] as String?,
       toStatus: json['to_status'] as String? ?? '',
       reason: json['reason'] as String?,
-      createdAt: DateTime.parse(json['created_at'] as String),
+      createdAt: _parseApiDate(json['created_at'] as String),
     );
   }
 }
@@ -242,6 +243,7 @@ class CustomerOrder {
   final String finalTotalRm;
   final int tokenAmountCharged;
   final DateTime pickupSlotAt;
+  final DateTime? collectedAt;
   final DateTime createdAt;
   final CustomerOrderStore store;
   final int itemCount;
@@ -258,6 +260,7 @@ class CustomerOrder {
     required this.finalTotalRm,
     required this.tokenAmountCharged,
     required this.pickupSlotAt,
+    required this.collectedAt,
     required this.createdAt,
     required this.store,
     required this.itemCount,
@@ -279,6 +282,7 @@ class CustomerOrder {
       finalTotalRm: finalTotalRm,
       tokenAmountCharged: tokenAmountCharged,
       pickupSlotAt: pickupSlotAt,
+      collectedAt: collectedAt,
       createdAt: createdAt,
       store: store,
       itemCount: itemCount,
@@ -310,8 +314,9 @@ class CustomerOrder {
       paymentMode: json['payment_mode'] as String? ?? '',
       finalTotalRm: json['final_total_rm'] as String? ?? '0.00',
       tokenAmountCharged: (json['token_amount_charged'] as num?)?.toInt() ?? 0,
-      pickupSlotAt: DateTime.parse(json['pickup_slot_at'] as String),
-      createdAt: DateTime.parse(json['created_at'] as String),
+      pickupSlotAt: _parseApiDate(json['pickup_slot_at'] as String),
+      collectedAt: _parseNullableDate(json['collected_at'] as String?),
+      createdAt: _parseApiDate(json['created_at'] as String),
       store: CustomerOrderStore.fromApi(
         Map<String, dynamic>.from(json['store'] as Map),
       ),
@@ -339,6 +344,38 @@ class CustomerOrdersSnapshot {
     required this.activeOrder,
     required this.orders,
   });
+}
+
+class ReferralSnapshot {
+  final String referralCode;
+  final String shareUrl;
+  final int friendsInvited;
+  final int rewardsClaimed;
+  final bool hasClaimedReferrer;
+  final bool isEligibleToClaim;
+  final String? claimedCode;
+
+  const ReferralSnapshot({
+    required this.referralCode,
+    required this.shareUrl,
+    required this.friendsInvited,
+    required this.rewardsClaimed,
+    required this.hasClaimedReferrer,
+    this.isEligibleToClaim = true,
+    this.claimedCode,
+  });
+
+  factory ReferralSnapshot.fromApi(Map<String, dynamic> json) {
+    return ReferralSnapshot(
+      referralCode: (json['referral_code'] as String?) ?? 'C2-MEMBER',
+      shareUrl: (json['share_url'] as String?) ?? 'https://c2coffee.app',
+      friendsInvited: (json['friends_invited'] as num?)?.toInt() ?? 0,
+      rewardsClaimed: (json['rewards_claimed'] as num?)?.toInt() ?? 0,
+      hasClaimedReferrer: (json['has_claimed_referrer'] as bool?) ?? false,
+      isEligibleToClaim: (json['is_eligible_to_claim'] as bool?) ?? false,
+      claimedCode: json['claimed_code'] as String?,
+    );
+  }
 }
 
 class CustomerDataService {
@@ -404,17 +441,117 @@ class CustomerDataService {
     );
   }
 
+  Future<Map<String, dynamic>> topUpWallet({
+    required String accessToken,
+    required int tokenAmount,
+    String provider = 'touch_n_go_sandbox',
+  }) async {
+    return _post(
+      '/wallet/topup',
+      accessToken: accessToken,
+      body: {
+        'token_amount': tokenAmount,
+        'provider': provider,
+      },
+    );
+  }
+
+  Future<ReferralSnapshot> getReferralInfo({
+    required String accessToken,
+  }) async {
+    final response = await _get(
+      '/referrals',
+      accessToken: accessToken,
+    );
+    return ReferralSnapshot.fromApi(response);
+  }
+
+  Future<void> claimReferralCode({
+    required String accessToken,
+    required String code,
+  }) async {
+    await _post(
+      '/referrals/claim',
+      accessToken: accessToken,
+      body: {'code': code},
+    );
+  }
+
+  Future<Map<String, dynamic>> _post(
+    String path, {
+    required String accessToken,
+    required Map<String, dynamic> body,
+  }) async {
+    http.Response response = await _client.post(
+      Uri.parse('${ApiConfig.baseUrl}$path'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $accessToken',
+      },
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 20));
+
+    if (response.statusCode == 401) {
+      final refreshed =
+          await SecureSessionService.instance.refreshTokenSilently();
+      if (refreshed != null && refreshed.isNotEmpty) {
+        response = await _client.post(
+          Uri.parse('${ApiConfig.baseUrl}$path'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $refreshed',
+          },
+          body: jsonEncode(body),
+        ).timeout(const Duration(seconds: 20));
+      }
+    }
+
+    final text = utf8.decode(response.bodyBytes);
+    final decoded = text.isEmpty ? <String, dynamic>{} : jsonDecode(text);
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return Map<String, dynamic>.from(decoded as Map);
+    }
+
+    final data = decoded is Map
+        ? Map<String, dynamic>.from(decoded)
+        : <String, dynamic>{};
+    final error = data['error'];
+    if (error is Map<String, dynamic>) {
+      throw ApiException(
+        (error['message'] as String?) ?? 'Request failed.',
+        code: error['code'] as String?,
+      );
+    }
+
+    throw ApiException('Request failed with status ${response.statusCode}.');
+  }
+
   Future<Map<String, dynamic>> _get(
     String path, {
     required String accessToken,
   }) async {
-    final response = await _client.get(
+    http.Response response = await _client.get(
       Uri.parse('${ApiConfig.baseUrl}$path'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $accessToken',
       },
     ).timeout(const Duration(seconds: 15));
+
+    if (response.statusCode == 401) {
+      final refreshed =
+          await SecureSessionService.instance.refreshTokenSilently();
+      if (refreshed != null && refreshed.isNotEmpty) {
+        response = await _client.get(
+          Uri.parse('${ApiConfig.baseUrl}$path'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $refreshed',
+          },
+        ).timeout(const Duration(seconds: 15));
+      }
+    }
 
     final text = utf8.decode(response.bodyBytes);
     final decoded = text.isEmpty ? <String, dynamic>{} : jsonDecode(text);
@@ -440,5 +577,9 @@ class CustomerDataService {
 
 DateTime? _parseNullableDate(String? value) {
   if (value == null || value.isEmpty) return null;
-  return DateTime.parse(value);
+  return DateTime.parse(value).toLocal();
+}
+
+DateTime _parseApiDate(String value) {
+  return DateTime.parse(value).toLocal();
 }
