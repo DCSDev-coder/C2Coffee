@@ -117,6 +117,7 @@ class AppPageShell extends StatelessWidget {
         Expanded(
           child: SafeArea(
             top: false,
+            bottom: false,
             child: !scrollable
                 ? Padding(padding: effectiveBodyPadding, child: child)
                 : onRefresh != null

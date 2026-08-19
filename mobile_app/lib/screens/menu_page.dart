@@ -246,17 +246,7 @@ class _MenuPageState extends State<MenuPage> {
                     key: const ValueKey('menuHeader'),
                     alignment: Alignment.center,
                     children: [
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: GestureDetector(
-                          onTap: () => InteractiveFillingLoader.showPop(context),
-                          child: const Icon(
-                            Icons.arrow_back_ios,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                        ),
-                      ),
+
                       const Text(
                         'MENU',
                         style: TextStyle(
