@@ -11,6 +11,7 @@ import 'dart:io';
 import '../widgets/order_status_banner.dart';
 import 'my_rewards_page.dart';
 import '../utils/app_colors.dart';
+import '../widgets/app_page_shell.dart';
 
 class RewardsPage extends StatefulWidget {
   final File? initialPickedImage;
@@ -131,107 +132,64 @@ class _RewardsPageState extends State<RewardsPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      key: _scaffoldKey,
-      backgroundColor: beigeBg,
+    return AppPageShell(
+      scaffoldKey: _scaffoldKey,
       endDrawer: _buildFaqsDrawer(),
       onEndDrawerChanged: (isOpen) {
         setState(() {
           _isFaqsOpen = isOpen;
         });
       },
-      extendBody: true,
+      title: 'C2 COFFEE SQUAD',
+      titleWidget: Column(
+        children: [
+          const Text(
+            'C2 COFFEE SQUAD',
+            style: TextStyle(
+              fontFamily: 'Recoleta',
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+              letterSpacing: 1.0,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            'current tier ${_tierLabel(_tierToIndex(_session.tier))}',
+            style: const TextStyle(
+              fontFamily: 'Afacad',
+              fontSize: 12,
+              color: Colors.white70,
+            ),
+          ),
+        ],
+      ),
+      onBack: () {}, showBackButton: false,
+      backgroundColor: beigeBg,
+      scrollController: _scrollController,
+      bodyPadding: const EdgeInsets.only(bottom: 130),
       bottomNavigationBar: CustomBottomNav(
         selectedIndex: 3,
         onItemTapped: _onBottomNavTapped,
         scrollController: _scrollController,
       ),
-      body: Stack(
+      extendBody: true,
+      overlay: OrderStatusBanner(
+        bottomOffset: 90 + MediaQuery.paddingOf(context).bottom,
+      ),
+      child: Column(
         children: [
-          Column(
-            children: [
-              _buildHeader(),
-              Expanded(
-                child: SingleChildScrollView(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.only(bottom: 130),
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 16),
-                      _buildPointsCard(),
-                      const SizedBox(height: 16),
-                      _buildActionCards(),
-                      const SizedBox(height: 24),
-                      _buildTierSection(),
-                      const SizedBox(height: 24),
-                      _buildFaqsCard(),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          OrderStatusBanner(
-              bottomOffset: 90 + MediaQuery.paddingOf(context).bottom),
+          const SizedBox(height: 16),
+          _buildPointsCard(),
+          const SizedBox(height: 16),
+          _buildActionCards(),
+          const SizedBox(height: 24),
+          _buildTierSection(),
+          const SizedBox(height: 24),
+          _buildFaqsCard(),
         ],
       ),
     );
-  }
-
-  Widget _buildHeader() {
-    return Container(
-        width: double.infinity,
-        padding: EdgeInsets.only(
-            top: MediaQuery.paddingOf(context).top + 14,
-            bottom: 16,
-            left: 20,
-            right: 20),
-        decoration: BoxDecoration(
-          color: AppColors.deepTeal,
-          borderRadius: const BorderRadius.only(
-            bottomLeft: Radius.circular(20),
-            bottomRight: Radius.circular(20),
-          ),
-        ),
-        child: SizedBox(
-          height: 48,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              Align(
-                alignment: Alignment.centerLeft,
-                child: GestureDetector(
-                  onTap: () => InteractiveFillingLoader.showPop(context),
-                  child: const Icon(Icons.arrow_back_ios,
-                      color: Colors.white, size: 20),
-                ),
-              ),
-              Column(
-                children: [
-                  const Text(
-                    'C2 COFFEE SQUAD',
-                    style: TextStyle(
-                      fontFamily: 'Recoleta',
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      letterSpacing: 1.0,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'current tier ${_tierLabel(_tierToIndex(_session.tier))}',
-                    style: const TextStyle(
-                      fontFamily: 'Afacad',
-                      fontSize: 12,
-                      color: Colors.white70,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ));
   }
 
   Widget _buildPointsCard() {
@@ -255,75 +213,94 @@ class _RewardsPageState extends State<RewardsPage> {
       ),
       child: Column(
         children: [
+          // Card image
+          Center(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Image.asset(
+                'assets/images/card.png',
+                fit: BoxFit.contain,
+                height: 240,
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          // Tokens and Cups
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Card image
+              // Tokens
               Expanded(
-                flex: 5,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: Image.asset(
-                    'assets/images/card.png',
-                    fit: BoxFit.contain,
-                  ),
+                child: Column(
+                  children: [
+                    Text(
+                      '${_session.tokenBalance}',
+                      style: TextStyle(
+                        fontFamily: 'Recoleta',
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.softGold,
+                        height: 1.1,
+                      ),
+                    ),
+                    const Text(
+                      'tokens',
+                      style: TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 16,
+                        color: Colors.black54,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 16),
-              // Points status
+              Container(
+                width: 1,
+                height: 50,
+                color: AppColors.border,
+              ),
+              // Cups
               Expanded(
-                flex: 4,
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      const Text(
-                        'you have',
-                        style: TextStyle(
-                          fontFamily: 'Afacad',
-                          fontSize: 14,
-                          color: Colors.black54,
+                child: Column(
+                  children: [
+                    Text(
+                      '${_session.cupsLast180d}',
+                      style: TextStyle(
+                        fontFamily: 'Recoleta',
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.deepTeal,
+                        height: 1.1,
+                      ),
+                    ),
+                    const Text(
+                      'cups collected',
+                      style: TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 16,
+                        color: Colors.black54,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    // Progress bar
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value: _session.cupsLast180d / _getMaxCupsForTier(),
+                          backgroundColor: Colors.grey[200],
+                          valueColor: AlwaysStoppedAnimation<Color>(AppColors.deepTeal),
+                          minHeight: 8,
                         ),
                       ),
-                      Text(
-                        '${_session.tokenBalance} tokens',
-                        style: TextStyle(
-                          fontFamily: 'Recoleta',
-                          fontSize: 26,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.softGold,
-                          height: 1.1,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        '${_session.cupsLast180d}',
-                        style: TextStyle(
-                          fontFamily: 'Recoleta',
-                          fontSize: 42,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.deepTeal,
-                          height: 1.0,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'cups collected in the last 180 days',
-                        style: TextStyle(
-                          fontFamily: 'Afacad',
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.deepTeal,
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           Text(
             _session.bootstrapError ??
                 "*Promo or free drinks don't earn cups and don't count toward rewards or tier upgrades.",
@@ -337,6 +314,16 @@ class _RewardsPageState extends State<RewardsPage> {
         ],
       ),
     );
+  }
+
+  int _getMaxCupsForTier() {
+    switch (_tierToIndex(_session.tier)) {
+      case 0: return 20; // Kawan
+      case 1: return 50; // Dilamun
+      case 2: return 100; // Ketagih
+      case 3: return 100; // Legend (max tier)
+      default: return 20;
+    }
   }
 
   Widget _buildActionCards() {
@@ -670,6 +657,8 @@ class _RewardsPageState extends State<RewardsPage> {
 
   Widget _buildTierTab(int index, String title, String subtitle, bool locked) {
     bool isSelected = index == _selectedTier;
+    bool isCurrentActualTier = index == _tierToIndex(_session.tier);
+    
     Color bgColor = locked
         ? AppColors.surfaceLight
         : (isSelected ? AppColors.surfaceLight : Colors.white);
@@ -685,55 +674,84 @@ class _RewardsPageState extends State<RewardsPage> {
           });
         }
       },
-      child: Container(
-        margin: const EdgeInsets.only(right: 1),
-        padding: const EdgeInsets.symmetric(horizontal: 1, vertical: 12),
-        decoration: BoxDecoration(
-          color: bgColor,
-          border: Border.all(
-            color: isSelected ? AppColors.border : AppColors.surfaceLight,
-            width: 1,
-          ),
-          borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(16),
-            topRight: Radius.circular(16),
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (locked) Icon(Icons.lock, size: 12, color: textColor),
-            if (locked) const SizedBox(width: 2),
-            Flexible(
-              child: Column(
-                children: [
-                  Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontFamily: 'Afacad',
-                      fontSize: 12.5,
-                      color: textColor,
-                    ),
-                  ),
-                  Text(
-                    subtitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontFamily: 'Recoleta',
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: textColor,
-                    ),
-                  ),
-                ],
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            margin: const EdgeInsets.only(right: 1),
+            padding: const EdgeInsets.symmetric(horizontal: 1, vertical: 12),
+            decoration: BoxDecoration(
+              color: bgColor,
+              border: Border.all(
+                color: isSelected ? AppColors.border : AppColors.surfaceLight,
+                width: 1,
+              ),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
               ),
             ),
-            if (locked) const SizedBox(width: 14),
-          ],
-        ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (locked) Icon(Icons.lock, size: 12, color: textColor),
+                if (locked) const SizedBox(width: 2),
+                Flexible(
+                  child: Column(
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 12.5,
+                          color: textColor,
+                        ),
+                      ),
+                      Text(
+                        subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: 'Recoleta',
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: textColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (locked) const SizedBox(width: 14),
+              ],
+            ),
+          ),
+          if (isCurrentActualTier)
+            Positioned(
+              top: -8,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.deepTeal,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Text(
+                    'Current',
+                    style: TextStyle(
+                      fontFamily: 'Afacad',
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

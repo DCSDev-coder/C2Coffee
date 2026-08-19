@@ -1,54 +1,19 @@
 import 'package:flutter/material.dart';
 import '../utils/app_colors.dart';
+import '../widgets/app_page_shell.dart';
 
 class AboutUsPage extends StatelessWidget {
   const AboutUsPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return AppPageShell(
+      title: 'ABOUT US',
+      onBack: () => Navigator.pop(context),
       backgroundColor: Colors.white,
-      body: Column(
+      child: Column(
         children: [
-          // Header
-          Container(
-            width: double.infinity,
-            padding: EdgeInsets.only(
-                top: MediaQuery.paddingOf(context).top + 14,
-                bottom: 16,
-                left: 20,
-                right: 20),
-            decoration: BoxDecoration(
-              color: AppColors.deepTeal,
-              borderRadius: const BorderRadius.only(
-                bottomLeft: Radius.circular(20),
-                bottomRight: Radius.circular(20),
-              ),
-            ),
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 20),
-                  ),
-                ),
-                const Text(
-                  'ABOUT US',
-                  style: TextStyle(
-                    fontFamily: 'Recoleta',
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    letterSpacing: 1.0,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Spacer(),
+          SizedBox(height: MediaQuery.sizeOf(context).height * 0.15),
           // Content
           Container(
             height: 140,
@@ -83,7 +48,7 @@ class AboutUsPage extends StatelessWidget {
               color: Colors.black54,
             ),
           ),
-          const Spacer(),
+          SizedBox(height: MediaQuery.sizeOf(context).height * 0.25),
           // Footer
           const Padding(
             padding: EdgeInsets.only(bottom: 40),

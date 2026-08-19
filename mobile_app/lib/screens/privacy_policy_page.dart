@@ -1,58 +1,19 @@
 import 'package:flutter/material.dart';
 import '../utils/app_colors.dart';
+import '../widgets/app_page_shell.dart';
 
 class PrivacyPolicyPage extends StatelessWidget {
   const PrivacyPolicyPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return AppPageShell(
+      title: 'PRIVACY POLICY',
+      onBack: () => Navigator.pop(context),
       backgroundColor: const Color(0xFFF9F9FB),
-      body: Column(
-        children: [
-          // Header
-          Container(
-            width: double.infinity,
-            padding: EdgeInsets.only(
-                top: MediaQuery.paddingOf(context).top + 14,
-                bottom: 16,
-                left: 20,
-                right: 20),
-            decoration: BoxDecoration(
-              color: AppColors.deepTeal,
-              borderRadius: const BorderRadius.only(
-                bottomLeft: Radius.circular(20),
-                bottomRight: Radius.circular(20),
-              ),
-            ),
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: const Icon(Icons.arrow_back_ios,
-                        color: Colors.white, size: 20),
-                  ),
-                ),
-                const Text(
-                  'PRIVACY POLICY',
-                  style: TextStyle(
-                    fontFamily: 'Recoleta',
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    letterSpacing: 1.0,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // Content
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+      bodyPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+      child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildLastUpdated('August 6, 2026'),
                 const SizedBox(height: 16),
@@ -146,9 +107,6 @@ class PrivacyPolicyPage extends StatelessWidget {
                 const SizedBox(height: 24),
               ],
             ),
-          ),
-        ],
-      ),
     );
   }
 

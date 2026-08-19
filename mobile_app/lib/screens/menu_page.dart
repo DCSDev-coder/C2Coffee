@@ -7,6 +7,7 @@ import '../utils/app_colors.dart';
 import '../widgets/catalog_product_image.dart';
 import '../widgets/custom_bottom_nav.dart';
 import '../widgets/order_status_banner.dart';
+import '../widgets/app_page_shell.dart';
 import 'home_page.dart';
 import 'loading_order_page.dart';
 import 'order_confirmation_page.dart';
@@ -193,40 +194,101 @@ class _MenuPageState extends State<MenuPage> {
     return AnimatedBuilder(
       animation: Listenable.merge([_session, _cart]),
       builder: (context, _) {
-        return Scaffold(
-          backgroundColor: Colors.white,
-          resizeToAvoidBottomInset: false,
-          body: Stack(
-            children: [
-              Column(
-                children: [
-                  _buildHeader(),
-                  _buildStoreBar(),
-                  Expanded(
-                    child: _buildBody(sections),
+        return AppPageShell(
+          title: 'MENU',
+          onBack: () {},
+          showBackButton: false,
+          customHeader: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 300),
+            child: _isSearching
+                ? Row(
+                    key: const ValueKey('searchBar'),
+                    children: [
+                      Expanded(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: TextField(
+                            controller: _searchController,
+                            textAlignVertical: TextAlignVertical.center,
+                            style: TextStyle(
+                              fontFamily: 'Afacad',
+                              fontSize: 15,
+                              color: AppColors.deepTeal,
+                            ),
+                            decoration: const InputDecoration(
+                              hintText: 'Search menu',
+                              border: InputBorder.none,
+                              isDense: true,
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 8,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close,
+                            color: Colors.white, size: 20),
+                        onPressed: () {
+                          setState(() {
+                            _isSearching = false;
+                            _searchController.clear();
+                          });
+                        },
+                      ),
+                    ],
+                  )
+                : Stack(
+                    key: const ValueKey('menuHeader'),
+                    alignment: Alignment.center,
+                    children: [
+
+                      const Text(
+                        'MENU',
+                        style: TextStyle(
+                          fontFamily: 'Recoleta',
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: GestureDetector(
+                          onTap: () => setState(() => _isSearching = true),
+                          child: const Icon(Icons.search,
+                              color: Colors.white, size: 22),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-              Positioned(
-                bottom: 0,
-                left: 0,
-                right: 0,
-                child: CustomBottomNav(
-                  selectedIndex: 1,
-                  scrollController: _scrollController,
-                  onItemTapped: (index) {
-                    if (index == 0) {
-                      CustomBottomNav.switchTab(context, const HomePage());
-                    } else if (index == 2) {
-                      CustomBottomNav.switchTab(context, const OrdersPage());
-                    } else if (index == 3) {
-                      CustomBottomNav.switchTab(context, const RewardsPage());
-                    } else if (index == 4) {
-                      CustomBottomNav.switchTab(context, const ProfilePage());
-                    }
-                  },
-                ),
-              ),
+          ),
+          backgroundColor: Colors.white,
+          scrollable: false,
+          extendBody: true,
+          bodyPadding: EdgeInsets.zero,
+          bottomNavigationBar: CustomBottomNav(
+            selectedIndex: 1,
+            scrollController: _scrollController,
+            onItemTapped: (index) {
+              if (index == 0) {
+                CustomBottomNav.switchTab(context, const HomePage());
+              } else if (index == 2) {
+                CustomBottomNav.switchTab(context, const OrdersPage());
+              } else if (index == 3) {
+                CustomBottomNav.switchTab(context, const RewardsPage());
+              } else if (index == 4) {
+                CustomBottomNav.switchTab(context, const ProfilePage());
+              }
+            },
+          ),
+          overlay: Stack(
+            children: [
               OrderStatusBanner(
                 leftOffset: 88,
                 rightOffset: 90,
@@ -248,8 +310,10 @@ class _MenuPageState extends State<MenuPage> {
                           : const Color(0xFFFAF7F2),
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: const Color(0xFFE5A93C),
-                        width: 2,
+                        color: _showTokenPrice
+                            ? const Color(0xFFE5A93C)
+                            : AppColors.border,
+                        width: 1,
                       ),
                       boxShadow: [
                         BoxShadow(
@@ -322,112 +386,18 @@ class _MenuPageState extends State<MenuPage> {
                     ),
                   ),
                 ),
+              ],
+            ),
+          child: Column(
+            children: [
+              _buildStoreBar(),
+              Expanded(
+                child: _buildBody(sections),
+              ),
             ],
           ),
         );
       },
-    );
-  }
-
-  Widget _buildHeader() {
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.only(
-        top: MediaQuery.paddingOf(context).top + 14,
-        bottom: 16,
-        left: 20,
-        right: 20,
-      ),
-      decoration: BoxDecoration(
-        color: AppColors.deepTeal,
-        borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(20),
-          bottomRight: Radius.circular(20),
-        ),
-      ),
-      child: SizedBox(
-        height: 48,
-        child: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 300),
-          child: _isSearching
-              ? Row(
-                  key: const ValueKey('searchBar'),
-                  children: [
-                    Expanded(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: TextField(
-                          controller: _searchController,
-                          textAlignVertical: TextAlignVertical.center,
-                          style: TextStyle(
-                            fontFamily: 'Afacad',
-                            fontSize: 15,
-                            color: AppColors.deepTeal,
-                          ),
-                          decoration: const InputDecoration(
-                            hintText: 'Search menu',
-                            border: InputBorder.none,
-                            isDense: true,
-                            contentPadding: EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 8,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close,
-                          color: Colors.white, size: 20),
-                      onPressed: () {
-                        setState(() {
-                          _isSearching = false;
-                          _searchController.clear();
-                        });
-                      },
-                    ),
-                  ],
-                )
-              : Stack(
-                  key: const ValueKey('menuHeader'),
-                  alignment: Alignment.center,
-                  children: [
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: GestureDetector(
-                        onTap: () => InteractiveFillingLoader.showPop(context),
-                        child: const Icon(
-                          Icons.arrow_back_ios,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                      ),
-                    ),
-                    const Text(
-                      'MENU',
-                      style: TextStyle(
-                        fontFamily: 'Recoleta',
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        letterSpacing: 1,
-                      ),
-                    ),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: GestureDetector(
-                        onTap: () => setState(() => _isSearching = true),
-                        child: const Icon(Icons.search,
-                            color: Colors.white, size: 22),
-                      ),
-                    ),
-                  ],
-                ),
-        ),
-      ),
     );
   }
 

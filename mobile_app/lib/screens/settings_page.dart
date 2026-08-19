@@ -15,6 +15,7 @@ import 'about_us_page.dart';
 import 'contact_support_page.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../utils/app_colors.dart';
+import '../widgets/app_page_shell.dart';
 
 class SettingsPage extends StatefulWidget {
   final VoidCallback? onProfileUpdated;
@@ -374,7 +375,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     style: const TextStyle(
                       fontFamily: 'Afacad',
                       fontSize: 16,
-                      color: Colors.grey,
+                      color: Colors.black54,
                     ),
                   ),
                 ),
@@ -385,7 +386,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     style: TextStyle(
                       fontFamily: 'Afacad',
                       fontSize: 16,
-                      color: value.isEmpty ? Colors.grey : Colors.black87,
+                      color: value.isEmpty ? Colors.black54 : Colors.black87,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -393,7 +394,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 if (isEditable) ...[
                   const SizedBox(width: 8),
                   const Icon(Icons.arrow_forward_ios,
-                      size: 14, color: Colors.grey),
+                      size: 14, color: Colors.black54),
                 ],
               ],
             ),
@@ -406,7 +407,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   style: const TextStyle(
                     fontFamily: 'Afacad',
                     fontSize: 12,
-                    color: Colors.grey,
+                    color: Colors.black54,
                   ),
                 ),
               ),
@@ -695,56 +696,14 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget build(BuildContext context) {
     return PopScope(
       canPop: true,
-      child: Scaffold(
-        backgroundColor: bgColor,
-        body: Stack(
-          children: [
-            Column(
-              children: [
-                // Header
-                Container(
-                  width: double.infinity,
-                  padding: EdgeInsets.only(
-                      top: MediaQuery.paddingOf(context).top + 14,
-                      bottom: 16,
-                      left: 20,
-                      right: 20),
-                  decoration: BoxDecoration(
-                    color: AppColors.deepTeal,
-                    borderRadius: const BorderRadius.only(
-                      bottomLeft: Radius.circular(20),
-                      bottomRight: Radius.circular(20),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      GestureDetector(
-                        onTap: () => InteractiveFillingLoader.showPop(context),
-                        child: const Icon(Icons.arrow_back_ios,
-                            color: Colors.white, size: 20),
-                      ),
-                      const Expanded(
-                        child: Center(
-                          child: Text(
-                            'SETTINGS',
-                            style: TextStyle(
-                              fontFamily: 'Recoleta',
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                              letterSpacing: 1.0,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 20),
-                    ],
-                  ),
-                ),
-
-                // Body
-                Expanded(
-                  child: SingleChildScrollView(
+      child: AppPageShell(
+          title: 'SETTINGS',
+          onBack: () => InteractiveFillingLoader.showPop(context),
+          backgroundColor: bgColor,
+          bodyPadding: EdgeInsets.only(
+            top: 20,
+            bottom: MediaQuery.paddingOf(context).bottom + 20,
+          ),
                     child: Stack(
                       clipBehavior: Clip.none,
                       alignment: Alignment.topCenter,
@@ -866,7 +825,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                       style: TextStyle(
                                           fontFamily: 'Afacad',
                                           fontSize: 16,
-                                          color: Colors.grey)),
+                                          color: Colors.black87)),
                                   Switch(
                                     value: pushNotifications,
                                     onChanged: (val) {
@@ -1045,13 +1004,7 @@ class _SettingsPageState extends State<SettingsPage> {
                         ),
                       ],
                     ),
-                  ),
-                ),
-              ],
-            ),
-          ],
         ),
-      ),
     );
   }
 }
