@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import Layout from './components/Layout';
+import Login from './components/Login';
 import DashboardHome from './components/DashboardHome';
 import Customers from './components/Customers';
 import Orders from './components/Orders';
@@ -20,8 +21,10 @@ import ExpenseBreakdownFull from './components/ExpenseBreakdownFull';
 import AllCampaigns from './components/AllCampaigns';
 import AllPushNotifications from './components/AllPushNotifications';
 import AllContentPerformance from './components/AllContentPerformance';
+import AdminManagement from './components/AdminManagement';
 
 function App() {
+  const [isLoggedIn, setIsLoggedIn] = useState(true);
   const [currentPage, setCurrentPage] = useState('Dashboard');
   const [prevPage, setPrevPage] = useState('Dashboard');
 
@@ -39,8 +42,12 @@ function App() {
     : ['AllCampaigns', 'AllPushNotifications', 'AllContentPerformance'].includes(currentPage) ? 'Marketing'
     : currentPage;
 
+  if (!isLoggedIn) {
+    return <Login onLogin={() => setIsLoggedIn(true)} />;
+  }
+
   return (
-    <Layout currentPage={layoutCurrentPage} setCurrentPage={handleNavigate}>
+    <Layout currentPage={layoutCurrentPage} setCurrentPage={handleNavigate} onLogout={() => setIsLoggedIn(false)}>
       {currentPage === 'Dashboard' && <DashboardHome setCurrentPage={handleNavigate} />}
       {currentPage === 'Customers' && <Customers />}
       {currentPage === 'Orders' && <Orders initialShowRefunds={false} />}
@@ -67,6 +74,7 @@ function App() {
       {currentPage === 'ExportStatement' && <ExportStatement onBack={() => handleNavigate('Finance')} />}
       {currentPage === 'AllTransactions' && <AllTransactions onBack={() => handleNavigate('Finance')} />}
       {currentPage === 'ExpenseBreakdownFull' && <ExpenseBreakdownFull onBack={() => handleNavigate('Finance')} />}
+      {currentPage === 'Admin Management' && <AdminManagement />}
     </Layout>
   );
 }

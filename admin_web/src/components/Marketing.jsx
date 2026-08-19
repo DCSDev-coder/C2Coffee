@@ -53,9 +53,9 @@ const Marketing = ({ setCurrentPage }) => {
     { title: 'Total Campaign', value: '28', change: '12.6% vs last month', icon: Megaphone, iconBg: 'bg-[#1F3A34]' },
     { title: 'Active Campaign', value: '8', change: '8.2% vs last month', icon: CheckCircle, iconBg: 'bg-[#2E5E58]' },
     { title: 'Total Reach', value: '152,340', change: '17.1% vs last month', icon: Users, iconBg: 'bg-[#6F9F96]' },
-    { title: 'Engagement Rate', value: '6.48%', change: '2.3% vs last month', icon: MessageSquare, iconBg: 'bg-[#9CA3AF]' },
+    { title: 'Engagement Rate', value: '6.48%', change: '2.3% vs last month', icon: MessageSquare, iconBg: 'bg-[#A8C4A2]' },
     { title: 'Click Through Rate', value: '3.21%', change: '9.3% vs last month', icon: MousePointerClick, iconBg: 'bg-[#E07A5F]' },
-    { title: 'Conversion', value: '2,865', change: '6.5% vs last month', icon: RefreshCw, iconBg: 'bg-[#D9C4A9]' },
+    { title: 'Conversion', value: '2,865', change: '6.5% vs last month', icon: RefreshCw, iconBg: 'bg-[#D4AF7A]' },
   ];
 
   const topCampaigns = Array(218).fill({
