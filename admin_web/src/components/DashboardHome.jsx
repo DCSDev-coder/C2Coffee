@@ -98,7 +98,7 @@ const ChartCard = ({ title, value, change, data, dataKey, color, id }) => {
             </defs>
             <XAxis dataKey="time" axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 10, fill: '#9CA3AF' }} dy={10} />
             <YAxis axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 10, fill: '#9CA3AF' }} />
-            <Tooltip 
+            <Tooltip
               contentStyle={{ backgroundColor: '#1F3A34', borderRadius: '8px', border: 'none', color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
               itemStyle={{ color: '#fff' }}
             />
@@ -135,7 +135,6 @@ const DashboardHome = ({ setCurrentPage }) => {
       ref={ref}
       className="flex items-center space-x-2 border border-gray-200 px-3 py-1.5 rounded-lg bg-white shadow-sm text-xs font-semibold text-gray-700 cursor-pointer hover:bg-gray-50 transition-colors"
     >
-      <Calendar size={14} className="text-gray-500" />
       <span>{value || 'Select Date'}</span>
       <span className="text-gray-400 text-[10px]">v</span>
     </div>
@@ -268,7 +267,7 @@ const DashboardHome = ({ setCurrentPage }) => {
             </tbody>
           </table>
           <div className="mt-4 flex w-full">
-            <Pagination 
+            <Pagination
               currentPage={currentPage}
               totalPages={Math.ceil(218 / 5)}
               setCurrentPage={setCurrentPageNumber}
@@ -351,7 +350,7 @@ const DashboardHome = ({ setCurrentPage }) => {
             { id: 2, name: 'Blue Cloud Coconut', cups: '48 cups', color: 'bg-[#D4AF7A]', img: '/BLUE CLOUD COCONUT COFFEE.png' },
             { id: 3, name: 'Bloody Peach', cups: '42 cups', color: 'bg-[#D4AF7A]', img: '/BLOODY PEACH.png' },
             { id: 4, name: 'Pinky Promise Matcha', cups: '31 cups', color: 'bg-[#D4AF7A]', img: '/PINKY PROMISE MATCHA.png' },
-            { id: 5, name: 'Espresso Bomb', cups: '28 cups', color: 'bg-[#6F9F96]', img: '/ESPRESSO BOMB.png' },
+            { id: 5, name: 'Espresso Bomb', cups: '28 cups', color: 'bg-[#D4AF7A]', img: '/ESPRESSO BOMB.png' },
           ].map((item) => (
             <div key={item.id} className="flex flex-col items-center relative">
               <span className={`absolute -top-2 left-0 ${item.color} text-white text-[9px] font-bold w-4 h-4 flex items-center justify-center rounded-full z-10`}>{item.id}</span>

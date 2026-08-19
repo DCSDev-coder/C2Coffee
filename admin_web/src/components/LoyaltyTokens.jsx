@@ -38,7 +38,7 @@ const CustomDateInput = forwardRef(({ value, onClick, onClear }, ref) => (
   </div>
 ));
 
-// ─── Dummy Data for Tokens ───────────────────────────────────────────────────
+
 const initialTransactions = [
   {
     id: "tx-1",
@@ -208,7 +208,7 @@ const mockTokenHistory = [
   { id: 'TXN-003', type: 'Earned', amount: '+25', desc: 'Order ORD-2026-002', date: 'Aug 19, 2026' },
 ];
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+//Helpers
 const getTierColor = (tier) => {
   switch (tier) {
     case 'Kawan': return 'bg-blue-100 text-blue-600';
@@ -227,7 +227,7 @@ const getTypeColor = (type) => {
   }
 };
 
-// ─── KPI Card Component ────────────────────────────────────────────────────────
+//KPI Card Component
 const KPICard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-white" }) => (
   <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center space-x-4 min-w-0">
     <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 ${iconBg} ${iconColor} shadow-sm`}>
@@ -249,7 +249,7 @@ const KPICard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-w
   </div>
 );
 
-// ─── Main Component ────────────────────────────────────────────────────────────
+//Main Component
 const LoyaltyTokens = ({ onBack }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedType, setSelectedType] = useState("All Transaction Types");
@@ -257,7 +257,7 @@ const LoyaltyTokens = ({ onBack }) => {
   const [selectedCustomer, setSelectedCustomer] = useState(null);
 
   const [typeOpen, setTypeOpen] = useState(false);
-  
+
   const [isEditTokensOpen, setIsEditTokensOpen] = useState(false);
   const [editTokenAmount, setEditTokenAmount] = useState("");
   const [editTokenAction, setEditTokenAction] = useState("Add");
@@ -274,9 +274,9 @@ const LoyaltyTokens = ({ onBack }) => {
   const itemsPerPage = 10;
 
   const filteredTransactions = initialTransactions.filter((tx) => {
-    const matchesSearch = tx.member.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          tx.member.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          tx.member.memberId.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = tx.member.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      tx.member.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      tx.member.memberId.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesType = selectedType === "All Transaction Types" || tx.type === selectedType;
     let matchesDate = true;
     if (selectedDate) {
@@ -382,13 +382,13 @@ const LoyaltyTokens = ({ onBack }) => {
                 <ChevronDown size={16} className={`text-gray-500 transition-transform duration-200 ${typeOpen ? 'rotate-180' : ''}`} />
               </div>
             </div>
-            <button 
+            <button
               onClick={() => setActiveView('analytics')}
               className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer shadow-sm whitespace-nowrap"
             >
               View Analytics
             </button>
-            <button 
+            <button
               onClick={() => alert("Exporting transactions as CSV...")}
               className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer shadow-sm whitespace-nowrap"
             >
@@ -403,234 +403,234 @@ const LoyaltyTokens = ({ onBack }) => {
         {/* Table Container */}
         <div className={`flex flex-col transition-all duration-300 ease-in-out ${selectedCustomer ? 'w-[65%]' : 'w-full'}`}>
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col flex-1 overflow-hidden min-h-0">
-          <div className="overflow-x-auto flex-1">
-            <table className="min-w-full text-sm">
-              <thead className="sticky top-0 bg-white border-b border-gray-200 z-10">
-                <tr className="text-left text-xs font-bold text-gray-900">
-                  <th className="px-6 py-4 font-extrabold">Date & Time</th>
-                  <th className="px-6 py-4 font-extrabold">Username</th>
-                  <th className="px-6 py-4 font-extrabold">Member Tier</th>
-                  <th className="px-6 py-4 font-extrabold">Description</th>
-                  <th className="px-6 py-4 font-extrabold text-right">Tokens</th>
-                  <th className="px-6 py-4 font-extrabold text-right">Balance</th>
-                  <th className="px-6 py-4 font-extrabold text-center">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {paginatedTransactions.map((tx) => (
-                  <tr
-                    key={tx.id}
-                    className={`hover:bg-gray-50 cursor-pointer transition-colors ${selectedCustomer && selectedCustomer.memberId === tx.member.memberId ? 'bg-gray-50' : ''}`}
-                    onClick={() => setSelectedCustomer(tx.member)}
-                  >
-                    <td className="px-6 py-3.5 whitespace-nowrap">
-                      <p className="font-semibold text-gray-900 text-xs">{tx.date}</p>
-                      <p className="text-[11px] text-gray-500 mt-0.5">{tx.time}</p>
-                    </td>
-                    <td className="px-6 py-3.5 whitespace-nowrap">
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-full bg-[#2E5E58] shrink-0 shadow-sm"></div>
-                        <div>
-                          <p className="text-sm font-bold text-gray-900">{tx.member.name}</p>
-                          <p className="text-xs text-gray-500 mt-0.5">{tx.member.email}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-3 whitespace-nowrap">
-                      <span className={`px-2.5 py-1 text-[10px] font-bold rounded-md ${getTierColor(tx.member.tier)}`}>
-                        {tx.member.tier}
-                      </span>
-                    </td>
-                    <td className="px-6 py-3 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <span className={`px-2 py-0.5 text-[10px] font-bold rounded-md ${getTypeColor(tx.type)}`}>
-                          {tx.type}
-                        </span>
-                        <div className="text-xs">
-                          {tx.description.split(' ').map((word, i) => (
-                            <span key={i} className={i === 0 ? "font-semibold text-gray-900 mr-1" : "text-gray-500 mr-1"}>
-                              {word}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    </td>
-                    <td className={`px-6 py-3 text-right whitespace-nowrap text-xs font-bold ${tx.tokens.startsWith('+') ? 'text-gray-900' : 'text-gray-900'}`}>
-                      {tx.tokens}
-                    </td>
-                    <td className="px-6 py-3 text-right whitespace-nowrap text-xs font-bold text-gray-900">
-                      {tx.balance}
-                    </td>
-                    <td className="px-6 py-3 whitespace-nowrap text-sm font-medium text-center">
-                      <button
-                        className="p-1.5 bg-[#1E293B] hover:bg-[#0F172A] text-white rounded shadow-sm transition-colors cursor-pointer"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedCustomer(selectedCustomer?.memberId === tx.member.memberId ? null : tx.member);
-                        }}
-                        title="View Details"
-                      >
-                        <Eye size={15} />
-                      </button>
-                    </td>
+            <div className="overflow-x-auto flex-1">
+              <table className="min-w-full text-sm">
+                <thead className="sticky top-0 bg-white border-b border-gray-200 z-10">
+                  <tr className="text-left text-xs font-bold text-gray-900">
+                    <th className="px-6 py-4 font-extrabold">Date & Time</th>
+                    <th className="px-6 py-4 font-extrabold">Username</th>
+                    <th className="px-6 py-4 font-extrabold">Member Tier</th>
+                    <th className="px-6 py-4 font-extrabold">Description</th>
+                    <th className="px-6 py-4 font-extrabold text-right">Tokens</th>
+                    <th className="px-6 py-4 font-extrabold text-right">Balance</th>
+                    <th className="px-6 py-4 font-extrabold text-center">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {paginatedTransactions.map((tx) => (
+                    <tr
+                      key={tx.id}
+                      className={`hover:bg-gray-50 cursor-pointer transition-colors ${selectedCustomer && selectedCustomer.memberId === tx.member.memberId ? 'bg-gray-50' : ''}`}
+                      onClick={() => setSelectedCustomer(tx.member)}
+                    >
+                      <td className="px-6 py-3.5 whitespace-nowrap">
+                        <p className="font-semibold text-gray-900 text-xs">{tx.date}</p>
+                        <p className="text-[11px] text-gray-500 mt-0.5">{tx.time}</p>
+                      </td>
+                      <td className="px-6 py-3.5 whitespace-nowrap">
+                        <div className="flex items-center gap-3">
+                          <div className="h-10 w-10 rounded-full bg-[#2E5E58] shrink-0 shadow-sm"></div>
+                          <div>
+                            <p className="text-sm font-bold text-gray-900">{tx.member.name}</p>
+                            <p className="text-xs text-gray-500 mt-0.5">{tx.member.email}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-3 whitespace-nowrap">
+                        <span className={`px-2.5 py-1 text-[10px] font-bold rounded-md ${getTierColor(tx.member.tier)}`}>
+                          {tx.member.tier}
+                        </span>
+                      </td>
+                      <td className="px-6 py-3 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-0.5 text-[10px] font-bold rounded-md ${getTypeColor(tx.type)}`}>
+                            {tx.type}
+                          </span>
+                          <div className="text-xs">
+                            {tx.description.split(' ').map((word, i) => (
+                              <span key={i} className={i === 0 ? "font-semibold text-gray-900 mr-1" : "text-gray-500 mr-1"}>
+                                {word}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </td>
+                      <td className={`px-6 py-3 text-right whitespace-nowrap text-xs font-bold ${tx.tokens.startsWith('+') ? 'text-gray-900' : 'text-gray-900'}`}>
+                        {tx.tokens}
+                      </td>
+                      <td className="px-6 py-3 text-right whitespace-nowrap text-xs font-bold text-gray-900">
+                        {tx.balance}
+                      </td>
+                      <td className="px-6 py-3 whitespace-nowrap text-sm font-medium text-center">
+                        <button
+                          className="p-1.5 bg-[#1E293B] hover:bg-[#0F172A] text-white rounded shadow-sm transition-colors cursor-pointer"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedCustomer(selectedCustomer?.memberId === tx.member.memberId ? null : tx.member);
+                          }}
+                          title="View Details"
+                        >
+                          <Eye size={15} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
-          {/* Pagination */}
-          <div className="mt-auto px-6 py-4 border-t border-gray-100 flex shrink-0 bg-white">
-            <Pagination 
-              currentPage={currentPage}
-              totalPages={totalPages}
-              setCurrentPage={setCurrentPage}
-              itemsPerPage={itemsPerPage}
-              totalItems={filteredTransactions.length}
-              itemName="transactions"
-            />
+            {/* Pagination */}
+            <div className="mt-auto px-6 py-4 border-t border-gray-100 flex shrink-0 bg-white">
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                setCurrentPage={setCurrentPage}
+                itemsPerPage={itemsPerPage}
+                totalItems={filteredTransactions.length}
+                itemName="transactions"
+              />
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Right side: Customer Overview Panel */}
-      {selectedCustomer && (
-        <div className="w-[35%] bg-white rounded-2xl border border-gray-200 shadow-lg flex flex-col h-full animate-in slide-in-from-right-8 duration-300 shrink-0">
-          {/* Header */}
-          <div className="p-5 border-b border-gray-100 flex items-center justify-between bg-white rounded-t-2xl shrink-0">
-            <h2 className="text-xl font-bold text-gray-900">Customer Overview</h2>
-            <button
-              onClick={() => setSelectedCustomer(null)}
-              className="p-1.5 text-gray-400 hover:text-gray-900 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
-            >
-              <X size={20} strokeWidth={2.5} />
-            </button>
-          </div>
+        {/* Right side: Customer Overview Panel */}
+        {selectedCustomer && (
+          <div className="w-[35%] bg-white rounded-2xl border border-gray-200 shadow-lg flex flex-col h-full animate-in slide-in-from-right-8 duration-300 shrink-0">
+            {/* Header */}
+            <div className="p-5 border-b border-gray-100 flex items-center justify-between bg-white rounded-t-2xl shrink-0">
+              <h2 className="text-xl font-bold text-gray-900">Customer Overview</h2>
+              <button
+                onClick={() => setSelectedCustomer(null)}
+                className="p-1.5 text-gray-400 hover:text-gray-900 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+              >
+                <X size={20} strokeWidth={2.5} />
+              </button>
+            </div>
 
-          <div className="flex-1 overflow-y-auto">
-            <div className="p-6 space-y-6">
-              {/* Profile Info */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 rounded-full bg-[#2E5E58] shrink-0 shadow-sm"></div>
-                  <div>
-                    <h3 className="text-lg font-bold text-gray-900">{selectedCustomer.name}</h3>
-                    <p className="text-[11px] text-gray-400 mt-0.5">{selectedCustomer.email}</p>
-                    <p className="text-[11px] text-gray-400">{selectedCustomer.phone}</p>
-                    <p className="text-[11px] font-bold text-gray-700 mt-1">Member ID : {selectedCustomer.memberId}</p>
-                  </div>
-                </div>
-                <div className="self-start">
-                  <span className={`px-2.5 py-1 text-[10px] font-bold rounded-md ${getTierColor(selectedCustomer.tier)}`}>
-                    {selectedCustomer.tier}
-                  </span>
-                </div>
-              </div>
-
-              {/* Stats Row */}
-              <div className="flex items-center justify-between pt-2">
-                <div className="text-center">
-                  <p className="text-[10px] text-gray-500 font-semibold mb-1">Tokens Balance</p>
-                  <p className="text-sm font-bold text-gray-900 flex items-center justify-center gap-1">
-                    <Ticket size={12} className="text-gray-400" /> {selectedCustomer.tokensBalance}
-                  </p>
-                </div>
-                <div className="w-px h-8 bg-gray-100"></div>
-                <div className="text-center">
-                  <p className="text-[10px] text-gray-500 font-semibold mb-1">Lifetime Earned</p>
-                  <p className="text-sm font-bold text-gray-900 flex items-center justify-center gap-1">
-                    <CheckCircle2 size={12} className="text-gray-400" /> {selectedCustomer.lifetimeEarned}
-                  </p>
-                </div>
-                <div className="w-px h-8 bg-gray-100"></div>
-                <div className="text-center">
-                  <p className="text-[10px] text-gray-500 font-semibold mb-1">Lifetime Redeemed</p>
-                  <p className="text-sm font-bold text-gray-900 flex items-center justify-center gap-1">
-                    <ShoppingBag size={12} className="text-gray-400" /> {selectedCustomer.lifetimeRedeemed}
-                  </p>
-                </div>
-              </div>
-
-              {/* Tier Progress Card */}
-              <div className="bg-[#1a1a1a] rounded-xl p-4 text-white relative overflow-hidden">
-                {/* Background decorative elements */}
-                <div className="absolute right-0 top-0 w-32 h-32 bg-white/5 rounded-full blur-2xl translate-x-1/3 -translate-y-1/3"></div>
-                
-                <div className="flex justify-between items-end mb-4 relative z-10">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
-                      <Crown size={20} className="text-yellow-500" fill="currentColor" />
-                    </div>
+            <div className="flex-1 overflow-y-auto">
+              <div className="p-6 space-y-6">
+                {/* Profile Info */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 rounded-full bg-[#2E5E58] shrink-0 shadow-sm"></div>
                     <div>
-                      <h4 className="font-bold text-sm">{selectedCustomer.tier}</h4>
-                      <p className="text-[10px] text-gray-400">Until {selectedCustomer.tierProgress.expiry}</p>
+                      <h3 className="text-lg font-bold text-gray-900">{selectedCustomer.name}</h3>
+                      <p className="text-[11px] text-gray-400 mt-0.5">{selectedCustomer.email}</p>
+                      <p className="text-[11px] text-gray-400">{selectedCustomer.phone}</p>
+                      <p className="text-[11px] font-bold text-gray-700 mt-1">Member ID : {selectedCustomer.memberId}</p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-[10px] text-gray-400">Next tier:</p>
-                    <p className="font-bold text-xs">{selectedCustomer.tierProgress.current}/{selectedCustomer.tierProgress.target} cups</p>
+                  <div className="self-start">
+                    <span className={`px-2.5 py-1 text-[10px] font-bold rounded-md ${getTierColor(selectedCustomer.tier)}`}>
+                      {selectedCustomer.tier}
+                    </span>
                   </div>
                 </div>
 
-                {/* Progress Bar */}
-                <div className="w-full bg-white/20 rounded-full h-1.5 relative z-10">
-                  <div 
-                    className="bg-white h-1.5 rounded-full" 
-                    style={{ width: `${(selectedCustomer.tierProgress.current / selectedCustomer.tierProgress.target) * 100}%` }}
-                  ></div>
+                {/* Stats Row */}
+                <div className="flex items-center justify-between pt-2">
+                  <div className="text-center">
+                    <p className="text-[10px] text-gray-500 font-semibold mb-1">Tokens Balance</p>
+                    <p className="text-sm font-bold text-gray-900 flex items-center justify-center gap-1">
+                      <Ticket size={12} className="text-gray-400" /> {selectedCustomer.tokensBalance}
+                    </p>
+                  </div>
+                  <div className="w-px h-8 bg-gray-100"></div>
+                  <div className="text-center">
+                    <p className="text-[10px] text-gray-500 font-semibold mb-1">Lifetime Earned</p>
+                    <p className="text-sm font-bold text-gray-900 flex items-center justify-center gap-1">
+                      <CheckCircle2 size={12} className="text-gray-400" /> {selectedCustomer.lifetimeEarned}
+                    </p>
+                  </div>
+                  <div className="w-px h-8 bg-gray-100"></div>
+                  <div className="text-center">
+                    <p className="text-[10px] text-gray-500 font-semibold mb-1">Lifetime Redeemed</p>
+                    <p className="text-sm font-bold text-gray-900 flex items-center justify-center gap-1">
+                      <ShoppingBag size={12} className="text-gray-400" /> {selectedCustomer.lifetimeRedeemed}
+                    </p>
+                  </div>
                 </div>
-              </div>
 
-              {/* Token History */}
-              <div className="pt-2">
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="font-bold text-gray-900 text-sm">Token History</h3>
-                  <button 
-                    onClick={() => setActiveView('tokens')}
-                    className="text-xs font-bold text-gray-900 hover:underline inline-flex items-center gap-1 cursor-pointer"
-                  >
-                    View All <ArrowRight size={14} className="ml-0.5" />
-                  </button>
-                </div>
-                
-                <div className="space-y-4">
-                  {mockTokenHistory.map((history) => (
-                    <div key={history.id} className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0 shadow-sm ${history.type === 'Earned' ? 'bg-gray-900' : 'bg-gray-900'}`}>
-                          {history.type === 'Earned' ? (
-                            <CheckCircle2 size={16} strokeWidth={2.5} />
-                          ) : (
-                            <Percent size={16} strokeWidth={2.5} />
-                          )}
-                        </div>
-                        <div>
-                          <p className="font-bold text-gray-900 text-xs">{history.type}</p>
-                          <p className="text-[10px] text-gray-500 mt-0.5 leading-tight">{history.desc}</p>
-                          <p className="text-[9px] text-gray-400">{history.date}</p>
-                        </div>
+                {/* Tier Progress Card */}
+                <div className="bg-[#1a1a1a] rounded-xl p-4 text-white relative overflow-hidden">
+                  {/* Background decorative elements */}
+                  <div className="absolute right-0 top-0 w-32 h-32 bg-white/5 rounded-full blur-2xl translate-x-1/3 -translate-y-1/3"></div>
+
+                  <div className="flex justify-between items-end mb-4 relative z-10">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
+                        <Crown size={20} className="text-yellow-500" fill="currentColor" />
                       </div>
-                      <div className={`font-bold text-xs ${history.type === 'Earned' ? 'text-gray-900' : 'text-gray-900'}`}>
-                        {history.amount}
+                      <div>
+                        <h4 className="font-bold text-sm">{selectedCustomer.tier}</h4>
+                        <p className="text-[10px] text-gray-400">Until {selectedCustomer.tierProgress.expiry}</p>
                       </div>
                     </div>
-                  ))}
+                    <div className="text-right">
+                      <p className="text-[10px] text-gray-400">Next tier:</p>
+                      <p className="font-bold text-xs">{selectedCustomer.tierProgress.current}/{selectedCustomer.tierProgress.target} cups</p>
+                    </div>
+                  </div>
+
+                  {/* Progress Bar */}
+                  <div className="w-full bg-white/20 rounded-full h-1.5 relative z-10">
+                    <div
+                      className="bg-white h-1.5 rounded-full"
+                      style={{ width: `${(selectedCustomer.tierProgress.current / selectedCustomer.tierProgress.target) * 100}%` }}
+                    ></div>
+                  </div>
+                </div>
+
+                {/* Token History */}
+                <div className="pt-2">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="font-bold text-gray-900 text-sm">Token History</h3>
+                    <button
+                      onClick={() => setActiveView('tokens')}
+                      className="text-xs font-bold text-gray-900 hover:underline inline-flex items-center gap-1 cursor-pointer"
+                    >
+                      View All <ArrowRight size={14} className="ml-0.5" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-4">
+                    {mockTokenHistory.map((history) => (
+                      <div key={history.id} className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0 shadow-sm ${history.type === 'Earned' ? 'bg-gray-900' : 'bg-gray-900'}`}>
+                            {history.type === 'Earned' ? (
+                              <CheckCircle2 size={16} strokeWidth={2.5} />
+                            ) : (
+                              <Percent size={16} strokeWidth={2.5} />
+                            )}
+                          </div>
+                          <div>
+                            <p className="font-bold text-gray-900 text-xs">{history.type}</p>
+                            <p className="text-[10px] text-gray-500 mt-0.5 leading-tight">{history.desc}</p>
+                            <p className="text-[9px] text-gray-400">{history.date}</p>
+                          </div>
+                        </div>
+                        <div className={`font-bold text-xs ${history.type === 'Earned' ? 'text-gray-900' : 'text-gray-900'}`}>
+                          {history.amount}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Footer Action */}
-          <div className="p-4 border-t border-gray-100 bg-white rounded-b-2xl shrink-0">
-            <button 
-              onClick={() => setIsEditTokensOpen(true)}
-              className="w-full py-2.5 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-sm"
-            >
-              <Edit3 size={16} /> Edit Tokens
-            </button>
+            {/* Footer Action */}
+            <div className="p-4 border-t border-gray-100 bg-white rounded-b-2xl shrink-0">
+              <button
+                onClick={() => setIsEditTokensOpen(true)}
+                className="w-full py-2.5 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-sm"
+              >
+                <Edit3 size={16} /> Edit Tokens
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
       </div>
 
       {/* Edit Tokens Modal */}
@@ -651,17 +651,17 @@ const LoyaltyTokens = ({ onBack }) => {
                   <p className="text-xs text-gray-500">{selectedCustomer.email}</p>
                 </div>
               </div>
-              
+
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-1.5">Action</label>
                 <div className="flex bg-gray-100 p-1 rounded-lg">
-                  <button 
+                  <button
                     className={`flex-1 py-1.5 text-sm font-bold rounded-md transition-colors ${editTokenAction === 'Add' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
                     onClick={() => setEditTokenAction('Add')}
                   >
                     Add
                   </button>
-                  <button 
+                  <button
                     className={`flex-1 py-1.5 text-sm font-bold rounded-md transition-colors ${editTokenAction === 'Deduct' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
                     onClick={() => setEditTokenAction('Deduct')}
                   >
@@ -672,8 +672,8 @@ const LoyaltyTokens = ({ onBack }) => {
 
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-1.5">Amount</label>
-                <input 
-                  type="number" 
+                <input
+                  type="number"
                   value={editTokenAmount}
                   onChange={(e) => setEditTokenAmount(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-[#1F3A34] focus:border-[#1F3A34] sm:text-sm outline-none"
@@ -682,13 +682,13 @@ const LoyaltyTokens = ({ onBack }) => {
               </div>
             </div>
             <div className="p-5 border-t border-gray-100 flex justify-end space-x-3 bg-gray-50">
-              <button 
+              <button
                 onClick={() => setIsEditTokensOpen(false)}
                 className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-bold text-gray-700 bg-white hover:bg-gray-50 transition-colors cursor-pointer"
               >
                 Cancel
               </button>
-              <button 
+              <button
                 onClick={() => {
                   alert(`Successfully ${editTokenAction.toLowerCase()}ed ${editTokenAmount || 0} tokens for ${selectedCustomer.name}.`);
                   setIsEditTokensOpen(false);

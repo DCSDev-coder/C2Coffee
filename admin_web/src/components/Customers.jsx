@@ -141,7 +141,7 @@ const Customers = () => {
     return () => window.removeEventListener('click', handleClickOutside);
   }, []);
 
-  // Render Sub-Views Early
+
   const renderView = () => {
     switch (activeView) {
       case 'profile': return <ViewProfile customer={selectedCustomer} onBack={() => setActiveView('list')} />;
@@ -149,7 +149,7 @@ const Customers = () => {
       case 'tokens': return <TokenTransaction customer={selectedCustomer} onBack={() => setActiveView('list')} />;
       case 'vouchers': return <VoucherHistory customer={selectedCustomer} onBack={() => setActiveView('list')} />;
       case 'tiers': return <TiersHistory customer={selectedCustomer} onBack={() => setActiveView('list')} />;
-      default: return null; // handled in main return
+      default: return null;
     }
   };
 
@@ -168,7 +168,6 @@ const Customers = () => {
     let matchesDate = true;
     if (selectedDate) {
       const formattedDate = selectedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-      // Very basic match just to work with the mock data e.g. "Aug 19, 2026"
       matchesDate = customer.lastOrder === formattedDate || customer.lastOrder.includes(formattedDate);
     }
 
@@ -395,7 +394,7 @@ const Customers = () => {
             </table>
           </div>
           <div className="px-6 py-4 border-t border-gray-200 flex shrink-0 bg-white">
-            <Pagination 
+            <Pagination
               currentPage={currentPage}
               totalPages={totalPages}
               setCurrentPage={setCurrentPage}
@@ -418,7 +417,6 @@ const Customers = () => {
 
             <div className="flex items-center space-x-4 mb-8">
               <div className="h-20 w-20 rounded-full bg-[#2E5E58] flex-shrink-0 shadow-sm">
-                {/* Large green circle for profile picture */}
               </div>
               <div>
                 <div className="flex items-center space-x-2">

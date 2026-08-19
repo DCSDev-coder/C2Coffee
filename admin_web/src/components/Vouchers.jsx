@@ -33,7 +33,7 @@ const CustomDateInput = forwardRef(({ value, onClick, onClear }, ref) => (
   </div>
 ));
 
-// ─── Stat Card Component (Matched to Customers & Orders KPICard) ─────────────
+// Stat Card Component (Matched to Customers & Orders KPICard) 
 const StatCard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-white" }) => (
   <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center space-x-4 min-w-0">
     <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 ${iconBg} ${iconColor} shadow-sm`}>
@@ -55,7 +55,6 @@ const StatCard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-
   </div>
 );
 
-// ─── Dummy Data for Vouchers ───────────────────────────────────────────────────
 const initialVouchersList = [
   {
     id: "VCH-1001",
@@ -487,9 +486,8 @@ const Vouchers = ({ onBack }) => {
                     return (
                       <tr
                         key={v.id}
-                        className={`hover:bg-gray-50/70 transition-colors ${
-                          isSelected ? "bg-gray-50" : ""
-                        }`}
+                        className={`hover:bg-gray-50/70 transition-colors ${isSelected ? "bg-gray-50" : ""
+                          }`}
                       >
                         {/* Voucher Name */}
                         <td className="px-6 py-3.5 whitespace-nowrap">
@@ -527,13 +525,12 @@ const Vouchers = ({ onBack }) => {
                         {/* Status */}
                         <td className="px-6 py-3.5 whitespace-nowrap">
                           <span
-                            className={`px-3 py-1 rounded-md text-[10px] font-bold ${
-                              v.status === "Active"
-                                ? "bg-green-100 text-green-800"
-                                : v.status === "Expired"
+                            className={`px-3 py-1 rounded-md text-[10px] font-bold ${v.status === "Active"
+                              ? "bg-green-100 text-green-800"
+                              : v.status === "Expired"
                                 ? "bg-red-100 text-red-700"
                                 : "bg-gray-100 text-gray-700"
-                            }`}
+                              }`}
                           >
                             {v.status}
                           </span>
@@ -640,7 +637,7 @@ const Vouchers = ({ onBack }) => {
 
           {/* Pagination */}
           <div className="px-6 py-4 border-t border-gray-100 flex shrink-0 bg-white">
-            <Pagination 
+            <Pagination
               currentPage={currentPage}
               totalPages={totalPages}
               setCurrentPage={setCurrentPage}
@@ -685,11 +682,10 @@ const Vouchers = ({ onBack }) => {
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
-                  className={`flex-1 pb-2 text-center transition-colors cursor-pointer ${
-                    activeTab === tab
-                      ? "text-gray-900 border-b-2 border-[#1F3A34]"
-                      : "hover:text-gray-900"
-                  }`}
+                  className={`flex-1 pb-2 text-center transition-colors cursor-pointer ${activeTab === tab
+                    ? "text-gray-900 border-b-2 border-[#1F3A34]"
+                    : "hover:text-gray-900"
+                    }`}
                 >
                   {tab}
                 </button>
@@ -830,7 +826,7 @@ const Vouchers = ({ onBack }) => {
         )}
       </div>
 
-      {/* ─── Create New Voucher Modal ─────────────────────────────────────── */}
+      {/* Create New Voucher Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-lg p-6 animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
@@ -967,7 +963,7 @@ const Vouchers = ({ onBack }) => {
         </div>
       )}
 
-      {/* ─── Edit Voucher Modal ───────────────────────────────────────── */}
+      {/*Edit Voucher Modal*/}
       {editingVoucher && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-lg p-6 animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">

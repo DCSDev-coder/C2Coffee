@@ -23,7 +23,7 @@ const CustomInput = React.forwardRef(({ value, onClick }, ref) => (
 ));
 CustomInput.displayName = "CustomInput";
 
-// ─── Stat Card Component ─────────────
+//Stat Card Component
 const StatCard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-white" }) => (
   <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center space-x-4 min-w-0">
     <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 ${iconBg} ${iconColor} shadow-sm`}>
@@ -45,7 +45,7 @@ const StatCard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-
   </div>
 );
 
-// ─── Dummy Data ─────────────────────────────────────────────────────────────
+
 const revenueData = [
   { day: "May 1", current: 800, previous: 500 },
   { day: "May 6", current: 950, previous: 600 },
@@ -115,7 +115,7 @@ const Finance = ({ setCurrentPage }) => {
               <h3 className="text-base font-bold text-gray-900">Revenue Overview</h3>
               <p className="text-[10px] text-gray-500 font-medium uppercase mt-1">Total Revenue</p>
               <p className="text-xl font-bold text-gray-900">RM 152,340.80</p>
-              
+
               <div className="flex items-center gap-3 mt-3">
                 <div className="flex items-center gap-1.5 text-[11px] font-bold text-gray-900">
                   <span className="w-2.5 h-2.5 rounded-full bg-[#8AACA5]"></span>
@@ -133,17 +133,17 @@ const Finance = ({ setCurrentPage }) => {
               <AreaChart data={revenueData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorCurrent" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#8AACA5" stopOpacity={0.2}/>
-                    <stop offset="95%" stopColor="#8AACA5" stopOpacity={0}/>
+                    <stop offset="5%" stopColor="#8AACA5" stopOpacity={0.2} />
+                    <stop offset="95%" stopColor="#8AACA5" stopOpacity={0} />
                   </linearGradient>
                   <linearGradient id="colorPrevious" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#E07A5F" stopOpacity={0.2}/>
-                    <stop offset="95%" stopColor="#E07A5F" stopOpacity={0}/>
+                    <stop offset="5%" stopColor="#E07A5F" stopOpacity={0.2} />
+                    <stop offset="95%" stopColor="#E07A5F" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <XAxis dataKey="day" axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 11, fill: '#6B7280', fontWeight: 600 }} dy={10} />
-                <YAxis axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 11, fill: '#6B7280', fontWeight: 600 }} tickFormatter={(val) => val >= 1000 ? `${(val/1000).toFixed(1)}K` : val} />
-                <Tooltip 
+                <YAxis axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 11, fill: '#6B7280', fontWeight: 600 }} tickFormatter={(val) => val >= 1000 ? `${(val / 1000).toFixed(1)}K` : val} />
+                <Tooltip
                   contentStyle={{ backgroundColor: '#1F3A34', borderRadius: '8px', border: 'none', color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
                   itemStyle={{ color: '#fff' }}
                 />
@@ -164,7 +164,7 @@ const Finance = ({ setCurrentPage }) => {
                   <Pie data={expenseData} innerRadius={60} outerRadius={85} paddingAngle={2} dataKey="value" stroke="none">
                     {expenseData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
                   </Pie>
-                  <Tooltip 
+                  <Tooltip
                     formatter={(value, name) => [`RM ${value.toLocaleString()}`, name]}
                     contentStyle={{ backgroundColor: '#1F3A34', borderRadius: '8px', border: 'none', color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
                     itemStyle={{ color: '#fff' }}
@@ -176,7 +176,7 @@ const Finance = ({ setCurrentPage }) => {
                 <span className="text-[11px] text-gray-500 font-medium">Total Expenses</span>
               </div>
             </div>
-            
+
             <div className="flex-1 w-full space-y-3 mt-4 md:mt-0">
               {expenseData.map((item, i) => (
                 <div key={i} className="flex items-center justify-between text-xs">
@@ -227,9 +227,8 @@ const Finance = ({ setCurrentPage }) => {
                     <td className="py-3 font-bold text-gray-900">{tx.desc}</td>
                     <td className="py-3 text-center font-bold text-gray-900">{tx.amount}</td>
                     <td className="py-3">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                        tx.status === "Completed" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
-                      }`}>
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${tx.status === "Completed" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                        }`}>
                         {tx.status}
                       </span>
                     </td>
@@ -271,36 +270,36 @@ const Finance = ({ setCurrentPage }) => {
           <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex flex-col">
             <h3 className="text-base font-bold text-gray-900 mb-4">Quick Actions</h3>
             <div className="grid grid-cols-4 gap-3">
-              <button 
+              <button
                 onClick={() => setCurrentPage("GenerateInvoice")}
                 className="flex flex-col items-center justify-center p-3 bg-[#1F3A34] text-white rounded-xl shadow-sm hover:opacity-90 transition-opacity cursor-pointer gap-2"
               >
                 <PlusCircle size={24} />
-                <span className="text-[10px] font-bold text-center leading-tight">Generate<br/>Invoice</span>
+                <span className="text-[10px] font-bold text-center leading-tight">Generate<br />Invoice</span>
               </button>
-              
-              <button 
+
+              <button
                 onClick={() => setCurrentPage("RecordExpense")}
                 className="flex flex-col items-center justify-center p-3 bg-[#8AACA5] text-white rounded-xl shadow-sm hover:opacity-90 transition-opacity cursor-pointer gap-2"
               >
                 <FileText size={24} />
-                <span className="text-[10px] font-bold text-center leading-tight">Record<br/>Expense</span>
+                <span className="text-[10px] font-bold text-center leading-tight">Record<br />Expense</span>
               </button>
-              
-              <button 
+
+              <button
                 onClick={() => setCurrentPage("RevenueReport")}
                 className="flex flex-col items-center justify-center p-3 bg-[#E07A5F] text-white rounded-xl shadow-sm hover:opacity-90 transition-opacity cursor-pointer gap-2"
               >
                 <BarChart3 size={24} />
-                <span className="text-[10px] font-bold text-center leading-tight">Revenue<br/>Report</span>
+                <span className="text-[10px] font-bold text-center leading-tight">Revenue<br />Report</span>
               </button>
 
-              <button 
+              <button
                 onClick={() => setCurrentPage("ExportStatement")}
                 className="flex flex-col items-center justify-center p-3 bg-[#D4AF7A] text-white rounded-xl shadow-sm hover:opacity-90 transition-opacity cursor-pointer gap-2"
               >
                 <DownloadCloud size={24} />
-                <span className="text-[10px] font-bold text-center leading-tight">Export<br/>Statement</span>
+                <span className="text-[10px] font-bold text-center leading-tight">Export<br />Statement</span>
               </button>
             </div>
           </div>

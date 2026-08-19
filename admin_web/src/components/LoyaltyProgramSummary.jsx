@@ -1,7 +1,7 @@
 import React from "react";
 import { ArrowLeft, Users, Coins, Percent, Ticket, ArrowUp } from "lucide-react";
 
-// ─── Stat Card Component ───────────────────────────────────────────────────────
+//Stat Card Component
 const StatCard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-white" }) => (
   <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center space-x-4 min-w-0">
     <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 ${iconBg} ${iconColor} shadow-sm`}>
@@ -23,7 +23,7 @@ const StatCard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-
   </div>
 );
 
-// ─── Main Component ─────────────────────────────────────────────────────────────
+//Main Component
 const LoyaltyProgramSummary = ({ onBack }) => {
   const metrics = [
     { title: "Average Tokens per Member", value: "60.12", change: "7.3%", icon: Coins, iconBg: "bg-[#6F9F96]" },

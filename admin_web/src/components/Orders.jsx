@@ -1,6 +1,6 @@
 import React, { useState, forwardRef, useEffect } from "react";
-import { 
-  Search, Filter, ChevronDown, Download, CheckCircle, Clock, CheckCircle2, 
+import {
+  Search, Filter, ChevronDown, Download, CheckCircle, Clock, CheckCircle2,
   MapPin, Phone, MessageSquare, Printer, Receipt, Eye, Share2, CornerUpLeft, MessageCircle,
   X, ShoppingBag, Hourglass, UserCheck, Ban, RotateCcw, XCircle,
   Coins, Wallet, Users, Package, Square, Pencil, Trash2,
@@ -11,7 +11,7 @@ import "react-datepicker/dist/react-datepicker.css";
 import Pagination from './Pagination';
 import RefundDetails from "./RefundDetails";
 
-// ─── Custom Icons for Timeline ──────────────────────────────────────────────────
+//Custom Icons for Timeline 
 
 const ReceiptDocIcon = ({ size = 20, className = "" }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -57,7 +57,7 @@ const SolidCheckSquareIcon = ({ size = 20, className = "" }) => (
   </svg>
 );
 
-// ─── Mock Data ─────────────────────────────────────────────────────────────────
+// Mock Data
 
 const allOrders = [
   {
@@ -296,7 +296,7 @@ const allOrders = [
   }
 ];
 
-// ─── Helpers matching Customers Page ──────────────────────────────────────────
+// Helpers matching Customers Page
 
 const getTierColor = (tier) => {
   switch (tier) {
@@ -341,7 +341,7 @@ const ITEMS_PER_PAGE = 10;
 const STATUSES = ["All Status", "Completed", "Preparing", "Ready for Pickup", "Cancelled", "Refund Requested", "Refunded"];
 const PAYMENTS = ["All Payment", "Paid", "Refunded"];
 
-// ─── KPI Card matching Customers Page Structure (No Truncation) ───────────────
+// KPI Card matching Customers Page Structure
 
 const KPICard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-white" }) => (
   <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center space-x-4 min-w-0">
@@ -364,7 +364,7 @@ const KPICard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-w
   </div>
 );
 
-// ─── Date Picker Input ─────────────────────────────────────────────────────────
+// Date Picker Input 
 
 const CustomDateInput = forwardRef(({ value, onClick, onClear }, ref) => (
   <div className="relative">
@@ -389,7 +389,7 @@ const CustomDateInput = forwardRef(({ value, onClick, onClear }, ref) => (
   </div>
 ));
 
-// ─── Order Detail Panel with Animated Timeline ─────────────────────────────────
+// Order Detail Panel with Animated Timelie
 
 const OrderDetailPanel = ({ order, onClose }) => {
   const subtotal = order.items.reduce((s, i) => s + i.unitPrice * i.qty, 0);
@@ -452,12 +452,12 @@ const OrderDetailPanel = ({ order, onClose }) => {
   ];
 
   return (
-    <div className="w-[360px] lg:w-[380px] bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col shrink-0 overflow-y-auto p-5 space-y-4">
+    <div className="print-section w-[360px] lg:w-[380px] bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col shrink-0 overflow-y-auto p-5 space-y-4 print:overflow-visible print:w-full">
       {/* Header */}
       <div className="border-b border-gray-100 pb-3">
         <div className="flex justify-between items-start">
           <h2 className="text-base font-bold text-gray-900">Order Details</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-900 cursor-pointer">
+          <button onClick={onClose} className="no-print text-gray-400 hover:text-gray-900 cursor-pointer">
             <X size={18} strokeWidth={2.5} />
           </button>
         </div>
@@ -568,17 +568,15 @@ const OrderDetailPanel = ({ order, onClose }) => {
               return (
                 <div
                   key={step.step}
-                  className={`flex items-center justify-between transition-all duration-300 relative ${
-                    step.isDone ? "text-gray-900" : "text-gray-400"
-                  }`}
+                  className={`flex items-center justify-between transition-all duration-300 relative ${step.isDone ? "text-gray-900" : "text-gray-400"
+                    }`}
                 >
                   <div className="flex items-center gap-3 relative z-10 bg-white pr-2">
                     <div
-                      className={`w-6 h-6 rounded-md flex items-center justify-center transition-all duration-300 ${
-                        step.isDone
-                          ? "text-black scale-100"
-                          : "text-gray-300"
-                      } ${step.isActive ? "animate-pulse ring-2 ring-[#2E5E58]/20 rounded-md" : ""}`}
+                      className={`w-6 h-6 rounded-md flex items-center justify-center transition-all duration-300 ${step.isDone
+                        ? "text-black scale-100"
+                        : "text-gray-300"
+                        } ${step.isActive ? "animate-pulse ring-2 ring-[#2E5E58]/20 rounded-md" : ""}`}
                     >
                       <StepIcon size={18} />
                     </div>
@@ -597,7 +595,7 @@ const OrderDetailPanel = ({ order, onClose }) => {
       </div>
 
       {/* Footer / Print Receipt Button */}
-      <div className="pt-2 mt-auto">
+      <div className="no-print pt-2 mt-auto">
         <button
           onClick={() => window.print()}
           className="w-full flex items-center justify-center gap-2 py-2.5 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
@@ -609,7 +607,7 @@ const OrderDetailPanel = ({ order, onClose }) => {
   );
 };
 
-// ─── Main Component ────────────────────────────────────────────────────────────
+// Main Component 
 
 const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
   const [ordersList, setOrdersList] = useState(allOrders);
@@ -868,9 +866,8 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
                     return (
                       <tr
                         key={order.id}
-                        className={`hover:bg-gray-50 transition-colors ${
-                          isSelected ? "bg-gray-50" : ""
-                        }`}
+                        className={`hover:bg-gray-50 transition-colors ${isSelected ? "bg-gray-50" : ""
+                          }`}
                       >
                         <td className="px-6 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
                           {order.id}
@@ -970,7 +967,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
 
           {/* Table Bottom: Pagination */}
           <div className="px-6 py-4 border-t border-gray-200 flex shrink-0 bg-white">
-            <Pagination 
+            <Pagination
               currentPage={currentPage}
               totalPages={totalPages}
               setCurrentPage={setCurrentPage}

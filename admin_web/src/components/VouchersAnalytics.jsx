@@ -23,7 +23,7 @@ const CustomInput = React.forwardRef(({ value, onClick }, ref) => (
 ));
 CustomInput.displayName = "CustomInput";
 
-// ─── Stat Card Component (Matched to Customers & Orders KPICard) ─────────────
+
 const StatCard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-white" }) => (
   <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center space-x-4 min-w-0">
     <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 ${iconBg} ${iconColor} shadow-sm`}>
@@ -45,7 +45,7 @@ const StatCard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-
   </div>
 );
 
-// ─── Dummy Data for Charts ───────────────────────────────────────────────────────
+
 const timeSeriesData = [
   { day: "May 1", issued: 420, redeemed: 280, rate: 66.6 },
   { day: "May 6", issued: 650, redeemed: 410, rate: 63.0 },
@@ -498,11 +498,10 @@ const VouchersAnalytics = ({ onBack }) => {
                   </td>
                   <td className="py-3">
                     <span
-                      className={`px-2.5 py-1 rounded-md text-[10px] font-bold ${
-                        row.action === "Redeemed"
-                          ? "bg-green-100 text-green-800"
-                          : "bg-red-100 text-red-700"
-                      }`}
+                      className={`px-2.5 py-1 rounded-md text-[10px] font-bold ${row.action === "Redeemed"
+                        ? "bg-green-100 text-green-800"
+                        : "bg-red-100 text-red-700"
+                        }`}
                     >
                       {row.action}
                     </span>
@@ -537,11 +536,10 @@ const VouchersAnalytics = ({ onBack }) => {
               <button
                 key={pageNum}
                 onClick={() => setCurrentPage(pageNum)}
-                className={`w-7 h-7 flex items-center justify-center rounded-md text-xs font-bold transition-colors cursor-pointer ${
-                  currentPage === pageNum
-                    ? "bg-[#2E5E58] text-white"
-                    : "text-gray-700 hover:bg-gray-100"
-                }`}
+                className={`w-7 h-7 flex items-center justify-center rounded-md text-xs font-bold transition-colors cursor-pointer ${currentPage === pageNum
+                  ? "bg-[#2E5E58] text-white"
+                  : "text-gray-700 hover:bg-gray-100"
+                  }`}
               >
                 {pageNum}
               </button>

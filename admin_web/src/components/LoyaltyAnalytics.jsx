@@ -9,7 +9,7 @@ import {
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 
-// ─── Shared Components ──────────────────────────────────────────────────────────
+//Shared Components
 
 const CustomInput = React.forwardRef(({ value, onClick }, ref) => (
   <button
@@ -60,7 +60,7 @@ const StatCard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-
   </div>
 );
 
-// ─── Dummy Data ─────────────────────────────────────────────────────────────
+
 
 const tokensIssuedVsRedeemed = [
   { day: "May 1", issued: 1200, redeemed: 800 },
@@ -102,14 +102,13 @@ const recentActivity = [
   { id: 5, user: "miraelys", action: "earned 10 tokens", desc: "Purchase - Order ORD-0510-001", time: "10:21 AM" }
 ];
 
-// ─── Main Component ─────────────────────────────────────────────────────────────
-
+//Main Component
 const LoyaltyAnalytics = ({ onBack, onViewSummary }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedType, setSelectedType] = useState("All Type");
   const [selectedStatus, setSelectedStatus] = useState("All Status");
   const [selectedDate, setSelectedDate] = useState(null);
-  
+
   const [typeOpen, setTypeOpen] = useState(false);
   const [statusOpen, setStatusOpen] = useState(false);
 
@@ -178,7 +177,7 @@ const LoyaltyAnalytics = ({ onBack, onViewSummary }) => {
 
       {/* Grid Row 1 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 shrink-0">
-        
+
         {/* Tokens Issued vs Redeemed */}
         <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex flex-col h-[380px]">
           <div className="flex justify-between items-start mb-4">
@@ -196,7 +195,7 @@ const LoyaltyAnalytics = ({ onBack, onViewSummary }) => {
               </div>
             </div>
             <div className="w-28 relative">
-              <DatePicker selected={null} customInput={<CustomInput />} dateFormat="d MMM yyyy" onChange={()=>{}} />
+              <DatePicker selected={null} customInput={<CustomInput />} dateFormat="d MMM yyyy" onChange={() => { }} />
             </div>
           </div>
           <div className="flex-1 min-h-0 w-full relative -ml-4">
@@ -204,17 +203,17 @@ const LoyaltyAnalytics = ({ onBack, onViewSummary }) => {
               <AreaChart data={tokensIssuedVsRedeemed} margin={{ top: 10, right: 10, left: 15, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorIssued" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#2E5E58" stopOpacity={0.1}/>
-                    <stop offset="95%" stopColor="#2E5E58" stopOpacity={0}/>
+                    <stop offset="5%" stopColor="#2E5E58" stopOpacity={0.1} />
+                    <stop offset="95%" stopColor="#2E5E58" stopOpacity={0} />
                   </linearGradient>
                   <linearGradient id="colorRedeemed" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#E07A5F" stopOpacity={0.1}/>
-                    <stop offset="95%" stopColor="#E07A5F" stopOpacity={0}/>
+                    <stop offset="5%" stopColor="#E07A5F" stopOpacity={0.1} />
+                    <stop offset="95%" stopColor="#E07A5F" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <XAxis dataKey="day" axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 11, fill: '#6B7280', fontWeight: 600, angle: -20, textAnchor: 'end' }} dy={10} height={40} />
-                <YAxis axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 11, fill: '#6B7280', fontWeight: 600 }} dx={-10} tickFormatter={(val) => val >= 1000 ? `${(val/1000).toFixed(1)}K` : val} />
-                <Tooltip 
+                <YAxis axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 11, fill: '#6B7280', fontWeight: 600 }} dx={-10} tickFormatter={(val) => val >= 1000 ? `${(val / 1000).toFixed(1)}K` : val} />
+                <Tooltip
                   contentStyle={{ backgroundColor: '#1F3A34', borderRadius: '8px', border: 'none', color: '#fff', fontSize: '12px', fontWeight: 'bold', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)' }}
                   itemStyle={{ color: '#fff' }}
                 />
@@ -230,14 +229,14 @@ const LoyaltyAnalytics = ({ onBack, onViewSummary }) => {
           <div className="flex justify-between items-start mb-2">
             <h3 className="text-lg font-bold text-gray-900">Tokens by Source</h3>
             <div className="w-28 relative">
-              <DatePicker selected={null} customInput={<CustomInput />} dateFormat="d MMM yyyy" onChange={()=>{}} />
+              <DatePicker selected={null} customInput={<CustomInput />} dateFormat="d MMM yyyy" onChange={() => { }} />
             </div>
           </div>
           <div className="flex-1 flex items-center min-h-0">
             <div className="w-1/2 h-full relative">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Tooltip 
+                  <Tooltip
                     formatter={(value, name, item) => [`${value}% (${item.payload.count})`, name]}
                     contentStyle={{ backgroundColor: '#1F3A34', borderRadius: '8px', border: 'none', color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
                     itemStyle={{ color: '#fff' }}
@@ -268,83 +267,83 @@ const LoyaltyAnalytics = ({ onBack, onViewSummary }) => {
               View All
             </button>
           </div>
-          
+
           <div className="flex-1 overflow-y-auto pr-2 pb-2">
             <div className="bg-[#2E5E58] rounded-xl p-4 text-white relative overflow-hidden mb-4 shrink-0">
-            {/* Background elements */}
-            <div className="absolute -right-4 -top-4 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
-            
-            <div className="flex items-center gap-3 mb-3 relative z-10">
-              <Crown size={32} className="text-white" />
-              <div>
-                <p className="text-sm font-bold">Members by Tier</p>
-              </div>
-            </div>
-            <div className="grid grid-cols-4 gap-2 relative z-10">
-              <div className="text-center">
-                <p className="text-[10px] font-medium text-white/80">Legend</p>
-                <p className="font-bold text-sm">414</p>
-              </div>
-              <div className="text-center">
-                <p className="text-[10px] font-medium text-white/80">Dilamun</p>
-                <p className="font-bold text-sm">414</p>
-              </div>
-              <div className="text-center">
-                <p className="text-[10px] font-medium text-white/80">Ketagih</p>
-                <p className="font-bold text-sm">414</p>
-              </div>
-              <div className="text-center">
-                <p className="text-[10px] font-medium text-white/80">Kawan</p>
-                <p className="font-bold text-sm">414</p>
-              </div>
-            </div>
-          </div>
+              {/* Background elements */}
+              <div className="absolute -right-4 -top-4 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
 
-          <div className="space-y-3 shrink-0">
-            <div className="flex items-center justify-between p-3 border border-gray-200 rounded-xl">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-[#6F9F96] flex items-center justify-center text-white shrink-0">
-                  <Coins size={20} />
-                </div>
+              <div className="flex items-center gap-3 mb-3 relative z-10">
+                <Crown size={32} className="text-white" />
                 <div>
-                  <p className="text-[10px] text-gray-500 font-medium">Average Tokens per Member</p>
-                  <p className="text-sm font-bold text-gray-900">60.12</p>
+                  <p className="text-sm font-bold">Members by Tier</p>
                 </div>
               </div>
-              <div className="flex items-center gap-1 text-[11px] font-bold text-gray-900">
-                <ArrowUp size={12} /> 7.3%
+              <div className="grid grid-cols-4 gap-2 relative z-10">
+                <div className="text-center">
+                  <p className="text-[10px] font-medium text-white/80">Legend</p>
+                  <p className="font-bold text-sm">414</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-[10px] font-medium text-white/80">Dilamun</p>
+                  <p className="font-bold text-sm">414</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-[10px] font-medium text-white/80">Ketagih</p>
+                  <p className="font-bold text-sm">414</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-[10px] font-medium text-white/80">Kawan</p>
+                  <p className="font-bold text-sm">414</p>
+                </div>
               </div>
             </div>
 
-            <div className="flex items-center justify-between p-3 border border-gray-200 rounded-xl">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-[#E07A5F] flex items-center justify-center text-white shrink-0">
-                  <Percent size={20} />
+            <div className="space-y-3 shrink-0">
+              <div className="flex items-center justify-between p-3 border border-gray-200 rounded-xl">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-[#6F9F96] flex items-center justify-center text-white shrink-0">
+                    <Coins size={20} />
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-gray-500 font-medium">Average Tokens per Member</p>
+                    <p className="text-sm font-bold text-gray-900">60.12</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-[10px] text-gray-500 font-medium">Redemption Rate</p>
-                  <p className="text-sm font-bold text-gray-900">55.5%</p>
+                <div className="flex items-center gap-1 text-[11px] font-bold text-gray-900">
+                  <ArrowUp size={12} /> 7.3%
                 </div>
               </div>
-              <div className="flex items-center gap-1 text-[11px] font-bold text-gray-900">
-                <ArrowUp size={12} /> 7.3%
-              </div>
-            </div>
 
-            <div className="flex items-center justify-between p-3 border border-gray-200 rounded-xl">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-[#D4AF7A] flex items-center justify-center text-white shrink-0">
-                  <Ticket size={20} />
+              <div className="flex items-center justify-between p-3 border border-gray-200 rounded-xl">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-[#E07A5F] flex items-center justify-center text-white shrink-0">
+                    <Percent size={20} />
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-gray-500 font-medium">Redemption Rate</p>
+                    <p className="text-sm font-bold text-gray-900">55.5%</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-[10px] text-gray-500 font-medium">Most Redeemed Reward</p>
-                  <p className="text-sm font-bold text-gray-900">Free Latte</p>
+                <div className="flex items-center gap-1 text-[11px] font-bold text-gray-900">
+                  <ArrowUp size={12} /> 7.3%
                 </div>
               </div>
-              <div className="text-right">
-                <p className="text-sm font-bold text-gray-900">2,980</p>
-                <p className="text-[8px] text-gray-400 font-medium leading-none">Redemptions</p>
-              </div>
+
+              <div className="flex items-center justify-between p-3 border border-gray-200 rounded-xl">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-[#D4AF7A] flex items-center justify-center text-white shrink-0">
+                    <Ticket size={20} />
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-gray-500 font-medium">Most Redeemed Reward</p>
+                    <p className="text-sm font-bold text-gray-900">Free Latte</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-bold text-gray-900">2,980</p>
+                  <p className="text-[8px] text-gray-400 font-medium leading-none">Redemptions</p>
+                </div>
               </div>
             </div>
           </div>
@@ -353,7 +352,7 @@ const LoyaltyAnalytics = ({ onBack, onViewSummary }) => {
 
       {/* Grid Row 2 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 shrink-0">
-        
+
         {/* Top Redeemed Rewards */}
         <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex flex-col h-[420px]">
           <h3 className="text-lg font-bold text-gray-900 mb-4 shrink-0">Top Redeemed Rewards</h3>
@@ -406,8 +405,8 @@ const LoyaltyAnalytics = ({ onBack, onViewSummary }) => {
               <BarChart data={tokenActivityTime} margin={{ top: 0, right: 0, left: 35, bottom: 0 }} barGap={2} barSize={20}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
                 <XAxis dataKey="range" axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 10, fill: '#6B7280', fontWeight: 600, angle: -20, textAnchor: 'end' }} dy={10} height={40} />
-                <YAxis axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 11, fill: '#6B7280', fontWeight: 600 }} dx={-10} tickFormatter={(val) => val >= 1000 ? `${(val/1000).toFixed(0)}K` : val} />
-                <Tooltip 
+                <YAxis axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 11, fill: '#6B7280', fontWeight: 600 }} dx={-10} tickFormatter={(val) => val >= 1000 ? `${(val / 1000).toFixed(0)}K` : val} />
+                <Tooltip
                   contentStyle={{ backgroundColor: '#1F3A34', borderRadius: '8px', border: 'none', color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
                   itemStyle={{ color: '#fff' }}
                 />

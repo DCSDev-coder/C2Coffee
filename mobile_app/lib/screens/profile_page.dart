@@ -693,7 +693,6 @@ class CustomCalendarWidget extends StatefulWidget {
 class _CustomCalendarWidgetState extends State<CustomCalendarWidget> {
   DateTime _currentMonth = DateTime.now();
 
-  // Dummy dates to indicate drink bought
   final List<DateTime> _drinkBoughtDates = [
     DateTime(DateTime.now().year, DateTime.now().month, 4),
     DateTime(DateTime.now().year, DateTime.now().month, 10),

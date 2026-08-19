@@ -8,7 +8,7 @@ import Pagination from './Pagination';
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 
-// ─── Custom Icons for Timeline ──────────────────────────────────────────────────
+// Custom Icons for Timeline 
 
 const ClockTimelineIcon = ({ size = 16, className = "" }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -33,7 +33,7 @@ const CheckTimelineIcon = ({ size = 16, className = "" }) => (
   </svg>
 );
 
-// ─── Mock Refund Data ──────────────────────────────────────────────────────────
+// Mock Refund Data 
 
 const initialRefundsData = [
   {
@@ -324,7 +324,7 @@ const initialRefundsData = [
   }
 ];
 
-// ─── Status Badge Helper ───────────────────────────────────────────────────────
+// Status Badge Helper 
 
 const getRefundStatusBadge = (status) => {
   switch (status) {
@@ -365,7 +365,7 @@ const fmtPrice = (n) => `RM ${n.toFixed(2)}`;
 const ITEMS_PER_PAGE = 10;
 const STATUSES = ["All Status", "Pending", "Under Review", "Approved", "Rejected"];
 
-// ─── KPI Card Component ───────────────────────────────────────────────────────
+// KPI Card Component
 
 const KPICard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-white" }) => (
   <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center space-x-4 min-w-0">
@@ -388,7 +388,7 @@ const KPICard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-w
   </div>
 );
 
-// ─── Date Picker Input ─────────────────────────────────────────────────────────
+// Date Picker Input 
 
 const CustomDateInput = forwardRef(({ value, onClick, onClear }, ref) => (
   <div className="relative">
@@ -413,7 +413,7 @@ const CustomDateInput = forwardRef(({ value, onClick, onClear }, ref) => (
   </div>
 ));
 
-// ─── Refund Detail Panel Component ─────────────────────────────────────────────
+// Refund Detail Panel Component
 
 const RefundDetailPanel = ({ refund, onClose, onUpdateStatus, onPreviewAttachment }) => {
   return (
@@ -580,7 +580,7 @@ const RefundDetailPanel = ({ refund, onClose, onUpdateStatus, onPreviewAttachmen
   );
 };
 
-// ─── Main RefundDetails Component ──────────────────────────────────────────────
+// Main RefundDetails Component 
 
 const RefundDetails = ({ onBack }) => {
   const [refunds, setRefunds] = useState(initialRefundsData);
@@ -757,9 +757,8 @@ const RefundDetails = ({ onBack }) => {
                     return (
                       <tr
                         key={refund.id}
-                        className={`hover:bg-gray-50 transition-colors ${
-                          isSelected ? "bg-gray-50" : ""
-                        }`}
+                        className={`hover:bg-gray-50 transition-colors ${isSelected ? "bg-gray-50" : ""
+                          }`}
                       >
                         <td className="px-5 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
                           {refund.id}
@@ -821,7 +820,7 @@ const RefundDetails = ({ onBack }) => {
 
           {/* Pagination */}
           <div className="px-6 py-4 border-t border-gray-200 flex shrink-0 bg-white">
-            <Pagination 
+            <Pagination
               currentPage={currentPage}
               totalPages={totalPages}
               setCurrentPage={setCurrentPage}
