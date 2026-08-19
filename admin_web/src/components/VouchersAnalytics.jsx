@@ -17,7 +17,7 @@ const CustomInput = React.forwardRef(({ value, onClick }, ref) => (
     ref={ref}
     className="flex items-center gap-1 px-2.5 py-1 bg-[#1F3A34] text-white rounded-lg text-[11px] font-semibold cursor-pointer shadow-xs focus:outline-none"
   >
-    <span>{value}</span>
+    <span>{value || 'Select Date'}</span>
     <ChevronDown size={12} />
   </button>
 ));
@@ -82,7 +82,7 @@ const tierUsageData = [
 const recentActivityData = [
   {
     id: 1,
-    time: "May 31, 2026 – 10:21 AM",
+    time: "Aug 19, 2026 – 10:21 AM",
     voucher: "Free Latte",
     voucherCode: "VCH-1001",
     action: "Redeemed",
@@ -93,7 +93,7 @@ const recentActivityData = [
   },
   {
     id: 2,
-    time: "May 31, 2026 – 10:21 AM",
+    time: "Aug 19, 2026 – 10:21 AM",
     voucher: "Free Latte",
     voucherCode: "VCH-1001",
     action: "Expired",
@@ -104,7 +104,7 @@ const recentActivityData = [
   },
   {
     id: 3,
-    time: "May 31, 2026 – 10:21 AM",
+    time: "Aug 19, 2026 – 10:21 AM",
     voucher: "Free Latte",
     voucherCode: "VCH-1001",
     action: "Redeemed",
@@ -115,7 +115,7 @@ const recentActivityData = [
   },
   {
     id: 4,
-    time: "May 31, 2026 – 10:21 AM",
+    time: "Aug 19, 2026 – 10:21 AM",
     voucher: "Free Latte",
     voucherCode: "VCH-1001",
     action: "Redeemed",
@@ -126,7 +126,7 @@ const recentActivityData = [
   },
   {
     id: 5,
-    time: "May 31, 2026 – 9:45 AM",
+    time: "Aug 19, 2026 – 9:45 AM",
     voucher: "15% Off Total Bill",
     voucherCode: "VCH-1002",
     action: "Redeemed",
@@ -138,7 +138,7 @@ const recentActivityData = [
 ];
 
 const VouchersAnalytics = ({ onBack }) => {
-  const [selectedDate, setSelectedDate] = useState(new Date("2026-08-07"));
+  const [selectedDate, setSelectedDate] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
 
   return (

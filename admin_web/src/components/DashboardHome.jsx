@@ -1,5 +1,5 @@
 import React, { useState, forwardRef } from 'react';
-import { Wallet, ShoppingBag, UserPlus, Megaphone, Users, Coins, Ticket, Coffee, BadgeDollarSign, Calendar, Gift, ShoppingCart, User, AlertCircle, Clock, TrendingUp, CheckCircle, ArrowUp } from 'lucide-react';
+import { Wallet, ShoppingBag, UserPlus, Megaphone, Users, Coins, Ticket, Coffee, BadgeDollarSign, Calendar, Gift, ShoppingCart, User, AlertCircle, Clock, TrendingUp, CheckCircle, ArrowUp, ArrowRight } from 'lucide-react';
 import Pagination from './Pagination';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import DatePicker from "react-datepicker";
@@ -98,7 +98,10 @@ const ChartCard = ({ title, value, change, data, dataKey, color, id }) => {
             </defs>
             <XAxis dataKey="time" axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 10, fill: '#9CA3AF' }} dy={10} />
             <YAxis axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 10, fill: '#9CA3AF' }} />
-            <Tooltip />
+            <Tooltip 
+              contentStyle={{ backgroundColor: '#1F3A34', borderRadius: '8px', border: 'none', color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
+              itemStyle={{ color: '#fff' }}
+            />
             <Area type="monotone" dataKey={dataKey} stroke={color} strokeWidth={2} fillOpacity={1} fill={`url(#${id})`} />
           </AreaChart>
         </ResponsiveContainer>
@@ -123,7 +126,7 @@ const ActionItem = ({ title, desc, iconColor, icon: Icon, onClick }) => (
 );
 
 const DashboardHome = ({ setCurrentPage }) => {
-  const [selectedDate, setSelectedDate] = useState(new Date('2026-05-05'));
+  const [selectedDate, setSelectedDate] = useState(null);
   const [currentPage, setCurrentPageNumber] = useState(1);
 
   const CustomDateInput = forwardRef(({ value, onClick }, ref) => (
@@ -133,7 +136,7 @@ const DashboardHome = ({ setCurrentPage }) => {
       className="flex items-center space-x-2 border border-gray-200 px-3 py-1.5 rounded-lg bg-white shadow-sm text-xs font-semibold text-gray-700 cursor-pointer hover:bg-gray-50 transition-colors"
     >
       <Calendar size={14} className="text-gray-500" />
-      <span>{value}</span>
+      <span>{value || 'Select Date'}</span>
       <span className="text-gray-400 text-[10px]">v</span>
     </div>
   ));
@@ -229,9 +232,9 @@ const DashboardHome = ({ setCurrentPage }) => {
             <h2 className="text-lg font-bold text-gray-900">Recent Orders</h2>
             <button
               onClick={() => setCurrentPage && setCurrentPage('Orders')}
-              className="text-xs font-semibold text-gray-600 hover:text-gray-900 hover:underline cursor-pointer"
+              className="text-xs font-semibold text-gray-600 hover:text-gray-900 hover:underline cursor-pointer inline-flex items-center gap-1"
             >
-              View all orders
+              View All <ArrowRight size={14} className="ml-0.5" />
             </button>
           </div>
           <table className="w-full text-left text-xs">
@@ -281,9 +284,9 @@ const DashboardHome = ({ setCurrentPage }) => {
               <h2 className="text-lg font-bold text-gray-900">Recent Activity</h2>
               <button
                 onClick={() => setCurrentPage && setCurrentPage('Recent Activities')}
-                className="text-xs font-semibold text-gray-600 hover:text-gray-900 hover:underline cursor-pointer"
+                className="text-xs font-semibold text-gray-600 hover:text-gray-900 hover:underline cursor-pointer inline-flex items-center gap-1"
               >
-                View all
+                View All <ArrowRight size={14} className="ml-0.5" />
               </button>
             </div>
             <div className="space-y-4">

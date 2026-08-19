@@ -42,21 +42,21 @@ const KPICard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-w
 );
 
 const initialCustomerData = [
-  { id: 'cust-0', username: 'miraelys', email: 'mira@gmail.com', tier: 'Legend', tokens: '1,560', orders: '48', spent: 'RM 2,600.50', lastOrder: 'May 5, 2026', status: 'Paid', phone: '+60 11-63793812', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80' },
-  { id: 'cust-1', username: 'alex_chong', email: 'alex.c@yahoo.com', tier: 'Legend', tokens: '2,100', orders: '102', spent: 'RM 5,230.00', lastOrder: 'Aug 2, 2026', status: 'Paid', phone: '+60 12-3456789', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&auto=format&fit=crop&q=80' },
-  { id: 'cust-2', username: 'sarah_lee', email: 'sarah.lee88@gmail.com', tier: 'Dilamun', tokens: '450', orders: '12', spent: 'RM 450.25', lastOrder: 'Aug 10, 2026', status: 'Refund', phone: '+60 17-9876543', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&auto=format&fit=crop&q=80' },
-  { id: 'cust-3', username: 'khai_rul', email: 'khairul.dev@gmail.com', tier: 'Ketagih', tokens: '3,200', orders: '25', spent: 'RM 8,400.90', lastOrder: 'Aug 12, 2026', status: 'Paid', phone: '+60 19-1122334', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&auto=format&fit=crop&q=80' },
-  { id: 'cust-4', username: 'jane_doe', email: 'janedoe99@outlook.com', tier: 'Kawan', tokens: '120', orders: '3', spent: 'RM 85.00', lastOrder: 'July 15, 2026', status: 'Paid', phone: '+60 13-5557777', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&auto=format&fit=crop&q=80' },
-  { id: 'cust-5', username: 'ahmad_z', email: 'ahmad.z@gmail.com', tier: 'Dilamun', tokens: '1,890', orders: '18', spent: 'RM 4,120.00', lastOrder: 'Aug 11, 2026', status: 'Paid', phone: '+60 14-2223333', avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&auto=format&fit=crop&q=80' },
-  { id: 'cust-6', username: 'lily_tan', email: 'lily.tan@company.com', tier: 'Ketagih', tokens: '4,500', orders: '28', spent: 'RM 12,300.50', lastOrder: 'Aug 13, 2026', status: 'Paid', phone: '+60 16-8889999', avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&auto=format&fit=crop&q=80' },
-  { id: 'cust-7', username: 'ravi_s', email: 'ravi.shankar@gmail.com', tier: 'Dilamun', tokens: '670', orders: '15', spent: 'RM 890.75', lastOrder: 'June 20, 2026', status: 'Paid', phone: '+60 11-1234123', avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=100&auto=format&fit=crop&q=80' },
-  { id: 'cust-8', username: 'fatimah_n', email: 'fatimah.n@yahoo.com', tier: 'Legend', tokens: '2,340', orders: '32', spent: 'RM 5,100.00', lastOrder: 'Aug 5, 2026', status: 'Paid', phone: '+60 12-4445555', avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=100&auto=format&fit=crop&q=80' },
-  { id: 'cust-9', username: 'wei_jie', email: 'weijie_w@gmail.com', tier: 'Kawan', tokens: '250', orders: '8', spent: 'RM 150.00', lastOrder: 'May 18, 2026', status: 'Refund', phone: '+60 17-6667777', avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=100&auto=format&fit=crop&q=80' },
-  { id: 'cust-10', username: 'nur_aini', email: 'nur.aini@outlook.com', tier: 'Ketagih', tokens: '3,800', orders: '22', spent: 'RM 9,200.00', lastOrder: 'Aug 9, 2026', status: 'Paid', phone: '+60 19-8887777', avatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=100&auto=format&fit=crop&q=80' },
-  { id: 'cust-11', username: 'danial_h', email: 'danial.hakim@gmail.com', tier: 'Legend', tokens: '1,650', orders: '45', spent: 'RM 3,200.20', lastOrder: 'July 25, 2026', status: 'Paid', phone: '+60 13-9990000', avatar: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=100&auto=format&fit=crop&q=80' },
-  { id: 'cust-12', username: 'mei_ling', email: 'mei.l@yahoo.com', tier: 'Dilamun', tokens: '890', orders: '19', spent: 'RM 1,450.50', lastOrder: 'Aug 1, 2026', status: 'Paid', phone: '+60 14-7778888', avatar: 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=100&auto=format&fit=crop&q=80' },
-  { id: 'cust-13', username: 'kumar_a', email: 'kumar.a@gmail.com', tier: 'Kawan', tokens: '180', orders: '5', spent: 'RM 120.00', lastOrder: 'March 12, 2026', status: 'Refund', phone: '+60 16-1112222', avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=100&auto=format&fit=crop&q=80' },
-  { id: 'cust-14', username: 'syahirah', email: 'syahirah_o@gmail.com', tier: 'Legend', tokens: '2,750', orders: '31', spent: 'RM 6,800.00', lastOrder: 'Aug 13, 2026', status: 'Paid', phone: '+60 11-3334444', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80' }
+  { id: 'cust-0', username: 'miraelys', email: 'mira@gmail.com', tier: 'Legend', tokens: '1,560', orders: '48', spent: 'RM 2,600.50', lastOrder: 'Aug 19, 2026', status: 'Paid', phone: '+60 11-63793812', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80' },
+  { id: 'cust-1', username: 'alex_chong', email: 'alex.c@yahoo.com', tier: 'Legend', tokens: '2,100', orders: '102', spent: 'RM 5,230.00', lastOrder: 'Aug 19, 2026', status: 'Paid', phone: '+60 12-3456789', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&auto=format&fit=crop&q=80' },
+  { id: 'cust-2', username: 'sarah_lee', email: 'sarah.lee88@gmail.com', tier: 'Dilamun', tokens: '450', orders: '12', spent: 'RM 450.25', lastOrder: 'Aug 19, 2026', status: 'Refund', phone: '+60 17-9876543', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&auto=format&fit=crop&q=80' },
+  { id: 'cust-3', username: 'khai_rul', email: 'khairul.dev@gmail.com', tier: 'Ketagih', tokens: '3,200', orders: '25', spent: 'RM 8,400.90', lastOrder: 'Aug 19, 2026', status: 'Paid', phone: '+60 19-1122334', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&auto=format&fit=crop&q=80' },
+  { id: 'cust-4', username: 'jane_doe', email: 'janedoe99@outlook.com', tier: 'Kawan', tokens: '120', orders: '3', spent: 'RM 85.00', lastOrder: 'Aug 19, 2026', status: 'Paid', phone: '+60 13-5557777', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&auto=format&fit=crop&q=80' },
+  { id: 'cust-5', username: 'ahmad_z', email: 'ahmad.z@gmail.com', tier: 'Dilamun', tokens: '1,890', orders: '18', spent: 'RM 4,120.00', lastOrder: 'Aug 19, 2026', status: 'Paid', phone: '+60 14-2223333', avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&auto=format&fit=crop&q=80' },
+  { id: 'cust-6', username: 'lily_tan', email: 'lily.tan@company.com', tier: 'Ketagih', tokens: '4,500', orders: '28', spent: 'RM 12,300.50', lastOrder: 'Aug 19, 2026', status: 'Paid', phone: '+60 16-8889999', avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&auto=format&fit=crop&q=80' },
+  { id: 'cust-7', username: 'ravi_s', email: 'ravi.shankar@gmail.com', tier: 'Dilamun', tokens: '670', orders: '15', spent: 'RM 890.75', lastOrder: 'Aug 19, 2026', status: 'Paid', phone: '+60 11-1234123', avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=100&auto=format&fit=crop&q=80' },
+  { id: 'cust-8', username: 'fatimah_n', email: 'fatimah.n@yahoo.com', tier: 'Legend', tokens: '2,340', orders: '32', spent: 'RM 5,100.00', lastOrder: 'Aug 19, 2026', status: 'Paid', phone: '+60 12-4445555', avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=100&auto=format&fit=crop&q=80' },
+  { id: 'cust-9', username: 'wei_jie', email: 'weijie_w@gmail.com', tier: 'Kawan', tokens: '250', orders: '8', spent: 'RM 150.00', lastOrder: 'Aug 19, 2026', status: 'Refund', phone: '+60 17-6667777', avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=100&auto=format&fit=crop&q=80' },
+  { id: 'cust-10', username: 'nur_aini', email: 'nur.aini@outlook.com', tier: 'Ketagih', tokens: '3,800', orders: '22', spent: 'RM 9,200.00', lastOrder: 'Aug 19, 2026', status: 'Paid', phone: '+60 19-8887777', avatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=100&auto=format&fit=crop&q=80' },
+  { id: 'cust-11', username: 'danial_h', email: 'danial.hakim@gmail.com', tier: 'Legend', tokens: '1,650', orders: '45', spent: 'RM 3,200.20', lastOrder: 'Aug 19, 2026', status: 'Paid', phone: '+60 13-9990000', avatar: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=100&auto=format&fit=crop&q=80' },
+  { id: 'cust-12', username: 'mei_ling', email: 'mei.l@yahoo.com', tier: 'Dilamun', tokens: '890', orders: '19', spent: 'RM 1,450.50', lastOrder: 'Aug 19, 2026', status: 'Paid', phone: '+60 14-7778888', avatar: 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=100&auto=format&fit=crop&q=80' },
+  { id: 'cust-13', username: 'kumar_a', email: 'kumar.a@gmail.com', tier: 'Kawan', tokens: '180', orders: '5', spent: 'RM 120.00', lastOrder: 'Aug 19, 2026', status: 'Refund', phone: '+60 16-1112222', avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=100&auto=format&fit=crop&q=80' },
+  { id: 'cust-14', username: 'syahirah', email: 'syahirah_o@gmail.com', tier: 'Legend', tokens: '2,750', orders: '31', spent: 'RM 6,800.00', lastOrder: 'Aug 19, 2026', status: 'Paid', phone: '+60 11-3334444', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80' }
 ];
 
 const getTierColor = (tier) => {
@@ -102,7 +102,7 @@ const CustomDateInput = forwardRef(({ value, onClick, onClear }, ref) => (
       ref={ref}
       className="flex items-center pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
     >
-      {value ? value : "Last Order"}
+      {value || 'Select Date'}
     </button>
     <div className="absolute inset-y-0 right-0 flex items-center pr-3">
       {value ? (
@@ -168,7 +168,7 @@ const Customers = () => {
     let matchesDate = true;
     if (selectedDate) {
       const formattedDate = selectedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-      // Very basic match just to work with the mock data e.g. "May 5, 2026"
+      // Very basic match just to work with the mock data e.g. "Aug 19, 2026"
       matchesDate = customer.lastOrder === formattedDate || customer.lastOrder.includes(formattedDate);
     }
 

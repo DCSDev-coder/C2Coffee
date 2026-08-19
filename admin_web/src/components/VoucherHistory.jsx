@@ -3,9 +3,9 @@ import { ArrowLeft, Ticket } from 'lucide-react';
 
 const VoucherHistory = ({ customer, onBack }) => {
   const vouchers = [
-    { id: 'VCH-001', name: 'RM10 Off Next Purchase', status: 'Used', date: 'May 2, 2026', color: 'bg-gray-100 text-gray-600' },
-    { id: 'VCH-002', name: 'Free Shipping', status: 'Active', date: 'Valid until June 1, 2026', color: 'bg-green-100 text-green-700' },
-    { id: 'VCH-003', name: '20% Discount Storewide', status: 'Expired', date: 'Expired April 1, 2026', color: 'bg-red-100 text-red-700' },
+    { id: 'VCH-001', name: 'RM10 Off Next Purchase', status: 'Used', date: 'Aug 19, 2026', color: 'bg-gray-100 text-gray-600' },
+    { id: 'VCH-002', name: 'Free Shipping', status: 'Active', date: 'Valid until Aug 19, 2026', color: 'bg-green-100 text-green-700' },
+    { id: 'VCH-003', name: '20% Discount Storewide', status: 'Expired', date: 'Expired Aug 19, 2026', color: 'bg-red-100 text-red-700' },
   ];
 
   return (

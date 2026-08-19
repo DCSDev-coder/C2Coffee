@@ -21,7 +21,12 @@ const Sidebar = ({ currentPage, setCurrentPage }) => {
 
   return (
     <div className="w-56 bg-[#2E5E58] text-white h-[calc(100vh-2rem)] fixed left-4 top-4 bottom-4 flex flex-col p-4 rounded-3xl z-10 shadow-xl overflow-y-auto" style={{ fontFamily: 'Afacad, sans-serif' }}>
-      <div className="flex flex-col items-center mt-6 mb-8">
+      <div 
+        className="flex flex-col items-center mt-6 mb-8 cursor-pointer" 
+        onClick={() => {
+          if (setCurrentPage) setCurrentPage('Dashboard');
+        }}
+      >
         <img src="/c2_logo.png" alt="C2 Logo" className="w-24 h-24 object-contain drop-shadow-md" />
       </div>
 
@@ -35,7 +40,7 @@ const Sidebar = ({ currentPage, setCurrentPage }) => {
               href="#"
               onClick={(e) => {
                 e.preventDefault();
-                if (setCurrentPage && (item.name === 'Dashboard' || item.name === 'Customers' || item.name === 'Orders' || item.name === 'Voucher' || item.name === 'Loyalty & Tokens' || item.name === 'Menu' || item.name === 'Marketing' || item.name === 'Audit Logs')) {
+                if (setCurrentPage && (item.name === 'Dashboard' || item.name === 'Customers' || item.name === 'Orders' || item.name === 'Voucher' || item.name === 'Loyalty & Tokens' || item.name === 'Menu' || item.name === 'Marketing' || item.name === 'Finance' || item.name === 'Audit Logs')) {
                   setCurrentPage(item.name);
                 }
               }}

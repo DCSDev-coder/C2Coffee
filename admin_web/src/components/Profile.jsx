@@ -25,7 +25,7 @@ const Profile = ({ onBack }) => {
     userId: "ADM01",
     role: "Super Admin",
     joinedDate: "13 July 2026",
-    lastLogin: "14 Aug 2026 – 8:30 AM"
+    lastLogin: "19 Aug 2026 – 8:30 AM"
   });
 
   const [formData, setFormData] = useState({ ...profile });
@@ -488,21 +488,21 @@ const Profile = ({ onBack }) => {
               <div className="py-2.5 flex justify-between">
                 <div>
                   <p className="font-bold text-gray-900">Successful Login</p>
-                  <p className="text-gray-500">14 Aug 2026 – 8:30 AM • IP: 175.143.28.91</p>
+                  <p className="text-gray-500">19 Aug 2026 – 8:30 AM • IP: 175.143.28.91</p>
                 </div>
                 <span className="text-green-700 font-bold">Success</span>
               </div>
               <div className="py-2.5 flex justify-between">
                 <div>
                   <p className="font-bold text-gray-900">Successful Login</p>
-                  <p className="text-gray-500">13 Aug 2026 – 9:02 AM • IP: 175.143.28.91</p>
+                  <p className="text-gray-500">19 Aug 2026 – 9:02 AM • IP: 175.143.28.91</p>
                 </div>
                 <span className="text-green-700 font-bold">Success</span>
               </div>
               <div className="py-2.5 flex justify-between">
                 <div>
                   <p className="font-bold text-gray-900">Successful Login</p>
-                  <p className="text-gray-500">12 Aug 2026 – 8:45 AM • IP: 175.143.28.91</p>
+                  <p className="text-gray-500">19 Aug 2026 – 8:45 AM • IP: 175.143.28.91</p>
                 </div>
                 <span className="text-green-700 font-bold">Success</span>
               </div>

@@ -18,7 +18,7 @@ const initialActivities = [
     actor: "miraelys",
     target: "miraelys",
     time: "10:21 AM",
-    date: "Aug 14, 2026",
+    date: "Aug 19, 2026",
     status: "Completed",
     ip: "175.143.20.11",
     details: "Issued 1x Free Latte voucher via Admin Voucher Tool. Expiry set to 30 days.",
@@ -33,7 +33,7 @@ const initialActivities = [
     actor: "miraelys",
     target: "ORD-0510-002",
     time: "10:18 AM",
-    date: "Aug 14, 2026",
+    date: "Aug 19, 2026",
     status: "Approved",
     ip: "175.143.20.11",
     details: "Refund of RM 15.90 processed via Touch 'n Go eWallet. Reason: Quality Issued.",
@@ -48,7 +48,7 @@ const initialActivities = [
     actor: "miraelys",
     target: "Happy Hour Campaign",
     time: "9:45 AM",
-    date: "Aug 14, 2026",
+    date: "Aug 19, 2026",
     status: "Active",
     ip: "175.143.20.11",
     details: "Push notification and in-app banner scheduled for all Klang Valley outlets.",
@@ -63,7 +63,7 @@ const initialActivities = [
     actor: "System",
     target: "Daniel Ho (cust-19)",
     time: "9:30 AM",
-    date: "Aug 14, 2026",
+    date: "Aug 19, 2026",
     status: "Completed",
     ip: "115.164.55.90",
     details: "Customer signed up with mobile number +60 12-8889922. Assigned Kawan tier.",
@@ -78,7 +78,7 @@ const initialActivities = [
     actor: "Store Manager",
     target: "Caramel Macchiato",
     time: "9:12 AM",
-    date: "Aug 14, 2026",
+    date: "Aug 19, 2026",
     status: "In Stock",
     ip: "210.195.120.4",
     details: "Inventory status updated to available with 50 units restocked.",
@@ -93,7 +93,7 @@ const initialActivities = [
     actor: "alex_chong",
     target: "Flat White",
     time: "8:50 AM",
-    date: "Aug 14, 2026",
+    date: "Aug 19, 2026",
     status: "Updated",
     ip: "175.140.12.88",
     details: "Base price adjusted from RM 14.50 to RM 15.00 across all outlets.",
@@ -108,7 +108,7 @@ const initialActivities = [
     actor: "miraelys",
     target: "Welcome Promo",
     time: "8:30 AM",
-    date: "Aug 14, 2026",
+    date: "Aug 19, 2026",
     status: "Completed",
     ip: "175.143.20.11",
     details: "Discount coupon created with minimum spend RM 20 and max discount RM 5.",
@@ -123,7 +123,7 @@ const initialActivities = [
     actor: "Amirah Balqis",
     target: "Audit_2026-08.csv",
     time: "8:15 AM",
-    date: "Aug 14, 2026",
+    date: "Aug 19, 2026",
     status: "Downloaded",
     ip: "175.143.20.11",
     details: "Exported 30-day activity logs covering 1,240 records.",
@@ -142,7 +142,7 @@ const CustomDateInput = forwardRef(({ value, onClick, onClear }, ref) => (
       onClick={(e) => { e.preventDefault(); onClick(e); }}
       className="flex items-center pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 whitespace-nowrap cursor-pointer"
     >
-      {value || "Aug 14, 2026"}
+      {value || 'Select Date'}
     </button>
     <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
       <ChevronDown size={16} className="text-gray-500" />

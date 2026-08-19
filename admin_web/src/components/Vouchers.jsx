@@ -17,7 +17,7 @@ const CustomDateInput = forwardRef(({ value, onClick, onClear }, ref) => (
       onClick={(e) => { e.preventDefault(); onClick(e); }}
       className="flex items-center pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 whitespace-nowrap cursor-pointer"
     >
-      {value || "Select Date"}
+      {value || 'Select Date'}
     </button>
     <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
       <ChevronDown size={16} className="text-gray-500" />
@@ -72,7 +72,7 @@ const initialVouchersList = [
     rate: "61.5%",
     limitPerUser: 1,
     description: "Redeem a free Latte (Hot/Cold) at any time",
-    created: "15 Jan 2026"
+    created: "19 Aug 2026"
   },
   {
     id: "VCH-1002",
@@ -89,7 +89,7 @@ const initialVouchersList = [
     rate: "100%",
     limitPerUser: 1,
     description: "Enjoy 15% discount on all drinks and food items.",
-    created: "10 Jan 2026"
+    created: "19 Aug 2026"
   },
   {
     id: "VCH-1003",
@@ -106,7 +106,7 @@ const initialVouchersList = [
     rate: "61.5%",
     limitPerUser: 2,
     description: "Instant RM 5 discount on orders above RM 25.",
-    created: "18 Jan 2026"
+    created: "19 Aug 2026"
   },
   {
     id: "VCH-1004",
@@ -123,7 +123,7 @@ const initialVouchersList = [
     rate: "61.5%",
     limitPerUser: 1,
     description: "Buy 1 Shakerato Bianco and get 1 free.",
-    created: "20 Jan 2026"
+    created: "19 Aug 2026"
   },
   {
     id: "VCH-1005",
@@ -140,7 +140,7 @@ const initialVouchersList = [
     rate: "61.5%",
     limitPerUser: 1,
     description: "Welcome voucher for newly registered app users.",
-    created: "22 Jan 2026"
+    created: "19 Aug 2026"
   },
   {
     id: "VCH-1006",
@@ -157,7 +157,7 @@ const initialVouchersList = [
     rate: "61.5%",
     limitPerUser: 1,
     description: "Complimentary warm cinnamon roll with any beverage.",
-    created: "25 Jan 2026"
+    created: "19 Aug 2026"
   },
   {
     id: "VCH-1007",
@@ -174,7 +174,7 @@ const initialVouchersList = [
     rate: "61.5%",
     limitPerUser: 2,
     description: "Exclusive reward for Legend Tier members.",
-    created: "28 Jan 2026"
+    created: "19 Aug 2026"
   },
   {
     id: "VCH-1008",
@@ -191,7 +191,7 @@ const initialVouchersList = [
     rate: "61.5%",
     limitPerUser: 1,
     description: "20% discount on coffee orders before 10:30 AM.",
-    created: "30 Jan 2026"
+    created: "19 Aug 2026"
   }
 ];
 
@@ -794,11 +794,11 @@ const Vouchers = ({ onBack }) => {
               <div className="space-y-2.5 text-xs">
                 <div className="p-2.5 bg-gray-50 rounded-lg">
                   <p className="font-bold text-gray-900">Voucher Created</p>
-                  <p className="text-gray-500 text-[10px]">15 Jan 2026 by miraelys</p>
+                  <p className="text-gray-500 text-[10px]">19 Aug 2026 by miraelys</p>
                 </div>
                 <div className="p-2.5 bg-gray-50 rounded-lg">
                   <p className="font-bold text-gray-900">Allocation Increased (+500)</p>
-                  <p className="text-gray-500 text-[10px]">20 Feb 2026 by admin_alex</p>
+                  <p className="text-gray-500 text-[10px]">19 Aug 2026 by admin_alex</p>
                 </div>
               </div>
             )}

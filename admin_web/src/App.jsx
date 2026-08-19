@@ -10,6 +10,16 @@ import Vouchers from './components/Vouchers';
 import LoyaltyTokens from './components/LoyaltyTokens';
 import Menu from './components/Menu';
 import Marketing from './components/Marketing';
+import Finance from './components/Finance';
+import GenerateInvoice from './components/GenerateInvoice';
+import RecordExpense from './components/RecordExpense';
+import RevenueReport from './components/RevenueReport';
+import ExportStatement from './components/ExportStatement';
+import AllTransactions from './components/AllTransactions';
+import ExpenseBreakdownFull from './components/ExpenseBreakdownFull';
+import AllCampaigns from './components/AllCampaigns';
+import AllPushNotifications from './components/AllPushNotifications';
+import AllContentPerformance from './components/AllContentPerformance';
 
 function App() {
   const [currentPage, setCurrentPage] = useState('Dashboard');
@@ -24,8 +34,13 @@ function App() {
     }
   };
 
+  const layoutCurrentPage = ['Refunds'].includes(currentPage) ? 'Orders'
+    : ['GenerateInvoice', 'RecordExpense', 'RevenueReport', 'ExportStatement', 'AllTransactions', 'ExpenseBreakdownFull'].includes(currentPage) ? 'Finance'
+    : ['AllCampaigns', 'AllPushNotifications', 'AllContentPerformance'].includes(currentPage) ? 'Marketing'
+    : currentPage;
+
   return (
-    <Layout currentPage={currentPage === 'Refunds' ? 'Orders' : currentPage} setCurrentPage={handleNavigate}>
+    <Layout currentPage={layoutCurrentPage} setCurrentPage={handleNavigate}>
       {currentPage === 'Dashboard' && <DashboardHome setCurrentPage={handleNavigate} />}
       {currentPage === 'Customers' && <Customers />}
       {currentPage === 'Orders' && <Orders initialShowRefunds={false} />}
@@ -41,7 +56,17 @@ function App() {
       {currentPage === 'Voucher' && <Vouchers onBack={() => handleNavigate(prevPage || 'Dashboard')} />}
       {currentPage === 'Loyalty & Tokens' && <LoyaltyTokens onBack={() => handleNavigate(prevPage || 'Dashboard')} />}
       {currentPage === 'Menu' && <Menu />}
-      {currentPage === 'Marketing' && <Marketing />}
+      {currentPage === 'Marketing' && <Marketing setCurrentPage={handleNavigate} />}
+      {currentPage === 'AllCampaigns' && <AllCampaigns onBack={() => handleNavigate('Marketing')} />}
+      {currentPage === 'AllPushNotifications' && <AllPushNotifications onBack={() => handleNavigate('Marketing')} />}
+      {currentPage === 'AllContentPerformance' && <AllContentPerformance onBack={() => handleNavigate('Marketing')} />}
+      {currentPage === 'Finance' && <Finance setCurrentPage={handleNavigate} />}
+      {currentPage === 'GenerateInvoice' && <GenerateInvoice onBack={() => handleNavigate('Finance')} />}
+      {currentPage === 'RecordExpense' && <RecordExpense onBack={() => handleNavigate('Finance')} />}
+      {currentPage === 'RevenueReport' && <RevenueReport onBack={() => handleNavigate('Finance')} />}
+      {currentPage === 'ExportStatement' && <ExportStatement onBack={() => handleNavigate('Finance')} />}
+      {currentPage === 'AllTransactions' && <AllTransactions onBack={() => handleNavigate('Finance')} />}
+      {currentPage === 'ExpenseBreakdownFull' && <ExpenseBreakdownFull onBack={() => handleNavigate('Finance')} />}
     </Layout>
   );
 }

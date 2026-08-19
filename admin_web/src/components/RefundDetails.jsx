@@ -48,14 +48,14 @@ const initialRefundsData = [
     reason: "Wrong Item",
     paymentMethod: "Touch 'n Go eWallet",
     status: "Approved",
-    requestedAt: "May 5, 2026 10:15 AM",
-    orderDate: "May 5, 2026 – 10:18 AM",
+    requestedAt: "Aug 19, 2026 10:15 AM",
+    orderDate: "Aug 19, 2026 – 10:18 AM",
     customerNotes: "I received Flat White instead of Latte",
     attachment: "/FLAT WHITE.png",
     timeline: [
-      { label: "Refund Requested", date: "May 5, 2026 10:21 AM", done: true },
-      { label: "Under Review", date: "May 5, 2026 10:21 AM", done: true },
-      { label: "Refund Completed", date: "May 5, 2026 10:21 AM", done: true }
+      { label: "Refund Requested", date: "Aug 19, 2026 10:21 AM", done: true },
+      { label: "Under Review", date: "Aug 19, 2026 10:21 AM", done: true },
+      { label: "Refund Completed", date: "Aug 19, 2026 10:21 AM", done: true }
     ]
   },
   {
@@ -70,14 +70,14 @@ const initialRefundsData = [
     reason: "Quality Issued",
     paymentMethod: "Touch 'n Go eWallet",
     status: "Pending",
-    requestedAt: "May 5, 2026 10:15 AM",
-    orderDate: "May 5, 2026 – 10:18 AM",
+    requestedAt: "Aug 19, 2026 10:15 AM",
+    orderDate: "Aug 19, 2026 – 10:18 AM",
     customerNotes: "Drink spilled upon delivery and was cold",
     attachment: "/BOIJITO.png",
     timeline: [
-      { label: "Refund Requested", date: "May 5, 2026 10:21 AM", done: true },
-      { label: "Under Review", date: "May 5, 2026 10:21 AM", done: false },
-      { label: "Refund Completed", date: "May 5, 2026 10:21 AM", done: false }
+      { label: "Refund Requested", date: "Aug 19, 2026 10:21 AM", done: true },
+      { label: "Under Review", date: "Aug 19, 2026 10:21 AM", done: false },
+      { label: "Refund Completed", date: "Aug 19, 2026 10:21 AM", done: false }
     ]
   },
   {
@@ -92,14 +92,14 @@ const initialRefundsData = [
     reason: "Delayed Order",
     paymentMethod: "Touch 'n Go eWallet",
     status: "Under Review",
-    requestedAt: "May 5, 2026 10:15 AM",
-    orderDate: "May 5, 2026 – 10:18 AM",
+    requestedAt: "Aug 19, 2026 10:15 AM",
+    orderDate: "Aug 19, 2026 – 10:18 AM",
     customerNotes: "Took over 45 minutes to prepare and was late",
     attachment: "/LATTE.png",
     timeline: [
-      { label: "Refund Requested", date: "May 5, 2026 10:21 AM", done: true },
-      { label: "Under Review", date: "May 5, 2026 10:21 AM", done: true },
-      { label: "Refund Completed", date: "May 5, 2026 10:21 AM", done: false }
+      { label: "Refund Requested", date: "Aug 19, 2026 10:21 AM", done: true },
+      { label: "Under Review", date: "Aug 19, 2026 10:21 AM", done: true },
+      { label: "Refund Completed", date: "Aug 19, 2026 10:21 AM", done: false }
     ]
   },
   {
@@ -114,14 +114,14 @@ const initialRefundsData = [
     reason: "Wrong Item",
     paymentMethod: "Touch 'n Go eWallet",
     status: "Rejected",
-    requestedAt: "May 5, 2026 10:15 AM",
-    orderDate: "May 5, 2026 – 10:18 AM",
+    requestedAt: "Aug 19, 2026 10:15 AM",
+    orderDate: "Aug 19, 2026 – 10:18 AM",
     customerNotes: "Items matched customized selection",
     attachment: "/BOIJITO.png",
     timeline: [
-      { label: "Refund Requested", date: "May 5, 2026 10:21 AM", done: true },
-      { label: "Under Review", date: "May 5, 2026 10:21 AM", done: true },
-      { label: "Refund Rejected", date: "May 5, 2026 10:21 AM", done: true }
+      { label: "Refund Requested", date: "Aug 19, 2026 10:21 AM", done: true },
+      { label: "Under Review", date: "Aug 19, 2026 10:21 AM", done: true },
+      { label: "Refund Rejected", date: "Aug 19, 2026 10:21 AM", done: true }
     ]
   },
   {
@@ -136,14 +136,14 @@ const initialRefundsData = [
     reason: "Other",
     paymentMethod: "Touch 'n Go eWallet",
     status: "Approved",
-    requestedAt: "May 5, 2026 10:15 AM",
-    orderDate: "May 5, 2026 – 10:18 AM",
+    requestedAt: "Aug 19, 2026 10:15 AM",
+    orderDate: "Aug 19, 2026 – 10:18 AM",
     customerNotes: "Duplicate order placed accidentally",
     attachment: "/FLAT WHITE.png",
     timeline: [
-      { label: "Refund Requested", date: "May 5, 2026 10:21 AM", done: true },
-      { label: "Under Review", date: "May 5, 2026 10:21 AM", done: true },
-      { label: "Refund Completed", date: "May 5, 2026 10:21 AM", done: true }
+      { label: "Refund Requested", date: "Aug 19, 2026 10:21 AM", done: true },
+      { label: "Under Review", date: "Aug 19, 2026 10:21 AM", done: true },
+      { label: "Refund Completed", date: "Aug 19, 2026 10:21 AM", done: true }
     ]
   },
   {
@@ -158,14 +158,14 @@ const initialRefundsData = [
     reason: "Missing Item",
     paymentMethod: "Touch 'n Go eWallet",
     status: "Approved",
-    requestedAt: "May 5, 2026 10:15 AM",
-    orderDate: "May 5, 2026 – 10:18 AM",
+    requestedAt: "Aug 19, 2026 10:15 AM",
+    orderDate: "Aug 19, 2026 – 10:18 AM",
     customerNotes: "Missing 1 pastry item",
     attachment: "/BOIJITO.png",
     timeline: [
-      { label: "Refund Requested", date: "May 5, 2026 10:21 AM", done: true },
-      { label: "Under Review", date: "May 5, 2026 10:21 AM", done: true },
-      { label: "Refund Completed", date: "May 5, 2026 10:21 AM", done: true }
+      { label: "Refund Requested", date: "Aug 19, 2026 10:21 AM", done: true },
+      { label: "Under Review", date: "Aug 19, 2026 10:21 AM", done: true },
+      { label: "Refund Completed", date: "Aug 19, 2026 10:21 AM", done: true }
     ]
   },
   {
@@ -180,14 +180,14 @@ const initialRefundsData = [
     reason: "Missing Item",
     paymentMethod: "Touch 'n Go eWallet",
     status: "Approved",
-    requestedAt: "May 5, 2026 10:15 AM",
-    orderDate: "May 5, 2026 – 10:18 AM",
+    requestedAt: "Aug 19, 2026 10:15 AM",
+    orderDate: "Aug 19, 2026 – 10:18 AM",
     customerNotes: "Received wrong size cup",
     attachment: "/FLAT WHITE.png",
     timeline: [
-      { label: "Refund Requested", date: "May 5, 2026 10:21 AM", done: true },
-      { label: "Under Review", date: "May 5, 2026 10:21 AM", done: true },
-      { label: "Refund Completed", date: "May 5, 2026 10:21 AM", done: true }
+      { label: "Refund Requested", date: "Aug 19, 2026 10:21 AM", done: true },
+      { label: "Under Review", date: "Aug 19, 2026 10:21 AM", done: true },
+      { label: "Refund Completed", date: "Aug 19, 2026 10:21 AM", done: true }
     ]
   },
   {
@@ -202,14 +202,14 @@ const initialRefundsData = [
     reason: "Missing Item",
     paymentMethod: "Touch 'n Go eWallet",
     status: "Approved",
-    requestedAt: "May 5, 2026 10:15 AM",
-    orderDate: "May 5, 2026 – 10:18 AM",
+    requestedAt: "Aug 19, 2026 10:15 AM",
+    orderDate: "Aug 19, 2026 – 10:18 AM",
     customerNotes: "Order cancelled by store",
     attachment: "/BOIJITO.png",
     timeline: [
-      { label: "Refund Requested", date: "May 5, 2026 10:21 AM", done: true },
-      { label: "Under Review", date: "May 5, 2026 10:21 AM", done: true },
-      { label: "Refund Completed", date: "May 5, 2026 10:21 AM", done: true }
+      { label: "Refund Requested", date: "Aug 19, 2026 10:21 AM", done: true },
+      { label: "Under Review", date: "Aug 19, 2026 10:21 AM", done: true },
+      { label: "Refund Completed", date: "Aug 19, 2026 10:21 AM", done: true }
     ]
   },
   {
@@ -224,14 +224,14 @@ const initialRefundsData = [
     reason: "Missing Item",
     paymentMethod: "Touch 'n Go eWallet",
     status: "Approved",
-    requestedAt: "May 5, 2026 10:15 AM",
-    orderDate: "May 5, 2026 – 10:18 AM",
+    requestedAt: "Aug 19, 2026 10:15 AM",
+    orderDate: "Aug 19, 2026 – 10:18 AM",
     customerNotes: "Missing extra shot addition",
     attachment: "/FLAT WHITE.png",
     timeline: [
-      { label: "Refund Requested", date: "May 5, 2026 10:21 AM", done: true },
-      { label: "Under Review", date: "May 5, 2026 10:21 AM", done: true },
-      { label: "Refund Completed", date: "May 5, 2026 10:21 AM", done: true }
+      { label: "Refund Requested", date: "Aug 19, 2026 10:21 AM", done: true },
+      { label: "Under Review", date: "Aug 19, 2026 10:21 AM", done: true },
+      { label: "Refund Completed", date: "Aug 19, 2026 10:21 AM", done: true }
     ]
   },
   {
@@ -246,14 +246,14 @@ const initialRefundsData = [
     reason: "Missing Item",
     paymentMethod: "Touch 'n Go eWallet",
     status: "Approved",
-    requestedAt: "May 5, 2026 10:15 AM",
-    orderDate: "May 5, 2026 – 10:18 AM",
+    requestedAt: "Aug 19, 2026 10:15 AM",
+    orderDate: "Aug 19, 2026 – 10:18 AM",
     customerNotes: "Payment charged twice",
     attachment: "/BOIJITO.png",
     timeline: [
-      { label: "Refund Requested", date: "May 5, 2026 10:21 AM", done: true },
-      { label: "Under Review", date: "May 5, 2026 10:21 AM", done: true },
-      { label: "Refund Completed", date: "May 5, 2026 10:21 AM", done: true }
+      { label: "Refund Requested", date: "Aug 19, 2026 10:21 AM", done: true },
+      { label: "Under Review", date: "Aug 19, 2026 10:21 AM", done: true },
+      { label: "Refund Completed", date: "Aug 19, 2026 10:21 AM", done: true }
     ]
   },
   {
@@ -268,14 +268,14 @@ const initialRefundsData = [
     reason: "Missing Item",
     paymentMethod: "Touch 'n Go eWallet",
     status: "Approved",
-    requestedAt: "May 5, 2026 10:15 AM",
-    orderDate: "May 5, 2026 – 10:18 AM",
+    requestedAt: "Aug 19, 2026 10:15 AM",
+    orderDate: "Aug 19, 2026 – 10:18 AM",
     customerNotes: "Wrong milk type used",
     attachment: "/FLAT WHITE.png",
     timeline: [
-      { label: "Refund Requested", date: "May 5, 2026 10:21 AM", done: true },
-      { label: "Under Review", date: "May 5, 2026 10:21 AM", done: true },
-      { label: "Refund Completed", date: "May 5, 2026 10:21 AM", done: true }
+      { label: "Refund Requested", date: "Aug 19, 2026 10:21 AM", done: true },
+      { label: "Under Review", date: "Aug 19, 2026 10:21 AM", done: true },
+      { label: "Refund Completed", date: "Aug 19, 2026 10:21 AM", done: true }
     ]
   },
   {
@@ -290,14 +290,14 @@ const initialRefundsData = [
     reason: "Missing Item",
     paymentMethod: "Touch 'n Go eWallet",
     status: "Approved",
-    requestedAt: "May 5, 2026 10:15 AM",
-    orderDate: "May 5, 2026 – 10:18 AM",
+    requestedAt: "Aug 19, 2026 10:15 AM",
+    orderDate: "Aug 19, 2026 – 10:18 AM",
     customerNotes: "Order not fulfilled by outlet",
     attachment: "/BOIJITO.png",
     timeline: [
-      { label: "Refund Requested", date: "May 5, 2026 10:21 AM", done: true },
-      { label: "Under Review", date: "May 5, 2026 10:21 AM", done: true },
-      { label: "Refund Completed", date: "May 5, 2026 10:21 AM", done: true }
+      { label: "Refund Requested", date: "Aug 19, 2026 10:21 AM", done: true },
+      { label: "Under Review", date: "Aug 19, 2026 10:21 AM", done: true },
+      { label: "Refund Completed", date: "Aug 19, 2026 10:21 AM", done: true }
     ]
   },
   {
@@ -312,14 +312,14 @@ const initialRefundsData = [
     reason: "Missing Item",
     paymentMethod: "Touch 'n Go eWallet",
     status: "Approved",
-    requestedAt: "May 5, 2026 10:15 AM",
-    orderDate: "May 5, 2026 – 10:18 AM",
+    requestedAt: "Aug 19, 2026 10:15 AM",
+    orderDate: "Aug 19, 2026 – 10:18 AM",
     customerNotes: "Refund requested per store manager approval",
     attachment: "/FLAT WHITE.png",
     timeline: [
-      { label: "Refund Requested", date: "May 5, 2026 10:21 AM", done: true },
-      { label: "Under Review", date: "May 5, 2026 10:21 AM", done: true },
-      { label: "Refund Completed", date: "May 5, 2026 10:21 AM", done: true }
+      { label: "Refund Requested", date: "Aug 19, 2026 10:21 AM", done: true },
+      { label: "Under Review", date: "Aug 19, 2026 10:21 AM", done: true },
+      { label: "Refund Completed", date: "Aug 19, 2026 10:21 AM", done: true }
     ]
   }
 ];
@@ -397,7 +397,7 @@ const CustomDateInput = forwardRef(({ value, onClick, onClear }, ref) => (
       onClick={(e) => { e.preventDefault(); onClick(e); }}
       className="flex items-center pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 whitespace-nowrap cursor-pointer"
     >
-      {value || "7 August 2026"}
+      {value || 'Select Date'}
     </button>
     <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
       <ChevronDown size={16} className="text-gray-500" />
@@ -536,21 +536,21 @@ const RefundDetailPanel = ({ refund, onClose, onUpdateStatus, onPreviewAttachmen
               <ClockTimelineIcon size={14} className="text-gray-700" />
               <span className="font-medium text-gray-800">Refund Requested</span>
             </div>
-            <span className="text-gray-500 text-[11px]">May 5, 2026 10:21 AM</span>
+            <span className="text-gray-500 text-[11px]">Aug 19, 2026 10:21 AM</span>
           </div>
           <div className="flex items-center justify-between text-xs">
             <div className="flex items-center gap-2">
               <DocTimelineIcon size={14} className="text-gray-700" />
               <span className="font-medium text-gray-800">Under Review</span>
             </div>
-            <span className="text-gray-500 text-[11px]">May 5, 2026 10:21 AM</span>
+            <span className="text-gray-500 text-[11px]">Aug 19, 2026 10:21 AM</span>
           </div>
           <div className="flex items-center justify-between text-xs">
             <div className="flex items-center gap-2">
               <CheckTimelineIcon size={14} className="text-black" />
               <span className="font-bold text-gray-900">Refund Completed</span>
             </div>
-            <span className="text-gray-500 text-[11px]">May 5, 2026 10:21 AM</span>
+            <span className="text-gray-500 text-[11px]">Aug 19, 2026 10:21 AM</span>
           </div>
         </div>
       </div>

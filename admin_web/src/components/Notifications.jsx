@@ -2,7 +2,8 @@ import React, { useState } from "react";
 import { 
   Bell, ChevronDown, CheckCircle2, Search, X, Filter,
   MessageSquare, UserPlus, Gift, AlertCircle, ShoppingBag, Truck,
-  Settings, Check
+  Settings, Check, CreditCard, User, Percent, Megaphone, Laptop, 
+  CheckCheck, Clock, ArrowLeft
 } from "lucide-react";
 import Pagination from './Pagination';
 
@@ -95,7 +96,7 @@ const allNotificationsData = [
   {
     id: "notif-5",
     title: "Campaign scheduled",
-    description: '"Summer Special Campaign" will start on 15 Aug 2026.',
+    description: '"Summer Special Campaign" will start on 19 Aug 2026.',
     time: "2m ago",
     category: "Marketing",
     icon: MegaPhoneIcon,
@@ -471,7 +472,7 @@ const Notifications = ({ onBack }) => {
               currentPage={currentPage}
               totalPages={totalPages}
               setCurrentPage={setCurrentPage}
-              itemsPerPage={itemsPerPage}
+              itemsPerPage={ITEMS_PER_PAGE}
               totalItems={filtered.length}
               itemName="notifications"
             />

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Megaphone, CheckCircle, Users, MessageSquare, MousePointerClick, RefreshCw, MoreVertical, Bell, ArrowUp, ChevronDown, Download, Plus, User, X } from 'lucide-react';
+import { Megaphone, CheckCircle, Users, MessageSquare, MousePointerClick, RefreshCw, MoreVertical, Bell, ArrowUp, ArrowRight, ChevronDown, Download, Plus, User, X } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -38,11 +38,11 @@ const KPICard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-w
   </div>
 );
 
-const Marketing = () => {
-  const [currentPage, setCurrentPage] = useState(1);
+const Marketing = ({ setCurrentPage }) => {
+  const [campaignPage, setCampaignPage] = useState(1);
   const [pushPage, setPushPage] = useState(1);
   const [contentPage, setContentPage] = useState(1);
-  const [selectedDate, setSelectedDate] = useState(new Date("2026-08-07"));
+  const [selectedDate, setSelectedDate] = useState(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newCampaignName, setNewCampaignName] = useState("");
   const [newCampaignDesc, setNewCampaignDesc] = useState("");
@@ -83,12 +83,12 @@ const Marketing = () => {
   ];
 
   const pushNotifications = [
-    { campaign: 'Double Point Weekend', desc: 'Earn 2x points on all drinks.', status: 'Active', date: 'May 5, 2026', time: '10:15 AM' },
-    { campaign: 'Double Point Weekend', desc: 'Earn 2x points on all drinks.', status: 'Scheduled', date: 'May 5, 2026', time: '10:15 AM' },
-    { campaign: 'Double Point Weekend', desc: 'Earn 2x points on all drinks.', status: 'Active', date: 'May 5, 2026', time: '10:15 AM' },
-    { campaign: 'Double Point Weekend', desc: 'Earn 2x points on all drinks.', status: 'Active', date: 'May 5, 2026', time: '10:15 AM' },
-    { campaign: 'Double Point Weekend', desc: 'Earn 2x points on all drinks.', status: 'Active', date: 'May 5, 2026', time: '10:15 AM' },
-    { campaign: 'Double Point Weekend', desc: 'Earn 2x points on all drinks.', status: 'Active', date: 'May 5, 2026', time: '10:15 AM' },
+    { campaign: 'Double Point Weekend', desc: 'Earn 2x points on all drinks.', status: 'Active', date: 'Aug 19, 2026', time: '10:15 AM' },
+    { campaign: 'Double Point Weekend', desc: 'Earn 2x points on all drinks.', status: 'Scheduled', date: 'Aug 19, 2026', time: '10:15 AM' },
+    { campaign: 'Double Point Weekend', desc: 'Earn 2x points on all drinks.', status: 'Active', date: 'Aug 19, 2026', time: '10:15 AM' },
+    { campaign: 'Double Point Weekend', desc: 'Earn 2x points on all drinks.', status: 'Active', date: 'Aug 19, 2026', time: '10:15 AM' },
+    { campaign: 'Double Point Weekend', desc: 'Earn 2x points on all drinks.', status: 'Active', date: 'Aug 19, 2026', time: '10:15 AM' },
+    { campaign: 'Double Point Weekend', desc: 'Earn 2x points on all drinks.', status: 'Active', date: 'Aug 19, 2026', time: '10:15 AM' },
   ];
 
   const contentPerformance = [
@@ -108,7 +108,7 @@ const Marketing = () => {
   ];
 
   const totalPages = Math.ceil(topCampaigns.length / itemsPerPage);
-  const paginatedCampaigns = topCampaigns.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const paginatedCampaigns = topCampaigns.slice((campaignPage - 1) * itemsPerPage, campaignPage * itemsPerPage);
 
   const pushItemsPerPage = 5;
   const totalPushPages = Math.ceil(pushNotifications.length / pushItemsPerPage);
@@ -146,7 +146,7 @@ const Marketing = () => {
                 customInput={
                   <div className="relative">
                     <button className="pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 whitespace-nowrap cursor-pointer w-full text-left">
-                      {selectedDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+                      {selectedDate ? selectedDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : 'Select Date'}
                     </button>
                     <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
                       <ChevronDown size={16} className="text-gray-500" />
@@ -175,8 +175,11 @@ const Marketing = () => {
           
           {/* Top Campaign Table */}
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col h-[400px]">
-            <div className="p-5 border-b border-gray-100 shrink-0">
+            <div className="p-5 border-b border-gray-100 shrink-0 flex justify-between items-center">
               <h2 className="text-lg font-bold text-gray-900">Top Campaign</h2>
+              <button onClick={() => setCurrentPage && setCurrentPage('AllCampaigns')} className="text-xs font-bold text-gray-900 hover:underline inline-flex items-center gap-1 cursor-pointer">
+                View All <ArrowRight size={14} className="ml-0.5" />
+              </button>
             </div>
             <div className="flex-1 overflow-auto">
               <table className="w-full text-left text-sm whitespace-nowrap">
@@ -215,7 +218,7 @@ const Marketing = () => {
                       <td className="px-5 py-2.5 text-center relative">
                         <button 
                           onClick={() => setOpenDropdownId(openDropdownId === campaign.id ? null : campaign.id)}
-                          className="p-1 hover:bg-gray-200 rounded text-gray-500 transition-colors inline-flex items-center justify-center w-6 h-6"
+                          className="bg-[#1E293B] hover:bg-[#0F172A] text-white p-1.5 rounded-lg shadow-sm transition-colors cursor-pointer inline-flex items-center justify-center"
                         >
                           <MoreVertical size={14} />
                         </button>
@@ -237,9 +240,9 @@ const Marketing = () => {
             </div>
             <div className="p-4 border-t border-gray-100 flex shrink-0">
               <Pagination 
-                currentPage={currentPage}
+                currentPage={campaignPage}
                 totalPages={totalPages}
-                setCurrentPage={setCurrentPage}
+                setCurrentPage={setCampaignPage}
                 itemsPerPage={itemsPerPage}
                 totalItems={topCampaigns.length}
                 itemName="campaign"
@@ -286,7 +289,10 @@ const Marketing = () => {
                   </defs>
                   <XAxis dataKey="name" axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 10, fill: '#6B7280' }} dy={10} />
                   <YAxis axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 10, fill: '#6B7280' }} tickFormatter={(value) => `${value / 1000}K`} />
-                  <Tooltip />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#1F3A34', borderRadius: '8px', border: 'none', color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
+                    itemStyle={{ color: '#fff' }}
+                  />
                   <Area type="monotone" dataKey="reach" stroke="#86B69E" strokeWidth={2} fillOpacity={1} fill="url(#colorReach)" />
                   <Area type="monotone" dataKey="engagement" stroke="#E07A5F" strokeWidth={2} fillOpacity={1} fill="url(#colorEngagement)" />
                   <Area type="monotone" dataKey="conversion" stroke="#D9C4A9" strokeWidth={2} fillOpacity={1} fill="url(#colorConversion)" />
@@ -316,8 +322,11 @@ const Marketing = () => {
           
           {/* Push Notifications */}
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col h-[350px]">
-            <div className="p-5 border-b border-gray-100 shrink-0">
+            <div className="p-5 border-b border-gray-100 shrink-0 flex justify-between items-center">
               <h2 className="text-lg font-bold text-gray-900">Push Notifications</h2>
+              <button onClick={() => setCurrentPage && setCurrentPage('AllPushNotifications')} className="text-xs font-bold text-gray-900 hover:underline inline-flex items-center gap-1 cursor-pointer">
+                View All <ArrowRight size={14} className="ml-0.5" />
+              </button>
             </div>
             <div className="flex-1 overflow-auto px-2 pb-2">
               <table className="w-full text-left text-sm whitespace-nowrap">
@@ -352,7 +361,7 @@ const Marketing = () => {
                       </td>
                       <td className="px-4 py-3 relative text-right">
                         <button 
-                          className="p-1 text-gray-400 hover:text-gray-900 rounded-lg hover:bg-gray-100"
+                          className="bg-[#1E293B] hover:bg-[#0F172A] text-white p-1.5 rounded-lg shadow-sm transition-colors cursor-pointer inline-flex items-center justify-center"
                           onClick={() => setOpenDropdownId(openDropdownId === `push-${idx}` ? null : `push-${idx}`)}
                         >
                           <MoreVertical size={14} />
@@ -387,8 +396,11 @@ const Marketing = () => {
 
           {/* Content Performance */}
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col h-[350px]">
-            <div className="p-5 border-b border-gray-100 shrink-0">
+            <div className="p-5 border-b border-gray-100 shrink-0 flex justify-between items-center">
               <h2 className="text-lg font-bold text-gray-900">Content Performance</h2>
+              <button onClick={() => setCurrentPage && setCurrentPage('AllContentPerformance')} className="text-xs font-bold text-gray-900 hover:underline inline-flex items-center gap-1 cursor-pointer">
+                View All <ArrowRight size={14} className="ml-0.5" />
+              </button>
             </div>
             <div className="flex-1 overflow-auto px-2 pb-2">
               <table className="w-full text-left text-sm whitespace-nowrap">
@@ -416,7 +428,7 @@ const Marketing = () => {
                       <td className="px-4 py-3 text-right text-gray-600 font-medium">{content.engagement}</td>
                       <td className="px-4 py-3 relative text-right">
                         <button 
-                          className="p-1 text-gray-400 hover:text-gray-900 rounded-lg hover:bg-gray-100"
+                          className="bg-[#1E293B] hover:bg-[#0F172A] text-white p-1.5 rounded-lg shadow-sm transition-colors cursor-pointer inline-flex items-center justify-center"
                           onClick={() => setOpenDropdownId(openDropdownId === `content-${idx}` ? null : `content-${idx}`)}
                         >
                           <MoreVertical size={14} />
@@ -497,6 +509,11 @@ const Marketing = () => {
                             dataKey="value"
                             stroke="none"
                           >
+                            <Tooltip 
+                              formatter={(value, name) => [`${value}%`, name]}
+                              contentStyle={{ backgroundColor: '#1F3A34', borderRadius: '8px', border: 'none', color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
+                              itemStyle={{ color: '#fff' }}
+                            />
                             {pieData.map((entry, index) => (
                               <Cell key={`cell-${index}`} fill={entry.color} />
                             ))}

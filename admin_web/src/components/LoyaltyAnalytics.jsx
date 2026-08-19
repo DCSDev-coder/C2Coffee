@@ -17,7 +17,7 @@ const CustomInput = React.forwardRef(({ value, onClick }, ref) => (
     ref={ref}
     className="flex items-center gap-1 px-2.5 py-1 bg-[#1F3A34] text-white rounded-lg text-[11px] font-semibold cursor-pointer shadow-xs focus:outline-none"
   >
-    <span>{value || "Select Date"}</span>
+    <span>{value || 'Select Date'}</span>
     <ChevronDown size={12} />
   </button>
 ));
@@ -30,7 +30,7 @@ const CustomFilterInput = React.forwardRef(({ value, onClick, onClear }, ref) =>
       ref={ref}
       className="flex items-center pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer"
     >
-      {value ? value : "Select Date"}
+      {value || 'Select Date'}
     </button>
     <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
       <ChevronDown size={16} className="text-gray-500" />
@@ -184,13 +184,19 @@ const LoyaltyAnalytics = ({ onBack, onViewSummary }) => {
           <div className="flex justify-between items-start mb-4">
             <div>
               <h3 className="text-lg font-bold text-gray-900">Tokens Issued vs Redeemed</h3>
-              <div className="flex gap-2 mt-1">
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#8AACA5] text-white">Issued</span>
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#E07A5F] text-white">Redeemed</span>
+              <div className="flex items-center gap-3 mt-2">
+                <div className="flex items-center gap-1.5 text-[11px] font-bold text-gray-600">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#2E5E58]"></span>
+                  <span>Issued</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-[11px] font-bold text-gray-600">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#E07A5F]"></span>
+                  <span>Redeemed</span>
+                </div>
               </div>
             </div>
             <div className="w-28 relative">
-              <DatePicker selected={new Date('2026-08-07')} customInput={<CustomInput />} dateFormat="d MMM yyyy" onChange={()=>{}} />
+              <DatePicker selected={null} customInput={<CustomInput />} dateFormat="d MMM yyyy" onChange={()=>{}} />
             </div>
           </div>
           <div className="flex-1 min-h-0 w-full relative -ml-4">
@@ -209,8 +215,8 @@ const LoyaltyAnalytics = ({ onBack, onViewSummary }) => {
                 <XAxis dataKey="day" axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 11, fill: '#6B7280', fontWeight: 600, angle: -20, textAnchor: 'end' }} dy={10} height={40} />
                 <YAxis axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 11, fill: '#6B7280', fontWeight: 600 }} dx={-10} tickFormatter={(val) => val >= 1000 ? `${(val/1000).toFixed(1)}K` : val} />
                 <Tooltip 
-                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)' }}
-                  itemStyle={{ fontWeight: 'bold' }}
+                  contentStyle={{ backgroundColor: '#1F3A34', borderRadius: '8px', border: 'none', color: '#fff', fontSize: '12px', fontWeight: 'bold', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)' }}
+                  itemStyle={{ color: '#fff' }}
                 />
                 <Area type="monotone" dataKey="issued" stroke="#2E5E58" strokeWidth={3} fillOpacity={1} fill="url(#colorIssued)" />
                 <Area type="monotone" dataKey="redeemed" stroke="#E07A5F" strokeWidth={3} fillOpacity={1} fill="url(#colorRedeemed)" />
@@ -224,13 +230,18 @@ const LoyaltyAnalytics = ({ onBack, onViewSummary }) => {
           <div className="flex justify-between items-start mb-2">
             <h3 className="text-lg font-bold text-gray-900">Tokens by Source</h3>
             <div className="w-28 relative">
-              <DatePicker selected={new Date('2026-08-07')} customInput={<CustomInput />} dateFormat="d MMM yyyy" onChange={()=>{}} />
+              <DatePicker selected={null} customInput={<CustomInput />} dateFormat="d MMM yyyy" onChange={()=>{}} />
             </div>
           </div>
           <div className="flex-1 flex items-center min-h-0">
             <div className="w-1/2 h-full relative">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
+                  <Tooltip 
+                    formatter={(value, name, item) => [`${value}% (${item.payload.count})`, name]}
+                    contentStyle={{ backgroundColor: '#1F3A34', borderRadius: '8px', border: 'none', color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
+                    itemStyle={{ color: '#fff' }}
+                  />
                   <Pie data={tokensBySource} cx="50%" cy="50%" innerRadius="65%" outerRadius="90%" paddingAngle={2} dataKey="value" stroke="none">
                     {tokensBySource.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
                   </Pie>
@@ -378,9 +389,15 @@ const LoyaltyAnalytics = ({ onBack, onViewSummary }) => {
           <div className="flex justify-between items-start mb-6 shrink-0">
             <div>
               <h3 className="text-lg font-bold text-gray-900">Token Activity Over Time</h3>
-              <div className="flex gap-2 mt-1">
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#2E5E58] text-white">Issued</span>
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#8AACA5] text-white">Redeemed</span>
+              <div className="flex items-center gap-3 mt-2">
+                <div className="flex items-center gap-1.5 text-[11px] font-bold text-gray-600">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#2E5E58]"></span>
+                  <span>Issued</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-[11px] font-bold text-gray-600">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#8AACA5]"></span>
+                  <span>Redeemed</span>
+                </div>
               </div>
             </div>
           </div>
@@ -391,9 +408,8 @@ const LoyaltyAnalytics = ({ onBack, onViewSummary }) => {
                 <XAxis dataKey="range" axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 10, fill: '#6B7280', fontWeight: 600, angle: -20, textAnchor: 'end' }} dy={10} height={40} />
                 <YAxis axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 11, fill: '#6B7280', fontWeight: 600 }} dx={-10} tickFormatter={(val) => val >= 1000 ? `${(val/1000).toFixed(0)}K` : val} />
                 <Tooltip 
-                  cursor={{fill: '#F3F4F6'}}
-                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                  itemStyle={{ fontWeight: 'bold' }}
+                  contentStyle={{ backgroundColor: '#1F3A34', borderRadius: '8px', border: 'none', color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
+                  itemStyle={{ color: '#fff' }}
                 />
                 <Bar dataKey="issued" fill="#2E5E58" radius={[2, 2, 0, 0]} />
                 <Bar dataKey="redeemed" fill="#8AACA5" radius={[2, 2, 0, 0]} />

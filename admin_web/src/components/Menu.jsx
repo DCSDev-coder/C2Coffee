@@ -309,7 +309,7 @@ const Menu = () => {
                       )}
                     </div>
                     <p className="text-[10px] text-gray-500 font-medium">ID : {selectedItem.id}</p>
-                    <p className="text-[10px] text-gray-500 font-medium mt-0.5">Created on : 12 Jan 2026 - Updated on 2 May 2026</p>
+                    <p className="text-[10px] text-gray-500 font-medium mt-0.5">Created on : 19 Aug 2026 - Updated on 19 Aug 2026</p>
                   </div>
                 </div>
                 <button onClick={() => setSelectedItem(null)} className="p-1 text-gray-400 hover:text-gray-900 rounded-lg hover:bg-gray-100">
@@ -436,21 +436,21 @@ const Menu = () => {
                         <div className="absolute w-3 h-3 bg-[#1F3A34] rounded-full -left-[7px] top-1.5 ring-4 ring-white"></div>
                         <p className="text-sm font-bold text-gray-900">Price Updated</p>
                         <p className="text-xs text-gray-500 mt-0.5">Changed from RM 15.90 to RM 16.90</p>
-                        <p className="text-[10px] text-gray-400 font-medium mt-1">2 May 2026 • by Admin</p>
+                        <p className="text-[10px] text-gray-400 font-medium mt-1">19 Aug 2026 • by Admin</p>
                       </div>
                       
                       <div className="relative pl-6">
                         <div className="absolute w-3 h-3 bg-gray-200 rounded-full -left-[7px] top-1.5 ring-4 ring-white"></div>
                         <p className="text-sm font-bold text-gray-900">Status Changed</p>
                         <p className="text-xs text-gray-500 mt-0.5">Changed to Available</p>
-                        <p className="text-[10px] text-gray-400 font-medium mt-1">15 Jan 2026 • by Admin</p>
+                        <p className="text-[10px] text-gray-400 font-medium mt-1">19 Aug 2026 • by Admin</p>
                       </div>
 
                       <div className="relative pl-6">
                         <div className="absolute w-3 h-3 bg-gray-200 rounded-full -left-[7px] top-1.5 ring-4 ring-white"></div>
                         <p className="text-sm font-bold text-gray-900">Item Created</p>
                         <p className="text-xs text-gray-500 mt-0.5">Added to C2 Coffee Craft category</p>
-                        <p className="text-[10px] text-gray-400 font-medium mt-1">12 Jan 2026 • by System</p>
+                        <p className="text-[10px] text-gray-400 font-medium mt-1">19 Aug 2026 • by System</p>
                       </div>
                     </div>
                   </div>

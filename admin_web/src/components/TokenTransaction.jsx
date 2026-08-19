@@ -6,9 +6,9 @@ const TokenTransaction = ({ customer, onBack }) => {
   const balanceNum = parseInt(currentBalance.toString().replace(/,/g, ''), 10) || 0;
 
   const transactions = [
-    { id: 'TXN-001', type: 'Earned', amount: '+145', source: 'Order ORD-2026-001', date: 'May 5, 2026', balance: currentBalance },
-    { id: 'TXN-002', type: 'Redeemed', amount: '-500', source: 'Voucher Redemption', date: 'May 1, 2026', balance: (balanceNum - 145).toLocaleString() },
-    { id: 'TXN-003', type: 'Earned', amount: '+25', source: 'Order ORD-2026-002', date: 'April 28, 2026', balance: (balanceNum - 145 + 500).toLocaleString() },
+    { id: 'TXN-001', type: 'Earned', amount: '+145', source: 'Order ORD-2026-001', date: 'Aug 19, 2026', balance: currentBalance },
+    { id: 'TXN-002', type: 'Redeemed', amount: '-500', source: 'Voucher Redemption', date: 'Aug 19, 2026', balance: (balanceNum - 145).toLocaleString() },
+    { id: 'TXN-003', type: 'Earned', amount: '+25', source: 'Order ORD-2026-002', date: 'Aug 19, 2026', balance: (balanceNum - 145 + 500).toLocaleString() },
   ];
 
   return (

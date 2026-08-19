@@ -76,7 +76,7 @@ const allOrders = [
     paymentStatus: "Paid",
     txnId: "TNG291938193183",
     time: "10:21 AM",
-    date: "May 5, 2026"
+    date: "Aug 19, 2026"
   },
   {
     id: "ORD-0510-002",
@@ -94,7 +94,7 @@ const allOrders = [
     paymentStatus: "Paid",
     txnId: "TNG291938193184",
     time: "10:21 AM",
-    date: "May 5, 2026"
+    date: "Aug 19, 2026"
   },
   {
     id: "ORD-0510-003",
@@ -112,7 +112,7 @@ const allOrders = [
     paymentStatus: "Paid",
     txnId: "TNG291938193185",
     time: "10:21 AM",
-    date: "May 5, 2026"
+    date: "Aug 19, 2026"
   },
   {
     id: "ORD-0510-004",
@@ -130,7 +130,7 @@ const allOrders = [
     paymentStatus: "Refunded",
     txnId: "TNG291938193186",
     time: "10:21 AM",
-    date: "May 5, 2026"
+    date: "Aug 19, 2026"
   },
   {
     id: "ORD-0510-005",
@@ -148,7 +148,7 @@ const allOrders = [
     paymentStatus: "Paid",
     txnId: "TNG291938193187",
     time: "10:21 AM",
-    date: "May 5, 2026"
+    date: "Aug 19, 2026"
   },
   {
     id: "ORD-0510-006",
@@ -166,7 +166,7 @@ const allOrders = [
     paymentStatus: "Refunded",
     txnId: "TNG291938193188",
     time: "10:21 AM",
-    date: "May 5, 2026"
+    date: "Aug 19, 2026"
   },
   {
     id: "ORD-0510-007",
@@ -184,7 +184,7 @@ const allOrders = [
     paymentStatus: "Paid",
     txnId: "TNG291938193189",
     time: "10:21 AM",
-    date: "May 5, 2026"
+    date: "Aug 19, 2026"
   },
   {
     id: "ORD-0510-008",
@@ -202,7 +202,7 @@ const allOrders = [
     paymentStatus: "Paid",
     txnId: "TNG291938193190",
     time: "10:21 AM",
-    date: "May 5, 2026"
+    date: "Aug 19, 2026"
   },
   {
     id: "ORD-0510-009",
@@ -220,7 +220,7 @@ const allOrders = [
     paymentStatus: "Paid",
     txnId: "TNG291938193191",
     time: "10:21 AM",
-    date: "May 5, 2026"
+    date: "Aug 19, 2026"
   },
   {
     id: "ORD-0510-010",
@@ -238,7 +238,7 @@ const allOrders = [
     paymentStatus: "Paid",
     txnId: "TNG291938193192",
     time: "10:21 AM",
-    date: "May 5, 2026"
+    date: "Aug 19, 2026"
   },
   {
     id: "ORD-0510-011",
@@ -256,7 +256,7 @@ const allOrders = [
     paymentStatus: "Paid",
     txnId: "TNG291938193193",
     time: "10:21 AM",
-    date: "May 5, 2026"
+    date: "Aug 19, 2026"
   },
   {
     id: "ORD-0510-012",
@@ -274,7 +274,7 @@ const allOrders = [
     paymentStatus: "Paid",
     txnId: "TNG291938193194",
     time: "10:21 AM",
-    date: "May 5, 2026"
+    date: "Aug 19, 2026"
   },
   {
     id: "ORD-0510-013",
@@ -292,7 +292,7 @@ const allOrders = [
     paymentStatus: "Paid",
     txnId: "TNG291938193195",
     time: "10:21 AM",
-    date: "May 5, 2026"
+    date: "Aug 19, 2026"
   }
 ];
 
@@ -373,7 +373,7 @@ const CustomDateInput = forwardRef(({ value, onClick, onClear }, ref) => (
       onClick={(e) => { e.preventDefault(); onClick(e); }}
       className="flex items-center pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 whitespace-nowrap cursor-pointer"
     >
-      {value || "7 August 2026"}
+      {value || 'Select Date'}
     </button>
     <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
       <ChevronDown size={16} className="text-gray-500" />
