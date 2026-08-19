@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'loading_order_page.dart';
 import '../utils/app_colors.dart';
+import '../widgets/app_page_shell.dart';
 
 class NotificationPage extends StatelessWidget {
   const NotificationPage({super.key});
@@ -11,55 +12,13 @@ class NotificationPage extends StatelessWidget {
 
     return PopScope(
       canPop: true,
-      child: Scaffold(
+      child: AppPageShell(
+        title: 'NOTIFICATIONS',
+        onBack: () => InteractiveFillingLoader.showPop(context),
         backgroundColor: bgColor,
-        body: Column(
+        bodyPadding: const EdgeInsets.all(20),
+        child: Column(
           children: [
-            // App Bar
-            Container(
-              width: double.infinity,
-              padding: EdgeInsets.only(
-                  top: MediaQuery.paddingOf(context).top + 14,
-                  bottom: 16,
-                  left: 20,
-                  right: 20),
-              decoration: BoxDecoration(
-                color: AppColors.deepTeal,
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(20),
-                  bottomRight: Radius.circular(20),
-                ),
-              ),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: GestureDetector(
-                      onTap: () => InteractiveFillingLoader.showPop(context),
-                      child: const Icon(Icons.arrow_back_ios,
-                          color: Colors.white, size: 20),
-                    ),
-                  ),
-                  const Text(
-                    'NOTIFICATIONS',
-                    style: TextStyle(
-                      fontFamily: 'Recoleta',
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      letterSpacing: 1.0,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            
-            // Notifications List
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.all(20),
-                children: [
                   _buildNotificationItem(
                     date: '2026-07-16 09:00',
                     title: 'Our fans love these. Have you tried them?',
@@ -71,9 +30,6 @@ class NotificationPage extends StatelessWidget {
                     title: 'Our fans love these. Have you tried them?',
                     description: 'The Paddle Pop by Syah are fan favourites right now. Your new user voucher is ready when you are',
                   ),
-                ],
-              ),
-            ),
           ],
         ),
       ),

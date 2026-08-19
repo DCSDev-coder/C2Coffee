@@ -18,6 +18,7 @@ import 'my_rewards_page.dart';
 import 'referral_page.dart';
 import '../widgets/order_status_banner.dart';
 import '../utils/app_colors.dart';
+import '../widgets/app_page_shell.dart';
 
 class ProfilePage extends StatefulWidget {
   final File? initialPickedImage;
@@ -152,175 +153,231 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return AppPageShell(
+      title: 'PROFILE',
+      onBack: () => InteractiveFillingLoader.showPop(context),
       backgroundColor: bgColor,
       extendBody: true,
+      scrollController: _scrollController,
+      bodyPadding: const EdgeInsets.only(
+        left: 16, right: 16, top: 20, bottom: 130),
       bottomNavigationBar: CustomBottomNav(
         selectedIndex: 4,
         onItemTapped: _onBottomNavTapped,
         scrollController: _scrollController,
       ),
-      body: Stack(
-        children: [
-          Column(
-            children: [
-              // Header
-              Container(
-                  width: double.infinity,
-                  padding: EdgeInsets.only(
-                      top: MediaQuery.paddingOf(context).top + 14,
-                      bottom: 16,
-                      left: 20,
-                      right: 20),
-                  decoration: BoxDecoration(
-                    color: AppColors.deepTeal,
-                    borderRadius: const BorderRadius.only(
-                      bottomLeft: Radius.circular(20),
-                      bottomRight: Radius.circular(20),
+      trailing: GestureDetector(
+            onTap: () {
+              InteractiveFillingLoader.show(
+                context,
+                targetPage: const NotificationPage(),
+              );
+            },
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                const Icon(Icons.notifications_outlined,
+                    color: Colors.white, size: 26),
+                Positioned(
+                  top: 1,
+                  right: 1,
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: AppColors.accent,
+                      shape: BoxShape.circle,
                     ),
                   ),
-                  child: SizedBox(
-                    height: 48,
-                    child: Stack(
-                      alignment: Alignment.center,
+                ),
+              ],
+            ),
+          ),
+      overlay: OrderStatusBanner(
+        bottomOffset: 90 + MediaQuery.paddingOf(context).bottom,
+      ),
+      child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Profile Card
+                GestureDetector(
+                  onTap: () async {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => SettingsPage(
+                          onProfileUpdated: _loadAvatarState,
+                          returnPage: const ProfilePage(),
+                        ),
+                      ),
+                    );
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: AppColors.border,
+                        width: 1,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.03),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        )
+                      ],
+                    ),
+                    child: Row(
                       children: [
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: GestureDetector(
-                            onTap: () =>
-                                InteractiveFillingLoader.showPop(context),
-                            child: const Icon(Icons.arrow_back_ios,
-                                color: Colors.white, size: 20),
+                        _buildAvatar(),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Text(
+                            'Hey $_username,',
+                            style: TextStyle(
+                              fontFamily: 'Recoleta',
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.deepTeal,
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        const Text(
-                          'PROFILE',
-                          style: TextStyle(
-                            fontFamily: 'Recoleta',
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            letterSpacing: 1.0,
-                          ),
+                        Icon(
+                          Icons.arrow_forward_ios,
+                          size: 16,
+                          color: AppColors.deepTeal.withValues(alpha: 0.5),
                         ),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              GestureDetector(
-                                onTap: () {
-                                  InteractiveFillingLoader.show(
-                                    context,
-                                    targetPage: SettingsPage(
-                                      onProfileUpdated: _loadAvatarState,
-                                      returnPage: const ProfilePage(),
-                                    ),
-                                  );
-                                },
-                                child: const Icon(Icons.settings_outlined,
-                                    color: Colors.white, size: 22),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // Dashboard Grid
+                Column(
+                  children: [
+                    // Wallet Box
+                    Container(
+                      width: double.infinity,
+                      clipBehavior: Clip.hardEdge,
+                      decoration: BoxDecoration(
+                        color: AppColors.deepTeal,
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.deepTeal.withValues(alpha: 0.4),
+                            blurRadius: 16,
+                            offset: const Offset(0, 8),
+                          )
+                        ],
+                      ),
+                      child: Stack(
+                        children: [
+                          // Large background logo partially hidden
+                          Positioned(
+                            right: -10,
+                            top: -10,
+                            bottom: -10,
+                            child: Opacity(
+                              opacity: 0.5,
+                              child: Image.asset(
+                                'assets/images/c2_logo.png',
+                                width: 150,
+                                fit: BoxFit.contain,
+                                color: Colors.white,
                               ),
-                              const SizedBox(width: 14),
-                              GestureDetector(
-                                onTap: () {
-                                  InteractiveFillingLoader.show(
-                                    context,
-                                    targetPage: const NotificationPage(),
-                                  );
-                                },
-                                child: Stack(
-                                  clipBehavior: Clip.none,
+                            ),
+                          ),
+                          // Content
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Total Balance',
+                                  style: TextStyle(
+                                    fontFamily: 'Afacad',
+                                    fontSize: 16,
+                                    color: Colors.white.withValues(alpha: 0.8),
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
                                   children: [
-                                    const Icon(Icons.notifications_outlined,
-                                        color: Colors.white, size: 26),
-                                    Positioned(
-                                      top: 1,
-                                      right: 1,
-                                      child: Container(
-                                        width: 8,
-                                        height: 8,
-                                        decoration: BoxDecoration(
-                                          color: AppColors.accent,
-                                          shape: BoxShape.circle,
+                                    Text(
+                                      _session.tokenBalance.toStringAsFixed(2),
+                                      style: const TextStyle(
+                                        fontFamily: 'Afacad',
+                                        fontSize: 36,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    const Padding(
+                                      padding: EdgeInsets.only(bottom: 6),
+                                      child: Text(
+                                        'tokens',
+                                        style: TextStyle(
+                                          fontFamily: 'Afacad',
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
                                         ),
                                       ),
                                     ),
                                   ],
                                 ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  )),
-              // Content
-              Expanded(
-                child: SingleChildScrollView(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.only(
-                      left: 16, right: 16, top: 20, bottom: 130),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Profile Card
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: AppColors.border,
-                            width: 1,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.03),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            )
-                          ],
-                        ),
-                        child: Row(
-                          children: [
-                            GestureDetector(
-                              onTap: () async {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => SettingsPage(
-                                      onProfileUpdated: _loadAvatarState,
-                                      returnPage: const ProfilePage(),
+                                const SizedBox(height: 16),
+                                GestureDetector(
+                                  onTap: () {
+                                    InteractiveFillingLoader.show(
+                                      context,
+                                      targetPage: const TopUpWalletPage(),
+                                    );
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withValues(alpha: 0.15),
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: const Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(Icons.add, color: Colors.white, size: 18),
+                                        SizedBox(width: 8),
+                                        Text(
+                                          'Add Balance',
+                                          style: TextStyle(
+                                            fontFamily: 'Afacad',
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                );
-                              },
-                              child: _buildAvatar(),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Text(
-                                'Hey $_username,',
-                                style: TextStyle(
-                                  fontFamily: 'Recoleta',
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.deepTeal,
                                 ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
+                              ],
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 24),
-
-                      // Dashboard Grid
-                      Column(
-                        children: [
-                          // Wallet Box
-                          Container(
+                    ),
+                    const SizedBox(height: 16),
+                    // Rewards & Referrals
+                    Row(
+                      children: [
+                        // My Reward
+                        Expanded(
+                          child: Container(
                             decoration: BoxDecoration(
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(20),
@@ -330,7 +387,8 @@ class _ProfilePageState extends State<ProfilePage> {
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.03),
+                                    color: Colors.black
+                                        .withValues(alpha: 0.03),
                                     blurRadius: 8,
                                     offset: const Offset(0, 2))
                               ],
@@ -343,232 +401,138 @@ class _ProfilePageState extends State<ProfilePage> {
                                 onTap: () {
                                   InteractiveFillingLoader.show(
                                     context,
-                                    targetPage: const TopUpWalletPage(),
+                                    targetPage: const MyRewardsPage(),
                                   );
                                 },
                                 child: Padding(
                                   padding: const EdgeInsets.symmetric(
-                                      horizontal: 14, vertical: 16),
-                                  child: Row(
+                                      vertical: 20, horizontal: 16),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.center,
                                     children: [
-                                      Image.asset('assets/images/wallet.png',
-                                          height: 80),
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: Text(
-                                          'Wallet',
+                                      Text('My Reward',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
                                           style: TextStyle(
-                                            fontFamily: 'Recoleta',
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.bold,
-                                            color: AppColors.deepTeal,
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      GestureDetector(
-                                        onTap: () {
-                                          InteractiveFillingLoader.show(
-                                            context,
-                                            targetPage: const TopUpWalletPage(),
-                                          );
-                                        },
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 12, vertical: 8),
-                                          decoration: BoxDecoration(
-                                            color: AppColors.surfaceLight,
-                                            borderRadius:
-                                                BorderRadius.circular(20),
-                                            border: Border.all(
-                                              color: AppColors.border,
-                                              width: 1,
-                                            ),
-                                          ),
-                                          child: Text('Top up \u2192',
-                                              style: TextStyle(
-                                                  fontFamily: 'Afacad',
-                                                  fontSize: 14,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: AppColors.deepTeal)),
-                                        ),
-                                      ),
+                                              fontFamily: 'Recoleta',
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.bold,
+                                              color: AppColors.deepTeal)),
+                                      const SizedBox(height: 16),
+                                      Image.asset(
+                                          'assets/images/Surprise reward gift box with star popping out.png',
+                                          height: 95),
                                     ],
                                   ),
                                 ),
                               ),
                             ),
                           ),
-                          const SizedBox(height: 16),
-                          // Rewards & Referrals
-                          Row(
-                            children: [
-                              // My Reward
-                              Expanded(
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                      color: AppColors.border,
-                                      width: 1,
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                          color: Colors.black
-                                              .withValues(alpha: 0.03),
-                                          blurRadius: 8,
-                                          offset: const Offset(0, 2))
-                                    ],
-                                  ),
-                                  child: Material(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(20),
-                                    child: InkWell(
-                                      borderRadius: BorderRadius.circular(20),
-                                      onTap: () {
-                                        InteractiveFillingLoader.show(
-                                          context,
-                                          targetPage: const MyRewardsPage(),
-                                        );
-                                      },
-                                      child: Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                            vertical: 20, horizontal: 16),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.center,
-                                          children: [
-                                            Text('My Reward',
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: TextStyle(
-                                                    fontFamily: 'Recoleta',
-                                                    fontSize: 18,
-                                                    fontWeight: FontWeight.bold,
-                                                    color: AppColors.deepTeal)),
-                                            const SizedBox(height: 16),
-                                            Image.asset(
-                                                'assets/images/Surprise reward gift box with star popping out.png',
-                                                height: 95),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              // My Referrals
-                              Expanded(
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                      color: AppColors.border,
-                                      width: 1,
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                          color: Colors.black
-                                              .withValues(alpha: 0.03),
-                                          blurRadius: 8,
-                                          offset: const Offset(0, 2))
-                                    ],
-                                  ),
-                                  child: Material(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(20),
-                                    child: InkWell(
-                                      borderRadius: BorderRadius.circular(20),
-                                      onTap: () {
-                                        InteractiveFillingLoader.show(
-                                          context,
-                                          targetPage: const ReferralPage(),
-                                        );
-                                      },
-                                      child: Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                            vertical: 20, horizontal: 16),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.center,
-                                          children: [
-                                            Text('My Referrals',
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: TextStyle(
-                                                    fontFamily: 'Recoleta',
-                                                    fontSize: 18,
-                                                    fontWeight: FontWeight.bold,
-                                                    color: AppColors.deepTeal)),
-                                            const SizedBox(height: 16),
-                                            Image.asset(
-                                                'assets/images/Community friends laughing together waving hands and giving thumbs.png',
-                                                height: 95),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 24),
-
-                      // News Section
-                      Text(
-                        'News',
-                        style: TextStyle(
-                          fontFamily: 'Recoleta',
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.deepTeal,
                         ),
-                      ),
-                      const SizedBox(height: 12),
-                      _buildNewsSection(),
-                      const SizedBox(height: 24),
+                        const SizedBox(width: 16),
+                        // My Referrals
+                        Expanded(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: AppColors.border,
+                                width: 1,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                    color: Colors.black
+                                        .withValues(alpha: 0.03),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2))
+                              ],
+                            ),
+                            child: Material(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(20),
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(20),
+                                onTap: () {
+                                  InteractiveFillingLoader.show(
+                                    context,
+                                    targetPage: const ReferralPage(),
+                                  );
+                                },
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 20, horizontal: 16),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.center,
+                                    children: [
+                                      Text('My Referrals',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                              fontFamily: 'Recoleta',
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.bold,
+                                              color: AppColors.deepTeal)),
+                                      const SizedBox(height: 16),
+                                      Image.asset(
+                                          'assets/images/Community friends laughing together waving hands and giving thumbs.png',
+                                          height: 95),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
 
-                      // Calendar Section
-                      Text('Calendar',
-                          style: TextStyle(
-                              fontFamily: 'Recoleta',
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.deepTeal)),
-                      const SizedBox(height: 12),
-                      const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 24.0),
-                        child: CustomCalendarWidget(),
-                      ),
-                      const SizedBox(height: 24),
-
-                      // Our Promise Section
-                      Text('Our Promise',
-                          style: TextStyle(
-                              fontFamily: 'Recoleta',
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.deepTeal)),
-                      const SizedBox(height: 12),
-                      const SizedBox(
-                        height: 140, // Increased from 100
-                        child: OurPromiseCarousel(),
-                      ),
-                    ],
+                // News Section
+                Text(
+                  'News',
+                  style: TextStyle(
+                    fontFamily: 'Recoleta',
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.deepTeal,
                   ),
                 ),
-              ),
-            ],
-          ),
-          OrderStatusBanner(
-              bottomOffset: 90 + MediaQuery.paddingOf(context).bottom),
-        ],
+                const SizedBox(height: 12),
+                _buildNewsSection(),
+                const SizedBox(height: 24),
+
+                // Calendar Section
+                Text('Calendar',
+                    style: TextStyle(
+                        fontFamily: 'Recoleta',
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.deepTeal)),
+                const SizedBox(height: 12),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 24.0),
+                  child: CustomCalendarWidget(),
+                ),
+                const SizedBox(height: 24),
+
+                // Our Promise Section
+                Text('Our Promise',
+                    style: TextStyle(
+                        fontFamily: 'Recoleta',
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.deepTeal)),
+                const SizedBox(height: 12),
+                const SizedBox(
+                  height: 140, // Increased from 100
+                  child: OurPromiseCarousel(),
+                ),
+              ],
       ),
     );
   }

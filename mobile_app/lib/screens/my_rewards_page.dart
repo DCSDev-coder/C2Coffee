@@ -8,6 +8,7 @@ import '../services/secure_session_service.dart';
 import '../utils/app_colors.dart';
 import '../widgets/order_status_banner.dart';
 import 'loading_order_page.dart';
+import '../widgets/app_page_shell.dart';
 
 class MyRewardsPage extends StatefulWidget {
   const MyRewardsPage({super.key});
@@ -102,79 +103,30 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
   Widget build(BuildContext context) {
     final activeCount = _vouchers.where((voucher) => voucher.isActive).length;
 
-    return Scaffold(
+    return AppPageShell(
+      title: 'MY REWARDS',
+      onBack: () => InteractiveFillingLoader.showPop(context),
       backgroundColor: Colors.white,
-      body: Stack(
+      bodyPadding: EdgeInsets.zero,
+      overlay: OrderStatusBanner(
+        bottomOffset: 90 + MediaQuery.paddingOf(context).bottom,
+      ),
+      child: Column(
         children: [
-          SingleChildScrollView(
+          Container(
+            color: Colors.white,
+            padding: const EdgeInsets.all(20),
             child: Column(
               children: [
-                Container(
-                  width: double.infinity,
-                  padding: EdgeInsets.only(
-                    top: MediaQuery.paddingOf(context).top + 14,
-                    bottom: 16,
-                    left: 20,
-                    right: 20,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.deepTeal,
-                    borderRadius: const BorderRadius.only(
-                      bottomLeft: Radius.circular(20),
-                      bottomRight: Radius.circular(20),
-                    ),
-                  ),
-                  child: SizedBox(
-                    height: 48,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: GestureDetector(
-                            onTap: () =>
-                                InteractiveFillingLoader.showPop(context),
-                            child: const Icon(
-                              Icons.arrow_back_ios,
-                              color: Colors.white,
-                              size: 20,
-                            ),
-                          ),
-                        ),
-                        const Text(
-                          'MY REWARDS',
-                          style: TextStyle(
-                            fontFamily: 'Recoleta',
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            letterSpacing: 1.0,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                Container(
-                  color: Colors.white,
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    children: [
-                      _buildRewardsHeroCard(activeCount),
-                    ],
-                  ),
-                ),
-                Divider(height: 1, color: AppColors.border, thickness: 1),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(20),
-                  child: _buildActiveRewards(),
-                ),
+                _buildRewardsHeroCard(activeCount),
               ],
             ),
           ),
-          OrderStatusBanner(
-            bottomOffset: 90 + MediaQuery.paddingOf(context).bottom,
+          Divider(height: 1, color: AppColors.border, thickness: 1),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            child: _buildActiveRewards(),
           ),
         ],
       ),

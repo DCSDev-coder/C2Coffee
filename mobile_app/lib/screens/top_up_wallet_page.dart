@@ -5,8 +5,10 @@ import '../services/app_session_service.dart';
 import '../services/auth_api_service.dart';
 import '../services/customer_data_service.dart';
 import '../services/secure_session_service.dart';
+
 import '../utils/app_colors.dart';
 import 'loading_order_page.dart';
+import '../widgets/app_page_shell.dart';
 
 enum TransactionFilter { all, incoming, outgoing }
 
@@ -172,69 +174,20 @@ class _TopUpWalletPageState extends State<TopUpWalletPage> {
 
     return PopScope(
       canPop: true,
-      child: Scaffold(
+      child: AppPageShell(
+        title: 'TOP UP WALLET',
+        onBack: () => InteractiveFillingLoader.showPop(context),
         backgroundColor: Colors.white,
-        body: SingleChildScrollView(
-          child: Column(
-            children: [
-              Container(
-                width: double.infinity,
-                padding: EdgeInsets.only(
-                  top: MediaQuery.paddingOf(context).top + 14,
-                  bottom: 16,
-                  left: 20,
-                  right: 20,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.deepTeal,
-                  borderRadius: const BorderRadius.only(
-                    bottomLeft: Radius.circular(20),
-                    bottomRight: Radius.circular(20),
-                  ),
-                ),
-                child: SizedBox(
-                  height: 48,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: GestureDetector(
-                          onTap: () =>
-                              InteractiveFillingLoader.showPop(context),
-                          child: const Icon(
-                            Icons.arrow_back_ios,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                        ),
-                      ),
-                      const Text(
-                        'TOP UP WALLET',
-                        style: TextStyle(
-                          fontFamily: 'Recoleta',
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                          letterSpacing: 1.0,
-                        ),
-                      ),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: GestureDetector(
-                          onTap: () => _showTokenInfoDialog(context),
-                          child: const Icon(
-                            Icons.info_outline,
-                            color: Colors.white,
-                            size: 22,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              Padding(
+        trailing: GestureDetector(
+          onTap: () => _showTokenInfoDialog(context),
+          child: const Icon(
+            Icons.info_outline,
+            color: Colors.white,
+            size: 22,
+          ),
+        ),
+        bodyPadding: EdgeInsets.zero,
+        child: Padding(
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -340,9 +293,6 @@ class _TopUpWalletPageState extends State<TopUpWalletPage> {
                   ],
                 ),
               ),
-            ],
-          ),
-        ),
       ),
     );
   }

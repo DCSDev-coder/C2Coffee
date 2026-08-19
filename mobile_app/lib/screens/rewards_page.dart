@@ -11,6 +11,7 @@ import 'dart:io';
 import '../widgets/order_status_banner.dart';
 import 'my_rewards_page.dart';
 import '../utils/app_colors.dart';
+import '../widgets/app_page_shell.dart';
 
 class RewardsPage extends StatefulWidget {
   final File? initialPickedImage;
@@ -131,107 +132,64 @@ class _RewardsPageState extends State<RewardsPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      key: _scaffoldKey,
-      backgroundColor: beigeBg,
+    return AppPageShell(
+      scaffoldKey: _scaffoldKey,
       endDrawer: _buildFaqsDrawer(),
       onEndDrawerChanged: (isOpen) {
         setState(() {
           _isFaqsOpen = isOpen;
         });
       },
-      extendBody: true,
+      title: 'C2 COFFEE SQUAD',
+      titleWidget: Column(
+        children: [
+          const Text(
+            'C2 COFFEE SQUAD',
+            style: TextStyle(
+              fontFamily: 'Recoleta',
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+              letterSpacing: 1.0,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            'current tier ${_tierLabel(_tierToIndex(_session.tier))}',
+            style: const TextStyle(
+              fontFamily: 'Afacad',
+              fontSize: 12,
+              color: Colors.white70,
+            ),
+          ),
+        ],
+      ),
+      onBack: () => InteractiveFillingLoader.showPop(context),
+      backgroundColor: beigeBg,
+      scrollController: _scrollController,
+      bodyPadding: const EdgeInsets.only(bottom: 130),
       bottomNavigationBar: CustomBottomNav(
         selectedIndex: 3,
         onItemTapped: _onBottomNavTapped,
         scrollController: _scrollController,
       ),
-      body: Stack(
+      extendBody: true,
+      overlay: OrderStatusBanner(
+        bottomOffset: 90 + MediaQuery.paddingOf(context).bottom,
+      ),
+      child: Column(
         children: [
-          Column(
-            children: [
-              _buildHeader(),
-              Expanded(
-                child: SingleChildScrollView(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.only(bottom: 130),
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 16),
-                      _buildPointsCard(),
-                      const SizedBox(height: 16),
-                      _buildActionCards(),
-                      const SizedBox(height: 24),
-                      _buildTierSection(),
-                      const SizedBox(height: 24),
-                      _buildFaqsCard(),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          OrderStatusBanner(
-              bottomOffset: 90 + MediaQuery.paddingOf(context).bottom),
+          const SizedBox(height: 16),
+          _buildPointsCard(),
+          const SizedBox(height: 16),
+          _buildActionCards(),
+          const SizedBox(height: 24),
+          _buildTierSection(),
+          const SizedBox(height: 24),
+          _buildFaqsCard(),
         ],
       ),
     );
-  }
-
-  Widget _buildHeader() {
-    return Container(
-        width: double.infinity,
-        padding: EdgeInsets.only(
-            top: MediaQuery.paddingOf(context).top + 14,
-            bottom: 16,
-            left: 20,
-            right: 20),
-        decoration: BoxDecoration(
-          color: AppColors.deepTeal,
-          borderRadius: const BorderRadius.only(
-            bottomLeft: Radius.circular(20),
-            bottomRight: Radius.circular(20),
-          ),
-        ),
-        child: SizedBox(
-          height: 48,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              Align(
-                alignment: Alignment.centerLeft,
-                child: GestureDetector(
-                  onTap: () => InteractiveFillingLoader.showPop(context),
-                  child: const Icon(Icons.arrow_back_ios,
-                      color: Colors.white, size: 20),
-                ),
-              ),
-              Column(
-                children: [
-                  const Text(
-                    'C2 COFFEE SQUAD',
-                    style: TextStyle(
-                      fontFamily: 'Recoleta',
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      letterSpacing: 1.0,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'current tier ${_tierLabel(_tierToIndex(_session.tier))}',
-                    style: const TextStyle(
-                      fontFamily: 'Afacad',
-                      fontSize: 12,
-                      color: Colors.white70,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ));
   }
 
   Widget _buildPointsCard() {

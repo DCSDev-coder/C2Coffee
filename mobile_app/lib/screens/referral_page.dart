@@ -5,6 +5,7 @@ import '../services/customer_data_service.dart';
 import '../services/secure_session_service.dart';
 import '../utils/app_colors.dart';
 import 'loading_order_page.dart';
+import '../widgets/app_page_shell.dart';
 
 class ReferralPage extends StatefulWidget {
   const ReferralPage({super.key});
@@ -168,96 +169,49 @@ class _ReferralPageState extends State<ReferralPage> {
 
     return PopScope(
       canPop: true,
-      child: Scaffold(
+      child: AppPageShell(
+        title: 'REFER A FRIEND',
+        onBack: () => InteractiveFillingLoader.showPop(context),
         backgroundColor: Colors.white,
-        body: Stack(
-          children: [
-            Column(
-              children: [
-                // Header
-                Container(
-                  width: double.infinity,
-                  padding: EdgeInsets.only(
-                      top: MediaQuery.paddingOf(context).top + 14,
-                      bottom: 16,
-                      left: 20,
-                      right: 20),
-                  decoration: BoxDecoration(
-                    color: AppColors.deepTeal,
-                    borderRadius: const BorderRadius.only(
-                      bottomLeft: Radius.circular(20),
-                      bottomRight: Radius.circular(20),
-                    ),
-                  ),
-                  child: SizedBox(
-                    height: 48,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: GestureDetector(
-                            onTap: () =>
-                                InteractiveFillingLoader.showPop(context),
-                            child: const Icon(Icons.arrow_back_ios,
-                                color: Colors.white, size: 20),
-                          ),
-                        ),
-                        const Text(
-                          'REFER A FRIEND',
-                          style: TextStyle(
-                            fontFamily: 'Recoleta',
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            letterSpacing: 1.0,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                // Scrollable Body
-                Expanded(
-                  child: _isLoading
-                      ? const Center(child: CircularProgressIndicator())
-                      : _error != null && _snapshot == null
-                          ? Center(
-                              child: Padding(
-                                padding: const EdgeInsets.all(24.0),
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Text(
-                                      _error!,
-                                      style: const TextStyle(
-                                        fontFamily: 'Afacad',
-                                        fontSize: 15,
-                                        color: Colors.black54,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 12),
-                                    ElevatedButton(
-                                      onPressed: _loadReferralData,
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: brandColor,
-                                      ),
-                                      child: const Text('RETRY',
-                                          style:
-                                              TextStyle(color: Colors.white)),
-                                    ),
-                                  ],
-                                ),
+        onRefresh: _loadReferralData,
+        bodyPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        child: _isLoading
+            ? SizedBox(
+                height: MediaQuery.of(context).size.height * 0.6,
+                child: const Center(child: CircularProgressIndicator()),
+              )
+            : _error != null && _snapshot == null
+                ? SizedBox(
+                    height: MediaQuery.of(context).size.height * 0.6,
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24.0),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              _error!,
+                              style: const TextStyle(
+                                fontFamily: 'Afacad',
+                                fontSize: 15,
+                                color: Colors.black54,
                               ),
-                            )
-                          : RefreshIndicator(
-                          onRefresh: _loadReferralData,
-                          child: SingleChildScrollView(
-                            physics: const AlwaysScrollableScrollPhysics(),
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 20, vertical: 24),
-                            child: Column(
+                            ),
+                            const SizedBox(height: 12),
+                            ElevatedButton(
+                              onPressed: _loadReferralData,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: brandColor,
+                              ),
+                              child: const Text('RETRY',
+                                  style: TextStyle(color: Colors.white)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  )
+                : Column(
                               children: [
                                 // Invite A Friend Card
                                 Container(
@@ -589,15 +543,8 @@ class _ReferralPageState extends State<ReferralPage> {
                                 const SizedBox(height: 40),
                               ],
                             ),
-                          ),
-                        ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
+          ),
+        );
   }
 
   Widget _buildClaimFriendCodeCard(Color brandColor) {

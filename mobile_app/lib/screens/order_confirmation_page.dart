@@ -11,6 +11,7 @@ import '../utils/app_colors.dart';
 import '../utils/global_state.dart';
 import '../widgets/catalog_product_image.dart';
 import '../widgets/voucher_modal.dart';
+import '../widgets/app_page_shell.dart';
 import 'orders_page.dart';
 import 'loading_order_page.dart';
 
@@ -44,147 +45,89 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
       builder: (context, _) {
         final snapshot = _snapshot;
 
-        return Scaffold(
+        return AppPageShell(
+          title: 'ORDER CONFIRMATION',
+          onBack: () => InteractiveFillingLoader.showPop(context),
           backgroundColor: bgColor,
-          body: Stack(
-            children: [
-              Column(
-                children: [
-                  _buildHeader(),
-                  Expanded(
-                    child: snapshot == null
-                        ? _buildEmptyState()
-                        : SingleChildScrollView(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 24,
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Your order',
-                                  style: TextStyle(
-                                    fontFamily: 'Afacad',
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: orangeColor,
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  snapshot.storeName,
-                                  style: const TextStyle(
-                                    fontFamily: 'Afacad',
-                                    fontSize: 13,
-                                    color: Colors.black54,
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                                for (final item in snapshot.items) ...[
-                                  _buildOrderCard(item),
-                                  const SizedBox(height: 16),
-                                ],
-                                Align(
-                                  alignment: Alignment.centerRight,
-                                  child: GestureDetector(
-                                    onTap: () =>
-                                        InteractiveFillingLoader.showPop(context),
-                                    child: Text(
-                                      '+ Add order',
-                                      style: TextStyle(
-                                        fontFamily: 'Afacad',
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.bold,
-                                        color: orangeColor,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 24),
-                                _buildVoucherCard(),
-                                const SizedBox(height: 16),
-                                _buildPaymentMethodCard(snapshot),
-                                const SizedBox(height: 16),
-                                _buildSummaryCard(snapshot),
-                                const SizedBox(height: 12),
-                                if (_checkoutError != null) ...[
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    _checkoutError!,
-                                    style: const TextStyle(
-                                      fontFamily: 'Afacad',
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.red,
-                                    ),
-                                  ),
-                                ],
-                                const SizedBox(height: 32),
-                                _buildCheckoutButton(snapshot),
-                                const SizedBox(height: 40),
-                              ],
-                            ),
-                          ),
-                  ),
-                ],
-              ),
-              if (_isSubmitting)
-                Container(
+          overlay: _isSubmitting
+              ? Container(
                   color: Colors.black.withValues(alpha: 0.18),
                   child: const Center(
                     child: CircularProgressIndicator(),
                   ),
+                )
+              : null,
+          bodyPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          child: snapshot == null
+              ? _buildEmptyState()
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Your order',
+                      style: TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: orangeColor,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      snapshot.storeName,
+                      style: const TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 13,
+                        color: Colors.black54,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    for (final item in snapshot.items) ...[
+                      _buildOrderCard(item),
+                      const SizedBox(height: 16),
+                    ],
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: GestureDetector(
+                        onTap: () =>
+                            InteractiveFillingLoader.showPop(context),
+                        child: Text(
+                          '+ Add order',
+                          style: TextStyle(
+                            fontFamily: 'Afacad',
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: orangeColor,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    _buildVoucherCard(),
+                    const SizedBox(height: 16),
+                    _buildPaymentMethodCard(snapshot),
+                    const SizedBox(height: 16),
+                    _buildSummaryCard(snapshot),
+                    const SizedBox(height: 12),
+                    if (_checkoutError != null) ...[
+                      const SizedBox(height: 16),
+                      Text(
+                        _checkoutError!,
+                        style: const TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.red,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 32),
+                    _buildCheckoutButton(snapshot),
+                    const SizedBox(height: 40),
+                  ],
                 ),
-            ],
-          ),
         );
       },
-    );
-  }
-
-  Widget _buildHeader() {
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.only(
-        top: MediaQuery.paddingOf(context).top + 14,
-        bottom: 16,
-        left: 20,
-        right: 20,
-      ),
-      decoration: BoxDecoration(
-        color: AppColors.deepTeal,
-        borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(20),
-          bottomRight: Radius.circular(20),
-        ),
-      ),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Align(
-            alignment: Alignment.centerLeft,
-            child: GestureDetector(
-              onTap: () => InteractiveFillingLoader.showPop(context),
-              child: const Icon(
-                Icons.arrow_back_ios,
-                color: Colors.white,
-                size: 20,
-              ),
-            ),
-          ),
-          const Text(
-            'ORDER CONFIRMATION',
-            style: TextStyle(
-              fontFamily: 'Recoleta',
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-              letterSpacing: 1.0,
-            ),
-          ),
-        ],
-      ),
     );
   }
 

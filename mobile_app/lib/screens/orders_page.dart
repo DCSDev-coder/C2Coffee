@@ -20,6 +20,7 @@ import 'loading_order_page.dart';
 import 'menu_page.dart';
 import 'profile_page.dart';
 import 'rewards_page.dart';
+import '../widgets/app_page_shell.dart';
 
 class OrdersPage extends StatefulWidget {
   final File? initialPickedImage;
@@ -225,55 +226,55 @@ class _OrdersPageState extends State<OrdersPage>
   Widget build(BuildContext context) {
     return PopScope(
       canPop: true,
-      child: Scaffold(
+      child: AppPageShell(
+        title: 'MY ORDER',
+        onBack: () {},
+        showBackButton: false,
+        scrollable: false,
         backgroundColor: Colors.white,
         extendBody: true,
+        bodyPadding: EdgeInsets.zero,
         bottomNavigationBar: CustomBottomNav(
           selectedIndex: 2,
           onItemTapped: _onBottomNavTapped,
         ),
-        body: Stack(
+        overlay: OrderStatusBanner(
+          bottomOffset: 90 + MediaQuery.paddingOf(context).bottom,
+        ),
+        child: Column(
           children: [
-            Column(
-              children: [
-                _buildHeader(),
-                Container(
-                  alignment: Alignment.centerLeft,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: TabBar(
-                    controller: _tabController,
-                    isScrollable: true,
-                    tabAlignment: TabAlignment.start,
-                    dividerColor: Colors.transparent,
-                    indicatorColor: AppColors.deepTeal,
-                    labelColor: AppColors.deepTeal,
-                    unselectedLabelColor: Colors.grey.shade500,
-                    indicatorSize: TabBarIndicatorSize.label,
-                    labelStyle: const TextStyle(
-                      fontFamily: 'Afacad',
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                    tabs: const [
-                      Tab(text: 'Active Orders'),
-                      Tab(text: 'Order History'),
-                    ],
-                  ),
+            Container(
+              alignment: Alignment.centerLeft,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: TabBar(
+                controller: _tabController,
+                isScrollable: true,
+                tabAlignment: TabAlignment.start,
+                dividerColor: Colors.transparent,
+                indicatorColor: AppColors.deepTeal,
+                labelColor: AppColors.deepTeal,
+                unselectedLabelColor: Colors.grey.shade500,
+                indicatorSize: TabBarIndicatorSize.label,
+                labelStyle: const TextStyle(
+                  fontFamily: 'Afacad',
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
                 ),
-                Expanded(
-                  child: TabBarView(
-                    controller: _tabController,
-                    physics: const NeverScrollableScrollPhysics(),
-                    children: [
-                      _buildActiveOrdersTab(),
-                      _buildOrderHistoryTab(),
-                    ],
-                  ),
-                ),
-              ],
+                tabs: const [
+                  Tab(text: 'Active Orders'),
+                  Tab(text: 'Order History'),
+                ],
+              ),
             ),
-            OrderStatusBanner(
-              bottomOffset: 90 + MediaQuery.paddingOf(context).bottom,
+            Expanded(
+              child: TabBarView(
+                controller: _tabController,
+                physics: const NeverScrollableScrollPhysics(),
+                children: [
+                  _buildActiveOrdersTab(),
+                  _buildOrderHistoryTab(),
+                ],
+              ),
             ),
           ],
         ),
@@ -281,52 +282,6 @@ class _OrdersPageState extends State<OrdersPage>
     );
   }
 
-  Widget _buildHeader() {
-    return Container(
-        width: double.infinity,
-        padding: EdgeInsets.only(
-          top: MediaQuery.paddingOf(context).top + 14,
-          bottom: 16,
-          left: 20,
-          right: 20,
-        ),
-        decoration: BoxDecoration(
-          color: AppColors.deepTeal,
-          borderRadius: const BorderRadius.only(
-            bottomLeft: Radius.circular(20),
-            bottomRight: Radius.circular(20),
-          ),
-        ),
-        child: SizedBox(
-          height: 48,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              Align(
-                alignment: Alignment.centerLeft,
-                child: GestureDetector(
-                  onTap: () => InteractiveFillingLoader.showPop(context),
-                  child: const Icon(
-                    Icons.arrow_back_ios,
-                    color: Colors.white,
-                    size: 20,
-                  ),
-                ),
-              ),
-              const Text(
-                'MY ORDER',
-                style: TextStyle(
-                  fontFamily: 'Recoleta',
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                  letterSpacing: 1.0,
-                ),
-              ),
-            ],
-          ),
-        ));
-  }
 
   Widget _buildActiveOrdersTab() {
     if (_isOrdersLoading) {

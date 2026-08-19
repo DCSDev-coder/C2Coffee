@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../utils/app_colors.dart';
 import 'terms_of_use_page.dart';
 import 'privacy_policy_page.dart';
+import '../widgets/app_page_shell.dart';
 
 class ContactSupportPage extends StatefulWidget {
   const ContactSupportPage({super.key});
@@ -174,55 +175,12 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return AppPageShell(
+      title: 'CONTACT SUPPORT',
+      onBack: () => Navigator.pop(context),
       backgroundColor: const Color(0xFFF9F9FB),
-      body: Column(
-        children: [
-          // Header
-          Container(
-            width: double.infinity,
-            padding: EdgeInsets.only(
-                top: MediaQuery.paddingOf(context).top + 14,
-                bottom: 16,
-                left: 20,
-                right: 20),
-            decoration: BoxDecoration(
-              color: AppColors.deepTeal,
-              borderRadius: const BorderRadius.only(
-                bottomLeft: Radius.circular(20),
-                bottomRight: Radius.circular(20),
-              ),
-            ),
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: const Icon(Icons.arrow_back_ios,
-                        color: Colors.white, size: 20),
-                  ),
-                ),
-                const Text(
-                  'CONTACT SUPPORT',
-                  style: TextStyle(
-                    fontFamily: 'Recoleta',
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    letterSpacing: 1.0,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Scrollable Body
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-              child: Column(
+      bodyPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+      child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Banner Card
@@ -267,10 +225,6 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
                   const SizedBox(height: 20),
                 ],
               ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 

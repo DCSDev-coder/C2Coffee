@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'loading_order_page.dart';
 import 'product_detail_page.dart';
 import '../utils/app_colors.dart';
+import '../widgets/app_page_shell.dart';
 
 class OrderDetailsPage extends StatelessWidget {
   final Map<String, dynamic> item;
@@ -105,49 +106,12 @@ class OrderDetailsPage extends StatelessWidget {
         if (didPop) return;
         _navigateBackToPurchaseHistory(context);
       },
-      child: Scaffold(
+      child: AppPageShell(
+        title: 'ORDER DETAILS',
+        onBack: () => _navigateBackToPurchaseHistory(context),
         backgroundColor: bgColor,
-        body: Column(
+        child: Column(
           children: [
-            // Custom Header
-            Container(
-              width: double.infinity,
-              padding: EdgeInsets.only(
-                  top: MediaQuery.paddingOf(context).top + 14,
-                  bottom: 16,
-                  left: 20,
-                  right: 20),
-              decoration: BoxDecoration(
-                color: AppColors.deepTeal,
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(20),
-                  bottomRight: Radius.circular(20),
-                ),
-              ),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: GestureDetector(
-                      onTap: () => _navigateBackToPurchaseHistory(context),
-                      child: const Icon(Icons.arrow_back_ios,
-                          color: Colors.white, size: 20),
-                    ),
-                  ),
-                  const Text(
-                    'ORDER DETAILS',
-                    style: TextStyle(
-                      fontFamily: 'Recoleta',
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      letterSpacing: 1.0,
-                    ),
-                  ),
-                ],
-              ),
-            ),
             Padding(
               padding: const EdgeInsets.all(20.0),
               child: Container(
