@@ -27,7 +27,7 @@ const GenerateInvoice = ({ onBack }) => {
         </div>
       </div>
 
-      <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm max-w-2xl">
+      <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-bold text-gray-700 mb-1">Customer Name</label>

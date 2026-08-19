@@ -30,7 +30,7 @@ const RecordExpense = ({ onBack }) => {
         </div>
       </div>
 
-      <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm max-w-2xl">
+      <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-bold text-gray-700 mb-1">Expense Name</label>
@@ -48,7 +48,7 @@ const RecordExpense = ({ onBack }) => {
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-[#1F3A34] focus:border-[#1F3A34] outline-none text-sm bg-white"
+              className="peer w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-[#1F3A34] focus:border-[#1F3A34] outline-none text-sm bg-white"
             >
               <option value="Cost of Goods Sold">Cost of Goods Sold</option>
               <option value="Salaries & Wages">Salaries & Wages</option>
@@ -60,7 +60,7 @@ const RecordExpense = ({ onBack }) => {
           <div>
             <label className="block text-sm font-bold text-gray-700 mb-1">Date</label>
             <div className="w-full border border-gray-300 rounded-lg overflow-hidden">
-              <DatePicker
+              <DatePicker portalId="root-portal" popperPlacement="bottom-end"
                 selected={date}
                 onChange={(d) => setDate(d)}
                 className="w-full px-4 py-2 outline-none text-sm"

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ArrowLeft, Download, Filter, Search } from 'lucide-react';
+import { exportToCSV } from '../utils/exportToCSV';
 
 const generateTransactions = () => {
   const list = [];
@@ -50,7 +51,22 @@ const AllTransactions = ({ onBack }) => {
           <button className="flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-bold rounded-lg hover:bg-gray-50 transition-colors cursor-pointer shadow-sm">
             <Filter size={16} /> Filter
           </button>
-          <button className="flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-bold rounded-lg hover:bg-gray-50 transition-colors cursor-pointer shadow-sm">
+          <button 
+            onClick={() => {
+              const rows = [
+                ["Date", "Time", "Description", "Amount (RM)", "Status"],
+                ...filtered.map(tx => [
+                  `"${tx.date}"`,
+                  `"${tx.time}"`,
+                  `"${tx.desc}"`,
+                  `"${tx.amount}"`,
+                  `"${tx.status}"`
+                ])
+              ];
+              exportToCSV(rows, "all_transactions.csv");
+            }}
+            className="flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-bold rounded-lg hover:bg-gray-50 transition-colors cursor-pointer shadow-sm"
+          >
             <Download size={16} /> Export
           </button>
         </div>

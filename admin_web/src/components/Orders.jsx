@@ -4,11 +4,12 @@ import {
   MapPin, Phone, MessageSquare, Printer, Receipt, Eye, Share2, CornerUpLeft, MessageCircle,
   X, ShoppingBag, Hourglass, UserCheck, Ban, RotateCcw, XCircle,
   Coins, Wallet, Users, Package, Square, Pencil, Trash2,
-  FileText, CheckSquare, ArrowUp, MoreVertical
+  FileText, CheckSquare, ArrowUp, MoreVertical, Edit3, Navigation, Plus
 } from "lucide-react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import Pagination from './Pagination';
+import { exportToCSV } from '../utils/exportToCSV';
 import RefundDetails from "./RefundDetails";
 
 //Custom Icons for Timeline 
@@ -371,12 +372,12 @@ const CustomDateInput = forwardRef(({ value, onClick, onClear }, ref) => (
     <button
       ref={ref}
       onClick={(e) => { e.preventDefault(); onClick(e); }}
-      className="flex items-center pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 whitespace-nowrap cursor-pointer"
+      className="peer flex items-center pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 whitespace-nowrap cursor-pointer"
     >
       {value || 'Select Date'}
     </button>
     <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-      <ChevronDown size={16} className="text-gray-500" />
+      <ChevronDown size={16} className="text-gray-500 transition-transform duration-200 peer-focus:-rotate-180" />
     </div>
     {value && (
       <button
@@ -786,7 +787,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
               onChange={(e) => { setStatusFilter(e.target.value); resetPage(); }}
               onFocus={() => setStatusOpen(true)}
               onBlur={() => setStatusOpen(false)}
-              className="pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer"
+              className="peer pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer"
             >
               {STATUSES.map((s) => (
                 <option key={s} value={s}>{s}</option>
@@ -798,13 +799,13 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
           </div>
 
           {/* Payment Dropdown */}
-          <div className="relative">
+          <div className="relative transition-transform duration-200 peer-focus:-rotate-180">
             <select
               value={paymentFilter}
               onChange={(e) => { setPaymentFilter(e.target.value); resetPage(); }}
               onFocus={() => setPaymentOpen(true)}
               onBlur={() => setPaymentOpen(false)}
-              className="pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer"
+              className="peer pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer"
             >
               {PAYMENTS.map((p) => (
                 <option key={p} value={p}>{p}</option>
@@ -816,8 +817,8 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
           </div>
 
           {/* Date Picker */}
-          <div className="relative">
-            <DatePicker
+          <div className="relative transition-transform duration-200 peer-focus:-rotate-180">
+            <DatePicker portalId="root-portal" popperPlacement="bottom-end"
               selected={selectedDate}
               onChange={(d) => { setSelectedDate(d); resetPage(); }}
               customInput={<CustomDateInput onClear={() => { setSelectedDate(null); resetPage(); }} />}
@@ -827,7 +828,22 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
 
           {/* Export & Action Buttons */}
           <button
-            onClick={() => alert("Exporting orders data to CSV...")}
+            onClick={() => {
+              const rows = [
+                ["Order ID", "Username", "Email", "Status", "Payment", "Date", "Time", "Total (RM)"],
+                ...filtered.map(o => [
+                  `"${o.id}"`,
+                  `"${o.customer}"`,
+                  `"${o.email}"`,
+                  `"${o.status}"`,
+                  `"${o.paymentStatus}"`,
+                  `"${o.date}"`,
+                  `"${o.time}"`,
+                  `"${o.total || o.items.reduce((s, i) => s + i.unitPrice * i.qty, 0) - o.discount}"`
+                ])
+              ];
+              exportToCSV(rows, "orders.csv");
+            }}
             className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer lg:ml-2"
           >
             <Download size={16} className="mr-2" /> Export
@@ -1030,7 +1046,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
                   <select
                     value={editingOrder.status}
                     onChange={(e) => setEditingOrder({ ...editingOrder, status: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium focus:ring-[#2E5E58] focus:border-[#2E5E58] bg-white cursor-pointer"
+                    className="peer w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium focus:ring-[#2E5E58] focus:border-[#2E5E58] bg-white cursor-pointer"
                   >
                     <option value="Completed">Completed</option>
                     <option value="Preparing">Preparing</option>
@@ -1046,7 +1062,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
                   <select
                     value={editingOrder.paymentStatus}
                     onChange={(e) => setEditingOrder({ ...editingOrder, paymentStatus: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium focus:ring-[#2E5E58] focus:border-[#2E5E58] bg-white cursor-pointer"
+                    className="peer w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium focus:ring-[#2E5E58] focus:border-[#2E5E58] bg-white cursor-pointer"
                   >
                     <option value="Paid">Paid</option>
                     <option value="Refunded">Refunded</option>

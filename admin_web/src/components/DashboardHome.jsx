@@ -1,5 +1,5 @@
 import React, { useState, forwardRef } from 'react';
-import { Wallet, ShoppingBag, UserPlus, Megaphone, Users, Coins, Ticket, Coffee, BadgeDollarSign, Calendar, Gift, ShoppingCart, User, AlertCircle, Clock, TrendingUp, CheckCircle, ArrowUp, ArrowRight } from 'lucide-react';
+import { Wallet, ShoppingBag, UserPlus, Megaphone, Users, Coins, Ticket, Coffee, BadgeDollarSign, Calendar, Gift, ShoppingCart, User, AlertCircle, Clock, TrendingUp, CheckCircle, ArrowUp, ArrowRight, ChevronDown } from 'lucide-react';
 import Pagination from './Pagination';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import DatePicker from "react-datepicker";
@@ -62,7 +62,7 @@ const ChartCard = ({ title, value, change, data, dataKey, color, id }) => {
         <h2 className="text-lg font-bold text-gray-900">{title}</h2>
         <div className="relative">
           <select
-            className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+            className="peer absolute inset-0 opacity-0 cursor-pointer w-full h-full"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             onFocus={() => setIsOpen(true)}
@@ -136,7 +136,7 @@ const DashboardHome = ({ setCurrentPage }) => {
       className="flex items-center space-x-2 border border-gray-200 px-3 py-1.5 rounded-lg bg-white shadow-sm text-xs font-semibold text-gray-700 cursor-pointer hover:bg-gray-50 transition-colors"
     >
       <span>{value || 'Select Date'}</span>
-      <span className="text-gray-400 text-[10px]">v</span>
+      <ChevronDown size={14} className="text-gray-500 transition-transform duration-200 peer-focus:-rotate-180" />
     </div>
   ));
 
@@ -170,7 +170,7 @@ const DashboardHome = ({ setCurrentPage }) => {
     <div className="px-8 pb-8 mt-0" style={{ fontFamily: '"DM Sans", sans-serif' }}>
 
       <div className="flex justify-end mb-6">
-        <DatePicker
+        <DatePicker portalId="root-portal" popperPlacement="bottom-end"
           selected={selectedDate}
           onChange={(date) => setSelectedDate(date)}
           customInput={<CustomDateInput />}

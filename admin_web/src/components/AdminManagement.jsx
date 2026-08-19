@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Search, ChevronDown, Download, Plus, MoreVertical, Users, Menu, UserX, UserCog, Calendar, X, Edit3, Trash2 } from 'lucide-react';
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
+import { exportToCSV } from '../utils/exportToCSV';
 import Pagination from './Pagination';
 
 const StatCard = ({ title, value, subtitle, icon: Icon, iconBgColor, iconColor }) => (
@@ -27,7 +28,7 @@ const StatCard = ({ title, value, subtitle, icon: Icon, iconBgColor, iconColor }
 
 // Generate 218 mock admins
 const generateAdmins = () => {
-  const roles = ['Super Admin', 'Marketing Admin', 'Operations Admin', 'Support Admin'];
+  const roles = ['Super Admin', 'Marketing Admin', 'Support Admin'];
   const statuses = ['Active', 'Inactive'];
   const names = ['miraelys', 'balqis', 'nur', 'alexander', 'sarahsmith'];
 
@@ -66,10 +67,6 @@ const RoleTag = ({ role }) => {
     case 'Marketing Admin':
       bgColor = 'bg-blue-100';
       textColor = 'text-blue-600';
-      break;
-    case 'Operations Admin':
-      bgColor = 'bg-red-100';
-      textColor = 'text-red-600';
       break;
     case 'Support Admin':
       bgColor = 'bg-green-100';
@@ -137,7 +134,19 @@ const AdminManagement = () => {
   const inactiveAdmins = mockAdmins.filter(a => a.status === 'Inactive').length;
   const rolesCount = new Set(mockAdmins.map(a => a.role)).size;
 
-  const handleExport = () => alert("Exporting admins to CSV...");
+  const handleExport = () => {
+    const rows = [
+      ["Name", "Role", "Email", "Status", "Added Date"],
+      ...admins.map(a => [
+        `"${a.name}"`, 
+        `"${a.role}"`, 
+        `"${a.email}"`, 
+        `"${a.status}"`, 
+        `"${a.addedDate}"`
+      ])
+    ];
+    exportToCSV(rows, "admin_management.csv");
+  };
   const handleNewAdmin = () => alert("Opening new admin modal...");
 
   return (
@@ -201,7 +210,7 @@ const AdminManagement = () => {
           <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
             {/* Date Filter */}
             <div className="relative z-50">
-              <DatePicker
+              <DatePicker portalId="root-portal" popperPlacement="bottom-end"
                 selected={selectedDate}
                 onChange={(date) => {
                   setSelectedDate(date);
@@ -210,10 +219,11 @@ const AdminManagement = () => {
                 dateFormat="d MMMM yyyy"
                 customInput={
                   <div className="relative">
-                    <button className="pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 whitespace-nowrap cursor-pointer w-full text-left h-10 flex items-center">
+                    <button className="peer pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 whitespace-nowrap cursor-pointer w-full text-left h-10 flex items-center">
                       {selectedDate ? selectedDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : 'Select Date'}
                     </button>
                     <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                      <ChevronDown size={16} className="text-gray-400 transition-transform duration-200 peer-focus:-rotate-180" />
                     </div>
                     {selectedDate && (
                       <button
@@ -238,8 +248,8 @@ const AdminManagement = () => {
                 <ChevronDown size={16} className={`transition-transform duration-200 ${isRoleDropdownOpen ? 'rotate-180' : ''}`} />
               </button>
               {isRoleDropdownOpen && (
-                <div className="absolute top-full left-0 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg z-10 py-1">
-                  {['All Admin', 'Super Admin', 'Marketing Admin', 'Operations Admin', 'Support Admin'].map(role => (
+                <div className="absolute top-full left-0 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg z-10 py-1 transition-transform duration-200 peer-focus:-rotate-180">
+                  {['All Admin', 'Super Admin', 'Marketing Admin', 'Support Admin'].map(role => (
                     <button
                       key={role}
                       onClick={() => {
@@ -260,13 +270,13 @@ const AdminManagement = () => {
             <div className="relative z-30">
               <button
                 onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
-                className="flex items-center justify-between space-x-2 px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 font-medium hover:bg-gray-50 h-10 w-32"
+                className="flex items-center justify-between space-x-2 px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 font-medium hover:bg-gray-50 h-10 w-40"
               >
                 <span>{selectedStatus}</span>
                 <ChevronDown size={16} className={`transition-transform duration-200 ${isStatusDropdownOpen ? 'rotate-180' : ''}`} />
               </button>
               {isStatusDropdownOpen && (
-                <div className="absolute top-full left-0 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg z-10 py-1">
+                <div className="absolute top-full left-0 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg z-10 py-1 transition-transform duration-200 peer-focus:-rotate-180">
                   {['All Status', 'Active', 'Inactive'].map(status => (
                     <button
                       key={status}
@@ -431,16 +441,15 @@ const AdminManagement = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
-                  <select defaultValue={editingAdmin?.role || 'Super Admin'} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#2E5E58] bg-white">
+                  <select defaultValue={editingAdmin?.role || 'Super Admin'} className="peer w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#2E5E58] bg-white">
                     <option>Super Admin</option>
                     <option>Marketing Admin</option>
-                    <option>Operations Admin</option>
                     <option>Support Admin</option>
                   </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                  <select defaultValue={editingAdmin?.status || 'Active'} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#2E5E58] bg-white">
+                  <select defaultValue={editingAdmin?.status || 'Active'} className="peer w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#2E5E58] bg-white">
                     <option>Active</option>
                     <option>Inactive</option>
                   </select>

@@ -187,12 +187,12 @@ const CustomDateInput = forwardRef(({ value, onClick, onClear }, ref) => (
     <button
       ref={ref}
       onClick={(e) => { e.preventDefault(); onClick(e); }}
-      className="flex items-center pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 whitespace-nowrap cursor-pointer"
+      className="peer flex items-center pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 whitespace-nowrap cursor-pointer"
     >
       {value || 'Select Date'}
     </button>
     <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-      <ChevronDown size={16} className="text-gray-500" />
+      <ChevronDown size={16} className="text-gray-500 transition-transform duration-200 peer-focus:-rotate-180" />
     </div>
     {value && (
       <button
@@ -344,7 +344,7 @@ const RecentActivities = ({ onBack }) => {
               onChange={(e) => { setTypeFilter(e.target.value); resetPage(); }}
               onFocus={() => setTypeOpen(true)}
               onBlur={() => setTypeOpen(false)}
-              className="pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer"
+              className="peer pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer"
             >
               {ACTIVITY_TYPES.map((t) => (
                 <option key={t} value={t}>{t}</option>
@@ -356,8 +356,8 @@ const RecentActivities = ({ onBack }) => {
           </div>
 
           {/* Date Picker */}
-          <div className="relative">
-            <DatePicker
+          <div className="relative transition-transform duration-200 peer-focus:-rotate-180">
+            <DatePicker portalId="root-portal" popperPlacement="bottom-end"
               selected={selectedDate}
               onChange={(d) => { setSelectedDate(d); resetPage(); }}
               customInput={<CustomDateInput onClear={() => { setSelectedDate(null); resetPage(); }} />}

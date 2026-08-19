@@ -6,6 +6,7 @@ import {
 import Pagination from './Pagination';
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
+import { exportToCSV } from '../utils/exportToCSV';
 import ViewProfile from './ViewProfile';
 import OrderHistory from './OrderHistory';
 import TokenTransaction from './TokenTransaction';
@@ -100,7 +101,7 @@ const CustomDateInput = forwardRef(({ value, onClick, onClear }, ref) => (
         onClick(e);
       }}
       ref={ref}
-      className="flex items-center pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+      className="peer flex items-center pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
     >
       {value || 'Select Date'}
     </button>
@@ -113,7 +114,7 @@ const CustomDateInput = forwardRef(({ value, onClick, onClear }, ref) => (
           <X size={12} strokeWidth={2.5} />
         </button>
       ) : (
-        <ChevronDown size={16} className="text-gray-500 pointer-events-none" />
+        <ChevronDown size={16} className="text-gray-500 pointer-events-none transition-transform duration-200 peer-focus:-rotate-180" />
       )}
     </div>
   </div>
@@ -179,7 +180,17 @@ const Customers = () => {
   const paginatedData = filteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   const handleExport = () => {
-    alert("Exporting customers data to CSV...");
+    const rows = [
+      ["Name", "Tier", "Total Spent (RM)", "Points Balance", "Status"],
+      ...filteredData.map(c => [
+        `"${c.name}"`,
+        `"${c.tier}"`,
+        `"${c.totalSpent}"`,
+        `"${c.tokensBalance}"`,
+        `"${c.status}"`
+      ])
+    ];
+    exportToCSV(rows, "customers.csv");
   };
 
   const handleAddCustomer = (e) => {
@@ -233,7 +244,7 @@ const Customers = () => {
               onChange={(e) => { setSelectedTier(e.target.value); setCurrentPage(1); }}
               onFocus={() => setTierOpen(true)}
               onBlur={() => setTierOpen(false)}
-              className="pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer w-full"
+              className="peer pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer w-full"
             >
               <option value="All Tiers">All Tiers</option>
               <option value="Kawan">Kawan</option>
@@ -246,13 +257,13 @@ const Customers = () => {
             </div>
           </div>
 
-          <div className="relative">
+          <div className="relative transition-transform duration-200 peer-focus:-rotate-180">
             <select
               value={selectedStatus}
               onChange={(e) => { setSelectedStatus(e.target.value); setCurrentPage(1); }}
               onFocus={() => setStatusOpen(true)}
               onBlur={() => setStatusOpen(false)}
-              className="pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer w-full"
+              className="peer pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer w-full"
             >
               <option value="All Status">All Status</option>
               <option value="Paid">Paid</option>
@@ -263,8 +274,8 @@ const Customers = () => {
             </div>
           </div>
 
-          <div className="relative">
-            <DatePicker
+          <div className="relative transition-transform duration-200 peer-focus:-rotate-180">
+            <DatePicker portalId="root-portal" popperPlacement="bottom-end"
               selected={selectedDate}
               onChange={(date) => { setSelectedDate(date); setCurrentPage(1); }}
               customInput={<CustomDateInput onClear={() => { setSelectedDate(null); setCurrentPage(1); }} />}
@@ -276,7 +287,7 @@ const Customers = () => {
             <Download size={16} className="mr-2" /> Export
           </button>
 
-          <button onClick={() => setIsAddModalOpen(true)} className="flex items-center px-4 py-2 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer">
+          <button onClick={() => setIsAddModalOpen(true)} className="flex items-center px-4 py-2 bg-[#1F3A34] text-white border-transparent text-sm font-bold rounded-lg hover:bg-[#2E5E58] transition-colors shadow-sm cursor-pointer">
             <Plus size={16} className="mr-2" /> Add Customer
           </button>
         </div>

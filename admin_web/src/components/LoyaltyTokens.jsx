@@ -10,6 +10,7 @@ import Pagination from './Pagination';
 import TokenTransaction from './TokenTransaction';
 import LoyaltyAnalytics from './LoyaltyAnalytics';
 import LoyaltyProgramSummary from './LoyaltyProgramSummary';
+import { exportToCSV } from '../utils/exportToCSV';
 
 const CustomDateInput = forwardRef(({ value, onClick, onClear }, ref) => (
   <div className="relative">
@@ -19,7 +20,7 @@ const CustomDateInput = forwardRef(({ value, onClick, onClear }, ref) => (
         onClick(e);
       }}
       ref={ref}
-      className="flex items-center pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer"
+      className="peer flex items-center pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer"
     >
       {value || 'Select Date'}
     </button>
@@ -32,7 +33,7 @@ const CustomDateInput = forwardRef(({ value, onClick, onClear }, ref) => (
           <X size={12} strokeWidth={2.5} />
         </button>
       ) : (
-        <ChevronDown size={16} className="text-gray-500 pointer-events-none" />
+        <ChevronDown size={16} className="text-gray-500 pointer-events-none transition-transform duration-200 peer-focus:-rotate-180" />
       )}
     </div>
   </div>
@@ -250,7 +251,7 @@ const KPICard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-w
 );
 
 //Main Component
-const LoyaltyTokens = ({ onBack }) => {
+const LoyaltyTokens = ({ onBack, onNavigate }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedType, setSelectedType] = useState("All Transaction Types");
   const [currentPage, setCurrentPage] = useState(1);
@@ -359,7 +360,7 @@ const LoyaltyTokens = ({ onBack }) => {
 
           <div className="flex flex-wrap items-center gap-3">
             <div className="relative">
-              <DatePicker
+              <DatePicker portalId="root-portal" popperPlacement="bottom-end"
                 selected={selectedDate}
                 onChange={(date) => { setSelectedDate(date); setCurrentPage(1); }}
                 customInput={<CustomDateInput onClear={() => { setSelectedDate(null); setCurrentPage(1); }} />}
@@ -372,7 +373,7 @@ const LoyaltyTokens = ({ onBack }) => {
                 onChange={(e) => { setSelectedType(e.target.value); setCurrentPage(1); }}
                 onFocus={() => setTypeOpen(true)}
                 onBlur={() => setTypeOpen(false)}
-                className="pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer w-full"
+                className="peer pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer w-full"
               >
                 <option value="All Transaction Types">All Transaction Types</option>
                 <option value="Earned">Earned</option>
@@ -384,12 +385,26 @@ const LoyaltyTokens = ({ onBack }) => {
             </div>
             <button
               onClick={() => setActiveView('analytics')}
-              className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer shadow-sm whitespace-nowrap"
+              className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer shadow-sm whitespace-nowrap transition-transform duration-200 peer-focus:-rotate-180"
             >
               View Analytics
             </button>
             <button
-              onClick={() => alert("Exporting transactions as CSV...")}
+              onClick={() => {
+                const rows = [
+                  ["Transaction ID", "Member Name", "Tokens", "Balance", "Type", "Source", "Date"],
+                  ...filteredItems.map(t => [
+                    `"${t.id}"`,
+                    `"${t.member.name}"`,
+                    `"${t.tokens}"`,
+                    `"${t.balance}"`,
+                    `"${t.type}"`,
+                    `"${t.description}"`,
+                    `"${t.date} ${t.time}"`
+                  ])
+                ];
+                exportToCSV(rows, "loyalty_tokens.csv");
+              }}
               className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer shadow-sm whitespace-nowrap"
             >
               <Download size={16} className="mr-1.5" />

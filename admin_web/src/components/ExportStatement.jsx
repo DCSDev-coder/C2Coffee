@@ -1,7 +1,30 @@
-import React, { useState } from 'react';
-import { ArrowLeft, Download, FileText, Calendar } from 'lucide-react';
+import React, { useState, forwardRef } from 'react';
+import { ArrowLeft, Download, FileText, Calendar, ChevronDown, X } from 'lucide-react';
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
+
+const CustomDateInput = forwardRef(({ value, onClick, onClear }, ref) => (
+  <div className="relative">
+    <button
+      onClick={(e) => { e.preventDefault(); onClick(e); }}
+      ref={ref}
+      className="peer flex items-center pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer w-full text-left"
+    >
+      {value || 'Select Date'}
+    </button>
+    <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+      <ChevronDown size={16} className="text-gray-500 transition-transform duration-200 peer-focus:-rotate-180" />
+    </div>
+    {value && (
+      <button
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClear(); }}
+        className="absolute right-8 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 rounded-full bg-gray-100 p-0.5 cursor-pointer"
+      >
+        <X size={12} strokeWidth={2.5} />
+      </button>
+    )}
+  </div>
+));
 
 const ExportStatement = ({ onBack }) => {
   const [startDate, setStartDate] = useState(null);
@@ -28,7 +51,7 @@ const ExportStatement = ({ onBack }) => {
         </div>
       </div>
 
-      <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm max-w-2xl">
+      <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
         <form onSubmit={handleExport} className="space-y-6">
           
           <div className="space-y-4">
@@ -39,27 +62,21 @@ const ExportStatement = ({ onBack }) => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-gray-700 mb-1">Start Date</label>
-                <div className="w-full border border-gray-300 rounded-lg overflow-hidden">
-                  <DatePicker
-                    selected={startDate}
-                    onChange={(d) => setStartDate(d)}
-                    className="w-full px-4 py-2 outline-none text-sm"
-                    dateFormat="d MMMM yyyy"
-                    placeholderText="Select Date"
-                  />
-                </div>
+                <DatePicker portalId="root-portal" popperPlacement="bottom-end"
+                  selected={startDate}
+                  onChange={(d) => setStartDate(d)}
+                  customInput={<CustomDateInput onClear={() => setStartDate(null)} />}
+                  dateFormat="d MMMM yyyy"
+                />
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-700 mb-1">End Date</label>
-                <div className="w-full border border-gray-300 rounded-lg overflow-hidden">
-                  <DatePicker
-                    selected={endDate}
-                    onChange={(d) => setEndDate(d)}
-                    className="w-full px-4 py-2 outline-none text-sm"
-                    dateFormat="d MMMM yyyy"
-                    placeholderText="Select Date"
-                  />
-                </div>
+                <DatePicker portalId="root-portal" popperPlacement="bottom-end"
+                  selected={endDate}
+                  onChange={(d) => setEndDate(d)}
+                  customInput={<CustomDateInput onClear={() => setEndDate(null)} />}
+                  dateFormat="d MMMM yyyy"
+                />
               </div>
             </div>
           </div>

@@ -8,6 +8,7 @@ import {
 } from "recharts";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
+import { exportToCSV } from '../utils/exportToCSV';
 
 //Shared Components
 
@@ -24,16 +25,16 @@ const CustomInput = React.forwardRef(({ value, onClick }, ref) => (
 CustomInput.displayName = "CustomInput";
 
 const CustomFilterInput = React.forwardRef(({ value, onClick, onClear }, ref) => (
-  <div className="relative">
+  <div className="relative transition-transform duration-200 peer-focus:-rotate-180">
     <button
       onClick={(e) => { e.preventDefault(); onClick(e); }}
       ref={ref}
-      className="flex items-center pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer"
+      className="peer flex items-center pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer"
     >
       {value || 'Select Date'}
     </button>
     <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-      <ChevronDown size={16} className="text-gray-500" />
+      <ChevronDown size={16} className="text-gray-500 transition-transform duration-200 peer-focus:-rotate-180" />
     </div>
   </div>
 ));
@@ -169,7 +170,20 @@ const LoyaltyAnalytics = ({ onBack, onViewSummary }) => {
 
       {/* Filters */}
       <div className="flex justify-end mb-4 shrink-0">
-        <button onClick={() => alert("Exporting data...")} className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer shadow-sm whitespace-nowrap">
+        <button 
+          onClick={() => {
+            const rows = [
+              ["Day", "Tokens Issued", "Tokens Redeemed"],
+              ...tokensIssuedVsRedeemed.map(t => [
+                `"${t.day}"`,
+                t.issued,
+                t.redeemed
+              ])
+            ];
+            exportToCSV(rows, "loyalty_analytics.csv");
+          }} 
+          className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer shadow-sm whitespace-nowrap"
+        >
           <Download size={16} className="mr-1.5" />
           Export
         </button>
@@ -195,7 +209,7 @@ const LoyaltyAnalytics = ({ onBack, onViewSummary }) => {
               </div>
             </div>
             <div className="w-28 relative">
-              <DatePicker selected={null} customInput={<CustomInput />} dateFormat="d MMM yyyy" onChange={() => { }} />
+              <DatePicker portalId="root-portal" popperPlacement="bottom-end" selected={null} customInput={<CustomInput />} dateFormat="d MMM yyyy" onChange={() => { }} />
             </div>
           </div>
           <div className="flex-1 min-h-0 w-full relative -ml-4">
@@ -229,7 +243,7 @@ const LoyaltyAnalytics = ({ onBack, onViewSummary }) => {
           <div className="flex justify-between items-start mb-2">
             <h3 className="text-lg font-bold text-gray-900">Tokens by Source</h3>
             <div className="w-28 relative">
-              <DatePicker selected={null} customInput={<CustomInput />} dateFormat="d MMM yyyy" onChange={() => { }} />
+              <DatePicker portalId="root-portal" popperPlacement="bottom-end" selected={null} customInput={<CustomInput />} dateFormat="d MMM yyyy" onChange={() => { }} />
             </div>
           </div>
           <div className="flex-1 flex items-center min-h-0">

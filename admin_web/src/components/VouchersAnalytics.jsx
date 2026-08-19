@@ -10,6 +10,7 @@ import {
 } from "recharts";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
+import { exportToCSV } from '../utils/exportToCSV';
 
 const CustomInput = React.forwardRef(({ value, onClick }, ref) => (
   <button
@@ -25,7 +26,7 @@ CustomInput.displayName = "CustomInput";
 
 
 const StatCard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-white" }) => (
-  <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center space-x-4 min-w-0">
+  <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center space-x-4 min-w-0 transition-transform duration-200 peer-focus:-rotate-180">
     <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 ${iconBg} ${iconColor} shadow-sm`}>
       <Icon size={26} strokeWidth={2.2} />
     </div>
@@ -164,7 +165,18 @@ const VouchersAnalytics = ({ onBack }) => {
         </div>
 
         <button
-          onClick={() => alert("Exporting voucher analytics report...")}
+          onClick={() => {
+            const rows = [
+              ["Voucher Code", "Name", "Redemptions", "Rate"],
+              ...topVouchers.map(v => [
+                `"${v.id}"`,
+                `"${v.name}"`,
+                `"${v.redemptions}"`,
+                `"${v.rate}"`
+              ])
+            ];
+            exportToCSV(rows, "vouchers_analytics.csv");
+          }}
           className="flex items-center gap-1.5 px-4 py-2 border border-gray-300 rounded-lg text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 transition-colors cursor-pointer shadow-xs"
         >
           <Download size={15} /> Export
@@ -230,7 +242,7 @@ const VouchersAnalytics = ({ onBack }) => {
                 </div>
               </div>
             </div>
-            <DatePicker
+            <DatePicker portalId="root-portal" popperPlacement="bottom-end"
               selected={selectedDate}
               onChange={(date) => setSelectedDate(date)}
               dateFormat="d MMM yyyy"
@@ -284,7 +296,7 @@ const VouchersAnalytics = ({ onBack }) => {
             <h3 className="text-sm font-bold text-gray-900 leading-tight">
               Redemption Rate Over Time
             </h3>
-            <DatePicker
+            <DatePicker portalId="root-portal" popperPlacement="bottom-end"
               selected={selectedDate}
               onChange={(date) => setSelectedDate(date)}
               dateFormat="d MMM yyyy"

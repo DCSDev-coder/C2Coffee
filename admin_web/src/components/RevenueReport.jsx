@@ -4,6 +4,7 @@ import {
   ResponsiveContainer, BarChart, Bar,
   XAxis, YAxis, Tooltip, CartesianGrid
 } from "recharts";
+import { exportToCSV } from '../utils/exportToCSV';
 
 const reportData = [
   { month: "Jan", revenue: 120000 },
@@ -28,7 +29,19 @@ const RevenueReport = ({ onBack }) => {
           </button>
           <h1 className="text-2xl font-bold text-gray-900">Revenue Report</h1>
         </div>
-        <button className="flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-bold rounded-lg hover:bg-gray-50 transition-colors cursor-pointer shadow-sm">
+        <button 
+          onClick={() => {
+            const rows = [
+              ["Month", "Revenue (RM)"],
+              ...reportData.map(r => [
+                `"${r.month}"`,
+                r.revenue
+              ])
+            ];
+            exportToCSV(rows, "revenue_report.csv");
+          }}
+          className="flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-bold rounded-lg hover:bg-gray-50 transition-colors cursor-pointer shadow-sm"
+        >
           <Download size={16} /> Export Report
         </button>
       </div>

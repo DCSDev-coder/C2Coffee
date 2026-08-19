@@ -22,6 +22,10 @@ import AllCampaigns from './components/AllCampaigns';
 import AllPushNotifications from './components/AllPushNotifications';
 import AllContentPerformance from './components/AllContentPerformance';
 import AdminManagement from './components/AdminManagement';
+import TierManagement from './components/TierManagement';
+import ReportByProduct from './components/ReportByProduct';
+import AuditLogs from './components/AuditLogs';
+import Settings from './components/Settings';
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(true);
@@ -39,8 +43,8 @@ function App() {
 
   const layoutCurrentPage = ['Refunds'].includes(currentPage) ? 'Orders'
     : ['GenerateInvoice', 'RecordExpense', 'RevenueReport', 'ExportStatement', 'AllTransactions', 'ExpenseBreakdownFull'].includes(currentPage) ? 'Finance'
-    : ['AllCampaigns', 'AllPushNotifications', 'AllContentPerformance'].includes(currentPage) ? 'Marketing'
-    : currentPage;
+      : ['AllCampaigns', 'AllPushNotifications', 'AllContentPerformance'].includes(currentPage) ? 'Marketing'
+        : currentPage;
 
   if (!isLoggedIn) {
     return <Login onLogin={() => setIsLoggedIn(true)} />;
@@ -61,7 +65,8 @@ function App() {
       {currentPage === 'Notifications' && <Notifications onBack={() => handleNavigate(prevPage || 'Orders')} />}
       {currentPage === 'Profile' && <Profile onBack={() => handleNavigate(prevPage || 'Dashboard')} />}
       {currentPage === 'Voucher' && <Vouchers onBack={() => handleNavigate(prevPage || 'Dashboard')} />}
-      {currentPage === 'Loyalty & Tokens' && <LoyaltyTokens onBack={() => handleNavigate(prevPage || 'Dashboard')} />}
+      {currentPage === 'Loyalty & Tokens' && <LoyaltyTokens onBack={() => handleNavigate(prevPage || 'Dashboard')} onNavigate={handleNavigate} />}
+      {currentPage === 'Tier Management' && <TierManagement onBack={() => handleNavigate('Loyalty & Tokens')} />}
       {currentPage === 'Menu' && <Menu />}
       {currentPage === 'Marketing' && <Marketing setCurrentPage={handleNavigate} />}
       {currentPage === 'AllCampaigns' && <AllCampaigns onBack={() => handleNavigate('Marketing')} />}
@@ -74,7 +79,10 @@ function App() {
       {currentPage === 'ExportStatement' && <ExportStatement onBack={() => handleNavigate('Finance')} />}
       {currentPage === 'AllTransactions' && <AllTransactions onBack={() => handleNavigate('Finance')} />}
       {currentPage === 'ExpenseBreakdownFull' && <ExpenseBreakdownFull onBack={() => handleNavigate('Finance')} />}
+      {currentPage === 'Product Report' && <ReportByProduct onBack={() => handleNavigate('Finance')} />}
       {currentPage === 'Admin Management' && <AdminManagement />}
+      {currentPage === 'Audit Logs' && <AuditLogs onNavigate={handleNavigate} />}
+      {currentPage === 'Settings' && <Settings setCurrentPage={handleNavigate} />}
     </Layout>
   );
 }

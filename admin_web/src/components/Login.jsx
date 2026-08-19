@@ -1,6 +1,16 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 const Login = ({ onLogin }) => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (email && password) {
+      onLogin();
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-black font-sans">
       {/* Background Image with subtle scale */}
@@ -21,19 +31,42 @@ const Login = ({ onLogin }) => {
         <h2 className="text-4xl font-medium text-white mb-2 drop-shadow-sm" style={{ fontFamily: 'Recoleta, serif' }}>
           Welcome Back
         </h2>
-        <p className="text-white/70 text-sm mb-10 text-center font-medium">
+        <p className="text-white/70 text-sm mb-8 text-center font-medium">
           Sign in to access your admin dashboard.
         </p>
         
-        <button
-          onClick={onLogin}
-          className="w-full bg-white text-[#0f211d] font-semibold text-lg py-3.5 px-4 rounded-2xl transition-all shadow-lg hover:shadow-2xl hover:-translate-y-1 hover:bg-gray-50 flex items-center justify-center space-x-2"
-        >
-          <span>Sign In</span>
-          <svg className="w-5 h-5 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-          </svg>
-        </button>
+        <form onSubmit={handleSubmit} className="w-full space-y-4">
+          <div>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Email Address"
+              required
+              className="w-full bg-white/20 border border-white/30 text-white placeholder-white/60 rounded-2xl px-5 py-3.5 focus:outline-none focus:ring-2 focus:ring-white/50 transition-all font-medium"
+            />
+          </div>
+          <div>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Password"
+              required
+              className="w-full bg-white/20 border border-white/30 text-white placeholder-white/60 rounded-2xl px-5 py-3.5 focus:outline-none focus:ring-2 focus:ring-white/50 transition-all font-medium"
+            />
+          </div>
+          
+          <button
+            type="submit"
+            className="w-full bg-white text-[#0f211d] font-bold text-lg py-3.5 px-4 rounded-2xl transition-all shadow-lg hover:shadow-2xl hover:-translate-y-1 hover:bg-gray-50 flex items-center justify-center space-x-2 mt-4"
+          >
+            <span>Sign In</span>
+            <svg className="w-5 h-5 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+            </svg>
+          </button>
+        </form>
       </div>
     </div>
   );

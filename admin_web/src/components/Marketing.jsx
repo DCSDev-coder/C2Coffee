@@ -3,6 +3,7 @@ import { Megaphone, CheckCircle, Users, MessageSquare, MousePointerClick, Refres
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
+import { exportToCSV } from '../utils/exportToCSV';
 import Pagination from './Pagination';
 
 const MaleIcon = ({ size = 24, className = "" }) => (
@@ -46,6 +47,7 @@ const Marketing = ({ setCurrentPage }) => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newCampaignName, setNewCampaignName] = useState("");
   const [newCampaignDesc, setNewCampaignDesc] = useState("");
+  const [newCampaignImage, setNewCampaignImage] = useState(null);
   const [openDropdownId, setOpenDropdownId] = useState(null);
   const itemsPerPage = 6;
 
@@ -139,24 +141,37 @@ const Marketing = ({ setCurrentPage }) => {
         <div className="flex flex-col lg:flex-row lg:items-center justify-end mb-6 gap-4 shrink-0">
           <div className="flex flex-wrap items-center gap-3">
             <div className="relative">
-              <DatePicker
+              <DatePicker portalId="root-portal" popperPlacement="bottom-end"
                 selected={selectedDate}
                 onChange={(date) => setSelectedDate(date)}
                 dateFormat="d MMMM yyyy"
                 customInput={
                   <div className="relative">
-                    <button className="pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 whitespace-nowrap cursor-pointer w-full text-left">
+                    <button className="peer pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 whitespace-nowrap cursor-pointer w-full text-left">
                       {selectedDate ? selectedDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : 'Select Date'}
                     </button>
                     <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                      <ChevronDown size={16} className="text-gray-500" />
+                      <ChevronDown size={16} className="text-gray-500 transition-transform duration-200 peer-focus:-rotate-180" />
                     </div>
                   </div>
                 }
               />
             </div>
             <button 
-              onClick={() => alert("Exporting marketing data to CSV...")}
+              onClick={() => {
+                const rows = [
+                  ["Campaign", "Type", "Status", "Reach", "Engagement", "Conversion"],
+                  ...topCampaigns.map(c => [
+                    `"${c.name}"`,
+                    `"${c.type}"`,
+                    `"${c.status}"`,
+                    `"${c.reach}"`,
+                    `"${c.engagement}"`,
+                    `"${c.conversion}"`
+                  ])
+                ];
+                exportToCSV(rows, "marketing_campaigns.csv");
+              }}
               className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 whitespace-nowrap cursor-pointer"
             >
               <Download size={16} className="mr-1.5" /> Export
@@ -554,6 +569,8 @@ const Marketing = ({ setCurrentPage }) => {
                 alert(`Campaign "${newCampaignName}" created!`);
                 setIsCreateModalOpen(false);
                 setNewCampaignName("");
+                setNewCampaignDesc("");
+                setNewCampaignImage(null);
               }} className="p-6 space-y-4 overflow-y-auto flex-1">
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-1">Campaign Name</label>
@@ -577,11 +594,27 @@ const Marketing = ({ setCurrentPage }) => {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-1">Type</label>
-                  <select className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34]">
+                  <select className="peer w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34]">
                     <option>Promotion</option>
                     <option>Loyalty</option>
                     <option>Event</option>
                   </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Campaign Image</label>
+                  <div className="w-full border-2 border-dashed border-gray-200 rounded-lg p-4 flex flex-col items-center justify-center text-gray-500 hover:bg-gray-50 hover:border-[#1F3A34] transition-colors cursor-pointer relative">
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={(e) => setNewCampaignImage(e.target.files[0])}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
+                    />
+                    <svg className="w-6 h-6 mb-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                    </svg>
+                    <p className="text-sm">{newCampaignImage ? newCampaignImage.name : "Click to upload or drag and drop"}</p>
+                    <p className="text-xs text-gray-400 mt-1">SVG, PNG, JPG or GIF (max. 5MB)</p>
+                  </div>
                 </div>
                 <div className="pt-2">
                   <button type="submit" className="w-full bg-[#1F3A34] text-white rounded-lg px-4 py-2.5 text-sm font-bold hover:bg-[#162A26] transition-colors">

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  LayoutDashboard, Users, ShoppingBag, Ticket, Coins,
+  LayoutDashboard, Users, ShoppingBag, Ticket, Coins, Crown, Package,
   Coffee, Megaphone, LineChart, UserCog, ClipboardList, Settings, LogOut
 } from 'lucide-react';
 
@@ -13,9 +13,11 @@ const Sidebar = ({ currentPage, setCurrentPage, onLogout }) => {
     { name: 'Orders', icon: ShoppingBag },
     { name: 'Voucher', icon: Ticket },
     { name: 'Loyalty & Tokens', icon: Coins },
+    { name: 'Tier Management', icon: Crown },
     { name: 'Menu', icon: Coffee },
     { name: 'Marketing', icon: Megaphone },
     { name: 'Finance', icon: LineChart },
+    { name: 'Product Report', icon: Package },
     { name: 'Admin Management', icon: UserCog },
     { name: 'Audit Logs', icon: ClipboardList },
     { name: 'Settings', icon: Settings }
@@ -23,8 +25,8 @@ const Sidebar = ({ currentPage, setCurrentPage, onLogout }) => {
 
   return (
     <div className="w-56 bg-[#2E5E58] text-white h-[calc(100vh-2rem)] fixed left-4 top-4 bottom-4 flex flex-col p-4 rounded-3xl z-10 shadow-xl overflow-y-auto" style={{ fontFamily: 'Afacad, sans-serif' }}>
-      <div 
-        className="flex flex-col items-center mt-6 mb-8 cursor-pointer" 
+      <div
+        className="flex flex-col items-center mt-6 mb-8 cursor-pointer"
         onClick={() => {
           if (setCurrentPage) setCurrentPage('Dashboard');
         }}
@@ -42,7 +44,7 @@ const Sidebar = ({ currentPage, setCurrentPage, onLogout }) => {
               href="#"
               onClick={(e) => {
                 e.preventDefault();
-                if (setCurrentPage && (item.name === 'Dashboard' || item.name === 'Customers' || item.name === 'Orders' || item.name === 'Voucher' || item.name === 'Loyalty & Tokens' || item.name === 'Menu' || item.name === 'Marketing' || item.name === 'Finance' || item.name === 'Admin Management' || item.name === 'Audit Logs')) {
+                if (setCurrentPage) {
                   setCurrentPage(item.name);
                 }
               }}

@@ -386,7 +386,7 @@ const Notifications = ({ onBack }) => {
               </button>
 
               {sortOpen && (
-                <div className="absolute right-0 top-full mt-1 w-40 bg-white rounded-xl shadow-lg border border-gray-200 py-1 z-50 animate-in fade-in zoom-in-95 duration-100">
+                <div className="absolute right-0 top-full mt-1 w-40 bg-white rounded-xl shadow-lg border border-gray-200 py-1 z-50 animate-in fade-in zoom-in-95 duration-100 transition-transform duration-200 peer-focus:-rotate-180">
                   {["Newest", "Oldest", "Unread First"].map((opt) => (
                     <button
                       key={opt}

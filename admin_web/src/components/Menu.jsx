@@ -5,6 +5,9 @@ import {
   MoreVertical, Edit2, Copy, Trash2, X, Eye
 } from 'lucide-react';
 import Pagination from './Pagination';
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
+import { exportToCSV } from '../utils/exportToCSV';
 
 const KPICard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-white" }) => (
   <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center space-x-4 min-w-0">
@@ -165,7 +168,7 @@ const Menu = () => {
                 onChange={(e) => { setSelectedCategory(e.target.value); resetPage(); }}
                 onFocus={() => setCategoryOpen(true)}
                 onBlur={() => setCategoryOpen(false)}
-                className="pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer"
+                className="peer pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer"
               >
                 {uniqueCategories.map(cat => (
                   <option key={cat} value={cat}>{cat === "All" ? "All Categories" : cat}</option>
@@ -177,13 +180,13 @@ const Menu = () => {
             </div>
             
             {/* Status Dropdown */}
-            <div className="relative">
+            <div className="relative transition-transform duration-200 peer-focus:-rotate-180">
               <select 
                 value={selectedStatus} 
                 onChange={(e) => { setSelectedStatus(e.target.value); resetPage(); }}
                 onFocus={() => setStatusOpen(true)}
                 onBlur={() => setStatusOpen(false)}
-                className="pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer"
+                className="peer pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer"
               >
                 <option value="All">All Status</option>
                 <option value="Available">Available</option>
@@ -195,14 +198,27 @@ const Menu = () => {
             </div>
             
             <button 
-              onClick={() => alert("Exporting menu data to CSV...")}
-              className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 whitespace-nowrap cursor-pointer"
+              onClick={() => {
+                const rows = [
+                  ["Menu Item", "Category", "Price", "Status", "Sales", "ID"],
+                  ...filteredMenuItems.map(item => [
+                    `"${item.name}"`,
+                    `"${item.category}"`,
+                    `"${item.price}"`,
+                    `"${item.status}"`,
+                    `"${item.sales}"`,
+                    `"${item.id}"`
+                  ])
+                ];
+                exportToCSV(rows, "menu.csv");
+              }}
+              className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 whitespace-nowrap cursor-pointer transition-transform duration-200 peer-focus:-rotate-180"
             >
               <Download size={16} className="mr-1.5" /> Export
             </button>
             <button 
               onClick={handleAddNewMenu}
-              className="flex items-center px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 whitespace-nowrap cursor-pointer"
+              className="flex items-center px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium   whitespace-nowrap cursor-pointer"
             >
               + New Menu
             </button>
@@ -545,7 +561,7 @@ const Menu = () => {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-1">Status</label>
-                  <select value={editFormData.status} onChange={e => setEditFormData({...editFormData, status: e.target.value})} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34]">
+                  <select value={editFormData.status} onChange={e => setEditFormData({...editFormData, status: e.target.value})} className="peer w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34]">
                     <option value="Available">Available</option>
                     <option value="Unavailable">Unavailable</option>
                   </select>

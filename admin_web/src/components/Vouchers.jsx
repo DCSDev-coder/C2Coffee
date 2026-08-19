@@ -9,18 +9,19 @@ import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import Pagination from './Pagination';
 import VouchersAnalytics from "./VouchersAnalytics";
+import { exportToCSV } from '../utils/exportToCSV';
 
 const CustomDateInput = forwardRef(({ value, onClick, onClear }, ref) => (
   <div className="relative">
     <button
       ref={ref}
       onClick={(e) => { e.preventDefault(); onClick(e); }}
-      className="flex items-center pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 whitespace-nowrap cursor-pointer"
+      className="peer flex items-center pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 whitespace-nowrap cursor-pointer"
     >
       {value || 'Select Date'}
     </button>
     <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-      <ChevronDown size={16} className="text-gray-500" />
+      <ChevronDown size={16} className="text-gray-500 transition-transform duration-200 peer-focus:-rotate-180" />
     </div>
     {value && (
       <button
@@ -394,7 +395,7 @@ const Vouchers = ({ onBack }) => {
               onChange={(e) => { setTypeFilter(e.target.value); resetPage(); }}
               onFocus={() => setTypeOpen(true)}
               onBlur={() => setTypeOpen(false)}
-              className="pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer"
+              className="peer pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer"
             >
               {VOUCHER_TYPES.map((t) => (
                 <option key={t} value={t}>{t}</option>
@@ -406,13 +407,13 @@ const Vouchers = ({ onBack }) => {
           </div>
 
           {/* Status Filter */}
-          <div className="relative">
+          <div className="relative transition-transform duration-200 peer-focus:-rotate-180">
             <select
               value={statusFilter}
               onChange={(e) => { setStatusFilter(e.target.value); resetPage(); }}
               onFocus={() => setStatusOpen(true)}
               onBlur={() => setStatusOpen(false)}
-              className="pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer"
+              className="peer pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer"
             >
               {STATUS_TYPES.map((s) => (
                 <option key={s} value={s}>{s}</option>
@@ -424,8 +425,8 @@ const Vouchers = ({ onBack }) => {
           </div>
 
           {/* Date Picker */}
-          <div className="relative">
-            <DatePicker
+          <div className="relative transition-transform duration-200 peer-focus:-rotate-180">
+            <DatePicker portalId="root-portal" popperPlacement="bottom-end"
               selected={selectedDate}
               onChange={(d) => { setSelectedDate(d); resetPage(); }}
               customInput={<CustomDateInput onClear={() => { setSelectedDate(null); resetPage(); }} />}
@@ -443,7 +444,24 @@ const Vouchers = ({ onBack }) => {
 
           {/* Export Button */}
           <button
-            onClick={() => alert("Exporting vouchers CSV...")}
+            onClick={() => {
+              const rows = [
+                ["Voucher Code", "Name", "Type", "Tier", "Reward", "Status", "Issued", "Redeemed", "Limit", "Expiry"],
+                ...filtered.map(v => [
+                  `"${v.id}"`,
+                  `"${v.name}"`,
+                  `"${v.type}"`,
+                  `"${v.tier}"`,
+                  `"${v.reward}"`,
+                  `"${v.status}"`,
+                  v.issued,
+                  v.redeemed,
+                  v.limitPerUser,
+                  `"${v.expiry}"`
+                ])
+              ];
+              exportToCSV(rows, "vouchers.csv");
+            }}
             className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer transition-colors"
           >
             <Download size={16} className="mr-2" /> Export
@@ -452,7 +470,7 @@ const Vouchers = ({ onBack }) => {
           {/* + New Voucher Button */}
           <button
             onClick={() => setShowCreateModal(true)}
-            className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer transition-colors"
+            className="flex items-center px-4 py-2 bg-[#1F3A34] text-white border-transparent text-sm font-bold rounded-lg hover:bg-[#2E5E58] transition-colors shadow-sm cursor-pointer"
           >
             <Plus size={16} className="mr-2" /> New Voucher
           </button>
@@ -859,7 +877,7 @@ const Vouchers = ({ onBack }) => {
                   <select
                     value={newVoucher.type}
                     onChange={(e) => setNewVoucher({ ...newVoucher, type: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
+                    className="peer w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
                   >
                     <option value="Free Drink">Free Drink</option>
                     <option value="Percentage Off">Percentage Off</option>
@@ -874,7 +892,7 @@ const Vouchers = ({ onBack }) => {
                   <select
                     value={newVoucher.tier}
                     onChange={(e) => setNewVoucher({ ...newVoucher, tier: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
+                    className="peer w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
                   >
                     <option value="All Tiers">All Tiers</option>
                     <option value="Legend">Legend</option>
@@ -995,7 +1013,7 @@ const Vouchers = ({ onBack }) => {
                   <select
                     value={editingVoucher.type}
                     onChange={(e) => setEditingVoucher({ ...editingVoucher, type: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
+                    className="peer w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
                   >
                     <option value="Free Drink">Free Drink</option>
                     <option value="Percentage Off">Percentage Off</option>
@@ -1010,7 +1028,7 @@ const Vouchers = ({ onBack }) => {
                   <select
                     value={editingVoucher.status}
                     onChange={(e) => setEditingVoucher({ ...editingVoucher, status: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
+                    className="peer w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
                   >
                     <option value="Active">Active</option>
                     <option value="Expired">Expired</option>

@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import {
   Banknote, Briefcase, Wallet, ArrowRightLeft, ArrowRight,
-  ChevronDown, FileText, PlusCircle, BarChart3, DownloadCloud, ArrowUp
+  ChevronDown, FileText, PlusCircle, BarChart3, DownloadCloud, ArrowUp, Package
 } from "lucide-react";
 import {
   ResponsiveContainer, AreaChart, Area,
@@ -25,7 +25,7 @@ CustomInput.displayName = "CustomInput";
 
 //Stat Card Component
 const StatCard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-white" }) => (
-  <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center space-x-4 min-w-0">
+  <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center space-x-4 min-w-0 transition-transform duration-200 peer-focus:-rotate-180">
     <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 ${iconBg} ${iconColor} shadow-sm`}>
       <Icon size={26} strokeWidth={2.2} />
     </div>
@@ -96,7 +96,7 @@ const Finance = ({ setCurrentPage }) => {
 
       {/* Global Date Picker */}
       <div className="flex justify-end shrink-0">
-        <DatePicker
+        <DatePicker portalId="root-portal" popperPlacement="bottom-end"
           selected={selectedDate}
           onChange={(date) => setSelectedDate(date)}
           dateFormat="d MMMM yyyy"
