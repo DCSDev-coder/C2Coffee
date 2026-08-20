@@ -419,7 +419,7 @@ const Vouchers = () => {
   }, []);
 
   if (showAnalytics) {
-    return <VouchersAnalytics onBack={() => setShowAnalytics(false)} />;
+    return <VouchersAnalytics onBack={() => setShowAnalytics(false)} vouchers={vouchers} />;
   }
 
   const resetPage = () => setCurrentPage(1);
@@ -438,6 +438,15 @@ const Vouchers = () => {
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
   const paginated = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
+  // Compute Analytics
+  const totalVouchersCount = vouchers.length;
+  const activeVouchersCount = vouchers.filter(v => v.status === 'Active').length;
+  const vouchersIssuedCount = vouchers.reduce((acc, v) => acc + (v.issued || 0), 0);
+  const vouchersRedeemedCount = vouchers.reduce((acc, v) => acc + (v.redeemed || 0), 0);
+  const redemptionRateStr = vouchersIssuedCount > 0 
+    ? ((vouchersRedeemedCount / vouchersIssuedCount) * 100).toFixed(1) + '%' 
+    : '0%';
 
   const handleCreateVoucher = async (e) => {
     e.preventDefault();
@@ -581,36 +590,36 @@ const Vouchers = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard
           title="Total Voucher"
-          value="24"
-          change="12.6% vs last month"
+          value={totalVouchersCount.toLocaleString()}
+          change="Updated just now"
           icon={Percent}
           iconBg="bg-[#1F3A34]"
         />
         <StatCard
           title="Active Vouchers"
-          value="19"
-          change="8.2% vs last month"
+          value={activeVouchersCount.toLocaleString()}
+          change="Updated just now"
           icon={Gift}
           iconBg="bg-[#2E5E58]"
         />
         <StatCard
           title="Vouchers Issued"
-          value="12,560"
-          change="17.1% vs last month"
+          value={vouchersIssuedCount.toLocaleString()}
+          change="Updated just now"
           icon={CreditCard}
           iconBg="bg-[#6F9F96]"
         />
         <StatCard
           title="Vouchers Redeemed"
-          value="8,320"
-          change="8.7% vs last month"
+          value={vouchersRedeemedCount.toLocaleString()}
+          change="Updated just now"
           icon={Tag}
           iconBg="bg-[#E07A5F]"
         />
         <StatCard
           title="Redemption Rate"
-          value="66.2%"
-          change="9.3% vs last month"
+          value={redemptionRateStr}
+          change="Updated just now"
           icon={Users}
           iconBg="bg-[#D4AF7A]"
         />

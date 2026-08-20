@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React, { useState } from "react";
 import {
   ArrowLeft, Download, Percent, Gift,
@@ -138,9 +139,22 @@ const recentActivityData = [
   }
 ];
 
-const VouchersAnalytics = ({ onBack }) => {
+const VouchersAnalytics = ({ onBack, vouchers }) => {
   const [selectedDate, setSelectedDate] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
+
+  // Compute Analytics from vouchers
+  const safeVouchers = vouchers || [];
+  const totalVouchersIssuedCount = safeVouchers.reduce((acc, v) => acc + (v.issued || 0), 0);
+  const vouchersRedeemedCount = safeVouchers.reduce((acc, v) => acc + (v.redeemed || 0), 0);
+  const redemptionRateStr = totalVouchersIssuedCount > 0 
+    ? ((vouchersRedeemedCount / totalVouchersIssuedCount) * 100).toFixed(1) + '%' 
+    : '0%';
+
+  const totalDiscountGiven = safeVouchers.reduce((acc, v) => acc + ((v.discountValue || 0) * (v.redeemed || 0)), 0);
+  const avgDiscount = vouchersRedeemedCount > 0 
+    ? Math.round(totalDiscountGiven / vouchersRedeemedCount) 
+    : 0;
 
   return (
     <div className="px-8 pb-8 pt-2 h-full flex flex-col space-y-6">
@@ -187,36 +201,36 @@ const VouchersAnalytics = ({ onBack }) => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard
           title="Total Voucher Issued"
-          value="12,560"
-          change="12.6% vs 1 July - 31 July 2026"
+          value={totalVouchersIssuedCount.toLocaleString()}
+          change="Updated just now"
           icon={Percent}
           iconBg="bg-[#1F3A34]"
         />
         <StatCard
           title="Voucher Redeemed"
-          value="8,320"
-          change="8.2% vs 1 July - 31 July 2026"
+          value={vouchersRedeemedCount.toLocaleString()}
+          change="Updated just now"
           icon={Gift}
           iconBg="bg-[#2E5E58]"
         />
         <StatCard
           title="Redemption Rate"
-          value="61.2%"
-          change="17.1% vs 1 July - 31 July 2026"
+          value={redemptionRateStr}
+          change="Updated just now"
           icon={CreditCard}
           iconBg="bg-[#6F9F96]"
         />
         <StatCard
-          title="Total Discount Given"
-          value="RM 12,246.80"
-          change="8.7% vs 1 July - 31 July 2026"
+          title="Total Discount Given (Tokens)"
+          value={totalDiscountGiven.toLocaleString()}
+          change="Updated just now"
           icon={Tag}
           iconBg="bg-[#E07A5F]"
         />
         <StatCard
-          title="Average Discount Per Voucher"
-          value="RM 6.31"
-          change="9.3% vs 1 July - 31 July 2026"
+          title="Average Discount (Tokens)"
+          value={avgDiscount.toLocaleString()}
+          change="Updated just now"
           icon={Users}
           iconBg="bg-[#D4AF7A]"
         />
@@ -247,7 +261,6 @@ const VouchersAnalytics = ({ onBack }) => {
               onChange={(date) => setSelectedDate(date)}
               dateFormat="d MMM yyyy"
               customInput={<CustomInput />}
-              portalId="root"
             />
           </div>
 
@@ -301,7 +314,6 @@ const VouchersAnalytics = ({ onBack }) => {
               onChange={(date) => setSelectedDate(date)}
               dateFormat="d MMM yyyy"
               customInput={<CustomInput />}
-              portalId="root"
             />
           </div>
 
