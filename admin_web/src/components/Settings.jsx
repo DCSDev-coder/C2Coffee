@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Settings as SettingsIcon, Shield, Database, ChevronRight, Cloud, Clock, FileText, X } from 'lucide-react';
 
-const Settings = ({ setCurrentPage }) => {
+const Settings = ({ setCurrentPage, currentUser }) => {
 
   // State for Settings
   const [settings, setSettings] = useState({

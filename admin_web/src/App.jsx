@@ -37,6 +37,7 @@ function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [currentTenant, setCurrentTenant] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
   const [currentPage, setCurrentPage] = useState('Dashboard');
   const [prevPage, setPrevPage] = useState('Dashboard');
 
@@ -63,11 +64,13 @@ function App() {
           name: response.user.tenant_name,
           display_name: response.user.tenant_display_name
         } : null);
+        setCurrentUser(response.user || null);
         setIsLoggedIn(true);
       } catch {
         clearAdminTokens();
         setIsLoggedIn(false);
         setCurrentTenant(null);
+        setCurrentUser(null);
       } finally {
         setIsBootstrapping(false);
       }
@@ -108,14 +111,18 @@ function App() {
     clearAdminTokens();
     setIsLoggedIn(false);
     setCurrentTenant(null);
+    setCurrentUser(null);
     setCurrentPage('Dashboard');
     setPrevPage('Dashboard');
   };
 
-  const handleLoginSuccess = ({ accessToken, refreshToken, tenant }) => {
+  const handleLoginSuccess = ({ accessToken, refreshToken, tenant, user }) => {
     saveAdminTokens({ accessToken, refreshToken });
     if (tenant) {
       setCurrentTenant(tenant);
+    }
+    if (user) {
+      setCurrentUser(user);
     }
     setIsLoggedIn(true);
     setCurrentPage('Dashboard');
@@ -139,6 +146,7 @@ function App() {
       setCurrentPage={handleNavigate}
       onLogout={handleLogout}
       currentTenant={currentTenant}
+      currentUser={currentUser}
     >
       {currentPage === 'Dashboard' && <DashboardHome setCurrentPage={handleNavigate} />}
       {currentPage === 'Customers' && <Customers />}
@@ -151,7 +159,7 @@ function App() {
       )}
       {currentPage === 'Recent Activities' && <RecentActivities onBack={() => handleNavigate('Dashboard')} />}
       {currentPage === 'Notifications' && <Notifications onBack={() => handleNavigate(prevPage || 'Orders')} />}
-      {currentPage === 'Profile' && <Profile onBack={() => handleNavigate(prevPage || 'Dashboard')} />}
+      {currentPage === 'Profile' && <Profile onBack={() => handleNavigate(prevPage || 'Dashboard')} currentUser={currentUser} />}
       {currentPage === 'Voucher' && <Vouchers onBack={() => handleNavigate(prevPage || 'Dashboard')} />}
       {currentPage === 'Loyalty & Tokens' && <LoyaltyTokens onBack={() => handleNavigate(prevPage || 'Dashboard')} onNavigate={handleNavigate} />}
       {currentPage === 'Tier Management' && <TierManagement onBack={() => handleNavigate('Loyalty & Tokens')} />}
@@ -168,9 +176,9 @@ function App() {
       {currentPage === 'AllTransactions' && <AllTransactions onBack={() => handleNavigate('Finance')} />}
       {currentPage === 'ExpenseBreakdownFull' && <ExpenseBreakdownFull onBack={() => handleNavigate('Finance')} />}
       {currentPage === 'Product Report' && <ReportByProduct onBack={() => handleNavigate('Finance')} />}
-      {currentPage === 'Admin Management' && <AdminManagement />}
-      {currentPage === 'Audit Logs' && <AuditLogs onNavigate={handleNavigate} />}
-      {currentPage === 'Settings' && <Settings setCurrentPage={handleNavigate} />}
+      {currentPage === 'Admin Management' && <AdminManagement currentUser={currentUser} />}
+      {currentPage === 'Audit Logs' && <AuditLogs onNavigate={handleNavigate} currentUser={currentUser} />}
+      {currentPage === 'Settings' && <Settings setCurrentPage={handleNavigate} currentUser={currentUser} />}
     </Layout>
   );
 }

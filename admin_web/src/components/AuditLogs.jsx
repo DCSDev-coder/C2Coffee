@@ -40,7 +40,7 @@ const initialLogs = [
   { id: "ACT-1070", date: "Aug 17, 2026", time: "06:40 PM", username: "khai_rul", email: "khairul.dev@gmail.com", action: "Login", module: "Auth", details: 'Successful admin login', ip: "60.48.22.100", status: "Success" }
 ];
 
-const AuditLogs = ({ onNavigate }) => {
+const AuditLogs = ({ onNavigate, currentUser }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedModule, setSelectedModule] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("");

@@ -1,9 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Search, ChevronDown, Download, Plus, MoreVertical, Users, Menu, UserX, UserCog, Calendar, X, Edit3, Trash2 } from 'lucide-react';
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { exportToCSV } from '../utils/exportToCSV';
 import Pagination from './Pagination';
+import { adminRequest } from '../lib/adminApi';
 
 const StatCard = ({ title, value, subtitle, icon: Icon, iconBgColor, iconColor }) => (
   <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center space-x-4 min-w-0">
@@ -26,59 +27,34 @@ const StatCard = ({ title, value, subtitle, icon: Icon, iconBgColor, iconColor }
   </div>
 );
 
-// Generate 218 mock admins
-const generateAdmins = () => {
-  const roles = ['Super Admin', 'Marketing Admin', 'Support Admin'];
-  const statuses = ['Active', 'Inactive'];
-  const names = ['miraelys', 'balqis', 'nur', 'alexander', 'sarahsmith'];
-
-  return Array.from({ length: 218 }, (_, i) => {
-    const role = roles[i % roles.length];
-    const status = i % 5 === 0 ? 'Inactive' : 'Active';
-    const name = names[i % names.length];
-
-    // Spread dates over the last few days
-    const date = new Date(2026, 4, 31 - (i % 5));
-    const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    const timeStr = '10:21 AM';
-
-    return {
-      id: i + 1,
-      username: name,
-      email: `${name}@gmail.com`,
-      role: role,
-      status: status,
-      lastLogin: `${dateStr} - ${timeStr}`,
-      loginDate: date, // For filtering
-    };
-  });
-};
-
-const mockAdmins = generateAdmins();
-
 const RoleTag = ({ role }) => {
   let bgColor = '';
   let textColor = '';
-  switch (role) {
-    case 'Super Admin':
-      bgColor = 'bg-orange-100';
-      textColor = 'text-orange-600';
-      break;
-    case 'Marketing Admin':
-      bgColor = 'bg-blue-100';
-      textColor = 'text-blue-600';
-      break;
-    case 'Support Admin':
-      bgColor = 'bg-green-100';
-      textColor = 'text-green-700';
-      break;
-    default:
-      bgColor = 'bg-gray-100';
-      textColor = 'text-gray-700';
+  let displayRole = 'Support Admin';
+  if (role === 'super_admin' || role === 'Super Admin') {
+    displayRole = 'Super Admin';
+    bgColor = 'bg-orange-100';
+    textColor = 'text-orange-600';
+  } else if (role === 'marketing_admin' || role === 'Marketing Admin') {
+    displayRole = 'Marketing Admin';
+    bgColor = 'bg-blue-100';
+    textColor = 'text-blue-600';
+  } else if (role === 'support_admin' || role === 'Support Admin') {
+    displayRole = 'Support Admin';
+    bgColor = 'bg-green-100';
+    textColor = 'text-green-700';
+  } else if (role === 'operations_admin' || role === 'Operations Admin') {
+    displayRole = 'Operations Admin';
+    bgColor = 'bg-[#1F3A34]/10';
+    textColor = 'text-[#1F3A34]';
+  } else {
+    displayRole = role || 'Support Admin';
+    bgColor = 'bg-gray-100';
+    textColor = 'text-gray-700';
   }
   return (
     <span className={`px-3 py-1 rounded font-bold text-[13px] inline-flex items-center justify-center ${bgColor} ${textColor}`}>
-      {role}
+      {displayRole}
     </span>
   );
 };
@@ -92,7 +68,10 @@ const StatusTag = ({ status }) => {
   );
 };
 
-const AdminManagement = () => {
+const AdminManagement = ({ currentUser }) => {
+  const [admins, setAdmins] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRole, setSelectedRole] = useState('All Admin');
   const [selectedStatus, setSelectedStatus] = useState('All Status');
@@ -105,15 +84,55 @@ const AdminManagement = () => {
   const [openActionMenuId, setOpenActionMenuId] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAdmin, setEditingAdmin] = useState(null);
+  
+  // Modal form states
+  const [formUsername, setFormUsername] = useState('');
+  const [formEmail, setFormEmail] = useState('');
+  const [formRole, setFormRole] = useState('super_admin');
+  const [formStatus, setFormStatus] = useState('active');
+  const [formPassword, setFormPassword] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState('');
 
   const itemsPerPage = 10;
+  
+  const fetchAdmins = async () => {
+    setIsLoading(true);
+    try {
+      const response = await adminRequest('/v1/admin/users');
+      const formatted = (response.users || []).map(u => ({
+        id: u.id,
+        username: u.username,
+        email: u.email || '',
+        role: (u.roles && u.roles.length > 0) ? u.roles[0] : 'support_admin',
+        status: u.status === 'active' ? 'Active' : 'Inactive',
+        lastLogin: u.last_login_at ? new Date(u.last_login_at).toLocaleString() : 'Never',
+        loginDate: u.last_login_at ? new Date(u.last_login_at) : new Date(0),
+        raw: u
+      }));
+      setAdmins(formatted);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAdmins();
+  }, []);
 
   // Derived filtered data
   const filteredAdmins = useMemo(() => {
-    return mockAdmins.filter(admin => {
+    return admins.filter(admin => {
       const matchesSearch = admin.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
         admin.email.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesRole = selectedRole === 'All Admin' || admin.role === selectedRole;
+      
+      let matchesRole = true;
+      if (selectedRole !== 'All Admin') {
+        const roleMap = { 'Super Admin': 'super_admin', 'Marketing Admin': 'marketing_admin', 'Support Admin': 'support_admin' };
+        matchesRole = admin.role === roleMap[selectedRole];
+      }
       const matchesStatus = selectedStatus === 'All Status' || admin.status === selectedStatus;
 
       let matchesDate = true;
@@ -129,25 +148,88 @@ const AdminManagement = () => {
   const paginatedAdmins = filteredAdmins.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   // Stats
-  const totalAdmins = mockAdmins.length;
-  const activeAdmins = mockAdmins.filter(a => a.status === 'Active').length;
-  const inactiveAdmins = mockAdmins.filter(a => a.status === 'Inactive').length;
-  const rolesCount = new Set(mockAdmins.map(a => a.role)).size;
+  const totalAdmins = admins.length;
+  const activeAdmins = admins.filter(a => a.status === 'Active').length;
+  const inactiveAdmins = admins.filter(a => a.status === 'Inactive').length;
+  const rolesCount = new Set(admins.map(a => a.role)).size;
 
   const handleExport = () => {
     const rows = [
-      ["Name", "Role", "Email", "Status", "Added Date"],
-      ...admins.map(a => [
-        `"${a.name}"`, 
-        `"${a.role}"`, 
+      ["Username", "Email", "Role", "Status", "Last Login"],
+      ...filteredAdmins.map(a => [
+        `"${a.username}"`, 
         `"${a.email}"`, 
+        `"${a.role}"`, 
         `"${a.status}"`, 
-        `"${a.addedDate}"`
+        `"${a.lastLogin}"`
       ])
     ];
     exportToCSV(rows, "admin_management.csv");
   };
-  const handleNewAdmin = () => alert("Opening new admin modal...");
+  
+  const openModal = (admin = null) => {
+    setEditingAdmin(admin);
+    setFormUsername(admin ? admin.username : '');
+    setFormEmail(admin ? admin.email : '');
+    setFormRole(admin ? admin.role : 'super_admin');
+    setFormStatus(admin ? (admin.status === 'Active' ? 'active' : 'inactive') : 'active');
+    setFormPassword('');
+    setFormError('');
+    setIsModalOpen(true);
+  };
+  
+  const handleDeleteAdmin = async (id, username) => {
+    if (!window.confirm(`Are you sure you want to delete admin ${username}?`)) return;
+    
+    try {
+      await adminRequest(`/v1/admin/users/${id}`, { method: 'DELETE' });
+      setAdmins(admins.filter(a => a.id !== id));
+    } catch (err) {
+      alert(err.message || "Failed to delete admin");
+    }
+  };
+
+  const handleSaveAdmin = async (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setFormError('');
+    
+    try {
+      if (editingAdmin) {
+        // Edit
+        await adminRequest(`/v1/admin/users/${editingAdmin.id}`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            username: formUsername,
+            email: formEmail,
+            role_codes: [formRole],
+            status: formStatus
+          })
+        });
+      } else {
+        // Create
+        if (!formPassword) {
+          throw new Error('Temporary password is required for new admins');
+        }
+        await adminRequest('/v1/admin/users', {
+          method: 'POST',
+          body: JSON.stringify({
+            username: formUsername,
+            email: formEmail,
+            role_codes: [formRole],
+            temp_password: formPassword
+          })
+        });
+      }
+      
+      setIsModalOpen(false);
+      fetchAdmins();
+    } catch (err) {
+      setFormError(err.message || 'An error occurred while saving the admin.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="flex-1 overflow-x-hidden overflow-y-auto bg-[#F9FAFB]">
@@ -302,10 +384,7 @@ const AdminManagement = () => {
               <span>Export</span>
             </button>
             <button
-              onClick={() => {
-                setEditingAdmin(null);
-                setIsModalOpen(true);
-              }}
+              onClick={() => openModal()}
               className="flex items-center space-x-2 px-4 py-2 border border-transparent rounded-lg bg-[#1F3A34] text-white font-medium hover:bg-[#2E5E58] transition-colors h-10"
             >
               <Plus size={16} />
@@ -363,24 +442,25 @@ const AdminManagement = () => {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setEditingAdmin(admin);
-                                  setIsModalOpen(true);
+                                  openModal(admin);
                                   setOpenActionMenuId(null);
                                 }}
-                                className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 font-medium transition-colors border-b border-gray-50"
+                                className={`w-full text-left px-4 py-2.5 text-sm flex items-center gap-2 font-medium transition-colors ${currentUser?.id === admin.id ? 'text-gray-700 hover:bg-gray-50' : 'text-gray-700 hover:bg-gray-50 border-b border-gray-50'}`}
                               >
                                 <Edit3 size={14} className="text-gray-400" /> Edit Admin
                               </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  alert(`Delete admin ${admin.username}`);
-                                  setOpenActionMenuId(null);
-                                }}
-                                className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 font-medium transition-colors"
-                              >
-                                <Trash2 size={14} className="text-red-400" /> Delete Admin
-                              </button>
+                              {currentUser?.id !== admin.id && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteAdmin(admin.id, admin.username);
+                                    setOpenActionMenuId(null);
+                                  }}
+                                  className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 font-medium transition-colors"
+                                >
+                                  <Trash2 size={14} className="text-red-400" /> Delete Admin
+                                </button>
+                              )}
                             </div>
                           )}
                         </div>
@@ -421,12 +501,19 @@ const AdminManagement = () => {
               </button>
             </div>
 
-            <form onSubmit={(e) => { e.preventDefault(); setIsModalOpen(false); }} className="space-y-4">
+            <form onSubmit={handleSaveAdmin} className="space-y-4">
+              {formError && (
+                <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm border border-red-100">
+                  {formError}
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
                 <input
                   type="text"
-                  defaultValue={editingAdmin?.username || ''}
+                  required
+                  value={formUsername}
+                  onChange={(e) => setFormUsername(e.target.value)}
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
                 />
               </div>
@@ -434,30 +521,55 @@ const AdminManagement = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
                 <input
                   type="email"
-                  defaultValue={editingAdmin?.email || ''}
+                  value={formEmail}
+                  onChange={(e) => setFormEmail(e.target.value)}
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
                 />
               </div>
+              
+              {!editingAdmin && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Temporary Password</label>
+                  <input
+                    type="password"
+                    required
+                    value={formPassword}
+                    onChange={(e) => setFormPassword(e.target.value)}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
+                  />
+                </div>
+              )}
+              
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
-                  <select defaultValue={editingAdmin?.role || 'Super Admin'} className="peer w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#2E5E58] bg-white">
-                    <option>Super Admin</option>
-                    <option>Marketing Admin</option>
-                    <option>Support Admin</option>
+                  <select 
+                    value={formRole}
+                    onChange={(e) => setFormRole(e.target.value)}
+                    className="peer w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#2E5E58] bg-white"
+                  >
+                    <option value="super_admin">Super Admin</option>
+                    <option value="marketing_admin">Marketing Admin</option>
+                    <option value="operations_admin">Operations Admin</option>
+                    <option value="support_admin">Support Admin</option>
                   </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                  <select defaultValue={editingAdmin?.status || 'Active'} className="peer w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#2E5E58] bg-white">
-                    <option>Active</option>
-                    <option>Inactive</option>
+                  <select 
+                    value={formStatus}
+                    onChange={(e) => setFormStatus(e.target.value)}
+                    className="peer w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#2E5E58] bg-white"
+                  >
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
                   </select>
                 </div>
               </div>
               <div className="pt-6 flex justify-end space-x-3">
                 <button
                   type="button"
+                  disabled={isSubmitting}
                   onClick={() => setIsModalOpen(false)}
                   className="px-5 py-2.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
                 >
@@ -465,9 +577,10 @@ const AdminManagement = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 bg-[#1F3A34] text-white rounded-lg text-sm font-medium hover:bg-[#2E5E58] transition-colors"
+                  disabled={isSubmitting}
+                  className="px-5 py-2.5 bg-[#1F3A34] text-white rounded-lg text-sm font-medium hover:bg-[#2E5E58] transition-colors disabled:opacity-50"
                 >
-                  {editingAdmin ? 'Save Changes' : 'Create Admin'}
+                  {isSubmitting ? 'Saving...' : editingAdmin ? 'Save Changes' : 'Create Admin'}
                 </button>
               </div>
             </form>

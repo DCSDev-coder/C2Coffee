@@ -58,7 +58,8 @@ const Login = ({ onLoginSuccess }) => {
       onLoginSuccess({
         accessToken: response.access_token,
         refreshToken: response.refresh_token,
-        tenant: response.tenant
+        tenant: response.tenant,
+        user: response.user
       });
     } catch (error) {
       setErrorMessage(error.message || 'Unable to sign in.');
@@ -95,6 +96,7 @@ const Login = ({ onLoginSuccess }) => {
 
       onLoginSuccess({
         ...pendingSession,
+        user: response.user,
         tenant: {
           code: response.user?.tenant_code || tenantCode,
           name: response.user?.tenant_name || tenantCode,

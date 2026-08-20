@@ -41,12 +41,20 @@ export async function loadAdminTenants() {
 
 export async function adminRequest(path, options = {}) {
   const { headers: optionHeaders, ...requestOptions } = options;
+  const { accessToken } = loadAdminTokens();
+  
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(optionHeaders || {})
+  };
+
+  if (accessToken && !headers['Authorization']) {
+    headers['Authorization'] = `Bearer ${accessToken}`;
+  }
+
   const response = await fetch(`${getAdminApiBaseUrl()}${path}`, {
     ...requestOptions,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(optionHeaders || {})
-    }
+    headers
   });
 
   const isJson = response.headers.get('content-type')?.includes('application/json');

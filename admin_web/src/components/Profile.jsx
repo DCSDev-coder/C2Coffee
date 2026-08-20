@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   ArrowLeft, Camera, Mail, Edit3, Lock,
   Slash, ShieldCheck, Smartphone, Laptop,
@@ -14,21 +14,39 @@ const BasketActionIcon = ({ size = 18 }) => (
   </svg>
 );
 
-const Profile = ({ onBack }) => {
+const Profile = ({ onBack, currentUser }) => {
   // Form State
   const [profile, setProfile] = useState({
-    username: "miraelys",
-    email: "mira@gmail.com",
+    username: currentUser?.full_name || currentUser?.username || "miraelys",
+    email: currentUser?.email || "mira@gmail.com",
     phone: "+60 12-345 6789",
     dob: "15 May 1998",
     address: "No. 12, Jalan Eco Majestic 1/1, Semenyih, Selangor",
-    userId: "ADM01",
-    role: "Super Admin",
+    userId: currentUser?.id ? `ADM${currentUser.id.toString().padStart(2, '0')}` : "ADM01",
+    role: (currentUser?.roles && currentUser.roles.length > 0) ? currentUser.roles[0] : "Super Admin",
     joinedDate: "13 July 2026",
-    lastLogin: "19 Aug 2026 – 8:30 AM"
+    lastLogin: currentUser?.last_login_at ? new Date(currentUser.last_login_at).toLocaleString() : "19 Aug 2026 – 8:30 AM"
   });
 
   const [formData, setFormData] = useState({ ...profile });
+  
+  useEffect(() => {
+    if (currentUser) {
+      const newProfile = {
+        username: currentUser.full_name || currentUser.username,
+        email: currentUser.email || "",
+        phone: "+60 12-345 6789",
+        dob: "15 May 1998",
+        address: "No. 12, Jalan Eco Majestic 1/1, Semenyih, Selangor",
+        userId: `ADM${currentUser.id.toString().padStart(2, '0')}`,
+        role: (currentUser.roles && currentUser.roles.length > 0) ? currentUser.roles[0] : "Super Admin",
+        joinedDate: "13 July 2026",
+        lastLogin: currentUser.last_login_at ? new Date(currentUser.last_login_at).toLocaleString() : "Never"
+      };
+      setProfile(newProfile);
+      setFormData(newProfile);
+    }
+  }, [currentUser]);
   const [isEditing, setIsEditing] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
@@ -107,7 +125,7 @@ const Profile = ({ onBack }) => {
           <div className="text-center">
             <div className="relative w-24 h-24 mx-auto mb-3">
               <div className="w-24 h-24 rounded-full bg-[#1F3A34] flex items-center justify-center text-white text-3xl font-bold shadow-sm">
-                M
+                {(profile.username.charAt(0) || 'A').toUpperCase()}
               </div>
               <button
                 onClick={() => alert("Upload new profile photo")}
