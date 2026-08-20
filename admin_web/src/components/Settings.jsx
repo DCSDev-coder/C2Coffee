@@ -12,6 +12,7 @@ const Settings = ({ setCurrentPage }) => {
     language: 'English (US)',
     twoFactor: 'Enabled'
   });
+  const [isLoading, setIsLoading] = useState(false);
 
   const translations = {
     'English (US)': {
@@ -80,6 +81,29 @@ const Settings = ({ setCurrentPage }) => {
     setTimeout(() => setToastMessage(''), 3000);
   };
 
+  // Fetch settings from API on mount
+  React.useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        setIsLoading(true);
+        // Replace with your actual API endpoint
+        const response = await fetch('/api/settings'); 
+        if (response.ok) {
+          const data = await response.json();
+          // Assuming data matches the settings structure
+          setSettings(prev => ({ ...prev, ...data }));
+        }
+      } catch (error) {
+        console.error("Failed to load settings:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    // Uncomment this line when the API is ready
+    // fetchSettings();
+  }, []);
+
   const openModal = (modalName, currentValue) => {
     setTempValue(currentValue || '');
     setActiveModal(modalName);
@@ -90,14 +114,44 @@ const Settings = ({ setCurrentPage }) => {
     setTempValue('');
   };
 
-  const handleSave = (key) => {
-    setSettings({ ...settings, [key]: tempValue });
+  const handleSave = async (key) => {
+    const updatedSettings = { ...settings, [key]: tempValue };
+    
+    // Optimistic update for UI responsiveness
+    setSettings(updatedSettings);
     closeModal();
     showToast(t.successSaved);
+
+    try {
+      // Replace with your actual API endpoint
+      const response = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedSettings),
+      });
+      
+      if (!response.ok) {
+        throw new Error('API request failed');
+      }
+    } catch (error) {
+      console.error("Failed to save settings to API:", error);
+      // Optional: show error toast or revert changes
+    }
   };
 
-  const handleBackup = () => {
+  const handleBackup = async () => {
     showToast(t.successBackup);
+    try {
+      // Replace with your actual API endpoint for backup
+      const response = await fetch('/api/settings/backup', { method: 'POST' });
+      if (response.ok) {
+        showToast('Backup completed successfully.');
+      } else {
+        throw new Error('Backup failed');
+      }
+    } catch (error) {
+      console.error("Backup process failed:", error);
+    }
   };
 
   const SectionHeader = ({ icon: Icon, title, description }) => (
@@ -182,10 +236,21 @@ const Settings = ({ setCurrentPage }) => {
               label={t.twoFactor} 
               value={settings.twoFactor} 
               isToggle 
-              onToggle={() => {
+              onToggle={async () => {
                 const newVal = settings.twoFactor === 'Enabled' ? 'Disabled' : 'Enabled';
-                setSettings({...settings, twoFactor: newVal});
+                const updatedSettings = { ...settings, twoFactor: newVal };
+                setSettings(updatedSettings);
                 showToast(`${t.twoFactor} ${newVal === 'Enabled' ? t.statusEnabled : t.statusDisabled}`);
+                
+                try {
+                  await fetch('/api/settings', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updatedSettings)
+                  });
+                } catch (error) {
+                  console.error("Failed to update 2FA setting:", error);
+                }
               }}
             />
             <ListItem label={t.loginSessions} onClick={() => openModal('sessions')} />
