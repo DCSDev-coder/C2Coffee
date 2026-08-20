@@ -5,7 +5,7 @@ import {
   Coffee, Megaphone, LineChart, UserCog, ClipboardList, Settings, LogOut
 } from 'lucide-react';
 
-const Sidebar = ({ currentPage, setCurrentPage, onLogout }) => {
+const Sidebar = ({ currentPage, setCurrentPage, onLogout, currentTenant }) => {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const menuItems = [
     { name: 'Dashboard', icon: LayoutDashboard },
@@ -32,6 +32,10 @@ const Sidebar = ({ currentPage, setCurrentPage, onLogout }) => {
         }}
       >
         <img src="/c2_logo.png" alt="C2 Logo" className="w-24 h-24 object-contain drop-shadow-md" />
+        <div className="mt-3 px-3 py-1.5 rounded-full bg-white/10 text-center border border-white/15">
+          <p className="text-[10px] uppercase tracking-[0.2em] text-white/60">Tenant</p>
+          <p className="text-sm font-bold leading-tight">{currentTenant?.display_name || 'C2 Coffee & Candle'}</p>
+        </div>
       </div>
 
       <nav className="flex-1 space-y-1">

@@ -19,6 +19,7 @@ const TABLES_TO_TRUNCATE = [
   'token_topups',
   'token_accounts',
   'push_tokens',
+  'notifications',
   'sessions',
   'auth_otps',
   'otp_request_logs',

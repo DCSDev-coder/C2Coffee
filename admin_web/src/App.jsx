@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Layout from './components/Layout';
 import Login from './components/Login';
 import DashboardHome from './components/DashboardHome';
@@ -26,11 +26,55 @@ import TierManagement from './components/TierManagement';
 import ReportByProduct from './components/ReportByProduct';
 import AuditLogs from './components/AuditLogs';
 import Settings from './components/Settings';
+import {
+  adminRequest,
+  clearAdminTokens,
+  loadAdminTokens,
+  saveAdminTokens
+} from './lib/adminApi';
 
 function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(true);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isBootstrapping, setIsBootstrapping] = useState(true);
+  const [currentTenant, setCurrentTenant] = useState(null);
   const [currentPage, setCurrentPage] = useState('Dashboard');
   const [prevPage, setPrevPage] = useState('Dashboard');
+
+  useEffect(() => {
+    const restoreAdminSession = async () => {
+      const tokens = loadAdminTokens();
+      if (!tokens.refreshToken) {
+        setIsBootstrapping(false);
+        return;
+      }
+
+      try {
+        const response = await adminRequest('/v1/admin/auth/refresh', {
+          method: 'POST',
+          body: JSON.stringify({ refresh_token: tokens.refreshToken })
+        });
+
+        saveAdminTokens({
+          accessToken: response.access_token,
+          refreshToken: response.refresh_token
+        });
+        setCurrentTenant(response.user?.tenant_code ? {
+          code: response.user.tenant_code,
+          name: response.user.tenant_name,
+          display_name: response.user.tenant_display_name
+        } : null);
+        setIsLoggedIn(true);
+      } catch {
+        clearAdminTokens();
+        setIsLoggedIn(false);
+        setCurrentTenant(null);
+      } finally {
+        setIsBootstrapping(false);
+      }
+    };
+
+    void restoreAdminSession();
+  }, []);
 
   const handleNavigate = (newPage) => {
     if (currentPage !== newPage) {
@@ -46,12 +90,56 @@ function App() {
       : ['AllCampaigns', 'AllPushNotifications', 'AllContentPerformance'].includes(currentPage) ? 'Marketing'
         : currentPage;
 
+  const handleLogout = async () => {
+    const tokens = loadAdminTokens();
+    if (tokens.accessToken) {
+      try {
+        await adminRequest('/v1/admin/auth/logout', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${tokens.accessToken}`
+          }
+        });
+      } catch {
+        // Ignore logout failures and clear local state anyway.
+      }
+    }
+
+    clearAdminTokens();
+    setIsLoggedIn(false);
+    setCurrentTenant(null);
+    setCurrentPage('Dashboard');
+    setPrevPage('Dashboard');
+  };
+
+  const handleLoginSuccess = ({ accessToken, refreshToken, tenant }) => {
+    saveAdminTokens({ accessToken, refreshToken });
+    if (tenant) {
+      setCurrentTenant(tenant);
+    }
+    setIsLoggedIn(true);
+    setCurrentPage('Dashboard');
+  };
+
+  if (isBootstrapping) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#F5F3EE] text-[#2E5E58] font-semibold">
+        Restoring admin session...
+      </div>
+    );
+  }
+
   if (!isLoggedIn) {
-    return <Login onLogin={() => setIsLoggedIn(true)} />;
+    return <Login onLoginSuccess={handleLoginSuccess} />;
   }
 
   return (
-    <Layout currentPage={layoutCurrentPage} setCurrentPage={handleNavigate} onLogout={() => setIsLoggedIn(false)}>
+    <Layout
+      currentPage={layoutCurrentPage}
+      setCurrentPage={handleNavigate}
+      onLogout={handleLogout}
+      currentTenant={currentTenant}
+    >
       {currentPage === 'Dashboard' && <DashboardHome setCurrentPage={handleNavigate} />}
       {currentPage === 'Customers' && <Customers />}
       {currentPage === 'Orders' && <Orders initialShowRefunds={false} />}

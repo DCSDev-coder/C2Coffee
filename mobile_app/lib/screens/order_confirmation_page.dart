@@ -89,8 +89,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                     Align(
                       alignment: Alignment.centerRight,
                       child: GestureDetector(
-                        onTap: () =>
-                            InteractiveFillingLoader.showPop(context),
+                        onTap: () => InteractiveFillingLoader.showPop(context),
                         child: Text(
                           '+ Add order',
                           style: TextStyle(
@@ -245,17 +244,8 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                           RichText(
                             text: TextSpan(
                               children: [
-                                const TextSpan(
-                                  text: 'RM ',
-                                  style: TextStyle(
-                                    fontFamily: 'Afacad',
-                                    fontSize: 10,
-                                    color: Colors.black87,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
                                 TextSpan(
-                                  text: item.unitTotalRm.toStringAsFixed(2),
+                                  text: '${item.unitTotalTokens} tokens',
                                   style: const TextStyle(
                                     fontFamily: 'Afacad',
                                     fontSize: 14,
@@ -588,7 +578,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
         children: [
           _buildSummaryRow(
             'Subtotal',
-            'RM ${snapshot.subtotalRm.toStringAsFixed(2)}',
+            '${snapshot.subtotalTokens} tokens',
           ),
           if (discountTokens > 0) ...[
             const SizedBox(height: 10),
@@ -676,7 +666,8 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
     });
 
     try {
-      final accessToken = await SecureSessionService.instance.getValidAccessToken();
+      final accessToken =
+          await SecureSessionService.instance.getValidAccessToken();
       if (accessToken == null || accessToken.isEmpty) {
         throw Exception('Missing access token.');
       }

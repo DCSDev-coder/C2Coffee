@@ -1,5 +1,6 @@
 import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
 import { mysqlPool } from '../db/mysql.js';
+import { createUserNotification } from '../http/notifications.js';
 
 export async function processOrderLoyalty(
   orderId: number,
@@ -136,5 +137,29 @@ export async function processOrderLoyalty(
         reason
       }
     );
+
+    if (currentTier !== newTier) {
+      const tierLabelMap: Record<string, string> = {
+        kawan: 'Tier 1',
+        dilamun: 'Tier 2',
+        ketagih: 'Tier 3',
+        legend: 'Tier 4'
+      };
+
+      const fromLabel = tierLabelMap[currentTier] ?? currentTier;
+      const toLabel = tierLabelMap[newTier] ?? newTier;
+
+      await createUserNotification(connection, {
+        userId,
+        type: 'tier_achieved',
+        title: `Tier upgraded to ${toLabel}`,
+        body: `Your C2 Coffee tier moved from ${fromLabel} to ${toLabel}.`,
+        data: {
+          previous_tier: currentTier,
+          new_tier: newTier,
+          qualifying_cups_last_180d: cupsLast180d
+        }
+      });
+    }
   }
 }

@@ -4,6 +4,7 @@ import '../services/cart_service.dart';
 import 'loading_order_page.dart';
 import '../utils/app_colors.dart';
 import '../widgets/catalog_product_image.dart';
+import '../widgets/token_price_pair.dart';
 
 class SimpleProductDetailPage extends StatefulWidget {
   final Map<String, dynamic> item;
@@ -23,6 +24,7 @@ class SimpleProductDetailPage extends StatefulWidget {
 class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
   final AppSessionService _session = AppSessionService.instance;
   int quantity = 1;
+  bool _showTokenPrice = false;
 
   @override
   void initState() {
@@ -65,8 +67,6 @@ class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
     }
   }
 
-  double get _totalPrice => _itemBasePrice * quantity;
-
   int get _tokenPrice {
     final itemId = widget.item['id'];
     if (itemId is! int) return _itemBasePrice.round();
@@ -77,6 +77,47 @@ class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
     if (catalogItem == null) return _itemBasePrice.round();
     final tierPrice = catalogItem.tokenPrices[_session.tier];
     return tierPrice ?? _itemBasePrice.round();
+  }
+
+  String get _rmPriceText {
+    final rawPrice = widget.item['price']?.toString() ?? '0.00';
+    return AppColors.formatDiscountedPrice(
+      rawPrice,
+      isDrink: _isDrink,
+      isMerchandise: _isMerchandise || _isCandle,
+    );
+  }
+
+  String get _displayTotalText {
+    if (_showTokenPrice) {
+      return '${_tokenPrice * quantity} tokens';
+    }
+    return 'RM ${(_itemBasePrice * quantity).toStringAsFixed(2)}';
+  }
+
+  Widget _buildExchangeButton() {
+    return GestureDetector(
+      onTap: () => setState(() => _showTokenPrice = !_showTokenPrice),
+      child: Container(
+        width: 34,
+        height: 34,
+        decoration: BoxDecoration(
+          color: _showTokenPrice
+              ? const Color(0xFFE5A93C)
+              : const Color(0xFFFAF7F2),
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: _showTokenPrice ? const Color(0xFFE5A93C) : AppColors.border,
+            width: 1,
+          ),
+        ),
+        child: Icon(
+          Icons.swap_horiz_rounded,
+          size: 18,
+          color: _showTokenPrice ? Colors.white : AppColors.deepTeal,
+        ),
+      ),
+    );
   }
 
   String get _itemDescription {
@@ -174,21 +215,29 @@ class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
                           ),
                         ),
                         child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text(
-                              'RM ',
-                              style: TextStyle(
-                                  fontFamily: 'Afacad',
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold),
+                            AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 200),
+                              child: _showTokenPrice
+                                  ? TokenPricePair(
+                                      key: const ValueKey('tokenPrice'),
+                                      tokenValue: _tokenPrice,
+                                      tokenFontSize: 14,
+                                      tokenColor: Colors.black87,
+                                    )
+                                  : Text(
+                                      _rmPriceText,
+                                      key: const ValueKey('rmPrice'),
+                                      style: const TextStyle(
+                                        fontFamily: 'Afacad',
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.black87,
+                                      ),
+                                    ),
                             ),
-                            Text(
-                              _itemBasePrice.toStringAsFixed(2),
-                              style: const TextStyle(
-                                  fontFamily: 'Recoleta',
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold),
-                            ),
+                            _buildExchangeButton(),
                           ],
                         ),
                       ),
@@ -227,23 +276,25 @@ class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
                         fontSize: 16,
                         fontWeight: FontWeight.bold),
                   ),
-                  Row(
-                    children: [
-                      const Text(
-                        'RM ',
-                        style: TextStyle(
-                            fontFamily: 'Afacad',
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold),
-                      ),
-                      Text(
-                        _totalPrice.toStringAsFixed(2),
-                        style: const TextStyle(
-                            fontFamily: 'Recoleta',
-                            fontSize: 17,
-                            fontWeight: FontWeight.bold),
-                      ),
-                    ],
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    child: _showTokenPrice
+                        ? TokenPricePair(
+                            key: const ValueKey('totalTokenPrice'),
+                            tokenValue: _tokenPrice * quantity,
+                            tokenFontSize: 12,
+                            tokenColor: Colors.black87,
+                          )
+                        : Text(
+                            _displayTotalText,
+                            key: const ValueKey('totalRmPrice'),
+                            style: const TextStyle(
+                              fontFamily: 'Afacad',
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
                   ),
                 ],
               ),
@@ -300,7 +351,8 @@ class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
                         if (selectedStore == null) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: const Text('Please select a store first.'),
+                              content:
+                                  const Text('Please select a store first.'),
                               backgroundColor: orangeColor,
                             ),
                           );
@@ -312,8 +364,10 @@ class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
                           storeName: selectedStore.name,
                           item: CartItem(
                             id: '${widget.item['code'] ?? _itemName}-${DateTime.now().microsecondsSinceEpoch}',
-                            menuItemId: (widget.item['id'] as num?)?.toInt() ?? 0,
-                            menuItemCode: widget.item['code']?.toString() ?? _itemName,
+                            menuItemId:
+                                (widget.item['id'] as num?)?.toInt() ?? 0,
+                            menuItemCode:
+                                widget.item['code']?.toString() ?? _itemName,
                             name: _itemName,
                             imageAssetPath: _itemImage,
                             imageUrl: widget.item['image_url']?.toString(),

@@ -6,6 +6,7 @@ import { env } from './config/env.js';
 import { errorHandler } from './http/errors.js';
 import { registerAuthRoutes } from './http/routes/auth.js';
 import { registerAssetRoutes } from './http/routes/assets.js';
+import { registerAdminAuthRoutes } from './http/routes/admin-auth.js';
 import { registerCatalogRoutes } from './http/routes/catalog.js';
 import { registerCheckoutRoutes } from './http/routes/checkout.js';
 import { registerCustomerDataRoutes } from './http/routes/customer-data.js';
@@ -52,6 +53,7 @@ export async function buildApp() {
   await registerHealthRoutes(app);
   await registerAssetRoutes(app);
   await registerAuthRoutes(app);
+  await registerAdminAuthRoutes(app);
   await registerMeRoutes(app);
   await registerCatalogRoutes(app);
   await registerCheckoutRoutes(app);

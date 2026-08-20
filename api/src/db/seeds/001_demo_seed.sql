@@ -15,13 +15,17 @@ ON DUPLICATE KEY UPDATE
   name = VALUES(name),
   description = VALUES(description);
 
-INSERT INTO admin_users (email, full_name, password_hash, mfa_enabled, status)
+INSERT INTO admin_users (username, email, full_name, password_hash, mfa_enabled, status, must_change_password, must_set_email)
 VALUES
-  ('ops.manager@c2coffee.local', 'C2 Ops Manager', 'REPLACE_WITH_REAL_PASSWORD_HASH', 0, 'active'),
-  ('support.lead@c2coffee.local', 'C2 Support Lead', 'REPLACE_WITH_REAL_PASSWORD_HASH', 0, 'active')
+  ('ops_manager', 'ops.manager@c2coffee.local', 'C2 Ops Manager', 'REPLACE_WITH_REAL_PASSWORD_HASH', 0, 'active', 0, 0),
+  ('support_lead', 'support.lead@c2coffee.local', 'C2 Support Lead', 'REPLACE_WITH_REAL_PASSWORD_HASH', 0, 'active', 0, 0)
 ON DUPLICATE KEY UPDATE
+  username = VALUES(username),
+  email = VALUES(email),
   full_name = VALUES(full_name),
-  status = VALUES(status);
+  status = VALUES(status),
+  must_change_password = VALUES(must_change_password),
+  must_set_email = VALUES(must_set_email);
 
 INSERT IGNORE INTO admin_user_roles (admin_user_id, admin_role_id)
 SELECT au.id, ar.id

@@ -6,8 +6,8 @@ import '../services/cart_service.dart';
 import '../utils/app_colors.dart';
 import '../widgets/catalog_product_image.dart';
 import '../widgets/custom_bottom_nav.dart';
-import '../widgets/order_status_banner.dart';
 import '../widgets/app_page_shell.dart';
+import '../widgets/token_price_pair.dart';
 import 'home_page.dart';
 import 'loading_order_page.dart';
 import 'order_confirmation_page.dart';
@@ -170,20 +170,43 @@ class _MenuPageState extends State<MenuPage> {
     _isAutoScrolling = false;
   }
 
-  String _formatPrice(Map<String, dynamic> item) {
+  int? _tokenPriceForItem(Map<String, dynamic> item) {
+    final directTokenPrice = item['tokenPrice'];
+    if (directTokenPrice is num) {
+      return directTokenPrice.toInt();
+    }
+
+    final tokenPrices = item['tokenPrices'];
+    if (tokenPrices is Map) {
+      final tierKey = _session.tier;
+      final tierTokenPrice = tokenPrices[tierKey];
+      if (tierTokenPrice is num) return tierTokenPrice.toInt();
+      if (tierTokenPrice is String) return int.tryParse(tierTokenPrice);
+    }
+
+    return null;
+  }
+
+  String _rmPriceForItem(Map<String, dynamic> item) {
     final rawPrice = item['price']?.toString() ?? '';
     if (rawPrice.isEmpty) return '';
-    final formattedPrice = AppColors.formatDiscountedPrice(
+    return AppColors.formatDiscountedPrice(
       rawPrice,
       isDrink: item['isDrink'] as bool? ?? false,
       isMerchandise: (item['isMerchandise'] as bool? ?? false) ||
           (item['isCandle'] as bool? ?? false),
     );
-    if (!_showTokenPrice) return formattedPrice;
-    final cleanPrice = formattedPrice.replaceAll('RM', '').trim();
-    final parsed = double.tryParse(cleanPrice);
-    if (parsed == null) return formattedPrice;
-    return '${parsed.round()} tokens';
+  }
+
+  int _displayTokenValueForItem(Map<String, dynamic> item) {
+    final tokenPrice = _tokenPriceForItem(item);
+    if (tokenPrice != null) return tokenPrice;
+
+    final rmPrice = _rmPriceForItem(item);
+    final cleanPrice = rmPrice.replaceAll('RM', '').trim();
+    final parsedPrice = double.tryParse(cleanPrice);
+    if (parsedPrice == null) return 0;
+    return parsedPrice.floor();
   }
 
   @override
@@ -246,7 +269,6 @@ class _MenuPageState extends State<MenuPage> {
                     key: const ValueKey('menuHeader'),
                     alignment: Alignment.center,
                     children: [
-
                       const Text(
                         'MENU',
                         style: TextStyle(
@@ -289,21 +311,17 @@ class _MenuPageState extends State<MenuPage> {
           ),
           overlay: Stack(
             children: [
-              OrderStatusBanner(
-                leftOffset: 88,
-                rightOffset: 90,
-                bottomOffset: 90 + MediaQuery.paddingOf(context).bottom,
-              ),
               Positioned(
-                bottom: 90 + MediaQuery.paddingOf(context).bottom,
-                right: 20,
+                right: 18,
+                bottom: 146 + MediaQuery.paddingOf(context).bottom,
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
-                  onTap: () =>
-                      setState(() => _showTokenPrice = !_showTokenPrice),
+                  onTap: () {
+                    setState(() => _showTokenPrice = !_showTokenPrice);
+                  },
                   child: Container(
-                    width: 60,
-                    height: 60,
+                    width: 50,
+                    height: 50,
                     decoration: BoxDecoration(
                       color: _showTokenPrice
                           ? const Color(0xFFE5A93C)
@@ -317,80 +335,33 @@ class _MenuPageState extends State<MenuPage> {
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.18),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
+                          color: Colors.black.withValues(alpha: 0.14),
+                          blurRadius: 10,
+                          offset: const Offset(0, 3),
                         ),
                       ],
                     ),
-                    child: Center(
-                      child: Icon(
-                        Icons.monetization_on_rounded,
-                        size: 30,
-                        color: _showTokenPrice
-                            ? Colors.white
-                            : const Color(0xFFE5A93C),
-                      ),
+                    child: Icon(
+                      Icons.swap_horiz_rounded,
+                      color:
+                          _showTokenPrice ? Colors.white : AppColors.deepTeal,
+                      size: 26,
                     ),
                   ),
                 ),
               ),
-              if (!_cart.isEmpty)
+              if (_cart.items.isNotEmpty)
                 Positioned(
-                  bottom: 162 + MediaQuery.paddingOf(context).bottom,
-                  right: 20,
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () {
-                      InteractiveFillingLoader.show(
-                        context,
-                        targetPage: const OrderConfirmationPage(),
-                      );
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.deepTeal,
-                        borderRadius: BorderRadius.circular(22),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.18),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.shopping_bag_outlined,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            '${_cart.items.length} item${_cart.items.length == 1 ? '' : 's'}',
-                            style: const TextStyle(
-                              fontFamily: 'Afacad',
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+                  right: 18,
+                  bottom: 72 + MediaQuery.paddingOf(context).bottom,
+                  child: _buildCheckoutBar(),
                 ),
-              ],
-            ),
+            ],
+          ),
           child: Column(
             children: [
               _buildStoreBar(),
+              const SizedBox(height: 10),
               Expanded(
                 child: _buildBody(sections),
               ),
@@ -406,62 +377,132 @@ class _MenuPageState extends State<MenuPage> {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       color: Colors.white,
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _session.selectedStore?.name ?? 'No store selected',
-                  style: TextStyle(
-                    fontFamily: 'Recoleta',
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    color: AppColors.deepTeal,
-                  ),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _session.selectedStore?.name ?? 'No store selected',
+                      style: TextStyle(
+                        fontFamily: 'Recoleta',
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: AppColors.deepTeal,
+                      ),
+                    ),
+                    Text(
+                      _session.selectedStore != null
+                          ? '${_session.selectedStore!.pickupLeadMinutes} min pickup lead'
+                          : 'Live store data will appear here',
+                      style: const TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 13,
+                        color: Colors.black54,
+                      ),
+                    ),
+                  ],
                 ),
-                Text(
-                  _session.selectedStore != null
-                      ? '${_session.selectedStore!.pickupLeadMinutes} min pickup lead'
-                      : 'Live store data will appear here',
-                  style: const TextStyle(
-                    fontFamily: 'Afacad',
-                    fontSize: 13,
-                    color: Colors.black54,
-                  ),
+              ),
+              PopupMenuButton<int>(
+                tooltip: 'Switch store',
+                onSelected: (storeId) async {
+                  final store =
+                      _session.stores.firstWhere((s) => s.id == storeId);
+                  await _session.selectStore(store);
+                },
+                itemBuilder: (context) => [
+                  for (final store in _session.stores)
+                    PopupMenuItem<int>(
+                      value: store.id,
+                      child: Text(store.name),
+                    ),
+                ],
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Change',
+                      style: TextStyle(
+                        fontFamily: 'Afacad',
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.deepTeal,
+                      ),
+                    ),
+                    Icon(Icons.keyboard_arrow_down, color: AppColors.deepTeal),
+                  ],
                 ),
-              ],
-            ),
-          ),
-          PopupMenuButton<int>(
-            tooltip: 'Switch store',
-            onSelected: (storeId) async {
-              final store = _session.stores.firstWhere((s) => s.id == storeId);
-              await _session.selectStore(store);
-            },
-            itemBuilder: (context) => [
-              for (final store in _session.stores)
-                PopupMenuItem<int>(
-                  value: store.id,
-                  child: Text(store.name),
-                ),
+              ),
             ],
-            child: Row(
-              children: [
-                Text(
-                  'Change',
-                  style: TextStyle(
-                    fontFamily: 'Afacad',
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.deepTeal,
-                  ),
-                ),
-                Icon(Icons.keyboard_arrow_down, color: AppColors.deepTeal),
-              ],
-            ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildCheckoutBar() {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        InteractiveFillingLoader.show(
+          context,
+          targetPage: const OrderConfirmationPage(),
+        );
+      },
+      child: Container(
+        width: 56,
+        height: 56,
+        decoration: BoxDecoration(
+          color: AppColors.deepTeal,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.16),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            const Center(
+              child: Icon(
+                Icons.shopping_bag_outlined,
+                color: Colors.white,
+                size: 24,
+              ),
+            ),
+            Positioned(
+              top: -2,
+              right: -2,
+              child: Container(
+                width: 20,
+                height: 20,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE5A93C),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 1.5),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  '${_cart.items.length}',
+                  style: const TextStyle(
+                    fontFamily: 'Afacad',
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    height: 1,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -672,14 +713,25 @@ class _MenuPageState extends State<MenuPage> {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  Text(
-                    _formatPrice(item),
-                    style: TextStyle(
-                      fontFamily: 'Afacad',
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.deepTeal,
-                    ),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    child: _showTokenPrice
+                        ? TokenPricePair(
+                            key: const ValueKey('tokenPrice'),
+                            tokenValue: _displayTokenValueForItem(item),
+                            tokenFontSize: 13,
+                            tokenColor: AppColors.deepTeal,
+                          )
+                        : Text(
+                            _rmPriceForItem(item),
+                            key: const ValueKey('rmPrice'),
+                            style: TextStyle(
+                              fontFamily: 'Afacad',
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.deepTeal,
+                            ),
+                          ),
                   ),
                 ],
               ),

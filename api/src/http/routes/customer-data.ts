@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { authenticateRequest } from '../../auth/guard.js';
 import { getUtcConnection, mysqlPool } from '../../db/mysql.js';
 import { ApiError } from '../errors.js';
+import { createUserNotification } from '../notifications.js';
 import {
   isCustomerActiveOrderStatus,
   resolveOrderLifecycleStatus
@@ -120,9 +121,79 @@ type OrderStatusHistoryRow = RowDataPacket & {
   created_at: Date;
 };
 
+type NotificationRow = RowDataPacket & {
+  id: number;
+  type: string;
+  title: string;
+  body: string;
+  data_json: string | null;
+  sent_at: Date | null;
+  read_at: Date | null;
+  created_at: Date;
+};
+
+const notificationListQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).optional().default(50)
+});
+
 export async function registerCustomerDataRoutes(
   app: FastifyInstance
 ): Promise<void> {
+  app.get('/v1/notifications', { preHandler: authenticateRequest }, async (request) => {
+    const { limit } = notificationListQuerySchema.parse(request.query);
+
+    let rows: Array<NotificationRow> = [];
+    try {
+      const [result] = await mysqlPool.query<Array<NotificationRow>>(
+        `
+          SELECT
+            id,
+            type,
+            title,
+            body,
+            data_json,
+            sent_at,
+            read_at,
+            created_at
+          FROM notifications
+          WHERE user_id = :userId
+          ORDER BY read_at IS NULL DESC, created_at DESC, id DESC
+          LIMIT :limit
+        `,
+        {
+          userId: request.auth.userId,
+          limit
+        }
+      );
+      rows = result;
+    } catch (error) {
+      const err = error as { code?: string; sqlMessage?: string };
+      if (err.code !== 'ER_NO_SUCH_TABLE') {
+        throw error;
+      }
+      console.warn(
+        `[notifications] skipped notification list because the table is missing: ${err.sqlMessage ?? 'unknown SQL error'}`
+      );
+    }
+
+    return {
+      notifications: rows.map((row) => ({
+        id: row.id,
+        type: row.type,
+        title: row.title,
+        body: row.body,
+        data:
+          row.data_json == null
+            ? null
+            : typeof row.data_json === 'string'
+              ? JSON.parse(row.data_json)
+              : row.data_json,
+        is_read: row.read_at !== null,
+        created_at: row.created_at.toISOString()
+      }))
+    };
+  });
+
   app.get('/v1/wallet/transactions', { preHandler: authenticateRequest }, async (request) => {
     const { limit } = listQuerySchema.parse(request.query);
 
@@ -662,6 +733,18 @@ export async function registerCustomerDataRoutes(
         }
       );
 
+      await createUserNotification(connection, {
+        userId: request.auth.userId,
+        type: 'topup_paid',
+        title: 'Token top-up successful',
+        body: `Your C2 Token balance has been topped up with ${payload.token_amount} tokens.`,
+        data: {
+          topup_ref: topupRef,
+          token_amount: payload.token_amount,
+          balance_after: newBalance
+        }
+      });
+
       await connection.commit();
       committed = true;
 
@@ -877,6 +960,16 @@ export async function registerCustomerDataRoutes(
         codeSnapshot: cleanCode
       }
     );
+
+    await createUserNotification(mysqlPool, {
+      userId,
+      type: 'referral_claimed',
+      title: 'Referral code applied',
+      body: 'Your referral code has been saved. Place your first order to unlock the welcome reward.',
+      data: {
+        referral_code: cleanCode
+      }
+    });
 
     // Also grant new user a welcome voucher if they don't have one
     const [templates] = await mysqlPool.query<Array<RowDataPacket & { id: number; expires_in_days: number }>>(

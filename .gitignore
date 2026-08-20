@@ -28,6 +28,13 @@ backend/public/storage/
 api/node_modules/
 api/dist/
 
+# Admin web (Vite / React)
+admin_web/.env
+admin_web/.env.*
+admin_web/node_modules/
+admin_web/node_modules/.vite/
+admin_web/dist/
+
 # Edge server (Node.js)
 edge_server/node_modules/
 edge_server/dist/

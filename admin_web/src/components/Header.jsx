@@ -1,9 +1,13 @@
 import React from 'react';
 
-const Header = ({ setCurrentPage, currentPage }) => {
+const Header = ({ setCurrentPage, currentPage, currentTenant }) => {
   return (
     <header className="flex justify-end items-center bg-transparent py-4 px-8" style={{ fontFamily: '"DM Sans", sans-serif' }}>
       <div className="flex items-center space-x-6">
+        <div className="hidden xl:flex flex-col items-end pr-2">
+          <p className="text-[10px] uppercase tracking-[0.22em] text-gray-400">Active tenant</p>
+          <p className="text-sm font-semibold text-gray-900">{currentTenant?.display_name || 'C2 Coffee & Candle'}</p>
+        </div>
         <button
           onClick={() => setCurrentPage && setCurrentPage('Notifications')}
           className={`relative p-2 rounded-full transition-colors cursor-pointer ${

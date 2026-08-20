@@ -1,192 +1,166 @@
-PS D:\C2Coffee\api> docker logs -f c2coffee-api
-{"level":30,"time":1787045596034,"pid":1,"hostname":"0367f96416cd","msg":"Server listening at http://127.0.0.1:8080"}
-{"level":30,"time":1787045596037,"pid":1,"hostname":"0367f96416cd","msg":"Server listening at http://172.19.0.2:8080"}
-{"level":30,"time":1787045599800,"pid":1,"hostname":"0367f96416cd","reqId":"7cbace21-b5ed-428b-8a1a-8fd346de7c0b","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":34010},"msg":"incoming request"}
-{"level":30,"time":1787045599967,"pid":1,"hostname":"0367f96416cd","reqId":"7cbace21-b5ed-428b-8a1a-8fd346de7c0b","res":{"statusCode":200},"responseTime":162.32508999999936,"msg":"request completed"}
-{"level":30,"time":1787045630877,"pid":1,"hostname":"0367f96416cd","reqId":"1751a196-aae5-40a0-8f36-7873a672b7b3","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":47524},"msg":"incoming request"}
-{"level":30,"time":1787045631141,"pid":1,"hostname":"0367f96416cd","reqId":"1751a196-aae5-40a0-8f36-7873a672b7b3","res":{"statusCode":200},"responseTime":263.7047890000031,"msg":"request completed"}
-{"level":30,"time":1787045662016,"pid":1,"hostname":"0367f96416cd","reqId":"ab88dc19-6bc3-458f-9e37-996bd12fdad8","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":42202},"msg":"incoming request"}
-{"level":30,"time":1787045662047,"pid":1,"hostname":"0367f96416cd","reqId":"ab88dc19-6bc3-458f-9e37-996bd12fdad8","res":{"statusCode":200},"responseTime":30.347932999997283,"msg":"request completed"}
-{"level":30,"time":1787045692964,"pid":1,"hostname":"0367f96416cd","reqId":"6f92cf73-2338-4671-99fe-0ce976540254","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":50510},"msg":"incoming request"}
-{"level":30,"time":1787045692997,"pid":1,"hostname":"0367f96416cd","reqId":"6f92cf73-2338-4671-99fe-0ce976540254","res":{"statusCode":200},"responseTime":32.16306700000132,"msg":"request completed"}
-{"level":30,"time":1787045723849,"pid":1,"hostname":"0367f96416cd","reqId":"689def8b-d8ee-46fc-ae06-48e1958b760b","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":48118},"msg":"incoming request"}
-{"level":30,"time":1787045723879,"pid":1,"hostname":"0367f96416cd","reqId":"689def8b-d8ee-46fc-ae06-48e1958b760b","res":{"statusCode":200},"responseTime":29.916053000008105,"msg":"request completed"}
-{"level":30,"time":1787045754766,"pid":1,"hostname":"0367f96416cd","reqId":"4a4d4e01-9bf5-4d09-b465-747cf0e04d47","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":38346},"msg":"incoming request"}
-{"level":30,"time":1787045754796,"pid":1,"hostname":"0367f96416cd","reqId":"4a4d4e01-9bf5-4d09-b465-747cf0e04d47","res":{"statusCode":200},"responseTime":29.4983099999954,"msg":"request completed"}
-{"level":30,"time":1787045785676,"pid":1,"hostname":"0367f96416cd","reqId":"7a2a60b2-2c7e-4c59-9ccc-146c1bbcd0bc","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":48510},"msg":"incoming request"}
-{"level":30,"time":1787045785705,"pid":1,"hostname":"0367f96416cd","reqId":"7a2a60b2-2c7e-4c59-9ccc-146c1bbcd0bc","res":{"statusCode":200},"responseTime":29.28867999999784,"msg":"request completed"}
-{"level":30,"time":1787045816618,"pid":1,"hostname":"0367f96416cd","reqId":"442fb2c7-6da5-4c1f-8f8f-dc421fa97b23","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":40550},"msg":"incoming request"}
-{"level":30,"time":1787045816647,"pid":1,"hostname":"0367f96416cd","reqId":"442fb2c7-6da5-4c1f-8f8f-dc421fa97b23","res":{"statusCode":200},"responseTime":29.360614999983227,"msg":"request completed"}
-{"level":30,"time":1787045847636,"pid":1,"hostname":"0367f96416cd","reqId":"3e20b06c-7adb-49de-83dc-d3dbb91f2eec","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":50046},"msg":"incoming request"}
-{"level":30,"time":1787045847670,"pid":1,"hostname":"0367f96416cd","reqId":"3e20b06c-7adb-49de-83dc-d3dbb91f2eec","res":{"statusCode":200},"responseTime":34.135914999991655,"msg":"request completed"}
-{"level":30,"time":1787045878552,"pid":1,"hostname":"0367f96416cd","reqId":"47fa6916-58a8-402c-b0b6-7b715794de9e","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":52930},"msg":"incoming request"}
-{"level":30,"time":1787045878583,"pid":1,"hostname":"0367f96416cd","reqId":"47fa6916-58a8-402c-b0b6-7b715794de9e","res":{"statusCode":200},"responseTime":30.443127000005916,"msg":"request completed"}
-{"level":30,"time":1787045909553,"pid":1,"hostname":"0367f96416cd","reqId":"dae40a68-60b9-46c0-a497-73b89dfae6d7","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":56198},"msg":"incoming request"}
-{"level":30,"time":1787045909581,"pid":1,"hostname":"0367f96416cd","reqId":"dae40a68-60b9-46c0-a497-73b89dfae6d7","res":{"statusCode":200},"responseTime":27.807755000016186,"msg":"request completed"}
-{"level":30,"time":1787045940510,"pid":1,"hostname":"0367f96416cd","reqId":"9267a8a7-273e-4e50-b43b-67df76fad906","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":53870},"msg":"incoming request"}
-{"level":30,"time":1787045940538,"pid":1,"hostname":"0367f96416cd","reqId":"9267a8a7-273e-4e50-b43b-67df76fad906","res":{"statusCode":200},"responseTime":28.100021000020206,"msg":"request completed"}
-{"level":30,"time":1787045971508,"pid":1,"hostname":"0367f96416cd","reqId":"1a88f780-5cd1-4f16-9b15-c98dd41bbee2","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":54502},"msg":"incoming request"}
-{"level":30,"time":1787045971540,"pid":1,"hostname":"0367f96416cd","reqId":"1a88f780-5cd1-4f16-9b15-c98dd41bbee2","res":{"statusCode":200},"responseTime":31.40547500003595,"msg":"request completed"}
-{"level":30,"time":1787046002482,"pid":1,"hostname":"0367f96416cd","reqId":"56f77cd7-4400-4017-960d-b1cf7a3df6cd","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":33438},"msg":"incoming request"}
-{"level":30,"time":1787046002511,"pid":1,"hostname":"0367f96416cd","reqId":"56f77cd7-4400-4017-960d-b1cf7a3df6cd","res":{"statusCode":200},"responseTime":27.992840000020806,"msg":"request completed"}
-{"level":30,"time":1787046033437,"pid":1,"hostname":"0367f96416cd","reqId":"27143b99-e898-4dad-9d22-88bcd3db2687","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":59012},"msg":"incoming request"}
-{"level":30,"time":1787046033469,"pid":1,"hostname":"0367f96416cd","reqId":"27143b99-e898-4dad-9d22-88bcd3db2687","res":{"statusCode":200},"responseTime":31.514790999994148,"msg":"request completed"}
-{"level":30,"time":1787046064359,"pid":1,"hostname":"0367f96416cd","reqId":"dec154db-f1ce-4694-a0b8-d7bb422d53b4","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":51384},"msg":"incoming request"}
-{"level":30,"time":1787046064387,"pid":1,"hostname":"0367f96416cd","reqId":"dec154db-f1ce-4694-a0b8-d7bb422d53b4","res":{"statusCode":200},"responseTime":27.519250000012107,"msg":"request completed"}
-{"level":30,"time":1787046095243,"pid":1,"hostname":"0367f96416cd","reqId":"6bbab75c-4884-4569-b7c6-1d957a03fb6a","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":52668},"msg":"incoming request"}
-{"level":30,"time":1787046095272,"pid":1,"hostname":"0367f96416cd","reqId":"6bbab75c-4884-4569-b7c6-1d957a03fb6a","res":{"statusCode":200},"responseTime":28.206005999993067,"msg":"request completed"}
-{"level":30,"time":1787046126536,"pid":1,"hostname":"0367f96416cd","reqId":"b423179f-764c-4631-a13a-1243a5df6dde","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":44638},"msg":"incoming request"}
-{"level":30,"time":1787046126566,"pid":1,"hostname":"0367f96416cd","reqId":"b423179f-764c-4631-a13a-1243a5df6dde","res":{"statusCode":200},"responseTime":29.550441000028513,"msg":"request completed"}
-{"level":30,"time":1787046157540,"pid":1,"hostname":"0367f96416cd","reqId":"1e25e8be-ae43-45d6-83f2-0bdabbb995ed","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":35908},"msg":"incoming request"}
-{"level":30,"time":1787046157569,"pid":1,"hostname":"0367f96416cd","reqId":"1e25e8be-ae43-45d6-83f2-0bdabbb995ed","res":{"statusCode":200},"responseTime":28.418792000040412,"msg":"request completed"}
-{"level":30,"time":1787046188480,"pid":1,"hostname":"0367f96416cd","reqId":"d386b3eb-cc95-4e8a-bfc2-0bbf8d7fd695","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":39962},"msg":"incoming request"}
-{"level":30,"time":1787046188507,"pid":1,"hostname":"0367f96416cd","reqId":"d386b3eb-cc95-4e8a-bfc2-0bbf8d7fd695","res":{"statusCode":200},"responseTime":27.063251999905333,"msg":"request completed"}
-{"level":30,"time":1787046219414,"pid":1,"hostname":"0367f96416cd","reqId":"fe14a360-984b-4d8b-99ee-98f55db03cd4","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":54826},"msg":"incoming request"}
-{"level":30,"time":1787046219441,"pid":1,"hostname":"0367f96416cd","reqId":"fe14a360-984b-4d8b-99ee-98f55db03cd4","res":{"statusCode":200},"responseTime":26.6105900000548,"msg":"request completed"}
-{"level":30,"time":1787046250291,"pid":1,"hostname":"0367f96416cd","reqId":"61253c53-f16b-4061-9f16-342eeae4606c","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":58910},"msg":"incoming request"}
-{"level":30,"time":1787046250319,"pid":1,"hostname":"0367f96416cd","reqId":"61253c53-f16b-4061-9f16-342eeae4606c","res":{"statusCode":200},"responseTime":27.70267300005071,"msg":"request completed"}
-{"level":30,"time":1787046281156,"pid":1,"hostname":"0367f96416cd","reqId":"8b92908d-1eb5-4605-acd6-a9b5389550e1","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":46846},"msg":"incoming request"}
-{"level":30,"time":1787046281184,"pid":1,"hostname":"0367f96416cd","reqId":"8b92908d-1eb5-4605-acd6-a9b5389550e1","res":{"statusCode":200},"responseTime":27.70963599998504,"msg":"request completed"}
-{"level":30,"time":1787046312038,"pid":1,"hostname":"0367f96416cd","reqId":"d719904e-4ae1-463b-b110-0eb63a9831dd","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":37300},"msg":"incoming request"}
-{"level":30,"time":1787046312067,"pid":1,"hostname":"0367f96416cd","reqId":"d719904e-4ae1-463b-b110-0eb63a9831dd","res":{"statusCode":200},"responseTime":28.22676800005138,"msg":"request completed"}
-{"level":30,"time":1787046342904,"pid":1,"hostname":"0367f96416cd","reqId":"4bd3e683-7982-411d-b0bf-135f400425f9","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":34134},"msg":"incoming request"}
-{"level":30,"time":1787046342933,"pid":1,"hostname":"0367f96416cd","reqId":"4bd3e683-7982-411d-b0bf-135f400425f9","res":{"statusCode":200},"responseTime":28.119199000066146,"msg":"request completed"}
-{"level":30,"time":1787046355012,"pid":1,"hostname":"0367f96416cd","reqId":"8f3a234b-5151-48aa-9cc6-44d767d621c5","req":{"method":"POST","url":"/v1/auth/refresh","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":37902},"msg":"incoming request"}
-{"level":30,"time":1787046355105,"pid":1,"hostname":"0367f96416cd","reqId":"8f3a234b-5151-48aa-9cc6-44d767d621c5","res":{"statusCode":200},"responseTime":92.68972400005441,"msg":"request completed"}
-{"level":30,"time":1787046355204,"pid":1,"hostname":"0367f96416cd","reqId":"768f4eaf-7a98-446e-b56b-16dca663af2b","req":{"method":"GET","url":"/v1/orders?limit=100","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":37902},"msg":"incoming request"}
-{"level":30,"time":1787046355309,"pid":1,"hostname":"0367f96416cd","reqId":"768f4eaf-7a98-446e-b56b-16dca663af2b","res":{"statusCode":200},"responseTime":104.70003100007307,"msg":"request completed"}
-{"level":30,"time":1787046373787,"pid":1,"hostname":"0367f96416cd","reqId":"c0b7f212-c038-4666-b7b1-c910c27821eb","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":59362},"msg":"incoming request"}
-{"level":30,"time":1787046373816,"pid":1,"hostname":"0367f96416cd","reqId":"c0b7f212-c038-4666-b7b1-c910c27821eb","res":{"statusCode":200},"responseTime":28.397043999982998,"msg":"request completed"}
-{"level":30,"time":1787046404671,"pid":1,"hostname":"0367f96416cd","reqId":"1e111c77-696f-40ae-8778-b030f5cf293f","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":60218},"msg":"incoming request"}
-{"level":30,"time":1787046404699,"pid":1,"hostname":"0367f96416cd","reqId":"1e111c77-696f-40ae-8778-b030f5cf293f","res":{"statusCode":200},"responseTime":27.555993999936618,"msg":"request completed"}
-{"level":30,"time":1787046435541,"pid":1,"hostname":"0367f96416cd","reqId":"882609bc-2d91-4283-be49-89a99db3c09c","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":53666},"msg":"incoming request"}
-{"level":30,"time":1787046435568,"pid":1,"hostname":"0367f96416cd","reqId":"882609bc-2d91-4283-be49-89a99db3c09c","res":{"statusCode":200},"responseTime":26.779289999976754,"msg":"request completed"}
-{"level":30,"time":1787046466395,"pid":1,"hostname":"0367f96416cd","reqId":"0a135b80-e108-43e9-85a8-e0373f3696d4","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":60194},"msg":"incoming request"}
-{"level":30,"time":1787046466430,"pid":1,"hostname":"0367f96416cd","reqId":"0a135b80-e108-43e9-85a8-e0373f3696d4","res":{"statusCode":200},"responseTime":33.82321199995931,"msg":"request completed"}
-{"level":30,"time":1787046497332,"pid":1,"hostname":"0367f96416cd","reqId":"6a898d6f-1942-4432-bafa-dd49816c89cb","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":39382},"msg":"incoming request"}
-{"level":30,"time":1787046497360,"pid":1,"hostname":"0367f96416cd","reqId":"6a898d6f-1942-4432-bafa-dd49816c89cb","res":{"statusCode":200},"responseTime":27.69152800005395,"msg":"request completed"}
-{"level":30,"time":1787046528331,"pid":1,"hostname":"0367f96416cd","reqId":"5a8574c7-d502-4d52-9034-85b9d3953d62","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":58242},"msg":"incoming request"}
-{"level":30,"time":1787046528360,"pid":1,"hostname":"0367f96416cd","reqId":"5a8574c7-d502-4d52-9034-85b9d3953d62","res":{"statusCode":200},"responseTime":28.247972999932244,"msg":"request completed"}
-{"level":30,"time":1787046559222,"pid":1,"hostname":"0367f96416cd","reqId":"4fb73c1c-dcd7-4213-9dca-108293b01425","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":57594},"msg":"incoming request"}
-{"level":30,"time":1787046559250,"pid":1,"hostname":"0367f96416cd","reqId":"4fb73c1c-dcd7-4213-9dca-108293b01425","res":{"statusCode":200},"responseTime":27.69562799995765,"msg":"request completed"}
-{"level":30,"time":1787046590129,"pid":1,"hostname":"0367f96416cd","reqId":"b016f635-37bb-42a3-8dd4-313f4fbbd6e2","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":33338},"msg":"incoming request"}
-{"level":30,"time":1787046590156,"pid":1,"hostname":"0367f96416cd","reqId":"b016f635-37bb-42a3-8dd4-313f4fbbd6e2","res":{"statusCode":200},"responseTime":27.149059000075795,"msg":"request completed"}
-{"level":30,"time":1787046621094,"pid":1,"hostname":"0367f96416cd","reqId":"4a11e3c2-24dd-4ece-b60f-e3bbae8a1569","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":48186},"msg":"incoming request"}
-{"level":30,"time":1787046621123,"pid":1,"hostname":"0367f96416cd","reqId":"4a11e3c2-24dd-4ece-b60f-e3bbae8a1569","res":{"statusCode":200},"responseTime":27.70537699991837,"msg":"request completed"}
-{"level":30,"time":1787046651989,"pid":1,"hostname":"0367f96416cd","reqId":"324375f1-a76c-40b4-9dc7-c500ecf0aba5","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":48614},"msg":"incoming request"}
-{"level":30,"time":1787046652015,"pid":1,"hostname":"0367f96416cd","reqId":"324375f1-a76c-40b4-9dc7-c500ecf0aba5","res":{"statusCode":200},"responseTime":25.54534299997613,"msg":"request completed"}
-{"level":30,"time":1787046682905,"pid":1,"hostname":"0367f96416cd","reqId":"856f8d8a-8d6d-4728-9243-11c3fd3278b6","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":57300},"msg":"incoming request"}
-{"level":30,"time":1787046682932,"pid":1,"hostname":"0367f96416cd","reqId":"856f8d8a-8d6d-4728-9243-11c3fd3278b6","res":{"statusCode":200},"responseTime":26.612767999991775,"msg":"request completed"}
-{"level":30,"time":1787046713797,"pid":1,"hostname":"0367f96416cd","reqId":"50f8bd0b-a4a0-405e-9f10-68209378464d","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":38518},"msg":"incoming request"}
-{"level":30,"time":1787046713824,"pid":1,"hostname":"0367f96416cd","reqId":"50f8bd0b-a4a0-405e-9f10-68209378464d","res":{"statusCode":200},"responseTime":27.21899399999529,"msg":"request completed"}
-{"level":30,"time":1787046744705,"pid":1,"hostname":"0367f96416cd","reqId":"b0a8baa7-d310-46a2-8a66-03eab5c3d0df","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":39558},"msg":"incoming request"}
-{"level":30,"time":1787046744733,"pid":1,"hostname":"0367f96416cd","reqId":"b0a8baa7-d310-46a2-8a66-03eab5c3d0df","res":{"statusCode":200},"responseTime":27.77672700001858,"msg":"request completed"}
-{"level":30,"time":1787046775591,"pid":1,"hostname":"0367f96416cd","reqId":"4640f520-6048-4c4a-9d8b-071eece26ce3","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":35998},"msg":"incoming request"}
-{"level":30,"time":1787046775619,"pid":1,"hostname":"0367f96416cd","reqId":"4640f520-6048-4c4a-9d8b-071eece26ce3","res":{"statusCode":200},"responseTime":27.84051499981433,"msg":"request completed"}
-{"level":30,"time":1787046806482,"pid":1,"hostname":"0367f96416cd","reqId":"bb844ca3-095a-4499-8d02-218f2a94ec20","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":47856},"msg":"incoming request"}
-{"level":30,"time":1787046806510,"pid":1,"hostname":"0367f96416cd","reqId":"bb844ca3-095a-4499-8d02-218f2a94ec20","res":{"statusCode":200},"responseTime":27.891552000073716,"msg":"request completed"}
-{"level":30,"time":1787046837381,"pid":1,"hostname":"0367f96416cd","reqId":"ccc76542-bcff-4cf9-beae-cc3e014b8cf9","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":43642},"msg":"incoming request"}
-{"level":30,"time":1787046837408,"pid":1,"hostname":"0367f96416cd","reqId":"ccc76542-bcff-4cf9-beae-cc3e014b8cf9","res":{"statusCode":200},"responseTime":27.1701419998426,"msg":"request completed"}
-{"level":30,"time":1787046868343,"pid":1,"hostname":"0367f96416cd","reqId":"c0a790b1-a4db-4e79-8814-bea12dcb27cd","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":36506},"msg":"incoming request"}
-{"level":30,"time":1787046868373,"pid":1,"hostname":"0367f96416cd","reqId":"c0a790b1-a4db-4e79-8814-bea12dcb27cd","res":{"statusCode":200},"responseTime":29.444992000004277,"msg":"request completed"}
-{"level":30,"time":1787046899228,"pid":1,"hostname":"0367f96416cd","reqId":"1ba31baa-9990-486b-97f8-af4dd350e714","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":56118},"msg":"incoming request"}
-{"level":30,"time":1787046899256,"pid":1,"hostname":"0367f96416cd","reqId":"1ba31baa-9990-486b-97f8-af4dd350e714","res":{"statusCode":200},"responseTime":27.52262399997562,"msg":"request completed"}
-{"level":30,"time":1787046930134,"pid":1,"hostname":"0367f96416cd","reqId":"be5c865d-87a2-47a6-90c3-cb1f1d09473a","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":36710},"msg":"incoming request"}
-{"level":30,"time":1787046930162,"pid":1,"hostname":"0367f96416cd","reqId":"be5c865d-87a2-47a6-90c3-cb1f1d09473a","res":{"statusCode":200},"responseTime":28.150871000019833,"msg":"request completed"}
-{"level":30,"time":1787046961051,"pid":1,"hostname":"0367f96416cd","reqId":"cc2639c3-9657-4809-bf0a-618e8ef11ec5","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":59082},"msg":"incoming request"}
-{"level":30,"time":1787046961079,"pid":1,"hostname":"0367f96416cd","reqId":"cc2639c3-9657-4809-bf0a-618e8ef11ec5","res":{"statusCode":200},"responseTime":27.691217000130564,"msg":"request completed"}
-{"level":30,"time":1787046991992,"pid":1,"hostname":"0367f96416cd","reqId":"5e22234a-1a54-43a4-8e31-e6937d04a6fe","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":57324},"msg":"incoming request"}
-{"level":30,"time":1787046992020,"pid":1,"hostname":"0367f96416cd","reqId":"5e22234a-1a54-43a4-8e31-e6937d04a6fe","res":{"statusCode":200},"responseTime":27.84211099985987,"msg":"request completed"}
-{"level":30,"time":1787047022896,"pid":1,"hostname":"0367f96416cd","reqId":"977e62a5-dcc8-4255-a2cf-75f9e12f12fb","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":46952},"msg":"incoming request"}
-{"level":30,"time":1787047022922,"pid":1,"hostname":"0367f96416cd","reqId":"977e62a5-dcc8-4255-a2cf-75f9e12f12fb","res":{"statusCode":200},"responseTime":26.484429999953136,"msg":"request completed"}
-{"level":30,"time":1787047053782,"pid":1,"hostname":"0367f96416cd","reqId":"58828a3f-df6e-4242-8269-2365796b5089","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":51866},"msg":"incoming request"}
-{"level":30,"time":1787047053810,"pid":1,"hostname":"0367f96416cd","reqId":"58828a3f-df6e-4242-8269-2365796b5089","res":{"statusCode":200},"responseTime":27.199132999870926,"msg":"request completed"}
-{"level":30,"time":1787047084660,"pid":1,"hostname":"0367f96416cd","reqId":"d0ac2883-0854-4fdb-94b9-0bfb7c2ec9f5","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":44506},"msg":"incoming request"}
-{"level":30,"time":1787047084694,"pid":1,"hostname":"0367f96416cd","reqId":"d0ac2883-0854-4fdb-94b9-0bfb7c2ec9f5","res":{"statusCode":200},"responseTime":33.922947000013664,"msg":"request completed"}
-{"level":30,"time":1787047115550,"pid":1,"hostname":"0367f96416cd","reqId":"64ac0785-6cd9-408c-a462-c17b5e7b9707","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":56014},"msg":"incoming request"}
-{"level":30,"time":1787047115576,"pid":1,"hostname":"0367f96416cd","reqId":"64ac0785-6cd9-408c-a462-c17b5e7b9707","res":{"statusCode":200},"responseTime":25.90010299999267,"msg":"request completed"}
-{"level":30,"time":1787047146478,"pid":1,"hostname":"0367f96416cd","reqId":"6354d744-7627-4595-8793-d05cb6f6e80e","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":55244},"msg":"incoming request"}
-{"level":30,"time":1787047146506,"pid":1,"hostname":"0367f96416cd","reqId":"6354d744-7627-4595-8793-d05cb6f6e80e","res":{"statusCode":200},"responseTime":27.532206000061706,"msg":"request completed"}
-{"level":30,"time":1787047177189,"pid":1,"hostname":"0367f96416cd","reqId":"9d2ba405-3106-43b9-b8cb-3d7bbf3f0937","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":60702},"msg":"incoming request"}
-{"level":30,"time":1787047177219,"pid":1,"hostname":"0367f96416cd","reqId":"9d2ba405-3106-43b9-b8cb-3d7bbf3f0937","res":{"statusCode":200},"responseTime":29.473448999924585,"msg":"request completed"}
-{"level":30,"time":1787047207984,"pid":1,"hostname":"0367f96416cd","reqId":"23aa3595-f4b8-4b20-b7df-67bf944d791c","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":38600},"msg":"incoming request"}
-{"level":30,"time":1787047208012,"pid":1,"hostname":"0367f96416cd","reqId":"23aa3595-f4b8-4b20-b7df-67bf944d791c","res":{"statusCode":200},"responseTime":27.387647000141442,"msg":"request completed"}
-{"level":30,"time":1787047238938,"pid":1,"hostname":"0367f96416cd","reqId":"c610742b-85e5-4230-9b58-3b54709c754e","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":38818},"msg":"incoming request"}
-{"level":30,"time":1787047238964,"pid":1,"hostname":"0367f96416cd","reqId":"c610742b-85e5-4230-9b58-3b54709c754e","res":{"statusCode":200},"responseTime":25.698938000015914,"msg":"request completed"}
-{"level":30,"time":1787047269868,"pid":1,"hostname":"0367f96416cd","reqId":"b9826b0d-f332-43af-93e9-81b7ff08bf08","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":48742},"msg":"incoming request"}
-{"level":30,"time":1787047269895,"pid":1,"hostname":"0367f96416cd","reqId":"b9826b0d-f332-43af-93e9-81b7ff08bf08","res":{"statusCode":200},"responseTime":27.130262999795377,"msg":"request completed"}
-{"level":30,"time":1787047300797,"pid":1,"hostname":"0367f96416cd","reqId":"d64d1856-38a5-428e-b0b1-0fc905c67068","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":50446},"msg":"incoming request"}
-{"level":30,"time":1787047300824,"pid":1,"hostname":"0367f96416cd","reqId":"d64d1856-38a5-428e-b0b1-0fc905c67068","res":{"statusCode":200},"responseTime":26.88385000010021,"msg":"request completed"}
-{"level":30,"time":1787047331797,"pid":1,"hostname":"0367f96416cd","reqId":"500c6f63-87cd-4f2a-8b3f-9b7baaa2eaa2","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":44042},"msg":"incoming request"}
-{"level":30,"time":1787047331825,"pid":1,"hostname":"0367f96416cd","reqId":"500c6f63-87cd-4f2a-8b3f-9b7baaa2eaa2","res":{"statusCode":200},"responseTime":27.450682999799028,"msg":"request completed"}
-{"level":30,"time":1787047362730,"pid":1,"hostname":"0367f96416cd","reqId":"4aa54039-0358-4293-a5fe-7b765e530199","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":34416},"msg":"incoming request"}
-{"level":30,"time":1787047362757,"pid":1,"hostname":"0367f96416cd","reqId":"4aa54039-0358-4293-a5fe-7b765e530199","res":{"statusCode":200},"responseTime":26.473037000047043,"msg":"request completed"}
-{"level":30,"time":1787047393663,"pid":1,"hostname":"0367f96416cd","reqId":"3550374f-02f2-4d99-9aa2-97a3e85e4eb7","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":45422},"msg":"incoming request"}
-{"level":30,"time":1787047393691,"pid":1,"hostname":"0367f96416cd","reqId":"3550374f-02f2-4d99-9aa2-97a3e85e4eb7","res":{"statusCode":200},"responseTime":27.484045000048354,"msg":"request completed"}
-{"level":30,"time":1787047424533,"pid":1,"hostname":"0367f96416cd","reqId":"e7bbf0cd-a12f-4089-b962-efaea859a557","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":50460},"msg":"incoming request"}
-{"level":30,"time":1787047424560,"pid":1,"hostname":"0367f96416cd","reqId":"e7bbf0cd-a12f-4089-b962-efaea859a557","res":{"statusCode":200},"responseTime":27.076236000051722,"msg":"request completed"}
-{"level":30,"time":1787047455415,"pid":1,"hostname":"0367f96416cd","reqId":"ce57a3b1-4f1e-4e49-8c31-7e9ab5a87ad2","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":49902},"msg":"incoming request"}
-{"level":30,"time":1787047455444,"pid":1,"hostname":"0367f96416cd","reqId":"ce57a3b1-4f1e-4e49-8c31-7e9ab5a87ad2","res":{"statusCode":200},"responseTime":28.22668800014071,"msg":"request completed"}
-{"level":30,"time":1787047472229,"pid":1,"hostname":"0367f96416cd","reqId":"69034fc2-b5d7-48c8-9f2a-d22c52a0266d","req":{"method":"POST","url":"/v1/auth/refresh","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":40776},"msg":"incoming request"}
-{"level":30,"time":1787047472266,"pid":1,"hostname":"0367f96416cd","reqId":"69034fc2-b5d7-48c8-9f2a-d22c52a0266d","res":{"statusCode":200},"responseTime":36.157842999789864,"msg":"request completed"}
-{"level":30,"time":1787047472525,"pid":1,"hostname":"0367f96416cd","reqId":"914ee494-ae47-479c-81a4-0c02e0f68bfc","req":{"method":"GET","url":"/v1/me","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":40776},"msg":"incoming request"}
-{"level":30,"time":1787047472559,"pid":1,"hostname":"0367f96416cd","reqId":"914ee494-ae47-479c-81a4-0c02e0f68bfc","res":{"statusCode":200},"responseTime":33.51947499997914,"msg":"request completed"}
-{"level":30,"time":1787047472563,"pid":1,"hostname":"0367f96416cd","reqId":"7b6436ab-51a9-4f22-841d-452337b80f2a","req":{"method":"GET","url":"/v1/stores","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":40776},"msg":"incoming request"}
-{"level":30,"time":1787047472571,"pid":1,"hostname":"0367f96416cd","reqId":"febf2d08-9eaa-482a-8e0d-86851bee4ea0","req":{"method":"GET","url":"/v1/bootstrap","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":40786},"msg":"incoming request"}
-{"level":30,"time":1787047472595,"pid":1,"hostname":"0367f96416cd","reqId":"7b6436ab-51a9-4f22-841d-452337b80f2a","res":{"statusCode":200},"responseTime":31.356573999859393,"msg":"request completed"}
-{"level":50,"time":1787047472712,"pid":1,"hostname":"0367f96416cd","reqId":"febf2d08-9eaa-482a-8e0d-86851bee4ea0","error":{"code":"ER_NO_SUCH_TABLE","errno":1146,"sqlState":"42S02","sqlMessage":"Table 'c2coffee_app.home_banners' doesn't exist","sql":"\n      SELECT\n        code,\n        title,\n        subtitle,\n        image_source,\n        placement,\n        sort_order,\n        is_active\n      FROM home_banners\n      WHERE is_active = 1\n      ORDER BY sort_order ASC, id ASC\n    "},"statusCode":500,"code":"internal_server_error","msg":"request failed"}
-{"level":30,"time":1787047472715,"pid":1,"hostname":"0367f96416cd","reqId":"febf2d08-9eaa-482a-8e0d-86851bee4ea0","res":{"statusCode":500},"responseTime":142.71210399991833,"msg":"request completed"}
-{"level":30,"time":1787047486347,"pid":1,"hostname":"0367f96416cd","reqId":"33fb18b2-e6d9-4926-b697-2065d0e20847","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":53226},"msg":"incoming request"}
-{"level":30,"time":1787047486375,"pid":1,"hostname":"0367f96416cd","reqId":"33fb18b2-e6d9-4926-b697-2065d0e20847","res":{"statusCode":200},"responseTime":27.489515000022948,"msg":"request completed"}
-{"level":30,"time":1787047501657,"pid":1,"hostname":"0367f96416cd","reqId":"dec4617e-8b5e-4c38-a7a6-9adf41e97730","req":{"method":"POST","url":"/v1/auth/request-otp","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":40776},"msg":"incoming request"}
-{"level":30,"time":1787047501804,"pid":1,"hostname":"0367f96416cd","reqId":"dec4617e-8b5e-4c38-a7a6-9adf41e97730","res":{"statusCode":200},"responseTime":145.5866349998396,"msg":"request completed"}
-{"level":30,"time":1787047503287,"pid":1,"hostname":"0367f96416cd","reqId":"bc521918-dd93-4858-bcb7-f548b331900b","req":{"method":"POST","url":"/v1/auth/verify-otp","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":40786},"msg":"incoming request"}
-{"level":30,"time":1787047503495,"pid":1,"hostname":"0367f96416cd","reqId":"bc521918-dd93-4858-bcb7-f548b331900b","res":{"statusCode":200},"responseTime":207.11781500000507,"msg":"request completed"}
-{"level":30,"time":1787047503610,"pid":1,"hostname":"0367f96416cd","reqId":"6c16a951-bd68-4f5b-b100-e771b927cfc1","req":{"method":"GET","url":"/v1/me","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":40776},"msg":"incoming request"}
-{"level":30,"time":1787047503641,"pid":1,"hostname":"0367f96416cd","reqId":"6c16a951-bd68-4f5b-b100-e771b927cfc1","res":{"statusCode":200},"responseTime":30.020435000071302,"msg":"request completed"}
-{"level":30,"time":1787047503655,"pid":1,"hostname":"0367f96416cd","reqId":"e2ca4c52-bf23-4fba-a8b4-514f507beefb","req":{"method":"GET","url":"/v1/bootstrap","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":40786},"msg":"incoming request"}
-{"level":30,"time":1787047503660,"pid":1,"hostname":"0367f96416cd","reqId":"35122249-beef-4003-a282-141dfd61fc7d","req":{"method":"GET","url":"/v1/stores","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":40776},"msg":"incoming request"}
-{"level":30,"time":1787047503695,"pid":1,"hostname":"0367f96416cd","reqId":"35122249-beef-4003-a282-141dfd61fc7d","res":{"statusCode":200},"responseTime":34.30333900009282,"msg":"request completed"}
-{"level":50,"time":1787047503753,"pid":1,"hostname":"0367f96416cd","reqId":"e2ca4c52-bf23-4fba-a8b4-514f507beefb","error":{"code":"ER_NO_SUCH_TABLE","errno":1146,"sqlState":"42S02","sqlMessage":"Table 'c2coffee_app.home_banners' doesn't exist","sql":"\n      SELECT\n        code,\n        title,\n        subtitle,\n        image_source,\n        placement,\n        sort_order,\n        is_active\n      FROM home_banners\n      WHERE is_active = 1\n      ORDER BY sort_order ASC, id ASC\n    "},"statusCode":500,"code":"internal_server_error","msg":"request failed"}
-{"level":30,"time":1787047503754,"pid":1,"hostname":"0367f96416cd","reqId":"e2ca4c52-bf23-4fba-a8b4-514f507beefb","res":{"statusCode":500},"responseTime":99.37111700000241,"msg":"request completed"}
-{"level":30,"time":1787047517284,"pid":1,"hostname":"0367f96416cd","reqId":"3e3689e8-8a8e-4bc1-895a-cc109f242e49","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":54476},"msg":"incoming request"}
-{"level":30,"time":1787047517312,"pid":1,"hostname":"0367f96416cd","reqId":"3e3689e8-8a8e-4bc1-895a-cc109f242e49","res":{"statusCode":200},"responseTime":27.86180099984631,"msg":"request completed"}
-{"level":30,"time":1787047548194,"pid":1,"hostname":"0367f96416cd","reqId":"0b71fdc5-d49a-47ce-a439-403063021be5","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":36494},"msg":"incoming request"}
-{"level":30,"time":1787047548220,"pid":1,"hostname":"0367f96416cd","reqId":"0b71fdc5-d49a-47ce-a439-403063021be5","res":{"statusCode":200},"responseTime":25.675742000108585,"msg":"request completed"}
-{"level":30,"time":1787047579164,"pid":1,"hostname":"0367f96416cd","reqId":"f45904e1-73cc-4f55-979f-de99fa611df9","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":53242},"msg":"incoming request"}
-{"level":30,"time":1787047579191,"pid":1,"hostname":"0367f96416cd","reqId":"f45904e1-73cc-4f55-979f-de99fa611df9","res":{"statusCode":200},"responseTime":26.701672999886796,"msg":"request completed"}
-{"level":30,"time":1787047579842,"pid":1,"hostname":"0367f96416cd","reqId":"0fc2eb92-6bd7-43b6-aeae-3f587c127783","req":{"method":"POST","url":"/v1/auth/request-otp","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":52866},"msg":"incoming request"}
-{"level":30,"time":1787047579971,"pid":1,"hostname":"0367f96416cd","reqId":"0fc2eb92-6bd7-43b6-aeae-3f587c127783","res":{"statusCode":200},"responseTime":131.85668099997565,"msg":"request completed"}
-{"level":30,"time":1787047580640,"pid":1,"hostname":"0367f96416cd","reqId":"8e562fb6-90e0-4d36-90dd-78b74690bb05","req":{"method":"POST","url":"/v1/auth/verify-otp","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":52866},"msg":"incoming request"}
-{"level":30,"time":1787047580832,"pid":1,"hostname":"0367f96416cd","reqId":"8e562fb6-90e0-4d36-90dd-78b74690bb05","res":{"statusCode":200},"responseTime":191.0718099998776,"msg":"request completed"}
-{"level":30,"time":1787047580928,"pid":1,"hostname":"0367f96416cd","reqId":"18a6d864-e1ed-42f6-8879-0ad55c0d8e97","req":{"method":"GET","url":"/v1/me","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":52866},"msg":"incoming request"}
-{"level":30,"time":1787047580958,"pid":1,"hostname":"0367f96416cd","reqId":"18a6d864-e1ed-42f6-8879-0ad55c0d8e97","res":{"statusCode":200},"responseTime":29.200260000070557,"msg":"request completed"}
-{"level":30,"time":1787047580969,"pid":1,"hostname":"0367f96416cd","reqId":"bbbcf873-d361-4d23-b453-586db8ad6a1e","req":{"method":"GET","url":"/v1/bootstrap","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":52866},"msg":"incoming request"}
-{"level":30,"time":1787047580974,"pid":1,"hostname":"0367f96416cd","reqId":"fc0b774a-f5e1-46e6-9dc6-ae2ccd4461da","req":{"method":"GET","url":"/v1/stores","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":43476},"msg":"incoming request"}
-{"level":30,"time":1787047581006,"pid":1,"hostname":"0367f96416cd","reqId":"fc0b774a-f5e1-46e6-9dc6-ae2ccd4461da","res":{"statusCode":200},"responseTime":31.206231999909505,"msg":"request completed"}
-{"level":50,"time":1787047581025,"pid":1,"hostname":"0367f96416cd","reqId":"bbbcf873-d361-4d23-b453-586db8ad6a1e","error":{"code":"ER_NO_SUCH_TABLE","errno":1146,"sqlState":"42S02","sqlMessage":"Table 'c2coffee_app.home_banners' doesn't exist","sql":"\n      SELECT\n        code,\n        title,\n        subtitle,\n        image_source,\n        placement,\n        sort_order,\n        is_active\n      FROM home_banners\n      WHERE is_active = 1\n      ORDER BY sort_order ASC, id ASC\n    "},"statusCode":500,"code":"internal_server_error","msg":"request failed"}
-{"level":30,"time":1787047581025,"pid":1,"hostname":"0367f96416cd","reqId":"bbbcf873-d361-4d23-b453-586db8ad6a1e","res":{"statusCode":500},"responseTime":56.540666999993846,"msg":"request completed"}
-{"level":30,"time":1787047610079,"pid":1,"hostname":"0367f96416cd","reqId":"73df1f6b-3f28-4efa-a0b7-df08de0bd98c","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":33510},"msg":"incoming request"}
-{"level":30,"time":1787047610340,"pid":1,"hostname":"0367f96416cd","reqId":"73df1f6b-3f28-4efa-a0b7-df08de0bd98c","res":{"statusCode":200},"responseTime":260.2321870001033,"msg":"request completed"}
-{"level":30,"time":1787047614029,"pid":1,"hostname":"0367f96416cd","reqId":"1b7b2c44-e843-40f7-862b-65feb67c23b3","req":{"method":"POST","url":"/v1/auth/verify-otp","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":43476},"msg":"incoming request"}
-{"level":50,"time":1787047614355,"pid":1,"hostname":"0367f96416cd","reqId":"1b7b2c44-e843-40f7-862b-65feb67c23b3","error":{"statusCode":401,"code":"otp_not_pending"},"statusCode":401,"code":"otp_not_pending","msg":"request failed"}
-{"level":30,"time":1787047614356,"pid":1,"hostname":"0367f96416cd","reqId":"1b7b2c44-e843-40f7-862b-65feb67c23b3","res":{"statusCode":401},"responseTime":326.76615599985234,"msg":"request completed"}
-{"level":30,"time":1787047619134,"pid":1,"hostname":"0367f96416cd","reqId":"ef507bcb-750d-4121-9bf6-ff28c208abf6","req":{"method":"POST","url":"/v1/auth/request-otp","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":52866},"msg":"incoming request"}
-{"level":50,"time":1787047619192,"pid":1,"hostname":"0367f96416cd","reqId":"ef507bcb-750d-4121-9bf6-ff28c208abf6","error":{"statusCode":429,"code":"otp_cooldown_active"},"statusCode":429,"code":"otp_cooldown_active","msg":"request failed"}
-{"level":30,"time":1787047619195,"pid":1,"hostname":"0367f96416cd","reqId":"ef507bcb-750d-4121-9bf6-ff28c208abf6","res":{"statusCode":429},"responseTime":59.98257900006138,"msg":"request completed"}
-{"level":30,"time":1787047619643,"pid":1,"hostname":"0367f96416cd","reqId":"1b6d74ca-31db-46d9-aebc-12a96da3a568","req":{"method":"POST","url":"/v1/auth/request-otp","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":43476},"msg":"incoming request"}
-{"level":50,"time":1787047619693,"pid":1,"hostname":"0367f96416cd","reqId":"1b6d74ca-31db-46d9-aebc-12a96da3a568","error":{"statusCode":429,"code":"otp_cooldown_active"},"statusCode":429,"code":"otp_cooldown_active","msg":"request failed"}
-{"level":30,"time":1787047619694,"pid":1,"hostname":"0367f96416cd","reqId":"1b6d74ca-31db-46d9-aebc-12a96da3a568","res":{"statusCode":429},"responseTime":50.40354199986905,"msg":"request completed"}
-{"level":30,"time":1787047629172,"pid":1,"hostname":"0367f96416cd","reqId":"f3eb9970-34cb-46cb-a7cc-fee0465c277a","req":{"method":"POST","url":"/v1/auth/request-otp","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":52866},"msg":"incoming request"}
-{"level":30,"time":1787047629272,"pid":1,"hostname":"0367f96416cd","reqId":"f3eb9970-34cb-46cb-a7cc-fee0465c277a","res":{"statusCode":200},"responseTime":100.52005599997938,"msg":"request completed"}
-{"level":30,"time":1787047631104,"pid":1,"hostname":"0367f96416cd","reqId":"e3caf35d-b308-47f4-a86f-8d2c34d380f2","req":{"method":"POST","url":"/v1/auth/verify-otp","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":43476},"msg":"incoming request"}
-{"level":30,"time":1787047631298,"pid":1,"hostname":"0367f96416cd","reqId":"e3caf35d-b308-47f4-a86f-8d2c34d380f2","res":{"statusCode":200},"responseTime":193.58118400000967,"msg":"request completed"}
-{"level":30,"time":1787047631515,"pid":1,"hostname":"0367f96416cd","reqId":"8640a5f8-0499-4f60-addf-213a61210547","req":{"method":"GET","url":"/v1/me","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":52866},"msg":"incoming request"}
-{"level":30,"time":1787047631553,"pid":1,"hostname":"0367f96416cd","reqId":"8640a5f8-0499-4f60-addf-213a61210547","res":{"statusCode":200},"responseTime":36.97259600018151,"msg":"request completed"}
-{"level":30,"time":1787047631580,"pid":1,"hostname":"0367f96416cd","reqId":"a699d837-6a29-4ffa-b785-f829aa9799f1","req":{"method":"GET","url":"/v1/bootstrap","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":52866},"msg":"incoming request"}
-{"level":30,"time":1787047631583,"pid":1,"hostname":"0367f96416cd","reqId":"77c73406-5765-4b77-9d7b-78d5c96d09dd","req":{"method":"GET","url":"/v1/stores","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":43476},"msg":"incoming request"}
-{"level":30,"time":1787047631618,"pid":1,"hostname":"0367f96416cd","reqId":"77c73406-5765-4b77-9d7b-78d5c96d09dd","res":{"statusCode":200},"responseTime":34.51185699994676,"msg":"request completed"}
-{"level":50,"time":1787047631865,"pid":1,"hostname":"0367f96416cd","reqId":"a699d837-6a29-4ffa-b785-f829aa9799f1","error":{"code":"ER_NO_SUCH_TABLE","errno":1146,"sqlState":"42S02","sqlMessage":"Table 'c2coffee_app.home_banners' doesn't exist","sql":"\n      SELECT\n        code,\n        title,\n        subtitle,\n        image_source,\n        placement,\n        sort_order,\n        is_active\n      FROM home_banners\n      WHERE is_active = 1\n      ORDER BY sort_order ASC, id ASC\n    "},"statusCode":500,"code":"internal_server_error","msg":"request failed"}
-{"level":30,"time":1787047631866,"pid":1,"hostname":"0367f96416cd","reqId":"a699d837-6a29-4ffa-b785-f829aa9799f1","res":{"statusCode":500},"responseTime":285.0371899998281,"msg":"request completed"}
-{"level":30,"time":1787047641229,"pid":1,"hostname":"0367f96416cd","reqId":"044bf83a-640c-4f88-9835-e9199d6a4445","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":35656},"msg":"incoming request"}
-{"level":30,"time":1787047641259,"pid":1,"hostname":"0367f96416cd","reqId":"044bf83a-640c-4f88-9835-e9199d6a4445","res":{"statusCode":200},"responseTime":29.78995499992743,"msg":"request completed"}
+PS D:\C2Coffee\api> docker compose down
+[+] down 2/2
+ ✔ Container c2coffee-api Removed                                                                        15.8s
+ ✔ Network api_default    Removed                                                                         0.4s
+PS D:\C2Coffee\api> docker compose build --no-cache
+#1 [internal] load local bake definitions
+#1 reading from stdin 503B 0.1s done
+#1 DONE 0.1s
+
+#2 [internal] load build definition from Dockerfile
+#2 transferring dockerfile: 746B 0.0s done
+#2 DONE 0.1s
+
+#3 [internal] load metadata for docker.io/library/node:22-alpine
+#3 ...
+
+#4 [auth] library/node:pull token for registry-1.docker.io
+#4 DONE 0.0s
+
+#3 [internal] load metadata for docker.io/library/node:22-alpine
+#3 DONE 2.0s
+
+#5 [internal] load .dockerignore
+#5 transferring context: 146B 0.0s done
+#5 DONE 0.0s
+
+#6 [internal] load build context
+#6 DONE 0.0s
+
+#7 [deps 1/4] FROM docker.io/library/node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32
+#7 resolve docker.io/library/node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 0.1s done
+#7 DONE 0.1s
+
+#8 [deps 2/4] WORKDIR /app
+#8 CACHED
+
+#6 [internal] load build context
+#6 transferring context: 7.51kB 0.1s done
+#6 DONE 0.1s
+
+#9 [deps 3/4] COPY package.json package-lock.json* ./
+#9 DONE 0.1s
+
+#10 [runtime 4/6] RUN npm ci --omit=dev && npm cache clean --force
+#10 ...
+
+#11 [deps 4/4] RUN npm ci
+#11 ...
+
+#10 [runtime 4/6] RUN npm ci --omit=dev && npm cache clean --force
+#10 12.38
+#10 12.38 added 85 packages, and audited 86 packages in 11s
+#10 12.38
+#10 12.38 28 packages are looking for funding
+#10 12.38   run `npm fund` for details
+#10 12.38
+#10 12.38 found 0 vulnerabilities
+#10 12.39 npm notice
+#10 12.39 npm notice New major version of npm available! 10.9.8 -> 12.0.2
+#10 12.39 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
+#10 12.39 npm notice To update run: npm install -g npm@12.0.2
+#10 12.39 npm notice
+#10 12.90 npm warn using --force Recommended protections disabled.
+#10 ...
+
+#11 [deps 4/4] RUN npm ci
+#11 13.43
+#11 13.43 added 91 packages, and audited 92 packages in 12s
+#11 13.43
+#11 13.43 28 packages are looking for funding
+#11 13.43   run `npm fund` for details
+#11 13.43
+#11 13.43 found 0 vulnerabilities
+#11 13.43 npm notice
+#11 13.43 npm notice New major version of npm available! 10.9.8 -> 12.0.2
+#11 13.43 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
+#11 13.43 npm notice To update run: npm install -g npm@12.0.2
+#11 13.43 npm notice
+#11 DONE 13.8s
+
+#10 [runtime 4/6] RUN npm ci --omit=dev && npm cache clean --force
+#10 DONE 13.8s
+
+#12 [build 3/5] COPY --from=deps /app/node_modules ./node_modules
+#12 DONE 2.1s
+
+#13 [build 4/5] COPY . .
+#13 DONE 1.7s
+
+#14 [build 5/5] RUN npm run build
+#14 2.541
+#14 2.541 > @c2coffee/api@0.1.0 build
+#14 2.541 > tsc -p tsconfig.json && node scripts/copy-sql.mjs
+#14 2.541
+#14 17.61 npm notice
+#14 17.61 npm notice New major version of npm available! 10.9.8 -> 12.0.2
+#14 17.61 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
+#14 17.61 npm notice To update run: npm install -g npm@12.0.2
+#14 17.61 npm notice
+#14 DONE 17.8s
+
+#15 [runtime 5/6] COPY --from=build /app/dist ./dist
+#15 DONE 1.0s
+
+#16 [runtime 6/6] RUN chown -R node:node /app
+#16 DONE 14.1s
+
+#17 exporting to image
+#17 exporting layers
+#17 exporting layers 25.4s done
+#17 exporting manifest sha256:774b4846c7b9ee1f6dbe32bb3ed7265707d91ead2e3ab1f02fd0ecbce65277c7 0.0s done
+#17 exporting config sha256:45225089d808dd5336bda38f94383d2b416c108403d65120a1cf61736698d44b
+#17 exporting config sha256:45225089d808dd5336bda38f94383d2b416c108403d65120a1cf61736698d44b 0.3s done
+#17 exporting attestation manifest sha256:dbb36c17d74d0824a14bfaf6beab0ed4b5cacdf6a01bf1eaa5c75a12faf94884 0.1s done
+#17 exporting manifest list sha256:d18e908ced6de4cd403bd7cf7371ab43793edbd17af992c68ec912c452675abc
+#17 exporting manifest list sha256:d18e908ced6de4cd403bd7cf7371ab43793edbd17af992c68ec912c452675abc 0.0s done
+#17 naming to docker.io/library/api-c2-api:latest done
+#17 unpacking to docker.io/library/api-c2-api:latest
+#17 unpacking to docker.io/library/api-c2-api:latest 15.8s done
+#17 DONE 41.8s
+
+#18 resolving provenance for metadata file
+#18 DONE 0.1s
+[+] build 1/1
+ ✔ Image api-c2-api Built                                                                               102.2s
+PS D:\C2Coffee\api> docker compose up -d
+[+] up 2/2
+ ✔ Network api_default    Created                                                                         0.1s
+ ✔ Container c2coffee-api Started                                                                         2.4s
+
+What's next:
+    Filter, search, and stream logs from all your Compose services
+    in one place with Docker Desktop's Logs view. docker-desktop://dashboard/logs?appId=api
+PS D:\C2Coffee\api> docker compose logs --tail 100 c2-api
+c2coffee-api  | {"level":30,"time":1787136272519,"pid":1,"hostname":"4ce136a26f38","msg":"Server listening athttp://127.0.0.1:8080"}
+c2coffee-api  | {"level":30,"time":1787136272522,"pid":1,"hostname":"4ce136a26f38","msg":"Server listening athttp://172.19.0.2:8080"}
+c2coffee-api  | {"level":30,"time":1787136276174,"pid":1,"hostname":"4ce136a26f38","reqId":"de7e1b6f-4846-4baf-8c5c-1b12c706ffb4","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":53422},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1787136276349,"pid":1,"hostname":"4ce136a26f38","reqId":"de7e1b6f-4846-4baf-8c5c-1b12c706ffb4","res":{"statusCode":200},"responseTime":169.8150599999999,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1787136307320,"pid":1,"hostname":"4ce136a26f38","reqId":"9101cf51-7b43-4848-806f-22b4b409250a","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":55256},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1787136307354,"pid":1,"hostname":"4ce136a26f38","reqId":"9101cf51-7b43-4848-806f-22b4b409250a","res":{"statusCode":200},"responseTime":33.38565599999856,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1787136312819,"pid":1,"hostname":"4ce136a26f38","reqId":"ca3c39ff-df39-43ff-bfe4-70653cf01c89","req":{"method":"OPTIONS","url":"/v1/admin/tenants","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":42598},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1787136312825,"pid":1,"hostname":"4ce136a26f38","reqId":"ca3c39ff-df39-43ff-bfe4-70653cf01c89","res":{"statusCode":204},"responseTime":4.939307000000554,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1787136312826,"pid":1,"hostname":"4ce136a26f38","reqId":"d3d64319-4428-40b9-aa19-d39004c7742d","req":{"method":"OPTIONS","url":"/v1/admin/tenants","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":42608},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1787136312830,"pid":1,"hostname":"4ce136a26f38","reqId":"d3d64319-4428-40b9-aa19-d39004c7742d","res":{"statusCode":204},"responseTime":2.209815999995044,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1787136312842,"pid":1,"hostname":"4ce136a26f38","reqId":"2ae713e9-e97e-489e-b2e8-79d15f6fb295","req":{"method":"GET","url":"/v1/admin/tenants","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":42598},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1787136312871,"pid":1,"hostname":"4ce136a26f38","reqId":"2ae713e9-e97e-489e-b2e8-79d15f6fb295","res":{"statusCode":200},"responseTime":27.502333999997063,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1787136312879,"pid":1,"hostname":"4ce136a26f38","reqId":"28e594c4-7dee-4b59-8e98-e87c2611c875","req":{"method":"GET","url":"/v1/admin/tenants","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":42608},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1787136312898,"pid":1,"hostname":"4ce136a26f38","reqId":"28e594c4-7dee-4b59-8e98-e87c2611c875","res":{"statusCode":200},"responseTime":17.941766000003554,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1787136321376,"pid":1,"hostname":"4ce136a26f38","reqId":"b596dd13-b061-4d97-b8cf-7a6a8f0afb22","req":{"method":"OPTIONS","url":"/v1/admin/auth/login","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":42598},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1787136321379,"pid":1,"hostname":"4ce136a26f38","reqId":"b596dd13-b061-4d97-b8cf-7a6a8f0afb22","res":{"statusCode":204},"responseTime":2.274922999997216,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1787136321389,"pid":1,"hostname":"4ce136a26f38","reqId":"d9b5f950-0db4-4a9f-a1b3-2db879ec1948","req":{"method":"POST","url":"/v1/admin/auth/login","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":42608},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1787136321746,"pid":1,"hostname":"4ce136a26f38","reqId":"d9b5f950-0db4-4a9f-a1b3-2db879ec1948","res":{"statusCode":200},"responseTime":355.91291600000113,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1787136338300,"pid":1,"hostname":"4ce136a26f38","reqId":"d970e517-370c-4a8f-b5e0-d69a63f30972","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":52668},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1787136338334,"pid":1,"hostname":"4ce136a26f38","reqId":"d970e517-370c-4a8f-b5e0-d69a63f30972","res":{"statusCode":200},"responseTime":33.37561399998958,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1787136348309,"pid":1,"hostname":"4ce136a26f38","reqId":"a98bba4b-b531-4e87-95db-3d3b98f237f0","req":{"method":"OPTIONS","url":"/v1/admin/auth/complete-setup","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":42598},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1787136348312,"pid":1,"hostname":"4ce136a26f38","reqId":"a98bba4b-b531-4e87-95db-3d3b98f237f0","res":{"statusCode":204},"responseTime":2.8191030000016326,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1787136348322,"pid":1,"hostname":"4ce136a26f38","reqId":"b131443d-1990-4a3c-8100-8629dd7c5443","req":{"method":"POST","url":"/v1/admin/auth/complete-setup","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":42608},"msg":"incoming request"}
+c2coffee-api  | {"level":50,"time":1787136348373,"pid":1,"hostname":"4ce136a26f38","reqId":"b131443d-1990-4a3c-8100-8629dd7c5443","error":{"issues":[{"code":"invalid_type","expected":"object","received":"string","path":[],"message":"Expected object, received string"}],"name":"ZodError"},"statusCode":500,"code":"internal_server_error","msg":"request failed"}
+c2coffee-api  | {"level":30,"time":1787136348375,"pid":1,"hostname":"4ce136a26f38","reqId":"b131443d-1990-4a3c-8100-8629dd7c5443","res":{"statusCode":500},"responseTime":51.90381299999717,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1787136369273,"pid":1,"hostname":"4ce136a26f38","reqId":"55bf21f0-df1e-4492-9fb7-434f49b27547","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":47816},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1787136369304,"pid":1,"hostname":"4ce136a26f38","reqId":"55bf21f0-df1e-4492-9fb7-434f49b27547","res":{"statusCode":200},"responseTime":30.755302999998094,"msg":"request completed"}
+
+What's next:
+    Filter, search, and stream logs from all your Compose services
+    in one place with Docker Desktop's Logs view. docker-desktop://dashboard/logs?appId=api
+PS D:\C2Coffee\api>

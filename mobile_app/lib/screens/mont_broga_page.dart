@@ -4,6 +4,7 @@ import '../services/cart_service.dart';
 import 'loading_order_page.dart';
 import '../utils/app_colors.dart';
 import '../widgets/catalog_product_image.dart';
+import '../widgets/token_price_pair.dart';
 
 class MontBrogaPage extends StatefulWidget {
   final Map<String, dynamic> item;
@@ -41,6 +42,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
   final AppSessionService _session = AppSessionService.instance;
   Color get orangeColor => AppColors.deepTeal;
   final Color bgColor = Colors.white;
+  bool _showTokenPrice = false;
 
   String selectedBean = 'Dato Blend';
   int espressoShots = 1;
@@ -328,6 +330,12 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
     return basePrice * quantity;
   }
 
+  int get totalTokenPrice {
+    final modifierTokens = _cartModifiers.fold<int>(
+        0, (sum, modifier) => sum + modifier.tokenPriceDelta);
+    return (_baseTokenPrice + modifierTokens) * quantity;
+  }
+
   int get _baseTokenPrice {
     final itemId = widget.item['id'];
     if (itemId is! int) return _itemBasePrice.round();
@@ -338,6 +346,47 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
     if (catalogItem == null) return _itemBasePrice.round();
     final tierPrice = catalogItem.tokenPrices[_session.tier];
     return tierPrice ?? _itemBasePrice.round();
+  }
+
+  String get _rmPriceText {
+    final rawPrice = widget.item['price']?.toString() ?? '16.90';
+    return AppColors.formatDiscountedPrice(
+      rawPrice,
+      isDrink: true,
+      isMerchandise: false,
+    );
+  }
+
+  String get _displayTotalText {
+    if (_showTokenPrice) {
+      return '$totalTokenPrice tokens';
+    }
+    return 'RM ${totalPrice.toStringAsFixed(2)}';
+  }
+
+  Widget _buildExchangeButton() {
+    return GestureDetector(
+      onTap: () => setState(() => _showTokenPrice = !_showTokenPrice),
+      child: Container(
+        width: 34,
+        height: 34,
+        decoration: BoxDecoration(
+          color: _showTokenPrice
+              ? const Color(0xFFE5A93C)
+              : const Color(0xFFFAF7F2),
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: _showTokenPrice ? const Color(0xFFE5A93C) : AppColors.border,
+            width: 1,
+          ),
+        ),
+        child: Icon(
+          Icons.swap_horiz_rounded,
+          size: 18,
+          color: _showTokenPrice ? Colors.white : AppColors.deepTeal,
+        ),
+      ),
+    );
   }
 
   List<CartModifier> get _cartModifiers {
@@ -635,391 +684,402 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                      Text(
-                        widget.item['name']?.toString() ?? 'Mont Broga',
-                        style: const TextStyle(
-                          fontFamily: 'Recoleta',
-                          fontSize: 28,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.black,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _itemDescription,
-                        style: const TextStyle(
-                          fontFamily: 'Afacad',
-                          fontSize: 14,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        decoration: BoxDecoration(
-                          border: Border(
-                            bottom: BorderSide(
-                                color: Colors.black.withValues(alpha: 0.1)),
+                        Text(
+                          widget.item['name']?.toString() ?? 'Mont Broga',
+                          style: const TextStyle(
+                            fontFamily: 'Recoleta',
+                            fontSize: 28,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.black,
                           ),
                         ),
-                        child: Row(
-                          children: [
-                            const Text(
-                              'RM ',
-                              style: TextStyle(
-                                  fontFamily: 'Afacad',
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold),
-                            ),
-                            Text(
-                              _itemBasePrice.toStringAsFixed(2),
-                              style: const TextStyle(
-                                  fontFamily: 'Recoleta',
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold),
-                            ),
-                          ],
-                        ),
-                      ),
-                      // Options
-                      if (_hasChoiceOfBeans) ...[
-                        _buildSectionTitle('Choice of Beans'),
-                        Row(
-                          children: [
-                            _buildOptionCard(
-                              title: 'DATO\nBLEND',
-                              subtitle: 'Bold & Dark\nChocolatey',
-                              value: 'Dato Blend',
-                              groupValue: selectedBean,
-                              onChanged: (v) =>
-                                  setState(() => selectedBean = v),
-                              color: Colors.transparent,
-                              textColor: Colors.white,
-                              isGradient: true,
-                              gradientColors: [
-                                const Color(0xFFC76B26),
-                                const Color(0xFF7A1800)
-                              ],
-                              icon: Image.asset('assets/images/dato.png',
-                                  height: 28, color: Colors.white),
-                            ),
-                            _buildOptionCard(
-                              title: 'DATIN\nBLEND',
-                              subtitle: 'Citrus & Fruity',
-                              value: 'Datin Blend',
-                              groupValue: selectedBean,
-                              onChanged: (v) =>
-                                  setState(() => selectedBean = v),
-                              color: Colors.transparent,
-                              textColor: Colors.white,
-                              isGradient: true,
-                              gradientColors: [
-                                const Color(0xFFE91E63),
-                                const Color(0xFF009624)
-                              ],
-                              icon: Image.asset('assets/images/datin.png',
-                                  height: 28, color: Colors.white),
-                            ),
-                          ],
-                        ),
-                        const Divider(height: 24),
-                      ],
-                      if (_hasEspressoShot) ...[
-                        _buildSectionTitle('Espresso Shot',
-                            required: false, subtitle: 'Optional'),
-                        SliderTheme(
-                          data: SliderThemeData(
-                            activeTrackColor: orangeColor,
-                            inactiveTrackColor:
-                                orangeColor.withValues(alpha: 0.2),
-                            thumbColor: orangeColor,
-                            trackHeight: 4.0,
-                            tickMarkShape: const RoundSliderTickMarkShape(
-                                tickMarkRadius: 8.0),
-                            activeTickMarkColor: orangeColor,
-                            inactiveTickMarkColor:
-                                orangeColor.withValues(alpha: 0.2),
-                          ),
-                          child: Slider(
-                            value: espressoShots.toDouble(),
-                            min: 1,
-                            max: 3,
-                            divisions: 2,
-                            onChanged: (v) =>
-                                setState(() => espressoShots = v.toInt()),
+                        const SizedBox(height: 4),
+                        Text(
+                          _itemDescription,
+                          style: const TextStyle(
+                            fontFamily: 'Afacad',
+                            fontSize: 14,
+                            color: Colors.black87,
                           ),
                         ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                        const SizedBox(height: 16),
+                        Container(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          decoration: BoxDecoration(
+                            border: Border(
+                              bottom: BorderSide(
+                                  color: Colors.black.withValues(alpha: 0.1)),
+                            ),
+                          ),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              const Column(
-                                children: [
-                                  Text(
-                                    '1',
-                                    style: TextStyle(
-                                      fontFamily: 'Afacad',
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.black54,
-                                    ),
-                                  ),
-                                  Text(
-                                    '+0.00',
-                                    style: TextStyle(
-                                      fontFamily: 'Afacad',
-                                      fontSize: 10,
-                                      color: Colors.transparent,
-                                    ),
-                                  ),
-                                ],
+                              AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 200),
+                                child: _showTokenPrice
+                                    ? TokenPricePair(
+                                        key: const ValueKey('tokenPrice'),
+                                        tokenValue: _baseTokenPrice,
+                                        tokenFontSize: 14,
+                                        tokenColor: Colors.black87,
+                                      )
+                                    : Text(
+                                        _rmPriceText,
+                                        key: const ValueKey('rmPrice'),
+                                        style: const TextStyle(
+                                          fontFamily: 'Afacad',
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.black87,
+                                        ),
+                                      ),
                               ),
-                              Column(
-                                children: [
-                                  const Text(
-                                    '2',
-                                    style: TextStyle(
-                                      fontFamily: 'Afacad',
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.black54,
-                                    ),
-                                  ),
-                                  Text(
-                                    '+3.00',
-                                    style: TextStyle(
-                                      fontFamily: 'Afacad',
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                      color: orangeColor,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              Column(
-                                children: [
-                                  const Text(
-                                    '3',
-                                    style: TextStyle(
-                                      fontFamily: 'Afacad',
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.black54,
-                                    ),
-                                  ),
-                                  Text(
-                                    '+6.00',
-                                    style: TextStyle(
-                                      fontFamily: 'Afacad',
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                      color: orangeColor,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                              _buildExchangeButton(),
                             ],
                           ),
                         ),
-                        const Divider(height: 24),
-                      ],
-                      if (_hasTemperatureOption) ...[
-                        _buildSectionTitle('Choice of Temperature'),
-                        Row(
-                          children: [
-                            _buildOptionCard(
-                              title: 'HOT',
-                              subtitle: '+ 0.00',
-                              value: 'Hot',
-                              groupValue: temperature,
-                              onChanged: (v) => setState(() => temperature = v),
-                              color: const Color(0xFFE63900),
-                              textColor: Colors.white,
-                            ),
-                            _buildOptionCard(
-                              title: 'COLD',
-                              subtitle: '+ 0.00',
-                              value: 'Cold',
-                              groupValue: temperature,
-                              onChanged: (v) => setState(() => temperature = v),
-                              color: const Color(0xFF66C2E6),
-                              textColor: Colors.white,
-                            ),
-                          ],
-                        ),
-                        const Divider(height: 24),
-                      ],
-                      if (_hasSparklingMixerOption) ...[
-                        _buildSectionTitle('Choice of Sparkling'),
-                        Row(
-                          children: [
-                            _buildOptionCard(
-                              title: 'GINGER\nADE',
-                              subtitle: '+ 0.00',
-                              value: 'Ginger Ade',
-                              groupValue: sparklingMixer,
-                              onChanged: (v) =>
-                                  setState(() => sparklingMixer = v),
-                              color: const Color(0xFFC76B26),
-                              textColor: Colors.white,
-                            ),
-                            _buildOptionCard(
-                              title: 'TONIC\nWATER',
-                              subtitle: '+ 0.00',
-                              value: 'Tonic Water',
-                              groupValue: sparklingMixer,
-                              onChanged: (v) =>
-                                  setState(() => sparklingMixer = v),
-                              color: const Color(0xFF007AEC),
-                              textColor: Colors.white,
-                            ),
-                          ],
-                        ),
-                        const Divider(height: 24),
-                      ],
-                      if (_hasChoiceOfMilk) ...[
-                        _buildSectionTitle('Choice of Milk'),
-                        Row(
-                          children: [
-                            _buildOptionCard(
-                              title: 'FRESH\nMILK',
-                              subtitle: '+ 0.00',
-                              value: 'Fresh Milk',
-                              groupValue: milk,
-                              onChanged: (v) => setState(() => milk = v),
-                              color: const Color(0xFF007AEC),
-                              textColor: Colors.white,
-                            ),
-                            _buildOptionCard(
-                              title: 'OAT\nMILK',
-                              subtitle: 'OATSIDE\n+ 3.00',
-                              value: 'Oat Milk',
-                              groupValue: milk,
-                              onChanged: (v) => setState(() => milk = v),
-                              color: const Color(0xFF995C00),
-                              textColor: Colors.white,
-                            ),
-                          ],
-                        ),
-                        const Divider(height: 24),
-                      ],
-                      _buildSectionTitle('Choice of Sweetness'),
-                      Row(
-                        children: [
-                          _buildOptionCard(
-                            title: 'NO\nSUGAR',
-                            subtitle: '+ 0.00',
-                            value: 'No Sugar',
-                            groupValue: sweetness,
-                            onChanged: (v) => setState(() => sweetness = v),
-                            color: const Color(0xFF7BDB5C),
-                            textColor: Colors.white,
+                        // Options
+                        if (_hasChoiceOfBeans) ...[
+                          _buildSectionTitle('Choice of Beans'),
+                          Row(
+                            children: [
+                              _buildOptionCard(
+                                title: 'DATO\nBLEND',
+                                subtitle: 'Bold & Dark\nChocolatey',
+                                value: 'Dato Blend',
+                                groupValue: selectedBean,
+                                onChanged: (v) =>
+                                    setState(() => selectedBean = v),
+                                color: Colors.transparent,
+                                textColor: Colors.white,
+                                isGradient: true,
+                                gradientColors: [
+                                  const Color(0xFFC76B26),
+                                  const Color(0xFF7A1800)
+                                ],
+                                icon: Image.asset('assets/images/dato.png',
+                                    height: 28, color: Colors.white),
+                              ),
+                              _buildOptionCard(
+                                title: 'DATIN\nBLEND',
+                                subtitle: 'Citrus & Fruity',
+                                value: 'Datin Blend',
+                                groupValue: selectedBean,
+                                onChanged: (v) =>
+                                    setState(() => selectedBean = v),
+                                color: Colors.transparent,
+                                textColor: Colors.white,
+                                isGradient: true,
+                                gradientColors: [
+                                  const Color(0xFFE91E63),
+                                  const Color(0xFF009624)
+                                ],
+                                icon: Image.asset('assets/images/datin.png',
+                                    height: 28, color: Colors.white),
+                              ),
+                            ],
                           ),
-                          _buildOptionCard(
-                            title: 'LESS\nSWEET',
-                            subtitle: '+ 0.00',
-                            value: 'Less Sweet',
-                            groupValue: sweetness,
-                            onChanged: (v) => setState(() => sweetness = v),
-                            color: const Color(0xFFFF7A00),
-                            textColor: Colors.white,
-                          ),
+                          const Divider(height: 24),
                         ],
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          SizedBox(
-                            width: MediaQuery.of(context).size.width * 0.45,
-                            child: _buildOptionCard(
-                              title: 'REGULAR\nSWEET',
+                        if (_hasEspressoShot) ...[
+                          _buildSectionTitle('Espresso Shot',
+                              required: false, subtitle: 'Optional'),
+                          SliderTheme(
+                            data: SliderThemeData(
+                              activeTrackColor: orangeColor,
+                              inactiveTrackColor:
+                                  orangeColor.withValues(alpha: 0.2),
+                              thumbColor: orangeColor,
+                              trackHeight: 4.0,
+                              tickMarkShape: const RoundSliderTickMarkShape(
+                                  tickMarkRadius: 8.0),
+                              activeTickMarkColor: orangeColor,
+                              inactiveTickMarkColor:
+                                  orangeColor.withValues(alpha: 0.2),
+                            ),
+                            child: Slider(
+                              value: espressoShots.toDouble(),
+                              min: 1,
+                              max: 3,
+                              divisions: 2,
+                              onChanged: (v) =>
+                                  setState(() => espressoShots = v.toInt()),
+                            ),
+                          ),
+                          Padding(
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 24.0),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Column(
+                                  children: [
+                                    Text(
+                                      '1',
+                                      style: TextStyle(
+                                        fontFamily: 'Afacad',
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.black54,
+                                      ),
+                                    ),
+                                    Text(
+                                      '+0.00',
+                                      style: TextStyle(
+                                        fontFamily: 'Afacad',
+                                        fontSize: 10,
+                                        color: Colors.transparent,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                Column(
+                                  children: [
+                                    const Text(
+                                      '2',
+                                      style: TextStyle(
+                                        fontFamily: 'Afacad',
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.black54,
+                                      ),
+                                    ),
+                                    Text(
+                                      '+3.00',
+                                      style: TextStyle(
+                                        fontFamily: 'Afacad',
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: orangeColor,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                Column(
+                                  children: [
+                                    const Text(
+                                      '3',
+                                      style: TextStyle(
+                                        fontFamily: 'Afacad',
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.black54,
+                                      ),
+                                    ),
+                                    Text(
+                                      '+6.00',
+                                      style: TextStyle(
+                                        fontFamily: 'Afacad',
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: orangeColor,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Divider(height: 24),
+                        ],
+                        if (_hasTemperatureOption) ...[
+                          _buildSectionTitle('Choice of Temperature'),
+                          Row(
+                            children: [
+                              _buildOptionCard(
+                                title: 'HOT',
+                                subtitle: '+ 0.00',
+                                value: 'Hot',
+                                groupValue: temperature,
+                                onChanged: (v) =>
+                                    setState(() => temperature = v),
+                                color: const Color(0xFFE63900),
+                                textColor: Colors.white,
+                              ),
+                              _buildOptionCard(
+                                title: 'COLD',
+                                subtitle: '+ 0.00',
+                                value: 'Cold',
+                                groupValue: temperature,
+                                onChanged: (v) =>
+                                    setState(() => temperature = v),
+                                color: const Color(0xFF66C2E6),
+                                textColor: Colors.white,
+                              ),
+                            ],
+                          ),
+                          const Divider(height: 24),
+                        ],
+                        if (_hasSparklingMixerOption) ...[
+                          _buildSectionTitle('Choice of Sparkling'),
+                          Row(
+                            children: [
+                              _buildOptionCard(
+                                title: 'GINGER\nADE',
+                                subtitle: '+ 0.00',
+                                value: 'Ginger Ade',
+                                groupValue: sparklingMixer,
+                                onChanged: (v) =>
+                                    setState(() => sparklingMixer = v),
+                                color: const Color(0xFFC76B26),
+                                textColor: Colors.white,
+                              ),
+                              _buildOptionCard(
+                                title: 'TONIC\nWATER',
+                                subtitle: '+ 0.00',
+                                value: 'Tonic Water',
+                                groupValue: sparklingMixer,
+                                onChanged: (v) =>
+                                    setState(() => sparklingMixer = v),
+                                color: const Color(0xFF007AEC),
+                                textColor: Colors.white,
+                              ),
+                            ],
+                          ),
+                          const Divider(height: 24),
+                        ],
+                        if (_hasChoiceOfMilk) ...[
+                          _buildSectionTitle('Choice of Milk'),
+                          Row(
+                            children: [
+                              _buildOptionCard(
+                                title: 'FRESH\nMILK',
+                                subtitle: '+ 0.00',
+                                value: 'Fresh Milk',
+                                groupValue: milk,
+                                onChanged: (v) => setState(() => milk = v),
+                                color: const Color(0xFF007AEC),
+                                textColor: Colors.white,
+                              ),
+                              _buildOptionCard(
+                                title: 'OAT\nMILK',
+                                subtitle: 'OATSIDE\n+ 3.00',
+                                value: 'Oat Milk',
+                                groupValue: milk,
+                                onChanged: (v) => setState(() => milk = v),
+                                color: const Color(0xFF995C00),
+                                textColor: Colors.white,
+                              ),
+                            ],
+                          ),
+                          const Divider(height: 24),
+                        ],
+                        _buildSectionTitle('Choice of Sweetness'),
+                        Row(
+                          children: [
+                            _buildOptionCard(
+                              title: 'NO\nSUGAR',
                               subtitle: '+ 0.00',
-                              value: 'Regular Sweet',
+                              value: 'No Sugar',
                               groupValue: sweetness,
                               onChanged: (v) => setState(() => sweetness = v),
-                              color: const Color(0xFFD4A017),
-                              textColor: Colors.white,
-                              isExpanded: false,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const Divider(height: 24),
-                      if (_hasIceOption) ...[
-                        _buildSectionTitle('Ice Level'),
-                        Row(
-                          children: [
-                            _buildOptionCard(
-                              title: 'LESS\nICE',
-                              subtitle: '+ 0.00',
-                              value: 'Less Ice',
-                              groupValue: iceLevel,
-                              onChanged: (v) => setState(() => iceLevel = v),
-                              color: const Color(0xFF6B3AB7),
+                              color: const Color(0xFF7BDB5C),
                               textColor: Colors.white,
                             ),
                             _buildOptionCard(
-                              title: 'REGULAR\nICE',
+                              title: 'LESS\nSWEET',
                               subtitle: '+ 0.00',
-                              value: 'Regular Ice',
-                              groupValue: iceLevel,
-                              onChanged: (v) => setState(() => iceLevel = v),
-                              color: const Color(0xFFD47A88),
+                              value: 'Less Sweet',
+                              groupValue: sweetness,
+                              onChanged: (v) => setState(() => sweetness = v),
+                              color: const Color(0xFFFF7A00),
                               textColor: Colors.white,
                             ),
                           ],
                         ),
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            SizedBox(
+                              width: MediaQuery.of(context).size.width * 0.45,
+                              child: _buildOptionCard(
+                                title: 'REGULAR\nSWEET',
+                                subtitle: '+ 0.00',
+                                value: 'Regular Sweet',
+                                groupValue: sweetness,
+                                onChanged: (v) => setState(() => sweetness = v),
+                                color: const Color(0xFFD4A017),
+                                textColor: Colors.white,
+                                isExpanded: false,
+                              ),
+                            ),
+                          ],
+                        ),
                         const Divider(height: 24),
-                      ],
-                      _buildSectionTitle('Order Type'),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          SizedBox(
-                            width: MediaQuery.of(context).size.width * 0.45,
-                            child: _buildOptionCard(
-                              title: 'TAKE\nAWAY',
-                              subtitle: '',
-                              value: 'Take Away',
-                              groupValue: orderType,
-                              onChanged: (v) => setState(() => orderType = v),
-                              color: const Color(0xFFFF6B5C),
-                              textColor: Colors.white,
-                              isExpanded: false,
+                        if (_hasIceOption) ...[
+                          _buildSectionTitle('Ice Level'),
+                          Row(
+                            children: [
+                              _buildOptionCard(
+                                title: 'LESS\nICE',
+                                subtitle: '+ 0.00',
+                                value: 'Less Ice',
+                                groupValue: iceLevel,
+                                onChanged: (v) => setState(() => iceLevel = v),
+                                color: const Color(0xFF6B3AB7),
+                                textColor: Colors.white,
+                              ),
+                              _buildOptionCard(
+                                title: 'REGULAR\nICE',
+                                subtitle: '+ 0.00',
+                                value: 'Regular Ice',
+                                groupValue: iceLevel,
+                                onChanged: (v) => setState(() => iceLevel = v),
+                                color: const Color(0xFFD47A88),
+                                textColor: Colors.white,
+                              ),
+                            ],
+                          ),
+                          const Divider(height: 24),
+                        ],
+                        _buildSectionTitle('Order Type'),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            SizedBox(
+                              width: MediaQuery.of(context).size.width * 0.45,
+                              child: _buildOptionCard(
+                                title: 'TAKE\nAWAY',
+                                subtitle: '',
+                                value: 'Take Away',
+                                groupValue: orderType,
+                                onChanged: (v) => setState(() => orderType = v),
+                                color: const Color(0xFFFF6B5C),
+                                textColor: Colors.white,
+                                isExpanded: false,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const Divider(height: 24),
+                        _buildSectionTitle('Remarks', required: false),
+                        TextField(
+                          controller: remarksController,
+                          maxLines: 4,
+                          textInputAction: TextInputAction.done,
+                          onSubmitted: (_) => _dismissKeyboard(),
+                          onTapOutside: (_) => _dismissKeyboard(),
+                          decoration: InputDecoration(
+                            hintText: 'Add your remark',
+                            hintStyle: const TextStyle(
+                                fontFamily: 'Afacad', color: Colors.black38),
+                            filled: true,
+                            fillColor: Colors.white,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                  color: orangeColor.withValues(alpha: 0.5)),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                  color: orangeColor.withValues(alpha: 0.5)),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: orangeColor),
                             ),
                           ),
-                        ],
-                      ),
-                      const Divider(height: 24),
-                      _buildSectionTitle('Remarks', required: false),
-                      TextField(
-                        controller: remarksController,
-                        maxLines: 4,
-                        textInputAction: TextInputAction.done,
-                        onSubmitted: (_) => _dismissKeyboard(),
-                        onTapOutside: (_) => _dismissKeyboard(),
-                        decoration: InputDecoration(
-                          hintText: 'Add your remark',
-                          hintStyle: const TextStyle(
-                              fontFamily: 'Afacad', color: Colors.black38),
-                          filled: true,
-                          fillColor: Colors.white,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(
-                                color: orangeColor.withValues(alpha: 0.5)),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(
-                                color: orangeColor.withValues(alpha: 0.5)),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: orangeColor),
-                          ),
                         ),
-                      ),
-                      const SizedBox(height: 40),
+                        const SizedBox(height: 40),
                       ],
                     ),
                   ),
@@ -1056,23 +1116,25 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                         fontWeight: FontWeight.bold,
                         color: Colors.black87),
                   ),
-                  Row(
-                    children: [
-                      const Text(
-                        'RM ',
-                        style: TextStyle(
-                            fontFamily: 'Afacad',
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold),
-                      ),
-                      Text(
-                        totalPrice.toStringAsFixed(2),
-                        style: const TextStyle(
-                            fontFamily: 'Recoleta',
-                            fontSize: 17,
-                            fontWeight: FontWeight.bold),
-                      ),
-                    ],
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    child: _showTokenPrice
+                        ? TokenPricePair(
+                            key: const ValueKey('totalTokenPrice'),
+                            tokenValue: totalTokenPrice,
+                            tokenFontSize: 12,
+                            tokenColor: Colors.black87,
+                          )
+                        : Text(
+                            _displayTotalText,
+                            key: const ValueKey('totalRmPrice'),
+                            style: const TextStyle(
+                              fontFamily: 'Afacad',
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
                   ),
                 ],
               ),
@@ -1129,7 +1191,8 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                         if (selectedStore == null) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: const Text('Please select a store first.'),
+                              content:
+                                  const Text('Please select a store first.'),
                               backgroundColor: orangeColor,
                             ),
                           );
@@ -1141,8 +1204,10 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                           storeName: selectedStore.name,
                           item: CartItem(
                             id: '${widget.item['code'] ?? _itemName}-${DateTime.now().microsecondsSinceEpoch}',
-                            menuItemId: (widget.item['id'] as num?)?.toInt() ?? 0,
-                            menuItemCode: widget.item['code']?.toString() ?? _itemName,
+                            menuItemId:
+                                (widget.item['id'] as num?)?.toInt() ?? 0,
+                            menuItemCode:
+                                widget.item['code']?.toString() ?? _itemName,
                             name: _itemName,
                             imageAssetPath: widget.item['image']?.toString(),
                             imageUrl: widget.item['image_url']?.toString(),
@@ -1159,7 +1224,8 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
 
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text('Added $quantity x $_itemName to cart!'),
+                            content:
+                                Text('Added $quantity x $_itemName to cart!'),
                             duration: const Duration(seconds: 2),
                             backgroundColor: orangeColor,
                             behavior: SnackBarBehavior.floating,

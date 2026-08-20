@@ -49,7 +49,7 @@ class _HomePageState extends State<HomePage> {
   File? _persistedPickedImage;
   String? _persistedPresetPath;
   bool _hasShownPoster = false;
-  bool _showTokenPrice = false;
+  final bool _showTokenPrice = false;
   Timer? _carouselTimer;
   int _currentBannerIndex = 0;
 
@@ -280,45 +280,6 @@ class _HomePageState extends State<HomePage> {
               OrderStatusBanner(
                 rightOffset: 90,
                 bottomOffset: 90 + MediaQuery.paddingOf(context).bottom,
-              ),
-              Positioned(
-                bottom: 90 + MediaQuery.paddingOf(context).bottom,
-                right: 20,
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () =>
-                      setState(() => _showTokenPrice = !_showTokenPrice),
-                  child: Container(
-                    width: 60,
-                    height: 60,
-                    decoration: BoxDecoration(
-                      color: _showTokenPrice
-                          ? const Color(0xFFE5A93C)
-                          : const Color(0xFFFAF7F2),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: const Color(0xFFE5A93C),
-                        width: 2,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.18),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Center(
-                      child: Icon(
-                        Icons.monetization_on_rounded,
-                        size: 30,
-                        color: _showTokenPrice
-                            ? Colors.white
-                            : const Color(0xFFE5A93C),
-                      ),
-                    ),
-                  ),
-                ),
               ),
             ],
           ),

@@ -11,8 +11,8 @@ class CatalogPresentation {
     final normalizedCategoryCode = _normalize(categoryCode);
     final isMerchandise = normalizedCategoryCode == 'merchandise' ||
         _isMerchandiseCategory(categoryName, item.name);
-    final isCandle =
-        normalizedCategoryCode == 'candles' || _isCandleCategory(categoryName, item.name);
+    final isCandle = normalizedCategoryCode == 'candles' ||
+        _isCandleCategory(categoryName, item.name);
     final isFood = normalizedCategoryCode == 'food';
 
     return {
@@ -20,6 +20,7 @@ class CatalogPresentation {
       'code': item.code,
       'name': item.name,
       'price': 'RM ${item.basePriceRm}',
+      'tokenPrices': item.tokenPrices,
       'image': '',
       'image_url': item.imageUrl,
       'desc': item.description ?? '',

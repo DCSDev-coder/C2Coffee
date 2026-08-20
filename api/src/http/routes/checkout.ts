@@ -11,6 +11,7 @@ import { z } from 'zod';
 import { authenticateRequest } from '../../auth/guard.js';
 import { env } from '../../config/env.js';
 import { getUtcConnection, mysqlPool } from '../../db/mysql.js';
+import { createUserNotification } from '../notifications.js';
 import { processOrderLoyalty } from '../../services/loyalty.js';
 import { ApiError } from '../errors.js';
 import { getBootstrapForUser } from './auth.js';
@@ -692,10 +693,34 @@ export async function registerCheckoutRoutes(
                 days: tpl.expires_in_days || 30
               }
             );
+
+            await createUserNotification(connection, {
+              userId: referral.referrer_user_id,
+              type: 'referral_reward',
+              title: 'Referral reward unlocked',
+              body: 'You have qualified for a referral reward voucher.',
+              data: {
+                referral_user_id: request.auth.userId,
+                referral_order_id: orderId
+              }
+            });
           }
         }
       }
       await processOrderLoyalty(orderId, request.auth.userId, connection);
+
+      await createUserNotification(connection, {
+        userId: request.auth.userId,
+        type: 'order_created',
+        title: 'Order placed',
+        body: `Your order ${orderRef} has been placed successfully. We will notify you when it is ready for pickup.`,
+        data: {
+          order_id: orderId,
+          order_ref: orderRef,
+          store_id: payload.store_id,
+          pickup_slot_at: _formatMySqlDateTime(pickupSlot)
+        }
+      });
 
       await connection.commit();
       committed = true;
@@ -913,6 +938,17 @@ export async function registerCheckoutRoutes(
           reason: 'Order collected in app.'
         }
       );
+
+      await createUserNotification(connection, {
+        userId: request.auth.userId,
+        type: 'order_collected',
+        title: 'Order collected',
+        body: `Your order ${order.order_ref} has been marked as collected.`,
+        data: {
+          order_id: order.id,
+          order_ref: order.order_ref
+        }
+      });
 
       await connection.commit();
       committed = true;
