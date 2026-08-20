@@ -88,6 +88,10 @@ function App() {
     }
   };
 
+  const handleUpdateUser = (updates) => {
+    setCurrentUser(prev => ({ ...prev, ...updates }));
+  };
+
   const layoutCurrentPage = ['Refunds'].includes(currentPage) ? 'Orders'
     : ['GenerateInvoice', 'RecordExpense', 'RevenueReport', 'ExportStatement', 'AllTransactions', 'ExpenseBreakdownFull'].includes(currentPage) ? 'Finance'
       : ['AllCampaigns', 'AllPushNotifications', 'AllContentPerformance'].includes(currentPage) ? 'Marketing'
@@ -159,7 +163,7 @@ function App() {
       )}
       {currentPage === 'Recent Activities' && <RecentActivities onBack={() => handleNavigate('Dashboard')} />}
       {currentPage === 'Notifications' && <Notifications onBack={() => handleNavigate(prevPage || 'Orders')} />}
-      {currentPage === 'Profile' && <Profile onBack={() => handleNavigate(prevPage || 'Dashboard')} currentUser={currentUser} />}
+      {currentPage === 'Profile' && <Profile onBack={() => handleNavigate(prevPage || 'Dashboard')} currentUser={currentUser} onUpdateUser={handleUpdateUser} />}
       {currentPage === 'Voucher' && <Vouchers onBack={() => handleNavigate(prevPage || 'Dashboard')} />}
       {currentPage === 'Loyalty & Tokens' && <LoyaltyTokens onBack={() => handleNavigate(prevPage || 'Dashboard')} onNavigate={handleNavigate} />}
       {currentPage === 'Tier Management' && <TierManagement onBack={() => handleNavigate('Loyalty & Tokens')} />}

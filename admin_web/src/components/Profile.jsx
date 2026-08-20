@@ -14,7 +14,7 @@ const BasketActionIcon = ({ size = 18 }) => (
   </svg>
 );
 
-const Profile = ({ onBack, currentUser }) => {
+const Profile = ({ onBack, currentUser, onUpdateUser }) => {
   // Form State
   const [profile, setProfile] = useState({
     username: currentUser?.full_name || currentUser?.username || "miraelys",
@@ -45,6 +45,9 @@ const Profile = ({ onBack, currentUser }) => {
       };
       setProfile(newProfile);
       setFormData(newProfile);
+      if (currentUser.avatarUrl) {
+        setAvatarUrl(currentUser.avatarUrl);
+      }
     }
   }, [currentUser]);
   const [isEditing, setIsEditing] = useState(false);
@@ -57,6 +60,9 @@ const Profile = ({ onBack, currentUser }) => {
     if (file) {
       const url = URL.createObjectURL(file);
       setAvatarUrl(url);
+      if (onUpdateUser) {
+        onUpdateUser({ avatarUrl: url });
+      }
     }
   };
 

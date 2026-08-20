@@ -36,7 +36,11 @@ const Header = ({ setCurrentPage, currentPage, currentTenant, currentUser }) => 
           title="View Profile"
         >
           <div className="w-10 h-10 rounded-full bg-[#1F3A34] flex items-center justify-center text-white font-bold text-sm overflow-hidden shadow-sm">
-            {initial}
+            {currentUser?.avatarUrl ? (
+              <img src={currentUser.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+            ) : (
+              initial
+            )}
           </div>
           <div className="flex flex-col">
             <p className="text-sm font-bold text-gray-900 leading-tight">{displayName}</p>
