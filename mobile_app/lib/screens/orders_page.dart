@@ -650,8 +650,9 @@ class _OrdersPageState extends State<OrdersPage>
             .toList();
 
         final currentTokenPrice = currentMenuItem.tokenPrices[_session.tier] ??
-            orderItem.tokenPrice ??
-            0;
+            (currentMenuItem.basePriceToken > 0
+                ? currentMenuItem.basePriceToken
+                : orderItem.tokenPrice ?? 0);
 
         itemsToAdd.add(
           CartItem(

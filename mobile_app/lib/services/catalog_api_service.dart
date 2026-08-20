@@ -41,11 +41,22 @@ class CatalogMenuItem {
   final String name;
   final String? description;
   final String basePriceRm;
+  final int basePriceToken;
   final String? imageUrl;
   final bool isAvailable;
   final bool isHandcraftedDrink;
   final bool isQualifyingCup;
+  final bool allowChoiceOfBeans;
+  final bool allowEspressoShot;
+  final bool allowChoiceOfMilk;
+  final bool allowChoiceOfSweetness;
+  final bool allowIceLevel;
+  final bool allowTemperature;
+  final bool allowSparklingMixer;
+  final bool allowOrderType;
+  final bool allowRemarks;
   final Map<String, int> tokenPrices;
+  final List<CatalogModifierGroup> modifierGroups;
 
   const CatalogMenuItem({
     required this.id,
@@ -53,30 +64,133 @@ class CatalogMenuItem {
     required this.name,
     required this.description,
     required this.basePriceRm,
+    required this.basePriceToken,
     required this.imageUrl,
     required this.isAvailable,
     required this.isHandcraftedDrink,
     required this.isQualifyingCup,
+    required this.allowChoiceOfBeans,
+    required this.allowEspressoShot,
+    required this.allowChoiceOfMilk,
+    required this.allowChoiceOfSweetness,
+    required this.allowIceLevel,
+    required this.allowTemperature,
+    required this.allowSparklingMixer,
+    required this.allowOrderType,
+    required this.allowRemarks,
     required this.tokenPrices,
+    required this.modifierGroups,
   });
 
   factory CatalogMenuItem.fromApi(Map<String, dynamic> json) {
     final rawTokenPrices = Map<String, dynamic>.from(
       (json['token_prices'] as Map?) ?? const {},
     );
+    final modifierGroups = (json['modifier_groups'] as List? ?? const [])
+        .map((group) => CatalogModifierGroup.fromApi(
+              Map<String, dynamic>.from(group as Map),
+            ))
+        .toList();
     return CatalogMenuItem(
       id: (json['id'] as num).toInt(),
       code: json['code'] as String? ?? '',
       name: json['name'] as String? ?? 'Menu Item',
       description: json['description'] as String?,
       basePriceRm: json['base_price_rm'] as String? ?? '0.00',
+      basePriceToken: (json['base_price_token'] as num?)?.toInt() ?? 0,
       imageUrl: json['image_url'] as String?,
       isAvailable: json['is_available'] as bool? ?? true,
       isHandcraftedDrink: json['is_handcrafted_drink'] as bool? ?? false,
       isQualifyingCup: json['is_qualifying_cup'] as bool? ?? false,
+      allowChoiceOfBeans: json['allow_choice_of_beans'] as bool? ?? false,
+      allowEspressoShot: json['allow_espresso_shot'] as bool? ?? false,
+      allowChoiceOfMilk: json['allow_choice_of_milk'] as bool? ?? false,
+      allowChoiceOfSweetness: json['allow_choice_of_sweetness'] as bool? ?? false,
+      allowIceLevel: json['allow_ice_level'] as bool? ?? false,
+      allowTemperature: json['allow_temperature'] as bool? ?? false,
+      allowSparklingMixer: json['allow_sparkling_mixer'] as bool? ?? false,
+      allowOrderType: json['allow_order_type'] as bool? ?? false,
+      allowRemarks: json['allow_remarks'] as bool? ?? false,
       tokenPrices: rawTokenPrices.map(
         (key, value) => MapEntry(key, (value as num).toInt()),
       ),
+      modifierGroups: modifierGroups,
+    );
+  }
+}
+
+class CatalogModifierOption {
+  final int id;
+  final String code;
+  final String name;
+  final String priceDeltaRm;
+  final int tokenPriceDelta;
+  final bool isActive;
+  final int sortOrder;
+
+  const CatalogModifierOption({
+    required this.id,
+    required this.code,
+    required this.name,
+    required this.priceDeltaRm,
+    required this.tokenPriceDelta,
+    required this.isActive,
+    required this.sortOrder,
+  });
+
+  factory CatalogModifierOption.fromApi(Map<String, dynamic> json) {
+    return CatalogModifierOption(
+      id: (json['id'] as num).toInt(),
+      code: json['code'] as String? ?? '',
+      name: json['name'] as String? ?? '',
+      priceDeltaRm: json['price_delta_rm'] as String? ?? '0.00',
+      tokenPriceDelta: (json['token_price_delta'] as num?)?.toInt() ?? 0,
+      isActive: json['is_active'] as bool? ?? true,
+      sortOrder: (json['sort_order'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
+class CatalogModifierGroup {
+  final int id;
+  final String code;
+  final String name;
+  final String selectionType;
+  final int minSelect;
+  final int maxSelect;
+  final bool isRequired;
+  final int sortOrder;
+  final List<CatalogModifierOption> options;
+
+  const CatalogModifierGroup({
+    required this.id,
+    required this.code,
+    required this.name,
+    required this.selectionType,
+    required this.minSelect,
+    required this.maxSelect,
+    required this.isRequired,
+    required this.sortOrder,
+    required this.options,
+  });
+
+  factory CatalogModifierGroup.fromApi(Map<String, dynamic> json) {
+    final options = (json['options'] as List? ?? const [])
+        .map((option) => CatalogModifierOption.fromApi(
+              Map<String, dynamic>.from(option as Map),
+            ))
+        .toList();
+
+    return CatalogModifierGroup(
+      id: (json['id'] as num).toInt(),
+      code: json['code'] as String? ?? '',
+      name: json['name'] as String? ?? '',
+      selectionType: json['selection_type'] as String? ?? 'single',
+      minSelect: (json['min_select'] as num?)?.toInt() ?? 0,
+      maxSelect: (json['max_select'] as num?)?.toInt() ?? 1,
+      isRequired: json['is_required'] as bool? ?? false,
+      sortOrder: (json['sort_order'] as num?)?.toInt() ?? 0,
+      options: options,
     );
   }
 }

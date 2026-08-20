@@ -59,6 +59,19 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
   String get _itemCategory => (widget.item['category'] ?? '').toString();
   String get _itemImage => (widget.item['image'] ?? '').toString();
 
+  bool _flagEnabled(String key, {required bool fallback}) {
+    if (widget.item.containsKey(key)) {
+      final value = widget.item[key];
+      if (value is bool) return value;
+      if (value is num) return value.toInt() != 0;
+      if (value is String) {
+        final normalized = value.toLowerCase().trim();
+        return normalized == 'true' || normalized == '1' || normalized == 'yes';
+      }
+    }
+    return fallback;
+  }
+
   bool get _isPastry {
     final img = _itemImage.toLowerCase();
     final name = _itemName.toLowerCase();
@@ -93,7 +106,8 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
   bool get _isMocktail {
     final name = _itemName.toLowerCase();
     final cat = _itemCategory.toLowerCase();
-    return cat.contains('mocktail') ||
+    return cat.contains('sparkling') ||
+        cat.contains('mocktail') ||
         name.contains('boijito') ||
         name.contains('peach') ||
         name.contains('fuji fizz') ||
@@ -103,7 +117,10 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
 
   bool get _isTea {
     final name = _itemName.toLowerCase();
-    return name.contains('jasmine') || name.contains('solero');
+    final cat = _itemCategory.toLowerCase();
+    return cat.contains('tea') ||
+        name.contains('jasmine') ||
+        name.contains('solero');
   }
 
   bool get _isMatcha {
@@ -115,12 +132,15 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
   bool get _isChocolate {
     final name = _itemName.toLowerCase();
     final cat = _itemCategory.toLowerCase();
-    return cat.contains('chocolate') || name.contains('chocolate');
+    return cat.contains('chocolate') ||
+        name.contains('chocolate');
   }
 
   bool get _isMilkshake {
     final name = _itemName.toLowerCase();
-    return name.contains('milkshake') ||
+    final cat = _itemCategory.toLowerCase();
+    return cat.contains('milkshake') ||
+        name.contains('milkshake') ||
         name.contains('pinky blush') ||
         name.contains('paddle pop');
   }
@@ -152,57 +172,85 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
   }
 
   bool get _hasChoiceOfBeans {
-    if (!_isDrink) return false;
-    if (_isMocktail || _isMatcha || _isChocolate || _isMilkshake || _isTea) {
-      return false;
-    }
-    return true;
+    return _flagEnabled(
+      'allowChoiceOfBeans',
+      fallback: _isDrink &&
+          !(_isMocktail || _isMatcha || _isChocolate || _isMilkshake || _isTea),
+    );
   }
 
   bool get _hasEspressoShot {
-    if (!_isDrink) return false;
-    if (_isMocktail || _isChocolate || _isMilkshake || _isMatcha || _isTea) {
-      return false;
-    }
-    final name = _itemName.toLowerCase();
-    if (name.contains('v60')) {
-      return false;
-    }
-    return true;
+    return _flagEnabled(
+      'allowEspressoShot',
+      fallback: _isDrink &&
+          !(_isMocktail || _isChocolate || _isMilkshake || _isMatcha || _isTea) &&
+          !_itemName.toLowerCase().contains('v60'),
+    );
   }
 
   bool get _hasChoiceOfMilk {
-    if (!_isDrink) return false;
-    final name = _itemName.toLowerCase();
-    if (_isMocktail || _isTea) {
-      return false;
-    }
-    if (name.contains('mont broga') ||
-        name.contains('shakerato') ||
-        name.contains('yuzukano') ||
-        name.contains('senja di broga') ||
-        name.contains('espresso bomb') ||
-        name.contains('blue cloud') ||
-        name.contains('v60') ||
-        name == 'espresso' ||
-        name.contains('solero')) {
-      return false;
-    }
-    return true;
+    return _flagEnabled(
+      'allowChoiceOfMilk',
+      fallback: () {
+        if (!_isDrink) return false;
+        final name = _itemName.toLowerCase();
+        if (_isMocktail || _isTea) {
+          return false;
+        }
+        if (name.contains('mont broga') ||
+            name.contains('shakerato') ||
+            name.contains('yuzukano') ||
+            name.contains('senja di broga') ||
+            name.contains('espresso bomb') ||
+            name.contains('blue cloud') ||
+            name.contains('v60') ||
+            name == 'espresso' ||
+            name.contains('solero')) {
+          return false;
+        }
+        return true;
+      }(),
+    );
   }
 
-  bool get _hasTemperatureOption => _isDrink && !_isColdOnly && !_isHotOnly;
+  bool get _hasTemperatureOption => _flagEnabled(
+        'allowTemperature',
+        fallback: _isDrink && !_isColdOnly && !_isHotOnly,
+      );
 
   bool get _hasIceOption {
-    if (!_isDrink) return false;
-    if (_isHotOnly) return false;
-    if (_isColdOnly) return true;
-    return temperature == 'Cold';
+    return _flagEnabled(
+      'allowIceLevel',
+      fallback: () {
+        if (!_isDrink) return false;
+        if (_isHotOnly) return false;
+        if (_isColdOnly) return true;
+        return temperature == 'Cold';
+      }(),
+    );
   }
 
   bool get _hasSparklingMixerOption {
-    return _isDrink && _itemName.toLowerCase().contains('espresso bomb');
+    return _flagEnabled(
+      'allowSparklingMixer',
+      fallback: _isDrink && _itemName.toLowerCase().contains('espresso bomb'),
+    );
   }
+
+  bool get _hasChoiceOfSweetness => _flagEnabled(
+        'allowChoiceOfSweetness',
+        fallback: _isDrink,
+      );
+
+  bool get _hasOrderType => _flagEnabled(
+        'allowOrderType',
+        fallback: _isDrink,
+      );
+
+  bool get _hasRemarks => _flagEnabled(
+        'allowRemarks',
+        fallback: _isDrink,
+      );
 
   @override
   void initState() {
@@ -841,49 +889,51 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                           ),
                           const Divider(height: 24),
                         ],
-                        _buildSectionTitle('Choice of Sweetness'),
-                        Row(
-                          children: [
-                            _buildOptionCard(
-                              title: 'NO\nSUGAR',
-                              subtitle: '+ 0.00',
-                              value: 'No Sugar',
-                              groupValue: sweetness,
-                              onChanged: (v) => setState(() => sweetness = v),
-                              color: const Color(0xFF7BDB5C),
-                              textColor: Colors.white,
-                            ),
-                            _buildOptionCard(
-                              title: 'LESS\nSWEET',
-                              subtitle: '+ 0.00',
-                              value: 'Less Sweet',
-                              groupValue: sweetness,
-                              onChanged: (v) => setState(() => sweetness = v),
-                              color: const Color(0xFFFF7A00),
-                              textColor: Colors.white,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            SizedBox(
-                              width: MediaQuery.of(context).size.width * 0.45,
-                              child: _buildOptionCard(
-                                title: 'REGULAR\nSWEET',
+                        if (_hasChoiceOfSweetness) ...[
+                          _buildSectionTitle('Choice of Sweetness'),
+                          Row(
+                            children: [
+                              _buildOptionCard(
+                                title: 'NO\nSUGAR',
                                 subtitle: '+ 0.00',
-                                value: 'Regular Sweet',
+                                value: 'No Sugar',
                                 groupValue: sweetness,
                                 onChanged: (v) => setState(() => sweetness = v),
-                                color: const Color(0xFFD4A017),
+                                color: const Color(0xFF7BDB5C),
                                 textColor: Colors.white,
-                                isExpanded: false,
                               ),
-                            ),
-                          ],
-                        ),
-                        const Divider(height: 24),
+                              _buildOptionCard(
+                                title: 'LESS\nSWEET',
+                                subtitle: '+ 0.00',
+                                value: 'Less Sweet',
+                                groupValue: sweetness,
+                                onChanged: (v) => setState(() => sweetness = v),
+                                color: const Color(0xFFFF7A00),
+                                textColor: Colors.white,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              SizedBox(
+                                width: MediaQuery.of(context).size.width * 0.45,
+                                child: _buildOptionCard(
+                                  title: 'REGULAR\nSWEET',
+                                  subtitle: '+ 0.00',
+                                  value: 'Regular Sweet',
+                                  groupValue: sweetness,
+                                  onChanged: (v) => setState(() => sweetness = v),
+                                  color: const Color(0xFFD4A017),
+                                  textColor: Colors.white,
+                                  isExpanded: false,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const Divider(height: 24),
+                        ],
                         if (_hasIceOption) ...[
                           _buildSectionTitle('Ice Level'),
                           Row(
@@ -910,53 +960,57 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                           ),
                           const Divider(height: 24),
                         ],
-                        _buildSectionTitle('Order Type'),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            SizedBox(
-                              width: MediaQuery.of(context).size.width * 0.45,
-                              child: _buildOptionCard(
-                                title: 'TAKE\nAWAY',
-                                subtitle: '',
-                                value: 'Take Away',
-                                groupValue: orderType,
-                                onChanged: (v) => setState(() => orderType = v),
-                                color: const Color(0xFFFF6B5C),
-                                textColor: Colors.white,
-                                isExpanded: false,
+                        if (_hasOrderType) ...[
+                          _buildSectionTitle('Order Type'),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              SizedBox(
+                                width: MediaQuery.of(context).size.width * 0.45,
+                                child: _buildOptionCard(
+                                  title: 'TAKE\nAWAY',
+                                  subtitle: '',
+                                  value: 'Take Away',
+                                  groupValue: orderType,
+                                  onChanged: (v) => setState(() => orderType = v),
+                                  color: const Color(0xFFFF6B5C),
+                                  textColor: Colors.white,
+                                  isExpanded: false,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const Divider(height: 24),
+                        ],
+                        if (_hasRemarks) ...[
+                          _buildSectionTitle('Remarks', required: false),
+                          TextField(
+                            controller: remarksController,
+                            maxLines: 4,
+                            decoration: InputDecoration(
+                              hintText: 'Add your remark',
+                              hintStyle: const TextStyle(
+                                  fontFamily: 'Afacad', color: Colors.black38),
+                              filled: true,
+                              fillColor: Colors.white,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                    color: orangeColor.withValues(alpha: 0.5)),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                    color: orangeColor.withValues(alpha: 0.5)),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(color: orangeColor),
                               ),
                             ),
-                          ],
-                        ),
-                        const Divider(height: 24),
-                        _buildSectionTitle('Remarks', required: false),
-                        TextField(
-                          controller: remarksController,
-                          maxLines: 4,
-                          decoration: InputDecoration(
-                            hintText: 'Add your remark',
-                            hintStyle: const TextStyle(
-                                fontFamily: 'Afacad', color: Colors.black38),
-                            filled: true,
-                            fillColor: Colors.white,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(
-                                  color: orangeColor.withValues(alpha: 0.5)),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(
-                                  color: orangeColor.withValues(alpha: 0.5)),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: orangeColor),
-                            ),
                           ),
-                        ),
-                        const SizedBox(height: 40),
+                          const SizedBox(height: 40),
+                        ],
                       ] else ...[
                         const SizedBox(height: 20),
                       ],

@@ -39,6 +39,42 @@ export async function loadAdminTenants() {
   return response.tenants || [];
 }
 
+export async function loadAdminMenu() {
+  return adminRequest('/v1/admin/menu');
+}
+
+export async function createAdminMenuItem(payload) {
+  return adminRequest('/v1/admin/menu/items', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function updateAdminMenuItem(menuItemId, payload) {
+  return adminRequest(`/v1/admin/menu/items/${menuItemId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function deleteAdminMenuItem(menuItemId) {
+  return adminRequest(`/v1/admin/menu/items/${menuItemId}`, {
+    method: 'DELETE'
+  });
+}
+
+export async function uploadAdminMenuImage(file) {
+  const dataUrl = await readFileAsDataUrl(file);
+  return adminRequest('/v1/admin/menu/uploads', {
+    method: 'POST',
+    body: JSON.stringify({
+      file_name: file.name,
+      mime_type: file.type || 'image/png',
+      data_url: dataUrl
+    })
+  });
+}
+
 export async function adminRequest(path, options = {}) {
   const { headers: optionHeaders, ...requestOptions } = options;
   const { accessToken } = loadAdminTokens();
@@ -70,4 +106,13 @@ export async function adminRequest(path, options = {}) {
   }
 
   return body;
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error('Unable to read image file.'));
+    reader.readAsDataURL(file);
+  });
 }

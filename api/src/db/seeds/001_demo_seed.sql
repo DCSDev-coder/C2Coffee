@@ -208,7 +208,7 @@ ON DUPLICATE KEY UPDATE
 INSERT INTO menu_categories (code, name, sort_order, is_active)
 VALUES
   ('coffee', 'Coffee', 10, 1),
-  ('non_coffee', 'Non Coffee', 20, 1),
+  ('non_coffee', 'Barista Craft', 20, 1),
   ('food', 'Food', 30, 1),
   ('merchandise', 'Merchandise', 40, 1),
   ('candles', 'Candles', 50, 1)

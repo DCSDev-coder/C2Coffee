@@ -72,33 +72,55 @@ class _MenuPageState extends State<MenuPage> {
   }
 
   List<_MenuSection> get _uiSections {
-    final sections = <_MenuSection>[];
     final query = _searchController.text.trim().toLowerCase();
+    final sections = <String, _MenuSectionBuilder>{};
 
-    for (final category in _session.menuCategories) {
-      final items = category.items
-          .where((item) => item.isAvailable)
-          .map(
-            (item) => CatalogPresentation.toLegacyItem(
-                item, category.code, category.name),
-          )
-          .where((item) {
-        if (query.isEmpty) return true;
-        final name = item['name']?.toString().toLowerCase() ?? '';
-        return name.contains(query);
-      }).toList();
+    for (var categoryIndex = 0;
+        categoryIndex < _session.menuCategories.length;
+        categoryIndex++) {
+      final category = _session.menuCategories[categoryIndex];
+      for (final item in category.items.where((item) => item.isAvailable)) {
+        final legacyItem =
+            CatalogPresentation.toLegacyItem(item, category.code, category.name);
+        if (query.isNotEmpty) {
+          final name = legacyItem['name']?.toString().toLowerCase() ?? '';
+          if (!name.contains(query)) {
+            continue;
+          }
+        }
 
-      sections.add(
-        _MenuSection(
-          id: category.id,
-          title: category.name,
-          sidebarLabel: CatalogPresentation.sidebarLabel(category.name),
-          items: items,
-        ),
-      );
+        final sectionTitle = CatalogPresentation.displayCategoryName(category.name);
+        final sectionKey = category.code;
+        final sectionSortOrder = categoryIndex * 1000;
+
+        final builder = sections.putIfAbsent(
+          sectionKey,
+          () => _MenuSectionBuilder(
+            key: sectionKey,
+            title: sectionTitle,
+            sidebarLabel: CatalogPresentation.sidebarLabel(sectionTitle),
+            sortOrder: sectionSortOrder,
+          ),
+        );
+        builder.items.add(legacyItem);
+      }
     }
 
-    return sections.where((section) => section.items.isNotEmpty).toList();
+    return sections.values
+        .where((section) => section.items.isNotEmpty)
+        .map(
+          (section) => _MenuSection(
+            key: section.key,
+            title: section.title,
+            sidebarLabel: section.sidebarLabel,
+            sortOrder: section.sortOrder,
+            items: List.unmodifiable(section.items),
+          ),
+        )
+        .toList()
+      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder) != 0
+          ? a.sortOrder.compareTo(b.sortOrder)
+          : a.title.compareTo(b.title));
   }
 
   void _ensureSectionKeys(int length) {
@@ -786,15 +808,32 @@ class _MenuPageState extends State<MenuPage> {
 }
 
 class _MenuSection {
-  final int id;
+  final String key;
   final String title;
   final String sidebarLabel;
+  final int sortOrder;
   final List<Map<String, dynamic>> items;
 
   const _MenuSection({
-    required this.id,
+    required this.key,
     required this.title,
     required this.sidebarLabel,
+    required this.sortOrder,
     required this.items,
+  });
+}
+
+class _MenuSectionBuilder {
+  final String key;
+  final String title;
+  final String sidebarLabel;
+  final int sortOrder;
+  final List<Map<String, dynamic>> items = [];
+
+  _MenuSectionBuilder({
+    required this.key,
+    required this.title,
+    required this.sidebarLabel,
+    required this.sortOrder,
   });
 }

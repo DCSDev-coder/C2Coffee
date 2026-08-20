@@ -31,10 +31,20 @@ type MenuRow = RowDataPacket & {
   item_name: string;
   item_description: string | null;
   base_price_rm: string;
+  base_price_token: number;
   image_url: string | null;
   is_available: number;
   is_handcrafted_drink: number;
   is_qualifying_cup: number;
+  allow_choice_of_beans: number;
+  allow_espresso_shot: number;
+  allow_choice_of_milk: number;
+  allow_choice_of_sweetness: number;
+  allow_ice_level: number;
+  allow_temperature: number;
+  allow_sparkling_mixer: number;
+  allow_order_type: number;
+  allow_remarks: number;
   tier_code: 'kawan' | 'dilamun' | 'ketagih' | 'legend' | null;
   token_price: number | null;
   modifier_group_id: number | null;
@@ -78,10 +88,20 @@ type MenuItemResponse = {
   name: string;
   description: string | null;
   base_price_rm: string;
+  base_price_token: number;
   image_url: string | null;
   is_available: boolean;
   is_handcrafted_drink: boolean;
   is_qualifying_cup: boolean;
+  allow_choice_of_beans: boolean;
+  allow_espresso_shot: boolean;
+  allow_choice_of_milk: boolean;
+  allow_choice_of_sweetness: boolean;
+  allow_ice_level: boolean;
+  allow_temperature: boolean;
+  allow_sparkling_mixer: boolean;
+  allow_order_type: boolean;
+  allow_remarks: boolean;
   token_prices: Record<string, number>;
   modifier_groups: Array<MenuModifierGroup>;
 };
@@ -181,10 +201,20 @@ export async function registerCatalogRoutes(app: FastifyInstance): Promise<void>
           i.name AS item_name,
           i.description AS item_description,
           CAST(i.base_price_rm AS CHAR) AS base_price_rm,
+          i.base_price_token,
           i.image_url,
           COALESCE(a.is_available, 1) AS is_available,
           i.is_handcrafted_drink,
           i.is_qualifying_cup,
+          i.allow_choice_of_beans,
+          i.allow_espresso_shot,
+          i.allow_choice_of_milk,
+          i.allow_choice_of_sweetness,
+          i.allow_ice_level,
+          i.allow_temperature,
+          i.allow_sparkling_mixer,
+          i.allow_order_type,
+          i.allow_remarks,
           tp.tier_code,
           tp.token_price,
           img.id AS modifier_group_id,
@@ -255,16 +285,26 @@ export async function registerCatalogRoutes(app: FastifyInstance): Promise<void>
       const itemKey = `${row.category_id}:${row.item_id}`;
       let itemIndex = itemsByCategory.get(itemKey);
       if (itemIndex === undefined) {
-        category.items.push({
+          category.items.push({
           id: row.item_id,
           code: row.item_code,
           name: row.item_name,
           description: row.item_description,
           base_price_rm: row.base_price_rm,
+          base_price_token: row.base_price_token,
           image_url: _resolveImageUrl(row.image_url),
           is_available: row.is_available === 1,
           is_handcrafted_drink: row.is_handcrafted_drink === 1,
           is_qualifying_cup: row.is_qualifying_cup === 1,
+          allow_choice_of_beans: row.allow_choice_of_beans === 1,
+          allow_espresso_shot: row.allow_espresso_shot === 1,
+          allow_choice_of_milk: row.allow_choice_of_milk === 1,
+          allow_choice_of_sweetness: row.allow_choice_of_sweetness === 1,
+          allow_ice_level: row.allow_ice_level === 1,
+          allow_temperature: row.allow_temperature === 1,
+          allow_sparkling_mixer: row.allow_sparkling_mixer === 1,
+          allow_order_type: row.allow_order_type === 1,
+          allow_remarks: row.allow_remarks === 1,
           token_prices: {},
           modifier_groups: []
         });

@@ -76,7 +76,10 @@ class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
         );
     if (catalogItem == null) return _itemBasePrice.round();
     final tierPrice = catalogItem.tokenPrices[_session.tier];
-    return tierPrice ?? _itemBasePrice.round();
+    if (tierPrice != null) return tierPrice;
+    final baseTokenPrice = catalogItem.basePriceToken as int?;
+    if (baseTokenPrice != null && baseTokenPrice > 0) return baseTokenPrice;
+    return _itemBasePrice.round();
   }
 
   String get _rmPriceText {
