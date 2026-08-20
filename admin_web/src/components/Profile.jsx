@@ -454,7 +454,7 @@ const Profile = ({ onBack, currentUser, onUpdateUser }) => {
                   <Laptop size={20} className="text-[#2E5E58]" />
                   <div>
                     <p className="font-bold text-gray-900">Windows PC – Chrome 124 (Current)</p>
-                    <p className="text-gray-500">IP: 175.143.28.91 • Kuala Lumpur, MY</p>
+                    <p className="text-gray-500">Kuala Lumpur, MY</p>
                   </div>
                 </div>
                 <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-green-100 text-green-800">Active Now</span>
@@ -464,7 +464,7 @@ const Profile = ({ onBack, currentUser, onUpdateUser }) => {
                   <Smartphone size={20} className="text-gray-500" />
                   <div>
                     <p className="font-bold text-gray-900">iPhone 15 Pro – Safari</p>
-                    <p className="text-gray-500">IP: 175.143.28.91 • Semenyih, MY</p>
+                    <p className="text-gray-500">Semenyih, MY</p>
                   </div>
                 </div>
                 <button
@@ -533,21 +533,21 @@ const Profile = ({ onBack, currentUser, onUpdateUser }) => {
               <div className="py-2.5 flex justify-between">
                 <div>
                   <p className="font-bold text-gray-900">Successful Login</p>
-                  <p className="text-gray-500">19 Aug 2026 – 8:30 AM • IP: 175.143.28.91</p>
+                  <p className="text-gray-500">19 Aug 2026 – 8:30 AM</p>
                 </div>
                 <span className="text-green-700 font-bold">Success</span>
               </div>
               <div className="py-2.5 flex justify-between">
                 <div>
                   <p className="font-bold text-gray-900">Successful Login</p>
-                  <p className="text-gray-500">19 Aug 2026 – 9:02 AM • IP: 175.143.28.91</p>
+                  <p className="text-gray-500">19 Aug 2026 – 9:02 AM</p>
                 </div>
                 <span className="text-green-700 font-bold">Success</span>
               </div>
               <div className="py-2.5 flex justify-between">
                 <div>
                   <p className="font-bold text-gray-900">Successful Login</p>
-                  <p className="text-gray-500">19 Aug 2026 – 8:45 AM • IP: 175.143.28.91</p>
+                  <p className="text-gray-500">19 Aug 2026 – 8:45 AM</p>
                 </div>
                 <span className="text-green-700 font-bold">Success</span>
               </div>

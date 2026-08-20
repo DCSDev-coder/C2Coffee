@@ -72,7 +72,7 @@ const AuditLogs = ({ onNavigate, currentUser }) => {
 
   const handleExport = () => {
     const csvContent = [
-      ["Date & Time", "Username", "Email", "Action", "Module", "Details", "IP Address", "Status"],
+      ["Date & Time", "Username", "Email", "Action", "Module", "Details", "Status"],
       ...filteredData.map(log => [
         `"${log.date} ${log.time}"`,
         `"${log.username}"`,
@@ -80,7 +80,6 @@ const AuditLogs = ({ onNavigate, currentUser }) => {
         `"${log.action}"`,
         `"${log.module}"`,
         `"${log.details}"`,
-        `"${log.ip}"`,
         `"${log.status}"`
       ])
     ];
@@ -231,7 +230,6 @@ const AuditLogs = ({ onNavigate, currentUser }) => {
                   <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Action</th>
                   <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Module</th>
                   <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Details</th>
-                  <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">IP Address</th>
                   <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Actions</th>
                 </tr>
               </thead>
@@ -258,7 +256,6 @@ const AuditLogs = ({ onNavigate, currentUser }) => {
                       <td className="px-6 py-4 text-gray-700">{log.action}</td>
                       <td className="px-6 py-4 text-gray-700">{log.module}</td>
                       <td className="px-6 py-4 text-gray-700 max-w-[250px] truncate" title={log.details}>{log.details}</td>
-                      <td className="px-6 py-4 text-gray-700">{log.ip}</td>
                       <td className="px-6 py-4">
                         <span className={`inline-flex px-2.5 py-1 rounded-md text-xs font-bold ${
                           log.status === "Success" 
@@ -272,7 +269,7 @@ const AuditLogs = ({ onNavigate, currentUser }) => {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="7" className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
                       No logs found.
                     </td>
                   </tr>
