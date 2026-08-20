@@ -361,7 +361,7 @@ const getRefundStatusBadge = (status) => {
   }
 };
 
-const fmtPrice = (n) => `RM ${n.toFixed(2)}`;
+const fmtPrice = (n) => `Tokens ${n.toFixed(2)}`;
 const ITEMS_PER_PAGE = 10;
 const STATUSES = ["All Status", "Pending", "Under Review", "Approved", "Rejected"];
 

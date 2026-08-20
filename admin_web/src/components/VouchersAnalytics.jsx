@@ -61,7 +61,7 @@ const timeSeriesData = [
 const topVouchers = [
   { id: "VCH-1001", name: "Free Latte", redemptions: "2,980", rate: "74.5%" },
   { id: "VCH-1002", name: "15% Off Total Bill", redemptions: "2,140", rate: "68.2%" },
-  { id: "VCH-1003", name: "RM 5 Instant Discount", redemptions: "1,680", rate: "62.0%" },
+  { id: "VCH-1003", name: "Tokens 5 Instant Discount", redemptions: "1,680", rate: "62.0%" },
   { id: "VCH-1004", name: "Buy 1 Free 1 Shakerato", redemptions: "940", rate: "55.4%" },
   { id: "VCH-1005", name: "Free Cinnamon Roll", redemptions: "580", rate: "48.1%" }
 ];
@@ -91,7 +91,7 @@ const recentActivityData = [
     customer: "Miraelys",
     customerId: "ID: C2-000183",
     detail: "Order ORD-0510-001",
-    subDetail: "-RM 0.00"
+    subDetail: "-Tokens 0.00"
   },
   {
     id: 2,
@@ -113,7 +113,7 @@ const recentActivityData = [
     customer: "Miraelys",
     customerId: "ID: C2-000183",
     detail: "Order ORD-0510-001",
-    subDetail: "-RM 0.00"
+    subDetail: "-Tokens 0.00"
   },
   {
     id: 4,
@@ -124,7 +124,7 @@ const recentActivityData = [
     customer: "Miraelys",
     customerId: "ID: C2-000183",
     detail: "Order ORD-0510-001",
-    subDetail: "-RM 0.00"
+    subDetail: "-Tokens 0.00"
   },
   {
     id: 5,
@@ -135,7 +135,7 @@ const recentActivityData = [
     customer: "Alex Chong",
     customerId: "ID: C2-000184",
     detail: "Order ORD-0510-003",
-    subDetail: "-RM 4.50"
+    subDetail: "-Tokens 4.50"
   }
 ];
 

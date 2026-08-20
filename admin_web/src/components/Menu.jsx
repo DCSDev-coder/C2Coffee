@@ -53,10 +53,10 @@ const KPICard = ({ title, value, change, icon: Icon, iconBg, iconColor = 'text-w
 const formatMoney = (value) => {
   const numericValue = Number(value);
   if (!Number.isFinite(numericValue)) {
-    return 'RM 0.00';
+    return 'Tokens 0.00';
   }
 
-  return `RM ${numericValue.toLocaleString('en-MY', {
+  return `Tokens ${numericValue.toLocaleString('en-MY', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
   })}`;
@@ -405,7 +405,7 @@ const Menu = () => {
     [
       'Menu Item',
       'Category',
-      'RM Price',
+      'Tokens Price',
       'Token Price',
       'Status',
       'Sales',
@@ -482,7 +482,7 @@ const Menu = () => {
           <KPICard title="Categories" value={String(menuCategories.length)} change="Live menu groups" icon={Layers} iconBg="bg-[#2E5E58]" />
           <KPICard title="Available Items" value={String(availableItems)} change={`${totalMenuItems > 0 ? ((availableItems / totalMenuItems) * 100).toFixed(1) : '0.0'}% active`} icon={CheckCircle2} iconBg="bg-[#6F9F96]" />
           <KPICard title="Unavailable Items" value={String(unavailableItems)} change="Soft-deactivated items" icon={XCircle} iconBg="bg-[#E07A5F]" />
-          <KPICard title="Average Price" value={formatMoney(averagePrice)} change="RM menu pricing" icon={Tag} iconBg="bg-[#D4AF7A]" />
+          <KPICard title="Average Price" value={formatMoney(averagePrice)} change="Tokens menu pricing" icon={Tag} iconBg="bg-[#D4AF7A]" />
         </div>
 
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -567,7 +567,7 @@ const Menu = () => {
                 <tr>
                   <th className="px-6 py-4 whitespace-nowrap">Menu Item</th>
                   <th className="px-6 py-4 whitespace-nowrap">Category</th>
-                  <th className="px-6 py-4 whitespace-nowrap">RM Price</th>
+                  <th className="px-6 py-4 whitespace-nowrap">Tokens Price</th>
                   <th className="px-6 py-4 whitespace-nowrap">Token Price</th>
                   <th className="px-6 py-4 whitespace-nowrap">Status</th>
                   <th className="px-6 py-4 whitespace-nowrap">Sales</th>
@@ -715,7 +715,7 @@ const Menu = () => {
                         <p className="text-gray-900 font-medium">{selectedItem.category_name}</p>
                       </div>
                       <div className="grid grid-cols-2 gap-3">
-                        <p className="text-gray-500 font-medium">RM Price</p>
+                        <p className="text-gray-500 font-medium">Tokens Price</p>
                         <p className="text-gray-900 font-medium">{selectedItem.base_price_rm}</p>
                       </div>
                       <div className="grid grid-cols-2 gap-3">
@@ -772,7 +772,7 @@ const Menu = () => {
                       </div>
                       <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
                         <p className="text-xs text-gray-500 font-medium mb-1">Total Revenue</p>
-                        <p className="text-lg font-bold text-gray-900">{selectedItem.total_revenue_rm || 'RM 0.00'}</p>
+                        <p className="text-lg font-bold text-gray-900">{selectedItem.total_revenue_rm || 'Tokens 0.00'}</p>
                         <p className="text-[10px] text-green-600 font-medium mt-1">Completed orders only</p>
                       </div>
                     </div>
@@ -894,7 +894,7 @@ const Menu = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Base Price (RM)</label>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Base Price (Tokens)</label>
                   <input
                     type="number"
                     step="0.01"

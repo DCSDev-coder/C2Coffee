@@ -117,10 +117,10 @@ const initialVouchersList = [
   },
   {
     id: "VCH-1003",
-    name: "RM 5 Instant Discount",
+    name: "Tokens 5 Instant Discount",
     type: "Token Discount",
     tier: "All Tiers",
-    reward: "RM 5 Off",
+    reward: "Tokens 5 Off",
     expiry: "31 December 2026",
     expiryFull: "31 December 2026, 11:59 PM",
     status: "Active",
@@ -130,7 +130,7 @@ const initialVouchersList = [
     rate: "61.5%",
     limitPerUser: 2,
     eligibleItems: ["All Items"],
-    description: "Instant RM 5 discount on orders above RM 25.",
+    description: "Instant Tokens 5 discount on orders above Tokens 25.",
     created: "19 Aug 2026"
   },
   {

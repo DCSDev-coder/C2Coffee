@@ -32,7 +32,7 @@ const ExpenseBreakdownFull = ({ onBack }) => {
         <button 
           onClick={() => {
             const rows = [
-              ["Category", "Value (RM)", "Percentage"],
+              ["Category", "Value (Tokens)", "Percentage"],
               ...expenseData.map(e => [
                 `"${e.name}"`,
                 e.value,
@@ -58,13 +58,13 @@ const ExpenseBreakdownFull = ({ onBack }) => {
                   {expenseData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
                 </Pie>
                 <Tooltip 
-                formatter={(value, name) => [`RM ${value.toLocaleString()}`, name]}
+                formatter={(value, name) => [`Tokens ${value.toLocaleString()}`, name]}
                 contentStyle={{ backgroundColor: '#1F3A34', borderRadius: '8px', border: 'none', color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
                 itemStyle={{ color: '#fff' }}
               /></PieChart>
             </ResponsiveContainer>
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-              <span className="text-2xl font-bold text-gray-900">RM {totalExpenses.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+              <span className="text-2xl font-bold text-gray-900">Tokens {totalExpenses.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
               <span className="text-xs text-gray-500 font-medium mt-1">Total Expenses</span>
             </div>
           </div>
@@ -85,7 +85,7 @@ const ExpenseBreakdownFull = ({ onBack }) => {
                     <p className="text-xs text-gray-500 mt-0.5">{item.percentage} of total expenses</p>
                   </div>
                 </div>
-                <span className="font-bold text-gray-900 text-sm">RM {item.value.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                <span className="font-bold text-gray-900 text-sm">Tokens {item.value.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
               </div>
             ))}
           </div>

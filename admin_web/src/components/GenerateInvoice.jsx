@@ -52,7 +52,7 @@ const GenerateInvoice = ({ onBack }) => {
             />
           </div>
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-1">Amount (RM)</label>
+            <label className="block text-sm font-bold text-gray-700 mb-1">Amount (Tokens)</label>
             <input 
               type="number" 
               step="0.01"
