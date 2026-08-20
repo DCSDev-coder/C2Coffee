@@ -448,7 +448,7 @@ const Vouchers = () => {
     const matchSearch =
       v.name.toLowerCase().includes(q) ||
       v.id.toLowerCase().includes(q) ||
-      v.reward.toLowerCase().includes(q) ||
+      (v.reward || v.name || '').toLowerCase().includes(q) ||
       v.type.toLowerCase().includes(q);
     const matchType = typeFilter === "All Type" || v.type === typeFilter;
     const matchStatus = statusFilter === "All Status" || v.status === statusFilter;
