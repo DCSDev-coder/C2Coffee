@@ -82,7 +82,7 @@ const tokensBySource = [
 const topRedeemedRewards = [
   { rank: 1, reward: "Free Latte", redemptions: "2,980", pct: "74.5%" },
   { rank: 2, reward: "15% Off Total Bill", redemptions: "2,140", pct: "68.2%" },
-  { rank: 3, reward: "RM 5 Instant Discount", redemptions: "1,680", pct: "62.0%" },
+  { rank: 3, reward: "Tokens 5 Instant Discount", redemptions: "1,680", pct: "62.0%" },
   { rank: 4, reward: "Buy 1 Free 1 Shakerato", redemptions: "940", pct: "55.4%" },
   { rank: 5, reward: "Free Cinnamon Roll", redemptions: "580", pct: "48.1%" }
 ];

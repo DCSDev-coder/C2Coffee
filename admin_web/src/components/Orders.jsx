@@ -11,6 +11,7 @@ import "react-datepicker/dist/react-datepicker.css";
 import Pagination from './Pagination';
 import { exportToCSV } from '../utils/exportToCSV';
 import RefundDetails from "./RefundDetails";
+import { adminRequest } from '../lib/adminApi';
 
 //Custom Icons for Timeline 
 
@@ -336,7 +337,7 @@ const getPaymentBadge = (p) => {
   return <span className="px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md bg-green-100 text-green-600">Paid</span>;
 };
 
-const fmtPrice = (n) => `RM ${n.toFixed(2)}`;
+const fmtPrice = (n) => `Tokens ${n.toFixed(2)}`;
 const ITEMS_PER_PAGE = 10;
 
 const STATUSES = ["All Status", "Completed", "Preparing", "Ready for Pickup", "Cancelled", "Refund Requested", "Refunded"];
@@ -611,7 +612,8 @@ const OrderDetailPanel = ({ order, onClose }) => {
 // Main Component 
 
 const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
-  const [ordersList, setOrdersList] = useState(allOrders);
+  const [ordersList, setOrdersList] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All Status");
   const [paymentFilter, setPaymentFilter] = useState("All Payment");
@@ -627,6 +629,21 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
   useEffect(() => {
     setShowRefundsView(initialShowRefunds);
   }, [initialShowRefunds]);
+
+  useEffect(() => {
+    const fetchOrders = async () => {
+      try {
+        setIsLoading(true);
+        const response = await adminRequest('/v1/admin/orders');
+        setOrdersList(response.orders || []);
+      } catch (err) {
+        console.error('Failed to fetch orders', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchOrders();
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = () => setMenuOpenId(null);
@@ -649,15 +666,23 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
 
   const resetPage = () => setCurrentPage(1);
 
-  const handleEditSave = (e) => {
+  const handleEditSave = async (e) => {
     e.preventDefault();
-    setOrdersList((prev) =>
-      prev.map((o) => (o.id === editingOrder.id ? { ...o, ...editingOrder } : o))
-    );
-    if (selectedOrder && selectedOrder.id === editingOrder.id) {
-      setSelectedOrder((prev) => ({ ...prev, ...editingOrder }));
+    try {
+      await adminRequest(`/v1/admin/orders/${editingOrder.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(editingOrder)
+      });
+      setOrdersList((prev) =>
+        prev.map((o) => (o.id === editingOrder.id ? { ...o, ...editingOrder } : o))
+      );
+      if (selectedOrder && selectedOrder.id === editingOrder.id) {
+        setSelectedOrder((prev) => ({ ...prev, ...editingOrder }));
+      }
+      setEditingOrder(null);
+    } catch (err) {
+      alert('Error updating order: ' + err.message);
     }
-    setEditingOrder(null);
   };
 
   const filtered = ordersList.filter((o) => {
@@ -830,7 +855,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
           <button
             onClick={() => {
               const rows = [
-                ["Order ID", "Username", "Email", "Status", "Payment", "Date", "Time", "Total (RM)"],
+                ["Order ID", "Username", "Email", "Status", "Payment", "Date", "Time", "Total (Tokens)"],
                 ...filtered.map(o => [
                   `"${o.id}"`,
                   `"${o.customer}"`,
@@ -948,12 +973,17 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
                                   Edit
                                 </button>
                                 <button
-                                  onClick={(e) => {
+                                  onClick={async (e) => {
                                     e.stopPropagation();
                                     if (confirm(`Are you sure you want to delete order "${order.id}"?`)) {
-                                      setOrdersList((prev) => prev.filter((o) => o.id !== order.id));
-                                      if (selectedOrder?.id === order.id) {
-                                        setSelectedOrder(null);
+                                      try {
+                                        await adminRequest(`/v1/admin/orders/${order.id}`, { method: 'DELETE' });
+                                        setOrdersList((prev) => prev.filter((o) => o.id !== order.id));
+                                        if (selectedOrder?.id === order.id) {
+                                          setSelectedOrder(null);
+                                        }
+                                      } catch (err) {
+                                        alert('Error deleting order: ' + err.message);
                                       }
                                     }
                                     setMenuOpenId(null);
@@ -1071,7 +1101,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Total (RM)</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Total (Tokens)</label>
                 <input
                   type="number"
                   step="0.01"

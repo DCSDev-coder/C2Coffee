@@ -54,7 +54,7 @@ const AllTransactions = ({ onBack }) => {
           <button 
             onClick={() => {
               const rows = [
-                ["Date", "Time", "Description", "Amount (RM)", "Status"],
+                ["Date", "Time", "Description", "Amount (Tokens)", "Status"],
                 ...filtered.map(tx => [
                   `"${tx.date}"`,
                   `"${tx.time}"`,
@@ -95,7 +95,7 @@ const AllTransactions = ({ onBack }) => {
               <tr className="border-b border-gray-200 text-left">
                 <th className="px-5 py-4 font-bold text-gray-900 w-40">Date & Time</th>
                 <th className="px-5 py-4 font-bold text-gray-900">Description</th>
-                <th className="px-5 py-4 font-bold text-gray-900 w-32 text-center">Amount (RM)</th>
+                <th className="px-5 py-4 font-bold text-gray-900 w-32 text-center">Amount (Tokens)</th>
                 <th className="px-5 py-4 font-bold text-gray-900 w-32">Status</th>
               </tr>
             </thead>

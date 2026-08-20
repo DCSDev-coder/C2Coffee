@@ -32,7 +32,7 @@ const allActivitiesData = [
     actor: "miraelys",
     icon: UserPlus,
     iconBg: "bg-[#E07A5F]/15 text-[#E07A5F]",
-    details: "Refund request for order ORD-0510-002 approved. Amount RM 15.90 returned to Touch 'n Go eWallet."
+    details: "Refund request for order ORD-0510-002 approved. Amount Tokens 15.90 returned to Touch 'n Go eWallet."
   },
   {
     id: "ACT-003",
@@ -72,7 +72,7 @@ const allActivitiesData = [
   },
   {
     id: "ACT-006",
-    title: "New order placed: ORD-0510-014 (RM 38.50)",
+    title: "New order placed: ORD-0510-014 (Tokens 38.50)",
     subtitle: "by alex_chong",
     time: "8:58 AM",
     date: "Aug 19, 2026",
@@ -84,7 +84,7 @@ const allActivitiesData = [
   },
   {
     id: "ACT-007",
-    title: "Price updated for Flat White (RM 14.50 → RM 15.00)",
+    title: "Price updated for Flat White (Tokens 14.50 → Tokens 15.00)",
     subtitle: "by admin_alex",
     time: "8:45 AM",
     date: "Aug 19, 2026",
@@ -96,7 +96,7 @@ const allActivitiesData = [
   },
   {
     id: "ACT-008",
-    title: "Reward points redeemed: 500 tokens for RM 10 Voucher",
+    title: "Reward points redeemed: 500 tokens for Tokens 10 Voucher",
     subtitle: "by sarah_lee",
     time: "8:30 AM",
     date: "Aug 19, 2026",
@@ -104,7 +104,7 @@ const allActivitiesData = [
     actor: "sarah_lee",
     icon: Coins,
     iconBg: "bg-amber-50 text-amber-700",
-    details: "Customer redeemed 500 Loyalty tokens for RM 10 Discount voucher."
+    details: "Customer redeemed 500 Loyalty tokens for Tokens 10 Discount voucher."
   },
   {
     id: "ACT-009",

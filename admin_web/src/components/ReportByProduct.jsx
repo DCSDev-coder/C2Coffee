@@ -11,7 +11,7 @@ import { initialMenuData } from '../data/menuData';
 
 const mockProductData = initialMenuData.map((item) => {
   const salesNum = parseInt(item.sales.replace(/,/g, ''), 10) || 0;
-  const priceNum = parseFloat(item.price.replace('RM ', '')) || 0;
+  const priceNum = parseFloat(item.price.replace('Tokens ', '')) || 0;
   return {
     id: item.id,
     name: item.name,
@@ -61,7 +61,7 @@ const ReportByProduct = () => {
 
   const handleExport = () => {
     const csvContent = [
-      ["Product Name", "Category", "Quantity Sold", "Total Revenue (RM)"],
+      ["Product Name", "Category", "Quantity Sold", "Total Revenue (Tokens)"],
       ...filteredData.map(product => [
         `"${product.name}"`, 
         `"${product.category}"`, 
@@ -116,7 +116,7 @@ const ReportByProduct = () => {
           />
           <StatCard
             title="Total Revenue"
-            value="RM 142,560"
+            value="Tokens 142,560"
             change="17.1% vs last month"
             icon={DollarSign}
             iconBg="bg-[#E07A5F]"
@@ -136,13 +136,13 @@ const ReportByProduct = () => {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }} layout="vertical">
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E5E7EB" />
-                <XAxis type="number" axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 12, fill: '#6B7280', fontWeight: 600 }} tickFormatter={(val) => `RM ${(val / 1000).toFixed(0)}K`} />
+                <XAxis type="number" axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 12, fill: '#6B7280', fontWeight: 600 }} tickFormatter={(val) => `Tokens ${(val / 1000).toFixed(0)}K`} />
                 <YAxis dataKey="name" type="category" axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 12, fill: '#6B7280', fontWeight: 600 }} width={80} />
                 <Tooltip
                   cursor={{ fill: '#F3F4F6' }}
                   contentStyle={{ backgroundColor: '#1F3A34', borderRadius: '8px', border: 'none', color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
                   itemStyle={{ color: '#fff' }}
-                  formatter={(value) => [`RM ${value.toLocaleString()}`, "Revenue"]}
+                  formatter={(value) => [`Tokens ${value.toLocaleString()}`, "Revenue"]}
                 />
                 <Bar dataKey="revenue" radius={[0, 4, 4, 0]} barSize={24}>
                   {chartData.map((entry, index) => (
@@ -167,7 +167,7 @@ const ReportByProduct = () => {
               />
             </div>
             <div className="relative w-full sm:w-auto">
-              <DatePicker portalId="root-portal" popperPlacement="bottom-end"
+              <DatePicker portalId="root-portal"
                 selected={selectedDate}
                 onChange={(date) => { setSelectedDate(date); setCurrentPage(1); }}
                 dateFormat="d MMM yyyy"
@@ -201,7 +201,7 @@ const ReportByProduct = () => {
                   <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Product Name</th>
                   <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Category</th>
                   <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100 text-right">Quantity Sold</th>
-                  <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100 text-right">Total Revenue (RM)</th>
+                  <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100 text-right">Total Revenue (Tokens)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -215,7 +215,7 @@ const ReportByProduct = () => {
                       </td>
                       <td className="px-6 py-4 text-gray-600 font-medium">{product.category}</td>
                       <td className="px-6 py-4 text-right text-gray-600 font-medium">{product.quantitySold.toLocaleString()}</td>
-                      <td className="px-6 py-4 text-right font-bold text-gray-900">RM {product.revenue.toLocaleString()}</td>
+                      <td className="px-6 py-4 text-right font-bold text-gray-900">Tokens {product.revenue.toLocaleString()}</td>
                     </tr>
                   ))
                 ) : (

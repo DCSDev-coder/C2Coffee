@@ -66,7 +66,7 @@ const allNotificationsData = [
   {
     id: "notif-2",
     title: "Payment received",
-    description: "Payment of RM 25.90 from miraelys.",
+    description: "Payment of Tokens 25.90 from miraelys.",
     time: "2m ago",
     category: "Payments",
     icon: CardIcon,
@@ -156,7 +156,7 @@ const allNotificationsData = [
   {
     id: "notif-11",
     title: "Payment received",
-    description: "Payment of RM 45.00 from sarah_lee.",
+    description: "Payment of Tokens 45.00 from sarah_lee.",
     time: "35m ago",
     category: "Payments",
     icon: CardIcon,
@@ -166,7 +166,7 @@ const allNotificationsData = [
   {
     id: "notif-12",
     title: "Refund processed",
-    description: "Refund of RM 15.90 for Order #ORD-1041.",
+    description: "Refund of Tokens 15.90 for Order #ORD-1041.",
     time: "45m ago",
     category: "Payments",
     icon: CardIcon,

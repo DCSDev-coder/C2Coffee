@@ -3,9 +3,9 @@ import { ArrowLeft } from 'lucide-react';
 
 const OrderHistory = ({ customer, onBack }) => {
   const orders = [
-    { id: 'ORD-2026-001', date: 'Aug 19, 2026', items: 3, total: 'RM 145.00', status: 'Delivered' },
-    { id: 'ORD-2026-002', date: 'Aug 19, 2026', items: 1, total: 'RM 25.50', status: 'Delivered' },
-    { id: 'ORD-2026-003', date: 'Aug 19, 2026', items: 5, total: 'RM 320.00', status: 'Delivered' },
+    { id: 'ORD-2026-001', date: 'Aug 19, 2026', items: 3, total: 'Tokens 145.00', status: 'Delivered' },
+    { id: 'ORD-2026-002', date: 'Aug 19, 2026', items: 1, total: 'Tokens 25.50', status: 'Delivered' },
+    { id: 'ORD-2026-003', date: 'Aug 19, 2026', items: 5, total: 'Tokens 320.00', status: 'Delivered' },
   ];
 
   return (
