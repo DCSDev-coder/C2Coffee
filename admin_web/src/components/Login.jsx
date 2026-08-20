@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { adminRequest, loadAdminTenants } from '../lib/adminApi';
+import { Eye, EyeOff } from 'lucide-react';
 
 const Login = ({ onLoginSuccess }) => {
   const [mode, setMode] = useState('login');
@@ -13,6 +14,9 @@ const Login = ({ onLoginSuccess }) => {
   const [pendingSession, setPendingSession] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   useEffect(() => {
     const loadTenants = async () => {
@@ -180,14 +184,23 @@ const Login = ({ onLoginSuccess }) => {
               </label>
               <label className="block">
                 <span className="block text-white/80 text-sm font-medium mb-2">Password</span>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  className="w-full rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-white placeholder-white/40 outline-none focus:border-white/50"
-                  placeholder="Enter password"
-                  autoComplete="current-password"
-                />
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    className="w-full rounded-2xl border border-white/20 bg-white/10 px-4 py-3 pr-12 text-white placeholder-white/40 outline-none focus:border-white/50"
+                    placeholder="Enter password"
+                    autoComplete="current-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-white hover:text-gray-200 transition-colors cursor-pointer z-10 p-2"
+                  >
+                    {showPassword ? <Eye size={20} /> : <EyeOff size={20} />}
+                  </button>
+                </div>
               </label>
             </>
           ) : (
@@ -205,25 +218,43 @@ const Login = ({ onLoginSuccess }) => {
               </label>
               <label className="block">
                 <span className="block text-white/80 text-sm font-medium mb-2">New Password</span>
-                <input
-                  type="password"
-                  value={newPassword}
-                  onChange={(event) => setNewPassword(event.target.value)}
-                  className="w-full rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-white placeholder-white/40 outline-none focus:border-white/50"
-                  placeholder="Create password"
-                  autoComplete="new-password"
-                />
+                <div className="relative">
+                  <input
+                    type={showNewPassword ? "text" : "password"}
+                    value={newPassword}
+                    onChange={(event) => setNewPassword(event.target.value)}
+                    className="w-full rounded-2xl border border-white/20 bg-white/10 px-4 py-3 pr-12 text-white placeholder-white/40 outline-none focus:border-white/50"
+                    placeholder="Create password"
+                    autoComplete="new-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword(!showNewPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-white hover:text-gray-200 transition-colors cursor-pointer z-10 p-2"
+                  >
+                    {showNewPassword ? <Eye size={20} /> : <EyeOff size={20} />}
+                  </button>
+                </div>
               </label>
               <label className="block">
                 <span className="block text-white/80 text-sm font-medium mb-2">Confirm Password</span>
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(event) => setConfirmPassword(event.target.value)}
-                  className="w-full rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-white placeholder-white/40 outline-none focus:border-white/50"
-                  placeholder="Confirm password"
-                  autoComplete="new-password"
-                />
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? "text" : "password"}
+                    value={confirmPassword}
+                    onChange={(event) => setConfirmPassword(event.target.value)}
+                    className="w-full rounded-2xl border border-white/20 bg-white/10 px-4 py-3 pr-12 text-white placeholder-white/40 outline-none focus:border-white/50"
+                    placeholder="Confirm password"
+                    autoComplete="new-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-white hover:text-gray-200 transition-colors cursor-pointer z-10 p-2"
+                  >
+                    {showConfirmPassword ? <Eye size={20} /> : <EyeOff size={20} />}
+                  </button>
+                </div>
               </label>
             </>
           )}

@@ -11,6 +11,15 @@ body {
   @apply bg-background text-gray-800 antialiased;
 }
 
+/* Fix input autofill styling for dark theme inputs */
+input:-webkit-autofill,
+input:-webkit-autofill:hover, 
+input:-webkit-autofill:focus, 
+input:-webkit-autofill:active {
+    transition: background-color 5000s ease-in-out 0s;
+    -webkit-text-fill-color: white !important;
+}
+
 @keyframes pulseFlow {
   0% {
     transform: translateY(-100%);

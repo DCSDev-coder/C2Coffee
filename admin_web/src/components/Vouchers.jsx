@@ -59,6 +59,25 @@ const StatCard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-
 
 const initialVouchersList = [
   {
+    id: "VCH-1000",
+    name: "Birthday Voucher",
+    type: "Free Drink",
+    tier: "All Tiers",
+    reward: "Free Drink",
+    expiry: "31 Aug 2026",
+    expiryFull: "31 Aug 2026, 11:59 PM",
+    status: "Active",
+    issued: 500,
+    redeemed: 320,
+    totalQty: 1000,
+    rate: "64.0%",
+    limitPerUser: 1,
+    eligibleItems: ["All Drinks"],
+    tokenCost: 0,
+    description: "Happy Birthday! Claim your free drink, valid until the end of the month.",
+    created: "01 Aug 2026"
+  },
+  {
     id: "VCH-1001",
     name: "Free Latte",
     type: "Free Drink",
@@ -206,7 +225,7 @@ const initialVouchersList = [
   }
 ];
 
-const VOUCHER_TYPES = ["All Type", "Free Drink", "Percentage Off", "Token Discount", "Free Food"];
+const VOUCHER_TYPES = ["All Type", "Free Drink", "Percentage Off", "Token Discount", "Free Food", "Birthday Voucher"];
 const STATUS_TYPES = ["All Status", "Active", "Expired", "Draft"];
 const ITEMS_PER_PAGE = 10;
 
@@ -471,7 +490,9 @@ const Vouchers = () => {
       
       const response = await adminRequest('/v1/admin/vouchers');
       setVouchers(response.vouchers || []);
-
+    } catch (err) {
+      alert('Error creating voucher: ' + err.message);
+    } finally {
       setShowCreateModal(false);
       setNewVoucher({
         name: "",
@@ -484,8 +505,6 @@ const Vouchers = () => {
         limitPerUser: 1,
         description: ""
       });
-    } catch (err) {
-      alert('Error creating voucher: ' + err.message);
     }
   };
 
@@ -642,7 +661,7 @@ const Vouchers = () => {
         </div>
 
         {/* Filters and Buttons */}
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-3 overflow-x-auto pb-1 -mb-1 whitespace-nowrap">
           {/* Type Filter */}
           <div className="relative">
             <select
@@ -1106,7 +1125,8 @@ const Vouchers = () => {
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-lg flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150 max-h-[90vh]">
-            <div className="p-6 overflow-y-auto w-full custom-scrollbar">
+            <div className="overflow-y-auto overflow-x-hidden w-full custom-scrollbar">
+              <div className="p-6">
               <div className="flex justify-between items-center mb-4">
               <h3 className="text-base font-bold text-gray-900">Create New Voucher</h3>
               <button
@@ -1142,6 +1162,7 @@ const Vouchers = () => {
                     <option value="Percentage Off">Percentage Off</option>
                     <option value="Token Discount">Token Discount</option>
                     <option value="Free Food">Free Food</option>
+                    <option value="Birthday Voucher">Birthday Voucher</option>
                   </select>
                 </div>
 
@@ -1267,6 +1288,7 @@ const Vouchers = () => {
                 </button>
               </div>
             </form>
+              </div>
             </div>
           </div>
         </div>
@@ -1276,7 +1298,8 @@ const Vouchers = () => {
       {editingVoucher && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-lg flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150 max-h-[90vh]">
-            <div className="p-6 overflow-y-auto w-full custom-scrollbar">
+            <div className="overflow-y-auto overflow-x-hidden w-full custom-scrollbar">
+              <div className="p-6">
               <div className="flex justify-between items-center mb-4">
               <h3 className="text-base font-bold text-gray-900">Edit Voucher ({editingVoucher.id})</h3>
               <button
@@ -1311,6 +1334,7 @@ const Vouchers = () => {
                     <option value="Percentage Off">Percentage Off</option>
                     <option value="Token Discount">Token Discount</option>
                     <option value="Free Food">Free Food</option>
+                    <option value="Birthday Voucher">Birthday Voucher</option>
                   </select>
                 </div>
 
@@ -1433,6 +1457,7 @@ const Vouchers = () => {
                 </button>
               </div>
             </form>
+              </div>
             </div>
           </div>
         </div>
