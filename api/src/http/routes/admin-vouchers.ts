@@ -21,7 +21,7 @@ const voucherCreateUpdateSchema = z.object({
 export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<void> {
   // GET /v1/admin/vouchers
   app.get('/v1/admin/vouchers', { preHandler: [authenticateAdminRequest] }, async (request) => {
-    requireAdminRole(request, 'SUPERADMIN');
+    requireAdminRole(request, 'super_admin');
     const [rows] = await mysqlPool.query<Array<RowDataPacket>>(
       `
         SELECT
@@ -74,7 +74,7 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
 
   // POST /v1/admin/vouchers
   app.post('/v1/admin/vouchers', { preHandler: [authenticateAdminRequest] }, async (request) => {
-    requireAdminRole(request, 'SUPERADMIN');
+    requireAdminRole(request, 'super_admin');
     const payload = voucherCreateUpdateSchema.parse(request.body);
     
     let discountMode = 'percent_rm';
@@ -144,7 +144,7 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
 
   // PUT /v1/admin/vouchers/:id
   app.put<{ Params: { id: string } }>('/v1/admin/vouchers/:id', { preHandler: [authenticateAdminRequest] }, async (request) => {
-    requireAdminRole(request, 'SUPERADMIN');
+    requireAdminRole(request, 'super_admin');
     const payload = voucherCreateUpdateSchema.parse(request.body);
     const code = request.params.id;
     
@@ -219,7 +219,7 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
 
   // DELETE /v1/admin/vouchers/:id
   app.delete<{ Params: { id: string } }>('/v1/admin/vouchers/:id', { preHandler: [authenticateAdminRequest] }, async (request) => {
-    requireAdminRole(request, 'SUPERADMIN');
+    requireAdminRole(request, 'super_admin');
     const code = request.params.id;
     
     // Soft delete by setting is_active = 0
