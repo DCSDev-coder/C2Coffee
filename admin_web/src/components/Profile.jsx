@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   ArrowLeft, Camera, Mail, Edit3, Lock,
   Slash, ShieldCheck, Smartphone, Laptop,
@@ -49,6 +49,16 @@ const Profile = ({ onBack, currentUser }) => {
   }, [currentUser]);
   const [isEditing, setIsEditing] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState(null);
+  const fileInputRef = useRef(null);
+
+  const handlePhotoUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const url = URL.createObjectURL(file);
+      setAvatarUrl(url);
+    }
+  };
 
   // Modals
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -124,11 +134,22 @@ const Profile = ({ onBack, currentUser }) => {
           {/* Avatar and Basic info */}
           <div className="text-center">
             <div className="relative w-24 h-24 mx-auto mb-3">
-              <div className="w-24 h-24 rounded-full bg-[#1F3A34] flex items-center justify-center text-white text-3xl font-bold shadow-sm">
-                {(profile.username.charAt(0) || 'A').toUpperCase()}
+              <div className="w-24 h-24 rounded-full bg-[#1F3A34] flex items-center justify-center text-white text-3xl font-bold shadow-sm overflow-hidden">
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                ) : (
+                  (profile.username.charAt(0) || 'A').toUpperCase()
+                )}
               </div>
+              <input
+                type="file"
+                ref={fileInputRef}
+                className="hidden"
+                accept="image/*"
+                onChange={handlePhotoUpload}
+              />
               <button
-                onClick={() => alert("Upload new profile photo")}
+                onClick={() => fileInputRef.current?.click()}
                 className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-white border border-gray-300 text-gray-700 hover:text-black hover:bg-gray-50 flex items-center justify-center shadow-md transition-all cursor-pointer"
                 title="Change Photo"
               >
