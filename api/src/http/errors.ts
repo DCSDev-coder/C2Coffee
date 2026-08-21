@@ -16,12 +16,19 @@ export function errorHandler(
   request: FastifyRequest,
   reply: FastifyReply
 ): void {
-  const statusCode = error instanceof ApiError ? error.statusCode : 500;
-  const code = error instanceof ApiError ? error.code : 'internal_server_error';
-  const message =
+  let statusCode = error instanceof ApiError ? error.statusCode : 500;
+  let code = error instanceof ApiError ? error.code : 'internal_server_error';
+  let message =
     error instanceof ApiError
       ? error.message
       : 'Unexpected server error. Please try again later.';
+
+  // Handle Zod validation errors
+  if (error.name === 'ZodError' && (error as any).issues) {
+    statusCode = 400;
+    code = 'validation_error';
+    message = (error as any).issues[0]?.message || 'Invalid input data.';
+  }
 
   request.log.error({ error, statusCode, code }, 'request failed');
 

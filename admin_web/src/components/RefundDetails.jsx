@@ -7,6 +7,8 @@ import {
 import Pagination from './Pagination';
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
+import { adminRequest } from '../lib/adminApi';
+import ViewProfile from "./ViewProfile";
 
 // Custom Icons for Timeline 
 
@@ -41,7 +43,7 @@ const initialRefundsData = [
     orderId: "ORD-0510-001",
     customer: "miraelys",
     email: "mira@gmail.com",
-    phone: "+60 11-63793812",
+    phone: "+6011-63793812",
     tier: "Legend",
     memberId: "C2-001",
     amount: 15.90,
@@ -61,11 +63,11 @@ const initialRefundsData = [
   {
     id: "REF-0510-002",
     orderId: "ORD-0510-002",
-    customer: "miraelys",
-    email: "mira@gmail.com",
-    phone: "+60 11-63793812",
+    customer: "alex_chong",
+    email: "alex.c@yahoo.com",
+    phone: "+6012-3456789",
     tier: "Legend",
-    memberId: "C2-001",
+    memberId: "C2-002",
     amount: 15.90,
     reason: "Quality Issued",
     paymentMethod: "Touch 'n Go eWallet",
@@ -83,11 +85,11 @@ const initialRefundsData = [
   {
     id: "REF-0510-003",
     orderId: "ORD-0510-003",
-    customer: "miraelys",
-    email: "mira@gmail.com",
-    phone: "+60 11-63793812",
-    tier: "Legend",
-    memberId: "C2-001",
+    customer: "sarah_lee",
+    email: "sarah.lee88@gmail.com",
+    phone: "+6017-9876543",
+    tier: "Dilamun",
+    memberId: "C2-003",
     amount: 15.90,
     reason: "Delayed Order",
     paymentMethod: "Touch 'n Go eWallet",
@@ -105,11 +107,11 @@ const initialRefundsData = [
   {
     id: "REF-0510-004",
     orderId: "ORD-0510-004",
-    customer: "miraelys",
-    email: "mira@gmail.com",
-    phone: "+60 11-63793812",
-    tier: "Legend",
-    memberId: "C2-001",
+    customer: "khai_rul",
+    email: "khairul.dev@gmail.com",
+    phone: "+6019-1122334",
+    tier: "Ketagih",
+    memberId: "C2-004",
     amount: 15.90,
     reason: "Wrong Item",
     paymentMethod: "Touch 'n Go eWallet",
@@ -127,11 +129,11 @@ const initialRefundsData = [
   {
     id: "REF-0510-005",
     orderId: "ORD-0510-005",
-    customer: "miraelys",
-    email: "mira@gmail.com",
-    phone: "+60 11-63793812",
-    tier: "Legend",
-    memberId: "C2-001",
+    customer: "jane_doe",
+    email: "janedoe99@outlook.com",
+    phone: "+6013-5557777",
+    tier: "Kawan",
+    memberId: "C2-005",
     amount: 15.90,
     reason: "Other",
     paymentMethod: "Touch 'n Go eWallet",
@@ -149,11 +151,11 @@ const initialRefundsData = [
   {
     id: "REF-0510-006",
     orderId: "ORD-0510-006",
-    customer: "miraelys",
-    email: "mira@gmail.com",
-    phone: "+60 11-63793812",
-    tier: "Legend",
-    memberId: "C2-001",
+    customer: "ahmad_z",
+    email: "ahmad.z@gmail.com",
+    phone: "+6014-2223333",
+    tier: "Dilamun",
+    memberId: "C2-006",
     amount: 15.90,
     reason: "Missing Item",
     paymentMethod: "Touch 'n Go eWallet",
@@ -171,11 +173,11 @@ const initialRefundsData = [
   {
     id: "REF-0510-007",
     orderId: "ORD-0510-007",
-    customer: "miraelys",
-    email: "mira@gmail.com",
-    phone: "+60 11-63793812",
-    tier: "Legend",
-    memberId: "C2-001",
+    customer: "lily_tan",
+    email: "lily.tan@company.com",
+    phone: "+6016-8889999",
+    tier: "Ketagih",
+    memberId: "C2-007",
     amount: 15.90,
     reason: "Missing Item",
     paymentMethod: "Touch 'n Go eWallet",
@@ -193,11 +195,11 @@ const initialRefundsData = [
   {
     id: "REF-0510-008",
     orderId: "ORD-0510-008",
-    customer: "miraelys",
-    email: "mira@gmail.com",
-    phone: "+60 11-63793812",
-    tier: "Legend",
-    memberId: "C2-001",
+    customer: "ravi_s",
+    email: "ravi.shankar@gmail.com",
+    phone: "+6011-1234123",
+    tier: "Dilamun",
+    memberId: "C2-008",
     amount: 15.90,
     reason: "Missing Item",
     paymentMethod: "Touch 'n Go eWallet",
@@ -215,11 +217,11 @@ const initialRefundsData = [
   {
     id: "REF-0510-009",
     orderId: "ORD-0510-009",
-    customer: "miraelys",
-    email: "mira@gmail.com",
-    phone: "+60 11-63793812",
+    customer: "fatimah_n",
+    email: "fatimah.n@yahoo.com",
+    phone: "+6012-4445555",
     tier: "Legend",
-    memberId: "C2-001",
+    memberId: "C2-009",
     amount: 15.90,
     reason: "Missing Item",
     paymentMethod: "Touch 'n Go eWallet",
@@ -237,11 +239,11 @@ const initialRefundsData = [
   {
     id: "REF-0510-010",
     orderId: "ORD-0510-010",
-    customer: "miraelys",
-    email: "mira@gmail.com",
-    phone: "+60 11-63793812",
-    tier: "Legend",
-    memberId: "C2-001",
+    customer: "wei_jie",
+    email: "weijie_w@gmail.com",
+    phone: "+6017-6667777",
+    tier: "Kawan",
+    memberId: "C2-010",
     amount: 15.90,
     reason: "Missing Item",
     paymentMethod: "Touch 'n Go eWallet",
@@ -259,11 +261,11 @@ const initialRefundsData = [
   {
     id: "REF-0510-011",
     orderId: "ORD-0510-011",
-    customer: "miraelys",
-    email: "mira@gmail.com",
-    phone: "+60 11-63793812",
-    tier: "Legend",
-    memberId: "C2-001",
+    customer: "nur_aini",
+    email: "nur.aini@outlook.com",
+    phone: "+6019-8887777",
+    tier: "Ketagih",
+    memberId: "C2-011",
     amount: 15.90,
     reason: "Missing Item",
     paymentMethod: "Touch 'n Go eWallet",
@@ -281,11 +283,11 @@ const initialRefundsData = [
   {
     id: "REF-0510-012",
     orderId: "ORD-0510-012",
-    customer: "miraelys",
-    email: "mira@gmail.com",
-    phone: "+60 11-63793812",
+    customer: "danial_h",
+    email: "danial.hakim@gmail.com",
+    phone: "+6013-9990000",
     tier: "Legend",
-    memberId: "C2-001",
+    memberId: "C2-012",
     amount: 15.90,
     reason: "Missing Item",
     paymentMethod: "Touch 'n Go eWallet",
@@ -303,11 +305,11 @@ const initialRefundsData = [
   {
     id: "REF-0510-013",
     orderId: "ORD-0510-013",
-    customer: "miraelys",
-    email: "mira@gmail.com",
-    phone: "+60 11-63793812",
-    tier: "Legend",
-    memberId: "C2-001",
+    customer: "mei_ling",
+    email: "mei.l@yahoo.com",
+    phone: "+6014-7778888",
+    tier: "Dilamun",
+    memberId: "C2-013",
     amount: 15.90,
     reason: "Missing Item",
     paymentMethod: "Touch 'n Go eWallet",
@@ -361,7 +363,9 @@ const getRefundStatusBadge = (status) => {
   }
 };
 
-const fmtPrice = (n) => `Tokens ${n.toFixed(2)}`;
+const fmtPrice = (n, payment) => {
+  return `${n.toFixed(2)}`;
+};
 const ITEMS_PER_PAGE = 10;
 const STATUSES = ["All Status", "Pending", "Under Review", "Approved", "Rejected"];
 
@@ -415,7 +419,7 @@ const CustomDateInput = forwardRef(({ value, onClick, onClear }, ref) => (
 
 // Refund Detail Panel Component
 
-const RefundDetailPanel = ({ refund, onClose, onUpdateStatus, onPreviewAttachment }) => {
+const RefundDetailPanel = ({ refund, onClose, onUpdateStatus, onPreviewAttachment, onViewProfile }) => {
   return (
     <div className="w-[360px] lg:w-[380px] bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col shrink-0 overflow-y-auto p-5 space-y-4">
       {/* Header */}
@@ -472,7 +476,15 @@ const RefundDetailPanel = ({ refund, onClose, onUpdateStatus, onPreviewAttachmen
             </div>
           </div>
           <button
-            onClick={() => alert(`Viewing profile for ${refund.customer}`)}
+            onClick={() => {
+              const cups = refund.tier === 'Legend' ? '35' : refund.tier === 'Ketagih' ? '25' : refund.tier === 'Dilamun' ? '15' : '5';
+              onViewProfile({
+                username: refund.customer,
+                email: refund.email,
+                phone: refund.phone,
+                orders: cups,
+              });
+            }}
             className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap cursor-pointer"
           >
             View Profile
@@ -480,50 +492,28 @@ const RefundDetailPanel = ({ refund, onClose, onUpdateStatus, onPreviewAttachmen
         </div>
       </div>
 
-      {/* Refund Information Section */}
+      {/* Issue Details Section */}
       <div className="pt-1 border-t border-gray-100">
-        <h3 className="text-xs font-bold text-gray-900 mb-2">Refund Information</h3>
+        <h3 className="text-xs font-bold text-gray-900 mb-2">Issue Details</h3>
         <div className="grid grid-cols-2 gap-2 text-xs mb-3">
           <div>
-            <p className="text-gray-500 text-[11px]">Refund Amount</p>
-            <p className="font-bold text-gray-900 mt-0.5">{fmtPrice(refund.amount)}</p>
+            <p className="text-gray-500 text-[11px]">Issue Category</p>
+            <p className="font-bold text-gray-900 mt-0.5">{refund.category || 'General'}</p>
           </div>
           <div>
-            <p className="text-gray-500 text-[11px]">Refund Reason</p>
-            <p className="font-bold text-gray-900 mt-0.5">{refund.reason}</p>
+            <p className="text-gray-500 text-[11px]">Order ID</p>
+            <p className="font-bold text-gray-900 mt-0.5">{refund.orderId || 'N/A'}</p>
           </div>
         </div>
 
         <div className="mb-3">
-          <p className="text-gray-500 text-[11px]">Customer Notes</p>
-          <p className="text-xs font-bold text-gray-900 mt-0.5 leading-snug">{refund.customerNotes}</p>
+          <p className="text-gray-500 text-[11px]">Subject</p>
+          <p className="text-xs font-bold text-gray-900 mt-0.5 leading-snug">{refund.subject || refund.reason}</p>
         </div>
 
-        <div>
-          <p className="text-gray-500 text-[11px] mb-1.5 flex items-center justify-between">
-            <span>Attachments</span>
-            <span className="text-[10px] text-[#2E5E58] font-medium">Click to zoom</span>
-          </p>
-          <button
-            type="button"
-            onClick={() => onPreviewAttachment && onPreviewAttachment(refund.attachment, {
-              title: "Refund Attachment Preview",
-              subtitle: `${refund.reason} • ${refund.id}`,
-              notes: refund.customerNotes
-            })}
-            className="w-14 h-14 rounded-lg border border-gray-200 p-1 flex items-center justify-center bg-gray-50 overflow-hidden shadow-xs hover:border-[#2E5E58] hover:shadow-md transition-all cursor-pointer group relative text-left"
-            title="Click to get a closer look"
-          >
-            <img
-              src={refund.attachment}
-              alt="Attachment"
-              className="w-full h-full object-contain group-hover:scale-105 transition-transform"
-              onError={(e) => { e.target.style.display = "none"; }}
-            />
-            <div className="absolute inset-0 bg-black/25 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg">
-              <Eye size={15} className="text-white drop-shadow-md" />
-            </div>
-          </button>
+        <div className="mb-3">
+          <p className="text-gray-500 text-[11px]">Message Details</p>
+          <p className="text-xs font-bold text-gray-900 mt-0.5 leading-snug whitespace-pre-wrap">{refund.message || refund.customerNotes}</p>
         </div>
       </div>
 
@@ -564,7 +554,11 @@ const RefundDetailPanel = ({ refund, onClose, onUpdateStatus, onPreviewAttachmen
           Reject
         </button>
         <button
-          onClick={() => alert(`Requested more information for ${refund.id}`)}
+          onClick={() => {
+            const subject = encodeURIComponent(`Action Required: More Info Needed for Refund ${refund.id}`);
+            const body = encodeURIComponent(`Hi ${refund.customer},\n\nRegarding your refund request (${refund.id}) for order ${refund.orderId}, we need some additional information from you before we can proceed.\n\nPlease reply to this email with the requested details.\n\nThank you,\nC2 Coffee & Candle`);
+            window.location.href = `mailto:${refund.email}?subject=${subject}&body=${body}`;
+          }}
           className="py-2 px-1 border border-gray-300 rounded-lg text-[11px] font-bold text-gray-700 hover:bg-gray-50 transition-colors text-center cursor-pointer leading-tight"
         >
           Request More Info
@@ -583,14 +577,33 @@ const RefundDetailPanel = ({ refund, onClose, onUpdateStatus, onPreviewAttachmen
 // Main RefundDetails Component 
 
 const RefundDetails = ({ onBack }) => {
-  const [refunds, setRefunds] = useState(initialRefundsData);
+  const [refunds, setRefunds] = useState([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All Status");
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedRefund, setSelectedRefund] = useState(null);
+  const [viewingProfileFor, setViewingProfileFor] = useState(null);
   const [previewImage, setPreviewImage] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [statusOpen, setStatusOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchTickets = async () => {
+      try {
+        setIsLoading(true);
+        const data = await adminRequest('/v1/admin/refunds');
+        if (data && data.refunds) {
+          setRefunds(data.refunds);
+        }
+      } catch (err) {
+        console.error('Failed to fetch refunds', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchTickets();
+  }, []);
 
   const resetPage = () => setCurrentPage(1);
 
@@ -623,6 +636,15 @@ const RefundDetails = ({ onBack }) => {
   const approvedCount = refunds.filter((r) => r.status === "Approved").length || 6;
   const rejectedCount = refunds.filter((r) => r.status === "Rejected").length || 3;
   const totalRefundedAmount = 74.50;
+
+  if (viewingProfileFor) {
+    return (
+      <ViewProfile 
+        customer={viewingProfileFor} 
+        onBack={() => setViewingProfileFor(null)} 
+      />
+    );
+  }
 
   return (
     <div className="px-8 pb-8 pt-2 h-full flex flex-col">
@@ -679,7 +701,7 @@ const RefundDetails = ({ onBack }) => {
         />
         <KPICard
           title="Total Refunded"
-          value={fmtPrice(totalRefundedAmount)}
+          value={fmtPrice(totalRefundedAmount, "RM")}
           change="9.3% vs yesterday"
           icon={Receipt}
           iconBg="bg-[#D9C4A9]"
@@ -743,7 +765,7 @@ const RefundDetails = ({ onBack }) => {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-white">
                 <tr>
-                  {["Refund ID", "Order ID", "Customer", "Amount", "Reason", "Payment Method", "Status", "Requested At", "Action"].map((h) => (
+                  {["Refund ID", "Order ID", "Customer", "Amount (Token)", "Reason", "Payment Method", "Status", "Requested At", "Action"].map((h) => (
                     <th key={h} className="px-5 py-4 text-left text-xs font-bold text-gray-900 whitespace-nowrap">
                       {h}
                     </th>
@@ -775,7 +797,7 @@ const RefundDetails = ({ onBack }) => {
                           </div>
                         </td>
                         <td className="px-5 py-3 whitespace-nowrap text-sm font-bold text-gray-900">
-                          {fmtPrice(refund.amount)}
+                          {fmtPrice(refund.amount, refund.paymentMethod)}
                         </td>
                         <td className="px-5 py-3 whitespace-nowrap text-sm text-gray-700 font-medium">
                           {refund.reason}
@@ -837,7 +859,9 @@ const RefundDetails = ({ onBack }) => {
             refund={selectedRefund}
             onClose={() => setSelectedRefund(null)}
             onUpdateStatus={handleUpdateStatus}
-            onPreviewAttachment={(img, info) => setPreviewImage({ img, ...info })}
+            onPreviewAttachment={setPreviewImage}
+            onViewProfile={setViewingProfileFor}
+            onRequestMoreInfo={(email) => window.location.href = `mailto:${email}`}
           />
         )}
       </div>

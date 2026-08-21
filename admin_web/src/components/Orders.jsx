@@ -11,6 +11,7 @@ import "react-datepicker/dist/react-datepicker.css";
 import Pagination from './Pagination';
 import { exportToCSV } from '../utils/exportToCSV';
 import RefundDetails from "./RefundDetails";
+import ViewProfile from "./ViewProfile";
 import { adminRequest } from '../lib/adminApi';
 
 //Custom Icons for Timeline 
@@ -72,7 +73,7 @@ const allOrders = [
     avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80",
     items: [{ name: "Bojito", qty: 1, img: "/BOIJITO.png", unitPrice: 15.90 }],
     discount: 0,
-    total: 18.50,
+    total: 15.90,
     status: "Completed",
     payment: "Touch 'n Go eWallet",
     paymentStatus: "Paid",
@@ -337,7 +338,9 @@ const getPaymentBadge = (p) => {
   return <span className="px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md bg-green-100 text-green-600">Paid</span>;
 };
 
-const fmtPrice = (n) => `Tokens ${n.toFixed(2)}`;
+const fmtPrice = (n, payment) => {
+  return `${n.toFixed(2)}`;
+};
 const ITEMS_PER_PAGE = 10;
 
 const STATUSES = ["All Status", "Completed", "Preparing", "Ready for Pickup", "Cancelled", "Refund Requested", "Refunded"];
@@ -393,7 +396,7 @@ const CustomDateInput = forwardRef(({ value, onClick, onClear }, ref) => (
 
 // Order Detail Panel with Animated Timelie
 
-const OrderDetailPanel = ({ order, onClose }) => {
+const OrderDetailPanel = ({ order, onClose, onViewProfile }) => {
   const subtotal = order.items.reduce((s, i) => s + i.unitPrice * i.qty, 0);
   const total = order.total || (subtotal - order.discount);
 
@@ -473,19 +476,35 @@ const OrderDetailPanel = ({ order, onClose }) => {
       {/* Customer Section with Plain Green Circle matching Customers Page */}
       <div>
         <p className="text-xs font-bold text-gray-900 mb-2.5">Username</p>
-        <div className="flex items-center gap-3">
-          <div className="w-14 h-14 rounded-full bg-[#2E5E58] shrink-0 shadow-sm"></div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-bold text-gray-900 truncate">{order.customer}</p>
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${getTierColor(order.tier)}`}>
-                {order.tier}
-              </span>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-14 h-14 rounded-full bg-[#2E5E58] shrink-0 shadow-sm"></div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-bold text-gray-900 truncate">{order.customer}</p>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${getTierColor(order.tier)}`}>
+                  {order.tier}
+                </span>
+              </div>
+              <p className="text-xs text-gray-500 truncate">{order.email}</p>
+              <p className="text-xs text-gray-500">{order.phone}</p>
+              <p className="text-xs text-gray-700 font-medium mt-0.5">Member ID : {order.memberId}</p>
             </div>
-            <p className="text-xs text-gray-500 truncate">{order.email}</p>
-            <p className="text-xs text-gray-500">{order.phone}</p>
-            <p className="text-xs text-gray-700 font-medium mt-0.5">Member ID : {order.memberId}</p>
           </div>
+          <button
+            onClick={() => {
+              const cups = order.tier === 'Legend' ? '35' : order.tier === 'Ketagih' ? '25' : order.tier === 'Dilamun' ? '15' : '5';
+              onViewProfile({
+                username: order.customer,
+                email: order.email,
+                phone: order.phone,
+                orders: cups,
+              });
+            }}
+            className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap cursor-pointer"
+          >
+            View Profile
+          </button>
         </div>
       </div>
 
@@ -509,7 +528,7 @@ const OrderDetailPanel = ({ order, onClose }) => {
                 <p className="text-xs font-medium text-gray-900">{item.name}</p>
               </div>
               <p className="text-xs text-gray-600 font-medium">x{item.qty}</p>
-              <p className="text-xs font-bold text-gray-900">{fmtPrice(item.unitPrice * item.qty)}</p>
+              <p className="text-xs font-bold text-gray-900">{fmtPrice(item.unitPrice * item.qty, order.payment)}</p>
             </div>
           ))}
         </div>
@@ -517,15 +536,15 @@ const OrderDetailPanel = ({ order, onClose }) => {
         <div className="mt-3 pt-3 border-t border-gray-100 space-y-1.5">
           <div className="flex justify-between text-xs text-gray-600">
             <span>Subtotal</span>
-            <span>{fmtPrice(subtotal)}</span>
+            <span>{fmtPrice(subtotal, order.payment)}</span>
           </div>
           <div className="flex justify-between text-xs text-gray-600">
             <span>Discount</span>
-            <span>{fmtPrice(order.discount)}</span>
+            <span>{fmtPrice(order.discount, order.payment)}</span>
           </div>
           <div className="flex justify-between text-base font-bold text-gray-900 pt-1">
             <span>Total</span>
-            <span>{fmtPrice(total)}</span>
+            <span>{fmtPrice(total, order.payment)}</span>
           </div>
         </div>
       </div>
@@ -622,6 +641,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
   const [editingOrder, setEditingOrder] = useState(null);
   const [menuOpenId, setMenuOpenId] = useState(null);
   const [showRefundsView, setShowRefundsView] = useState(initialShowRefunds);
+  const [viewingProfileFor, setViewingProfileFor] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [statusOpen, setStatusOpen] = useState(false);
   const [paymentOpen, setPaymentOpen] = useState(false);
@@ -635,7 +655,9 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
       try {
         setIsLoading(true);
         const response = await adminRequest('/v1/admin/orders');
-        setOrdersList(response.orders || []);
+        if (response && response.orders) {
+          setOrdersList(response.orders);
+        }
       } catch (err) {
         console.error('Failed to fetch orders', err);
       } finally {
@@ -660,6 +682,15 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
           }
           setShowRefundsView(false);
         }}
+      />
+    );
+  }
+
+  if (viewingProfileFor) {
+    return (
+      <ViewProfile 
+        customer={viewingProfileFor} 
+        onBack={() => setViewingProfileFor(null)} 
       />
     );
   }
@@ -890,7 +921,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-white">
                 <tr>
-                  {["Order ID", "Username", "Items", "Total", "Status", "Payment", "Time", "Actions"].map((h) => (
+                  {["Order ID", "Username", "Items", "Total (Token)", "Status", "Payment", "Time", "Actions"].map((h) => (
                     <th key={h} className="px-6 py-4 text-left text-xs font-bold text-gray-900">
                       {h}
                     </th>
@@ -926,7 +957,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
                           {itemsLabel}
                         </td>
                         <td className="px-6 py-3 whitespace-nowrap text-sm font-bold text-gray-900">
-                          {fmtPrice(rowTotal)}
+                          {fmtPrice(rowTotal, order.payment)}
                         </td>
                         <td className="px-6 py-3 whitespace-nowrap">
                           {getStatusBadge(order.status)}
@@ -1029,6 +1060,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
           <OrderDetailPanel
             order={selectedOrder}
             onClose={() => setSelectedOrder(null)}
+            onViewProfile={setViewingProfileFor}
           />
         )}
       </div>
