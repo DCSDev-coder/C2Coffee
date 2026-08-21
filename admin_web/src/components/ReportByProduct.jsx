@@ -19,12 +19,27 @@ const mockProductData = initialMenuData.map((item) => {
     quantitySold: salesNum,
     revenue: salesNum * priceNum
   };
-}).sort((a, b) => b.revenue - a.revenue);
+}).sort((a, b) => b.quantitySold - a.quantitySold);
 
 const chartData = mockProductData.slice(0, 5).map(p => ({
   name: p.name,
-  revenue: p.revenue
+  revenue: p.revenue,
+  quantitySold: p.quantitySold
 }));
+
+const CustomTooltip = ({ active, payload, label }) => {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload;
+    return (
+      <div className="bg-[#1F3A34] p-3 rounded-lg border-none text-white text-xs font-bold shadow-lg">
+        <p className="mb-2 text-sm">{label}</p>
+        <p className="mb-1">Units Sold: {data.quantitySold.toLocaleString()}</p>
+        <p>Revenue: Tokens {data.revenue.toLocaleString()}</p>
+      </div>
+    );
+  }
+  return null;
+};
 
 const StatCard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-white" }) => (
   <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center space-x-4 min-w-0">
@@ -131,20 +146,18 @@ const ReportByProduct = () => {
         </div>
 
         <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex flex-col h-[350px] shrink-0">
-          <h3 className="text-lg font-bold text-gray-900 mb-6">Top 5 Products by Revenue</h3>
+          <h3 className="text-lg font-bold text-gray-900 mb-6">Top 5 Products by Units Sold</h3>
           <div className="flex-1 w-full relative">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }} layout="vertical">
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E5E7EB" />
-                <XAxis type="number" axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 12, fill: '#6B7280', fontWeight: 600 }} tickFormatter={(val) => `Tokens ${(val / 1000).toFixed(0)}K`} />
+                <XAxis type="number" axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 12, fill: '#6B7280', fontWeight: 600 }} tickFormatter={(val) => `${(val / 1000).toFixed(1)}K Units`} />
                 <YAxis dataKey="name" type="category" axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 12, fill: '#6B7280', fontWeight: 600 }} width={80} />
                 <Tooltip
                   cursor={{ fill: '#F3F4F6' }}
-                  contentStyle={{ backgroundColor: '#1F3A34', borderRadius: '8px', border: 'none', color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
-                  itemStyle={{ color: '#fff' }}
-                  formatter={(value) => [`Tokens ${value.toLocaleString()}`, "Revenue"]}
+                  content={<CustomTooltip />}
                 />
-                <Bar dataKey="revenue" radius={[0, 4, 4, 0]} barSize={24}>
+                <Bar dataKey="quantitySold" radius={[0, 4, 4, 0]} barSize={24}>
                   {chartData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
