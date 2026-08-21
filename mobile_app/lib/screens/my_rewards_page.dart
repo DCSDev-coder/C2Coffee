@@ -427,6 +427,7 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
                       children: [
                         _buildInfoChip('Code', voucher.template.code),
                         _buildInfoChip('Expires', expiryLabel),
+                        _buildInfoChip('Applies to', voucher.template.eligibilityLabel),
                         if (voucher.template.minSpendRm != null)
                           _buildInfoChip(
                             'Min spend',

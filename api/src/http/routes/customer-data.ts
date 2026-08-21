@@ -280,7 +280,7 @@ export async function registerCustomerDataRoutes(
 
     const [rows] = await mysqlPool.query<Array<VoucherRow>>(
       `
-        SELECT
+      SELECT
           uv.id,
           uv.status,
           uv.issued_reason,
@@ -298,7 +298,9 @@ export async function registerCustomerDataRoutes(
           CAST(vt.discount_value AS CHAR) AS discount_value,
           vt.token_value,
           CAST(vt.min_spend_rm AS CHAR) AS min_spend_rm,
-          vt.requires_drink_in_cart
+          vt.requires_drink_in_cart,
+          vt.eligible_scope_json,
+          vt.exclude_scope_json
         FROM user_vouchers uv
         JOIN voucher_templates vt
           ON vt.id = uv.voucher_template_id
@@ -332,7 +334,9 @@ export async function registerCustomerDataRoutes(
           discount_value: row.discount_value,
           token_value: row.token_value,
           min_spend_rm: row.min_spend_rm,
-          requires_drink_in_cart: row.requires_drink_in_cart === 1
+          requires_drink_in_cart: row.requires_drink_in_cart === 1,
+          eligible_scope_json: row.eligible_scope_json,
+          exclude_scope_json: row.exclude_scope_json
         }
       }))
     };

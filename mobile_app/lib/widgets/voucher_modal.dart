@@ -361,6 +361,15 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
                       color: Colors.black45,
                     ),
                   ),
+                const SizedBox(height: 4),
+                Text(
+                  'Applies to: ${voucher.template.eligibilityLabel}',
+                  style: const TextStyle(
+                    fontFamily: 'Afacad',
+                    fontSize: 11,
+                    color: Colors.black45,
+                  ),
+                ),
               ],
             ),
           ),

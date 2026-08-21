@@ -52,6 +52,8 @@ class RewardVoucherTemplate {
   final int? tokenValue;
   final String? minSpendRm;
   final bool requiresDrinkInCart;
+  final Map<String, dynamic> eligibleScope;
+  final Map<String, dynamic> excludeScope;
 
   const RewardVoucherTemplate({
     required this.code,
@@ -62,6 +64,8 @@ class RewardVoucherTemplate {
     required this.tokenValue,
     required this.minSpendRm,
     required this.requiresDrinkInCart,
+    required this.eligibleScope,
+    required this.excludeScope,
   });
 
   factory RewardVoucherTemplate.fromApi(Map<String, dynamic> json) {
@@ -74,7 +78,77 @@ class RewardVoucherTemplate {
       tokenValue: (json['token_value'] as num?)?.toInt(),
       minSpendRm: json['min_spend_rm'] as String?,
       requiresDrinkInCart: json['requires_drink_in_cart'] as bool? ?? false,
+      eligibleScope: _parseScopeMap(json['eligible_scope_json']),
+      excludeScope: _parseScopeMap(json['exclude_scope_json']),
     );
+  }
+
+  String get eligibilityLabel {
+    final items = _stringListFromScope(eligibleScope, ['items', 'item_codes']);
+    if (items.isNotEmpty) {
+      return items.map(_formatScopeValue).join(', ');
+    }
+
+    final categories =
+        _stringListFromScope(eligibleScope, ['category_codes', 'categories']);
+    if (categories.isNotEmpty) {
+      return categories.map(_formatScopeValue).join(', ');
+    }
+
+    final stores = _stringListFromScope(eligibleScope, ['store_codes']);
+    if (stores.isNotEmpty) {
+      return stores.map(_formatScopeValue).join(', ');
+    }
+
+    return 'All items';
+  }
+
+  static Map<String, dynamic> _parseScopeMap(dynamic value) {
+    if (value is Map<String, dynamic>) {
+      return value;
+    }
+    if (value is Map) {
+      return Map<String, dynamic>.from(value);
+    }
+    if (value is String && value.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(value);
+        if (decoded is Map<String, dynamic>) return decoded;
+        if (decoded is Map) return Map<String, dynamic>.from(decoded);
+      } catch (_) {}
+    }
+    return <String, dynamic>{};
+  }
+
+  static List<String> _stringListFromScope(
+    Map<String, dynamic> scope,
+    List<String> keys,
+  ) {
+    for (final key in keys) {
+      final value = scope[key];
+      if (value is List) {
+        return value
+            .map((item) => item?.toString().trim() ?? '')
+            .where((item) => item.isNotEmpty)
+            .toList();
+      }
+      if (value is String && value.trim().isNotEmpty) {
+        return [value.trim()];
+      }
+    }
+    return const <String>[];
+  }
+
+  static String _formatScopeValue(String value) {
+    final normalized = value.replaceAll('_', ' ').trim();
+    if (normalized.isEmpty) return value;
+    return normalized
+        .split(RegExp(r'\s+'))
+        .map((word) {
+          if (word.isEmpty) return word;
+          return '${word[0].toUpperCase()}${word.substring(1)}';
+        })
+        .join(' ');
   }
 }
 
