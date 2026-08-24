@@ -32,6 +32,8 @@ import {
 
 const RESTRICTED_CATEGORIES = new Set(['C2 Pastries', 'C2 Merchandise', '5luxes Candles']);
 const ITEMS_PER_PAGE = 10;
+const LAST_SELECTED_ITEM_KEY = 'c2_admin_menu_last_selected_item_id';
+const MENU_PANEL_DISMISSED_KEY = 'c2_admin_menu_panel_dismissed';
 const MENU_PRODUCT_KIND_OPTIONS = [
   { value: 'drink', label: 'Drinks' },
   { value: 'food', label: 'Food' },
@@ -105,15 +107,16 @@ const resolveMenuImageUrl = (imageUrl) => {
     return '/c2_logo.png';
   }
 
+  if (/^data:/i.test(trimmed) || /^blob:/i.test(trimmed)) {
+    return trimmed;
+  }
+
   if (/^https?:\/\//i.test(trimmed)) {
     return trimmed;
   }
 
-  if (trimmed.startsWith('/')) {
-    return `${getAdminApiBaseUrl()}${trimmed}`;
-  }
-
-  return trimmed;
+  const normalizedPath = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+  return `${getAdminApiBaseUrl()}${normalizedPath}`;
 };
 
 const createTempId = (prefix) => {
@@ -233,7 +236,20 @@ const Menu = () => {
   const [selectedStatus, setSelectedStatus] = useState('All');
   const [categoryOpen, setCategoryOpen] = useState(false);
   const [statusOpen, setStatusOpen] = useState(false);
-  const [selectedItemId, setSelectedItemId] = useState(null);
+  const [selectedItemId, setSelectedItemId] = useState(() => {
+    if (typeof window === 'undefined') {
+      return null;
+    }
+
+    const dismissed = window.localStorage.getItem(MENU_PANEL_DISMISSED_KEY) === '1';
+    if (dismissed) {
+      return null;
+    }
+
+    const savedId = window.localStorage.getItem(LAST_SELECTED_ITEM_KEY);
+    const parsedId = Number(savedId);
+    return Number.isFinite(parsedId) && parsedId > 0 ? parsedId : null;
+  });
   const [activeTab, setActiveTab] = useState('Details');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editMode, setEditMode] = useState('create');
@@ -274,6 +290,21 @@ const Menu = () => {
 
       if (selectedCategory !== 'All' && !categories.some((category) => category.code === selectedCategory)) {
         setSelectedCategory('All');
+      }
+
+      if (typeof window !== 'undefined') {
+        const dismissed = window.localStorage.getItem(MENU_PANEL_DISMISSED_KEY) === '1';
+        if (!dismissed) {
+          const savedId = Number(window.localStorage.getItem(LAST_SELECTED_ITEM_KEY));
+          if (Number.isFinite(savedId) && savedId > 0) {
+            const savedItemExists = categories.some((category) =>
+              (category.items || []).some((item) => item.id === savedId)
+            );
+            if (savedItemExists) {
+              setSelectedItemId(savedId);
+            }
+          }
+        }
       }
     } catch (error) {
       setErrorMessage(error.message || 'Unable to load menu data.');
@@ -328,14 +359,24 @@ const Menu = () => {
     : 0;
 
   useEffect(() => {
-    if (!selectedItem && paginatedItems.length > 0 && !selectedItemId) {
-      setSelectedItemId(paginatedItems[0].id);
-    }
-  }, [paginatedItems, selectedItem, selectedItemId]);
-
-  useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery, selectedCategory, selectedStatus]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    if (selectedItemId) {
+      window.localStorage.setItem(LAST_SELECTED_ITEM_KEY, String(selectedItemId));
+      window.localStorage.setItem(MENU_PANEL_DISMISSED_KEY, '0');
+      return;
+    }
+
+    if (window.localStorage.getItem(MENU_PANEL_DISMISSED_KEY) !== '1') {
+      window.localStorage.removeItem(LAST_SELECTED_ITEM_KEY);
+    }
+  }, [selectedItemId]);
 
   const resetPage = () => setCurrentPage(1);
 
@@ -344,6 +385,17 @@ const Menu = () => {
     if (itemId !== null) {
       setSelectedItemId(itemId);
     }
+  };
+
+  const openSelectedItem = (itemId) => {
+    setSelectedItemId(itemId);
+  };
+
+  const closeSelectedItem = () => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(MENU_PANEL_DISMISSED_KEY, '1');
+    }
+    setSelectedItemId(null);
   };
 
   const openCreateModal = () => {
@@ -755,7 +807,7 @@ const Menu = () => {
                     <tr
                       key={item.id}
                       className={`hover:bg-gray-50 cursor-pointer ${selectedItemId === item.id ? 'bg-gray-50' : ''}`}
-                      onClick={() => setSelectedItemId(item.id)}
+                      onClick={() => openSelectedItem(item.id)}
                     >
                       <td className="px-6 py-3">
                         <div className="flex items-center gap-3">
@@ -791,7 +843,7 @@ const Menu = () => {
                           className="p-1.5 bg-[#1F3A34] text-white rounded hover:bg-[#2E5E58] transition-colors"
                           onClick={(event) => {
                             event.stopPropagation();
-                            setSelectedItemId(item.id);
+                            openSelectedItem(item.id);
                           }}
                         >
                           <Eye size={14} />
@@ -844,7 +896,7 @@ const Menu = () => {
                   </div>
                 </div>
                 <button
-                  onClick={() => setSelectedItemId(null)}
+                  onClick={closeSelectedItem}
                   className="p-1 text-gray-400 hover:text-gray-900 rounded-lg hover:bg-gray-100"
                 >
                   <X size={20} />

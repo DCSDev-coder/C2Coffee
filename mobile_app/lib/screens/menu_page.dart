@@ -659,7 +659,7 @@ class _MenuPageState extends State<MenuPage> {
             crossAxisCount: 2,
             crossAxisSpacing: 12,
             mainAxisSpacing: 12,
-            childAspectRatio: 0.72,
+            childAspectRatio: 0.65,
           ),
           itemCount: section.items.length,
           itemBuilder: (context, itemIndex) {
@@ -723,16 +723,17 @@ class _MenuPageState extends State<MenuPage> {
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    item['name']?.toString() ?? 'Item',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontFamily: 'Recoleta',
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
+                  Expanded(
+                    child: Text(
+                      item['name']?.toString() ?? 'Item',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontFamily: 'Recoleta',
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                   AnimatedSwitcher(

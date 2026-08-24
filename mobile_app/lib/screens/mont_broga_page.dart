@@ -1276,7 +1276,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                             subcategoryName: widget.item['subcategory']?.toString(),
                             productKindCode: widget.item['productKindCode']?.toString(),
                             productKindName: widget.item['productKind']?.toString(),
-                            imageAssetPath: widget.item['image']?.toString(),
+                            imageAssetPath: null,
                             imageUrl: widget.item['image_url']?.toString(),
                             basePriceRm: _itemBasePrice,
                             tokenPrice: _baseTokenPrice,

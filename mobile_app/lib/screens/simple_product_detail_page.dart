@@ -35,7 +35,6 @@ class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
   }
 
   String get _itemName => widget.item['name']?.toString() ?? 'Item';
-  String get _itemImage => widget.item['image']?.toString() ?? '';
   bool get _isDrink => widget.item['isDrink'] == true;
   bool get _isFood => widget.item['isFood'] == true;
   bool get _isMerchandise => widget.item['isMerchandise'] == true;
@@ -178,7 +177,7 @@ class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
                   child: Transform.scale(
                     scale: _imageScale,
                     child: CatalogProductImage(
-                      assetPath: _itemImage,
+                      assetPath: null,
                       imageUrl: widget.item['image_url']?.toString(),
                       height: 200,
                       fit: BoxFit.contain,
@@ -378,7 +377,7 @@ class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
                             subcategoryName: widget.item['subcategory']?.toString(),
                             productKindCode: widget.item['productKindCode']?.toString(),
                             productKindName: widget.item['productKind']?.toString(),
-                            imageAssetPath: _itemImage,
+                            imageAssetPath: null,
                             imageUrl: widget.item['image_url']?.toString(),
                             basePriceRm: _itemBasePrice,
                             tokenPrice: _tokenPrice,

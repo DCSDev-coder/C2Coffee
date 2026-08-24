@@ -806,7 +806,8 @@ class _CustomCalendarWidgetState extends State<CustomCalendarWidget> {
                               'Dato Blend / Hot / Fresh Milk /\nReg. Sweet / Reg. Ice /\nTake Away',
                           'remarks': 'None',
                           'quantity': 1,
-                          'image': 'assets/images/drinks/SHAKERATO BIANCO.png',
+                          'image': '',
+                          'image_url': '',
                         };
 
                         InteractiveFillingLoader.show(

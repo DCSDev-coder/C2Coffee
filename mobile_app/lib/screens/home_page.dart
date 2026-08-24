@@ -840,7 +840,7 @@ class _HomePageState extends State<HomePage> {
           )
         else
           SizedBox(
-            height: 224,
+            height: 240,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -896,20 +896,21 @@ class _HomePageState extends State<HomePage> {
                             padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text(
-                                  item['name']?.toString() ?? 'Item',
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontFamily: 'Recoleta',
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.bold,
+                                Expanded(
+                                  child: Text(
+                                    item['name']?.toString() ?? 'Item',
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontFamily: 'Recoleta',
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
                                 ),
                                 Padding(
-                                  padding: const EdgeInsets.only(top: 8),
+                                  padding: const EdgeInsets.only(top: 4),
                                   child: Text(
                                     _formatPrice(item),
                                     maxLines: 1,

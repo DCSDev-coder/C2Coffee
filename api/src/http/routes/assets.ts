@@ -26,7 +26,11 @@ export async function registerAssetRoutes(
 
     try {
       const content = await readFile(resolvedPath);
-      return reply.type(_mimeTypeFor(resolvedPath)).send(content);
+      return reply
+        .header('Cross-Origin-Resource-Policy', 'cross-origin')
+        .header('Cache-Control', 'public, max-age=31536000, immutable')
+        .type(_mimeTypeFor(resolvedPath))
+        .send(content);
     } catch {
       return reply.status(404).send();
     }
