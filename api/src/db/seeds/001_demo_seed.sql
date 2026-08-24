@@ -676,7 +676,7 @@ INSERT INTO voucher_templates (
 VALUES
   (
     'WELCOME10',
-    'Welcome Drink Voucher',
+    'Welcome New User Voucher',
     'welcome',
     'free_drink',
     0.00,
@@ -687,51 +687,6 @@ VALUES
     1,
     'primary_only',
     14,
-    1
-  ),
-  (
-    'TIER2_DRINK',
-    'Tier 2 Complimentary Drink',
-    'tier_reward',
-    'free_drink',
-    0.00,
-    12,
-    NULL,
-    JSON_OBJECT('category_codes', JSON_ARRAY('coffee', 'non_coffee')),
-    NULL,
-    1,
-    'primary_only',
-    30,
-    1
-  ),
-  (
-    'REFERRAL_DRINK',
-    'Referral Reward Drink',
-    'referral',
-    'free_drink',
-    0.00,
-    12,
-    NULL,
-    JSON_OBJECT('category_codes', JSON_ARRAY('coffee', 'non_coffee')),
-    NULL,
-    1,
-    'primary_only',
-    30,
-    1
-  ),
-  (
-    'DIRECTPAY_RM5',
-    'Weekend Direct Pay RM5 Off',
-    'campaign_direct_pay',
-    'fixed_rm',
-    5.00,
-    NULL,
-    15.00,
-    JSON_OBJECT('store_codes', JSON_ARRAY('C2-BROGA', 'C2-KAJANG')),
-    NULL,
-    0,
-    'primary_only',
-    7,
     1
   )
 ON DUPLICATE KEY UPDATE
@@ -747,48 +702,3 @@ ON DUPLICATE KEY UPDATE
   stack_rule = VALUES(stack_rule),
   expires_in_days = VALUES(expires_in_days),
   is_active = VALUES(is_active);
-
--- Seed active vouchers for QA users
-INSERT INTO user_vouchers (
-  user_id,
-  voucher_template_id,
-  status,
-  issued_by_type,
-  issued_reason,
-  issued_at,
-  expires_at
-)
-SELECT
-  u.id,
-  vt.id,
-  'active',
-  'system',
-  'QA Demo Seed Welcome Voucher',
-  UTC_TIMESTAMP(),
-  DATE_ADD(UTC_TIMESTAMP(), INTERVAL 30 DAY)
-FROM users u
-JOIN voucher_templates vt ON vt.code = 'WELCOME10'
-WHERE u.phone_e164 IN ('+601200000101', '+601200000102')
-ON DUPLICATE KEY UPDATE status = VALUES(status);
-
-INSERT INTO user_vouchers (
-  user_id,
-  voucher_template_id,
-  status,
-  issued_by_type,
-  issued_reason,
-  issued_at,
-  expires_at
-)
-SELECT
-  u.id,
-  vt.id,
-  'active',
-  'system',
-  'QA Demo Seed Direct Pay Discount',
-  UTC_TIMESTAMP(),
-  DATE_ADD(UTC_TIMESTAMP(), INTERVAL 30 DAY)
-FROM users u
-JOIN voucher_templates vt ON vt.code = 'DIRECTPAY_RM5'
-WHERE u.phone_e164 IN ('+601200000101', '+601200000102')
-ON DUPLICATE KEY UPDATE status = VALUES(status);

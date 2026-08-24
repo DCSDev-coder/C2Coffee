@@ -120,6 +120,21 @@ type AppliedVoucherRow = RowDataPacket & {
   template_is_active: number;
 };
 
+type VoucherScopeSelection = {
+  product_kind_codes: string[];
+  subcategory_codes: string[];
+  category_codes: string[];
+  items: string[];
+};
+
+type VoucherPromotionRule = {
+  kind: 'standard' | 'bundle';
+  qualifying_quantity: number;
+  reward_quantity: number;
+  qualifying_scope: VoucherScopeSelection;
+  reward_scope: VoucherScopeSelection;
+};
+
 function _parseVoucherScope(value: unknown): Record<string, unknown> {
   if (!value) return {};
   if (typeof value === 'object') return value as Record<string, unknown>;
@@ -227,8 +242,102 @@ function _resolveProductKindForCategory(productKindCode: string | null | undefin
   }
 }
 
-function _voucherCartEligibleItems(
-  scope: Record<string, unknown>,
+function _scopeSelectionFromScope(scope: Record<string, unknown>): VoucherScopeSelection {
+  const items = _stringScopeList(scope, ['item_codes', 'items']).map(_normalizeValue);
+  return {
+    product_kind_codes: _stringScopeList(scope, ['product_kind_codes', 'product_kinds']).map(_normalizeValue),
+    subcategory_codes: _stringScopeList(scope, ['subcategory_codes']).map(_normalizeValue),
+    category_codes: _stringScopeList(scope, ['category_codes', 'categories']).map(_normalizeValue),
+    items: items.length === 1 && items[0] === _normalizeValue('All Items') ? [] : items
+  };
+}
+
+function _scopeSelectionFromRaw(value: unknown): VoucherScopeSelection {
+  if (!value || typeof value !== 'object') {
+    return {
+      product_kind_codes: [],
+      subcategory_codes: [],
+      category_codes: [],
+      items: []
+    };
+  }
+
+  const scope = value as Record<string, unknown>;
+  const items = _stringScopeList(scope, ['item_codes', 'items']).map(_normalizeValue);
+  return {
+    product_kind_codes: _stringScopeList(scope, ['product_kind_codes', 'product_kinds']).map(_normalizeValue),
+    subcategory_codes: _stringScopeList(scope, ['subcategory_codes']).map(_normalizeValue),
+    category_codes: _stringScopeList(scope, ['category_codes', 'categories']).map(_normalizeValue),
+    items: items.length === 1 && items[0] === _normalizeValue('All Items') ? [] : items
+  };
+}
+
+function _parsePromotionRule(scope: Record<string, unknown>): VoucherPromotionRule {
+  const rawRule =
+    scope.promotion_rule && typeof scope.promotion_rule === 'object'
+      ? (scope.promotion_rule as Record<string, unknown>)
+      : {};
+  const kind = String(rawRule.kind || 'standard').trim() === 'bundle' ? 'bundle' : 'standard';
+  const qualifyingQuantity = Math.max(1, Number(rawRule.qualifying_quantity || 1) || 1);
+  const rewardQuantity = Math.max(1, Number(rawRule.reward_quantity || 1) || 1);
+  const fallbackScope = _scopeSelectionFromScope(scope);
+  const qualifyingScope = _scopeSelectionFromRaw(rawRule.qualifying_scope);
+  const rewardScope = _scopeSelectionFromRaw(rawRule.reward_scope);
+
+  const hasQualifyingScope =
+    qualifyingScope.product_kind_codes.length > 0 ||
+    qualifyingScope.subcategory_codes.length > 0 ||
+    qualifyingScope.category_codes.length > 0 ||
+    qualifyingScope.items.length > 0;
+  const hasRewardScope =
+    rewardScope.product_kind_codes.length > 0 ||
+    rewardScope.subcategory_codes.length > 0 ||
+    rewardScope.category_codes.length > 0 ||
+    rewardScope.items.length > 0;
+
+  return {
+    kind,
+    qualifying_quantity: qualifyingQuantity,
+    reward_quantity: rewardQuantity,
+    qualifying_scope: hasQualifyingScope ? qualifyingScope : fallbackScope,
+    reward_scope: kind === 'bundle' && hasRewardScope ? rewardScope : hasQualifyingScope ? qualifyingScope : fallbackScope
+  };
+}
+
+function _scopeMatchesMenuItem(scope: VoucherScopeSelection, menuItem: MenuItemRow): boolean {
+  const menuItemCode = _normalizeValue(menuItem.code);
+  const subcategoryCode = _normalizeValue(menuItem.subcategory_code ?? '');
+  const categoryCode = _normalizeValue(menuItem.category_code);
+  const productKindCode = _resolveProductKindForCategory(
+    menuItem.category_product_kind_code,
+    menuItem.category_code
+  );
+
+  const itemCodes = new Set(scope.items.map(_normalizeValue));
+  const subcategoryCodes = new Set(scope.subcategory_codes.map(_normalizeValue));
+  const categoryCodes = new Set(scope.category_codes.map(_normalizeValue));
+  const productKindCodes = new Set(scope.product_kind_codes.map(_normalizeValue));
+
+  const hasExplicitScope =
+    itemCodes.size > 0 ||
+    subcategoryCodes.size > 0 ||
+    categoryCodes.size > 0 ||
+    productKindCodes.size > 0;
+
+  if (!hasExplicitScope) {
+    return true;
+  }
+
+  return (
+    itemCodes.has(menuItemCode) ||
+    subcategoryCodes.has(subcategoryCode) ||
+    categoryCodes.has(categoryCode) ||
+    productKindCodes.has(productKindCode)
+  );
+}
+
+function _collectMatchedUnits(
+  scope: VoucherScopeSelection,
   normalizedItems: Array<{
     payload: z.infer<typeof createOrderSchema>['items'][number];
     menuItem: MenuItemRow;
@@ -238,45 +347,26 @@ function _voucherCartEligibleItems(
     modifierTokens: number;
   }>
 ) {
-  const itemCodes = new Set(
-    _stringScopeList(scope, ['item_codes', 'items']).map(_normalizeValue)
-  );
-  const subcategoryCodes = new Set(
-    _stringScopeList(scope, ['subcategory_codes']).map(_normalizeValue)
-  );
-  const categoryCodes = new Set(
-    _stringScopeList(scope, ['category_codes', 'categories']).map(_normalizeValue)
-  );
-  const productKindCodes = new Set(
-    _stringScopeList(scope, ['product_kind_codes', 'product_kinds']).map(_normalizeValue)
-  );
+  const units: Array<{
+    payload: z.infer<typeof createOrderSchema>['items'][number];
+    menuItem: MenuItemRow;
+    basePriceRm: number;
+    tokenPrice: number;
+    modifierRm: number;
+    modifierTokens: number;
+  }> = [];
 
-  const hasExplicitScope =
-    itemCodes.size > 0 ||
-    subcategoryCodes.size > 0 ||
-    categoryCodes.size > 0 ||
-    productKindCodes.size > 0;
+  for (const item of normalizedItems) {
+    if (!_scopeMatchesMenuItem(scope, item.menuItem)) {
+      continue;
+    }
 
-  if (!hasExplicitScope) {
-    return normalizedItems;
+    for (let index = 0; index < item.payload.quantity; index += 1) {
+      units.push(item);
+    }
   }
 
-  return normalizedItems.filter(({ menuItem }) => {
-    const menuItemCode = _normalizeValue(menuItem.code);
-    const subcategoryCode = _normalizeValue(menuItem.subcategory_code ?? '');
-    const categoryCode = _normalizeValue(menuItem.category_code);
-    const productKindCode = _resolveProductKindForCategory(
-      menuItem.category_product_kind_code,
-      menuItem.category_code
-    );
-
-    return (
-      itemCodes.has(menuItemCode) ||
-      subcategoryCodes.has(subcategoryCode) ||
-      categoryCodes.has(categoryCode) ||
-      productKindCodes.has(productKindCode)
-    );
-  });
+  return units;
 }
 
 export async function registerCheckoutRoutes(
@@ -418,6 +508,7 @@ export async function registerCheckoutRoutes(
         }
 
         const voucherScope = _parseVoucherScope(appliedVoucher.eligible_scope_json);
+        const promotionRule = _parsePromotionRule(voucherScope);
         if (!_isVoucherAvailableNow(voucherScope)) {
           throw new ApiError(
             400,
@@ -439,8 +530,10 @@ export async function registerCheckoutRoutes(
           );
         }
 
-        const eligibleCartItems = _voucherCartEligibleItems(voucherScope, normalizedItems);
-        if (eligibleCartItems.length === 0) {
+        const qualifyingUnits = _collectMatchedUnits(promotionRule.qualifying_scope, normalizedItems);
+        const rewardUnits = _collectMatchedUnits(promotionRule.reward_scope, normalizedItems);
+
+        if (qualifyingUnits.length < promotionRule.qualifying_quantity || rewardUnits.length === 0) {
           throw new ApiError(
             400,
             'voucher_not_applicable_to_cart',
@@ -460,6 +553,23 @@ export async function registerCheckoutRoutes(
           }
         }
 
+        const rewardableUnits = rewardUnits
+          .slice()
+          .sort(
+            (a, b) =>
+              (b.basePriceRm + b.modifierRm) - (a.basePriceRm + a.modifierRm) ||
+              (b.tokenPrice + b.modifierTokens) - (a.tokenPrice + a.modifierTokens)
+          )
+          .slice(0, promotionRule.reward_quantity);
+
+        if (rewardableUnits.length < promotionRule.reward_quantity) {
+          throw new ApiError(
+            400,
+            'voucher_not_applicable_to_cart',
+            'Selected voucher does not match the current cart items.'
+          );
+        }
+
         if (appliedVoucher.discount_mode === 'fixed_rm') {
           discountRm = Math.min(totalBeforeDiscountRm, Number(appliedVoucher.discount_value));
         } else if (appliedVoucher.discount_mode === 'percent_rm') {
@@ -469,25 +579,16 @@ export async function registerCheckoutRoutes(
           const tokenDiscountVal = appliedVoucher.token_value ?? Math.round(Number(appliedVoucher.discount_value));
           discountTokens = Math.min(tokenAmountCharged, tokenDiscountVal);
         } else if (appliedVoucher.discount_mode === 'free_drink') {
-          const highestItem = [...eligibleCartItems].sort(
-            (a, b) =>
-              (b.basePriceRm + b.modifierRm) - (a.basePriceRm + a.modifierRm) ||
-              (b.tokenPrice + b.modifierTokens) - (a.tokenPrice + a.modifierTokens)
-          )[0];
           if (isTokenCheckout) {
-            if (highestItem) {
-              discountTokens = Math.min(
-                tokenAmountCharged,
-                highestItem.tokenPrice + highestItem.modifierTokens
-              );
-            }
+            discountTokens = rewardableUnits.reduce(
+              (sum, unit) => sum + unit.tokenPrice + unit.modifierTokens,
+              0
+            );
           } else {
-            if (highestItem) {
-              discountRm = Math.min(
-                totalBeforeDiscountRm,
-                highestItem.basePriceRm + highestItem.modifierRm
-              );
-            }
+            discountRm = rewardableUnits.reduce(
+              (sum, unit) => sum + unit.basePriceRm + unit.modifierRm,
+              0
+            );
           }
         }
       }

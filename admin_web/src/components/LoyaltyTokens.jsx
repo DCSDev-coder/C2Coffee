@@ -387,7 +387,7 @@ const LoyaltyTokens = ({ onBack, onNavigate }) => {
               onClick={() => setActiveView('analytics')}
               className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer shadow-sm whitespace-nowrap transition-transform duration-200 peer-focus:-rotate-180"
             >
-              View Analytics
+              Analytics
             </button>
             <button
               onClick={() => {

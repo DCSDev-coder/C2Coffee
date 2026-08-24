@@ -10,6 +10,7 @@ const voucherCreateUpdateSchema = z.object({
   name: z.string().trim().min(1).max(255),
   type: z.string().trim().min(1).max(100),
   benefitType: z.string().trim().min(1).max(50),
+  promotionKind: z.enum(['standard', 'bundle']).optional().default('standard'),
   status: z.enum(['Active', 'Expired', 'Draft']).optional().default('Active'),
   tier: z.string(),
   reward: z.string().trim().max(255).optional(),
@@ -17,6 +18,11 @@ const voucherCreateUpdateSchema = z.object({
   productKinds: z.array(z.string()).optional().default([]),
   subcategoryCodes: z.array(z.string()).optional().default([]),
   eligibleItems: z.array(z.string()),
+  rewardProductKinds: z.array(z.string()).optional().default([]),
+  rewardSubcategoryCodes: z.array(z.string()).optional().default([]),
+  rewardItems: z.array(z.string()).optional().default([]),
+  qualifyingQuantity: z.number().int().min(1).max(20).optional().default(1),
+  rewardQuantity: z.number().int().min(1).max(20).optional().default(1),
   expiry: z.string().trim().optional().nullable(),
   totalQty: z.number().int().nullable().optional(),
   limitPerUser: z.number().int().nullable().optional(),
@@ -60,6 +66,19 @@ const revokeIssuedVoucherSchema = z.object({
 });
 
 type VoucherPayload = z.infer<typeof voucherCreateUpdateSchema>;
+type ScopeSelection = {
+  product_kind_codes: string[];
+  subcategory_codes: string[];
+  items: string[];
+};
+
+type PromotionRule = {
+  kind: 'standard' | 'bundle';
+  qualifying_quantity: number;
+  reward_quantity: number;
+  qualifying_scope: ScopeSelection;
+  reward_scope: ScopeSelection;
+};
 
 const BENEFIT_TYPES = new Set([
   'Free Drink',
@@ -130,6 +149,36 @@ type AdminIssuedVoucherRow = RowDataPacket & {
   phone_e164: string;
 };
 
+type AdminVoucherAnalyticsSummaryRow = RowDataPacket & {
+  total_vouchers: number;
+  active_vouchers: number;
+  issued_vouchers: number;
+  redeemed_vouchers: number;
+};
+
+type AdminVoucherAnalyticsTopRow = RowDataPacket & {
+  code: string;
+  name: string;
+  voucher_type: string;
+  is_active: number;
+  issued_count: number;
+  redeemed_count: number;
+};
+
+type AdminVoucherAnalyticsRecentRow = RowDataPacket & {
+  id: number;
+  code: string;
+  name: string;
+  status: string;
+  issued_reason: string;
+  issued_at: Date;
+  redeemed_at: Date | null;
+  revoked_at: Date | null;
+  display_name: string | null;
+  email: string | null;
+  phone_e164: string;
+};
+
 let voucherTemplateColumnsPromise: Promise<Set<string>> | null = null;
 
 async function getVoucherTemplateColumns(): Promise<Set<string>> {
@@ -159,6 +208,62 @@ function parseScopeJson(value: unknown): Record<string, unknown> {
   }
 
   return {};
+}
+
+function parseScopeSelection(value: unknown): ScopeSelection {
+  const scope = parseScopeJson(value);
+  const items = Array.isArray(scope.items)
+    ? normalizeEligibleItems(scope.items.map((item) => String(item)))
+    : [];
+  return {
+    product_kind_codes: Array.isArray(scope.product_kind_codes)
+      ? normalizeScopeCodes(scope.product_kind_codes.map((item) => String(item)))
+      : [],
+    subcategory_codes: Array.isArray(scope.subcategory_codes)
+      ? normalizeScopeCodes(scope.subcategory_codes.map((item) => String(item)))
+      : [],
+    items: items.length === 1 && items[0] === 'All Items' ? [] : items
+  };
+}
+
+function parsePromotionRule(scope: Record<string, unknown>): PromotionRule {
+  const rawRule = scope.promotion_rule && typeof scope.promotion_rule === 'object'
+    ? (scope.promotion_rule as Record<string, unknown>)
+    : {};
+
+  const qualifyingScope = parseScopeSelection(rawRule.qualifying_scope);
+  const rewardScope = parseScopeSelection(rawRule.reward_scope);
+  const kind = String(rawRule.kind || 'standard').trim() === 'bundle' ? 'bundle' : 'standard';
+  const qualifyingQuantity = Number(rawRule.qualifying_quantity || 1);
+  const rewardQuantity = Number(rawRule.reward_quantity || 1);
+
+  const fallbackScope = parseScopeSelection(scope);
+
+  return {
+    kind,
+    qualifying_quantity: Number.isFinite(qualifyingQuantity) && qualifyingQuantity > 0
+      ? Math.floor(qualifyingQuantity)
+      : 1,
+    reward_quantity: Number.isFinite(rewardQuantity) && rewardQuantity > 0
+      ? Math.floor(rewardQuantity)
+      : 1,
+    qualifying_scope: qualifyingScope.items.length > 0 ||
+      qualifyingScope.product_kind_codes.length > 0 ||
+      qualifyingScope.subcategory_codes.length > 0
+      ? qualifyingScope
+      : fallbackScope,
+    reward_scope:
+      kind === 'bundle' &&
+      (rewardScope.items.length > 0 ||
+        rewardScope.product_kind_codes.length > 0 ||
+        rewardScope.subcategory_codes.length > 0)
+        ? rewardScope
+        : qualifyingScope.items.length > 0 ||
+            qualifyingScope.product_kind_codes.length > 0 ||
+            qualifyingScope.subcategory_codes.length > 0
+          ? qualifyingScope
+          : fallbackScope
+  };
 }
 
 function parseDateValue(value: unknown): Date | null {
@@ -194,6 +299,13 @@ function deriveReward(payload: VoucherPayload): string {
   if (explicitReward) return explicitReward;
 
   const firstItem = payload.eligibleItems[0]?.trim();
+  const promoLabel = payload.benefitType === 'Free Food' ? 'Food' : 'Drink';
+
+  if (payload.promotionKind === 'bundle') {
+    const buyQty = payload.qualifyingQuantity || 1;
+    const freeQty = payload.rewardQuantity || 1;
+    return `Buy ${buyQty} Get ${freeQty} Free ${promoLabel}`;
+  }
 
   if (payload.benefitType === 'Free Drink') {
     return firstItem ? `Free ${firstItem}` : 'Free Drink';
@@ -216,6 +328,41 @@ function deriveReward(payload: VoucherPayload): string {
   }
 
   return payload.name;
+}
+
+function buildScopeSelection(
+  items: string[],
+  productKinds: string[],
+  subcategoryCodes: string[]
+): ScopeSelection {
+  const normalizedItems = normalizeEligibleItems(items);
+  return {
+    product_kind_codes: normalizeScopeCodes(productKinds),
+    subcategory_codes: normalizeScopeCodes(subcategoryCodes),
+    items: normalizedItems.length === 1 && normalizedItems[0] === 'All Items' ? [] : normalizedItems
+  };
+}
+
+function buildPromotionRule(payload: VoucherPayload): PromotionRule {
+  const qualifyingScope = buildScopeSelection(
+    payload.eligibleItems,
+    payload.productKinds,
+    payload.subcategoryCodes
+  );
+
+  const rewardScope = buildScopeSelection(
+    payload.rewardItems.length > 0 ? payload.rewardItems : payload.eligibleItems,
+    payload.rewardProductKinds.length > 0 ? payload.rewardProductKinds : payload.productKinds,
+    payload.rewardSubcategoryCodes.length > 0 ? payload.rewardSubcategoryCodes : payload.subcategoryCodes
+  );
+
+  return {
+    kind: payload.promotionKind,
+    qualifying_quantity: Math.max(1, payload.qualifyingQuantity || 1),
+    reward_quantity: Math.max(1, payload.rewardQuantity || 1),
+    qualifying_scope: qualifyingScope,
+    reward_scope: payload.promotionKind === 'bundle' ? rewardScope : qualifyingScope
+  };
 }
 
 function normalizeEligibleItems(items: string[]): string[] {
@@ -644,6 +791,7 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
     const vouchers = rows.map((row) => {
       const templateRow = row as VoucherTemplateRow;
       const scope = parseScopeJson(templateRow.eligible_scope_json);
+      const promotionRule = parsePromotionRule(scope);
       const type = normalizeFrontendType(scope, templateRow);
       const benefitType = normalizeBenefitType(scope, templateRow);
       const audience = normalizeAudience(scope);
@@ -660,20 +808,19 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
         name: templateRow.name,
         type: type,
         benefitType,
+        promotionKind: promotionRule.kind,
         audience,
         tier: String(scope.tier || 'All Tiers'),
         reward: String(scope.reward || templateRow.name || ''),
         discountValue: templateRow.discount_mode === 'fixed_token' ? templateRow.token_value : templateRow.discount_value,
-        eligibleItems:
-          Array.isArray(scope.items) && scope.items.length > 0
-            ? normalizeEligibleItems(scope.items.map((item) => String(item)))
-            : ['All Items'],
-        productKinds: normalizeScopeCodes(
-          Array.isArray(scope.product_kind_codes) ? scope.product_kind_codes.map((item) => String(item)) : []
-        ),
-        subcategoryCodes: normalizeScopeCodes(
-          Array.isArray(scope.subcategory_codes) ? scope.subcategory_codes.map((item) => String(item)) : []
-        ),
+        eligibleItems: promotionRule.qualifying_scope.items,
+        productKinds: promotionRule.qualifying_scope.product_kind_codes,
+        subcategoryCodes: promotionRule.qualifying_scope.subcategory_codes,
+        rewardItems: promotionRule.reward_scope.items,
+        rewardProductKinds: promotionRule.reward_scope.product_kind_codes,
+        rewardSubcategoryCodes: promotionRule.reward_scope.subcategory_codes,
+        qualifyingQuantity: promotionRule.qualifying_quantity,
+        rewardQuantity: promotionRule.reward_quantity,
         expiry: expiryDate ? expiryDate.toISOString() : String(scope.expiry_string || ''),
         expiryFull: availabilityLabel,
         availabilityMode: schedule.mode,
@@ -696,6 +843,125 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
     });
 
     return { vouchers };
+  });
+
+  app.get('/v1/admin/vouchers/analytics', { preHandler: [authenticateAdminRequest] }, async (request) => {
+    requireAdminRole(request, 'super_admin');
+    const voucherColumns = await getVoucherTemplateColumns();
+    const whereClauses = ['1 = 1'];
+    if (hasColumn(voucherColumns, 'deleted_at')) {
+      whereClauses.push('vt.deleted_at IS NULL');
+    }
+
+    const [summaryRows] = await mysqlPool.query<Array<AdminVoucherAnalyticsSummaryRow>>(
+      `
+        SELECT
+          (SELECT COUNT(*)
+           FROM voucher_templates vt
+           WHERE ${whereClauses.join(' AND ')}) AS total_vouchers,
+          (SELECT COUNT(*)
+           FROM voucher_templates vt
+           WHERE ${whereClauses.join(' AND ')} AND vt.is_active = 1) AS active_vouchers,
+          (SELECT COUNT(*) FROM user_vouchers uv) AS issued_vouchers,
+          (SELECT COUNT(*) FROM user_vouchers uv WHERE uv.status = 'redeemed') AS redeemed_vouchers
+      `
+    );
+
+    const [topRows] = await mysqlPool.query<Array<AdminVoucherAnalyticsTopRow>>(
+      `
+        SELECT
+          vt.code,
+          vt.name,
+          vt.voucher_type,
+          vt.is_active,
+          COUNT(uv.id) AS issued_count,
+          SUM(CASE WHEN uv.status = 'redeemed' THEN 1 ELSE 0 END) AS redeemed_count
+        FROM voucher_templates vt
+        LEFT JOIN user_vouchers uv
+          ON uv.voucher_template_id = vt.id
+        WHERE ${whereClauses.join(' AND ')}
+        GROUP BY vt.id, vt.code, vt.name, vt.voucher_type, vt.is_active
+        ORDER BY redeemed_count DESC, issued_count DESC, vt.created_at DESC
+        LIMIT 10
+      `
+    );
+
+    const [recentRows] = await mysqlPool.query<Array<AdminVoucherAnalyticsRecentRow>>(
+      `
+        SELECT
+          uv.id,
+          vt.code,
+          vt.name,
+          uv.status,
+          uv.issued_reason,
+          uv.issued_at,
+          uv.redeemed_at,
+          uv.revoked_at,
+          up.display_name,
+          up.email,
+          u.phone_e164
+        FROM user_vouchers uv
+        JOIN voucher_templates vt ON vt.id = uv.voucher_template_id
+        JOIN users u ON u.id = uv.user_id
+        LEFT JOIN user_profiles up ON up.user_id = u.id
+        ORDER BY COALESCE(uv.redeemed_at, uv.revoked_at, uv.issued_at) DESC, uv.id DESC
+        LIMIT 10
+      `
+    );
+
+    const summary = summaryRows[0] ?? {
+      total_vouchers: 0,
+      active_vouchers: 0,
+      issued_vouchers: 0,
+      redeemed_vouchers: 0
+    };
+    const issued = Number(summary.issued_vouchers || 0);
+    const redeemed = Number(summary.redeemed_vouchers || 0);
+
+    return {
+      summary: {
+        totalVouchers: Number(summary.total_vouchers || 0),
+        activeVouchers: Number(summary.active_vouchers || 0),
+        issuedVouchers: issued,
+        redeemedVouchers: redeemed,
+        redemptionRate: issued > 0 ? Number(((redeemed / issued) * 100).toFixed(1)) : 0
+      },
+      topVouchers: topRows.map((row) => {
+        const issuedCount = Number(row.issued_count || 0);
+        const redeemedCount = Number(row.redeemed_count || 0);
+        return {
+          id: row.code,
+          name: row.name,
+          type: row.voucher_type,
+          status: row.is_active === 1 ? 'Active' : 'Draft',
+          issued: issuedCount,
+          redeemed: redeemedCount,
+          rate: issuedCount > 0 ? Number(((redeemedCount / issuedCount) * 100).toFixed(1)) : 0
+        };
+      }),
+      recentActivity: recentRows.map((row) => {
+        const action = row.status === 'redeemed'
+          ? 'Redeemed'
+          : row.status === 'revoked'
+            ? 'Revoked'
+            : 'Issued';
+        const eventAt = row.redeemed_at || row.revoked_at || row.issued_at;
+
+        return {
+          id: row.id,
+          voucherCode: row.code,
+          voucherName: row.name,
+          action,
+          customer: {
+            displayName: row.display_name || `Customer #${row.id}`,
+            email: row.email,
+            phone: row.phone_e164
+          },
+          issuedReason: row.issued_reason,
+          eventAt: eventAt.toISOString()
+        };
+      })
+    };
   });
 
   // POST /v1/admin/vouchers
@@ -732,6 +998,7 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
     const eligibleItems = normalizeEligibleItems(payload.eligibleItems);
     const productKinds = normalizeScopeCodes(payload.productKinds);
     const subcategoryCodes = normalizeScopeCodes(payload.subcategoryCodes);
+    const promotionRule = buildPromotionRule(payload);
     const derivedReward = deriveReward(payload);
     const validUntil = parseDateValue(payload.expiry);
     const isActive = payload.status === 'Draft' ? 0 : 1;
@@ -749,6 +1016,7 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
       product_kind_codes: productKinds,
       subcategory_codes: subcategoryCodes,
       items: eligibleItems,
+      promotion_rule: promotionRule,
       description: payload.description,
       expiry_string: effectiveValidUntil?.toISOString() ?? '',
       audience: payload.audience,
@@ -815,6 +1083,7 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
     const eligibleItems = normalizeEligibleItems(payload.eligibleItems);
     const productKinds = normalizeScopeCodes(payload.productKinds);
     const subcategoryCodes = normalizeScopeCodes(payload.subcategoryCodes);
+    const promotionRule = buildPromotionRule(payload);
     const derivedReward = deriveReward(payload);
     const validUntil = parseDateValue(payload.expiry);
     const isActive = payload.status === 'Draft' ? 0 : 1;
@@ -832,6 +1101,7 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
       product_kind_codes: productKinds,
       subcategory_codes: subcategoryCodes,
       items: eligibleItems,
+      promotion_rule: promotionRule,
       description: payload.description,
       expiry_string: effectiveValidUntil?.toISOString() ?? '',
       audience: payload.audience,
@@ -911,53 +1181,6 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
         WHERE code = :code
       `,
       { code }
-    );
-
-    return { success: true };
-  });
-
-  app.delete<{ Params: { id: string } }>('/v1/admin/vouchers/:id/permanent', { preHandler: [authenticateAdminRequest] }, async (request) => {
-    requireAdminRole(request, 'super_admin');
-    const code = request.params.id;
-
-    const [templateRows] = await mysqlPool.query<Array<RowDataPacket & { id: number }>>(
-      `
-        SELECT id
-        FROM voucher_templates
-        WHERE code = :code
-        LIMIT 1
-      `,
-      { code }
-    );
-
-    const template = templateRows[0];
-    if (!template) {
-      throw new ApiError(404, 'voucher_not_found', 'Voucher template was not found.');
-    }
-
-    const [usageRows] = await mysqlPool.query<Array<RowDataPacket & { usage_count: number }>>(
-      `
-        SELECT COUNT(*) AS usage_count
-        FROM user_vouchers
-        WHERE voucher_template_id = :templateId
-      `,
-      { templateId: template.id }
-    );
-
-    if (Number(usageRows[0]?.usage_count || 0) > 0) {
-      throw new ApiError(
-        409,
-        'voucher_has_usage_history',
-        'This voucher already has issued or redeemed history. Archive it instead of deleting permanently.'
-      );
-    }
-
-    await mysqlPool.query(
-      `
-        DELETE FROM voucher_templates
-        WHERE id = :templateId
-      `,
-      { templateId: template.id }
     );
 
     return { success: true };

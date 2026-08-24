@@ -58,6 +58,7 @@ class RewardVoucherTemplate {
   final bool requiresDrinkInCart;
   final Map<String, dynamic> eligibleScope;
   final Map<String, dynamic> excludeScope;
+  final Map<String, dynamic> promotionRule;
 
   const RewardVoucherTemplate({
     required this.code,
@@ -73,6 +74,7 @@ class RewardVoucherTemplate {
     required this.requiresDrinkInCart,
     required this.eligibleScope,
     required this.excludeScope,
+    required this.promotionRule,
   });
 
   factory RewardVoucherTemplate.fromApi(Map<String, dynamic> json) {
@@ -96,6 +98,7 @@ class RewardVoucherTemplate {
       requiresDrinkInCart: json['requires_drink_in_cart'] as bool? ?? false,
       eligibleScope: _parseScopeMap(json['eligible_scope_json']),
       excludeScope: _parseScopeMap(json['exclude_scope_json']),
+      promotionRule: _promotionRuleFromScope(_parseScopeMap(json['eligible_scope_json'])),
     );
   }
 
@@ -132,6 +135,18 @@ class RewardVoucherTemplate {
   }
 
   String get eligibilityLabel {
+    final qualifyingLabel = _scopeLabelFromMap(_promotionScope(eligibleScope, 'qualifying_scope'));
+    final rewardLabel = _scopeLabelFromMap(_promotionScope(eligibleScope, 'reward_scope'));
+    final promotionKind = (promotionRule['kind'] as String? ?? 'standard').trim();
+    final qualifyingQty = (promotionRule['qualifying_quantity'] as num?)?.toInt() ?? 1;
+    final rewardQty = (promotionRule['reward_quantity'] as num?)?.toInt() ?? 1;
+
+    if (promotionKind == 'bundle') {
+      final buyLabel = qualifyingLabel.isNotEmpty ? qualifyingLabel : 'Selected items';
+      final freeLabel = rewardLabel.isNotEmpty ? rewardLabel : buyLabel;
+      return 'Buy $qualifyingQty from $buyLabel, get $rewardQty from $freeLabel';
+    }
+
     final items = _stringListFromScope(eligibleScope, ['items', 'item_codes']);
     if (items.isNotEmpty) {
       return items.map(_formatScopeValue).join(', ');
@@ -227,42 +242,22 @@ class RewardVoucherTemplate {
   }
 
   bool matchesCartSnapshot(CartSnapshot snapshot) {
-    final normalizedProductKinds =
-        productKindCodes.map(_normalizeScopeValue).where((value) => value.isNotEmpty).toSet();
-    final normalizedCategoryCodes =
-        _stringListFromScope(eligibleScope, ['category_codes', 'categories'])
-            .map(_normalizeScopeValue)
-            .where((value) => value.isNotEmpty)
-            .toSet();
-    final normalizedSubcategoryCodes =
-        subcategoryCodes.map(_normalizeScopeValue).where((value) => value.isNotEmpty).toSet();
-    final normalizedItemCodes =
-        itemCodes.map(_normalizeScopeValue).where((value) => value.isNotEmpty).toSet();
+    final promotionKind = (promotionRule['kind'] as String? ?? 'standard').trim();
+    final qualifyingQty = (promotionRule['qualifying_quantity'] as num?)?.toInt() ?? 1;
+    final rewardQty = (promotionRule['reward_quantity'] as num?)?.toInt() ?? 1;
+    final qualifyingScope = _promotionScope(eligibleScope, 'qualifying_scope');
+    final rewardScope = _promotionScope(eligibleScope, 'reward_scope');
 
-    final hasExplicitScope = normalizedProductKinds.isNotEmpty ||
-        normalizedCategoryCodes.isNotEmpty ||
-        normalizedSubcategoryCodes.isNotEmpty ||
-        normalizedItemCodes.isNotEmpty;
-
-    if (!hasExplicitScope) {
-      return true;
+    final qualifyingMatchCount = _countMatchedUnits(snapshot, qualifyingScope);
+    if (qualifyingMatchCount < qualifyingQty) {
+      return false;
     }
 
-    for (final item in snapshot.items) {
-      final productKind = _normalizeScopeValue(item.productKindCode ?? '');
-      final categoryCode = _normalizeScopeValue(item.categoryCode ?? '');
-      final subcategoryCode = _normalizeScopeValue(item.subcategoryCode ?? '');
-      final itemCode = _normalizeScopeValue(item.menuItemCode);
-
-      if (normalizedProductKinds.contains(productKind) ||
-          normalizedCategoryCodes.contains(categoryCode) ||
-          normalizedSubcategoryCodes.contains(subcategoryCode) ||
-          normalizedItemCodes.contains(itemCode)) {
-        return true;
-      }
+    if (promotionKind == 'bundle') {
+      return _countMatchedUnits(snapshot, rewardScope) >= rewardQty;
     }
 
-    return false;
+    return qualifyingMatchCount > 0;
   }
 
   String get availabilityLabel {
@@ -318,6 +313,107 @@ class RewardVoucherTemplate {
       } catch (_) {}
     }
     return <String, dynamic>{};
+  }
+
+  static Map<String, dynamic> _promotionRuleFromScope(Map<String, dynamic> scope) {
+    final rawRule = _parseScopeMap(scope['promotion_rule']);
+    return <String, dynamic>{
+      'kind': (rawRule['kind'] as String? ?? 'standard').trim(),
+      'qualifying_quantity': (rawRule['qualifying_quantity'] as num?)?.toInt() ?? 1,
+      'reward_quantity': (rawRule['reward_quantity'] as num?)?.toInt() ?? 1,
+      'qualifying_scope': _parseScopeMap(rawRule['qualifying_scope']),
+      'reward_scope': _parseScopeMap(rawRule['reward_scope']),
+    };
+  }
+
+  static Map<String, dynamic> _promotionScope(
+    Map<String, dynamic> eligibleScope,
+    String key,
+  ) {
+    final rule = _promotionRuleFromScope(eligibleScope);
+    final scope = _parseScopeMap(rule[key]);
+    if (scope.isNotEmpty) {
+      return scope;
+    }
+    return eligibleScope;
+  }
+
+  static String _scopeLabelFromMap(Map<String, dynamic> scope) {
+    final items = _scopeValues(scope, ['items', 'item_codes']);
+    if (items.isNotEmpty) {
+      return items.map(_formatScopeValue).join(', ');
+    }
+
+    final categories = _scopeValues(scope, ['category_codes', 'categories']);
+    if (categories.isNotEmpty) {
+      return categories.map(_formatScopeValue).join(', ');
+    }
+
+    final productKinds = _scopeValues(scope, ['product_kind_codes', 'product_kinds']);
+    if (productKinds.isNotEmpty) {
+      return productKinds.map(_formatScopeValue).join(', ');
+    }
+
+    return '';
+  }
+
+  static int _countMatchedUnits(
+    CartSnapshot snapshot,
+    Map<String, dynamic> scope,
+  ) {
+    final itemCodes = _scopeValues(scope, ['item_codes', 'items'])
+        .map(_normalizeScopeValue)
+        .where((value) => value.isNotEmpty)
+        .toSet();
+    final subcategoryCodes = _scopeValues(scope, ['subcategory_codes'])
+        .map(_normalizeScopeValue)
+        .where((value) => value.isNotEmpty)
+        .toSet();
+    final categoryCodes = _scopeValues(scope, ['category_codes', 'categories'])
+        .map(_normalizeScopeValue)
+        .where((value) => value.isNotEmpty)
+        .toSet();
+    final productKindCodes = _scopeValues(scope, ['product_kind_codes', 'product_kinds'])
+        .map(_normalizeScopeValue)
+        .where((value) => value.isNotEmpty)
+        .toSet();
+
+    final hasExplicitScope =
+        itemCodes.isNotEmpty ||
+        subcategoryCodes.isNotEmpty ||
+        categoryCodes.isNotEmpty ||
+        productKindCodes.isNotEmpty;
+
+    if (!hasExplicitScope) {
+      return snapshot.items.fold<int>(0, (sum, item) => sum + item.quantity);
+    }
+
+    var count = 0;
+    for (final item in snapshot.items) {
+      final productKind = _normalizeScopeValue(item.productKindCode ?? '');
+      final categoryCode = _normalizeScopeValue(item.categoryCode ?? '');
+      final subcategoryCode = _normalizeScopeValue(item.subcategoryCode ?? '');
+      final itemCode = _normalizeScopeValue(item.menuItemCode);
+
+      if (itemCodes.contains(itemCode) ||
+          subcategoryCodes.contains(subcategoryCode) ||
+          categoryCodes.contains(categoryCode) ||
+          productKindCodes.contains(productKind)) {
+        count += item.quantity;
+      }
+    }
+
+    return count;
+  }
+
+  static List<String> _scopeValues(
+    Map<String, dynamic> scope,
+    List<String> keys,
+  ) {
+    final values = _stringListFromScope(scope, keys);
+    return values.length == 1 && _normalizeScopeValue(values.first) == _normalizeScopeValue('All Items')
+        ? const <String>[]
+        : values;
   }
 
   static List<String> _stringListFromScope(
