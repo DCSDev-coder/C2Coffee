@@ -50,6 +50,34 @@ export async function createAdminMenuItem(payload) {
   });
 }
 
+export async function createAdminMenuSubcategory(payload) {
+  return adminRequest('/v1/admin/menu/subcategories', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function createAdminMenuCategory(payload) {
+  return adminRequest('/v1/admin/menu/categories', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function updateAdminMenuCategory(categoryId, payload) {
+  return adminRequest(`/v1/admin/menu/categories/${categoryId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function updateAdminMenuSubcategory(subcategoryId, payload) {
+  return adminRequest(`/v1/admin/menu/subcategories/${subcategoryId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  });
+}
+
 export async function updateAdminMenuItem(menuItemId, payload) {
   return adminRequest(`/v1/admin/menu/items/${menuItemId}`, {
     method: 'PATCH',
@@ -78,11 +106,17 @@ export async function uploadAdminMenuImage(file) {
 export async function adminRequest(path, options = {}) {
   const { headers: optionHeaders, ...requestOptions } = options;
   const { accessToken } = loadAdminTokens();
-  
   const headers = {
-    'Content-Type': 'application/json',
+    Accept: 'application/json',
     ...(optionHeaders || {})
   };
+
+  const hasBody = requestOptions.body !== undefined && requestOptions.body !== null;
+  const isFormData = typeof FormData !== 'undefined' && requestOptions.body instanceof FormData;
+
+  if (hasBody && !isFormData && !headers['Content-Type']) {
+    headers['Content-Type'] = 'application/json';
+  }
 
   if (accessToken && !headers['Authorization']) {
     headers['Authorization'] = `Bearer ${accessToken}`;

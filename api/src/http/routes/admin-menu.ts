@@ -41,6 +41,7 @@ const adminMenuModifierGroupSchema = z.object({
 
 const adminMenuUpsertSchema = z.object({
   category_code: z.string().trim().min(1).max(50),
+  subcategory_code: z.string().trim().min(1).max(50).optional().or(z.literal('')),
   name: z.string().trim().min(1).max(255),
   description: z.string().trim().max(5000).optional().or(z.literal('')),
   base_price_rm: z.coerce.number().positive(),
@@ -67,18 +68,52 @@ const adminMenuPatchSchema = adminMenuUpsertSchema.partial().extend({
   category_code: z.string().trim().min(1).max(50).optional()
 });
 
+const adminMenuSubcategoryUpsertSchema = z.object({
+  category_code: z.string().trim().min(1).max(50),
+  code: z.string().trim().min(1).max(50),
+  name: z.string().trim().min(1).max(255),
+  sort_order: z.coerce.number().int().min(0).optional().default(0),
+  is_active: z.coerce.boolean().optional().default(true)
+});
+
+const adminMenuCategoryUpsertSchema = z.object({
+  code: z.string().trim().min(1).max(50),
+  name: z.string().trim().min(1).max(255),
+  product_kind_code: z.enum(['drink', 'food', 'merchandise', 'candle', 'other']).optional().default('drink'),
+  sort_order: z.coerce.number().int().min(0).optional().default(0),
+  is_active: z.coerce.boolean().optional().default(true)
+});
+
 const adminMenuImageUploadSchema = z.object({
   file_name: z.string().trim().min(1).max(255),
   mime_type: z.enum(['image/png', 'image/jpeg', 'image/webp']),
   data_url: z.string().trim().min(1)
 });
 
+let menuCategoryColumnsPromise: Promise<Set<string>> | null = null;
+
+async function getMenuCategoryColumns(): Promise<Set<string>> {
+  if (!menuCategoryColumnsPromise) {
+    menuCategoryColumnsPromise = mysqlPool
+      .query<Array<RowDataPacket>>('SHOW COLUMNS FROM menu_categories')
+      .then(([rows]) => new Set(rows.map((row) => String((row as { Field?: string }).Field ?? '').trim()).filter(Boolean)));
+  }
+
+  return menuCategoryColumnsPromise;
+}
+
 type AdminMenuRow = RowDataPacket & {
   category_id: number;
   category_code: string;
   category_name: string;
+  category_product_kind_code: string;
   category_sort_order: number;
   category_is_active: number;
+  subcategory_id: number | null;
+  subcategory_code: string | null;
+  subcategory_name: string | null;
+  subcategory_sort_order: number | null;
+  subcategory_is_active: number | null;
   item_id: number;
   item_code: string;
   item_name: string;
@@ -174,6 +209,24 @@ type AdminMenuItem = {
   last_ordered_at: string | null;
   token_prices: Record<string, number>;
   modifier_groups: Array<AdminMenuModifierGroup>;
+  subcategory_id: number | null;
+  subcategory_code: string | null;
+  subcategory_name: string | null;
+  product_kind_code: string;
+  product_kind_name: string;
+};
+
+type AdminMenuSubcategory = {
+  id: number;
+  code: string;
+  name: string;
+  category_id: number;
+  category_code: string;
+  category_name: string;
+  sort_order: number;
+  is_active: boolean;
+  product_kind_code: string;
+  product_kind_name: string;
 };
 
 type AdminMenuCategory = {
@@ -182,12 +235,45 @@ type AdminMenuCategory = {
   name: string;
   sort_order: number;
   is_active: boolean;
+  product_kind_code: string;
+  product_kind_name: string;
+  subcategories: Array<AdminMenuSubcategory>;
   items: Array<AdminMenuItem>;
 };
 
 type AdminMenuResponse = {
   categories: Array<AdminMenuCategory>;
+  subcategories: Array<AdminMenuSubcategory>;
 };
+
+function resolveProductKind(productKindCode: string | null | undefined, categoryCode?: string): { code: string; name: string } {
+  switch (String(productKindCode ?? '').trim().toLowerCase()) {
+    case 'drink':
+      return { code: 'drink', name: 'Drinks' };
+    case 'food':
+      return { code: 'food', name: 'Food' };
+    case 'merchandise':
+      return { code: 'merchandise', name: 'Merchandise' };
+    case 'candle':
+      return { code: 'candle', name: 'Candles' };
+    case 'other':
+      return { code: 'other', name: 'Other' };
+    default:
+      switch (String(categoryCode ?? '').trim().toLowerCase()) {
+        case 'coffee':
+        case 'non_coffee':
+          return { code: 'drink', name: 'Drinks' };
+        case 'food':
+          return { code: 'food', name: 'Food' };
+        case 'merchandise':
+          return { code: 'merchandise', name: 'Merchandise' };
+        case 'candles':
+          return { code: 'candle', name: 'Candles' };
+        default:
+          return { code: 'other', name: 'Other' };
+      }
+  }
+}
 
 export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<void> {
   const routeDir = path.dirname(fileURLToPath(import.meta.url));
@@ -204,8 +290,20 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
           c.id AS category_id,
           c.code AS category_code,
           c.name AS category_name,
+          CASE
+            WHEN LOWER(c.code) IN ('coffee', 'non_coffee') THEN 'drink'
+            WHEN LOWER(c.code) = 'food' THEN 'food'
+            WHEN LOWER(c.code) = 'merchandise' THEN 'merchandise'
+            WHEN LOWER(c.code) = 'candles' THEN 'candle'
+            ELSE 'other'
+          END AS category_product_kind_code,
           c.sort_order AS category_sort_order,
           c.is_active AS category_is_active,
+          sc.id AS subcategory_id,
+          sc.code AS subcategory_code,
+          sc.name AS subcategory_name,
+          sc.sort_order AS subcategory_sort_order,
+          sc.is_active AS subcategory_is_active,
           i.id AS item_id,
           i.code AS item_code,
           i.name AS item_name,
@@ -251,6 +349,8 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
         FROM menu_categories c
         JOIN menu_items i
           ON i.category_id = c.id
+        LEFT JOIN menu_subcategories sc
+          ON sc.id = i.subcategory_id
         LEFT JOIN (
           SELECT
             oi.menu_item_id,
@@ -288,11 +388,13 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
       await connection.beginTransaction();
 
       const categoryId = await resolveCategoryId(connection, payload.category_code);
+      const subcategoryId = await resolveSubcategoryId(connection, payload.category_code, payload.subcategory_code);
       const itemCode = generateMenuCode(payload.name);
       const itemResult = await connection.execute<ResultSetHeader>(
         `
           INSERT INTO menu_items (
             category_id,
+            subcategory_id,
             code,
             name,
             description,
@@ -317,6 +419,7 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
           )
           VALUES (
             :categoryId,
+            :subcategoryId,
             :code,
             :name,
             :description,
@@ -342,6 +445,7 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
         `,
         {
           categoryId,
+          subcategoryId,
           code: itemCode,
           name: payload.name,
           description: nullableString(payload.description),
@@ -447,6 +551,15 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
       if (payload.category_code) {
         updateFields.push('category_id = :categoryId');
         updateParams.categoryId = await resolveCategoryId(connection, payload.category_code);
+      }
+      if (payload.subcategory_code !== undefined) {
+        const categoryCodeForSubcategory = payload.category_code || existingRows[0].category_code;
+        updateFields.push('subcategory_id = :subcategoryId');
+        updateParams.subcategoryId = await resolveSubcategoryId(
+          connection,
+          categoryCodeForSubcategory,
+          payload.subcategory_code
+        );
       }
       if (payload.name !== undefined) {
         updateFields.push('name = :name');
@@ -581,27 +694,213 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
 
     return { ok: true };
   });
+
+  app.post('/v1/admin/menu/subcategories', { preHandler: authenticateAdminRequest }, async (request) => {
+    const payload = adminMenuSubcategoryUpsertSchema.parse(request.body);
+    const categoryId = await resolveCategoryId(mysqlPool, payload.category_code);
+
+    const [result] = await mysqlPool.execute<ResultSetHeader>(
+      `
+        INSERT INTO menu_subcategories (
+          category_id,
+          code,
+          name,
+          sort_order,
+          is_active,
+          created_at,
+          updated_at
+        )
+        VALUES (
+          :categoryId,
+          :code,
+          :name,
+          :sortOrder,
+          :isActive,
+          UTC_TIMESTAMP(),
+          UTC_TIMESTAMP()
+        )
+      `,
+      {
+        categoryId,
+        code: payload.code,
+        name: payload.name,
+        sortOrder: payload.sort_order,
+        isActive: payload.is_active ? 1 : 0
+      }
+    );
+
+    return { subcategory: await loadMenuSubcategoryById(result.insertId) };
+  });
+
+  app.post('/v1/admin/menu/categories', { preHandler: authenticateAdminRequest }, async (request) => {
+    const payload = adminMenuCategoryUpsertSchema.parse(request.body);
+
+    const categoryColumns = await getMenuCategoryColumns();
+    const hasProductKindColumn = categoryColumns.has('product_kind_code');
+    const insertColumns = ['code', 'name', ...(hasProductKindColumn ? ['product_kind_code'] : []), 'sort_order', 'is_active'];
+    const insertPlaceholders = [':code', ':name', ...(hasProductKindColumn ? [':productKindCode'] : []), ':sortOrder', ':isActive'];
+
+    const [result] = await mysqlPool.execute<ResultSetHeader>(
+      `
+        INSERT INTO menu_categories (
+          ${insertColumns.join(', ')}
+        )
+        VALUES (
+          ${insertPlaceholders.join(', ')}
+        )
+      `,
+      {
+        code: payload.code,
+        name: payload.name,
+        productKindCode: payload.product_kind_code,
+        sortOrder: payload.sort_order,
+        isActive: payload.is_active ? 1 : 0
+      }
+    );
+
+    return { category: await loadMenuCategoryById(result.insertId) };
+  });
+
+  app.patch('/v1/admin/menu/categories/:categoryId', { preHandler: authenticateAdminRequest }, async (request) => {
+    const categoryId = z.coerce.number().int().positive().parse((request.params as { categoryId: string }).categoryId);
+    const payload = adminMenuCategoryUpsertSchema.partial().parse(request.body);
+    const updates: string[] = [];
+    const params: Record<string, unknown> = { categoryId };
+
+    if (payload.code !== undefined) {
+      updates.push('code = :code');
+      params.code = payload.code;
+    }
+    if (payload.name !== undefined) {
+      updates.push('name = :name');
+      params.name = payload.name;
+    }
+    if (payload.product_kind_code !== undefined) {
+      updates.push('product_kind_code = :productKindCode');
+      params.productKindCode = payload.product_kind_code;
+    }
+    if (payload.sort_order !== undefined) {
+      updates.push('sort_order = :sortOrder');
+      params.sortOrder = payload.sort_order;
+    }
+    if (payload.is_active !== undefined) {
+      updates.push('is_active = :isActive');
+      params.isActive = payload.is_active ? 1 : 0;
+    }
+
+    if (updates.length === 0) {
+      return { category: await loadMenuCategoryById(categoryId) };
+    }
+
+    const categoryColumns = await getMenuCategoryColumns();
+    if (!categoryColumns.has('product_kind_code')) {
+      const filteredUpdates = updates.filter((update) => update !== 'product_kind_code = :productKindCode');
+      if (filteredUpdates.length !== updates.length) {
+        delete params.productKindCode;
+      }
+      updates.length = 0;
+      updates.push(...filteredUpdates);
+    }
+
+    await mysqlPool.query(
+      `
+        UPDATE menu_categories
+        SET ${updates.join(', ')}
+        WHERE id = :categoryId
+      `,
+      params as never
+    );
+
+    return { category: await loadMenuCategoryById(categoryId) };
+  });
+
+  app.patch('/v1/admin/menu/subcategories/:subcategoryId', { preHandler: authenticateAdminRequest }, async (request) => {
+    const subcategoryId = z.coerce.number().int().positive().parse((request.params as { subcategoryId: string }).subcategoryId);
+    const payload = adminMenuSubcategoryUpsertSchema.partial().parse(request.body);
+    const updates: string[] = [];
+    const params: Record<string, unknown> = { subcategoryId };
+
+    if (payload.category_code) {
+      updates.push('category_id = :categoryId');
+      params.categoryId = await resolveCategoryId(mysqlPool, payload.category_code);
+    }
+    if (payload.code !== undefined) {
+      updates.push('code = :code');
+      params.code = payload.code;
+    }
+    if (payload.name !== undefined) {
+      updates.push('name = :name');
+      params.name = payload.name;
+    }
+    if (payload.sort_order !== undefined) {
+      updates.push('sort_order = :sortOrder');
+      params.sortOrder = payload.sort_order;
+    }
+    if (payload.is_active !== undefined) {
+      updates.push('is_active = :isActive');
+      params.isActive = payload.is_active ? 1 : 0;
+    }
+
+    if (updates.length === 0) {
+      return { subcategory: await loadMenuSubcategoryById(subcategoryId) };
+    }
+
+    await mysqlPool.query(
+      `
+        UPDATE menu_subcategories
+        SET ${updates.join(', ')},
+            updated_at = UTC_TIMESTAMP()
+        WHERE id = :subcategoryId
+      `,
+      params as never
+    );
+
+    return { subcategory: await loadMenuSubcategoryById(subcategoryId) };
+  });
 }
 
 function buildMenuResponse(rows: Array<AdminMenuRow>): AdminMenuResponse {
   const categories = new Map<number, AdminMenuCategory>();
+  const subcategories = new Map<number, AdminMenuSubcategory>();
 
   for (const row of rows) {
     let category = categories.get(row.category_id);
     if (!category) {
+      const productKind = resolveProductKind(row.category_product_kind_code, row.category_code);
       category = {
         id: row.category_id,
         code: row.category_code,
         name: row.category_name,
         sort_order: row.category_sort_order,
         is_active: row.category_is_active === 1,
+        product_kind_code: productKind.code,
+        product_kind_name: productKind.name,
+        subcategories: [],
         items: []
       };
       categories.set(row.category_id, category);
     }
 
+    if (row.subcategory_id !== null && !subcategories.has(row.subcategory_id)) {
+      const subcategory = {
+        id: row.subcategory_id,
+        code: row.subcategory_code ?? '',
+        name: row.subcategory_name ?? '',
+        category_id: row.category_id,
+        category_code: row.category_code,
+        category_name: row.category_name,
+        sort_order: row.subcategory_sort_order ?? 0,
+        is_active: row.subcategory_is_active === 1,
+        product_kind_code: category.product_kind_code,
+        product_kind_name: category.product_kind_name
+      };
+      subcategories.set(row.subcategory_id, subcategory);
+      category.subcategories.push(subcategory);
+    }
+
     let item = category.items.find((candidate) => candidate.id === row.item_id);
       if (!item) {
+      const productKind = resolveProductKind(row.category_product_kind_code, row.category_code);
       item = {
         id: row.item_id,
         code: row.item_code,
@@ -630,7 +929,12 @@ function buildMenuResponse(rows: Array<AdminMenuRow>): AdminMenuResponse {
         total_revenue_rm: row.total_revenue_rm ?? '0.00',
         last_ordered_at: row.last_ordered_at ? new Date(row.last_ordered_at).toISOString() : null,
         token_prices: {},
-        modifier_groups: []
+        modifier_groups: [],
+        subcategory_id: row.subcategory_id,
+        subcategory_code: row.subcategory_code,
+        subcategory_name: row.subcategory_name,
+        product_kind_code: productKind.code,
+        product_kind_name: productKind.name
       };
       category.items.push(item);
     }
@@ -689,7 +993,8 @@ function buildMenuResponse(rows: Array<AdminMenuRow>): AdminMenuResponse {
   }
 
   return {
-    categories: [...categories.values()].sort((a, b) => a.sort_order - b.sort_order || a.id - b.id)
+    categories: [...categories.values()].sort((a, b) => a.sort_order - b.sort_order || a.id - b.id),
+    subcategories: [...subcategories.values()].sort((a, b) => a.sort_order - b.sort_order || a.id - b.id)
   };
 }
 
@@ -702,6 +1007,11 @@ async function loadMenuItemById(menuItemId: number): Promise<AdminMenuItem | nul
         c.name AS category_name,
         c.sort_order AS category_sort_order,
         c.is_active AS category_is_active,
+        sc.id AS subcategory_id,
+        sc.code AS subcategory_code,
+        sc.name AS subcategory_name,
+        sc.sort_order AS subcategory_sort_order,
+        sc.is_active AS subcategory_is_active,
         i.id AS item_id,
         i.code AS item_code,
         i.name AS item_name,
@@ -746,6 +1056,7 @@ async function loadMenuItemById(menuItemId: number): Promise<AdminMenuItem | nul
         imo.is_active AS modifier_option_is_active
       FROM menu_items i
       JOIN menu_categories c ON c.id = i.category_id
+      LEFT JOIN menu_subcategories sc ON sc.id = i.subcategory_id
       LEFT JOIN (
         SELECT
           oi.menu_item_id,
@@ -778,7 +1089,7 @@ async function loadMenuItemById(menuItemId: number): Promise<AdminMenuItem | nul
 }
 
 async function resolveCategoryId(
-  connection: Awaited<ReturnType<typeof mysqlPool.getConnection>>,
+  connection: Pick<Awaited<ReturnType<typeof mysqlPool.getConnection>>, 'query'>,
   categoryCode: string
 ): Promise<number> {
   const [rows] = await connection.query<Array<RowDataPacket & { id: number }>>(
@@ -797,6 +1108,139 @@ async function resolveCategoryId(
   }
 
   return category.id;
+}
+
+async function loadMenuCategoryById(categoryId: number): Promise<AdminMenuCategory | null> {
+  const [rows] = await mysqlPool.query<Array<RowDataPacket & {
+    id: number;
+    code: string;
+    name: string;
+    product_kind_code: string;
+    sort_order: number;
+    is_active: number;
+  }>>(
+    `
+      SELECT
+        id,
+        code,
+        name,
+        CASE
+          WHEN LOWER(code) IN ('coffee', 'non_coffee') THEN 'drink'
+          WHEN LOWER(code) = 'food' THEN 'food'
+          WHEN LOWER(code) = 'merchandise' THEN 'merchandise'
+          WHEN LOWER(code) = 'candles' THEN 'candle'
+          ELSE 'other'
+        END AS product_kind_code,
+        sort_order,
+        is_active
+      FROM menu_categories
+      WHERE id = :categoryId
+      LIMIT 1
+    `,
+    { categoryId }
+  );
+
+  const row = rows[0];
+  if (!row) return null;
+  const productKind = resolveProductKind(row.product_kind_code, row.code);
+  return {
+    id: row.id,
+    code: row.code,
+    name: row.name,
+    sort_order: row.sort_order,
+    is_active: row.is_active === 1,
+    product_kind_code: productKind.code,
+    product_kind_name: productKind.name,
+    subcategories: [],
+    items: []
+  };
+}
+
+async function resolveSubcategoryId(
+  connection: Pick<Awaited<ReturnType<typeof mysqlPool.getConnection>>, 'query'>,
+  categoryCode: string,
+  subcategoryCode: string | null | undefined
+): Promise<number | null> {
+  const trimmedCode = String(subcategoryCode ?? '').trim();
+  if (!trimmedCode) {
+    return null;
+  }
+
+  const [rows] = await connection.query<Array<RowDataPacket & { id: number }>>(
+    `
+      SELECT sc.id
+      FROM menu_subcategories sc
+      JOIN menu_categories c ON c.id = sc.category_id
+      WHERE sc.code = :subcategoryCode
+        AND c.code = :categoryCode
+      LIMIT 1
+    `,
+    {
+      subcategoryCode: trimmedCode,
+      categoryCode
+    }
+  );
+
+  const subcategory = rows[0];
+  if (!subcategory) {
+    throw new ApiError(404, 'menu_subcategory_not_found', 'Menu subcategory was not found.');
+  }
+
+  return subcategory.id;
+}
+
+async function loadMenuSubcategoryById(subcategoryId: number): Promise<AdminMenuSubcategory | null> {
+  const [rows] = await mysqlPool.query<Array<RowDataPacket & {
+    id: number;
+    code: string;
+    name: string;
+    sort_order: number;
+    is_active: number;
+    category_id: number;
+    category_code: string;
+    category_name: string;
+    category_product_kind_code: string;
+  }>>(
+    `
+      SELECT
+        sc.id,
+        sc.code,
+        sc.name,
+        sc.sort_order,
+        sc.is_active,
+        c.id AS category_id,
+        c.code AS category_code,
+        c.name AS category_name,
+        CASE
+          WHEN LOWER(c.code) IN ('coffee', 'non_coffee') THEN 'drink'
+          WHEN LOWER(c.code) = 'food' THEN 'food'
+          WHEN LOWER(c.code) = 'merchandise' THEN 'merchandise'
+          WHEN LOWER(c.code) = 'candles' THEN 'candle'
+          ELSE 'other'
+        END AS category_product_kind_code
+      FROM menu_subcategories sc
+      JOIN menu_categories c ON c.id = sc.category_id
+      WHERE sc.id = :subcategoryId
+      LIMIT 1
+    `,
+    { subcategoryId }
+  );
+
+  const row = rows[0];
+  if (!row) return null;
+  const productKind = resolveProductKind(row.category_product_kind_code, row.category_code);
+  return {
+    id: row.id,
+    code: row.code,
+    name: row.name,
+    category_id: row.category_id,
+    category_code: row.category_code,
+    category_name: row.category_name,
+    sort_order: row.sort_order,
+    is_active: row.is_active === 1,
+    product_kind_code: productKind.code,
+    product_kind_name: productKind.name
+  };
 }
 
 async function upsertMenuTokenPrices(

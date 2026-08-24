@@ -399,6 +399,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
         VoucherModal.show(
           context,
           selectedVoucherId: voucher?.id,
+          cartSnapshot: _snapshot,
           onVoucherSelected: (selected) {
             setState(() {
               _selectedVoucher = selected;

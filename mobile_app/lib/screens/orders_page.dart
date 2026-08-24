@@ -627,6 +627,18 @@ class _OrdersPageState extends State<OrdersPage>
       final menuItemsById = {
         for (final item in _session.allMenuItems) item.id: item,
       };
+      final menuItemMetaById = {
+        for (final category in _session.menuCategories)
+          for (final item in category.items)
+            item.id: {
+              'categoryCode': category.code,
+              'categoryName': category.name,
+              'subcategoryCode': item.subcategoryCode,
+              'subcategoryName': item.subcategoryName,
+              'productKindCode': item.productKindCode,
+              'productKindName': item.productKindName,
+            },
+      };
       final itemsToAdd = <CartItem>[];
 
       for (final orderItem in order.items) {
@@ -653,6 +665,7 @@ class _OrdersPageState extends State<OrdersPage>
             (currentMenuItem.basePriceToken > 0
                 ? currentMenuItem.basePriceToken
                 : orderItem.tokenPrice ?? 0);
+        final currentMenuMeta = menuItemMetaById[currentMenuItem.id] ?? const <String, String?>{};
 
         itemsToAdd.add(
           CartItem(
@@ -660,6 +673,12 @@ class _OrdersPageState extends State<OrdersPage>
             menuItemId: currentMenuItem.id,
             menuItemCode: currentMenuItem.code,
             name: currentMenuItem.name,
+            categoryCode: currentMenuMeta['categoryCode'],
+            categoryName: currentMenuMeta['categoryName'],
+            subcategoryCode: currentMenuMeta['subcategoryCode'],
+            subcategoryName: currentMenuMeta['subcategoryName'],
+            productKindCode: currentMenuMeta['productKindCode'],
+            productKindName: currentMenuMeta['productKindName'],
             imageAssetPath: null,
             imageUrl: currentMenuItem.imageUrl,
             basePriceRm: double.tryParse(currentMenuItem.basePriceRm) ??

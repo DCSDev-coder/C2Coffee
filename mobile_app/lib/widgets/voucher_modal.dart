@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/cart_service.dart';
 import '../services/customer_data_service.dart';
 import '../services/secure_session_service.dart';
 import '../utils/app_colors.dart';
@@ -7,6 +8,7 @@ class VoucherModal {
   static Future<void> show(
     BuildContext context, {
     int? selectedVoucherId,
+    CartSnapshot? cartSnapshot,
     required ValueChanged<RewardVoucher?> onVoucherSelected,
   }) {
     return showModalBottomSheet(
@@ -16,6 +18,7 @@ class VoucherModal {
       builder: (context) {
         return _VoucherModalContent(
           selectedVoucherId: selectedVoucherId,
+          cartSnapshot: cartSnapshot,
           onVoucherSelected: onVoucherSelected,
         );
       },
@@ -25,10 +28,12 @@ class VoucherModal {
 
 class _VoucherModalContent extends StatefulWidget {
   final int? selectedVoucherId;
+  final CartSnapshot? cartSnapshot;
   final ValueChanged<RewardVoucher?> onVoucherSelected;
 
   const _VoucherModalContent({
     required this.selectedVoucherId,
+    required this.cartSnapshot,
     required this.onVoucherSelected,
   });
 
@@ -49,21 +54,20 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
 
   Future<void> _loadVouchers() async {
     try {
-      final accessToken = await SecureSessionService.instance.getValidAccessToken();
+      final accessToken =
+          await SecureSessionService.instance.getValidAccessToken();
       if (accessToken == null || accessToken.isEmpty) {
         throw Exception('Missing access token.');
       }
 
       final list = await CustomerDataService.instance.getRewardVouchers(
         accessToken: accessToken,
+        onlyActive: true,
       );
 
       if (mounted) {
         setState(() {
-          _vouchers = list
-              .where((v) => v.isActive)
-              .where((v) => v.template.voucherType != 'campaign_direct_pay')
-              .toList();
+          _vouchers = list;
           _isLoading = false;
         });
       }
@@ -79,6 +83,12 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
 
   String _formatDiscount(RewardVoucher voucher) {
     final t = voucher.template;
+    if (t.benefitLabel == 'Free Food') {
+      return '1 Free Food Item';
+    }
+    if (t.benefitLabel == 'Birthday Voucher') {
+      return 'Birthday Treat';
+    }
     switch (t.discountMode) {
       case 'fixed_rm':
         return 'RM ${t.discountValue} Off';
@@ -157,7 +167,7 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
                       ),
                     ),
                     const Text(
-                      'Select an active voucher for your order',
+                      'Only vouchers eligible for token checkout can be applied here.',
                       style: TextStyle(
                         fontFamily: 'Afacad',
                         fontSize: 13,
@@ -209,45 +219,51 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
       );
     }
 
-    if (_vouchers.isEmpty) {
-      return SizedBox(
-        height: 180,
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.card_giftcard,
-                size: 48,
-                color: Colors.grey.shade400,
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'No active vouchers available',
-                style: TextStyle(
-                  fontFamily: 'Recoleta',
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 4),
-              const Text(
-                'Check back soon or earn vouchers from rewards!',
-                style: TextStyle(
-                  fontFamily: 'Afacad',
-                  fontSize: 13,
-                  color: Colors.black54,
-                ),
+    final tokenCheckoutVouchers = _vouchers.where((v) {
+      if (!v.isTokenCheckoutEligible) return false;
+      final snapshot = widget.cartSnapshot;
+      if (snapshot == null) return true;
+      return v.template.matchesCartSnapshot(snapshot);
+    }).toList();
+    final nonTokenCheckoutVouchers =
+        _vouchers.where((v) => !tokenCheckoutVouchers.contains(v)).toList();
+
+    if (tokenCheckoutVouchers.isEmpty && nonTokenCheckoutVouchers.isEmpty) {
+      return _buildEmptyState(
+        title: 'No vouchers available',
+        message:
+            'Check back soon or earn rewards from eligible orders and campaigns.',
+      );
+    }
+
+    if (tokenCheckoutVouchers.isEmpty) {
+      return SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildNoticeCard(
+              title: 'No vouchers can be used for token checkout',
+              message:
+                  'You currently have vouchers, but none match this cart for token checkout right now.',
+            ),
+            const SizedBox(height: 14),
+            if (nonTokenCheckoutVouchers.isNotEmpty) ...[
+              _buildVoucherSection(
+                title: 'Other rewards',
+                subtitle:
+                    'Visible in rewards history, not selectable at checkout.',
+                vouchers: nonTokenCheckoutVouchers,
+                enabled: false,
               ),
             ],
-          ),
+          ],
         ),
       );
     }
 
     return SingleChildScrollView(
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (widget.selectedVoucherId != null) ...[
             InkWell(
@@ -285,30 +301,89 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
             ),
             const SizedBox(height: 12),
           ],
-          for (final voucher in _vouchers) ...[
-            _buildVoucherTile(voucher),
-            const SizedBox(height: 10),
+          _buildVoucherSection(
+            title: 'Ready for token checkout',
+            subtitle: 'These vouchers can be applied to the current order.',
+            vouchers: tokenCheckoutVouchers,
+            enabled: true,
+          ),
+          if (nonTokenCheckoutVouchers.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            _buildVoucherSection(
+              title: 'Other rewards',
+              subtitle:
+                  'Visible in rewards history, not selectable at checkout.',
+              vouchers: nonTokenCheckoutVouchers,
+              enabled: false,
+            ),
           ],
         ],
       ),
     );
   }
 
-  Widget _buildVoucherTile(RewardVoucher voucher) {
+  Widget _buildVoucherSection({
+    required String title,
+    required String subtitle,
+    required List<RewardVoucher> vouchers,
+    required bool enabled,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            fontFamily: 'Recoleta',
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: AppColors.deepTeal,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          subtitle,
+          style: const TextStyle(
+            fontFamily: 'Afacad',
+            fontSize: 12,
+            color: Colors.black54,
+            height: 1.3,
+          ),
+        ),
+        const SizedBox(height: 10),
+        for (var i = 0; i < vouchers.length; i++) ...[
+          _buildVoucherTile(vouchers[i], enabled: enabled),
+          if (i < vouchers.length - 1) const SizedBox(height: 10),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildVoucherTile(
+    RewardVoucher voucher, {
+    required bool enabled,
+  }) {
     final isSelected = widget.selectedVoucherId == voucher.id;
+    final canApply = enabled && voucher.isTokenCheckoutEligible;
+    final isApplied = isSelected && canApply;
+    final tileBackground =
+        isApplied ? Colors.grey.shade100 : AppColors.surfaceLight;
+    final tileBorderColor = isApplied ? Colors.grey.shade300 : AppColors.border;
+    final titleColor = isApplied ? Colors.grey.shade700 : AppColors.deepTeal;
+    final discountColor = isApplied ? Colors.grey.shade600 : AppColors.gold;
+    final metaColor = isApplied ? Colors.grey.shade500 : Colors.black45;
+    final iconBackground = isApplied
+        ? Colors.grey.shade200
+        : AppColors.deepTeal.withValues(alpha: 0.12);
 
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: isSelected
-            ? AppColors.deepTeal.withValues(alpha: 0.06)
-            : AppColors.surfaceLight,
+        color: tileBackground,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isSelected
-              ? AppColors.deepTeal
-              : AppColors.border,
-          width: isSelected ? 1.8 : 1,
+          color: tileBorderColor,
+          width: isApplied ? 1.5 : 1,
         ),
       ),
       child: Row(
@@ -317,7 +392,7 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
             width: 50,
             height: 50,
             decoration: BoxDecoration(
-              color: AppColors.deepTeal.withValues(alpha: 0.12),
+              color: iconBackground,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Center(
@@ -334,12 +409,12 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  voucher.template.name,
+                  voucher.template.displayLabel,
                   style: TextStyle(
                     fontFamily: 'Afacad',
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.deepTeal,
+                    color: titleColor,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -349,7 +424,17 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
                     fontFamily: 'Afacad',
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.gold,
+                    color: discountColor,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  voucher.visibilityLabel,
+                  style: TextStyle(
+                    fontFamily: 'Afacad',
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: metaColor,
                   ),
                 ),
                 if (voucher.template.minSpendRm != null)
@@ -370,17 +455,38 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
                     color: Colors.black45,
                   ),
                 ),
+                const SizedBox(height: 2),
+                Text(
+                  'Benefit: ${voucher.template.benefitLabel}',
+                  style: const TextStyle(
+                    fontFamily: 'Afacad',
+                    fontSize: 11,
+                    color: Colors.black45,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Available: ${voucher.template.availabilityLabel}',
+                  style: const TextStyle(
+                    fontFamily: 'Afacad',
+                    fontSize: 11,
+                    color: Colors.black45,
+                  ),
+                ),
               ],
             ),
           ),
           const SizedBox(width: 8),
           ElevatedButton(
-            onPressed: () {
-              widget.onVoucherSelected(voucher);
-              Navigator.pop(context);
-            },
+            onPressed: canApply
+                ? () {
+                    widget.onVoucherSelected(voucher);
+                    Navigator.pop(context);
+                  }
+                : null,
             style: ElevatedButton.styleFrom(
-              backgroundColor: isSelected ? AppColors.gold : AppColors.deepTeal,
+              backgroundColor:
+                  isApplied ? Colors.grey.shade400 : AppColors.deepTeal,
               disabledBackgroundColor: Colors.grey.shade300,
               elevation: 0,
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -389,16 +495,97 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
               ),
             ),
             child: Text(
-              isSelected ? 'Applied' : 'Apply',
-              style: const TextStyle(
+              canApply ? (isApplied ? 'Applied' : 'Apply') : 'Unavailable',
+              style: TextStyle(
                 fontFamily: 'Afacad',
                 fontWeight: FontWeight.bold,
                 fontSize: 13,
-                color: Colors.white,
+                color: isApplied ? Colors.white : Colors.white,
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildNoticeCard({
+    required String title,
+    required String message,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceLight,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              fontFamily: 'Recoleta',
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: AppColors.deepTeal,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            message,
+            style: const TextStyle(
+              fontFamily: 'Afacad',
+              fontSize: 13,
+              color: Colors.black54,
+              height: 1.35,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState({
+    required String title,
+    required String message,
+  }) {
+    return SizedBox(
+      height: 180,
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.card_giftcard,
+              size: 48,
+              color: Colors.grey.shade400,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              title,
+              style: const TextStyle(
+                fontFamily: 'Recoleta',
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              message,
+              style: const TextStyle(
+                fontFamily: 'Afacad',
+                fontSize: 13,
+                color: Colors.black54,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -55,6 +55,11 @@ class CatalogMenuItem {
   final bool allowSparklingMixer;
   final bool allowOrderType;
   final bool allowRemarks;
+  final int? subcategoryId;
+  final String? subcategoryCode;
+  final String? subcategoryName;
+  final String productKindCode;
+  final String productKindName;
   final Map<String, int> tokenPrices;
   final List<CatalogModifierGroup> modifierGroups;
 
@@ -78,6 +83,11 @@ class CatalogMenuItem {
     required this.allowSparklingMixer,
     required this.allowOrderType,
     required this.allowRemarks,
+    required this.subcategoryId,
+    required this.subcategoryCode,
+    required this.subcategoryName,
+    required this.productKindCode,
+    required this.productKindName,
     required this.tokenPrices,
     required this.modifierGroups,
   });
@@ -111,6 +121,11 @@ class CatalogMenuItem {
       allowSparklingMixer: json['allow_sparkling_mixer'] as bool? ?? false,
       allowOrderType: json['allow_order_type'] as bool? ?? false,
       allowRemarks: json['allow_remarks'] as bool? ?? false,
+      subcategoryId: (json['subcategory_id'] as num?)?.toInt(),
+      subcategoryCode: json['subcategory_code'] as String?,
+      subcategoryName: json['subcategory_name'] as String?,
+      productKindCode: json['product_kind_code'] as String? ?? 'other',
+      productKindName: json['product_kind_name'] as String? ?? 'Other',
       tokenPrices: rawTokenPrices.map(
         (key, value) => MapEntry(key, (value as num).toInt()),
       ),
@@ -199,12 +214,16 @@ class MenuCategoryGroup {
   final int id;
   final String code;
   final String name;
+  final String productKindCode;
+  final String productKindName;
   final List<CatalogMenuItem> items;
 
   const MenuCategoryGroup({
     required this.id,
     required this.code,
     required this.name,
+    required this.productKindCode,
+    required this.productKindName,
     required this.items,
   });
 
@@ -219,6 +238,8 @@ class MenuCategoryGroup {
       id: (json['id'] as num).toInt(),
       code: json['code'] as String? ?? '',
       name: json['name'] as String? ?? 'Category',
+      productKindCode: json['product_kind_code'] as String? ?? 'other',
+      productKindName: json['product_kind_name'] as String? ?? 'Other',
       items: items,
     );
   }

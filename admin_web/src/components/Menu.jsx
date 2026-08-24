@@ -18,16 +18,27 @@ import {
 import Pagination from './Pagination';
 import { exportToCSV } from '../utils/exportToCSV';
 import {
+  createAdminMenuCategory,
+  createAdminMenuSubcategory,
   createAdminMenuItem,
   deleteAdminMenuItem,
   loadAdminMenu,
   getAdminApiBaseUrl,
   uploadAdminMenuImage,
+  updateAdminMenuCategory,
+  updateAdminMenuSubcategory,
   updateAdminMenuItem
 } from '../lib/adminApi';
 
 const RESTRICTED_CATEGORIES = new Set(['C2 Pastries', 'C2 Merchandise', '5luxes Candles']);
 const ITEMS_PER_PAGE = 10;
+const MENU_PRODUCT_KIND_OPTIONS = [
+  { value: 'drink', label: 'Drinks' },
+  { value: 'food', label: 'Food' },
+  { value: 'merchandise', label: 'Merchandise' },
+  { value: 'candle', label: 'Candles' },
+  { value: 'other', label: 'Other' }
+];
 
 const KPICard = ({ title, value, change, icon: Icon, iconBg, iconColor = 'text-white' }) => (
   <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center space-x-4 min-w-0">
@@ -169,6 +180,7 @@ const emptyCustomizationFlags = () =>
 const buildEmptyForm = (categoryCode) => ({
   id: null,
   category_code: categoryCode || '',
+  subcategory_code: '',
   name: '',
   description: '',
   base_price_rm: '',
@@ -183,6 +195,7 @@ const buildEmptyForm = (categoryCode) => ({
 const buildFormFromItem = (item) => ({
   id: item.id,
   category_code: item.category_code,
+  subcategory_code: item.subcategory_code || '',
   name: item.name || '',
   description: item.description || '',
   base_price_rm: item.base_price_rm ? String(item.base_price_rm) : '',
@@ -212,6 +225,7 @@ const flattenMenuData = (categories) =>
 
 const Menu = () => {
   const [menuCategories, setMenuCategories] = useState([]);
+  const [menuSubcategories, setMenuSubcategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -228,6 +242,24 @@ const Menu = () => {
   const [selectedImagePreview, setSelectedImagePreview] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [isSubcategoryModalOpen, setIsSubcategoryModalOpen] = useState(false);
+  const [categoryForm, setCategoryForm] = useState({
+    id: null,
+    code: '',
+    name: '',
+    product_kind_code: 'drink',
+    sort_order: 0,
+    is_active: true
+  });
+  const [subcategoryForm, setSubcategoryForm] = useState({
+    id: null,
+    category_code: '',
+    code: '',
+    name: '',
+    sort_order: 0,
+    is_active: true
+  });
 
   const loadMenu = async () => {
     setLoading(true);
@@ -236,7 +268,9 @@ const Menu = () => {
     try {
       const response = await loadAdminMenu();
       const categories = response.categories || [];
+      const subcategories = response.subcategories || [];
       setMenuCategories(categories);
+      setMenuSubcategories(subcategories);
 
       if (selectedCategory !== 'All' && !categories.some((category) => category.code === selectedCategory)) {
         setSelectedCategory('All');
@@ -254,11 +288,17 @@ const Menu = () => {
   }, []);
 
   const categoryOptions = [
-    'All',
-    ...menuCategories.map((category) => category.code)
+    { value: 'All', label: 'All Categories' },
+    ...menuCategories.map((category) => ({
+      value: category.code,
+      label: category.name
+    }))
   ];
 
   const allMenuItems = flattenMenuData(menuCategories);
+  const activeSubcategoryOptions = menuSubcategories.filter(
+    (subcategory) => subcategory.category_code === editFormData.category_code && subcategory.is_active
+  );
 
   const filteredMenuItems = allMenuItems.filter((item) => {
     const search = searchQuery.trim().toLowerCase();
@@ -317,6 +357,30 @@ const Menu = () => {
     setIsEditModalOpen(true);
   };
 
+  const openCategoryModal = (productKindCode = 'drink') => {
+    setCategoryForm({
+      id: null,
+      code: '',
+      name: '',
+      product_kind_code: productKindCode,
+      sort_order: menuCategories.length,
+      is_active: true
+    });
+    setIsCategoryModalOpen(true);
+  };
+
+  const editCategory = (category) => {
+    setCategoryForm({
+      id: category.id,
+      code: category.code,
+      name: category.name,
+      product_kind_code: category.product_kind_code || 'drink',
+      sort_order: category.sort_order || 0,
+      is_active: category.is_active
+    });
+    setIsCategoryModalOpen(true);
+  };
+
   const openEditModal = (item) => {
     setEditMode('edit');
     setEditFormData(buildFormFromItem(item));
@@ -365,6 +429,7 @@ const Menu = () => {
 
     const payload = {
       category_code: editFormData.category_code,
+      subcategory_code: editFormData.subcategory_code || '',
       name: editFormData.name.trim(),
       description: nullableText(editFormData.description),
       base_price_rm: parseMoneyInput(editFormData.base_price_rm),
@@ -461,6 +526,90 @@ const Menu = () => {
     setSelectedImagePreview('');
   };
 
+  const openSubcategoryModal = (categoryCode = '') => {
+    const fallbackCategory = categoryCode || menuCategories[0]?.code || '';
+    setSubcategoryForm({
+      id: null,
+      category_code: fallbackCategory,
+      code: '',
+      name: '',
+      sort_order: menuSubcategories.length,
+      is_active: true
+    });
+    setIsSubcategoryModalOpen(true);
+  };
+
+  const handleSaveCategory = async (event) => {
+    event.preventDefault();
+    setIsSubmitting(true);
+    setErrorMessage('');
+    try {
+      const payload = {
+        code: categoryForm.code.trim(),
+        name: categoryForm.name.trim(),
+        product_kind_code: categoryForm.product_kind_code,
+        sort_order: parseIntegerInput(categoryForm.sort_order, 0),
+        is_active: Boolean(categoryForm.is_active)
+      };
+      const response = categoryForm.id
+        ? await updateAdminMenuCategory(categoryForm.id, payload)
+        : await createAdminMenuCategory(payload);
+
+      setIsCategoryModalOpen(false);
+      await loadMenu();
+
+      if (response?.category?.code) {
+        setEditFormData((current) => ({
+          ...current,
+          category_code: response.category.code,
+          subcategory_code: ''
+        }));
+      }
+    } catch (error) {
+      setErrorMessage(error.message || 'Unable to save main category.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const editSubcategory = (subcategory) => {
+    setSubcategoryForm({
+      id: subcategory.id,
+      category_code: subcategory.category_code,
+      code: subcategory.code,
+      name: subcategory.name,
+      sort_order: subcategory.sort_order || 0,
+      is_active: subcategory.is_active
+    });
+    setIsSubcategoryModalOpen(true);
+  };
+
+  const handleSaveSubcategory = async (event) => {
+    event.preventDefault();
+    setIsSubmitting(true);
+    setErrorMessage('');
+    try {
+      const payload = {
+        category_code: subcategoryForm.category_code,
+        code: subcategoryForm.code.trim(),
+        name: subcategoryForm.name.trim(),
+        sort_order: parseIntegerInput(subcategoryForm.sort_order, 0),
+        is_active: Boolean(subcategoryForm.is_active)
+      };
+      if (subcategoryForm.id) {
+        await updateAdminMenuSubcategory(subcategoryForm.id, payload);
+      } else {
+        await createAdminMenuSubcategory(payload);
+      }
+      setIsSubcategoryModalOpen(false);
+      await loadMenu();
+    } catch (error) {
+      setErrorMessage(error.message || 'Unable to save subcategory.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="h-full flex flex-col px-8 pb-8 pt-2 space-y-6 overflow-hidden">
       <div className="shrink-0 space-y-6">
@@ -509,8 +658,8 @@ const Menu = () => {
                 className="pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer"
               >
                 {categoryOptions.map((category) => (
-                  <option key={category} value={category}>
-                    {category === 'All' ? 'All Categories' : category}
+                  <option key={category.value} value={category.value}>
+                    {category.label}
                   </option>
                 ))}
               </select>
@@ -541,6 +690,20 @@ const Menu = () => {
                 />
               </div>
             </div>
+
+            <button
+              onClick={() => openCategoryModal()}
+              className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 whitespace-nowrap cursor-pointer transition-transform duration-200"
+            >
+              <Layers size={16} className="mr-1.5" /> Manage Main Groups
+            </button>
+
+            <button
+              onClick={() => openSubcategoryModal()}
+              className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 whitespace-nowrap cursor-pointer transition-transform duration-200"
+            >
+              <Layers size={16} className="mr-1.5" /> Manage Menu Types
+            </button>
 
             <button
               onClick={() => exportToCSV(exportRows, 'menu.csv')}
@@ -607,7 +770,10 @@ const Menu = () => {
                           </div>
                         </div>
                       </td>
-                      <td className="px-6 py-3 font-medium text-gray-700">{item.category_name}</td>
+                      <td className="px-6 py-3 font-medium text-gray-700">
+                        <div>{item.category_name}</div>
+                        <div className="text-[10px] text-gray-400">{item.subcategory_name || 'General'}</div>
+                      </td>
                       <td className="px-6 py-3 font-medium text-gray-900">{item.base_price_rm}</td>
                       <td className="px-6 py-3 font-medium text-gray-900">{formatToken(item.base_price_token)}</td>
                       <td className="px-6 py-3">
@@ -713,6 +879,14 @@ const Menu = () => {
                       <div className="grid grid-cols-2 gap-3">
                         <p className="text-gray-500 font-medium">Category</p>
                         <p className="text-gray-900 font-medium">{selectedItem.category_name}</p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <p className="text-gray-500 font-medium">Subcategory</p>
+                        <p className="text-gray-900 font-medium">{selectedItem.subcategory_name || 'General'}</p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <p className="text-gray-500 font-medium">Product Group</p>
+                        <p className="text-gray-900 font-medium">{selectedItem.product_kind_name || 'Other'}</p>
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <p className="text-gray-500 font-medium">Tokens Price</p>
@@ -863,21 +1037,71 @@ const Menu = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Category</label>
-                  <select
-                    value={editFormData.category_code}
-                    onChange={(event) => setEditFormData({ ...editFormData, category_code: event.target.value })}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34]"
-                    required
-                  >
-                    {menuCategories.map((category) => (
-                      <option key={category.code} value={category.code}>
-                        {category.name}
-                      </option>
-                    ))}
-                  </select>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Main Category</label>
+                  <div className="flex gap-2">
+                    <select
+                      value={editFormData.category_code}
+                      onChange={(event) => {
+                        const nextCategoryCode = event.target.value;
+                        const nextSubcategories = menuSubcategories.filter(
+                          (subcategory) => subcategory.category_code === nextCategoryCode && subcategory.is_active
+                        );
+                        setEditFormData({
+                          ...editFormData,
+                          category_code: nextCategoryCode,
+                          subcategory_code: nextSubcategories[0]?.code || ''
+                        });
+                      }}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34]"
+                      required
+                    >
+                      {menuCategories.map((category) => (
+                        <option key={category.code} value={category.code}>
+                          {category.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const selectedCategory = menuCategories.find((category) => category.code === editFormData.category_code);
+                        openCategoryModal(selectedCategory?.product_kind_code || 'drink');
+                      }}
+                      className="shrink-0 inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50"
+                    >
+                      <Plus size={14} /> New Group
+                    </button>
+                  </div>
                   <p className="mt-1 text-[11px] text-gray-500">
-                    Use this as the drink type grouping, such as Coffee, Barista Craft, Matcha, or Chocolate.
+                    Use this for the broad product group such as Drinks, Food, Merchandise, or Candles.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Subcategory</label>
+                  <div className="flex gap-2">
+                    <select
+                      value={editFormData.subcategory_code}
+                      onChange={(event) => setEditFormData({ ...editFormData, subcategory_code: event.target.value })}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34]"
+                    >
+                      <option value="">General</option>
+                      {activeSubcategoryOptions.map((subcategory) => (
+                        <option key={subcategory.id} value={subcategory.code}>
+                          {subcategory.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => openSubcategoryModal(editFormData.category_code)}
+                      className="shrink-0 inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50"
+                    >
+                      <Plus size={14} /> New Type
+                    </button>
+                  </div>
+                  <p className="mt-1 text-[11px] text-gray-500">
+                    Add drink families like Matcha or Sparkling here so vouchers and tiers can detect them automatically.
                   </p>
                 </div>
 
@@ -1036,6 +1260,254 @@ const Menu = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {isSubcategoryModalOpen && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
+              <h2 className="text-lg font-bold text-gray-900">Manage Subcategories</h2>
+              <button onClick={() => setIsSubcategoryModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-[1.1fr,0.9fr] min-h-0">
+              <div className="border-r border-gray-100 overflow-y-auto max-h-[70vh]">
+                <div className="p-4 space-y-3">
+                  {menuSubcategories.map((subcategory) => (
+                    <button
+                      key={subcategory.id}
+                      type="button"
+                      onClick={() => editSubcategory(subcategory)}
+                      className="w-full text-left rounded-xl border border-gray-200 px-4 py-3 hover:bg-gray-50"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="font-semibold text-gray-900">{subcategory.name}</p>
+                          <p className="text-[11px] text-gray-500">
+                            {subcategory.product_kind_name} • {subcategory.category_name}
+                          </p>
+                        </div>
+                        <span className={`px-2 py-1 rounded text-[10px] font-bold ${subcategory.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                          {subcategory.is_active ? 'Active' : 'Hidden'}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <form onSubmit={handleSaveSubcategory} className="p-6 space-y-4 overflow-y-auto max-h-[70vh]">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Main Category</label>
+                  <select
+                    value={subcategoryForm.category_code}
+                    onChange={(event) => setSubcategoryForm({ ...subcategoryForm, category_code: event.target.value })}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34]"
+                    required
+                  >
+                    {menuCategories.map((category) => (
+                      <option key={category.code} value={category.code}>
+                        {category.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Subcategory Name</label>
+                  <input
+                    type="text"
+                    value={subcategoryForm.name}
+                    onChange={(event) => setSubcategoryForm({ ...subcategoryForm, name: event.target.value })}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34]"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Subcategory Code</label>
+                  <input
+                    type="text"
+                    value={subcategoryForm.code}
+                    onChange={(event) => setSubcategoryForm({ ...subcategoryForm, code: event.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '_') })}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34]"
+                    placeholder="matcha"
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Sort Order</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={subcategoryForm.sort_order}
+                      onChange={(event) => setSubcategoryForm({ ...subcategoryForm, sort_order: event.target.value })}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34]"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-6">
+                    <input
+                      id="subcategory-active"
+                      type="checkbox"
+                      checked={Boolean(subcategoryForm.is_active)}
+                      onChange={(event) => setSubcategoryForm({ ...subcategoryForm, is_active: event.target.checked })}
+                      className="w-4 h-4 text-[#1F3A34] rounded border-gray-300 accent-[#1F3A34]"
+                    />
+                    <label htmlFor="subcategory-active" className="text-sm font-medium text-gray-700">
+                      Active
+                    </label>
+                  </div>
+                </div>
+
+                <div className="pt-4 flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsSubcategoryModalOpen(false)}
+                    className="px-4 py-2 text-sm font-bold text-gray-600 hover:bg-gray-50 rounded-lg border border-gray-200"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="px-4 py-2 text-sm font-bold text-white bg-[#1F3A34] hover:bg-[#2E5E58] rounded-lg disabled:opacity-60"
+                  >
+                    {isSubmitting ? 'Saving...' : subcategoryForm.id ? 'Save Subcategory' : 'Create Subcategory'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isCategoryModalOpen && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
+              <h2 className="text-lg font-bold text-gray-900">Manage Main Categories</h2>
+              <button onClick={() => setIsCategoryModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-[1.1fr,0.9fr] min-h-0">
+              <div className="border-r border-gray-100 overflow-y-auto max-h-[70vh]">
+                <div className="p-4 space-y-3">
+                  {menuCategories.map((category) => (
+                    <button
+                      key={category.id}
+                      type="button"
+                      onClick={() => editCategory(category)}
+                      className="w-full text-left rounded-xl border border-gray-200 px-4 py-3 hover:bg-gray-50"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="font-semibold text-gray-900">{category.name}</p>
+                          <p className="text-[11px] text-gray-500">
+                            {MENU_PRODUCT_KIND_OPTIONS.find((option) => option.value === category.product_kind_code)?.label || 'Other'} • {category.code}
+                          </p>
+                        </div>
+                        <span className={`px-2 py-1 rounded text-[10px] font-bold ${category.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                          {category.is_active ? 'Active' : 'Hidden'}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <form onSubmit={handleSaveCategory} className="p-6 space-y-4 overflow-y-auto max-h-[70vh]">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Product Group</label>
+                  <select
+                    value={categoryForm.product_kind_code}
+                    onChange={(event) => setCategoryForm({ ...categoryForm, product_kind_code: event.target.value })}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34]"
+                    required
+                  >
+                    {MENU_PRODUCT_KIND_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Main Category Name</label>
+                  <input
+                    type="text"
+                    value={categoryForm.name}
+                    onChange={(event) => setCategoryForm({ ...categoryForm, name: event.target.value })}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34]"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Main Category Code</label>
+                  <input
+                    type="text"
+                    value={categoryForm.code}
+                    onChange={(event) => setCategoryForm({ ...categoryForm, code: event.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '_') })}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34]"
+                    placeholder="coffee"
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Sort Order</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={categoryForm.sort_order}
+                      onChange={(event) => setCategoryForm({ ...categoryForm, sort_order: event.target.value })}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34]"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-6">
+                    <input
+                      id="category-active"
+                      type="checkbox"
+                      checked={Boolean(categoryForm.is_active)}
+                      onChange={(event) => setCategoryForm({ ...categoryForm, is_active: event.target.checked })}
+                      className="w-4 h-4 text-[#1F3A34] rounded border-gray-300 accent-[#1F3A34]"
+                    />
+                    <label htmlFor="category-active" className="text-sm font-medium text-gray-700">
+                      Active
+                    </label>
+                  </div>
+                </div>
+
+                <div className="pt-4 flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsCategoryModalOpen(false)}
+                    className="px-4 py-2 text-sm font-bold text-gray-600 hover:bg-gray-50 rounded-lg border border-gray-200"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="px-4 py-2 text-sm font-bold text-white bg-[#1F3A34] hover:bg-[#2E5E58] rounded-lg disabled:opacity-60"
+                  >
+                    {isSubmitting ? 'Saving...' : categoryForm.id ? 'Save Main Category' : 'Create Main Category'}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       )}

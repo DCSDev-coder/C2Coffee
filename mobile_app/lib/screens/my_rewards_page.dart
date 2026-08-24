@@ -101,13 +101,13 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final activeCount = _vouchers.where((voucher) => voucher.isActive).length;
+    final visibleVoucherCount = _vouchers.length;
 
     return AppPageShell(
       title: 'MY REWARDS',
       onBack: () => InteractiveFillingLoader.showPop(context),
       backgroundColor: Colors.white,
-      bodyPadding: EdgeInsets.zero,
+      bodyPadding: const EdgeInsets.only(bottom: 130),
       overlay: OrderStatusBanner(
         bottomOffset: 90 + MediaQuery.paddingOf(context).bottom,
       ),
@@ -118,22 +118,21 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
             padding: const EdgeInsets.all(20),
             child: Column(
               children: [
-                _buildRewardsHeroCard(activeCount),
+                _buildRewardsHeroCard(visibleVoucherCount),
               ],
             ),
           ),
           Divider(height: 1, color: AppColors.border, thickness: 1),
-          Container(
-            width: double.infinity,
+          Padding(
             padding: const EdgeInsets.all(20),
-            child: _buildActiveRewards(),
+            child: _buildRewardsContent(),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildRewardsHeroCard(int activeCount) {
+  Widget _buildRewardsHeroCard(int visibleVoucherCount) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
@@ -220,7 +219,7 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Active vouchers stay aligned with checkout and reward history.',
+                      'All active customer vouchers are shown here in one simple list.',
                       style: TextStyle(
                         fontFamily: 'Afacad',
                         fontSize: 14,
@@ -233,8 +232,10 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
                       spacing: 10,
                       runSpacing: 10,
                       children: [
-                        _buildHeroStatChip('$activeCount',
-                            'Active voucher${activeCount == 1 ? '' : 's'}'),
+                        _buildHeroStatChip(
+                          '$visibleVoucherCount',
+                          'Voucher${visibleVoucherCount == 1 ? '' : 's'}',
+                        ),
                       ],
                     ),
                   ],
@@ -291,7 +292,7 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
     );
   }
 
-  Widget _buildActiveRewards() {
+  Widget _buildRewardsContent() {
     if (_isRewardsLoading) {
       return _buildMessageCard(
         title: 'Loading your rewards...',
@@ -309,30 +310,75 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
       );
     }
 
-    final activeVouchers =
-        _vouchers.where((voucher) => voucher.isActive).toList();
-    if (activeVouchers.isNotEmpty) {
-      return Column(
-        children: [
-          for (var i = 0; i < activeVouchers.length; i++) ...[
-            _buildVoucherCard(activeVouchers[i]),
-            if (i < activeVouchers.length - 1) const SizedBox(height: 12),
-          ],
-        ],
+    final sortedVouchers = List<RewardVoucher>.from(_vouchers)
+      ..sort((a, b) {
+        if (a.isActive != b.isActive) {
+          return a.isActive ? -1 : 1;
+        }
+        return b.issuedAt.compareTo(a.issuedAt);
+      });
+
+    if (sortedVouchers.isEmpty) {
+      return _buildMessageCard(
+        title: 'No rewards yet',
+        message:
+            'You do not have any vouchers at the moment. Earn rewards or wait for an admin campaign to receive one.',
       );
     }
 
-    return _buildMessageCard(
-      title: 'No active rewards yet',
-      message: 'You do not have any active reward vouchers at the moment.',
+    return _buildRewardsSection(
+      title: 'Vouchers',
+      subtitle: 'Your available customer vouchers.',
+      vouchers: sortedVouchers,
+      accentColor: AppColors.deepTeal,
     );
   }
 
-  Widget _buildVoucherCard(RewardVoucher voucher) {
+  Widget _buildRewardsSection({
+    required String title,
+    required String subtitle,
+    required List<RewardVoucher> vouchers,
+    required Color accentColor,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            fontFamily: 'Recoleta',
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: AppColors.deepTeal,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          subtitle,
+          style: const TextStyle(
+            fontFamily: 'Afacad',
+            fontSize: 13,
+            color: Colors.black54,
+            height: 1.35,
+          ),
+        ),
+        const SizedBox(height: 12),
+        for (var i = 0; i < vouchers.length; i++) ...[
+          _buildVoucherCard(vouchers[i], accentColor: accentColor),
+          if (i < vouchers.length - 1) const SizedBox(height: 12),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildVoucherCard(
+    RewardVoucher voucher, {
+    required Color accentColor,
+  }) {
     final expiryLabel = DateFormat('dd MMM yyyy').format(voucher.expiresAt);
     final isActive = voucher.isActive;
     final statusColor = isActive ? AppColors.deepTeal : Colors.grey.shade600;
-    final accentColor = isActive ? AppColors.gold : AppColors.border;
+    final cardAccentColor = isActive ? accentColor : Colors.grey.shade400;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
@@ -363,7 +409,7 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
                 width: 6,
                 height: 56,
                 decoration: BoxDecoration(
-                  color: accentColor,
+                  color: cardAccentColor,
                   borderRadius: BorderRadius.circular(999),
                 ),
               ),
@@ -377,7 +423,7 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
                       children: [
                         Expanded(
                           child: Text(
-                            voucher.template.name,
+                            voucher.template.displayLabel,
                             style: TextStyle(
                               fontFamily: 'Recoleta',
                               fontSize: 18,
@@ -397,7 +443,8 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
                                 ? AppColors.surfaceLight
                                 : Colors.white,
                             borderRadius: BorderRadius.circular(999),
-                            border: Border.all(color: accentColor, width: 1),
+                            border:
+                                Border.all(color: cardAccentColor, width: 1),
                           ),
                           child: Text(
                             _voucherBadge(voucher),
@@ -426,8 +473,25 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
                       runSpacing: 8,
                       children: [
                         _buildInfoChip('Code', voucher.template.code),
-                        _buildInfoChip('Expires', expiryLabel),
-                        _buildInfoChip('Applies to', voucher.template.eligibilityLabel),
+                        _buildInfoChip('Redeem by', expiryLabel),
+                        _buildInfoChip(
+                          'Availability',
+                          voucher.template.availabilityLabel,
+                        ),
+                        _buildInfoChip(
+                          'Benefit',
+                          voucher.template.benefitLabel,
+                        ),
+                        _buildInfoChip(
+                            'Applies to', voucher.template.eligibilityLabel),
+                        _buildInfoChip(
+                          'Checkout',
+                          voucher.checkoutAvailabilityLabel,
+                        ),
+                        _buildInfoChip(
+                          'Audience',
+                          voucher.template.audienceLabel,
+                        ),
                         if (voucher.template.minSpendRm != null)
                           _buildInfoChip(
                             'Min spend',
@@ -477,7 +541,11 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
           const SizedBox(height: 10),
           Text(
             isActive
-                ? 'Use this voucher during checkout.'
+                ? voucher.isTokenCheckoutEligible
+                    ? 'Use this voucher during token checkout.'
+                    : voucher.template.isTokenCheckoutCompatible
+                        ? 'This voucher is active, but it is outside its promotion time right now.'
+                        : 'This voucher is active but not usable for token checkout.'
                 : voucher.redeemedAt != null
                     ? 'This voucher has already been redeemed.'
                     : 'This voucher is part of your reward history.',
@@ -519,18 +587,7 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
   }
 
   String _voucherBadge(RewardVoucher voucher) {
-    switch (voucher.template.discountMode) {
-      case 'fixed_rm':
-        return 'RM ${voucher.template.discountValue}';
-      case 'percent_rm':
-        return '${voucher.template.discountValue}%';
-      case 'fixed_token':
-        return '${voucher.template.tokenValue ?? 0} TOKENS';
-      case 'free_drink':
-        return 'FREE DRINK';
-      default:
-        return voucher.template.voucherType.toUpperCase();
-    }
+    return voucher.isActive ? '0/1' : '1/1';
   }
 
   String _capitalize(String value) {

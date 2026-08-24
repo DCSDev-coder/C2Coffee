@@ -28,6 +28,12 @@ class CartItem {
   final int menuItemId;
   final String menuItemCode;
   final String name;
+  final String? categoryCode;
+  final String? categoryName;
+  final String? subcategoryCode;
+  final String? subcategoryName;
+  final String? productKindCode;
+  final String? productKindName;
   final String? imageAssetPath;
   final String? imageUrl;
   final double basePriceRm;
@@ -42,6 +48,12 @@ class CartItem {
     required this.menuItemId,
     required this.menuItemCode,
     required this.name,
+    this.categoryCode,
+    this.categoryName,
+    this.subcategoryCode,
+    this.subcategoryName,
+    this.productKindCode,
+    this.productKindName,
     required this.basePriceRm,
     required this.tokenPrice,
     required this.quantity,
@@ -70,6 +82,12 @@ class CartItem {
     return menuItemId == other.menuItemId &&
         menuItemCode == other.menuItemCode &&
         name == other.name &&
+        categoryCode == other.categoryCode &&
+        categoryName == other.categoryName &&
+        subcategoryCode == other.subcategoryCode &&
+        subcategoryName == other.subcategoryName &&
+        productKindCode == other.productKindCode &&
+        productKindName == other.productKindName &&
         basePriceRm == other.basePriceRm &&
         tokenPrice == other.tokenPrice &&
         remarks == other.remarks &&
@@ -106,6 +124,12 @@ class CartItem {
       menuItemId: menuItemId,
       menuItemCode: menuItemCode,
       name: name,
+      categoryCode: categoryCode,
+      categoryName: categoryName,
+      subcategoryCode: subcategoryCode,
+      subcategoryName: subcategoryName,
+      productKindCode: productKindCode,
+      productKindName: productKindName,
       imageAssetPath: imageAssetPath,
       imageUrl: imageUrl,
       basePriceRm: basePriceRm,

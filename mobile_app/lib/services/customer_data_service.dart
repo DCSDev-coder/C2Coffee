@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 
 import 'api_config.dart';
 import 'auth_api_service.dart';
+import 'cart_service.dart';
 import 'secure_session_service.dart';
 
 class WalletTransaction {
@@ -46,6 +47,9 @@ class WalletTransaction {
 class RewardVoucherTemplate {
   final String code;
   final String name;
+  final String typeLabel;
+  final String benefitType;
+  final String audience;
   final String voucherType;
   final String discountMode;
   final String discountValue;
@@ -58,6 +62,9 @@ class RewardVoucherTemplate {
   const RewardVoucherTemplate({
     required this.code,
     required this.name,
+    required this.typeLabel,
+    required this.benefitType,
+    required this.audience,
     required this.voucherType,
     required this.discountMode,
     required this.discountValue,
@@ -72,6 +79,15 @@ class RewardVoucherTemplate {
     return RewardVoucherTemplate(
       code: json['code'] as String? ?? '',
       name: json['name'] as String? ?? '',
+      typeLabel: _parseScopeMap(json['eligible_scope_json'])['type_label']
+              as String? ??
+          '',
+      benefitType: _parseScopeMap(json['eligible_scope_json'])['benefit_type']
+              as String? ??
+          '',
+      audience:
+          _parseScopeMap(json['eligible_scope_json'])['audience'] as String? ??
+              'all_customers',
       voucherType: json['voucher_type'] as String? ?? '',
       discountMode: json['discount_mode'] as String? ?? '',
       discountValue: json['discount_value'] as String? ?? '0.00',
@@ -81,6 +97,38 @@ class RewardVoucherTemplate {
       eligibleScope: _parseScopeMap(json['eligible_scope_json']),
       excludeScope: _parseScopeMap(json['exclude_scope_json']),
     );
+  }
+
+  String get displayLabel => typeLabel.trim().isNotEmpty ? typeLabel : name;
+
+  String get benefitLabel {
+    if (benefitType.trim().isNotEmpty) {
+      return benefitType;
+    }
+
+    switch (discountMode) {
+      case 'fixed_token':
+        return 'Token Discount';
+      case 'fixed_rm':
+        return 'Cash Voucher';
+      case 'percent_rm':
+        return 'Percentage Off';
+      case 'free_drink':
+        return 'Free Drink';
+      default:
+        return 'Voucher';
+    }
+  }
+
+  String get audienceLabel {
+    switch (audience) {
+      case 'employee_only':
+        return 'Employee only';
+      case 'manual_issue_only':
+        return 'Manual issue only';
+      default:
+        return 'All customers';
+    }
   }
 
   String get eligibilityLabel {
@@ -101,6 +149,158 @@ class RewardVoucherTemplate {
     }
 
     return 'All items';
+  }
+
+  String get checkoutAvailabilityLabel {
+    if (!isTokenCheckoutCompatible) {
+      return 'Not for token checkout';
+    }
+    if (!isAvailableNow) {
+      return 'Not active right now';
+    }
+    return 'Ready for token checkout';
+  }
+
+  List<String> get productKindCodes =>
+      _stringListFromScope(eligibleScope, ['product_kind_codes', 'product_kinds']);
+
+  List<String> get subcategoryCodes =>
+      _stringListFromScope(eligibleScope, ['subcategory_codes']);
+
+  List<String> get itemCodes =>
+      _stringListFromScope(eligibleScope, ['item_codes', 'items']);
+
+  bool get isTokenCheckoutCompatible {
+    if (voucherType == 'campaign_direct_pay') {
+      return false;
+    }
+
+    return discountMode == 'fixed_token' || discountMode == 'free_drink';
+  }
+
+  bool get isAvailableNow {
+    final schedule =
+        eligibleScope['schedule'] is Map<String, dynamic>
+            ? eligibleScope['schedule'] as Map<String, dynamic>
+            : eligibleScope['schedule'] is Map
+                ? Map<String, dynamic>.from(eligibleScope['schedule'] as Map)
+                : <String, dynamic>{};
+    final mode = (schedule['mode'] as String? ?? 'always').trim();
+    if (mode == 'always') {
+      return true;
+    }
+
+    final now = DateTime.now().toUtc().add(const Duration(hours: 8));
+    final currentTime =
+        '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+    final startTime = (schedule['startTime'] as String? ?? '').trim();
+    final endTime = (schedule['endTime'] as String? ?? '').trim();
+
+    if (mode == 'weekly') {
+      final activeDays = (schedule['activeDays'] as List? ?? const [])
+          .map((day) => day?.toString().trim() ?? '')
+          .where((day) => day.isNotEmpty)
+          .toList();
+      if (activeDays.isNotEmpty &&
+          !activeDays.contains(_weekdayName(now.weekday))) {
+        return false;
+      }
+    }
+
+    if (mode == 'annual') {
+      final annualDate = (schedule['annualDate'] as String? ?? '').trim();
+      final currentDate =
+          '${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+      if (annualDate.isNotEmpty && annualDate != currentDate) {
+        return false;
+      }
+    }
+
+    if (startTime.isNotEmpty && currentTime.compareTo(startTime) < 0) {
+      return false;
+    }
+    if (endTime.isNotEmpty && currentTime.compareTo(endTime) > 0) {
+      return false;
+    }
+
+    return true;
+  }
+
+  bool matchesCartSnapshot(CartSnapshot snapshot) {
+    final normalizedProductKinds =
+        productKindCodes.map(_normalizeScopeValue).where((value) => value.isNotEmpty).toSet();
+    final normalizedCategoryCodes =
+        _stringListFromScope(eligibleScope, ['category_codes', 'categories'])
+            .map(_normalizeScopeValue)
+            .where((value) => value.isNotEmpty)
+            .toSet();
+    final normalizedSubcategoryCodes =
+        subcategoryCodes.map(_normalizeScopeValue).where((value) => value.isNotEmpty).toSet();
+    final normalizedItemCodes =
+        itemCodes.map(_normalizeScopeValue).where((value) => value.isNotEmpty).toSet();
+
+    final hasExplicitScope = normalizedProductKinds.isNotEmpty ||
+        normalizedCategoryCodes.isNotEmpty ||
+        normalizedSubcategoryCodes.isNotEmpty ||
+        normalizedItemCodes.isNotEmpty;
+
+    if (!hasExplicitScope) {
+      return true;
+    }
+
+    for (final item in snapshot.items) {
+      final productKind = _normalizeScopeValue(item.productKindCode ?? '');
+      final categoryCode = _normalizeScopeValue(item.categoryCode ?? '');
+      final subcategoryCode = _normalizeScopeValue(item.subcategoryCode ?? '');
+      final itemCode = _normalizeScopeValue(item.menuItemCode);
+
+      if (normalizedProductKinds.contains(productKind) ||
+          normalizedCategoryCodes.contains(categoryCode) ||
+          normalizedSubcategoryCodes.contains(subcategoryCode) ||
+          normalizedItemCodes.contains(itemCode)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  String get availabilityLabel {
+    final schedule =
+        eligibleScope['schedule'] is Map<String, dynamic>
+            ? eligibleScope['schedule'] as Map<String, dynamic>
+            : eligibleScope['schedule'] is Map
+                ? Map<String, dynamic>.from(eligibleScope['schedule'] as Map)
+                : <String, dynamic>{};
+    final mode = (schedule['mode'] as String? ?? 'always').trim();
+    final startTime = _formatTimeLabel((schedule['startTime'] as String? ?? '').trim());
+    final endTime = _formatTimeLabel((schedule['endTime'] as String? ?? '').trim());
+    final timeLabel = _joinTimeRange(startTime, endTime);
+
+    if (mode == 'daily') {
+      return timeLabel == null ? 'Every day' : 'Every day, $timeLabel';
+    }
+
+    if (mode == 'weekly') {
+      final activeDays = (schedule['activeDays'] as List? ?? const [])
+          .map((day) => day?.toString().trim() ?? '')
+          .where((day) => day.isNotEmpty)
+          .toList();
+      final dayLabel =
+          activeDays.isEmpty ? 'Selected days' : activeDays.join(', ');
+      return timeLabel == null ? 'Every $dayLabel' : 'Every $dayLabel, $timeLabel';
+    }
+
+    if (mode == 'annual') {
+      final annualDate =
+          _formatAnnualDateLabel((schedule['annualDate'] as String? ?? '').trim()) ??
+              'Selected date';
+      return timeLabel == null
+          ? 'Every $annualDate'
+          : 'Every $annualDate, $timeLabel';
+    }
+
+    return timeLabel == null ? 'Always available' : 'Every day, $timeLabel';
   }
 
   static Map<String, dynamic> _parseScopeMap(dynamic value) {
@@ -142,13 +342,69 @@ class RewardVoucherTemplate {
   static String _formatScopeValue(String value) {
     final normalized = value.replaceAll('_', ' ').trim();
     if (normalized.isEmpty) return value;
-    return normalized
-        .split(RegExp(r'\s+'))
-        .map((word) {
-          if (word.isEmpty) return word;
-          return '${word[0].toUpperCase()}${word.substring(1)}';
-        })
-        .join(' ');
+    return normalized.split(RegExp(r'\s+')).map((word) {
+      if (word.isEmpty) return word;
+      return '${word[0].toUpperCase()}${word.substring(1)}';
+    }).join(' ');
+  }
+
+  static String _normalizeScopeValue(String value) =>
+      value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), ' ').trim();
+
+  static String _weekdayName(int weekday) {
+    const names = <int, String>{
+      DateTime.monday: 'Monday',
+      DateTime.tuesday: 'Tuesday',
+      DateTime.wednesday: 'Wednesday',
+      DateTime.thursday: 'Thursday',
+      DateTime.friday: 'Friday',
+      DateTime.saturday: 'Saturday',
+      DateTime.sunday: 'Sunday',
+    };
+    return names[weekday] ?? 'Monday';
+  }
+
+  static String? _formatTimeLabel(String value) {
+    if (value.isEmpty) return null;
+    final parts = value.split(':');
+    if (parts.length != 2) return value;
+    final hour = int.tryParse(parts[0]);
+    final minute = int.tryParse(parts[1]);
+    if (hour == null || minute == null) return value;
+    final suffix = hour >= 12 ? 'PM' : 'AM';
+    final normalizedHour = hour % 12 == 0 ? 12 : hour % 12;
+    return '$normalizedHour:${minute.toString().padLeft(2, '0')} $suffix';
+  }
+
+  static String? _joinTimeRange(String? startTime, String? endTime) {
+    if (startTime != null && endTime != null) {
+      return '$startTime - $endTime';
+    }
+    return startTime ?? endTime;
+  }
+
+  static String? _formatAnnualDateLabel(String value) {
+    if (value.isEmpty) return null;
+    final parts = value.split('-');
+    if (parts.length != 2) return value;
+    final month = int.tryParse(parts[0]);
+    final day = int.tryParse(parts[1]);
+    if (month == null || day == null) return value;
+    const monthNames = <int, String>{
+      1: 'Jan',
+      2: 'Feb',
+      3: 'Mar',
+      4: 'Apr',
+      5: 'May',
+      6: 'Jun',
+      7: 'Jul',
+      8: 'Aug',
+      9: 'Sep',
+      10: 'Oct',
+      11: 'Nov',
+      12: 'Dec',
+    };
+    return '$day ${monthNames[month] ?? month.toString()}';
   }
 }
 
@@ -180,6 +436,32 @@ class RewardVoucher {
   });
 
   bool get isActive => status == 'active';
+
+  bool get isRedeemed =>
+      redeemedAt != null || status == 'redeemed' || status == 'used';
+
+  bool get isTokenCheckoutEligible =>
+      isActive && template.isTokenCheckoutCompatible && template.isAvailableNow;
+
+  String get checkoutAvailabilityLabel {
+    if (!isActive) {
+      return 'Inactive / expired';
+    }
+    return template.checkoutAvailabilityLabel;
+  }
+
+  String get visibilityLabel {
+    if (!isActive) {
+      return 'Inactive / expired';
+    }
+    if (!template.isTokenCheckoutCompatible) {
+      return 'Not for token checkout';
+    }
+    if (!template.isAvailableNow) {
+      return 'Active, but outside promotion time';
+    }
+    return 'Ready for token checkout';
+  }
 
   factory RewardVoucher.fromApi(Map<String, dynamic> json) {
     return RewardVoucher(
@@ -478,6 +760,8 @@ class CustomerDataService {
   Future<List<RewardVoucher>> getRewardVouchers({
     required String accessToken,
     int limit = 50,
+    bool onlyActive = true,
+    bool onlyTokenCheckoutEligible = false,
   }) async {
     final response = await _get(
       '/rewards/vouchers?limit=$limit',
@@ -488,6 +772,12 @@ class CustomerDataService {
         .map((item) => RewardVoucher.fromApi(
               Map<String, dynamic>.from(item as Map),
             ))
+        .where((voucher) => !voucher.isRedeemed)
+        .where((voucher) => !onlyActive || voucher.isActive)
+        .where(
+          (voucher) =>
+              !onlyTokenCheckoutEligible || voucher.isTokenCheckoutEligible,
+        )
         .toList();
   }
 
@@ -556,27 +846,31 @@ class CustomerDataService {
     required String accessToken,
     required Map<String, dynamic> body,
   }) async {
-    http.Response response = await _client.post(
-      Uri.parse('${ApiConfig.baseUrl}$path'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $accessToken',
-      },
-      body: jsonEncode(body),
-    ).timeout(const Duration(seconds: 20));
+    http.Response response = await _client
+        .post(
+          Uri.parse('${ApiConfig.baseUrl}$path'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $accessToken',
+          },
+          body: jsonEncode(body),
+        )
+        .timeout(const Duration(seconds: 20));
 
     if (response.statusCode == 401) {
       final refreshed =
           await SecureSessionService.instance.refreshTokenSilently();
       if (refreshed != null && refreshed.isNotEmpty) {
-        response = await _client.post(
-          Uri.parse('${ApiConfig.baseUrl}$path'),
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer $refreshed',
-          },
-          body: jsonEncode(body),
-        ).timeout(const Duration(seconds: 20));
+        response = await _client
+            .post(
+              Uri.parse('${ApiConfig.baseUrl}$path'),
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer $refreshed',
+              },
+              body: jsonEncode(body),
+            )
+            .timeout(const Duration(seconds: 20));
       }
     }
 

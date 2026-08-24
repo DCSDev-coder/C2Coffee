@@ -61,6 +61,15 @@ type VoucherRow = RowDataPacket & {
   requires_drink_in_cart: number;
 };
 
+type AutoSyncVoucherTemplateRow = RowDataPacket & {
+  id: number;
+  code: string;
+  name: string;
+  expires_in_days: number | null;
+  valid_until: Date | null;
+  eligible_scope_json: string | Record<string, unknown> | null;
+};
+
 type OrderSummaryRow = RowDataPacket & {
   id: number;
   order_ref: string;
@@ -135,6 +144,153 @@ type NotificationRow = RowDataPacket & {
 const notificationListQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional().default(50)
 });
+
+function parseVoucherScope(
+  value: unknown
+): Record<string, unknown> {
+  if (!value) return {};
+  if (typeof value === 'object') return value as Record<string, unknown>;
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return parsed && typeof parsed === 'object'
+        ? (parsed as Record<string, unknown>)
+        : {};
+    } catch {
+      return {};
+    }
+  }
+
+  return {};
+}
+
+function normalizeTierLabel(value: unknown): string | null {
+  const raw = String(value ?? '').trim().toLowerCase();
+  if (!raw || raw === 'all tiers') return null;
+  if (raw === 'legend' || raw === 'kawan' || raw === 'dilamun' || raw === 'ketagih') {
+    return raw;
+  }
+  return null;
+}
+
+function isAutoVisibleAudience(scope: Record<string, unknown>): boolean {
+  return String(scope['audience'] ?? '').trim() === 'all_customers';
+}
+
+function resolveAutoIssuedVoucherExpiry(
+  template: AutoSyncVoucherTemplateRow
+): Date {
+  if (template.valid_until instanceof Date) {
+    return template.valid_until;
+  }
+
+  if (typeof template.expires_in_days === 'number' && template.expires_in_days > 0) {
+    return new Date(Date.now() + template.expires_in_days * 24 * 60 * 60 * 1000);
+  }
+
+  return new Date(Date.now() + 3650 * 24 * 60 * 60 * 1000);
+}
+
+async function syncAutoVisibleVoucherTemplates(
+  userId: number
+): Promise<void> {
+  const [tierRows] = await mysqlPool.query<
+    Array<RowDataPacket & { tier_code: string | null }>
+  >(
+    `
+      SELECT tier_code
+      FROM loyalty_tier_snapshots
+      WHERE user_id = :userId
+      ORDER BY effective_at DESC, id DESC
+      LIMIT 1
+    `,
+    { userId }
+  );
+
+  const currentTier = tierRows[0]?.tier_code ?? 'kawan';
+
+  const [templates] = await mysqlPool.query<Array<AutoSyncVoucherTemplateRow>>(
+    `
+      SELECT
+        id,
+        code,
+        name,
+        expires_in_days,
+        valid_until,
+        eligible_scope_json
+      FROM voucher_templates
+      WHERE is_active = 1
+      ORDER BY created_at DESC, id DESC
+    `
+  );
+
+  const [existingRows] = await mysqlPool.query<
+    Array<RowDataPacket & { voucher_template_id: number }>
+  >(
+    `
+      SELECT DISTINCT voucher_template_id
+      FROM user_vouchers
+      WHERE user_id = :userId
+    `,
+    { userId }
+  );
+
+  const existingTemplateIds = new Set(
+    existingRows.map((row) => Number(row.voucher_template_id))
+  );
+
+  for (const template of templates) {
+    if (existingTemplateIds.has(template.id)) {
+      continue;
+    }
+
+    const scope = parseVoucherScope(template.eligible_scope_json);
+    if (!isAutoVisibleAudience(scope)) {
+      continue;
+    }
+
+    const eligibleTier = normalizeTierLabel(scope['tier']);
+    if (eligibleTier != null && eligibleTier !== currentTier) {
+      continue;
+    }
+
+    const expiresAt = resolveAutoIssuedVoucherExpiry(template);
+    if (expiresAt.getTime() <= Date.now()) {
+      continue;
+    }
+
+    await mysqlPool.execute(
+      `
+        INSERT INTO user_vouchers (
+          user_id,
+          voucher_template_id,
+          status,
+          issued_by_type,
+          issued_reason,
+          issued_at,
+          expires_at
+        )
+        VALUES (
+          :userId,
+          :templateId,
+          'active',
+          'system',
+          :issuedReason,
+          UTC_TIMESTAMP(),
+          :expiresAt
+        )
+      `,
+      {
+        userId,
+        templateId: template.id,
+        issuedReason: `Campaign voucher: ${template.name}`,
+        expiresAt
+      }
+    );
+
+    existingTemplateIds.add(template.id);
+  }
+}
 
 export async function registerCustomerDataRoutes(
   app: FastifyInstance
@@ -237,46 +393,55 @@ export async function registerCustomerDataRoutes(
     const { limit } = listQuerySchema.parse(request.query);
     const userId = request.auth.userId;
 
-    const [existingCount] = await mysqlPool.query<Array<RowDataPacket & { count: number }>>(
-      `SELECT COUNT(*) AS count FROM user_vouchers WHERE user_id = :userId`,
+    const [welcomeRows] = await mysqlPool.query<
+      Array<RowDataPacket & { id: number; expires_in_days: number }>
+    >(
+      `
+        SELECT vt.id, vt.expires_in_days
+        FROM voucher_templates vt
+        WHERE vt.code = 'WELCOME10'
+          AND vt.is_active = 1
+          AND NOT EXISTS (
+            SELECT 1
+            FROM user_vouchers uv
+            WHERE uv.user_id = :userId
+              AND uv.voucher_template_id = vt.id
+          )
+      `,
       { userId }
     );
 
-    if ((existingCount[0]?.count ?? 0) === 0) {
-      const [templates] = await mysqlPool.query<Array<RowDataPacket & { id: number; expires_in_days: number }>>(
-        `SELECT id, expires_in_days FROM voucher_templates WHERE code IN ('WELCOME10', 'DIRECTPAY_RM5') AND is_active = 1`
+    for (const tpl of welcomeRows) {
+      await mysqlPool.execute(
+        `
+          INSERT INTO user_vouchers (
+            user_id,
+            voucher_template_id,
+            status,
+            issued_by_type,
+            issued_reason,
+            issued_at,
+            expires_at
+          )
+          VALUES (
+            :userId,
+            :templateId,
+            'active',
+            'system',
+            'Welcome Gift Voucher',
+            UTC_TIMESTAMP(),
+            DATE_ADD(UTC_TIMESTAMP(), INTERVAL :days DAY)
+          )
+        `,
+        {
+          userId,
+          templateId: tpl.id,
+          days: tpl.expires_in_days || 30
+        }
       );
-
-      for (const tpl of templates) {
-        await mysqlPool.execute(
-          `
-            INSERT IGNORE INTO user_vouchers (
-              user_id,
-              voucher_template_id,
-              status,
-              issued_by_type,
-              issued_reason,
-              issued_at,
-              expires_at
-            )
-            VALUES (
-              :userId,
-              :templateId,
-              'active',
-              'system',
-              'Welcome Gift Voucher',
-              UTC_TIMESTAMP(),
-              DATE_ADD(UTC_TIMESTAMP(), INTERVAL :days DAY)
-            )
-          `,
-          {
-            userId,
-            templateId: tpl.id,
-            days: tpl.expires_in_days || 30
-          }
-        );
-      }
     }
+
+    await syncAutoVisibleVoucherTemplates(userId);
 
     const [rows] = await mysqlPool.query<Array<VoucherRow>>(
       `
@@ -305,6 +470,10 @@ export async function registerCustomerDataRoutes(
         JOIN voucher_templates vt
           ON vt.id = uv.voucher_template_id
         WHERE uv.user_id = :userId
+          AND uv.status = 'active'
+          AND uv.redeemed_at IS NULL
+          AND uv.revoked_at IS NULL
+          AND vt.is_active = 1
         ORDER BY uv.issued_at DESC, uv.id DESC
         LIMIT :limit
       `,
@@ -977,7 +1146,7 @@ export async function registerCustomerDataRoutes(
 
     // Also grant new user a welcome voucher if they don't have one
     const [templates] = await mysqlPool.query<Array<RowDataPacket & { id: number; expires_in_days: number }>>(
-      `SELECT id, expires_in_days FROM voucher_templates WHERE code IN ('WELCOME10', 'DIRECTPAY_RM5') AND is_active = 1`
+      `SELECT id, expires_in_days FROM voucher_templates WHERE code = 'WELCOME10' AND is_active = 1`
     );
 
     for (const tpl of templates) {

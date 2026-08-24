@@ -25,7 +25,11 @@ type MenuRow = RowDataPacket & {
   category_id: number;
   category_code: string;
   category_name: string;
+  category_product_kind_code: string;
   category_sort_order: number;
+  subcategory_id: number | null;
+  subcategory_code: string | null;
+  subcategory_name: string | null;
   item_id: number;
   item_code: string;
   item_name: string;
@@ -102,6 +106,11 @@ type MenuItemResponse = {
   allow_sparkling_mixer: boolean;
   allow_order_type: boolean;
   allow_remarks: boolean;
+  subcategory_id: number | null;
+  subcategory_code: string | null;
+  subcategory_name: string | null;
+  product_kind_code: string;
+  product_kind_name: string;
   token_prices: Record<string, number>;
   modifier_groups: Array<MenuModifierGroup>;
 };
@@ -111,8 +120,39 @@ type MenuCategoryResponse = {
   code: string;
   name: string;
   sort_order: number;
+  product_kind_code: string;
+  product_kind_name: string;
   items: Array<MenuItemResponse>;
 };
+
+function resolveProductKind(productKindCode: string | null | undefined, categoryCode?: string): { code: string; name: string } {
+  switch (String(productKindCode ?? '').trim().toLowerCase()) {
+    case 'drink':
+      return { code: 'drink', name: 'Drinks' };
+    case 'food':
+      return { code: 'food', name: 'Food' };
+    case 'merchandise':
+      return { code: 'merchandise', name: 'Merchandise' };
+    case 'candle':
+      return { code: 'candle', name: 'Candles' };
+    case 'other':
+      return { code: 'other', name: 'Other' };
+    default:
+      switch (String(categoryCode ?? '').trim().toLowerCase()) {
+        case 'coffee':
+        case 'non_coffee':
+          return { code: 'drink', name: 'Drinks' };
+        case 'food':
+          return { code: 'food', name: 'Food' };
+        case 'merchandise':
+          return { code: 'merchandise', name: 'Merchandise' };
+        case 'candles':
+          return { code: 'candle', name: 'Candles' };
+        default:
+          return { code: 'other', name: 'Other' };
+      }
+  }
+}
 
 type HomeBannerRow = RowDataPacket & {
   code: string;
@@ -195,7 +235,17 @@ export async function registerCatalogRoutes(app: FastifyInstance): Promise<void>
           c.id AS category_id,
           c.code AS category_code,
           c.name AS category_name,
+          CASE
+            WHEN LOWER(c.code) IN ('coffee', 'non_coffee') THEN 'drink'
+            WHEN LOWER(c.code) = 'food' THEN 'food'
+            WHEN LOWER(c.code) = 'merchandise' THEN 'merchandise'
+            WHEN LOWER(c.code) = 'candles' THEN 'candle'
+            ELSE 'other'
+          END AS category_product_kind_code,
           c.sort_order AS category_sort_order,
+          sc.id AS subcategory_id,
+          sc.code AS subcategory_code,
+          sc.name AS subcategory_name,
           i.id AS item_id,
           i.code AS item_code,
           i.name AS item_name,
@@ -235,6 +285,8 @@ export async function registerCatalogRoutes(app: FastifyInstance): Promise<void>
         JOIN menu_items i
           ON i.category_id = c.id
          AND i.is_active = 1
+        LEFT JOIN menu_subcategories sc
+          ON sc.id = i.subcategory_id
         LEFT JOIN menu_item_store_availability a
           ON a.store_id = :storeId
          AND a.menu_item_id = i.id
@@ -270,13 +322,18 @@ export async function registerCatalogRoutes(app: FastifyInstance): Promise<void>
     for (const row of rows) {
       const category =
         categories.get(row.category_id) ??
-        {
-          id: row.category_id,
-          code: row.category_code,
-          name: row.category_name,
-          sort_order: row.category_sort_order,
-          items: []
-        };
+        (() => {
+          const productKind = resolveProductKind(row.category_product_kind_code, row.category_code);
+          return {
+            id: row.category_id,
+            code: row.category_code,
+            name: row.category_name,
+            sort_order: row.category_sort_order,
+            product_kind_code: productKind.code,
+            product_kind_name: productKind.name,
+            items: [],
+          } satisfies MenuCategoryResponse;
+        })();
 
       if (!categories.has(row.category_id)) {
         categories.set(row.category_id, category);
@@ -285,7 +342,8 @@ export async function registerCatalogRoutes(app: FastifyInstance): Promise<void>
       const itemKey = `${row.category_id}:${row.item_id}`;
       let itemIndex = itemsByCategory.get(itemKey);
       if (itemIndex === undefined) {
-          category.items.push({
+        const productKind = resolveProductKind(row.category_product_kind_code, row.category_code);
+        category.items.push({
           id: row.item_id,
           code: row.item_code,
           name: row.item_name,
@@ -305,6 +363,11 @@ export async function registerCatalogRoutes(app: FastifyInstance): Promise<void>
           allow_sparkling_mixer: row.allow_sparkling_mixer === 1,
           allow_order_type: row.allow_order_type === 1,
           allow_remarks: row.allow_remarks === 1,
+          subcategory_id: row.subcategory_id,
+          subcategory_code: row.subcategory_code,
+          subcategory_name: row.subcategory_name,
+          product_kind_code: productKind.code,
+          product_kind_name: productKind.name,
           token_prices: {},
           modifier_groups: []
         });

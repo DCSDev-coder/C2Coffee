@@ -291,91 +291,101 @@ class _HomePageState extends State<HomePage> {
   Widget _buildHeader(String userName, int tokenCount) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compactHeader = constraints.maxWidth < 380;
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              GestureDetector(
-                onTap: () {
-                  InteractiveFillingLoader.show(
-                    context,
-                    targetPage: SettingsPage(
-                      onProfileUpdated: _loadAvatarState,
-                      returnPage: const HomePage(),
+              Expanded(
+                child: Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () {
+                        InteractiveFillingLoader.show(
+                          context,
+                          targetPage: SettingsPage(
+                            onProfileUpdated: _loadAvatarState,
+                            returnPage: const HomePage(),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        width: 45,
+                        height: 45,
+                        decoration: BoxDecoration(
+                          color: AppColors.deepTeal,
+                          shape: BoxShape.circle,
+                        ),
+                        alignment: Alignment.center,
+                        child: ClipOval(
+                          child: _persistedPickedImage != null
+                              ? (kIsWeb
+                                  ? Image.network(
+                                      _persistedPickedImage!.path,
+                                      width: 45,
+                                      height: 45,
+                                      fit: BoxFit.cover,
+                                    )
+                                  : Image.file(
+                                      _persistedPickedImage!,
+                                      width: 45,
+                                      height: 45,
+                                      fit: BoxFit.cover,
+                                    ))
+                              : (_persistedPresetPath != null
+                                  ? Image.asset(
+                                      _persistedPresetPath!,
+                                      width: 45,
+                                      height: 45,
+                                      fit: BoxFit.cover,
+                                    )
+                                  : const Icon(
+                                      Icons.person,
+                                      color: Colors.white,
+                                      size: 30,
+                                    )),
+                        ),
+                      ),
                     ),
-                  );
-                },
-                child: Container(
-                  width: 45,
-                  height: 45,
-                  decoration: BoxDecoration(
-                    color: AppColors.deepTeal,
-                    shape: BoxShape.circle,
-                  ),
-                  alignment: Alignment.center,
-                  child: ClipOval(
-                    child: _persistedPickedImage != null
-                        ? (kIsWeb
-                            ? Image.network(
-                                _persistedPickedImage!.path,
-                                width: 45,
-                                height: 45,
-                                fit: BoxFit.cover,
-                              )
-                            : Image.file(
-                                _persistedPickedImage!,
-                                width: 45,
-                                height: 45,
-                                fit: BoxFit.cover,
-                              ))
-                        : (_persistedPresetPath != null
-                            ? Image.asset(
-                                _persistedPresetPath!,
-                                width: 45,
-                                height: 45,
-                                fit: BoxFit.cover,
-                              )
-                            : const Icon(
-                                Icons.person,
-                                color: Colors.white,
-                                size: 30,
-                              )),
-                  ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            (() {
+                              final hour = DateTime.now().hour;
+                              if (hour < 12) return 'Good morning,';
+                              if (hour < 17) return 'Good afternoon,';
+                              return 'Good evening,';
+                            })(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontFamily: 'Afacad',
+                              fontSize: 12,
+                              color: Colors.grey,
+                            ),
+                          ),
+                          Text(
+                            userName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontFamily: 'Recoleta',
+                              fontSize: compactHeader ? 16 : 18,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.deepTeal,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    (() {
-                      final hour = DateTime.now().hour;
-                      if (hour < 12) return 'Good morning,';
-                      if (hour < 17) return 'Good afternoon,';
-                      return 'Good evening,';
-                    })(),
-                    style: const TextStyle(
-                      fontFamily: 'Afacad',
-                      fontSize: 12,
-                      color: Colors.grey,
-                    ),
-                  ),
-                  Text(
-                    userName,
-                    style: TextStyle(
-                      fontFamily: 'Recoleta',
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.deepTeal,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          Row(
-            children: [
               GestureDetector(
                 onTap: () {
                   InteractiveFillingLoader.show(
@@ -384,6 +394,9 @@ class _HomePageState extends State<HomePage> {
                   );
                 },
                 child: Container(
+                  constraints: BoxConstraints(
+                    maxWidth: compactHeader ? 110 : 132,
+                  ),
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
@@ -395,6 +408,7 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
                   child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Image.asset(
                         'assets/images/wallet.png',
@@ -402,13 +416,17 @@ class _HomePageState extends State<HomePage> {
                         height: 32,
                       ),
                       const SizedBox(width: 6),
-                      Text(
-                        '$tokenCount tokens',
-                        style: TextStyle(
-                          fontFamily: 'Afacad',
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.softGold,
-                          fontSize: 14,
+                      Flexible(
+                        child: Text(
+                          compactHeader ? '$tokenCount' : '$tokenCount tokens',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontFamily: 'Afacad',
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.softGold,
+                            fontSize: compactHeader ? 13 : 14,
+                          ),
                         ),
                       ),
                     ],
@@ -430,8 +448,8 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
             ],
-          ),
-        ],
+          );
+        },
       ),
     );
   }
@@ -822,7 +840,7 @@ class _HomePageState extends State<HomePage> {
           )
         else
           SizedBox(
-            height: 210,
+            height: 224,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -890,13 +908,18 @@ class _HomePageState extends State<HomePage> {
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
-                                Text(
-                                  _formatPrice(item),
-                                  style: TextStyle(
-                                    fontFamily: 'Afacad',
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.deepTeal,
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 8),
+                                  child: Text(
+                                    _formatPrice(item),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontFamily: 'Afacad',
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.deepTeal,
+                                    ),
                                   ),
                                 ),
                               ],

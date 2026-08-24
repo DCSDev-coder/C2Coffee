@@ -372,6 +372,12 @@ class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
                             menuItemCode:
                                 widget.item['code']?.toString() ?? _itemName,
                             name: _itemName,
+                            categoryCode: widget.item['categoryCode']?.toString(),
+                            categoryName: widget.item['category']?.toString(),
+                            subcategoryCode: widget.item['subcategoryCode']?.toString(),
+                            subcategoryName: widget.item['subcategory']?.toString(),
+                            productKindCode: widget.item['productKindCode']?.toString(),
+                            productKindName: widget.item['productKind']?.toString(),
                             imageAssetPath: _itemImage,
                             imageUrl: widget.item['image_url']?.toString(),
                             basePriceRm: _itemBasePrice,

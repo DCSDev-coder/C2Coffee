@@ -62,6 +62,11 @@ type MenuItemRow = RowDataPacket & {
   is_available: number;
   token_price: number | null;
   is_qualifying_cup: number;
+  category_code: string;
+  category_name: string;
+  category_product_kind_code: string;
+  subcategory_code: string | null;
+  subcategory_name: string | null;
 };
 
 type TokenAccountRow = RowDataPacket & {
@@ -112,7 +117,167 @@ type AppliedVoucherRow = RowDataPacket & {
   requires_drink_in_cart: number;
   eligible_scope_json: unknown;
   exclude_scope_json: unknown;
+  template_is_active: number;
 };
+
+function _parseVoucherScope(value: unknown): Record<string, unknown> {
+  if (!value) return {};
+  if (typeof value === 'object') return value as Record<string, unknown>;
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {};
+    } catch {
+      return {};
+    }
+  }
+
+  return {};
+}
+
+function _isVoucherAvailableNow(scope: Record<string, unknown>, now = new Date()): boolean {
+  const schedule =
+    scope.schedule && typeof scope.schedule === 'object'
+      ? (scope.schedule as Record<string, unknown>)
+      : null;
+
+  if (!schedule) {
+    return true;
+  }
+
+  const mode = String(schedule.mode || 'always').trim();
+  if (mode === 'always') {
+    return true;
+  }
+
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Kuala_Lumpur',
+    weekday: 'long',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23'
+  }).formatToParts(now);
+
+  const lookup = (type: string) => parts.find((part) => part.type === type)?.value || '';
+  const currentDay = lookup('weekday');
+  const currentTime = `${lookup('hour')}:${lookup('minute')}`;
+  const currentMonthDay = `${lookup('month')}-${lookup('day')}`;
+  const activeDays = Array.isArray(schedule.activeDays)
+    ? schedule.activeDays.map((day) => String(day))
+    : [];
+  const startTime = typeof schedule.startTime === 'string' ? schedule.startTime : '';
+  const endTime = typeof schedule.endTime === 'string' ? schedule.endTime : '';
+  const annualDate = typeof schedule.annualDate === 'string' ? schedule.annualDate : '';
+
+  if (mode === 'weekly' && activeDays.length > 0 && !activeDays.includes(currentDay)) {
+    return false;
+  }
+
+  if (mode === 'annual' && annualDate && annualDate !== currentMonthDay) {
+    return false;
+  }
+
+  if (startTime && currentTime < startTime) {
+    return false;
+  }
+
+  if (endTime && currentTime > endTime) {
+    return false;
+  }
+
+  return true;
+}
+
+function _stringScopeList(scope: Record<string, unknown>, keys: string[]): string[] {
+  for (const key of keys) {
+    const raw = scope[key];
+    if (!Array.isArray(raw)) continue;
+    return raw
+      .map((value) => String(value ?? '').trim())
+      .filter(Boolean);
+  }
+
+  return [];
+}
+
+function _normalizeValue(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+function _resolveProductKindForCategory(productKindCode: string | null | undefined, categoryCode: string): string {
+  const normalizedKind = _normalizeValue(String(productKindCode ?? ''));
+  if (normalizedKind) {
+    return normalizedKind;
+  }
+
+  switch (_normalizeValue(categoryCode)) {
+    case 'coffee':
+    case 'non coffee':
+      return 'drink';
+    case 'food':
+      return 'food';
+    case 'merchandise':
+      return 'merchandise';
+    case 'candles':
+      return 'candle';
+    default:
+      return 'other';
+  }
+}
+
+function _voucherCartEligibleItems(
+  scope: Record<string, unknown>,
+  normalizedItems: Array<{
+    payload: z.infer<typeof createOrderSchema>['items'][number];
+    menuItem: MenuItemRow;
+    basePriceRm: number;
+    tokenPrice: number;
+    modifierRm: number;
+    modifierTokens: number;
+  }>
+) {
+  const itemCodes = new Set(
+    _stringScopeList(scope, ['item_codes', 'items']).map(_normalizeValue)
+  );
+  const subcategoryCodes = new Set(
+    _stringScopeList(scope, ['subcategory_codes']).map(_normalizeValue)
+  );
+  const categoryCodes = new Set(
+    _stringScopeList(scope, ['category_codes', 'categories']).map(_normalizeValue)
+  );
+  const productKindCodes = new Set(
+    _stringScopeList(scope, ['product_kind_codes', 'product_kinds']).map(_normalizeValue)
+  );
+
+  const hasExplicitScope =
+    itemCodes.size > 0 ||
+    subcategoryCodes.size > 0 ||
+    categoryCodes.size > 0 ||
+    productKindCodes.size > 0;
+
+  if (!hasExplicitScope) {
+    return normalizedItems;
+  }
+
+  return normalizedItems.filter(({ menuItem }) => {
+    const menuItemCode = _normalizeValue(menuItem.code);
+    const subcategoryCode = _normalizeValue(menuItem.subcategory_code ?? '');
+    const categoryCode = _normalizeValue(menuItem.category_code);
+    const productKindCode = _resolveProductKindForCategory(
+      menuItem.category_product_kind_code,
+      menuItem.category_code
+    );
+
+    return (
+      itemCodes.has(menuItemCode) ||
+      subcategoryCodes.has(subcategoryCode) ||
+      categoryCodes.has(categoryCode) ||
+      productKindCodes.has(productKindCode)
+    );
+  });
+}
 
 export async function registerCheckoutRoutes(
   app: FastifyInstance
@@ -213,7 +378,8 @@ export async function registerCheckoutRoutes(
               CAST(vt.min_spend_rm AS CHAR) AS min_spend_rm,
               vt.requires_drink_in_cart,
               vt.eligible_scope_json,
-              vt.exclude_scope_json
+              vt.exclude_scope_json,
+              vt.is_active AS template_is_active
             FROM user_vouchers uv
             JOIN voucher_templates vt ON vt.id = uv.voucher_template_id
             WHERE uv.id = :voucherId AND uv.user_id = :userId
@@ -235,11 +401,50 @@ export async function registerCheckoutRoutes(
           );
         }
 
+        if (appliedVoucher.template_is_active !== 1) {
+          throw new ApiError(
+            400,
+            'voucher_not_active',
+            'Selected voucher is no longer available.'
+          );
+        }
+
         if (new Date(appliedVoucher.expires_at).getTime() < Date.now()) {
           throw new ApiError(
             400,
             'voucher_expired',
             'Selected voucher has expired.'
+          );
+        }
+
+        const voucherScope = _parseVoucherScope(appliedVoucher.eligible_scope_json);
+        if (!_isVoucherAvailableNow(voucherScope)) {
+          throw new ApiError(
+            400,
+            'voucher_not_available_now',
+            'Selected voucher is outside of its active promotion time.'
+          );
+        }
+
+        if (
+          isTokenCheckout &&
+          (appliedVoucher.voucher_type === 'campaign_direct_pay' ||
+            appliedVoucher.discount_mode === 'fixed_rm' ||
+            appliedVoucher.discount_mode === 'percent_rm')
+        ) {
+          throw new ApiError(
+            400,
+            'voucher_not_supported_for_token_checkout',
+            'Selected voucher cannot be used for token checkout.'
+          );
+        }
+
+        const eligibleCartItems = _voucherCartEligibleItems(voucherScope, normalizedItems);
+        if (eligibleCartItems.length === 0) {
+          throw new ApiError(
+            400,
+            'voucher_not_applicable_to_cart',
+            'Selected voucher does not match the current cart items.'
           );
         }
 
@@ -255,14 +460,6 @@ export async function registerCheckoutRoutes(
           }
         }
 
-        if (appliedVoucher.voucher_type === 'campaign_direct_pay') {
-          throw new ApiError(
-            400,
-            'voucher_payment_mode_mismatch',
-            'This voucher is not available for token checkout.'
-          );
-        }
-
         if (appliedVoucher.discount_mode === 'fixed_rm') {
           discountRm = Math.min(totalBeforeDiscountRm, Number(appliedVoucher.discount_value));
         } else if (appliedVoucher.discount_mode === 'percent_rm') {
@@ -272,14 +469,24 @@ export async function registerCheckoutRoutes(
           const tokenDiscountVal = appliedVoucher.token_value ?? Math.round(Number(appliedVoucher.discount_value));
           discountTokens = Math.min(tokenAmountCharged, tokenDiscountVal);
         } else if (appliedVoucher.discount_mode === 'free_drink') {
-          const highestItem = [...normalizedItems].sort((a, b) => b.basePriceRm - a.basePriceRm)[0];
+          const highestItem = [...eligibleCartItems].sort(
+            (a, b) =>
+              (b.basePriceRm + b.modifierRm) - (a.basePriceRm + a.modifierRm) ||
+              (b.tokenPrice + b.modifierTokens) - (a.tokenPrice + a.modifierTokens)
+          )[0];
           if (isTokenCheckout) {
             if (highestItem) {
-              discountTokens = Math.min(tokenAmountCharged, highestItem.tokenPrice);
+              discountTokens = Math.min(
+                tokenAmountCharged,
+                highestItem.tokenPrice + highestItem.modifierTokens
+              );
             }
           } else {
             if (highestItem) {
-              discountRm = Math.min(totalBeforeDiscountRm, highestItem.basePriceRm);
+              discountRm = Math.min(
+                totalBeforeDiscountRm,
+                highestItem.basePriceRm + highestItem.modifierRm
+              );
             }
           }
         }
@@ -1012,8 +1219,21 @@ async function _loadMenuItems(
         CAST(i.base_price_rm AS CHAR) AS base_price_rm,
         COALESCE(a.is_available, 1) AS is_available,
         tp.token_price,
-        i.is_qualifying_cup
+        i.is_qualifying_cup,
+        c.code AS category_code,
+        c.name AS category_name,
+        CASE
+          WHEN LOWER(c.code) IN ('coffee', 'non_coffee') THEN 'drink'
+          WHEN LOWER(c.code) = 'food' THEN 'food'
+          WHEN LOWER(c.code) = 'merchandise' THEN 'merchandise'
+          WHEN LOWER(c.code) = 'candles' THEN 'candle'
+          ELSE 'other'
+        END AS category_product_kind_code,
+        sc.code AS subcategory_code,
+        sc.name AS subcategory_name
       FROM menu_items i
+      JOIN menu_categories c ON c.id = i.category_id
+      LEFT JOIN menu_subcategories sc ON sc.id = i.subcategory_id
       LEFT JOIN menu_item_store_availability a
         ON a.store_id = :storeId
        AND a.menu_item_id = i.id

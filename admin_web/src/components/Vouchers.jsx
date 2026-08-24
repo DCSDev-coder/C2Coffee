@@ -225,9 +225,52 @@ const initialVouchersList = [
   }
 ];
 
-const VOUCHER_TYPES = ["All Type", "Free Drink", "Percentage Off", "Token Discount", "Free Food", "Birthday Voucher"];
 const STATUS_TYPES = ["All Status", "Active", "Expired", "Draft"];
 const ITEMS_PER_PAGE = 10;
+const ALL_ITEMS_OPTION = 'All Items';
+const BENEFIT_TYPE_OPTIONS = [
+  "Free Drink",
+  "Percentage Off",
+  "Cash Voucher",
+  "Token Discount",
+  "Free Food",
+  "Birthday Voucher"
+];
+const SUGGESTED_TYPE_LABELS = [
+  "Happy Hour",
+  "Weekend Promo",
+  "Wednesday Special",
+  "Merdeka Campaign",
+  "Staff Discount",
+  "Birthday Treat",
+  "Referral Reward"
+];
+const AUDIENCE_OPTIONS = [
+  { value: "all_customers", label: "All Customers" },
+  { value: "employee_only", label: "Employee Only" },
+  { value: "manual_issue_only", label: "Manual Issue Only" }
+];
+const PRODUCT_KIND_OPTIONS = [
+  { value: 'drink', label: 'Drinks' },
+  { value: 'food', label: 'Food' },
+  { value: 'merchandise', label: 'Merchandise' },
+  { value: 'candle', label: 'Candles' }
+];
+const AVAILABILITY_MODE_OPTIONS = [
+  { value: "always", label: "Always Available" },
+  { value: "daily", label: "Every Day, Time Window" },
+  { value: "weekly", label: "Specific Days + Time" },
+  { value: "annual", label: "Annual Event + Time" }
+];
+const WEEKDAY_OPTIONS = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday"
+];
 
 const AVAILABLE_ITEMS = {
   "C2 Coffee Craft": [
@@ -287,25 +330,119 @@ const AVAILABLE_ITEMS = {
   ]
 };
 
+const createEmptyVoucherForm = () => ({
+  name: "",
+  type: "Happy Hour",
+  benefitType: "Free Drink",
+  status: "Active",
+  tier: "All Tiers",
+  reward: "",
+  discountValue: "",
+  productKinds: [],
+  subcategoryCodes: [],
+  eligibleItems: [],
+  totalQty: 1000,
+  limitPerUser: 1,
+  description: "",
+  audience: "all_customers",
+  availabilityMode: "always",
+  activeDays: [],
+  startTime: "",
+  endTime: "",
+  annualDate: ""
+});
+
+const normalizeVoucherForm = (voucher) => ({
+  ...createEmptyVoucherForm(),
+  ...voucher,
+  benefitType: voucher?.benefitType || voucher?.type || "Free Drink",
+  type: voucher?.type || voucher?.benefitType || "Voucher",
+  productKinds: Array.isArray(voucher?.productKinds) ? voucher.productKinds : [],
+  subcategoryCodes: Array.isArray(voucher?.subcategoryCodes) ? voucher.subcategoryCodes : [],
+  eligibleItems: Array.isArray(voucher?.eligibleItems) ? voucher.eligibleItems : [],
+  activeDays: Array.isArray(voucher?.activeDays) ? voucher.activeDays : [],
+  startTime: voucher?.startTime || "",
+  endTime: voucher?.endTime || "",
+  annualDate: voucher?.annualDate ? `2026-${voucher.annualDate}` : "",
+  audience: voucher?.audience || "all_customers",
+  availabilityMode: voucher?.availabilityMode || "always"
+});
+
+const audienceLabel = (value) =>
+  AUDIENCE_OPTIONS.find((option) => option.value === value)?.label || "All Customers";
+
+const formatAvailabilityMode = (value) =>
+  AVAILABILITY_MODE_OPTIONS.find((option) => option.value === value)?.label || "Always Available";
+
+const deriveMenuTaxonomy = (response) => {
+  const categories = response?.categories || [];
+  const subcategories = response?.subcategories || [];
+  const groupedItems = categories.reduce((acc, category) => {
+    (category.items || []).forEach((item) => {
+      const groupLabel = item.subcategory_name || category.name;
+      if (!acc[groupLabel]) {
+        acc[groupLabel] = [];
+      }
+      acc[groupLabel].push(item.name);
+    });
+    return acc;
+  }, {});
+
+  Object.keys(groupedItems).forEach((key) => {
+    groupedItems[key] = Array.from(new Set(groupedItems[key])).sort((a, b) => a.localeCompare(b));
+  });
+
+  return {
+    groupedItems,
+    subcategories: subcategories.filter((subcategory) => subcategory.is_active),
+    productKinds: PRODUCT_KIND_OPTIONS
+  };
+};
+
+const toggleListValue = (list = [], value) =>
+  list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
+
+const formatVoucherEligibility = (voucher) => {
+  const parts = [];
+  if (Array.isArray(voucher?.productKinds) && voucher.productKinds.length > 0) {
+    parts.push(...voucher.productKinds.map((value) => PRODUCT_KIND_OPTIONS.find((option) => option.value === value)?.label || value));
+  }
+  if (Array.isArray(voucher?.subcategoryCodes) && voucher.subcategoryCodes.length > 0) {
+    parts.push(...voucher.subcategoryCodes);
+  }
+  if (Array.isArray(voucher?.eligibleItems) && voucher.eligibleItems.length > 0 && !voucher.eligibleItems.includes(ALL_ITEMS_OPTION)) {
+    parts.push(...voucher.eligibleItems);
+  }
+  if (parts.length === 0 || (voucher?.eligibleItems || []).includes(ALL_ITEMS_OPTION)) {
+    return 'All Items';
+  }
+  return parts.join(', ');
+};
+
 const ScrollableCheckboxList = ({ groupedItems = {}, selected = [], onChange }) => {
   const [searchTerm, setSearchTerm] = useState("");
+  const currentSelected = selected || [];
+  const allItemsSelected = currentSelected.includes(ALL_ITEMS_OPTION);
 
   const toggleOption = (option) => {
-    const currentSelected = selected || [];
     let newSelected;
+
+    if (option === ALL_ITEMS_OPTION) {
+      onChange(allItemsSelected ? [] : [ALL_ITEMS_OPTION]);
+      return;
+    }
     
     if (currentSelected.includes(option)) {
       newSelected = currentSelected.filter((item) => item !== option);
     } else {
-      newSelected = [...currentSelected, option];
+      newSelected = [...currentSelected.filter((item) => item !== ALL_ITEMS_OPTION), option];
     }
     
     onChange(newSelected);
   };
 
   const toggleCategory = (items) => {
-    const currentSelected = selected || [];
-    let newSelected = [...currentSelected];
+    let newSelected = [...currentSelected.filter((item) => item !== ALL_ITEMS_OPTION)];
     
     const allSelected = items.every(item => currentSelected.includes(item));
     
@@ -341,6 +478,17 @@ const ScrollableCheckboxList = ({ groupedItems = {}, selected = [], onChange }) 
       </div>
       
       <div className="max-h-56 overflow-y-auto p-2">
+        <div className="mb-3 border-b border-gray-100 pb-2">
+          <label className="flex items-center px-2 py-1.5 hover:bg-gray-50 rounded cursor-pointer">
+            <input
+              type="checkbox"
+              checked={allItemsSelected}
+              onChange={() => toggleOption(ALL_ITEMS_OPTION)}
+              className="mr-2.5 rounded text-[#2E5E58] focus:ring-[#2E5E58]"
+            />
+            <span className="text-xs font-bold text-gray-700">{ALL_ITEMS_OPTION}</span>
+          </label>
+        </div>
         {filteredGroups.length > 0 ? (
           filteredGroups.map(({ category, originalItems, items }) => {
             const allSelected = originalItems.every(item => (selected || []).includes(item));
@@ -388,20 +536,10 @@ const Vouchers = () => {
   const [vouchers, setVouchers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [voucherIssuances, setVoucherIssuances] = useState([]);
+  const [issuancesLoading, setIssuancesLoading] = useState(false);
+  const [menuTaxonomy, setMenuTaxonomy] = useState(() => deriveMenuTaxonomy({ categories: [], subcategories: [] }));
 
-  useEffect(() => {
-    const fetchVouchers = async () => {
-      try {
-        const response = await adminRequest('/v1/admin/vouchers');
-        setVouchers(response.vouchers || []);
-      } catch (err) {
-        console.error('Failed to fetch vouchers', err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchVouchers();
-  }, []);
   const [typeFilter, setTypeFilter] = useState("All Type");
   const [statusFilter, setStatusFilter] = useState("All Status");
   const [selectedDate, setSelectedDate] = useState(null);
@@ -416,20 +554,68 @@ const Vouchers = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingVoucher, setEditingVoucher] = useState(null);
   const [actionMenuId, setActionMenuId] = useState(null);
+  const [showIssueModal, setShowIssueModal] = useState(false);
+  const [issuingVoucher, setIssuingVoucher] = useState(null);
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [customerResults, setCustomerResults] = useState([]);
+  const [customerSearchLoading, setCustomerSearchLoading] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [issueReason, setIssueReason] = useState("");
+  const [issuePhone, setIssuePhone] = useState("");
+
+  const selectVoucher = (voucher) => {
+    setSelectedVoucher(voucher);
+    setActiveTab("Details");
+    setActionMenuId(null);
+  };
 
   // New Voucher Form State
-  const [newVoucher, setNewVoucher] = useState({
-    name: "",
-    type: "Free Drink",
-    tier: "All Tiers",
-    reward: "",
-    discountValue: "",
-    eligibleItems: [],
-    expiry: "31 December 2026",
-    totalQty: 1000,
-    limitPerUser: 1,
-    description: ""
-  });
+  const [newVoucher, setNewVoucher] = useState(createEmptyVoucherForm());
+
+  const refreshVouchers = async (selectedVoucherId = selectedVoucher?.id) => {
+    const response = await adminRequest('/v1/admin/vouchers');
+    const nextVouchers = response.vouchers || [];
+    setVouchers(nextVouchers);
+    if (selectedVoucherId) {
+      const updated = nextVouchers.find((voucher) => voucher.id === selectedVoucherId);
+      setSelectedVoucher(updated || null);
+    }
+    return nextVouchers;
+  };
+
+  const loadVoucherIssuances = async (voucherId) => {
+    if (!voucherId) {
+      setVoucherIssuances([]);
+      return;
+    }
+
+    setIssuancesLoading(true);
+    try {
+      const response = await adminRequest(`/v1/admin/vouchers/${voucherId}/issuances`);
+      setVoucherIssuances(response.issuances || []);
+    } catch (err) {
+      console.error('Failed to fetch voucher issuances', err);
+      setVoucherIssuances([]);
+    } finally {
+      setIssuancesLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const fetchVouchers = async () => {
+      try {
+        await Promise.all([
+          refreshVouchers(),
+          adminRequest('/v1/admin/menu').then((response) => setMenuTaxonomy(deriveMenuTaxonomy(response)))
+        ]);
+      } catch (err) {
+        console.error('Failed to fetch vouchers', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchVouchers();
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = () => setActionMenuId(null);
@@ -437,11 +623,48 @@ const Vouchers = () => {
     return () => window.removeEventListener("click", handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    void loadVoucherIssuances(selectedVoucher?.id);
+  }, [selectedVoucher?.id]);
+
+  useEffect(() => {
+    if (!showIssueModal) {
+      setCustomerResults([]);
+      setCustomerSearch("");
+      setSelectedCustomer(null);
+      setIssueReason("");
+      setIssuePhone("");
+      return;
+    }
+
+    if (customerSearch.trim().length < 2) {
+      setCustomerResults([]);
+      return;
+    }
+
+    const timeoutId = window.setTimeout(async () => {
+      setCustomerSearchLoading(true);
+      try {
+        const response = await adminRequest(`/v1/admin/customers/search?q=${encodeURIComponent(customerSearch.trim())}`);
+        setCustomerResults(response.customers || []);
+      } catch (err) {
+        console.error('Failed to search customers', err);
+        setCustomerResults([]);
+      } finally {
+        setCustomerSearchLoading(false);
+      }
+    }, 250);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [showIssueModal, customerSearch]);
+
   if (showAnalytics) {
     return <VouchersAnalytics onBack={() => setShowAnalytics(false)} vouchers={vouchers} />;
   }
 
   const resetPage = () => setCurrentPage(1);
+
+  const typeFilterOptions = ["All Type", ...Array.from(new Set(vouchers.map((voucher) => voucher.type).filter(Boolean)))];
 
   const filtered = vouchers.filter((v) => {
     const q = search.toLowerCase();
@@ -473,13 +696,23 @@ const Vouchers = () => {
       code: `VCH-${1000 + vouchers.length + 1}`,
       name: newVoucher.name,
       type: newVoucher.type,
+      benefitType: newVoucher.benefitType,
+      status: newVoucher.status,
       tier: newVoucher.tier,
       discountValue: Number(newVoucher.discountValue) || 0,
-      eligibleItems: newVoucher.eligibleItems.length > 0 ? newVoucher.eligibleItems : ["All Items"],
-      expiry: newVoucher.expiry,
+      productKinds: newVoucher.productKinds,
+      subcategoryCodes: newVoucher.subcategoryCodes,
+      eligibleItems: newVoucher.eligibleItems.length > 0 ? newVoucher.eligibleItems : [ALL_ITEMS_OPTION],
+      expiry: null,
       totalQty: newVoucher.totalQty === null || newVoucher.totalQty === "" ? null : Number(newVoucher.totalQty),
       limitPerUser: Number(newVoucher.limitPerUser) || 1,
-      description: newVoucher.description || `Redeem ${newVoucher.name}`
+      description: newVoucher.description || `Redeem ${newVoucher.name}`,
+      audience: newVoucher.audience,
+      availabilityMode: newVoucher.availabilityMode,
+      activeDays: newVoucher.activeDays,
+      startTime: newVoucher.startTime || null,
+      endTime: newVoucher.endTime || null,
+      annualDate: newVoucher.annualDate || null
     };
 
     try {
@@ -487,24 +720,12 @@ const Vouchers = () => {
         method: 'POST',
         body: JSON.stringify(payload)
       });
-      
-      const response = await adminRequest('/v1/admin/vouchers');
-      setVouchers(response.vouchers || []);
+      await refreshVouchers();
     } catch (err) {
       alert('Error creating voucher: ' + err.message);
     } finally {
       setShowCreateModal(false);
-      setNewVoucher({
-        name: "",
-        type: "Free Drink",
-        tier: "All Tiers",
-        discountValue: "",
-        eligibleItems: [],
-        expiry: "31 December 2026",
-        totalQty: 1000,
-        limitPerUser: 1,
-        description: ""
-      });
+      setNewVoucher(createEmptyVoucherForm());
     }
   };
 
@@ -515,27 +736,30 @@ const Vouchers = () => {
         code: editingVoucher.id,
         name: editingVoucher.name,
         type: editingVoucher.type,
+        benefitType: editingVoucher.benefitType,
+        status: editingVoucher.status,
         tier: editingVoucher.tier,
         discountValue: Number(editingVoucher.discountValue) || 0,
+        productKinds: editingVoucher.productKinds || [],
+        subcategoryCodes: editingVoucher.subcategoryCodes || [],
         eligibleItems: editingVoucher.eligibleItems,
-        expiry: editingVoucher.expiry,
+        expiry: null,
         totalQty: editingVoucher.totalQty === null || editingVoucher.totalQty === "" ? null : Number(editingVoucher.totalQty),
         limitPerUser: Number(editingVoucher.limitPerUser) || 1,
-        description: editingVoucher.description
+        description: editingVoucher.description,
+        audience: editingVoucher.audience,
+        availabilityMode: editingVoucher.availabilityMode,
+        activeDays: editingVoucher.activeDays,
+        startTime: editingVoucher.startTime || null,
+        endTime: editingVoucher.endTime || null,
+        annualDate: editingVoucher.annualDate || null
       };
 
       await adminRequest(`/v1/admin/vouchers/${editingVoucher.id}`, {
         method: 'PUT',
         body: JSON.stringify(payload)
       });
-
-      const response = await adminRequest('/v1/admin/vouchers');
-      setVouchers(response.vouchers || []);
-      
-      if (selectedVoucher?.id === editingVoucher.id) {
-        const updated = response.vouchers.find(v => v.id === editingVoucher.id);
-        setSelectedVoucher(updated || null);
-      }
+      await refreshVouchers(editingVoucher.id);
       setEditingVoucher(null);
     } catch (err) {
       alert('Error updating voucher: ' + err.message);
@@ -559,14 +783,25 @@ const Vouchers = () => {
   };
 
   const handleDelete = async (id) => {
-    if (confirm("Are you sure you want to delete this voucher?")) {
+    if (!confirm("Delete this voucher? Unused vouchers are removed permanently. Vouchers with issuance history will be archived instead.")) {
+      return;
+    }
+
+    try {
       try {
-        await adminRequest(`/v1/admin/vouchers/${id}`, { method: 'DELETE' });
-        setVouchers((prev) => prev.filter((v) => v.id !== id));
-        if (selectedVoucher?.id === id) setSelectedVoucher(null);
+        await adminRequest(`/v1/admin/vouchers/${id}/permanent`, { method: 'DELETE' });
       } catch (err) {
-        alert('Error deleting voucher: ' + err.message);
+        if (err.code === 'voucher_has_usage_history' || err.status === 409) {
+          await adminRequest(`/v1/admin/vouchers/${id}`, { method: 'DELETE' });
+        } else {
+          throw err;
+        }
       }
+
+      if (selectedVoucher?.id === id) setSelectedVoucher(null);
+      await refreshVouchers();
+    } catch (err) {
+      alert('Error deleting voucher: ' + err.message);
     }
   };
 
@@ -576,22 +811,81 @@ const Vouchers = () => {
         code: `VCH-${1000 + vouchers.length + 1}`,
         name: `${voucher.name} (Copy)`,
         type: voucher.type,
+        benefitType: voucher.benefitType || voucher.type,
+        status: 'Draft',
         tier: voucher.tier,
         discountValue: Number(voucher.discountValue) || 0,
+        productKinds: voucher.productKinds || [],
+        subcategoryCodes: voucher.subcategoryCodes || [],
         eligibleItems: voucher.eligibleItems,
-        expiry: voucher.expiry,
+        expiry: null,
         totalQty: Number(voucher.totalQty) || 1000,
         limitPerUser: Number(voucher.limitPerUser) || 1,
-        description: voucher.description
+        description: voucher.description,
+        audience: voucher.audience || 'all_customers',
+        availabilityMode: voucher.availabilityMode || 'always',
+        activeDays: voucher.activeDays || [],
+        startTime: voucher.startTime || null,
+        endTime: voucher.endTime || null,
+        annualDate: voucher.annualDate || null
       };
       await adminRequest('/v1/admin/vouchers', {
         method: 'POST',
         body: JSON.stringify(payload)
       });
-      const response = await adminRequest('/v1/admin/vouchers');
-      setVouchers(response.vouchers || []);
+      await refreshVouchers();
     } catch (err) {
       alert('Error duplicating voucher: ' + err.message);
+    }
+  };
+
+  const openIssueModal = (voucher) => {
+    setIssuingVoucher(voucher);
+    setIssueReason(`Admin issued ${voucher.name}`);
+    setIssuePhone("");
+    setShowIssueModal(true);
+  };
+
+  const handleIssueVoucher = async (e) => {
+    e.preventDefault();
+    if (!issuingVoucher || (!selectedCustomer && !issuePhone.trim())) {
+      alert('Select a customer or enter a phone number before issuing the voucher.');
+      return;
+    }
+
+    try {
+      await adminRequest(`/v1/admin/vouchers/${issuingVoucher.id}/issuances`, {
+        method: 'POST',
+        body: JSON.stringify({
+          userId: selectedCustomer?.id,
+          phone: issuePhone.trim() || undefined,
+          issuedReason: issueReason.trim() || `Admin issued ${issuingVoucher.name}`
+        })
+      });
+      await refreshVouchers(issuingVoucher.id);
+      await loadVoucherIssuances(issuingVoucher.id);
+      setShowIssueModal(false);
+      setIssuingVoucher(null);
+    } catch (err) {
+      alert('Error issuing voucher: ' + err.message);
+    }
+  };
+
+  const handleRevokeIssuedVoucher = async (issuedVoucherId) => {
+    const reason = window.prompt('Reason for revoking this issued voucher?', 'Admin revoked voucher');
+    if (!reason) {
+      return;
+    }
+
+    try {
+      await adminRequest(`/v1/admin/user-vouchers/${issuedVoucherId}/revoke`, {
+        method: 'POST',
+        body: JSON.stringify({ reason })
+      });
+      await refreshVouchers(selectedVoucher?.id);
+      await loadVoucherIssuances(selectedVoucher?.id);
+    } catch (err) {
+      alert('Error revoking issued voucher: ' + err.message);
     }
   };
 
@@ -671,7 +965,7 @@ const Vouchers = () => {
               onBlur={() => setTypeOpen(false)}
               className="peer pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer"
             >
-              {VOUCHER_TYPES.map((t) => (
+              {typeFilterOptions.map((t) => (
                 <option key={t} value={t}>{t}</option>
               ))}
             </select>
@@ -720,17 +1014,19 @@ const Vouchers = () => {
           <button
             onClick={() => {
               const rows = [
-                ["Voucher Code", "Name", "Type", "Tier", "Status", "Issued", "Redeemed", "Limit", "Expiry"],
+                ["Voucher Code", "Name", "Type", "Benefit", "Tier", "Status", "Issued", "Redeemed", "Limit", "Availability", "Audience"],
                 ...filtered.map(v => [
                   `"${v.id}"`,
                   `"${v.name}"`,
                   `"${v.type}"`,
+                  `"${v.benefitType || ''}"`,
                   `"${v.tier}"`,
                   `"${v.status}"`,
                   v.issued,
                   v.redeemed,
                   v.limitPerUser,
-                  `"${v.expiry}"`
+                  `"${v.availabilityLabel || ''}"`,
+                  `"${audienceLabel(v.audience)}"`
                 ])
               ];
               exportToCSV(rows, "vouchers.csv");
@@ -760,9 +1056,10 @@ const Vouchers = () => {
                 <tr className="bg-white text-gray-900 font-bold border-b border-gray-100">
                   <th className="px-6 py-4 text-left">Voucher Name</th>
                   <th className="px-6 py-4 text-left">Type</th>
+                  <th className="px-6 py-4 text-left">Benefit</th>
                   <th className="px-6 py-4 text-left">Eligible Tier</th>
                   <th className="px-6 py-4 text-left">Eligible Items</th>
-                  <th className="px-6 py-4 text-left">Expiry</th>
+                  <th className="px-6 py-4 text-left">Availability</th>
                   <th className="px-6 py-4 text-left">Status</th>
                   <th className="px-6 py-4 text-left">Usage</th>
                   <th className="px-6 py-4 text-center">Actions</th>
@@ -777,8 +1074,9 @@ const Vouchers = () => {
                     return (
                       <tr
                         key={v.id}
+                        onClick={() => selectVoucher(v)}
                         className={`hover:bg-gray-50/70 transition-colors ${isSelected ? "bg-gray-50" : ""
-                          }`}
+                          } cursor-pointer`}
                       >
                         {/* Voucher Name */}
                         <td className="px-6 py-3.5 whitespace-nowrap">
@@ -798,6 +1096,10 @@ const Vouchers = () => {
                           {v.type}
                         </td>
 
+                        <td className="px-6 py-3.5 whitespace-nowrap font-medium text-gray-700">
+                          {v.benefitType || "-"}
+                        </td>
+
                         {/* Eligible Tier */}
                         <td className="px-6 py-3.5 whitespace-nowrap font-medium text-gray-700">
                           {v.tier}
@@ -805,12 +1107,12 @@ const Vouchers = () => {
 
                         {/* Eligible Items */}
                         <td className="px-6 py-3.5 font-medium text-gray-700 max-w-[150px] truncate" title={Array.isArray(v.eligibleItems) ? v.eligibleItems.join(', ') : "All Items"}>
-                          {Array.isArray(v.eligibleItems) && v.eligibleItems.length > 0 ? v.eligibleItems.join(', ') : "All Items"}
+                          {formatVoucherEligibility(v)}
                         </td>
 
-                        {/* Expiry */}
+                        {/* Availability */}
                         <td className="px-6 py-3.5 whitespace-nowrap text-gray-600 font-medium">
-                          {v.expiry ? (!isNaN(new Date(v.expiry).getTime()) ? new Date(v.expiry).toLocaleString("en-US", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "numeric", hour12: true }) : v.expiry) : "-"}
+                          {v.availabilityLabel || "-"}
                         </td>
 
                         {/* Status */}
@@ -849,7 +1151,15 @@ const Vouchers = () => {
                           <div className="flex items-center justify-center space-x-1.5 relative">
                             {/* Eye / View Details Button */}
                             <button
-                              onClick={() => setSelectedVoucher(isSelected ? null : v)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (isSelected) {
+                                  setSelectedVoucher(null);
+                                  setActionMenuId(null);
+                                  return;
+                                }
+                                selectVoucher(v);
+                              }}
                               className="bg-[#1E293B] hover:bg-[#0F172A] text-white p-1.5 rounded-lg shadow-sm transition-colors cursor-pointer"
                               title="View Details"
                             >
@@ -858,7 +1168,10 @@ const Vouchers = () => {
 
                             {/* Edit Button */}
                             <button
-                              onClick={() => setEditingVoucher(v)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingVoucher(normalizeVoucherForm(v));
+                              }}
                               className="bg-[#1E293B] hover:bg-[#0F172A] text-white p-1.5 rounded-lg shadow-sm transition-colors cursor-pointer"
                               title="Edit Voucher"
                             >
@@ -894,7 +1207,7 @@ const Vouchers = () => {
                                 </button>
                                 <button
                                   onClick={() => {
-                                    setEditingVoucher(v);
+                                    setEditingVoucher(normalizeVoucherForm(v));
                                     setActionMenuId(null);
                                   }}
                                   className="w-full px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 flex items-center gap-2 cursor-pointer font-medium"
@@ -1001,6 +1314,16 @@ const Vouchers = () => {
                 </div>
 
                 <div className="flex justify-between items-center py-1">
+                  <span className="text-gray-500">Benefit</span>
+                  <span className="font-bold text-gray-900">{selectedVoucher.benefitType || '-'}</span>
+                </div>
+
+                <div className="flex justify-between items-center py-1">
+                  <span className="text-gray-500">Audience</span>
+                  <span className="font-bold text-gray-900">{audienceLabel(selectedVoucher.audience)}</span>
+                </div>
+
+                <div className="flex justify-between items-center py-1">
                   <span className="text-gray-500">Eligible Tier</span>
                   <span className="font-bold text-gray-900">{selectedVoucher.tier}</span>
                 </div>
@@ -1008,13 +1331,13 @@ const Vouchers = () => {
                 <div className="flex justify-between items-center py-1">
                   <span className="text-gray-500">Eligible Items</span>
                   <span className="font-bold text-gray-900 truncate max-w-[200px]" title={Array.isArray(selectedVoucher.eligibleItems) ? selectedVoucher.eligibleItems.join(', ') : "All Items"}>
-                    {Array.isArray(selectedVoucher.eligibleItems) && selectedVoucher.eligibleItems.length > 0 ? selectedVoucher.eligibleItems.join(', ') : "All Items"}
+                    {formatVoucherEligibility(selectedVoucher)}
                   </span>
                 </div>
 
                 <div className="flex justify-between items-center py-1">
-                  <span className="text-gray-500">Expiry Date</span>
-                  <span className="font-bold text-gray-900">{selectedVoucher.expiryFull || selectedVoucher.expiry}</span>
+                  <span className="text-gray-500">Availability</span>
+                  <span className="font-bold text-gray-900 text-right max-w-[200px]">{selectedVoucher.availabilityLabel || formatAvailabilityMode(selectedVoucher.availabilityMode)}</span>
                 </div>
 
                 <div className="flex justify-between items-center py-1">
@@ -1068,7 +1391,9 @@ const Vouchers = () => {
                 <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
                   <p className="text-gray-500 text-[11px]">Remaining Allocation</p>
                   <p className="text-lg font-bold text-gray-900 mt-1">
-                    {(selectedVoucher.totalQty - selectedVoucher.issued).toLocaleString()} units
+                    {selectedVoucher.totalQty === null
+                      ? 'Unlimited'
+                      : `${Math.max(0, (selectedVoucher.totalQty || 0) - (selectedVoucher.issued || 0)).toLocaleString()} units`}
                   </p>
                 </div>
                 <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
@@ -1077,25 +1402,75 @@ const Vouchers = () => {
                     {selectedVoucher.rate}
                   </p>
                 </div>
+                <button
+                  onClick={() => openIssueModal(selectedVoucher)}
+                  className="w-full py-2 px-3 bg-[#1F3A34] text-white rounded-lg text-sm font-bold hover:bg-[#2E5E58] transition-colors cursor-pointer"
+                >
+                  Issue Voucher To Customer
+                </button>
               </div>
             )}
 
             {/* Tab 3: History */}
             {activeTab === "History" && (
               <div className="space-y-2.5 text-xs">
-                <div className="p-2.5 bg-gray-50 rounded-lg">
-                  <p className="font-bold text-gray-900">Voucher Created</p>
-                  <p className="text-gray-500 text-[10px]">19 Aug 2026 by miraelys</p>
-                </div>
-                <div className="p-2.5 bg-gray-50 rounded-lg">
-                  <p className="font-bold text-gray-900">Allocation Increased (+500)</p>
-                  <p className="text-gray-500 text-[10px]">19 Aug 2026 by admin_alex</p>
-                </div>
+                {issuancesLoading ? (
+                  <div className="p-3 bg-gray-50 rounded-lg text-gray-500">Loading issuance history...</div>
+                ) : voucherIssuances.length === 0 ? (
+                  <div className="p-3 bg-gray-50 rounded-lg text-gray-500">No issued vouchers yet for this template.</div>
+                ) : (
+                  voucherIssuances.map((issuance) => (
+                    <div key={issuance.id} className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-bold text-gray-900">{issuance.customer.displayName}</p>
+                          <p className="text-[10px] text-gray-500">
+                            {issuance.customer.email || issuance.customer.phone}
+                          </p>
+                          <p className="text-[10px] text-gray-500 mt-1">
+                            Issued {new Date(issuance.issuedAt).toLocaleString("en-US", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "numeric", hour12: true })}
+                          </p>
+                          <p className="text-[10px] text-gray-500">
+                            Expires {new Date(issuance.expiresAt).toLocaleString("en-US", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "numeric", hour12: true })}
+                          </p>
+                          <p className="text-[10px] text-gray-500">
+                            Reason: {issuance.issuedReason}
+                          </p>
+                        </div>
+                        <div className="flex flex-col items-end gap-2">
+                          <span className={`px-2 py-1 rounded-md text-[10px] font-bold ${
+                            issuance.status === 'active'
+                              ? 'bg-green-100 text-green-800'
+                              : issuance.status === 'redeemed'
+                                ? 'bg-blue-100 text-blue-700'
+                                : 'bg-gray-100 text-gray-700'
+                          }`}>
+                            {issuance.status}
+                          </span>
+                          {issuance.status === 'active' && (
+                            <button
+                              onClick={() => handleRevokeIssuedVoucher(issuance.id)}
+                              className="text-[10px] font-bold text-red-600 hover:text-red-700 cursor-pointer"
+                            >
+                              Revoke
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             )}
 
-            {/* Bottom 3 Action Buttons */}
-            <div className="pt-4 border-t border-gray-100 grid grid-cols-3 gap-2 mt-auto">
+            {/* Bottom Action Buttons */}
+            <div className="pt-4 border-t border-gray-100 grid grid-cols-4 gap-2 mt-auto">
+              <button
+                onClick={() => openIssueModal(selectedVoucher)}
+                className="py-2 px-2 border border-gray-800 rounded-lg text-xs font-bold text-gray-900 hover:bg-gray-50 transition-colors flex items-center justify-center gap-1 cursor-pointer"
+              >
+                <Plus size={12} /> Issue
+              </button>
               <button
                 onClick={() => handleDuplicate(selectedVoucher)}
                 className="py-2 px-2 border border-gray-800 rounded-lg text-xs font-bold text-gray-900 hover:bg-gray-50 transition-colors flex items-center justify-center gap-1 cursor-pointer"
@@ -1104,22 +1479,136 @@ const Vouchers = () => {
               </button>
 
               <button
-                onClick={() => setEditingVoucher(selectedVoucher)}
+                onClick={() => setEditingVoucher(normalizeVoucherForm(selectedVoucher))}
                 className="py-2 px-2 border border-gray-800 rounded-lg text-xs font-bold text-gray-900 hover:bg-gray-50 transition-colors flex items-center justify-center gap-1 cursor-pointer"
               >
                 <Edit3 size={12} /> Edit
               </button>
 
-              <button
-                onClick={() => handleDelete(selectedVoucher.id)}
-                className="py-2 px-2 border border-gray-800 rounded-lg text-xs font-bold text-gray-900 hover:bg-red-50 hover:text-red-700 transition-colors flex items-center justify-center gap-1 cursor-pointer"
-              >
-                <Trash2 size={12} /> Delete
-              </button>
+                <button
+                  onClick={() => handleDelete(selectedVoucher.id)}
+                  className="py-2 px-2 border border-gray-800 rounded-lg text-xs font-bold text-gray-900 hover:bg-red-50 hover:text-red-700 transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                >
+                  <Trash2 size={12} /> Delete
+                </button>
             </div>
           </div>
         )}
       </div>
+
+      {showIssueModal && issuingVoucher && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-gray-900">Issue Voucher</h3>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Assign <span className="font-semibold text-gray-700">{issuingVoucher.name}</span> to a customer.
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowIssueModal(false);
+                    setIssuingVoucher(null);
+                  }}
+                  className="text-gray-400 hover:text-gray-700 cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={handleIssueVoucher} className="space-y-4">
+                <div>
+                  <label className="block font-bold text-gray-900 mb-1 text-xs">Employee / Customer Phone Number</label>
+                  <input
+                    type="text"
+                    value={issuePhone}
+                    onChange={(e) => setIssuePhone(e.target.value)}
+                    placeholder="e.g. +60123456789"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58] text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-gray-900 mb-1 text-xs">Or Search Existing Customer</label>
+                  <input
+                    type="text"
+                    value={customerSearch}
+                    onChange={(e) => setCustomerSearch(e.target.value)}
+                    placeholder="Search by name, email, phone, or customer ID"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58] text-sm"
+                  />
+                  <div className="mt-2 max-h-48 overflow-y-auto rounded-lg border border-gray-200">
+                    {customerSearchLoading ? (
+                      <div className="px-3 py-3 text-xs text-gray-500">Searching customers...</div>
+                    ) : customerResults.length === 0 ? (
+                      <div className="px-3 py-3 text-xs text-gray-500">
+                        {customerSearch.trim().length < 2 ? 'Type at least 2 characters to search.' : 'No customers found.'}
+                      </div>
+                    ) : (
+                      customerResults.map((customer) => (
+                        <button
+                          key={customer.id}
+                          type="button"
+                          onClick={() => setSelectedCustomer(customer)}
+                          className={`w-full px-3 py-3 text-left border-b border-gray-100 last:border-b-0 hover:bg-gray-50 cursor-pointer ${
+                            selectedCustomer?.id === customer.id ? 'bg-[#F3F7F6]' : ''
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-bold text-gray-900">{customer.displayName}</p>
+                              <p className="text-xs text-gray-500">{customer.email || customer.phone}</p>
+                            </div>
+                            <span className="text-[10px] font-bold text-[#2E5E58]">{customer.tier}</span>
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-gray-900 mb-1 text-xs">Issued Reason</label>
+                  <input
+                    type="text"
+                    value={issueReason}
+                    onChange={(e) => setIssueReason(e.target.value)}
+                    placeholder="Why this voucher is being issued"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58] text-sm"
+                  />
+                </div>
+
+                {selectedCustomer && (
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-3 text-xs text-gray-600">
+                    Selected customer: <span className="font-bold text-gray-900">{selectedCustomer.displayName}</span>
+                  </div>
+                )}
+
+                <div className="pt-2 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowIssueModal(false);
+                      setIssuingVoucher(null);
+                    }}
+                    className="flex-1 py-2 border border-gray-300 rounded-lg font-bold text-gray-700 hover:bg-gray-50 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 py-2 bg-[#2E5E58] text-white rounded-lg font-bold hover:bg-[#1F3A34] transition-colors cursor-pointer"
+                  >
+                    Issue Voucher
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Create New Voucher Modal */}
       {showCreateModal && (
@@ -1152,20 +1641,64 @@ const Vouchers = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-gray-900 mb-1">Type</label>
-                  <select
+                  <label className="block font-bold text-gray-900 mb-1">Voucher Label</label>
+                  <input
+                    list="voucher-type-labels"
                     value={newVoucher.type}
                     onChange={(e) => setNewVoucher({ ...newVoucher, type: e.target.value })}
+                    placeholder="e.g. Wednesday Happy Hour"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
+                  />
+                  <datalist id="voucher-type-labels">
+                    {SUGGESTED_TYPE_LABELS.map((label) => (
+                      <option key={label} value={label} />
+                    ))}
+                  </datalist>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-gray-900 mb-1">Benefit</label>
+                  <select
+                    value={newVoucher.benefitType}
+                    onChange={(e) => setNewVoucher({ ...newVoucher, benefitType: e.target.value })}
                     className="peer w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
                   >
-                    <option value="Free Drink">Free Drink</option>
-                    <option value="Percentage Off">Percentage Off</option>
-                    <option value="Token Discount">Token Discount</option>
-                    <option value="Free Food">Free Food</option>
-                    <option value="Birthday Voucher">Birthday Voucher</option>
+                    {BENEFIT_TYPE_OPTIONS.map((option) => (
+                      <option key={option} value={option}>{option}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-gray-900 mb-1">Status</label>
+                  <select
+                    value={newVoucher.status}
+                    onChange={(e) => setNewVoucher({ ...newVoucher, status: e.target.value })}
+                    className="peer w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
+                  >
+                    <option value="Active">Active</option>
+                    <option value="Expired">Expired</option>
+                    <option value="Draft">Draft</option>
                   </select>
                 </div>
 
+                <div>
+                  <label className="block font-bold text-gray-900 mb-1">Audience</label>
+                  <select
+                    value={newVoucher.audience}
+                    onChange={(e) => setNewVoucher({ ...newVoucher, audience: e.target.value })}
+                    className="peer w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
+                  >
+                    {AUDIENCE_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-bold text-gray-900 mb-1">Eligible Tier</label>
                   <select
@@ -1182,12 +1715,12 @@ const Vouchers = () => {
                 </div>
               </div>
 
-              {(newVoucher.type !== "Free Drink" && newVoucher.type !== "Free Food") && (
+              {(newVoucher.benefitType !== "Free Drink" && newVoucher.benefitType !== "Free Food" && newVoucher.benefitType !== "Birthday Voucher") && (
                 <div className="w-1/2 pr-1.5">
                   <label className="block font-bold text-gray-900 mb-1">Discount Value</label>
                   <input
                     type="number"
-                    placeholder={newVoucher.type === "Token Discount" ? "e.g. 10 (Tokens)" : "e.g. 50 (%)"}
+                    placeholder={newVoucher.benefitType === "Token Discount" ? "e.g. 10 (Tokens)" : newVoucher.benefitType === "Cash Voucher" ? "e.g. 5 (RM)" : "e.g. 20 (%)"}
                     value={newVoucher.discountValue}
                     onChange={(e) => handleDiscountChange(e, false)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
@@ -1197,9 +1730,37 @@ const Vouchers = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="col-span-2">
+                  <label className="block font-bold text-gray-900 mb-1">Product Groups</label>
+                  <div className="grid grid-cols-2 gap-2 rounded-lg border border-gray-200 p-3 mb-3">
+                    {menuTaxonomy.productKinds.map((option) => (
+                      <label key={option.value} className="flex items-center gap-2 text-xs text-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={(newVoucher.productKinds || []).includes(option.value)}
+                          onChange={() => setNewVoucher({ ...newVoucher, productKinds: toggleListValue(newVoucher.productKinds || [], option.value) })}
+                          className="rounded text-[#2E5E58] focus:ring-[#2E5E58]"
+                        />
+                        {option.label}
+                      </label>
+                    ))}
+                  </div>
+                  <label className="block font-bold text-gray-900 mb-1">Subcategories</label>
+                  <div className="grid grid-cols-2 gap-2 rounded-lg border border-gray-200 p-3 mb-3 max-h-32 overflow-y-auto">
+                    {menuTaxonomy.subcategories.map((subcategory) => (
+                      <label key={subcategory.id} className="flex items-center gap-2 text-xs text-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={(newVoucher.subcategoryCodes || []).includes(subcategory.code)}
+                          onChange={() => setNewVoucher({ ...newVoucher, subcategoryCodes: toggleListValue(newVoucher.subcategoryCodes || [], subcategory.code) })}
+                          className="rounded text-[#2E5E58] focus:ring-[#2E5E58]"
+                        />
+                        {subcategory.name}
+                      </label>
+                    ))}
+                  </div>
                   <label className="block font-bold text-gray-900 mb-1">Eligible Items</label>
                   <ScrollableCheckboxList
-                    groupedItems={AVAILABLE_ITEMS}
+                    groupedItems={menuTaxonomy.groupedItems}
                     selected={newVoucher.eligibleItems}
                     onChange={(selected) => setNewVoucher({ ...newVoucher, eligibleItems: selected })}
                   />
@@ -1208,21 +1769,73 @@ const Vouchers = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-gray-900 mb-1">Expiry Date & Time</label>
-                  <DatePicker
-                    selected={newVoucher.expiry && !isNaN(new Date(newVoucher.expiry)) ? new Date(newVoucher.expiry) : null}
-                    onChange={(date) => setNewVoucher({ ...newVoucher, expiry: date ? date.toISOString() : "" })}
-                    showTimeSelect
-                    timeFormat="HH:mm"
-                    timeIntervals={15}
-                    timeCaption="Time"
-                    dateFormat="d MMMM yyyy, h:mm aa"
+                  <label className="block font-bold text-gray-900 mb-1">Availability</label>
+                  <select
+                    value={newVoucher.availabilityMode}
+                    onChange={(e) => setNewVoucher({ ...newVoucher, availabilityMode: e.target.value, activeDays: [], annualDate: "" })}
+                    className="peer w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
+                  >
+                    {AVAILABILITY_MODE_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-bold text-gray-900 mb-1">Start Time</label>
+                  <input
+                    type="time"
+                    value={newVoucher.startTime}
+                    onChange={(e) => setNewVoucher({ ...newVoucher, startTime: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
-                    wrapperClassName="w-full"
-                    placeholderText="Select date and time"
                   />
                 </div>
+                {newVoucher.availabilityMode !== "always" && (
+                  <div>
+                    <label className="block font-bold text-gray-900 mb-1">End Time</label>
+                    <input
+                      type="time"
+                      value={newVoucher.endTime}
+                      onChange={(e) => setNewVoucher({ ...newVoucher, endTime: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
+                    />
+                  </div>
+                )}
+                {newVoucher.availabilityMode === "annual" && (
+                  <div>
+                    <label className="block font-bold text-gray-900 mb-1">Annual Date</label>
+                    <input
+                      type="date"
+                      value={newVoucher.annualDate}
+                      onChange={(e) => setNewVoucher({ ...newVoucher, annualDate: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
+                    />
+                  </div>
+                )}
               </div>
+
+              {newVoucher.availabilityMode === "weekly" && (
+                <div>
+                  <label className="block font-bold text-gray-900 mb-1">Available Days</label>
+                  <div className="grid grid-cols-2 gap-2 rounded-lg border border-gray-200 p-3">
+                    {WEEKDAY_OPTIONS.map((day) => (
+                      <label key={day} className="flex items-center gap-2 text-xs text-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={newVoucher.activeDays.includes(day)}
+                          onChange={() => {
+                            const activeDays = newVoucher.activeDays.includes(day)
+                              ? newVoucher.activeDays.filter((value) => value !== day)
+                              : [...newVoucher.activeDays, day];
+                            setNewVoucher({ ...newVoucher, activeDays });
+                          }}
+                          className="rounded text-[#2E5E58] focus:ring-[#2E5E58]"
+                        />
+                        {day}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -1324,20 +1937,30 @@ const Vouchers = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-gray-900 mb-1">Type</label>
-                  <select
+                  <label className="block font-bold text-gray-900 mb-1">Voucher Label</label>
+                  <input
+                    list="voucher-type-labels"
                     value={editingVoucher.type}
                     onChange={(e) => setEditingVoucher({ ...editingVoucher, type: e.target.value })}
-                    className="peer w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
-                  >
-                    <option value="Free Drink">Free Drink</option>
-                    <option value="Percentage Off">Percentage Off</option>
-                    <option value="Token Discount">Token Discount</option>
-                    <option value="Free Food">Free Food</option>
-                    <option value="Birthday Voucher">Birthday Voucher</option>
-                  </select>
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
+                  />
                 </div>
 
+                <div>
+                  <label className="block font-bold text-gray-900 mb-1">Benefit</label>
+                  <select
+                    value={editingVoucher.benefitType}
+                    onChange={(e) => setEditingVoucher({ ...editingVoucher, benefitType: e.target.value })}
+                    className="peer w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
+                  >
+                    {BENEFIT_TYPE_OPTIONS.map((option) => (
+                      <option key={option} value={option}>{option}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-bold text-gray-900 mb-1">Status</label>
                   <select
@@ -1350,14 +1973,44 @@ const Vouchers = () => {
                     <option value="Draft">Draft</option>
                   </select>
                 </div>
+
+                <div>
+                  <label className="block font-bold text-gray-900 mb-1">Audience</label>
+                  <select
+                    value={editingVoucher.audience}
+                    onChange={(e) => setEditingVoucher({ ...editingVoucher, audience: e.target.value })}
+                    className="peer w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
+                  >
+                    {AUDIENCE_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
-              {(editingVoucher.type !== "Free Drink" && editingVoucher.type !== "Free Food") && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-gray-900 mb-1">Eligible Tier</label>
+                  <select
+                    value={editingVoucher.tier}
+                    onChange={(e) => setEditingVoucher({ ...editingVoucher, tier: e.target.value })}
+                    className="peer w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
+                  >
+                    <option value="All Tiers">All Tiers</option>
+                    <option value="Legend">Legend</option>
+                    <option value="Kawan">Kawan</option>
+                    <option value="Dilamun">Dilamun</option>
+                    <option value="Ketagih">Ketagih</option>
+                  </select>
+                </div>
+              </div>
+
+              {(editingVoucher.benefitType !== "Free Drink" && editingVoucher.benefitType !== "Free Food" && editingVoucher.benefitType !== "Birthday Voucher") && (
                 <div className="w-1/2 pr-1.5">
                   <label className="block font-bold text-gray-900 mb-1">Discount Value</label>
                   <input
                     type="number"
-                    placeholder={editingVoucher.type === "Token Discount" ? "e.g. 10 (Tokens)" : "e.g. 50 (%)"}
+                    placeholder={editingVoucher.benefitType === "Token Discount" ? "e.g. 10 (Tokens)" : editingVoucher.benefitType === "Cash Voucher" ? "e.g. 5 (RM)" : "e.g. 20 (%)"}
                     value={editingVoucher.discountValue || ""}
                     onChange={(e) => handleDiscountChange(e, true)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
@@ -1367,9 +2020,37 @@ const Vouchers = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="col-span-2">
+                  <label className="block font-bold text-gray-900 mb-1">Product Groups</label>
+                  <div className="grid grid-cols-2 gap-2 rounded-lg border border-gray-200 p-3 mb-3">
+                    {menuTaxonomy.productKinds.map((option) => (
+                      <label key={option.value} className="flex items-center gap-2 text-xs text-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={(editingVoucher.productKinds || []).includes(option.value)}
+                          onChange={() => setEditingVoucher({ ...editingVoucher, productKinds: toggleListValue(editingVoucher.productKinds || [], option.value) })}
+                          className="rounded text-[#2E5E58] focus:ring-[#2E5E58]"
+                        />
+                        {option.label}
+                      </label>
+                    ))}
+                  </div>
+                  <label className="block font-bold text-gray-900 mb-1">Subcategories</label>
+                  <div className="grid grid-cols-2 gap-2 rounded-lg border border-gray-200 p-3 mb-3 max-h-32 overflow-y-auto">
+                    {menuTaxonomy.subcategories.map((subcategory) => (
+                      <label key={subcategory.id} className="flex items-center gap-2 text-xs text-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={(editingVoucher.subcategoryCodes || []).includes(subcategory.code)}
+                          onChange={() => setEditingVoucher({ ...editingVoucher, subcategoryCodes: toggleListValue(editingVoucher.subcategoryCodes || [], subcategory.code) })}
+                          className="rounded text-[#2E5E58] focus:ring-[#2E5E58]"
+                        />
+                        {subcategory.name}
+                      </label>
+                    ))}
+                  </div>
                   <label className="block font-bold text-gray-900 mb-1">Eligible Items</label>
                   <ScrollableCheckboxList
-                    groupedItems={AVAILABLE_ITEMS}
+                    groupedItems={menuTaxonomy.groupedItems}
                     selected={editingVoucher.eligibleItems || []}
                     onChange={(selected) => setEditingVoucher({ ...editingVoucher, eligibleItems: selected })}
                   />
@@ -1378,21 +2059,73 @@ const Vouchers = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-gray-900 mb-1">Expiry Date & Time</label>
-                  <DatePicker
-                    selected={editingVoucher.expiry && !isNaN(new Date(editingVoucher.expiry)) ? new Date(editingVoucher.expiry) : null}
-                    onChange={(date) => setEditingVoucher({ ...editingVoucher, expiry: date ? date.toISOString() : "" })}
-                    showTimeSelect
-                    timeFormat="HH:mm"
-                    timeIntervals={15}
-                    timeCaption="Time"
-                    dateFormat="d MMMM yyyy, h:mm aa"
+                  <label className="block font-bold text-gray-900 mb-1">Availability</label>
+                  <select
+                    value={editingVoucher.availabilityMode}
+                    onChange={(e) => setEditingVoucher({ ...editingVoucher, availabilityMode: e.target.value, activeDays: [], annualDate: "" })}
+                    className="peer w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
+                  >
+                    {AVAILABILITY_MODE_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-bold text-gray-900 mb-1">Start Time</label>
+                  <input
+                    type="time"
+                    value={editingVoucher.startTime || ""}
+                    onChange={(e) => setEditingVoucher({ ...editingVoucher, startTime: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
-                    wrapperClassName="w-full"
-                    placeholderText="Select date and time"
                   />
                 </div>
+                {editingVoucher.availabilityMode !== "always" && (
+                  <div>
+                    <label className="block font-bold text-gray-900 mb-1">End Time</label>
+                    <input
+                      type="time"
+                      value={editingVoucher.endTime || ""}
+                      onChange={(e) => setEditingVoucher({ ...editingVoucher, endTime: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
+                    />
+                  </div>
+                )}
+                {editingVoucher.availabilityMode === "annual" && (
+                  <div>
+                    <label className="block font-bold text-gray-900 mb-1">Annual Date</label>
+                    <input
+                      type="date"
+                      value={editingVoucher.annualDate || ""}
+                      onChange={(e) => setEditingVoucher({ ...editingVoucher, annualDate: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
+                    />
+                  </div>
+                )}
               </div>
+
+              {editingVoucher.availabilityMode === "weekly" && (
+                <div>
+                  <label className="block font-bold text-gray-900 mb-1">Available Days</label>
+                  <div className="grid grid-cols-2 gap-2 rounded-lg border border-gray-200 p-3">
+                    {WEEKDAY_OPTIONS.map((day) => (
+                      <label key={day} className="flex items-center gap-2 text-xs text-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={(editingVoucher.activeDays || []).includes(day)}
+                          onChange={() => {
+                            const activeDays = (editingVoucher.activeDays || []).includes(day)
+                              ? editingVoucher.activeDays.filter((value) => value !== day)
+                              : [...(editingVoucher.activeDays || []), day];
+                            setEditingVoucher({ ...editingVoucher, activeDays });
+                          }}
+                          className="rounded text-[#2E5E58] focus:ring-[#2E5E58]"
+                        />
+                        {day}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
