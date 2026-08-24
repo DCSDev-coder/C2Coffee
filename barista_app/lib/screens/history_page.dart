@@ -1,9 +1,15 @@
 import 'package:flutter/material.dart';
 import '../widgets/order_card.dart';
+import '../widgets/active_barista_profile.dart';
 import 'order_details_page.dart';
 
 class HistoryPage extends StatefulWidget {
-  const HistoryPage({super.key});
+  final VoidCallback? onSettingsTap;
+  
+  const HistoryPage({
+    super.key,
+    this.onSettingsTap,
+  });
 
   @override
   State<HistoryPage> createState() => _HistoryPageState();
@@ -169,24 +175,38 @@ class _HistoryPageState extends State<HistoryPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Title
-                Text(
-                  'History',
-                  style: TextStyle(
-                    color: darkGreen,
-                    fontSize: 40,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-
-                // Subtitle
-                Text(
-                  '142 total orders',
-                  style: TextStyle(
-                    color: beigeColor,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
+                // Title & Active Barista Profile
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'History',
+                            style: TextStyle(
+                              color: darkGreen,
+                              fontSize: 40,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            '142 total orders',
+                            style: TextStyle(
+                              color: beigeColor,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    ActiveBaristaProfile(
+                      onTap: widget.onSettingsTap,
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 16.0),
 
@@ -327,6 +347,7 @@ class _HistoryPageState extends State<HistoryPage> {
                                 customerDetails: order.customerDetails,
                                 items: order.items,
                                 isHistory: true,
+                                onSettingsTap: widget.onSettingsTap,
                               ),
                               transitionsBuilder: (context, animation, secondaryAnimation, child) {
                                 const begin = Offset(1.0, 0.0);

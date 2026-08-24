@@ -1,9 +1,15 @@
 import 'package:flutter/material.dart';
 import '../widgets/order_card.dart';
+import '../widgets/active_barista_profile.dart';
 import 'order_details_page.dart';
 
 class CurrentOrderPage extends StatefulWidget {
-  const CurrentOrderPage({super.key});
+  final VoidCallback? onSettingsTap;
+  
+  const CurrentOrderPage({
+    super.key,
+    this.onSettingsTap,
+  });
 
   @override
   State<CurrentOrderPage> createState() => _CurrentOrderPageState();
@@ -101,24 +107,38 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Title
-                Text(
-                  'Current Order',
-                  style: TextStyle(
-                    color: darkGreen,
-                    fontSize: 40,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                
-                // Subtitle
-                Text(
-                  '12 active orders in queue',
-                  style: TextStyle(
-                    color: beigeColor,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
+                // Title & Active Barista Profile
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Current Order',
+                            style: TextStyle(
+                              color: darkGreen,
+                              fontSize: 40,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            '12 active orders in queue',
+                            style: TextStyle(
+                              color: beigeColor,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    ActiveBaristaProfile(
+                      onTap: widget.onSettingsTap,
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 16.0),
                 
@@ -175,6 +195,7 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
                               orderId: order.orderId,
                               customerDetails: order.customerDetails,
                               items: order.items,
+                              onSettingsTap: widget.onSettingsTap,
                             ),
                             transitionsBuilder: (context, animation, secondaryAnimation, child) {
                               const begin = Offset(1.0, 0.0);

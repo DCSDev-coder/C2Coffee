@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../main.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -11,9 +12,6 @@ class _SettingsPageState extends State<SettingsPage> {
   final Color darkGreen = const Color(0xFF304A3A);
   final Color beigeColor = const Color(0xFFD3B17D);
   final Color switchOrange = const Color(0xFFE07A5F);
-  
-  final List<String> _allBaristas = ['Barista 1', 'Barista 2', 'Barista 3'];
-  String _activeBarista = 'Barista 1';
   
   bool _pushNotificationsEnabled = true;
 
@@ -36,21 +34,34 @@ class _SettingsPageState extends State<SettingsPage> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // Title
-                Text(
-                  'Settings',
-                  style: TextStyle(
-                    color: darkGreen,
-                    fontSize: 40,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  'Manage your shift preferences and active barista profile',
-                  style: TextStyle(
-                    color: beigeColor,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Settings',
+                            style: TextStyle(
+                              color: darkGreen,
+                              fontSize: 40,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            'Manage your shift preferences and active barista profile',
+                            style: TextStyle(
+                              color: beigeColor,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 32.0),
                 
@@ -66,34 +77,44 @@ class _SettingsPageState extends State<SettingsPage> {
                 const SizedBox(height: 16.0),
                 
                 // Animated Staff List
-                SizedBox(
-                  height: 3 * 90.0, // 3 items, 80 height + 10 padding
-                  child: Stack(
-                    children: _allBaristas.map((name) {
-                      int physicalIndex;
-                      if (name == _activeBarista) {
-                        physicalIndex = 0;
-                      } else {
-                        // The inactive ones keep their relative order
-                        int relativeIndex = _allBaristas
-                            .where((b) => b != _activeBarista)
-                            .toList()
-                            .indexOf(name);
-                        physicalIndex = relativeIndex + 1;
-                      }
+                ValueListenableBuilder<List<String>>(
+                  valueListenable: globalBaristas,
+                  builder: (context, allBaristas, _) {
+                    return ValueListenableBuilder<String>(
+                      valueListenable: globalActiveBarista,
+                      builder: (context, activeBarista, _) {
+                        return SizedBox(
+                          height: allBaristas.length * 90.0, // items, 80 height + 10 padding
+                          child: Stack(
+                            children: allBaristas.map((name) {
+                              int physicalIndex;
+                              if (name == activeBarista) {
+                                physicalIndex = 0;
+                              } else {
+                                // The inactive ones keep their relative order
+                                int relativeIndex = allBaristas
+                                    .where((b) => b != activeBarista)
+                                    .toList()
+                                    .indexOf(name);
+                                physicalIndex = relativeIndex + 1;
+                              }
 
-                      return AnimatedPositioned(
-                        key: ValueKey(name),
-                        duration: const Duration(milliseconds: 500),
-                        curve: Curves.easeOutCubic,
-                        top: physicalIndex * 90.0,
-                        left: 0,
-                        right: 0,
-                        height: 80.0,
-                        child: _buildAestheticCard(name, isActive: name == _activeBarista),
-                      );
-                    }).toList(),
-                  ),
+                              return AnimatedPositioned(
+                                key: ValueKey(name),
+                                duration: const Duration(milliseconds: 500),
+                                curve: Curves.easeOutCubic,
+                                top: physicalIndex * 90.0,
+                                left: 0,
+                                right: 0,
+                                height: 80.0,
+                                child: _buildAestheticCard(name, isActive: name == activeBarista),
+                              );
+                            }).toList(),
+                          ),
+                        );
+                      },
+                    );
+                  }
                 ),
                 
                 const SizedBox(height: 24.0),
@@ -254,21 +275,24 @@ class _SettingsPageState extends State<SettingsPage> {
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 300),
             child: isActive
-                ? Container(
+                ? Row(
                     key: const ValueKey('check'),
-                    padding: const EdgeInsets.all(4.0),
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(Icons.check, color: darkGreen, size: 20),
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(4.0),
+                        decoration: const BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(Icons.check, color: darkGreen, size: 20),
+                      ),
+                    ],
                   )
                 : TextButton(
                     key: const ValueKey('switch'),
                     onPressed: () {
-                      setState(() {
-                        _activeBarista = name;
-                      });
+                      globalActiveBarista.value = name;
                     },
                     style: TextButton.styleFrom(
                       foregroundColor: switchOrange,

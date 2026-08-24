@@ -1,7 +1,9 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'screens/main_layout.dart';
+
+final ValueNotifier<String> globalActiveBarista = ValueNotifier<String>('Nur');
+final ValueNotifier<List<String>> globalBaristas = ValueNotifier<List<String>>(['Nur', 'Amirah', 'Balqis']);
 
 void main() {
   runApp(const BaristaApp());
