@@ -58,7 +58,8 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
 
   String get _itemName => (widget.item['name'] ?? 'Item').toString();
   String get _itemCategory => (widget.item['category'] ?? '').toString();
-  String get _itemProductKind => (widget.item['productKindCode'] ?? '').toString();
+  String get _itemProductKind =>
+      (widget.item['productKindCode'] ?? '').toString();
 
   bool _flagEnabled(String key, {required bool fallback}) {
     if (widget.item.containsKey(key)) {
@@ -105,7 +106,8 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
   /// Whether this item is a beverage/drink or a simple retail/food product
   bool get _isDrink {
     final productKind = _itemProductKind.toLowerCase();
-    return productKind == 'drink' || (!_isPastry && !_isMerchandise && !_isCandle);
+    return productKind == 'drink' ||
+        (!_isPastry && !_isMerchandise && !_isCandle);
   }
 
   double get _imageScale {
@@ -144,8 +146,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
   bool get _isChocolate {
     final name = _itemName.toLowerCase();
     final cat = _itemCategory.toLowerCase();
-    return cat.contains('chocolate') ||
-        name.contains('chocolate');
+    return cat.contains('chocolate') || name.contains('chocolate');
   }
 
   bool get _isMilkshake {
@@ -195,7 +196,11 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
     return _flagEnabled(
       'allowEspressoShot',
       fallback: _isDrink &&
-          !(_isMocktail || _isChocolate || _isMilkshake || _isMatcha || _isTea) &&
+          !(_isMocktail ||
+              _isChocolate ||
+              _isMilkshake ||
+              _isMatcha ||
+              _isTea) &&
           !_itemName.toLowerCase().contains('v60'),
     );
   }
@@ -293,16 +298,12 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
   }
 
   double get _itemBasePrice {
-    final raw = widget.item['price']?.toString() ?? '16.90';
+    final raw = widget.item['basePriceRm']?.toString() ??
+        widget.item['price']?.toString() ??
+        '16.90';
     final clean = raw.replaceAll('RM', '').replaceAll(r'$', '').trim();
     final parsed = double.tryParse(clean) ?? 16.90;
-    if (_isPastry) {
-      return parsed;
-    } else if (_isMerchandise || _isCandle) {
-      return AppColors.getDiscountedMerchPrice(parsed);
-    } else {
-      return AppColors.getDiscountedDrinkPrice(parsed);
-    }
+    return parsed;
   }
 
   String get _itemDescription {
@@ -718,7 +719,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                             data: SliderThemeData(
                               activeTrackColor: orangeColor,
                               inactiveTrackColor:
-                                 orangeColor.withValues(alpha: 0.2),
+                                  orangeColor.withValues(alpha: 0.2),
                               thumbColor: orangeColor,
                               trackHeight: 4.0,
                               tickMarkShape: const RoundSliderTickMarkShape(
@@ -926,7 +927,8 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                                   subtitle: '+ 0.00',
                                   value: 'Regular Sweet',
                                   groupValue: sweetness,
-                                  onChanged: (v) => setState(() => sweetness = v),
+                                  onChanged: (v) =>
+                                      setState(() => sweetness = v),
                                   color: const Color(0xFFD4A017),
                                   textColor: Colors.white,
                                   isExpanded: false,
@@ -974,7 +976,8 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                                   subtitle: '',
                                   value: 'Take Away',
                                   groupValue: orderType,
-                                  onChanged: (v) => setState(() => orderType = v),
+                                  onChanged: (v) =>
+                                      setState(() => orderType = v),
                                   color: const Color(0xFFFF6B5C),
                                   textColor: Colors.white,
                                   isExpanded: false,

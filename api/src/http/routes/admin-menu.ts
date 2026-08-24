@@ -102,6 +102,38 @@ async function getMenuCategoryColumns(): Promise<Set<string>> {
   return menuCategoryColumnsPromise;
 }
 
+function normalizeMenuCode(value: string): string {
+  const code = String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_|_$/g, '');
+
+  return code || 'item';
+}
+
+async function resolveUniqueMenuCode(
+  tableName: 'menu_categories' | 'menu_subcategories',
+  preferredCode: string
+): Promise<string> {
+  const baseCode = normalizeMenuCode(preferredCode);
+
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    const candidate = attempt === 0 ? baseCode : `${baseCode}_${attempt + 1}`;
+    const [rows] = await mysqlPool.query<Array<RowDataPacket>>(
+      `SELECT 1 FROM ${tableName} WHERE code = :code LIMIT 1`,
+      { code: candidate }
+    );
+
+    if (rows.length === 0) {
+      return candidate;
+    }
+  }
+
+  return `${baseCode}_${Date.now()}`;
+}
+
 type AdminMenuRow = RowDataPacket & {
   category_id: number;
   category_code: string;
@@ -698,42 +730,51 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
   app.post('/v1/admin/menu/subcategories', { preHandler: authenticateAdminRequest }, async (request) => {
     const payload = adminMenuSubcategoryUpsertSchema.parse(request.body);
     const categoryId = await resolveCategoryId(mysqlPool, payload.category_code);
+    const code = await resolveUniqueMenuCode('menu_subcategories', payload.code);
 
-    const [result] = await mysqlPool.execute<ResultSetHeader>(
-      `
-        INSERT INTO menu_subcategories (
-          category_id,
+    try {
+      const [result] = await mysqlPool.execute<ResultSetHeader>(
+        `
+          INSERT INTO menu_subcategories (
+            category_id,
+            code,
+            name,
+            sort_order,
+            is_active,
+            created_at,
+            updated_at
+          )
+          VALUES (
+            :categoryId,
+            :code,
+            :name,
+            :sortOrder,
+            :isActive,
+            UTC_TIMESTAMP(),
+            UTC_TIMESTAMP()
+          )
+        `,
+        {
+          categoryId,
           code,
-          name,
-          sort_order,
-          is_active,
-          created_at,
-          updated_at
-        )
-        VALUES (
-          :categoryId,
-          :code,
-          :name,
-          :sortOrder,
-          :isActive,
-          UTC_TIMESTAMP(),
-          UTC_TIMESTAMP()
-        )
-      `,
-      {
-        categoryId,
-        code: payload.code,
-        name: payload.name,
-        sortOrder: payload.sort_order,
-        isActive: payload.is_active ? 1 : 0
-      }
-    );
+          name: payload.name,
+          sortOrder: payload.sort_order,
+          isActive: payload.is_active ? 1 : 0
+        }
+      );
 
-    return { subcategory: await loadMenuSubcategoryById(result.insertId) };
+      return { subcategory: await loadMenuSubcategoryById(result.insertId) };
+    } catch (error) {
+      if ((error as { code?: string }).code === 'ER_DUP_ENTRY') {
+        throw new ApiError(409, 'menu_subcategory_conflict', 'Menu subcategory code already exists.');
+      }
+      throw error;
+    }
   });
 
   app.post('/v1/admin/menu/categories', { preHandler: authenticateAdminRequest }, async (request) => {
     const payload = adminMenuCategoryUpsertSchema.parse(request.body);
+    const code = await resolveUniqueMenuCode('menu_categories', payload.code);
 
     const categoryColumns = await getMenuCategoryColumns();
     const hasProductKindColumn = categoryColumns.has('product_kind_code');
@@ -750,7 +791,7 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
         )
       `,
       {
-        code: payload.code,
+        code,
         name: payload.name,
         productKindCode: payload.product_kind_code,
         sortOrder: payload.sort_order,
@@ -802,16 +843,78 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
       updates.push(...filteredUpdates);
     }
 
+    try {
+      await mysqlPool.query(
+        `
+          UPDATE menu_categories
+          SET ${updates.join(', ')}
+          WHERE id = :categoryId
+        `,
+        params as never
+      );
+
+      return { category: await loadMenuCategoryById(categoryId) };
+    } catch (error) {
+      if ((error as { code?: string }).code === 'ER_DUP_ENTRY') {
+        throw new ApiError(409, 'menu_category_conflict', 'Menu category code already exists.');
+      }
+      throw error;
+    }
+  });
+
+  app.delete('/v1/admin/menu/categories/:categoryId', { preHandler: authenticateAdminRequest }, async (request) => {
+    const categoryId = z.coerce.number().int().positive().parse((request.params as { categoryId: string }).categoryId);
+
+    const [rows] = await mysqlPool.query<Array<RowDataPacket & {
+      item_count: number;
+      subcategory_count: number;
+    }>>(
+      `
+        SELECT
+          (
+            SELECT COUNT(*)
+            FROM menu_items
+            WHERE category_id = :categoryId
+          ) AS item_count,
+          (
+            SELECT COUNT(*)
+            FROM menu_subcategories
+            WHERE category_id = :categoryId
+          ) AS subcategory_count
+      `,
+      { categoryId }
+    );
+
+    const counts = rows[0];
+    if (!counts) {
+      throw new ApiError(404, 'menu_category_not_found', 'Menu category was not found.');
+    }
+
+    const canHardDelete = Number(counts.item_count) === 0 && Number(counts.subcategory_count) === 0;
+
+    if (canHardDelete) {
+      await mysqlPool.query(
+        `
+          DELETE FROM menu_categories
+          WHERE id = :categoryId
+        `,
+        { categoryId }
+      );
+
+      return { ok: true, mode: 'deleted' };
+    }
+
     await mysqlPool.query(
       `
         UPDATE menu_categories
-        SET ${updates.join(', ')}
+        SET is_active = 0,
+            updated_at = UTC_TIMESTAMP()
         WHERE id = :categoryId
       `,
-      params as never
+      { categoryId }
     );
 
-    return { category: await loadMenuCategoryById(categoryId) };
+    return { ok: true, mode: 'archived' };
   });
 
   app.patch('/v1/admin/menu/subcategories/:subcategoryId', { preHandler: authenticateAdminRequest }, async (request) => {
@@ -845,17 +948,69 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
       return { subcategory: await loadMenuSubcategoryById(subcategoryId) };
     }
 
+    try {
+      await mysqlPool.query(
+        `
+          UPDATE menu_subcategories
+          SET ${updates.join(', ')},
+              updated_at = UTC_TIMESTAMP()
+          WHERE id = :subcategoryId
+        `,
+        params as never
+      );
+
+      return { subcategory: await loadMenuSubcategoryById(subcategoryId) };
+    } catch (error) {
+      if ((error as { code?: string }).code === 'ER_DUP_ENTRY') {
+        throw new ApiError(409, 'menu_subcategory_conflict', 'Menu subcategory code already exists.');
+      }
+      throw error;
+    }
+  });
+
+  app.delete('/v1/admin/menu/subcategories/:subcategoryId', { preHandler: authenticateAdminRequest }, async (request) => {
+    const subcategoryId = z.coerce.number().int().positive().parse((request.params as { subcategoryId: string }).subcategoryId);
+
+    const [rows] = await mysqlPool.query<Array<RowDataPacket & { item_count: number }>>(
+      `
+        SELECT
+          (
+            SELECT COUNT(*)
+            FROM menu_items
+            WHERE subcategory_id = :subcategoryId
+          ) AS item_count
+      `,
+      { subcategoryId }
+    );
+
+    const counts = rows[0];
+    if (!counts) {
+      throw new ApiError(404, 'menu_subcategory_not_found', 'Menu subcategory was not found.');
+    }
+
+    if (Number(counts.item_count) === 0) {
+      await mysqlPool.query(
+        `
+          DELETE FROM menu_subcategories
+          WHERE id = :subcategoryId
+        `,
+        { subcategoryId }
+      );
+
+      return { ok: true, mode: 'deleted' };
+    }
+
     await mysqlPool.query(
       `
         UPDATE menu_subcategories
-        SET ${updates.join(', ')},
+        SET is_active = 0,
             updated_at = UTC_TIMESTAMP()
         WHERE id = :subcategoryId
       `,
-      params as never
+      { subcategoryId }
     );
 
-    return { subcategory: await loadMenuSubcategoryById(subcategoryId) };
+    return { ok: true, mode: 'archived' };
   });
 }
 

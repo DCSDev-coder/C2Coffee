@@ -287,8 +287,9 @@ class _BaristaPageState extends State<BaristaPage> {
                 padding: const EdgeInsets.only(bottom: 6),
                 child: Center(
                   child: Text(
-                    AppColors.formatDiscountedPrice(item['price'],
-                        isDrink: true),
+                    AppColors.formatRmPrice(
+                      item['basePriceRm']?.toString() ?? item['price'],
+                    ),
                     style: TextStyle(
                       fontFamily: 'Afacad',
                       fontSize: 13.5,

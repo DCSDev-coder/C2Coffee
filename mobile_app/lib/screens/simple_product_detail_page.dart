@@ -35,10 +35,14 @@ class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
   }
 
   String get _itemName => widget.item['name']?.toString() ?? 'Item';
-  bool get _isDrink => widget.item['isDrink'] == true;
   bool get _isFood => widget.item['isFood'] == true;
   bool get _isMerchandise => widget.item['isMerchandise'] == true;
   bool get _isCandle => widget.item['isCandle'] == true;
+
+  String get _rawBasePriceText =>
+      widget.item['basePriceRm']?.toString() ??
+      widget.item['price']?.toString() ??
+      '0.00';
 
   bool get _isPastry {
     return _isFood;
@@ -52,18 +56,10 @@ class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
   }
 
   double get _itemBasePrice {
-    final raw = widget.item['price']?.toString() ?? '0.00';
+    final raw = _rawBasePriceText;
     final clean = raw.replaceAll('RM', '').replaceAll(r'$', '').trim();
     final parsed = double.tryParse(clean) ?? 0.0;
-    if (_isPastry) {
-      return parsed;
-    } else if (_isMerchandise || _isCandle) {
-      return AppColors.getDiscountedMerchPrice(parsed);
-    } else if (_isDrink) {
-      return AppColors.getDiscountedDrinkPrice(parsed);
-    } else {
-      return parsed;
-    }
+    return parsed;
   }
 
   int get _tokenPrice {
@@ -74,20 +70,15 @@ class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
           orElse: () => null,
         );
     if (catalogItem == null) return _itemBasePrice.round();
-    final tierPrice = catalogItem.tokenPrices[_session.tier];
-    if (tierPrice != null) return tierPrice;
     final baseTokenPrice = catalogItem.basePriceToken as int?;
     if (baseTokenPrice != null && baseTokenPrice > 0) return baseTokenPrice;
+    final tierPrice = catalogItem.tokenPrices[_session.tier];
+    if (tierPrice != null) return tierPrice;
     return _itemBasePrice.round();
   }
 
   String get _rmPriceText {
-    final rawPrice = widget.item['price']?.toString() ?? '0.00';
-    return AppColors.formatDiscountedPrice(
-      rawPrice,
-      isDrink: _isDrink,
-      isMerchandise: _isMerchandise || _isCandle,
-    );
+    return AppColors.formatRmPrice(_rawBasePriceText);
   }
 
   String get _displayTotalText {
@@ -371,12 +362,17 @@ class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
                             menuItemCode:
                                 widget.item['code']?.toString() ?? _itemName,
                             name: _itemName,
-                            categoryCode: widget.item['categoryCode']?.toString(),
+                            categoryCode:
+                                widget.item['categoryCode']?.toString(),
                             categoryName: widget.item['category']?.toString(),
-                            subcategoryCode: widget.item['subcategoryCode']?.toString(),
-                            subcategoryName: widget.item['subcategory']?.toString(),
-                            productKindCode: widget.item['productKindCode']?.toString(),
-                            productKindName: widget.item['productKind']?.toString(),
+                            subcategoryCode:
+                                widget.item['subcategoryCode']?.toString(),
+                            subcategoryName:
+                                widget.item['subcategory']?.toString(),
+                            productKindCode:
+                                widget.item['productKindCode']?.toString(),
+                            productKindName:
+                                widget.item['productKind']?.toString(),
                             imageAssetPath: null,
                             imageUrl: widget.item['image_url']?.toString(),
                             basePriceRm: _itemBasePrice,

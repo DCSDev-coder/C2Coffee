@@ -80,8 +80,8 @@ class _MenuPageState extends State<MenuPage> {
         categoryIndex++) {
       final category = _session.menuCategories[categoryIndex];
       for (final item in category.items.where((item) => item.isAvailable)) {
-        final legacyItem =
-            CatalogPresentation.toLegacyItem(item, category.code, category.name);
+        final legacyItem = CatalogPresentation.toLegacyItem(
+            item, category.code, category.name);
         if (query.isNotEmpty) {
           final name = legacyItem['name']?.toString().toLowerCase() ?? '';
           if (!name.contains(query)) {
@@ -89,7 +89,8 @@ class _MenuPageState extends State<MenuPage> {
           }
         }
 
-        final sectionTitle = CatalogPresentation.displayCategoryName(category.name);
+        final sectionTitle =
+            CatalogPresentation.displayCategoryName(category.name);
         final sectionKey = category.code;
         final sectionSortOrder = categoryIndex * 1000;
 
@@ -193,9 +194,14 @@ class _MenuPageState extends State<MenuPage> {
   }
 
   int? _tokenPriceForItem(Map<String, dynamic> item) {
-    final directTokenPrice = item['tokenPrice'];
-    if (directTokenPrice is num) {
-      return directTokenPrice.toInt();
+    final baseTokenPrice = item['basePriceToken'];
+    if (baseTokenPrice is num) {
+      return baseTokenPrice.toInt();
+    }
+
+    final legacyTokenPrice = item['tokenPrice'];
+    if (legacyTokenPrice is num) {
+      return legacyTokenPrice.toInt();
     }
 
     final tokenPrices = item['tokenPrices'];
@@ -210,14 +216,10 @@ class _MenuPageState extends State<MenuPage> {
   }
 
   String _rmPriceForItem(Map<String, dynamic> item) {
-    final rawPrice = item['price']?.toString() ?? '';
+    final rawPrice =
+        item['basePriceRm']?.toString() ?? item['price']?.toString() ?? '';
     if (rawPrice.isEmpty) return '';
-    return AppColors.formatDiscountedPrice(
-      rawPrice,
-      isDrink: item['isDrink'] as bool? ?? false,
-      isMerchandise: (item['isMerchandise'] as bool? ?? false) ||
-          (item['isCandle'] as bool? ?? false),
-    );
+    return AppColors.formatRmPrice(rawPrice);
   }
 
   int _displayTokenValueForItem(Map<String, dynamic> item) {

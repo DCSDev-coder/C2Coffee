@@ -72,7 +72,7 @@ class OrderDetailsPage extends StatelessWidget {
       'name': item['name'] ?? 'Mont Broga',
       'image': '',
       'image_url': item['image_url']?.toString(),
-      'price': AppColors.getDiscountedDrinkPrice(16.90).toStringAsFixed(2),
+      'price': '16.90',
       'desc': 'Black coffee layered with orangey cold foam and orange zest.',
     };
 
@@ -220,7 +220,7 @@ class OrderDetailsPage extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          'RM${AppColors.getDiscountedDrinkPrice(16.90).toStringAsFixed(2)}',
+                          'RM16.90',
                           style: TextStyle(
                             fontFamily: 'Afacad',
                             fontSize: 14,

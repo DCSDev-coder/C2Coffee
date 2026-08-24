@@ -317,7 +317,7 @@ export async function registerCheckoutRoutes(
           throw new ApiError(
             400,
             'menu_item_not_available',
-            'One or more selected menu items are not available.'
+            'This item is unavailable.'
           );
         }
 
@@ -327,7 +327,7 @@ export async function registerCheckoutRoutes(
           throw new ApiError(
             400,
             'token_price_not_available',
-            `${menuItem.name} is not available for token checkout.`
+            'This item is unavailable.'
           );
         }
 
