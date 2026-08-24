@@ -12,6 +12,8 @@
     "migrate:prod": "node dist/db/migrate.js",
     "cleanup:legacy-vouchers": "tsx src/scripts/cleanup-legacy-vouchers.ts",
     "cleanup:legacy-vouchers:prod": "node dist/scripts/cleanup-legacy-vouchers.js",
+    "reset:vouchers": "tsx src/db/reset-vouchers.ts",
+    "reset:vouchers:prod": "node dist/db/reset-vouchers.js",
     "reset:qa": "tsx src/db/reset-qa.ts",
     "reset:qa:prod": "node dist/db/reset-qa.js",
     "seed:demo": "tsx src/db/migrate.ts --seed-demo",

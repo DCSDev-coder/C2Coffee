@@ -167,7 +167,7 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
                       ),
                     ),
                     const Text(
-                      'Only vouchers eligible for token checkout can be applied here.',
+                      'Only vouchers that match this order can be applied here.',
                       style: TextStyle(
                         fontFamily: 'Afacad',
                         fontSize: 13,
@@ -242,9 +242,9 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildNoticeCard(
-              title: 'No vouchers can be used for token checkout',
+              title: 'No vouchers can be applied right now',
               message:
-                  'You currently have vouchers, but none match this cart for token checkout right now.',
+                  'You currently have vouchers, but none match this order right now.',
             ),
             const SizedBox(height: 14),
             if (nonTokenCheckoutVouchers.isNotEmpty) ...[
@@ -302,7 +302,7 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
             const SizedBox(height: 12),
           ],
           _buildVoucherSection(
-            title: 'Ready for token checkout',
+            title: 'Ready to use',
             subtitle: 'These vouchers can be applied to the current order.',
             vouchers: tokenCheckoutVouchers,
             enabled: true,
