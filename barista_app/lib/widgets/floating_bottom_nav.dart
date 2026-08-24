@@ -1,136 +1,173 @@
 import 'package:flutter/material.dart';
-import '../screens/current_order_page.dart';
-import '../screens/history_page.dart';
+import 'dart:ui'; // for ImageFilter
 
 enum NavPage { history, currentOrder, settings }
 
 class FloatingBottomNav extends StatelessWidget {
   final NavPage activePage;
+  final Function(int) onTabSelected;
+  final PageController pageController;
 
-  const FloatingBottomNav({super.key, required this.activePage});
+  const FloatingBottomNav({
+    super.key, 
+    required this.activePage,
+    required this.onTabSelected,
+    required this.pageController,
+  });
 
   @override
   Widget build(BuildContext context) {
     const Color darkGreen = Color(0xFF304A3A);
+    const Color beigeColor = Color(0xFFD3B17D);
     
     final double screenWidth = MediaQuery.of(context).size.width;
-    // The bar has horizontal padding of 24 on each side, so width is screenWidth - 48
-    final double barWidth = screenWidth - 48.0;
-
-    // Calculate the center X coordinate for the active tab (1/6th, 1/2, or 5/6th)
-    double fabXCenter;
-    switch (activePage) {
-      case NavPage.history:
-        fabXCenter = barWidth / 6;
-        break;
-      case NavPage.currentOrder:
-        fabXCenter = barWidth / 2;
-        break;
-      case NavPage.settings:
-        fabXCenter = barWidth * 5 / 6;
-        break;
+    double barWidth = screenWidth - 48.0;
+    if (barWidth > 600.0) {
+      barWidth = 600.0;
     }
-
-    // The FAB is 64x64, so its left offset is center - 32
-    final double fabLeft = fabXCenter - 32.0;
+    final double horizontalOffset = (screenWidth - barWidth) / 2;
 
     return Positioned(
-      left: 24.0,
-      right: 24.0,
+      left: horizontalOffset,
+      right: horizontalOffset,
       bottom: 24.0,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          // The clipped pill background with a transparent notch
-          ClipPath(
-            clipper: _NotchedClipper(notchCenterPoint: fabXCenter),
-            child: Container(
-              height: 70,
-              color: darkGreen,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: activePage == NavPage.history
-                        ? const SizedBox.shrink()
-                        : _buildSideButton(
-                            icon: Icons.history,
-                            label: 'History',
-                            onTap: () {
-                              Navigator.pushReplacement(
-                                context,
-                                PageRouteBuilder(
-                                  pageBuilder: (context, animation, secondaryAnimation) => const HistoryPage(),
-                                  transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                                    return FadeTransition(opacity: animation, child: child);
-                                  },
-                                ),
-                              );
-                            },
-                          ),
-                  ),
-                  Expanded(
-                    child: activePage == NavPage.currentOrder
-                        ? const SizedBox.shrink()
-                        : _buildSideButton(
-                            icon: Icons.shopping_basket,
-                            label: 'Orders',
-                            onTap: () {
-                              Navigator.pushReplacement(
-                                context,
-                                PageRouteBuilder(
-                                  pageBuilder: (context, animation, secondaryAnimation) => const CurrentOrderPage(),
-                                  transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                                    return FadeTransition(opacity: animation, child: child);
-                                  },
-                                ),
-                              );
-                            },
-                          ),
-                  ),
-                  Expanded(
-                    child: activePage == NavPage.settings
-                        ? const SizedBox.shrink()
-                        : _buildSideButton(
-                            icon: Icons.settings,
-                            label: 'Settings',
-                            onTap: () {},
-                          ),
-                  ),
-                ],
+      child: AnimatedBuilder(
+        animation: pageController,
+        builder: (context, child) {
+          // Determine exact scroll position (0.0 to 2.0)
+          double scrollPosition = 1.0; // default to center
+          if (pageController.hasClients && pageController.position.haveDimensions) {
+            scrollPosition = pageController.page ?? 1.0;
+          } else {
+            // Fallback for first frame before layout is complete
+            if (activePage == NavPage.history) scrollPosition = 0.0;
+            if (activePage == NavPage.currentOrder) scrollPosition = 1.0;
+            if (activePage == NavPage.settings) scrollPosition = 2.0;
+          }
+
+          // Calculate exact X center based on scroll position
+          // index 0 -> 1/6
+          // index 1 -> 3/6 (1/2)
+          // index 2 -> 5/6
+          final double fabXCenter = barWidth * (1 / 6 + (scrollPosition * 2 / 6));
+          final double fabLeft = fabXCenter - 32.0;
+
+          return Stack(
+            clipBehavior: Clip.none,
+            children: [
+              // 1. A soft drop shadow for the entire bar
+              Container(
+                height: 70,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(35.0),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.15),
+                      blurRadius: 30,
+                      offset: const Offset(0, 10),
+                    )
+                  ],
+                ),
               ),
-            ),
-          ),
-          
-          // Floating Center Button
-          Positioned(
-            left: fabLeft,
-            top: -24,
-            child: Transform.translate(
-              offset: const Offset(0, -8),
-              child: Material(
-                elevation: 8,
-                shape: const CircleBorder(),
-                color: darkGreen,
-                child: SizedBox(
-                  height: 64,
-                  width: 64,
-                  child: IconButton(
-                    icon: Icon(
-                      activePage == NavPage.history
-                          ? Icons.history
-                          : (activePage == NavPage.currentOrder
-                              ? Icons.shopping_basket
-                              : Icons.settings),
-                      color: Colors.white,
-                      size: 28,
+
+              // 2. The clipped glassmorphic pill background with a dynamically positioned notch
+              ClipPath(
+                clipper: _NotchedClipper(notchCenterPoint: fabXCenter),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 15.0, sigmaY: 15.0),
+                  child: Container(
+                    height: 70,
+                    decoration: BoxDecoration(
+                      color: darkGreen.withOpacity(0.85), // Frosted glass effect
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.2), // Subtle glass edge
+                        width: 1.5,
+                      ),
+                      borderRadius: BorderRadius.circular(35.0),
                     ),
-                    onPressed: () {},
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: activePage == NavPage.history
+                              ? const SizedBox.shrink()
+                              : _buildSideButton(
+                                  icon: Icons.history,
+                                  label: 'History',
+                                  onTap: () => onTabSelected(0),
+                                ),
+                        ),
+                        Expanded(
+                          child: activePage == NavPage.currentOrder
+                              ? const SizedBox.shrink()
+                              : _buildSideButton(
+                                  icon: Icons.shopping_basket,
+                                  label: 'Orders',
+                                  onTap: () => onTabSelected(1),
+                                ),
+                        ),
+                        Expanded(
+                          child: activePage == NavPage.settings
+                              ? const SizedBox.shrink()
+                              : _buildSideButton(
+                                  icon: Icons.settings,
+                                  label: 'Settings',
+                                  onTap: () => onTabSelected(2),
+                                ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
-          ),
-        ],
+              
+              // 3. Floating Center Button synced with notch
+              Positioned(
+                left: fabLeft,
+                top: -24,
+                child: Transform.translate(
+                  offset: const Offset(0, -8),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.15),
+                          blurRadius: 15,
+                          offset: const Offset(0, 8),
+                        )
+                      ]
+                    ),
+                    child: Material(
+                      elevation: 0,
+                      shape: const CircleBorder(),
+                      color: Colors.white, // Make it pop in white
+                      child: SizedBox(
+                        height: 64,
+                        width: 64,
+                        child: IconButton(
+                          icon: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 200),
+                            child: Icon(
+                              activePage == NavPage.history
+                                  ? Icons.history
+                                  : (activePage == NavPage.currentOrder
+                                      ? Icons.shopping_basket
+                                      : Icons.settings),
+                              key: ValueKey(activePage),
+                              color: darkGreen, // High contrast with beige bubble
+                              size: 30,
+                            ),
+                          ),
+                          onPressed: () {}, // Handled by pageView swipe or can be left empty
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -142,11 +179,11 @@ class FloatingBottomNav extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, color: Colors.white),
+          Icon(icon, color: Colors.white70),
           const SizedBox(height: 4),
           Text(
             label,
-            style: const TextStyle(color: Colors.white, fontSize: 12),
+            style: const TextStyle(color: Colors.white70, fontSize: 13, fontFamily: 'Afacad', fontWeight: FontWeight.bold),
           ),
         ],
       ),

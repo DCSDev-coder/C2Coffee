@@ -1,7 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'screens/current_order_page.dart';
+import 'screens/main_layout.dart';
 
 void main() {
   runApp(const BaristaApp());
@@ -214,7 +214,7 @@ class _LoginPageState extends State<LoginPage> {
                                 Navigator.push(
                                   context,
                                   PageRouteBuilder(
-                                    pageBuilder: (context, animation, secondaryAnimation) => const CurrentOrderPage(),
+                                    pageBuilder: (context, animation, secondaryAnimation) => const MainLayout(),
                                     transitionsBuilder: (context, animation, secondaryAnimation, child) {
                                       const begin = Offset(1.0, 0.0); // Start from right
                                       const end = Offset.zero;

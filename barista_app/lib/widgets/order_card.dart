@@ -15,7 +15,8 @@ class OrderCard extends StatelessWidget {
   final String orderId;
   final String customerDetails;
   final List<OrderItem> items;
-  final VoidCallback onActionPressed;
+  final VoidCallback? onActionPressed;
+  final VoidCallback? onTap;
 
   const OrderCard({
     super.key,
@@ -24,7 +25,8 @@ class OrderCard extends StatelessWidget {
     required this.orderId,
     required this.customerDetails,
     required this.items,
-    required this.onActionPressed,
+    this.onActionPressed,
+    this.onTap,
   });
 
   @override
@@ -36,18 +38,20 @@ class OrderCard extends StatelessWidget {
     final bool isPreparing = status == OrderStatus.preparing;
     final bool isHistory = status == OrderStatus.completed;
     
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16.0),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24.0),
-        border: Border.all(color: darkGreen, width: 1.5),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16.0),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24.0),
+          border: Border.all(color: darkGreen, width: 1.5),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             // Top Row: Date/Time and Status Pill
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -151,12 +155,17 @@ class OrderCard extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildOrderItem(OrderItem item, Color darkGreen) {
+    const int maxTags = 3;
+    final List<String> displayedTags = item.tags.take(maxTags).toList();
+    final int extraTagsCount = item.tags.length > maxTags ? item.tags.length - maxTags : 0;
+
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12.0),
+      padding: const EdgeInsets.only(bottom: 16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -168,38 +177,48 @@ class OrderCard extends StatelessWidget {
               color: Colors.black,
             ),
           ),
-          const SizedBox(height: 4.0),
-          Row(
-            children: [
-              Expanded(
-                child: Wrap(
-                  spacing: 8.0,
-                  runSpacing: 4.0,
-                  children: item.tags.map((tag) {
-                    return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 2.0),
-                      decoration: BoxDecoration(
-                        color: darkGreen,
-                        borderRadius: BorderRadius.circular(12.0),
+          if (item.tags.isNotEmpty) ...[
+            const SizedBox(height: 8.0),
+            Wrap(
+              spacing: 6.0,
+              runSpacing: 6.0,
+              children: [
+                ...displayedTags.map((tag) => Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 6.0),
+                  decoration: BoxDecoration(
+                    color: darkGreen.withOpacity(0.06),
+                    borderRadius: BorderRadius.circular(8.0),
+                    border: Border.all(color: darkGreen.withOpacity(0.1)),
+                  ),
+                  child: Text(
+                    tag,
+                    style: TextStyle(
+                      color: darkGreen,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                )),
+                if (extraTagsCount > 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 6.0),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(8.0),
+                      border: Border.all(color: Colors.grey.shade200),
+                    ),
+                    child: Text(
+                      '+$extraTagsCount more',
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
                       ),
-                      child: Text(
-                        tag,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
-              const Padding(
-                padding: EdgeInsets.only(left: 8.0),
-                child: Icon(Icons.add, size: 16, color: Colors.black),
-              )
-            ],
-          ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
         ],
       ),
     );
