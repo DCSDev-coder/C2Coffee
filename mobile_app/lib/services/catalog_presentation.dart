@@ -20,6 +20,7 @@ class CatalogPresentation {
       'code': item.code,
       'name': item.name,
       'price': 'RM ${item.basePriceRm}',
+      'basePriceRm': item.basePriceRm,
       'tokenPrice': item.basePriceToken,
       'basePriceToken': item.basePriceToken,
       'tokenPrices': item.tokenPrices,
@@ -46,27 +47,29 @@ class CatalogPresentation {
       'allowSparklingMixer': item.allowSparklingMixer,
       'allowOrderType': item.allowOrderType,
       'allowRemarks': item.allowRemarks,
-      'modifierGroups': item.modifierGroups.map((group) => {
-        'id': group.id,
-        'code': group.code,
-        'name': group.name,
-        'selectionType': group.selectionType,
-        'minSelect': group.minSelect,
-        'maxSelect': group.maxSelect,
-        'isRequired': group.isRequired,
-        'sortOrder': group.sortOrder,
-        'options': group.options
-            .map((option) => {
-              'id': option.id,
-              'code': option.code,
-              'name': option.name,
-              'priceDeltaRm': option.priceDeltaRm,
-              'tokenPriceDelta': option.tokenPriceDelta,
-              'isActive': option.isActive,
-              'sortOrder': option.sortOrder,
-            })
-            .toList(),
-      }).toList(),
+      'modifierGroups': item.modifierGroups
+          .map((group) => {
+                'id': group.id,
+                'code': group.code,
+                'name': group.name,
+                'selectionType': group.selectionType,
+                'minSelect': group.minSelect,
+                'maxSelect': group.maxSelect,
+                'isRequired': group.isRequired,
+                'sortOrder': group.sortOrder,
+                'options': group.options
+                    .map((option) => {
+                          'id': option.id,
+                          'code': option.code,
+                          'name': option.name,
+                          'priceDeltaRm': option.priceDeltaRm,
+                          'tokenPriceDelta': option.tokenPriceDelta,
+                          'isActive': option.isActive,
+                          'sortOrder': option.sortOrder,
+                        })
+                    .toList(),
+              })
+          .toList(),
     };
   }
 

@@ -78,6 +78,18 @@ export async function updateAdminMenuSubcategory(subcategoryId, payload) {
   });
 }
 
+export async function deleteAdminMenuCategory(categoryId) {
+  return adminRequest(`/v1/admin/menu/categories/${categoryId}`, {
+    method: 'DELETE'
+  });
+}
+
+export async function deleteAdminMenuSubcategory(subcategoryId) {
+  return adminRequest(`/v1/admin/menu/subcategories/${subcategoryId}`, {
+    method: 'DELETE'
+  });
+}
+
 export async function updateAdminMenuItem(menuItemId, payload) {
   return adminRequest(`/v1/admin/menu/items/${menuItemId}`, {
     method: 'PATCH',

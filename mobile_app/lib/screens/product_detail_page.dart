@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'loading_order_page.dart';
 import '../utils/app_colors.dart';
+import '../widgets/catalog_product_image.dart';
 
 /// Unified Product Detail Page for all items (Drinks, Pastries, Merch, and Candles)
 class ProductDetailPage extends StatefulWidget {
@@ -57,7 +58,8 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
 
   String get _itemName => (widget.item['name'] ?? 'Item').toString();
   String get _itemCategory => (widget.item['category'] ?? '').toString();
-  String get _itemImage => (widget.item['image'] ?? '').toString();
+  String get _itemProductKind =>
+      (widget.item['productKindCode'] ?? '').toString();
 
   bool _flagEnabled(String key, {required bool fallback}) {
     if (widget.item.containsKey(key)) {
@@ -73,28 +75,40 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
   }
 
   bool get _isPastry {
-    final img = _itemImage.toLowerCase();
     final name = _itemName.toLowerCase();
-    return img.contains('pastries') || name.contains('curry puff');
+    final category = _itemCategory.toLowerCase();
+    final productKind = _itemProductKind.toLowerCase();
+    return productKind == 'food' &&
+        (category.contains('pastry') ||
+            category.contains('food') ||
+            name.contains('curry puff'));
   }
 
   bool get _isMerchandise {
-    final img = _itemImage.toLowerCase();
     final name = _itemName.toLowerCase();
-    return img.contains('merchandies') ||
-        img.contains('merchandise') ||
+    final category = _itemCategory.toLowerCase();
+    final productKind = _itemProductKind.toLowerCase();
+    return productKind == 'merchandise' ||
+        category.contains('merch') ||
         name.contains('cup') ||
         name.contains('tumbler');
   }
 
   bool get _isCandle {
-    final img = _itemImage.toLowerCase();
     final name = _itemName.toLowerCase();
-    return img.contains('candle') || name.contains('candle');
+    final category = _itemCategory.toLowerCase();
+    final productKind = _itemProductKind.toLowerCase();
+    return productKind == 'candle' ||
+        category.contains('candle') ||
+        name.contains('candle');
   }
 
   /// Whether this item is a beverage/drink or a simple retail/food product
-  bool get _isDrink => !_isPastry && !_isMerchandise && !_isCandle;
+  bool get _isDrink {
+    final productKind = _itemProductKind.toLowerCase();
+    return productKind == 'drink' ||
+        (!_isPastry && !_isMerchandise && !_isCandle);
+  }
 
   double get _imageScale {
     if (_isPastry) return 1.35;
@@ -132,8 +146,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
   bool get _isChocolate {
     final name = _itemName.toLowerCase();
     final cat = _itemCategory.toLowerCase();
-    return cat.contains('chocolate') ||
-        name.contains('chocolate');
+    return cat.contains('chocolate') || name.contains('chocolate');
   }
 
   bool get _isMilkshake {
@@ -183,7 +196,11 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
     return _flagEnabled(
       'allowEspressoShot',
       fallback: _isDrink &&
-          !(_isMocktail || _isChocolate || _isMilkshake || _isMatcha || _isTea) &&
+          !(_isMocktail ||
+              _isChocolate ||
+              _isMilkshake ||
+              _isMatcha ||
+              _isTea) &&
           !_itemName.toLowerCase().contains('v60'),
     );
   }
@@ -281,16 +298,12 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
   }
 
   double get _itemBasePrice {
-    final raw = widget.item['price']?.toString() ?? '16.90';
+    final raw = widget.item['basePriceRm']?.toString() ??
+        widget.item['price']?.toString() ??
+        '16.90';
     final clean = raw.replaceAll('RM', '').replaceAll(r'$', '').trim();
     final parsed = double.tryParse(clean) ?? 16.90;
-    if (_isPastry) {
-      return parsed;
-    } else if (_isMerchandise || _isCandle) {
-      return AppColors.getDiscountedMerchPrice(parsed);
-    } else {
-      return AppColors.getDiscountedDrinkPrice(parsed);
-    }
+    return parsed;
   }
 
   String get _itemDescription {
@@ -596,20 +609,10 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                 Center(
                   child: Transform.scale(
                     scale: _imageScale,
-                    child: Image.asset(
-                      _itemImage.isNotEmpty
-                          ? _itemImage
-                          : 'assets/images/drinks/MONT BROGA.png',
+                    child: CatalogProductImage(
+                      imageUrl: widget.item['image_url']?.toString(),
                       height: 200,
                       fit: BoxFit.contain,
-                      errorBuilder: (context, error, stackTrace) =>
-                          const SizedBox(
-                        height: 200,
-                        child: Center(
-                          child: Icon(Icons.image_outlined,
-                              size: 70, color: Colors.grey),
-                        ),
-                      ),
                     ),
                   ),
                 ),
@@ -716,7 +719,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                             data: SliderThemeData(
                               activeTrackColor: orangeColor,
                               inactiveTrackColor:
-                                 orangeColor.withValues(alpha: 0.2),
+                                  orangeColor.withValues(alpha: 0.2),
                               thumbColor: orangeColor,
                               trackHeight: 4.0,
                               tickMarkShape: const RoundSliderTickMarkShape(
@@ -924,7 +927,8 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                                   subtitle: '+ 0.00',
                                   value: 'Regular Sweet',
                                   groupValue: sweetness,
-                                  onChanged: (v) => setState(() => sweetness = v),
+                                  onChanged: (v) =>
+                                      setState(() => sweetness = v),
                                   color: const Color(0xFFD4A017),
                                   textColor: Colors.white,
                                   isExpanded: false,
@@ -972,7 +976,8 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                                   subtitle: '',
                                   value: 'Take Away',
                                   groupValue: orderType,
-                                  onChanged: (v) => setState(() => orderType = v),
+                                  onChanged: (v) =>
+                                      setState(() => orderType = v),
                                   color: const Color(0xFFFF6B5C),
                                   textColor: Colors.white,
                                   isExpanded: false,

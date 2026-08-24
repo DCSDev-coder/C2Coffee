@@ -3,6 +3,7 @@ import 'loading_order_page.dart';
 import 'product_detail_page.dart';
 import '../utils/app_colors.dart';
 import '../widgets/app_page_shell.dart';
+import '../widgets/catalog_product_image.dart';
 
 class OrderDetailsPage extends StatelessWidget {
   final Map<String, dynamic> item;
@@ -69,8 +70,9 @@ class OrderDetailsPage extends StatelessWidget {
 
     final Map<String, dynamic> drinkItem = {
       'name': item['name'] ?? 'Mont Broga',
-      'image': item['image'] ?? 'assets/images/drinks/MONT BROGA.png',
-      'price': AppColors.getDiscountedDrinkPrice(16.90).toStringAsFixed(2),
+      'image': '',
+      'image_url': item['image_url']?.toString(),
+      'price': '16.90',
       'desc': 'Black coffee layered with orangey cold foam and orange zest.',
     };
 
@@ -137,8 +139,8 @@ class OrderDetailsPage extends StatelessWidget {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Image.asset(
-                          item['image'],
+                        CatalogProductImage(
+                          imageUrl: item['image_url']?.toString(),
                           width: 55,
                           height: 75,
                           fit: BoxFit.contain,
@@ -218,7 +220,7 @@ class OrderDetailsPage extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          'RM${AppColors.getDiscountedDrinkPrice(16.90).toStringAsFixed(2)}',
+                          'RM16.90',
                           style: TextStyle(
                             fontFamily: 'Afacad',
                             fontSize: 14,

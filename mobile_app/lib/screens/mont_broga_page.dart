@@ -84,17 +84,12 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
   }
 
   double get _itemBasePrice {
-    final raw = widget.item['price']?.toString() ?? '16.90';
+    final raw = widget.item['basePriceRm']?.toString() ??
+        widget.item['price']?.toString() ??
+        '16.90';
     final clean = raw.replaceAll('RM', '').replaceAll(r'$', '').trim();
     final parsed = double.tryParse(clean) ?? 16.90;
-    final image = (widget.item['image']?.toString() ?? '').toLowerCase();
-    if (image.contains('pastries')) {
-      return parsed;
-    } else if (image.contains('merchandies') || image.contains('candle')) {
-      return AppColors.getDiscountedMerchPrice(parsed);
-    } else {
-      return AppColors.getDiscountedDrinkPrice(parsed);
-    }
+    return parsed;
   }
 
   String get _itemName => (widget.item['name'] ?? '').toString();
@@ -142,8 +137,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
   bool get _isChocolate {
     final name = _itemName.toLowerCase();
     final cat = _itemCategory.toLowerCase();
-    return cat.contains('chocolate') ||
-        name.contains('chocolate');
+    return cat.contains('chocolate') || name.contains('chocolate');
   }
 
   bool get _isMilkshake {
@@ -197,7 +191,11 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
   bool get _hasEspressoShot {
     return _flagEnabled(
       'allowEspressoShot',
-      fallback: !(_isMocktail || _isChocolate || _isMilkshake || _isMatcha || _isTea) &&
+      fallback: !(_isMocktail ||
+              _isChocolate ||
+              _isMilkshake ||
+              _isMatcha ||
+              _isTea) &&
           !_itemName.toLowerCase().contains('v60'),
     );
   }
@@ -396,20 +394,18 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
           orElse: () => null,
         );
     if (catalogItem == null) return _itemBasePrice.round();
-    final tierPrice = catalogItem.tokenPrices[_session.tier];
-    if (tierPrice != null) return tierPrice;
     final baseTokenPrice = catalogItem.basePriceToken as int?;
     if (baseTokenPrice != null && baseTokenPrice > 0) return baseTokenPrice;
+    final tierPrice = catalogItem.tokenPrices[_session.tier];
+    if (tierPrice != null) return tierPrice;
     return _itemBasePrice.round();
   }
 
   String get _rmPriceText {
-    final rawPrice = widget.item['price']?.toString() ?? '16.90';
-    return AppColors.formatDiscountedPrice(
-      rawPrice,
-      isDrink: true,
-      isMerchandise: false,
-    );
+    final rawPrice = widget.item['basePriceRm']?.toString() ??
+        widget.item['price']?.toString() ??
+        '16.90';
+    return AppColors.formatRmPrice(rawPrice);
   }
 
   String get _displayTotalText {
@@ -1051,7 +1047,8 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                                   subtitle: '+ 0.00',
                                   value: 'Regular Sweet',
                                   groupValue: sweetness,
-                                  onChanged: (v) => setState(() => sweetness = v),
+                                  onChanged: (v) =>
+                                      setState(() => sweetness = v),
                                   color: const Color(0xFFD4A017),
                                   textColor: Colors.white,
                                   isExpanded: false,
@@ -1099,7 +1096,8 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                                   subtitle: '',
                                   value: 'Take Away',
                                   groupValue: orderType,
-                                  onChanged: (v) => setState(() => orderType = v),
+                                  onChanged: (v) =>
+                                      setState(() => orderType = v),
                                   color: const Color(0xFFFF6B5C),
                                   textColor: Colors.white,
                                   isExpanded: false,
@@ -1270,13 +1268,18 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                             menuItemCode:
                                 widget.item['code']?.toString() ?? _itemName,
                             name: _itemName,
-                            categoryCode: widget.item['categoryCode']?.toString(),
+                            categoryCode:
+                                widget.item['categoryCode']?.toString(),
                             categoryName: widget.item['category']?.toString(),
-                            subcategoryCode: widget.item['subcategoryCode']?.toString(),
-                            subcategoryName: widget.item['subcategory']?.toString(),
-                            productKindCode: widget.item['productKindCode']?.toString(),
-                            productKindName: widget.item['productKind']?.toString(),
-                            imageAssetPath: widget.item['image']?.toString(),
+                            subcategoryCode:
+                                widget.item['subcategoryCode']?.toString(),
+                            subcategoryName:
+                                widget.item['subcategory']?.toString(),
+                            productKindCode:
+                                widget.item['productKindCode']?.toString(),
+                            productKindName:
+                                widget.item['productKind']?.toString(),
+                            imageAssetPath: null,
                             imageUrl: widget.item['image_url']?.toString(),
                             basePriceRm: _itemBasePrice,
                             tokenPrice: _baseTokenPrice,
