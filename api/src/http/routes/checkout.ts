@@ -120,6 +120,21 @@ type AppliedVoucherRow = RowDataPacket & {
   template_is_active: number;
 };
 
+function calculateTokenEquivalentDiscount(
+  totalBeforeDiscountRm: number,
+  tokenAmountCharged: number,
+  discountRm: number
+): number {
+  if (totalBeforeDiscountRm <= 0 || tokenAmountCharged <= 0 || discountRm <= 0) {
+    return 0;
+  }
+
+  return Math.min(
+    tokenAmountCharged,
+    Math.round(tokenAmountCharged * (discountRm / totalBeforeDiscountRm))
+  );
+}
+
 type VoucherScopeSelection = {
   product_kind_codes: string[];
   subcategory_codes: string[];
@@ -519,14 +534,12 @@ export async function registerCheckoutRoutes(
 
         if (
           isTokenCheckout &&
-          (appliedVoucher.voucher_type === 'campaign_direct_pay' ||
-            appliedVoucher.discount_mode === 'fixed_rm' ||
-            appliedVoucher.discount_mode === 'percent_rm')
+          appliedVoucher.voucher_type === 'campaign_direct_pay'
         ) {
           throw new ApiError(
             400,
             'voucher_not_supported_for_token_checkout',
-            'Selected voucher cannot be used for token checkout.'
+            'Selected voucher cannot be used right now.'
           );
         }
 
@@ -572,9 +585,23 @@ export async function registerCheckoutRoutes(
 
         if (appliedVoucher.discount_mode === 'fixed_rm') {
           discountRm = Math.min(totalBeforeDiscountRm, Number(appliedVoucher.discount_value));
+          if (isTokenCheckout) {
+            discountTokens = calculateTokenEquivalentDiscount(
+              totalBeforeDiscountRm,
+              tokenAmountCharged,
+              discountRm
+            );
+          }
         } else if (appliedVoucher.discount_mode === 'percent_rm') {
           const pct = Number(appliedVoucher.discount_value) / 100;
           discountRm = Math.min(totalBeforeDiscountRm, totalBeforeDiscountRm * pct);
+          if (isTokenCheckout) {
+            discountTokens = calculateTokenEquivalentDiscount(
+              totalBeforeDiscountRm,
+              tokenAmountCharged,
+              discountRm
+            );
+          }
         } else if (appliedVoucher.discount_mode === 'fixed_token') {
           const tokenDiscountVal = appliedVoucher.token_value ?? Math.round(Number(appliedVoucher.discount_value));
           discountTokens = Math.min(tokenAmountCharged, tokenDiscountVal);
@@ -657,7 +684,7 @@ export async function registerCheckoutRoutes(
           storeId: payload.store_id,
           subtotalRm: subtotalRm.toFixed(2),
           modifierTotalRm: modifierTotalRm.toFixed(2),
-          discountTotalRm: (isTokenCheckout ? 0 : discountRm).toFixed(2),
+          discountTotalRm: discountRm.toFixed(2),
           finalTotalRm: finalTotalRm.toFixed(2),
           tokenAmountCharged,
           voucherId: appliedVoucher ? appliedVoucher.id : null,

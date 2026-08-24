@@ -379,9 +379,18 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
     if (_selectedVoucher == null) return 0;
     final t = _selectedVoucher!.template;
     final subtotalTokens = snapshot.subtotalTokens;
+    final subtotalRm = snapshot.subtotalRm;
     if (t.discountMode == 'fixed_token') {
       final val = t.tokenValue ?? int.tryParse(t.discountValue) ?? 0;
       return min(subtotalTokens, val);
+    } else if (t.discountMode == 'fixed_rm') {
+      final discountRm = min(subtotalRm, double.tryParse(t.discountValue) ?? 0);
+      if (subtotalRm <= 0 || discountRm <= 0) return 0;
+      return min(subtotalTokens, max(0, (subtotalTokens * (discountRm / subtotalRm)).round()));
+    } else if (t.discountMode == 'percent_rm') {
+      final discountRm = min(subtotalRm, subtotalRm * ((double.tryParse(t.discountValue) ?? 0) / 100));
+      if (subtotalRm <= 0 || discountRm <= 0) return 0;
+      return min(subtotalTokens, max(0, (subtotalTokens * (discountRm / subtotalRm)).round()));
     } else if (t.discountMode == 'free_drink') {
       final highestTokenItem = snapshot.items.isEmpty
           ? 0

@@ -149,7 +149,11 @@ class RewardVoucherTemplate {
 
     final items = _stringListFromScope(eligibleScope, ['items', 'item_codes']);
     if (items.isNotEmpty) {
-      return items.map(_formatScopeValue).join(', ');
+      final labels = items.map(_formatScopeValue).toList();
+      if (labels.length > 3) {
+        return '${labels.take(3).join(', ')} +${labels.length - 3} more';
+      }
+      return labels.join(', ');
     }
 
     final categories =
@@ -168,12 +172,12 @@ class RewardVoucherTemplate {
 
   String get checkoutAvailabilityLabel {
     if (!isTokenCheckoutCompatible) {
-      return 'Not for token checkout';
+      return 'Not available for checkout';
     }
     if (!isAvailableNow) {
       return 'Not active right now';
     }
-    return 'Ready for token checkout';
+    return 'Ready to use';
   }
 
   List<String> get productKindCodes =>
@@ -190,7 +194,7 @@ class RewardVoucherTemplate {
       return false;
     }
 
-    return discountMode == 'fixed_token' || discountMode == 'free_drink';
+    return true;
   }
 
   bool get isAvailableNow {
@@ -341,7 +345,11 @@ class RewardVoucherTemplate {
   static String _scopeLabelFromMap(Map<String, dynamic> scope) {
     final items = _scopeValues(scope, ['items', 'item_codes']);
     if (items.isNotEmpty) {
-      return items.map(_formatScopeValue).join(', ');
+      final labels = items.map(_formatScopeValue).toList();
+      if (labels.length > 3) {
+        return '${labels.take(3).join(', ')} +${labels.length - 3} more';
+      }
+      return labels.join(', ');
     }
 
     final categories = _scopeValues(scope, ['category_codes', 'categories']);
@@ -551,12 +559,12 @@ class RewardVoucher {
       return 'Inactive / expired';
     }
     if (!template.isTokenCheckoutCompatible) {
-      return 'Not for token checkout';
+      return 'Not available for checkout';
     }
     if (!template.isAvailableNow) {
       return 'Active, but outside promotion time';
     }
-    return 'Ready for token checkout';
+    return 'Ready to use';
   }
 
   factory RewardVoucher.fromApi(Map<String, dynamic> json) {

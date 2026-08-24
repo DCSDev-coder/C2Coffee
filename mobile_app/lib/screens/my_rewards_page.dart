@@ -542,10 +542,10 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
           Text(
             isActive
                 ? voucher.isTokenCheckoutEligible
-                    ? 'Use this voucher during token checkout.'
+                    ? 'Use this voucher during checkout.'
                     : voucher.template.isTokenCheckoutCompatible
                         ? 'This voucher is active, but it is outside its promotion time right now.'
-                        : 'This voucher is active but not usable for token checkout.'
+                        : 'This voucher is active but not usable right now.'
                 : voucher.redeemedAt != null
                     ? 'This voucher has already been redeemed.'
                     : 'This voucher is part of your reward history.',

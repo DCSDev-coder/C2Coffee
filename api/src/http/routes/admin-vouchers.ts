@@ -81,6 +81,7 @@ type PromotionRule = {
 };
 
 const BENEFIT_TYPES = new Set([
+  'Discount',
   'Free Drink',
   'Free Food',
   'Percentage Off',
@@ -315,7 +316,7 @@ function deriveReward(payload: VoucherPayload): string {
     return firstItem ? `Free ${firstItem}` : 'Free Food';
   }
 
-  if (payload.benefitType === 'Percentage Off') {
+  if (payload.benefitType === 'Discount' || payload.benefitType === 'Percentage Off') {
     return `${Number(payload.discountValue) || 0}% Discount`;
   }
 
@@ -403,15 +404,15 @@ function normalizeFrontendType(
   }
 
   if (row.discount_mode === 'fixed_token') {
-    return 'Token Discount';
+    return 'Discount';
   }
 
   if (row.discount_mode === 'fixed_rm') {
-    return 'Cash Voucher';
+    return 'Discount';
   }
 
   if (row.discount_mode === 'percent_rm') {
-    return 'Percentage Off';
+    return 'Discount';
   }
 
   if (row.voucher_type === 'birthday_treat') {
@@ -430,6 +431,10 @@ function normalizeBenefitType(
   row: VoucherTemplateRow
 ): string {
   const fromScope = String(scope.benefit_type || '').trim();
+  if (fromScope === 'Token Discount' || fromScope === 'Cash Voucher' || fromScope === 'Percentage Off') {
+    return 'Discount';
+  }
+
   if (BENEFIT_TYPES.has(fromScope)) {
     return fromScope;
   }
@@ -979,7 +984,7 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
       discountMode = 'free_drink';
       discountValue = 1;
       voucherType = 'campaign_token_equivalent';
-    } else if (payload.benefitType === 'Percentage Off') {
+    } else if (payload.benefitType === 'Discount' || payload.benefitType === 'Percentage Off') {
       discountMode = 'percent_rm';
       discountValue = Number(payload.discountValue) || 0;
     } else if (payload.benefitType === 'Cash Voucher') {
@@ -1064,7 +1069,7 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
       discountMode = 'free_drink';
       discountValue = 1;
       voucherType = 'campaign_token_equivalent';
-    } else if (payload.benefitType === 'Percentage Off') {
+    } else if (payload.benefitType === 'Discount' || payload.benefitType === 'Percentage Off') {
       discountMode = 'percent_rm';
       discountValue = Number(payload.discountValue) || 0;
     } else if (payload.benefitType === 'Cash Voucher') {

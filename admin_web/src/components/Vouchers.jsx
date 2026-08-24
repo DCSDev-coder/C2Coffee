@@ -36,12 +36,10 @@ const STATUS_TYPES = ["All Status", "Active", "Expired", "Draft"];
 const ITEMS_PER_PAGE = 10;
 const ALL_ITEMS_OPTION = 'All Items';
 const BENEFIT_TYPE_OPTIONS = [
-  "Free Drink",
-  "Percentage Off",
-  "Cash Voucher",
-  "Token Discount",
-  "Free Food",
-  "Birthday Voucher"
+  { value: "Percentage Off", label: "Discount" },
+  { value: "Free Drink", label: "Free Drink" },
+  { value: "Free Food", label: "Free Food" },
+  { value: "Birthday Voucher", label: "Birthday Voucher" }
 ];
 const PROMOTION_KIND_OPTIONS = [
   { value: "standard", label: "Simple Voucher" },
@@ -148,6 +146,16 @@ const normalizeVoucherForm = (voucher) => ({
 const audienceLabel = (value) =>
   AUDIENCE_OPTIONS.find((option) => option.value === value)?.label || "All Customers";
 
+const benefitTypeLabel = (value) => {
+  if (value === "Percentage Off" || value === "Cash Voucher" || value === "Token Discount") {
+    return "Discount";
+  }
+
+  return value || "-";
+};
+
+const limitPerUserLabel = "Max Uses Per Customer";
+
 const formatAvailabilityMode = (value) =>
   AVAILABILITY_MODE_OPTIONS.find((option) => option.value === value)?.label || "Always Available";
 
@@ -229,6 +237,15 @@ const buildScopedGroupedItems = (menuTaxonomy, selectedProductKinds = [], select
 const toggleListValue = (list = [], value) =>
   list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
 
+const isAllValuesSelected = (selected = [], options = []) => {
+  if (!Array.isArray(options) || options.length === 0) return false;
+  const selectedSet = new Set((selected || []).filter(Boolean));
+  return options.every((option) => selectedSet.has(option));
+};
+
+const toggleAllValues = (selected = [], options = []) =>
+  isAllValuesSelected(selected, options) ? [] : Array.from(new Set(options.filter(Boolean)));
+
 const formatScopeSelection = (voucher, prefix = "", productKindLabels = {}) => {
   const productKinds = Array.isArray(voucher?.[`${prefix}ProductKinds`])
     ? voucher[`${prefix}ProductKinds`]
@@ -248,7 +265,11 @@ const formatScopeSelection = (voucher, prefix = "", productKindLabels = {}) => {
     parts.push(...subcategories);
   }
   if (items.length > 0 && !items.includes(ALL_ITEMS_OPTION)) {
-    parts.push(...items);
+    if (items.length > 3) {
+      parts.push(`${items.slice(0, 3).join(", ")} +${items.length - 3} more`);
+    } else {
+      parts.push(...items);
+    }
   }
 
   if (parts.length === 0 || items.includes(ALL_ITEMS_OPTION)) {
@@ -271,16 +292,19 @@ const formatVoucherEligibility = (voucher, productKindLabels = {}) => {
   return buyScope;
 };
 
-const ScrollableCheckboxList = ({ groupedItems = {}, selected = [], onChange }) => {
+const ScrollableCheckboxList = ({ groupedItems = {}, selected = [], hasFilters = false, onChange }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const currentSelected = selected || [];
-  const allItemsSelected = currentSelected.includes(ALL_ITEMS_OPTION);
+  const scopeItems = Object.values(groupedItems).flat();
+  const allItemsSelected =
+    currentSelected.includes(ALL_ITEMS_OPTION) ||
+    (scopeItems.length > 0 && scopeItems.every((item) => currentSelected.includes(item)));
 
   const toggleOption = (option) => {
     let newSelected;
 
     if (option === ALL_ITEMS_OPTION) {
-      onChange(allItemsSelected ? [] : [ALL_ITEMS_OPTION]);
+      onChange(allItemsSelected ? [] : Array.from(new Set(scopeItems)));
       return;
     }
 
@@ -904,7 +928,7 @@ const Vouchers = () => {
                         </td>
 
                         <td className="px-6 py-3.5 whitespace-nowrap font-medium text-gray-700">
-                          {v.benefitType || "-"}
+                          {benefitTypeLabel(v.benefitType)}
                         </td>
 
                         {/* Tier */}
@@ -1156,7 +1180,7 @@ const Vouchers = () => {
 
                 <div className="flex justify-between items-center py-1">
                   <span className="text-gray-500">Benefit</span>
-                  <span className="font-bold text-gray-900">{selectedVoucher.benefitType || '-'}</span>
+                  <span className="font-bold text-gray-900">{benefitTypeLabel(selectedVoucher.benefitType)}</span>
                 </div>
 
                 <div className="flex justify-between items-center py-1">
@@ -1213,7 +1237,7 @@ const Vouchers = () => {
                 </div>
 
                 <div className="flex justify-between items-center py-1">
-                  <span className="text-gray-500">Limit Per User</span>
+                  <span className="text-gray-500">{limitPerUserLabel}</span>
                   <span className="font-bold text-gray-900">{selectedVoucher.limitPerUser}</span>
                 </div>
 
@@ -1503,7 +1527,7 @@ const Vouchers = () => {
                         className="peer w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
                       >
                         {BENEFIT_TYPE_OPTIONS.map((option) => (
-                          <option key={option} value={option}>{option}</option>
+                          <option key={option.value} value={option.value}>{option.label}</option>
                         ))}
                       </select>
                     </div>
@@ -1563,6 +1587,7 @@ const Vouchers = () => {
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <label className="block font-bold text-gray-900 mb-1">Buy</label>
+                          <p className="text-[10px] text-gray-500 mb-1">Items the customer must buy first.</p>
                           <input
                             type="number"
                             min="1"
@@ -1572,7 +1597,8 @@ const Vouchers = () => {
                           />
                         </div>
                         <div>
-                          <label className="block font-bold text-gray-900 mb-1">Get</label>
+                          <label className="block font-bold text-gray-900 mb-1">Reward Qty</label>
+                          <p className="text-[10px] text-gray-500 mb-1">Free items given after the buy condition is met.</p>
                           <input
                             type="number"
                             min="1"
@@ -1584,7 +1610,8 @@ const Vouchers = () => {
                       </div>
                     ) : (
                       <div>
-                        <label className="block font-bold text-gray-900 mb-1">Get</label>
+                        <label className="block font-bold text-gray-900 mb-1">Reward Qty</label>
+                        <p className="text-[10px] text-gray-500 mb-1">How many items this voucher gives per use.</p>
                         <input
                           type="number"
                           min="1"
@@ -1618,7 +1645,7 @@ const Vouchers = () => {
                       <label className="block font-bold text-gray-900 mb-1">Discount Value</label>
                       <input
                         type="number"
-                        placeholder={newVoucher.benefitType === "Token Discount" ? "e.g. 10 (Tokens)" : newVoucher.benefitType === "Cash Voucher" ? "e.g. 5 (RM)" : "e.g. 20 (%)"}
+                        placeholder="e.g. 20"
                         value={newVoucher.discountValue}
                         onChange={(e) => handleDiscountChange(e, false)}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
@@ -1630,6 +1657,15 @@ const Vouchers = () => {
                     <div className="col-span-2">
                       <label className="block font-bold text-gray-900 mb-1">Applies To</label>
                       <div className="grid grid-cols-2 gap-2 rounded-lg border border-gray-200 p-3 mb-3">
+                        <label className="col-span-2 flex items-center gap-2 text-xs text-gray-700 font-semibold border-b border-gray-100 pb-2 mb-1">
+                          <input
+                            type="checkbox"
+                            checked={isAllValuesSelected(newVoucher.productKinds || [], menuTaxonomy.productKinds.map((option) => option.value))}
+                            onChange={() => setNewVoucher({ ...newVoucher, productKinds: toggleAllValues(newVoucher.productKinds || [], menuTaxonomy.productKinds.map((option) => option.value)) })}
+                            className="rounded text-[#2E5E58] focus:ring-[#2E5E58]"
+                          />
+                          All Items
+                        </label>
                         {menuTaxonomy.productKinds.map((option) => (
                           <label key={option.value} className="flex items-center gap-2 text-xs text-gray-700">
                             <input
@@ -1644,6 +1680,15 @@ const Vouchers = () => {
                       </div>
                       <label className="block font-bold text-gray-900 mb-1">Menu Types</label>
                       <div className="grid grid-cols-2 gap-2 rounded-lg border border-gray-200 p-3 mb-3 max-h-32 overflow-y-auto">
+                        <label className="col-span-2 flex items-center gap-2 text-xs text-gray-700 font-semibold border-b border-gray-100 pb-2 mb-1">
+                          <input
+                            type="checkbox"
+                            checked={isAllValuesSelected(newVoucher.subcategoryCodes || [], menuTaxonomy.subcategories.map((subcategory) => subcategory.code))}
+                            onChange={() => setNewVoucher({ ...newVoucher, subcategoryCodes: toggleAllValues(newVoucher.subcategoryCodes || [], menuTaxonomy.subcategories.map((subcategory) => subcategory.code)) })}
+                            className="rounded text-[#2E5E58] focus:ring-[#2E5E58]"
+                          />
+                          All Items
+                        </label>
                         {menuTaxonomy.subcategories.map((subcategory) => (
                           <label key={subcategory.id} className="flex items-center gap-2 text-xs text-gray-700">
                             <input
@@ -1658,6 +1703,7 @@ const Vouchers = () => {
                       </div>
                       <label className="block font-bold text-gray-900 mb-1">Specific Items</label>
                       <ScrollableCheckboxList
+                        hasFilters={(newVoucher.productKinds || []).length > 0 || (newVoucher.subcategoryCodes || []).length > 0}
                         groupedItems={buildScopedGroupedItems(menuTaxonomy, newVoucher.productKinds, newVoucher.subcategoryCodes)}
                         selected={newVoucher.eligibleItems}
                         onChange={(selected) => setNewVoucher({ ...newVoucher, eligibleItems: selected })}
@@ -1667,6 +1713,15 @@ const Vouchers = () => {
                         <>
                           <label className="block font-bold text-gray-900 mb-1 mt-4">Reward Applies To</label>
                           <div className="grid grid-cols-2 gap-2 rounded-lg border border-gray-200 p-3 mb-3">
+                            <label className="col-span-2 flex items-center gap-2 text-xs text-gray-700 font-semibold border-b border-gray-100 pb-2 mb-1">
+                              <input
+                                type="checkbox"
+                                checked={isAllValuesSelected(newVoucher.rewardProductKinds || [], menuTaxonomy.productKinds.map((option) => option.value))}
+                                onChange={() => setNewVoucher({ ...newVoucher, rewardProductKinds: toggleAllValues(newVoucher.rewardProductKinds || [], menuTaxonomy.productKinds.map((option) => option.value)) })}
+                                className="rounded text-[#2E5E58] focus:ring-[#2E5E58]"
+                              />
+                              All Items
+                            </label>
                             {menuTaxonomy.productKinds.map((option) => (
                               <label key={option.value} className="flex items-center gap-2 text-xs text-gray-700">
                                 <input
@@ -1680,6 +1735,15 @@ const Vouchers = () => {
                             ))}
                           </div>
                           <div className="grid grid-cols-2 gap-2 rounded-lg border border-gray-200 p-3 mb-3 max-h-32 overflow-y-auto">
+                            <label className="col-span-2 flex items-center gap-2 text-xs text-gray-700 font-semibold border-b border-gray-100 pb-2 mb-1">
+                              <input
+                                type="checkbox"
+                                checked={isAllValuesSelected(newVoucher.rewardSubcategoryCodes || [], menuTaxonomy.subcategories.map((subcategory) => subcategory.code))}
+                                onChange={() => setNewVoucher({ ...newVoucher, rewardSubcategoryCodes: toggleAllValues(newVoucher.rewardSubcategoryCodes || [], menuTaxonomy.subcategories.map((subcategory) => subcategory.code)) })}
+                                className="rounded text-[#2E5E58] focus:ring-[#2E5E58]"
+                              />
+                              All Items
+                            </label>
                             {menuTaxonomy.subcategories.map((subcategory) => (
                               <label key={subcategory.id} className="flex items-center gap-2 text-xs text-gray-700">
                                 <input
@@ -1693,6 +1757,7 @@ const Vouchers = () => {
                             ))}
                           </div>
                           <ScrollableCheckboxList
+                            hasFilters={(newVoucher.rewardProductKinds || []).length > 0 || (newVoucher.rewardSubcategoryCodes || []).length > 0}
                             groupedItems={buildScopedGroupedItems(menuTaxonomy, newVoucher.rewardProductKinds, newVoucher.rewardSubcategoryCodes)}
                             selected={newVoucher.rewardItems}
                             onChange={(selected) => setNewVoucher({ ...newVoucher, rewardItems: selected })}
@@ -1798,7 +1863,8 @@ const Vouchers = () => {
                     </div>
 
                     <div>
-                      <label className="block font-bold text-gray-900 mb-1">Limit Per User</label>
+                      <label className="block font-bold text-gray-900 mb-1">{limitPerUserLabel}</label>
+                      <p className="text-[10px] text-gray-500 mb-1">The same customer can use this voucher only this many times.</p>
                       <input
                         type="number"
                         min="1"
@@ -1889,7 +1955,7 @@ const Vouchers = () => {
                         className="peer w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
                       >
                         {BENEFIT_TYPE_OPTIONS.map((option) => (
-                          <option key={option} value={option}>{option}</option>
+                          <option key={option.value} value={option.value}>{option.label}</option>
                         ))}
                       </select>
                     </div>
@@ -1949,6 +2015,7 @@ const Vouchers = () => {
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <label className="block font-bold text-gray-900 mb-1">Buy</label>
+                          <p className="text-[10px] text-gray-500 mb-1">Items the customer must buy first.</p>
                           <input
                             type="number"
                             min="1"
@@ -1958,7 +2025,8 @@ const Vouchers = () => {
                           />
                         </div>
                         <div>
-                          <label className="block font-bold text-gray-900 mb-1">Get</label>
+                          <label className="block font-bold text-gray-900 mb-1">Reward Qty</label>
+                          <p className="text-[10px] text-gray-500 mb-1">Free items given after the buy condition is met.</p>
                           <input
                             type="number"
                             min="1"
@@ -1970,7 +2038,8 @@ const Vouchers = () => {
                       </div>
                     ) : (
                       <div>
-                        <label className="block font-bold text-gray-900 mb-1">Get</label>
+                        <label className="block font-bold text-gray-900 mb-1">Reward Qty</label>
+                        <p className="text-[10px] text-gray-500 mb-1">How many items this voucher gives per use.</p>
                         <input
                           type="number"
                           min="1"
@@ -2004,7 +2073,7 @@ const Vouchers = () => {
                       <label className="block font-bold text-gray-900 mb-1">Discount Value</label>
                       <input
                         type="number"
-                        placeholder={editingVoucher.benefitType === "Token Discount" ? "e.g. 10 (Tokens)" : editingVoucher.benefitType === "Cash Voucher" ? "e.g. 5 (RM)" : "e.g. 20 (%)"}
+                        placeholder="e.g. 20"
                         value={editingVoucher.discountValue || ""}
                         onChange={(e) => handleDiscountChange(e, true)}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
@@ -2016,6 +2085,15 @@ const Vouchers = () => {
                     <div className="col-span-2">
                       <label className="block font-bold text-gray-900 mb-1">Applies To</label>
                       <div className="grid grid-cols-2 gap-2 rounded-lg border border-gray-200 p-3 mb-3">
+                        <label className="col-span-2 flex items-center gap-2 text-xs text-gray-700 font-semibold border-b border-gray-100 pb-2 mb-1">
+                          <input
+                            type="checkbox"
+                            checked={isAllValuesSelected(editingVoucher.productKinds || [], menuTaxonomy.productKinds.map((option) => option.value))}
+                            onChange={() => setEditingVoucher({ ...editingVoucher, productKinds: toggleAllValues(editingVoucher.productKinds || [], menuTaxonomy.productKinds.map((option) => option.value)) })}
+                            className="rounded text-[#2E5E58] focus:ring-[#2E5E58]"
+                          />
+                          All Items
+                        </label>
                         {menuTaxonomy.productKinds.map((option) => (
                           <label key={option.value} className="flex items-center gap-2 text-xs text-gray-700">
                             <input
@@ -2030,6 +2108,15 @@ const Vouchers = () => {
                       </div>
                       <label className="block font-bold text-gray-900 mb-1">Menu Types</label>
                       <div className="grid grid-cols-2 gap-2 rounded-lg border border-gray-200 p-3 mb-3 max-h-32 overflow-y-auto">
+                        <label className="col-span-2 flex items-center gap-2 text-xs text-gray-700 font-semibold border-b border-gray-100 pb-2 mb-1">
+                          <input
+                            type="checkbox"
+                            checked={isAllValuesSelected(editingVoucher.subcategoryCodes || [], menuTaxonomy.subcategories.map((subcategory) => subcategory.code))}
+                            onChange={() => setEditingVoucher({ ...editingVoucher, subcategoryCodes: toggleAllValues(editingVoucher.subcategoryCodes || [], menuTaxonomy.subcategories.map((subcategory) => subcategory.code)) })}
+                            className="rounded text-[#2E5E58] focus:ring-[#2E5E58]"
+                          />
+                          All Items
+                        </label>
                         {menuTaxonomy.subcategories.map((subcategory) => (
                           <label key={subcategory.id} className="flex items-center gap-2 text-xs text-gray-700">
                             <input
@@ -2044,6 +2131,7 @@ const Vouchers = () => {
                       </div>
                       <label className="block font-bold text-gray-900 mb-1">Specific Items</label>
                       <ScrollableCheckboxList
+                        hasFilters={(editingVoucher.productKinds || []).length > 0 || (editingVoucher.subcategoryCodes || []).length > 0}
                         groupedItems={buildScopedGroupedItems(menuTaxonomy, editingVoucher.productKinds, editingVoucher.subcategoryCodes)}
                         selected={editingVoucher.eligibleItems || []}
                         onChange={(selected) => setEditingVoucher({ ...editingVoucher, eligibleItems: selected })}
@@ -2053,6 +2141,15 @@ const Vouchers = () => {
                         <>
                           <label className="block font-bold text-gray-900 mb-1 mt-4">Reward Applies To</label>
                           <div className="grid grid-cols-2 gap-2 rounded-lg border border-gray-200 p-3 mb-3">
+                            <label className="col-span-2 flex items-center gap-2 text-xs text-gray-700 font-semibold border-b border-gray-100 pb-2 mb-1">
+                              <input
+                                type="checkbox"
+                                checked={isAllValuesSelected(editingVoucher.rewardProductKinds || [], menuTaxonomy.productKinds.map((option) => option.value))}
+                                onChange={() => setEditingVoucher({ ...editingVoucher, rewardProductKinds: toggleAllValues(editingVoucher.rewardProductKinds || [], menuTaxonomy.productKinds.map((option) => option.value)) })}
+                                className="rounded text-[#2E5E58] focus:ring-[#2E5E58]"
+                              />
+                              All Items
+                            </label>
                             {menuTaxonomy.productKinds.map((option) => (
                               <label key={option.value} className="flex items-center gap-2 text-xs text-gray-700">
                                 <input
@@ -2066,6 +2163,15 @@ const Vouchers = () => {
                             ))}
                           </div>
                           <div className="grid grid-cols-2 gap-2 rounded-lg border border-gray-200 p-3 mb-3 max-h-32 overflow-y-auto">
+                            <label className="col-span-2 flex items-center gap-2 text-xs text-gray-700 font-semibold border-b border-gray-100 pb-2 mb-1">
+                              <input
+                                type="checkbox"
+                                checked={isAllValuesSelected(editingVoucher.rewardSubcategoryCodes || [], menuTaxonomy.subcategories.map((subcategory) => subcategory.code))}
+                                onChange={() => setEditingVoucher({ ...editingVoucher, rewardSubcategoryCodes: toggleAllValues(editingVoucher.rewardSubcategoryCodes || [], menuTaxonomy.subcategories.map((subcategory) => subcategory.code)) })}
+                                className="rounded text-[#2E5E58] focus:ring-[#2E5E58]"
+                              />
+                              All Items
+                            </label>
                             {menuTaxonomy.subcategories.map((subcategory) => (
                               <label key={subcategory.id} className="flex items-center gap-2 text-xs text-gray-700">
                                 <input
@@ -2079,6 +2185,7 @@ const Vouchers = () => {
                             ))}
                           </div>
                           <ScrollableCheckboxList
+                            hasFilters={(editingVoucher.rewardProductKinds || []).length > 0 || (editingVoucher.rewardSubcategoryCodes || []).length > 0}
                             groupedItems={buildScopedGroupedItems(menuTaxonomy, editingVoucher.rewardProductKinds, editingVoucher.rewardSubcategoryCodes)}
                             selected={editingVoucher.rewardItems || []}
                             onChange={(selected) => setEditingVoucher({ ...editingVoucher, rewardItems: selected })}
@@ -2184,7 +2291,8 @@ const Vouchers = () => {
                     </div>
 
                     <div>
-                      <label className="block font-bold text-gray-900 mb-1">Limit Per User</label>
+                      <label className="block font-bold text-gray-900 mb-1">{limitPerUserLabel}</label>
+                      <p className="text-[10px] text-gray-500 mb-1">The same customer can use this voucher only this many times.</p>
                       <input
                         type="number"
                         min="1"
