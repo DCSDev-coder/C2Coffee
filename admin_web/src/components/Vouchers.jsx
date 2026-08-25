@@ -408,6 +408,168 @@ const ScrollableCheckboxList = ({ groupedItems = {}, selected = [], hasFilters =
   );
 };
 
+const normalizeSelection = (values = []) =>
+  Array.from(new Set((Array.isArray(values) ? values : []).filter(Boolean)));
+
+const getScopedSubcategories = (menuTaxonomy, selectedProductKinds = []) => {
+  const productKinds = normalizeSelection(selectedProductKinds);
+  if (productKinds.length === 0) return [];
+
+  return (menuTaxonomy.subcategories || []).filter((subcategory) =>
+    productKinds.includes(subcategory.product_kind_code || '')
+  );
+};
+
+const getScopedItemGroups = (menuTaxonomy, selectedProductKinds = [], selectedSubcategoryCodes = []) => {
+  const productKinds = normalizeSelection(selectedProductKinds);
+  const subcategoryCodes = normalizeSelection(selectedSubcategoryCodes);
+
+  if (productKinds.length === 0 || subcategoryCodes.length === 0) {
+    return {};
+  }
+
+  return buildScopedGroupedItems(menuTaxonomy, productKinds, subcategoryCodes);
+};
+
+const pruneScopeSelections = (
+  menuTaxonomy,
+  selectedProductKinds = [],
+  selectedSubcategoryCodes = [],
+  selectedItems = []
+) => {
+  const scopedSubcategories = getScopedSubcategories(menuTaxonomy, selectedProductKinds);
+  const allowedSubcategoryCodes = new Set(scopedSubcategories.map((subcategory) => subcategory.code));
+  const scopedGroups = getScopedItemGroups(menuTaxonomy, selectedProductKinds, selectedSubcategoryCodes);
+  const allowedItems = new Set(Object.values(scopedGroups).flat());
+
+  return {
+    subcategoryCodes: normalizeSelection(selectedSubcategoryCodes).filter((code) => allowedSubcategoryCodes.has(code)),
+    items: normalizeSelection(selectedItems).filter((item) => allowedItems.has(item))
+  };
+};
+
+const ScopeSelectionSection = ({
+  appliesToLabel,
+  menuTypesLabel,
+  specificItemsLabel,
+  menuTaxonomy,
+  selectedProductKinds,
+  selectedSubcategoryCodes,
+  selectedItems,
+  onProductKindsChange,
+  onSubcategoryCodesChange,
+  onItemsChange
+}) => {
+  const productKindOptions = menuTaxonomy.productKinds || [];
+  const selectedKinds = normalizeSelection(selectedProductKinds);
+  const selectedSubcategories = normalizeSelection(selectedSubcategoryCodes);
+  const selectedScopeItems = normalizeSelection(selectedItems);
+  const availableSubcategories = getScopedSubcategories(menuTaxonomy, selectedKinds);
+  const availableSubcategoryCodes = availableSubcategories.map((subcategory) => subcategory.code);
+  const hasMenuTypeScope = selectedKinds.length > 0;
+  const hasSpecificItemScope = selectedSubcategories.length > 0;
+  const itemGroups = getScopedItemGroups(menuTaxonomy, selectedKinds, selectedSubcategories);
+
+  const updateProductKinds = (nextProductKinds) => {
+    const pruned = pruneScopeSelections(menuTaxonomy, nextProductKinds, [], selectedScopeItems);
+    onProductKindsChange(nextProductKinds);
+    onSubcategoryCodesChange(pruned.subcategoryCodes);
+    onItemsChange(pruned.items);
+  };
+
+  const updateSubcategoryCodes = (nextSubcategoryCodes) => {
+    const pruned = pruneScopeSelections(menuTaxonomy, selectedKinds, nextSubcategoryCodes, selectedScopeItems);
+    onSubcategoryCodesChange(pruned.subcategoryCodes);
+    onItemsChange(pruned.items);
+  };
+
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      <div className="col-span-2">
+        <label className="block font-bold text-gray-900 mb-1">{appliesToLabel}</label>
+        <div className="grid grid-cols-2 gap-2 rounded-lg border border-gray-200 p-3 mb-3">
+          <label className="col-span-2 flex items-center gap-2 text-xs text-gray-700 font-semibold border-b border-gray-100 pb-2 mb-1">
+            <input
+              type="checkbox"
+              checked={isAllValuesSelected(selectedKinds, productKindOptions.map((option) => option.value))}
+              onChange={() => updateProductKinds(toggleAllValues(selectedKinds, productKindOptions.map((option) => option.value)))}
+              className="rounded text-[#2E5E58] focus:ring-[#2E5E58]"
+            />
+            All Items
+          </label>
+          {productKindOptions.map((option) => (
+            <label key={option.value} className="flex items-center gap-2 text-xs text-gray-700">
+              <input
+                type="checkbox"
+                checked={selectedKinds.includes(option.value)}
+                onChange={() => updateProductKinds(toggleListValue(selectedKinds, option.value))}
+                className="rounded text-[#2E5E58] focus:ring-[#2E5E58]"
+              />
+              {option.label}
+            </label>
+          ))}
+        </div>
+      </div>
+
+      <div className="col-span-2">
+        <label className="block font-bold text-gray-900 mb-1">{menuTypesLabel}</label>
+        {!hasMenuTypeScope ? (
+          <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-3 py-3 text-[11px] text-gray-500">
+            Select Applies To to continue.
+          </div>
+        ) : availableSubcategories.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-3 py-3 text-[11px] text-gray-500">
+            No menu types match this selection.
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-2 rounded-lg border border-gray-200 p-3 mb-3 max-h-32 overflow-y-auto">
+            <label className="col-span-2 flex items-center gap-2 text-xs text-gray-700 font-semibold border-b border-gray-100 pb-2 mb-1">
+              <input
+                type="checkbox"
+                checked={isAllValuesSelected(selectedSubcategories, availableSubcategoryCodes)}
+                onChange={() => updateSubcategoryCodes(toggleAllValues(selectedSubcategories, availableSubcategoryCodes))}
+                className="rounded text-[#2E5E58] focus:ring-[#2E5E58]"
+              />
+              All Items
+            </label>
+            {availableSubcategories.map((subcategory) => (
+              <label key={subcategory.id} className="flex items-center gap-2 text-xs text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={selectedSubcategories.includes(subcategory.code)}
+                  onChange={() => updateSubcategoryCodes(toggleListValue(selectedSubcategories, subcategory.code))}
+                  className="rounded text-[#2E5E58] focus:ring-[#2E5E58]"
+                />
+                {subcategory.name}
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="col-span-2">
+        <label className="block font-bold text-gray-900 mb-1">{specificItemsLabel}</label>
+        {!hasMenuTypeScope ? (
+          <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-3 py-3 text-[11px] text-gray-500">
+            Select Applies To first.
+          </div>
+        ) : !hasSpecificItemScope ? (
+          <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-3 py-3 text-[11px] text-gray-500">
+            Select a menu type to show items.
+          </div>
+        ) : (
+          <ScrollableCheckboxList
+            hasFilters={selectedKinds.length > 0 || selectedSubcategories.length > 0}
+            groupedItems={itemGroups}
+            selected={selectedScopeItems}
+            onChange={onItemsChange}
+          />
+        )}
+      </div>
+    </div>
+  );
+};
+
 const Vouchers = () => {
   const [vouchers, setVouchers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -1504,7 +1666,7 @@ const Vouchers = () => {
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block font-bold text-gray-900 mb-1">Voucher Label</label>
+                      <label className="block font-bold text-gray-900 mb-1">Internal Label</label>
                       <input
                         list="voucher-type-labels"
                         value={newVoucher.type}
@@ -1563,7 +1725,7 @@ const Vouchers = () => {
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block font-bold text-gray-900 mb-1">Voucher Type</label>
+                      <label className="block font-bold text-gray-900 mb-1">Promotion Type</label>
                       <select
                         value={newVoucher.promotionKind}
                         onChange={(e) => setNewVoucher({
@@ -1586,8 +1748,8 @@ const Vouchers = () => {
                     {newVoucher.promotionKind === 'bundle' ? (
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <label className="block font-bold text-gray-900 mb-1">Buy</label>
-                          <p className="text-[10px] text-gray-500 mb-1">Items the customer must buy first.</p>
+                          <label className="block font-bold text-gray-900 mb-1">Buy Quantity</label>
+                          <p className="text-[10px] text-gray-500 mb-1">Quantity the customer must buy first.</p>
                           <input
                             type="number"
                             min="1"
@@ -1597,8 +1759,8 @@ const Vouchers = () => {
                           />
                         </div>
                         <div>
-                          <label className="block font-bold text-gray-900 mb-1">Reward Qty</label>
-                          <p className="text-[10px] text-gray-500 mb-1">Free items given after the buy condition is met.</p>
+                          <label className="block font-bold text-gray-900 mb-1">Reward Quantity</label>
+                          <p className="text-[10px] text-gray-500 mb-1">Free items granted after the buy condition is met.</p>
                           <input
                             type="number"
                             min="1"
@@ -1610,8 +1772,8 @@ const Vouchers = () => {
                       </div>
                     ) : (
                       <div>
-                        <label className="block font-bold text-gray-900 mb-1">Reward Qty</label>
-                        <p className="text-[10px] text-gray-500 mb-1">How many items this voucher gives per use.</p>
+                        <label className="block font-bold text-gray-900 mb-1">Reward Quantity</label>
+                        <p className="text-[10px] text-gray-500 mb-1">How many rewards this voucher gives per use.</p>
                         <input
                           type="number"
                           min="1"
@@ -1653,119 +1815,24 @@ const Vouchers = () => {
                     </div>
                   )}
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="col-span-2">
-                      <label className="block font-bold text-gray-900 mb-1">Applies To</label>
-                      <div className="grid grid-cols-2 gap-2 rounded-lg border border-gray-200 p-3 mb-3">
-                        <label className="col-span-2 flex items-center gap-2 text-xs text-gray-700 font-semibold border-b border-gray-100 pb-2 mb-1">
-                          <input
-                            type="checkbox"
-                            checked={isAllValuesSelected(newVoucher.productKinds || [], menuTaxonomy.productKinds.map((option) => option.value))}
-                            onChange={() => setNewVoucher({ ...newVoucher, productKinds: toggleAllValues(newVoucher.productKinds || [], menuTaxonomy.productKinds.map((option) => option.value)) })}
-                            className="rounded text-[#2E5E58] focus:ring-[#2E5E58]"
-                          />
-                          All Items
-                        </label>
-                        {menuTaxonomy.productKinds.map((option) => (
-                          <label key={option.value} className="flex items-center gap-2 text-xs text-gray-700">
-                            <input
-                              type="checkbox"
-                              checked={(newVoucher.productKinds || []).includes(option.value)}
-                              onChange={() => setNewVoucher({ ...newVoucher, productKinds: toggleListValue(newVoucher.productKinds || [], option.value) })}
-                              className="rounded text-[#2E5E58] focus:ring-[#2E5E58]"
-                            />
-                            {option.label}
-                          </label>
-                        ))}
-                      </div>
-                      <label className="block font-bold text-gray-900 mb-1">Menu Types</label>
-                      <div className="grid grid-cols-2 gap-2 rounded-lg border border-gray-200 p-3 mb-3 max-h-32 overflow-y-auto">
-                        <label className="col-span-2 flex items-center gap-2 text-xs text-gray-700 font-semibold border-b border-gray-100 pb-2 mb-1">
-                          <input
-                            type="checkbox"
-                            checked={isAllValuesSelected(newVoucher.subcategoryCodes || [], menuTaxonomy.subcategories.map((subcategory) => subcategory.code))}
-                            onChange={() => setNewVoucher({ ...newVoucher, subcategoryCodes: toggleAllValues(newVoucher.subcategoryCodes || [], menuTaxonomy.subcategories.map((subcategory) => subcategory.code)) })}
-                            className="rounded text-[#2E5E58] focus:ring-[#2E5E58]"
-                          />
-                          All Items
-                        </label>
-                        {menuTaxonomy.subcategories.map((subcategory) => (
-                          <label key={subcategory.id} className="flex items-center gap-2 text-xs text-gray-700">
-                            <input
-                              type="checkbox"
-                              checked={(newVoucher.subcategoryCodes || []).includes(subcategory.code)}
-                              onChange={() => setNewVoucher({ ...newVoucher, subcategoryCodes: toggleListValue(newVoucher.subcategoryCodes || [], subcategory.code) })}
-                              className="rounded text-[#2E5E58] focus:ring-[#2E5E58]"
-                            />
-                            {subcategory.name}
-                          </label>
-                        ))}
-                      </div>
-                      <label className="block font-bold text-gray-900 mb-1">Specific Items</label>
-                      <ScrollableCheckboxList
-                        hasFilters={(newVoucher.productKinds || []).length > 0 || (newVoucher.subcategoryCodes || []).length > 0}
-                        groupedItems={buildScopedGroupedItems(menuTaxonomy, newVoucher.productKinds, newVoucher.subcategoryCodes)}
-                        selected={newVoucher.eligibleItems}
-                        onChange={(selected) => setNewVoucher({ ...newVoucher, eligibleItems: selected })}
-                      />
-
-                      {newVoucher.promotionKind === 'bundle' && (
-                        <>
-                          <label className="block font-bold text-gray-900 mb-1 mt-4">Reward Applies To</label>
-                          <div className="grid grid-cols-2 gap-2 rounded-lg border border-gray-200 p-3 mb-3">
-                            <label className="col-span-2 flex items-center gap-2 text-xs text-gray-700 font-semibold border-b border-gray-100 pb-2 mb-1">
-                              <input
-                                type="checkbox"
-                                checked={isAllValuesSelected(newVoucher.rewardProductKinds || [], menuTaxonomy.productKinds.map((option) => option.value))}
-                                onChange={() => setNewVoucher({ ...newVoucher, rewardProductKinds: toggleAllValues(newVoucher.rewardProductKinds || [], menuTaxonomy.productKinds.map((option) => option.value)) })}
-                                className="rounded text-[#2E5E58] focus:ring-[#2E5E58]"
-                              />
-                              All Items
-                            </label>
-                            {menuTaxonomy.productKinds.map((option) => (
-                              <label key={option.value} className="flex items-center gap-2 text-xs text-gray-700">
-                                <input
-                                  type="checkbox"
-                                  checked={(newVoucher.rewardProductKinds || []).includes(option.value)}
-                                  onChange={() => setNewVoucher({ ...newVoucher, rewardProductKinds: toggleListValue(newVoucher.rewardProductKinds || [], option.value) })}
-                                  className="rounded text-[#2E5E58] focus:ring-[#2E5E58]"
-                                />
-                                {option.label}
-                              </label>
-                            ))}
-                          </div>
-                          <div className="grid grid-cols-2 gap-2 rounded-lg border border-gray-200 p-3 mb-3 max-h-32 overflow-y-auto">
-                            <label className="col-span-2 flex items-center gap-2 text-xs text-gray-700 font-semibold border-b border-gray-100 pb-2 mb-1">
-                              <input
-                                type="checkbox"
-                                checked={isAllValuesSelected(newVoucher.rewardSubcategoryCodes || [], menuTaxonomy.subcategories.map((subcategory) => subcategory.code))}
-                                onChange={() => setNewVoucher({ ...newVoucher, rewardSubcategoryCodes: toggleAllValues(newVoucher.rewardSubcategoryCodes || [], menuTaxonomy.subcategories.map((subcategory) => subcategory.code)) })}
-                                className="rounded text-[#2E5E58] focus:ring-[#2E5E58]"
-                              />
-                              All Items
-                            </label>
-                            {menuTaxonomy.subcategories.map((subcategory) => (
-                              <label key={subcategory.id} className="flex items-center gap-2 text-xs text-gray-700">
-                                <input
-                                  type="checkbox"
-                                  checked={(newVoucher.rewardSubcategoryCodes || []).includes(subcategory.code)}
-                                  onChange={() => setNewVoucher({ ...newVoucher, rewardSubcategoryCodes: toggleListValue(newVoucher.rewardSubcategoryCodes || [], subcategory.code) })}
-                                  className="rounded text-[#2E5E58] focus:ring-[#2E5E58]"
-                                />
-                                {subcategory.name}
-                              </label>
-                            ))}
-                          </div>
-                          <ScrollableCheckboxList
-                            hasFilters={(newVoucher.rewardProductKinds || []).length > 0 || (newVoucher.rewardSubcategoryCodes || []).length > 0}
-                            groupedItems={buildScopedGroupedItems(menuTaxonomy, newVoucher.rewardProductKinds, newVoucher.rewardSubcategoryCodes)}
-                            selected={newVoucher.rewardItems}
-                            onChange={(selected) => setNewVoucher({ ...newVoucher, rewardItems: selected })}
-                          />
-                        </>
-                      )}
-                    </div>
-                  </div>
+                  <ScopeSelectionSection
+                    appliesToLabel="Applies To"
+                    menuTypesLabel="Menu Types"
+                    specificItemsLabel="Specific Items"
+                    menuTaxonomy={menuTaxonomy}
+                    selectedProductKinds={newVoucher.productKinds || []}
+                    selectedSubcategoryCodes={newVoucher.subcategoryCodes || []}
+                    selectedItems={newVoucher.eligibleItems || []}
+                    onProductKindsChange={(productKinds) =>
+                      setNewVoucher((current) => ({ ...current, productKinds }))
+                    }
+                    onSubcategoryCodesChange={(subcategoryCodes) =>
+                      setNewVoucher((current) => ({ ...current, subcategoryCodes }))
+                    }
+                    onItemsChange={(eligibleItems) =>
+                      setNewVoucher((current) => ({ ...current, eligibleItems }))
+                    }
+                  />
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
@@ -1938,7 +2005,7 @@ const Vouchers = () => {
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block font-bold text-gray-900 mb-1">Voucher Label</label>
+                      <label className="block font-bold text-gray-900 mb-1">Internal Label</label>
                       <input
                         list="voucher-type-labels"
                         value={editingVoucher.type}
@@ -1991,7 +2058,7 @@ const Vouchers = () => {
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block font-bold text-gray-900 mb-1">Voucher Type</label>
+                      <label className="block font-bold text-gray-900 mb-1">Promotion Type</label>
                       <select
                         value={editingVoucher.promotionKind}
                         onChange={(e) => setEditingVoucher({
@@ -2014,8 +2081,8 @@ const Vouchers = () => {
                     {editingVoucher.promotionKind === 'bundle' ? (
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <label className="block font-bold text-gray-900 mb-1">Buy</label>
-                          <p className="text-[10px] text-gray-500 mb-1">Items the customer must buy first.</p>
+                          <label className="block font-bold text-gray-900 mb-1">Buy Quantity</label>
+                          <p className="text-[10px] text-gray-500 mb-1">Quantity the customer must buy first.</p>
                           <input
                             type="number"
                             min="1"
@@ -2025,8 +2092,8 @@ const Vouchers = () => {
                           />
                         </div>
                         <div>
-                          <label className="block font-bold text-gray-900 mb-1">Reward Qty</label>
-                          <p className="text-[10px] text-gray-500 mb-1">Free items given after the buy condition is met.</p>
+                          <label className="block font-bold text-gray-900 mb-1">Reward Quantity</label>
+                          <p className="text-[10px] text-gray-500 mb-1">Free items granted after the buy condition is met.</p>
                           <input
                             type="number"
                             min="1"
@@ -2038,8 +2105,8 @@ const Vouchers = () => {
                       </div>
                     ) : (
                       <div>
-                        <label className="block font-bold text-gray-900 mb-1">Reward Qty</label>
-                        <p className="text-[10px] text-gray-500 mb-1">How many items this voucher gives per use.</p>
+                        <label className="block font-bold text-gray-900 mb-1">Reward Quantity</label>
+                        <p className="text-[10px] text-gray-500 mb-1">How many rewards this voucher gives per use.</p>
                         <input
                           type="number"
                           min="1"
@@ -2081,119 +2148,45 @@ const Vouchers = () => {
                     </div>
                   )}
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="col-span-2">
-                      <label className="block font-bold text-gray-900 mb-1">Applies To</label>
-                      <div className="grid grid-cols-2 gap-2 rounded-lg border border-gray-200 p-3 mb-3">
-                        <label className="col-span-2 flex items-center gap-2 text-xs text-gray-700 font-semibold border-b border-gray-100 pb-2 mb-1">
-                          <input
-                            type="checkbox"
-                            checked={isAllValuesSelected(editingVoucher.productKinds || [], menuTaxonomy.productKinds.map((option) => option.value))}
-                            onChange={() => setEditingVoucher({ ...editingVoucher, productKinds: toggleAllValues(editingVoucher.productKinds || [], menuTaxonomy.productKinds.map((option) => option.value)) })}
-                            className="rounded text-[#2E5E58] focus:ring-[#2E5E58]"
-                          />
-                          All Items
-                        </label>
-                        {menuTaxonomy.productKinds.map((option) => (
-                          <label key={option.value} className="flex items-center gap-2 text-xs text-gray-700">
-                            <input
-                              type="checkbox"
-                              checked={(editingVoucher.productKinds || []).includes(option.value)}
-                              onChange={() => setEditingVoucher({ ...editingVoucher, productKinds: toggleListValue(editingVoucher.productKinds || [], option.value) })}
-                              className="rounded text-[#2E5E58] focus:ring-[#2E5E58]"
-                            />
-                            {option.label}
-                          </label>
-                        ))}
-                      </div>
-                      <label className="block font-bold text-gray-900 mb-1">Menu Types</label>
-                      <div className="grid grid-cols-2 gap-2 rounded-lg border border-gray-200 p-3 mb-3 max-h-32 overflow-y-auto">
-                        <label className="col-span-2 flex items-center gap-2 text-xs text-gray-700 font-semibold border-b border-gray-100 pb-2 mb-1">
-                          <input
-                            type="checkbox"
-                            checked={isAllValuesSelected(editingVoucher.subcategoryCodes || [], menuTaxonomy.subcategories.map((subcategory) => subcategory.code))}
-                            onChange={() => setEditingVoucher({ ...editingVoucher, subcategoryCodes: toggleAllValues(editingVoucher.subcategoryCodes || [], menuTaxonomy.subcategories.map((subcategory) => subcategory.code)) })}
-                            className="rounded text-[#2E5E58] focus:ring-[#2E5E58]"
-                          />
-                          All Items
-                        </label>
-                        {menuTaxonomy.subcategories.map((subcategory) => (
-                          <label key={subcategory.id} className="flex items-center gap-2 text-xs text-gray-700">
-                            <input
-                              type="checkbox"
-                              checked={(editingVoucher.subcategoryCodes || []).includes(subcategory.code)}
-                              onChange={() => setEditingVoucher({ ...editingVoucher, subcategoryCodes: toggleListValue(editingVoucher.subcategoryCodes || [], subcategory.code) })}
-                              className="rounded text-[#2E5E58] focus:ring-[#2E5E58]"
-                            />
-                            {subcategory.name}
-                          </label>
-                        ))}
-                      </div>
-                      <label className="block font-bold text-gray-900 mb-1">Specific Items</label>
-                      <ScrollableCheckboxList
-                        hasFilters={(editingVoucher.productKinds || []).length > 0 || (editingVoucher.subcategoryCodes || []).length > 0}
-                        groupedItems={buildScopedGroupedItems(menuTaxonomy, editingVoucher.productKinds, editingVoucher.subcategoryCodes)}
-                        selected={editingVoucher.eligibleItems || []}
-                        onChange={(selected) => setEditingVoucher({ ...editingVoucher, eligibleItems: selected })}
-                      />
+                  <ScopeSelectionSection
+                    appliesToLabel="Applies To"
+                    menuTypesLabel="Menu Types"
+                    specificItemsLabel="Specific Items"
+                    menuTaxonomy={menuTaxonomy}
+                    selectedProductKinds={editingVoucher.productKinds || []}
+                    selectedSubcategoryCodes={editingVoucher.subcategoryCodes || []}
+                    selectedItems={editingVoucher.eligibleItems || []}
+                    onProductKindsChange={(productKinds) =>
+                      setEditingVoucher((current) => ({ ...current, productKinds }))
+                    }
+                    onSubcategoryCodesChange={(subcategoryCodes) =>
+                      setEditingVoucher((current) => ({ ...current, subcategoryCodes }))
+                    }
+                    onItemsChange={(eligibleItems) =>
+                      setEditingVoucher((current) => ({ ...current, eligibleItems }))
+                    }
+                  />
 
-                      {editingVoucher.promotionKind === 'bundle' && (
-                        <>
-                          <label className="block font-bold text-gray-900 mb-1 mt-4">Reward Applies To</label>
-                          <div className="grid grid-cols-2 gap-2 rounded-lg border border-gray-200 p-3 mb-3">
-                            <label className="col-span-2 flex items-center gap-2 text-xs text-gray-700 font-semibold border-b border-gray-100 pb-2 mb-1">
-                              <input
-                                type="checkbox"
-                                checked={isAllValuesSelected(editingVoucher.rewardProductKinds || [], menuTaxonomy.productKinds.map((option) => option.value))}
-                                onChange={() => setEditingVoucher({ ...editingVoucher, rewardProductKinds: toggleAllValues(editingVoucher.rewardProductKinds || [], menuTaxonomy.productKinds.map((option) => option.value)) })}
-                                className="rounded text-[#2E5E58] focus:ring-[#2E5E58]"
-                              />
-                              All Items
-                            </label>
-                            {menuTaxonomy.productKinds.map((option) => (
-                              <label key={option.value} className="flex items-center gap-2 text-xs text-gray-700">
-                                <input
-                                  type="checkbox"
-                                  checked={(editingVoucher.rewardProductKinds || []).includes(option.value)}
-                                  onChange={() => setEditingVoucher({ ...editingVoucher, rewardProductKinds: toggleListValue(editingVoucher.rewardProductKinds || [], option.value) })}
-                                  className="rounded text-[#2E5E58] focus:ring-[#2E5E58]"
-                                />
-                                {option.label}
-                              </label>
-                            ))}
-                          </div>
-                          <div className="grid grid-cols-2 gap-2 rounded-lg border border-gray-200 p-3 mb-3 max-h-32 overflow-y-auto">
-                            <label className="col-span-2 flex items-center gap-2 text-xs text-gray-700 font-semibold border-b border-gray-100 pb-2 mb-1">
-                              <input
-                                type="checkbox"
-                                checked={isAllValuesSelected(editingVoucher.rewardSubcategoryCodes || [], menuTaxonomy.subcategories.map((subcategory) => subcategory.code))}
-                                onChange={() => setEditingVoucher({ ...editingVoucher, rewardSubcategoryCodes: toggleAllValues(editingVoucher.rewardSubcategoryCodes || [], menuTaxonomy.subcategories.map((subcategory) => subcategory.code)) })}
-                                className="rounded text-[#2E5E58] focus:ring-[#2E5E58]"
-                              />
-                              All Items
-                            </label>
-                            {menuTaxonomy.subcategories.map((subcategory) => (
-                              <label key={subcategory.id} className="flex items-center gap-2 text-xs text-gray-700">
-                                <input
-                                  type="checkbox"
-                                  checked={(editingVoucher.rewardSubcategoryCodes || []).includes(subcategory.code)}
-                                  onChange={() => setEditingVoucher({ ...editingVoucher, rewardSubcategoryCodes: toggleListValue(editingVoucher.rewardSubcategoryCodes || [], subcategory.code) })}
-                                  className="rounded text-[#2E5E58] focus:ring-[#2E5E58]"
-                                />
-                                {subcategory.name}
-                              </label>
-                            ))}
-                          </div>
-                          <ScrollableCheckboxList
-                            hasFilters={(editingVoucher.rewardProductKinds || []).length > 0 || (editingVoucher.rewardSubcategoryCodes || []).length > 0}
-                            groupedItems={buildScopedGroupedItems(menuTaxonomy, editingVoucher.rewardProductKinds, editingVoucher.rewardSubcategoryCodes)}
-                            selected={editingVoucher.rewardItems || []}
-                            onChange={(selected) => setEditingVoucher({ ...editingVoucher, rewardItems: selected })}
-                          />
-                        </>
-                      )}
-                    </div>
-                  </div>
+                  {editingVoucher.promotionKind === 'bundle' && (
+                    <ScopeSelectionSection
+                      appliesToLabel="Reward Applies To"
+                      menuTypesLabel="Reward Menu Types"
+                      specificItemsLabel="Reward Specific Items"
+                      menuTaxonomy={menuTaxonomy}
+                      selectedProductKinds={editingVoucher.rewardProductKinds || []}
+                      selectedSubcategoryCodes={editingVoucher.rewardSubcategoryCodes || []}
+                      selectedItems={editingVoucher.rewardItems || []}
+                      onProductKindsChange={(rewardProductKinds) =>
+                        setEditingVoucher((current) => ({ ...current, rewardProductKinds }))
+                      }
+                      onSubcategoryCodesChange={(rewardSubcategoryCodes) =>
+                        setEditingVoucher((current) => ({ ...current, rewardSubcategoryCodes }))
+                      }
+                      onItemsChange={(rewardItems) =>
+                        setEditingVoucher((current) => ({ ...current, rewardItems }))
+                      }
+                    />
+                  )}
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>

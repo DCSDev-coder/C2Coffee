@@ -87,7 +87,19 @@ class _OrdersPageState extends State<OrdersPage>
     // No-op: this page updates from explicit order refreshes only.
   }
 
-  CustomerOrder? get _displayActiveOrder => _activeOrder;
+  List<CustomerOrder> get _displayActiveOrders {
+    final activeOrders =
+        _orders.where((order) => order.isActive).toList(growable: true);
+    activeOrders.sort((a, b) {
+      final createdComparison = a.createdAt.compareTo(b.createdAt);
+      if (createdComparison != 0) {
+        return createdComparison;
+      }
+
+      return a.id.compareTo(b.id);
+    });
+    return activeOrders;
+  }
 
   List<CustomerOrder> get _displayHistoryOrders {
     final backendHistoryOrders =
@@ -141,7 +153,9 @@ class _OrdersPageState extends State<OrdersPage>
         limit: 100,
       );
 
-      _session.syncBackendOrderState(snapshot.activeOrder);
+      _session.syncBackendOrderState(
+        snapshot.orders.where((order) => order.isActive).toList(),
+      );
       if (!mounted) return;
       setState(() {
         _activeOrder = snapshot.activeOrder;
@@ -297,13 +311,26 @@ class _OrdersPageState extends State<OrdersPage>
       );
     }
 
-    final activeOrder = _displayActiveOrder;
-    if (activeOrder != null) {
+    final activeOrders = _displayActiveOrders;
+    if (activeOrders.isNotEmpty) {
       return ListView(
         padding:
             const EdgeInsets.only(left: 16, right: 16, top: 20, bottom: 120),
         children: [
-          _buildOrderCard(activeOrder, isActive: true),
+          Text(
+            '${activeOrders.length} active order${activeOrders.length == 1 ? '' : 's'}',
+            style: TextStyle(
+              fontFamily: 'Afacad',
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: AppColors.deepTeal,
+            ),
+          ),
+          const SizedBox(height: 12),
+          for (var i = 0; i < activeOrders.length; i++) ...[
+            if (i > 0) const SizedBox(height: 12),
+            _buildOrderCard(activeOrders[i], isActive: true),
+          ],
         ],
       );
     }
@@ -372,6 +399,9 @@ class _OrdersPageState extends State<OrdersPage>
         order.dailyOrderNumber > 0 ? order.dailyOrderNumber : order.id;
     final orderTitle = 'Order #$orderNumber';
     final showCollectedAction = isActive && order.status == 'ready_for_pickup';
+    final progressValue = _progressForStatus(order.status);
+    final progressLabel = _formatStatus(order.status);
+    final progressColor = _progressColor(order.status);
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -490,10 +520,46 @@ class _OrdersPageState extends State<OrdersPage>
                       fontSize: 14,
                       color: Colors.black87,
                     ),
+              ),
+              ),
+            ),
+          const SizedBox(height: 12),
+          if (isActive) ...[
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Progress',
+                  style: TextStyle(
+                    fontFamily: 'Afacad',
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.deepTeal,
                   ),
                 ),
+                Text(
+                  progressLabel,
+                  style: TextStyle(
+                    fontFamily: 'Afacad',
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: progressColor,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: LinearProgressIndicator(
+                value: progressValue,
+                minHeight: 8,
+                backgroundColor: Colors.grey.shade200,
+                valueColor: AlwaysStoppedAnimation<Color>(progressColor),
               ),
-          const SizedBox(height: 12),
+            ),
+            const SizedBox(height: 12),
+          ],
           if (isActive)
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -780,6 +846,34 @@ class _OrdersPageState extends State<OrdersPage>
                 ? part
                 : '${part[0].toUpperCase()}${part.substring(1)}')
             .join(' ');
+    }
+  }
+
+  double _progressForStatus(String status) {
+    switch (status) {
+      case 'pending_payment':
+        return 0.20;
+      case 'paid':
+        return 0.40;
+      case 'accepted':
+        return 0.60;
+      case 'preparing':
+        return 0.78;
+      case 'ready_for_pickup':
+      case 'collected':
+        return 1.0;
+      default:
+        return 0.10;
+    }
+  }
+
+  Color _progressColor(String status) {
+    switch (status) {
+      case 'ready_for_pickup':
+      case 'collected':
+        return AppColors.gold;
+      default:
+        return AppColors.deepTeal;
     }
   }
 

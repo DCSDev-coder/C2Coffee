@@ -987,9 +987,11 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
     } else if (payload.benefitType === 'Discount' || payload.benefitType === 'Percentage Off') {
       discountMode = 'percent_rm';
       discountValue = Number(payload.discountValue) || 0;
+      voucherType = 'campaign_token_equivalent';
     } else if (payload.benefitType === 'Cash Voucher') {
       discountMode = 'fixed_rm';
       discountValue = Number(payload.discountValue) || 0;
+      voucherType = 'campaign_token_equivalent';
     } else if (payload.benefitType === 'Token Discount') {
       discountMode = 'fixed_token';
       voucherType = 'campaign_token_equivalent';
@@ -1072,9 +1074,11 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
     } else if (payload.benefitType === 'Discount' || payload.benefitType === 'Percentage Off') {
       discountMode = 'percent_rm';
       discountValue = Number(payload.discountValue) || 0;
+      voucherType = 'campaign_token_equivalent';
     } else if (payload.benefitType === 'Cash Voucher') {
       discountMode = 'fixed_rm';
       discountValue = Number(payload.discountValue) || 0;
+      voucherType = 'campaign_token_equivalent';
     } else if (payload.benefitType === 'Token Discount') {
       discountMode = 'fixed_token';
       voucherType = 'campaign_token_equivalent';

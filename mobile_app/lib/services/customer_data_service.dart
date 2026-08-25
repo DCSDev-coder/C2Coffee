@@ -102,7 +102,7 @@ class RewardVoucherTemplate {
     );
   }
 
-  String get displayLabel => typeLabel.trim().isNotEmpty ? typeLabel : name;
+  String get displayLabel => name.trim().isNotEmpty ? name : typeLabel;
 
   String get benefitLabel {
     if (benefitType.trim().isNotEmpty) {
@@ -190,11 +190,15 @@ class RewardVoucherTemplate {
       _stringListFromScope(eligibleScope, ['item_codes', 'items']);
 
   bool get isTokenCheckoutCompatible {
-    if (voucherType == 'campaign_direct_pay') {
-      return false;
+    switch (discountMode) {
+      case 'fixed_rm':
+      case 'percent_rm':
+      case 'fixed_token':
+      case 'free_drink':
+        return true;
+      default:
+        return false;
     }
-
-    return true;
   }
 
   bool get isAvailableNow {

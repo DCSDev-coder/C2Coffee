@@ -532,17 +532,6 @@ export async function registerCheckoutRoutes(
           );
         }
 
-        if (
-          isTokenCheckout &&
-          appliedVoucher.voucher_type === 'campaign_direct_pay'
-        ) {
-          throw new ApiError(
-            400,
-            'voucher_not_supported_for_token_checkout',
-            'Selected voucher cannot be used right now.'
-          );
-        }
-
         const qualifyingUnits = _collectMatchedUnits(promotionRule.qualifying_scope, normalizedItems);
         const rewardUnits = _collectMatchedUnits(promotionRule.reward_scope, normalizedItems);
 

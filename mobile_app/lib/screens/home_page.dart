@@ -296,7 +296,8 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
               OrderStatusBanner(
-                rightOffset: 90,
+                leftOffset: 16,
+                rightOffset: 16,
                 bottomOffset: 90 + MediaQuery.paddingOf(context).bottom,
               ),
             ],

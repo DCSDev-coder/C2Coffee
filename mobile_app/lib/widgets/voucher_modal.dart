@@ -158,7 +158,7 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Apply Voucher',
+                      'Select Voucher',
                       style: TextStyle(
                         fontFamily: 'Recoleta',
                         fontSize: 18,
@@ -167,7 +167,7 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
                       ),
                     ),
                     const Text(
-                      'Only vouchers that match this order can be applied here.',
+                      'Only eligible vouchers for this order are shown here.',
                       style: TextStyle(
                         fontFamily: 'Afacad',
                         fontSize: 13,
@@ -249,9 +249,9 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
             const SizedBox(height: 14),
             if (nonTokenCheckoutVouchers.isNotEmpty) ...[
               _buildVoucherSection(
-                title: 'Other rewards',
+                title: 'Rewards history',
                 subtitle:
-                    'Visible in rewards history, not selectable at checkout.',
+                    'Shown in rewards history and unavailable at checkout.',
                 vouchers: nonTokenCheckoutVouchers,
                 enabled: false,
               ),
@@ -302,7 +302,7 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
             const SizedBox(height: 12),
           ],
           _buildVoucherSection(
-            title: 'Ready to use',
+            title: 'Available now',
             subtitle: 'These vouchers can be applied to the current order.',
             vouchers: tokenCheckoutVouchers,
             enabled: true,
@@ -310,9 +310,9 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
           if (nonTokenCheckoutVouchers.isNotEmpty) ...[
             const SizedBox(height: 14),
             _buildVoucherSection(
-              title: 'Other rewards',
+              title: 'Rewards history',
               subtitle:
-                  'Visible in rewards history, not selectable at checkout.',
+                  'Shown in rewards history and unavailable at checkout.',
               vouchers: nonTokenCheckoutVouchers,
               enabled: false,
             ),
@@ -466,7 +466,7 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Available: ${voucher.template.availabilityLabel}',
+                  'Availability: ${voucher.template.availabilityLabel}',
                   style: const TextStyle(
                     fontFamily: 'Afacad',
                     fontSize: 11,

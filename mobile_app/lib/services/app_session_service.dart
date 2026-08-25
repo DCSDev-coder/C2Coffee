@@ -66,8 +66,19 @@ class AppSessionService extends ChangeNotifier {
     notifyListeners();
   }
 
-  void syncBackendOrderState(CustomerOrder? activeOrder) {
-    if (activeOrder == null) {
+  void syncBackendOrderState(List<CustomerOrder> activeOrders) {
+    final normalizedActiveOrders = List<CustomerOrder>.from(activeOrders)
+      ..sort((a, b) {
+        final createdComparison = a.createdAt.compareTo(b.createdAt);
+        if (createdComparison != 0) {
+          return createdComparison;
+        }
+        return a.id.compareTo(b.id);
+      });
+
+    globalActiveOrders.value = normalizedActiveOrders;
+
+    if (normalizedActiveOrders.isEmpty) {
       globalOrderStatusRawStatus.value = null;
       globalOrderStatusVisible.value = false;
       stopActiveOrderPolling();
@@ -75,13 +86,9 @@ class AppSessionService extends ChangeNotifier {
       return;
     }
 
-    globalOrderStatusRawStatus.value = activeOrder.status;
-    globalOrderStatusVisible.value = activeOrder.isActive;
-    if (activeOrder.isActive) {
-      startActiveOrderPolling();
-    } else {
-      stopActiveOrderPolling();
-    }
+    globalOrderStatusRawStatus.value = normalizedActiveOrders.first.status;
+    globalOrderStatusVisible.value = true;
+    startActiveOrderPolling();
     notifyListeners();
   }
 
@@ -105,27 +112,12 @@ class AppSessionService extends ChangeNotifier {
 
       final snapshot = await CustomerDataService.instance.getOrders(
         accessToken: accessToken,
-        limit: 5,
+        limit: 20,
       );
 
-      final activeOrder = snapshot.activeOrder;
-      if (activeOrder != null && activeOrder.isActive) {
-        if (globalOrderStatusRawStatus.value != activeOrder.status) {
-          globalOrderStatusRawStatus.value = activeOrder.status;
-          notifyListeners();
-        }
-        if (!globalOrderStatusVisible.value) {
-          globalOrderStatusVisible.value = true;
-          notifyListeners();
-        }
-      } else {
-        if (globalOrderStatusVisible.value) {
-          globalOrderStatusVisible.value = false;
-          globalOrderStatusRawStatus.value = null;
-          stopActiveOrderPolling();
-          notifyListeners();
-        }
-      }
+      final activeOrders =
+          snapshot.orders.where((order) => order.isActive).toList();
+      syncBackendOrderState(activeOrders);
     } catch (_) {
       // Ignore background poll errors silently
     }
@@ -258,6 +250,7 @@ class AppSessionService extends ChangeNotifier {
   void clear() {
     globalOrderStatusRawStatus.value = null;
     globalOrderStatusVisible.value = false;
+    globalActiveOrders.value = const [];
     _user = null;
     _tokenBalance = 0;
     _tokenReserved = 0;
