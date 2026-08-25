@@ -141,8 +141,11 @@ class _RewardsPageState extends State<RewardsPage> {
         });
       },
       title: 'C2 COFFEE SQUAD',
-      titleWidget: Column(
-        children: [
+      titleWidget: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
           const Text(
             'C2 COFFEE SQUAD',
             style: TextStyle(
@@ -155,15 +158,17 @@ class _RewardsPageState extends State<RewardsPage> {
           ),
           const SizedBox(height: 2),
           Text(
-            'current tier ${_tierLabel(_tierToIndex(_session.tier))}',
+            _tierLabel(_tierToIndex(_session.tier)).toUpperCase(),
             style: const TextStyle(
               fontFamily: 'Afacad',
-              fontSize: 12,
-              color: Colors.white70,
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+              letterSpacing: 1.2,
             ),
           ),
         ],
-      ),
+      )),
       onBack: () {}, showBackButton: false,
       backgroundColor: beigeBg,
       scrollController: _scrollController,
