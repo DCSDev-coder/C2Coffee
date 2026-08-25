@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../widgets/order_card.dart'; // To reuse OrderItem if needed
+import '../widgets/order_card.dart';
+import '../widgets/active_barista_profile.dart'; // To reuse OrderItem if needed
 import 'pickup_ready_page.dart';
 
 class OrderDetailsPage extends StatelessWidget {
@@ -7,6 +8,7 @@ class OrderDetailsPage extends StatelessWidget {
   final String customerDetails;
   final List<OrderItem> items;
   final bool isHistory;
+  final VoidCallback? onSettingsTap;
 
   const OrderDetailsPage({
     super.key,
@@ -14,6 +16,7 @@ class OrderDetailsPage extends StatelessWidget {
     required this.customerDetails,
     required this.items,
     this.isHistory = false,
+    this.onSettingsTap,
   });
 
   @override
@@ -78,6 +81,14 @@ class OrderDetailsPage extends StatelessWidget {
                           ),
                         ],
                       ),
+                    ),
+                    ActiveBaristaProfile(
+                      onTap: () {
+                        if (onSettingsTap != null) {
+                          Navigator.of(context).popUntil((route) => route.isFirst);
+                          onSettingsTap!();
+                        }
+                      },
                     ),
                   ],
                 ),
@@ -212,6 +223,7 @@ class OrderDetailsPage extends StatelessWidget {
                                     orderId: orderId,
                                     customerDetails: customerDetails,
                                     items: items,
+                                    onSettingsTap: onSettingsTap,
                                   ),
                                   transitionsBuilder: (context, animation, secondaryAnimation, child) {
                                     const begin = Offset(1.0, 0.0);

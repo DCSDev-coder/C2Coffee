@@ -65,8 +65,12 @@ class _MainLayoutState extends State<MainLayout> {
               });
             },
             children: [
-              const HistoryPage(),
-              const CurrentOrderPage(),
+              HistoryPage(
+                onSettingsTap: () => _onTabSelected(2),
+              ),
+              CurrentOrderPage(
+                onSettingsTap: () => _onTabSelected(2),
+              ),
               const SettingsPage(),
             ],
           ),

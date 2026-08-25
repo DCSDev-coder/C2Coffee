@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
 import '../widgets/order_card.dart';
+import '../widgets/active_barista_profile.dart';
 
 class PickupReadyPage extends StatelessWidget {
   final String orderId;
   final String customerDetails;
   final List<OrderItem> items;
+  final VoidCallback? onSettingsTap;
 
   const PickupReadyPage({
     super.key,
     required this.orderId,
     required this.customerDetails,
     required this.items,
+    this.onSettingsTap,
   });
 
   @override
@@ -42,7 +45,20 @@ class PickupReadyPage extends StatelessWidget {
                 child: ListView(
                   padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
                   children: [
-                // Huge Checkmark
+                    // Active Barista Profile
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: ActiveBaristaProfile(
+                        onTap: () {
+                          if (onSettingsTap != null) {
+                            Navigator.of(context).popUntil((route) => route.isFirst);
+                            onSettingsTap!();
+                          }
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 24.0),
+                    // Huge Checkmark
                 Center(
                   child: Container(
                     width: 100,
