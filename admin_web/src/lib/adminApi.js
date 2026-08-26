@@ -43,6 +43,30 @@ export async function loadAdminMenu() {
   return adminRequest('/v1/admin/menu');
 }
 
+export async function loadAdminCustomers() {
+  return adminRequest('/v1/admin/customers');
+}
+
+export async function createAdminCustomer(payload) {
+  return adminRequest('/v1/admin/customers', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function updateAdminCustomer(customerId, payload) {
+  return adminRequest(`/v1/admin/customers/${customerId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function deleteAdminCustomer(customerId) {
+  return adminRequest(`/v1/admin/customers/${customerId}`, {
+    method: 'DELETE'
+  });
+}
+
 export async function createAdminMenuItem(payload) {
   return adminRequest('/v1/admin/menu/items', {
     method: 'POST',

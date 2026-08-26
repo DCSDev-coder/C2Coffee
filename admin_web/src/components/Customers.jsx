@@ -1,7 +1,7 @@
 import React, { useState, forwardRef, useEffect } from 'react';
 import {
-  Wallet, ShoppingBag, Users, Megaphone, Search, ChevronDown, Download, Plus,
-  Eye, MoreVertical, X, Crown, ChevronRight, User, ClipboardList, Coins, Ticket, BarChart3, Calendar, Trash2, Pencil, ArrowUp, Filter, Edit2, MessageSquare, Mail, AlertCircle, Smartphone, MapPin, Tag, Gift, Clock, ShieldCheck
+  Wallet, Users, Megaphone, Search, ChevronDown, Download, Plus,
+  Eye, MoreVertical, X, Crown, ChevronRight, User, ClipboardList, Coins, Ticket, BarChart3, Trash2, Pencil
 } from 'lucide-react';
 import Pagination from './Pagination';
 import DatePicker from "react-datepicker";
@@ -12,12 +12,18 @@ import OrderHistory from './OrderHistory';
 import TokenTransaction from './TokenTransaction';
 import VoucherHistory from './VoucherHistory';
 import TiersHistory from './TiersHistory';
+import {
+  loadAdminCustomers,
+  createAdminCustomer,
+  updateAdminCustomer,
+  deleteAdminCustomer
+} from '../lib/adminApi';
 
 export const calculateTierProgress = (cupsStr) => {
   const cups = parseInt(cupsStr.toString().replace(/,/g, ''), 10) || 0;
   if (cups < 10) return { tier: 'Kawan', nextTier: 'Dilamun', target: 10, current: cups, percentage: (cups / 10) * 100, remaining: 10 - cups };
-  if (cups < 20) return { tier: 'Dilamun', nextTier: 'Ketagih', target: 20, current: cups, percentage: (cups / 20) * 100, remaining: 20 - cups };
-  if (cups < 30) return { tier: 'Ketagih', nextTier: 'Legend', target: 30, current: cups, percentage: (cups / 30) * 100, remaining: 30 - cups };
+  if (cups < 30) return { tier: 'Dilamun', nextTier: 'Ketagih', target: 30, current: cups, percentage: (cups / 30) * 100, remaining: 30 - cups };
+  if (cups < 50) return { tier: 'Ketagih', nextTier: 'Legend', target: 50, current: cups, percentage: (cups / 50) * 100, remaining: 50 - cups };
   return { tier: 'Legend', nextTier: 'Max Tier', target: cups, current: cups, percentage: 100, remaining: 0 };
 };
 
@@ -42,24 +48,6 @@ const KPICard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-w
   </div>
 );
 
-const initialCustomerData = [
-  { id: 'cust-0', username: 'miraelys', email: 'mira@gmail.com', tier: 'Legend', tokens: '1,560', orders: '48', spent: 'RM 2,600.50', lastOrder: 'Aug 19, 2026', status: 'Paid', phone: '+60 11-63793812', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80' },
-  { id: 'cust-1', username: 'alex_chong', email: 'alex.c@yahoo.com', tier: 'Legend', tokens: '2,100', orders: '102', spent: 'RM 5,230.00', lastOrder: 'Aug 19, 2026', status: 'Paid', phone: '+60 12-3456789', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&auto=format&fit=crop&q=80' },
-  { id: 'cust-2', username: 'sarah_lee', email: 'sarah.lee88@gmail.com', tier: 'Dilamun', tokens: '450', orders: '12', spent: 'RM 450.25', lastOrder: 'Aug 19, 2026', status: 'Refund', phone: '+60 17-9876543', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&auto=format&fit=crop&q=80' },
-  { id: 'cust-3', username: 'khai_rul', email: 'khairul.dev@gmail.com', tier: 'Ketagih', tokens: '3,200', orders: '25', spent: 'RM 8,400.90', lastOrder: 'Aug 19, 2026', status: 'Paid', phone: '+60 19-1122334', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&auto=format&fit=crop&q=80' },
-  { id: 'cust-4', username: 'jane_doe', email: 'janedoe99@outlook.com', tier: 'Kawan', tokens: '120', orders: '3', spent: 'RM 85.00', lastOrder: 'Aug 19, 2026', status: 'Paid', phone: '+60 13-5557777', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&auto=format&fit=crop&q=80' },
-  { id: 'cust-5', username: 'ahmad_z', email: 'ahmad.z@gmail.com', tier: 'Dilamun', tokens: '1,890', orders: '18', spent: 'RM 4,120.00', lastOrder: 'Aug 19, 2026', status: 'Paid', phone: '+60 14-2223333', avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&auto=format&fit=crop&q=80' },
-  { id: 'cust-6', username: 'lily_tan', email: 'lily.tan@company.com', tier: 'Ketagih', tokens: '4,500', orders: '28', spent: 'RM 12,300.50', lastOrder: 'Aug 19, 2026', status: 'Paid', phone: '+60 16-8889999', avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&auto=format&fit=crop&q=80' },
-  { id: 'cust-7', username: 'ravi_s', email: 'ravi.shankar@gmail.com', tier: 'Dilamun', tokens: '670', orders: '15', spent: 'RM 890.75', lastOrder: 'Aug 19, 2026', status: 'Paid', phone: '+60 11-1234123', avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=100&auto=format&fit=crop&q=80' },
-  { id: 'cust-8', username: 'fatimah_n', email: 'fatimah.n@yahoo.com', tier: 'Legend', tokens: '2,340', orders: '32', spent: 'RM 5,100.00', lastOrder: 'Aug 19, 2026', status: 'Paid', phone: '+60 12-4445555', avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=100&auto=format&fit=crop&q=80' },
-  { id: 'cust-9', username: 'wei_jie', email: 'weijie_w@gmail.com', tier: 'Kawan', tokens: '250', orders: '8', spent: 'RM 150.00', lastOrder: 'Aug 19, 2026', status: 'Refund', phone: '+60 17-6667777', avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=100&auto=format&fit=crop&q=80' },
-  { id: 'cust-10', username: 'nur_aini', email: 'nur.aini@outlook.com', tier: 'Ketagih', tokens: '3,800', orders: '22', spent: 'RM 9,200.00', lastOrder: 'Aug 19, 2026', status: 'Paid', phone: '+60 19-8887777', avatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=100&auto=format&fit=crop&q=80' },
-  { id: 'cust-11', username: 'danial_h', email: 'danial.hakim@gmail.com', tier: 'Legend', tokens: '1,650', orders: '45', spent: 'RM 3,200.20', lastOrder: 'Aug 19, 2026', status: 'Paid', phone: '+60 13-9990000', avatar: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=100&auto=format&fit=crop&q=80' },
-  { id: 'cust-12', username: 'mei_ling', email: 'mei.l@yahoo.com', tier: 'Dilamun', tokens: '890', orders: '19', spent: 'RM 1,450.50', lastOrder: 'Aug 19, 2026', status: 'Paid', phone: '+60 14-7778888', avatar: 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=100&auto=format&fit=crop&q=80' },
-  { id: 'cust-13', username: 'kumar_a', email: 'kumar.a@gmail.com', tier: 'Kawan', tokens: '180', orders: '5', spent: 'RM 120.00', lastOrder: 'Aug 19, 2026', status: 'Refund', phone: '+60 16-1112222', avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=100&auto=format&fit=crop&q=80' },
-  { id: 'cust-14', username: 'syahirah', email: 'syahirah_o@gmail.com', tier: 'Legend', tokens: '2,750', orders: '31', spent: 'RM 6,800.00', lastOrder: 'Aug 19, 2026', status: 'Paid', phone: '+60 11-3334444', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80' }
-];
-
 const getTierColor = (tier) => {
   switch (tier) {
     case 'Kawan': return 'bg-blue-100 text-blue-600';
@@ -68,6 +56,16 @@ const getTierColor = (tier) => {
     case 'Legend': return 'bg-[#D4AF7A]/20 text-[#A8824A]';
     default: return 'bg-gray-100 text-gray-600';
   }
+};
+
+const formatRm = (value) => {
+  const amount = Number(value || 0);
+  return `RM ${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
+
+const formatTokens = (value) => {
+  const amount = Number(value || 0);
+  return `${amount.toLocaleString('en-US')} tokens`;
 };
 
 const getStatusColor = (status) => {
@@ -121,7 +119,7 @@ const CustomDateInput = forwardRef(({ value, onClick, onClear }, ref) => (
 ));
 
 const Customers = () => {
-  const [customers, setCustomers] = useState(initialCustomerData);
+  const [customers, setCustomers] = useState([]);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTier, setSelectedTier] = useState('All Tiers');
@@ -134,12 +132,71 @@ const Customers = () => {
   const [statusOpen, setStatusOpen] = useState(false);
   const [activeView, setActiveView] = useState('list');
   const [menuOpenId, setMenuOpenId] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const itemsPerPage = 10;
 
   useEffect(() => {
     const handleClickOutside = () => setMenuOpenId(null);
     window.addEventListener('click', handleClickOutside);
     return () => window.removeEventListener('click', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchCustomers = async ({ keepSelection = false, silent = false } = {}) => {
+      try {
+        if (!silent) {
+          setIsLoading(true);
+        }
+        setLoadError('');
+        const response = await loadAdminCustomers();
+        if (!isMounted) return;
+
+        const nextCustomers = Array.isArray(response?.customers) ? response.customers : [];
+        setCustomers(nextCustomers);
+
+        if (keepSelection) {
+          setSelectedCustomer((prev) => {
+            if (!prev) return null;
+            return nextCustomers.find((customer) => customer.id === prev.id) || null;
+          });
+        }
+      } catch (error) {
+        console.error('Failed to load customers', error);
+        setLoadError(error?.message || 'Failed to load customers.');
+        setCustomers([]);
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    fetchCustomers();
+
+    const refreshCustomers = () => {
+      fetchCustomers({ keepSelection: true, silent: true });
+    };
+
+    const intervalId = window.setInterval(refreshCustomers, 30000);
+    const handleFocus = () => refreshCustomers();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refreshCustomers();
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
 
@@ -158,18 +215,17 @@ const Customers = () => {
     return renderView();
   }
 
-  // Filtering Logic
   const filteredData = customers.filter(customer => {
     const matchesSearch = customer.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
       customer.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      customer.tokens.includes(searchQuery);
+      String(customer.tokenBalance ?? customer.tokens ?? '').includes(searchQuery);
     const matchesTier = selectedTier === 'All Tiers' || customer.tier === selectedTier;
     const matchesStatus = selectedStatus === 'All Status' || customer.status === selectedStatus;
 
     let matchesDate = true;
     if (selectedDate) {
       const formattedDate = selectedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-      matchesDate = customer.lastOrder === formattedDate || customer.lastOrder.includes(formattedDate);
+      matchesDate = customer.lastOrder === formattedDate || customer.joinedAt === formattedDate;
     }
 
     return matchesSearch && matchesTier && matchesStatus && matchesDate;
@@ -181,12 +237,13 @@ const Customers = () => {
 
   const handleExport = () => {
     const rows = [
-      ["Name", "Tier", "Total Spent (RM)", "Points Balance", "Status"],
+      ["Name", "Tier", "Total Spent (Tokens)", "Total Spent (RM)", "Token Balance", "Status"],
       ...filteredData.map(c => [
-        `"${c.name}"`,
+        `"${c.username}"`,
         `"${c.tier}"`,
-        `"${c.totalSpent}"`,
-        `"${c.tokensBalance}"`,
+        `"${formatTokens(c.totalSpentTokens)}"`,
+        `"${formatRm(c.totalSpentRm)}"`,
+        `"${c.tokenBalance.toLocaleString('en-US')}"`,
         `"${c.status}"`
       ])
     ];
@@ -195,15 +252,54 @@ const Customers = () => {
 
   const handleAddCustomer = (e) => {
     e.preventDefault();
-    alert("New customer added!");
-    setIsAddModalOpen(false);
+    const form = new FormData(e.currentTarget);
+    const payload = {
+      phone: String(form.get('phone') || '').trim(),
+      displayName: String(form.get('username') || '').trim(),
+      email: String(form.get('email') || '').trim()
+    };
+
+    createAdminCustomer(payload)
+      .then((response) => {
+        if (response?.customer) {
+          setCustomers((prev) => [response.customer, ...prev]);
+          setSelectedCustomer(response.customer);
+        }
+        setIsAddModalOpen(false);
+      })
+      .catch((error) => {
+        alert(`Error adding customer: ${error.message}`);
+      });
   };
 
   const handleEditCustomer = (e) => {
     e.preventDefault();
-    alert("Customer details updated!");
-    setEditingCustomer(null);
+    const form = new FormData(e.currentTarget);
+    const payload = {
+      phone: String(form.get('phone') || '').trim(),
+      displayName: String(form.get('username') || '').trim(),
+      email: String(form.get('email') || '').trim()
+    };
+
+    updateAdminCustomer(editingCustomer.id, payload)
+      .then((response) => {
+        if (response?.customer) {
+          setCustomers((prev) => prev.map((customer) => (customer.id === response.customer.id ? response.customer : customer)));
+          setSelectedCustomer((prev) => (prev?.id === response.customer.id ? response.customer : prev));
+        }
+        setEditingCustomer(null);
+      })
+      .catch((error) => {
+      alert(`Error updating customer: ${error.message}`);
+      });
   };
+
+  const totalCustomers = customers.length;
+  const activeTierMembers = customers.filter((customer) => customer.tier !== 'Kawan').length;
+  const totalSpendRm = customers.reduce((sum, customer) => sum + Number(customer.totalSpentRm || 0), 0);
+  const totalSpendTokens = customers.reduce((sum, customer) => sum + Number(customer.totalSpentTokens || 0), 0);
+  const averageSpendRm = totalCustomers > 0 ? totalSpendRm / totalCustomers : 0;
+  const averageSpendTokens = totalCustomers > 0 ? totalSpendTokens / totalCustomers : 0;
 
   return (
     <div className="px-8 pb-8 pt-2 h-full flex flex-col">
@@ -213,13 +309,18 @@ const Customers = () => {
         <p className="text-gray-500">Manage and view all your customers.</p>
       </div>
 
+      {loadError && (
+        <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {loadError}
+        </div>
+      )}
+
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6 flex-shrink-0">
-        <KPICard title="Total Customers" value="2,560" change="12.6% vs last month" icon={Wallet} iconBg="bg-[#1F3A34]" iconColor="text-white" />
-        <KPICard title="New Customers" value="19" change="8.2% vs last month" icon={ShoppingBag} iconBg="bg-[#2E5E58]" iconColor="text-white" />
-        <KPICard title="Active Tier Members" value="19" change="17.1% vs last month" icon={Users} iconBg="bg-[#6F9F96]" iconColor="text-white" />
-        <KPICard title="Total Revenue" value="RM 25,560" change="8.7% vs last month" icon={Megaphone} iconBg="bg-[#E07A5F]" iconColor="text-white" />
-        <KPICard title="Average Spend" value="RM 74.50" change="9.3% vs last month" icon={Users} iconBg="bg-[#D9C4A9]" iconColor="text-white" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6 flex-shrink-0">
+        <KPICard title="Total Customers" value={totalCustomers.toLocaleString('en-US')} change="Live from admin API" icon={Wallet} iconBg="bg-[#1F3A34]" iconColor="text-white" />
+        <KPICard title="Active Tier Members" value={activeTierMembers.toLocaleString('en-US')} change="Customers above Kawan tier" icon={Users} iconBg="bg-[#6F9F96]" iconColor="text-white" />
+        <KPICard title="Order Tokens Spent" value={formatTokens(totalSpendTokens)} change={`RM equivalent: ${formatRm(totalSpendRm)}`} icon={Megaphone} iconBg="bg-[#E07A5F]" iconColor="text-white" />
+        <KPICard title="Average Order Tokens Spent" value={formatTokens(averageSpendTokens)} change={`RM equivalent: ${formatRm(averageSpendRm)}`} icon={Users} iconBg="bg-[#D9C4A9]" iconColor="text-white" />
       </div>
 
       {/* Filters and Actions */}
@@ -304,16 +405,22 @@ const Customers = () => {
                     Username
                   </th>
                   <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-900">Tier</th>
-                  <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-900">Tokens Balance</th>
+                  <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-900">Wallet Tokens</th>
                   <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-900">Total Orders</th>
-                  <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-900">Total Spent</th>
+                  <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-900">Order Tokens Spent</th>
                   <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-900">Last Order</th>
                   <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-900">Status</th>
                   <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-900">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-100">
-                {paginatedData.length > 0 ? paginatedData.map((customer, idx) => (
+                {isLoading && paginatedData.length === 0 ? (
+                  <tr>
+                    <td colSpan="8" className="px-6 py-8 text-center text-gray-500 text-sm">
+                      Loading customers...
+                    </td>
+                  </tr>
+                ) : paginatedData.length > 0 ? paginatedData.map((customer) => (
                   <tr key={customer.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-3.5 whitespace-nowrap">
                       <div className="flex items-center space-x-3">
@@ -331,7 +438,12 @@ const Customers = () => {
                     </td>
                     <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-900 font-medium">{customer.tokens}</td>
                     <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-900 font-medium">{customer.orders}</td>
-                    <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-900 font-medium">{customer.spent}</td>
+                    <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-900 font-medium">
+                      <div className="flex flex-col">
+                        <span>{customer.spentTokens || formatTokens(customer.totalSpentTokens)}</span>
+                        <span className="text-xs text-gray-500">{customer.spent}</span>
+                      </div>
+                    </td>
                     <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-900 font-medium">{customer.lastOrder}</td>
                     <td className="px-6 py-3 whitespace-nowrap">
                       <span className={`px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md ${getStatusColor(customer.status)}`}>
@@ -377,10 +489,16 @@ const Customers = () => {
                               onClick={(e) => {
                                 e.stopPropagation();
                                 if (confirm(`Are you sure you want to delete customer "${customer.username}"?`)) {
-                                  setCustomers(prev => prev.filter(c => c.id !== customer.id));
-                                  if (selectedCustomer?.id === customer.id) {
-                                    setSelectedCustomer(null);
-                                  }
+                                  deleteAdminCustomer(customer.id)
+                                    .then(() => {
+                                      setCustomers((prev) => prev.filter((c) => c.id !== customer.id));
+                                      if (selectedCustomer?.id === customer.id) {
+                                        setSelectedCustomer(null);
+                                      }
+                                    })
+                                    .catch((error) => {
+                                      alert(`Error deleting customer: ${error.message}`);
+                                    });
                                 }
                                 setMenuOpenId(null);
                               }}
@@ -435,14 +553,14 @@ const Customers = () => {
                   <span className={`px-2 py-0.5 text-[10px] font-bold rounded ${getTierColor(selectedCustomer.tier)}`}>{selectedCustomer.tier}</span>
                 </div>
                 <p className="text-sm text-gray-500">{selectedCustomer.email}</p>
-                <p className="text-sm text-gray-500">+60 11-63793812</p>
-                <p className="text-sm font-medium text-gray-900 mt-1">Member ID : C2-001</p>
+                <p className="text-sm text-gray-500">{selectedCustomer.phone}</p>
+                <p className="text-sm font-medium text-gray-900 mt-1">Member ID : C2-{String(selectedCustomer.id).padStart(3, '0')}</p>
               </div>
             </div>
 
             <div className="flex justify-between border-y border-gray-100 py-4 mb-6 text-center">
               <div>
-                <p className="text-xs text-gray-500 flex items-center justify-center gap-1 mb-1">Tokens Balance</p>
+                <p className="text-xs text-gray-500 flex items-center justify-center gap-1 mb-1">Wallet Tokens</p>
                 <p className="font-bold text-gray-900">{selectedCustomer.tokens}</p>
               </div>
               <div className="w-px bg-gray-100"></div>
@@ -452,13 +570,14 @@ const Customers = () => {
               </div>
               <div className="w-px bg-gray-100"></div>
               <div>
-                <p className="text-xs text-gray-500 flex items-center justify-center gap-1 mb-1">Total Spent</p>
-                <p className="font-bold text-gray-900">{selectedCustomer.spent}</p>
+                <p className="text-xs text-gray-500 flex items-center justify-center gap-1 mb-1">Order Tokens Spent</p>
+                <p className="font-bold text-gray-900">{selectedCustomer.spentTokens || formatTokens(selectedCustomer.totalSpentTokens)}</p>
+                <p className="text-[11px] text-gray-500 mt-1">RM equivalent: {selectedCustomer.spent}</p>
               </div>
             </div>
 
             {(() => {
-              const progress = calculateTierProgress(selectedCustomer.orders);
+              const progress = calculateTierProgress(selectedCustomer.cupsLast180d ?? selectedCustomer.orders);
               return (
                 <div className="bg-[#1F3A34] rounded-xl p-5 mb-8 text-white relative overflow-hidden">
                   <div className="flex items-center justify-between mb-4 relative z-10">
@@ -522,6 +641,7 @@ const Customers = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
                 <input
                   type="text"
+                  name="username"
                   defaultValue={editingCustomer?.username || ''}
                   required
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-[#2E5E58] focus:border-[#2E5E58]"
@@ -532,6 +652,7 @@ const Customers = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
                 <input
                   type="email"
+                  name="email"
                   defaultValue={editingCustomer?.email || ''}
                   required
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-[#2E5E58] focus:border-[#2E5E58]"
@@ -542,6 +663,7 @@ const Customers = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
                 <input
                   type="tel"
+                  name="phone"
                   defaultValue={editingCustomer?.phone || ''}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-[#2E5E58] focus:border-[#2E5E58]"
                   placeholder="+60 11-00000000"

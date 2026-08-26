@@ -613,11 +613,23 @@ const Vouchers = () => {
   // New Voucher Form State
   const [newVoucher, setNewVoucher] = useState(createEmptyVoucherForm());
 
-  const refreshVouchers = async (selectedVoucherId = selectedVoucher?.id) => {
+  const refreshMenuTaxonomy = async () => {
+    const response = await adminRequest('/v1/admin/menu');
+    setMenuTaxonomy(deriveMenuTaxonomy(response));
+  };
+
+  const refreshVouchers = async ({
+    selectedVoucherId = selectedVoucher?.id,
+    keepSelection = true,
+    silent = false
+  } = {}) => {
+    if (!silent) {
+      setIsLoading(true);
+    }
     const response = await adminRequest('/v1/admin/vouchers');
     const nextVouchers = response.vouchers || [];
     setVouchers(nextVouchers);
-    if (selectedVoucherId) {
+    if (keepSelection && selectedVoucherId) {
       const updated = nextVouchers.find((voucher) => voucher.id === selectedVoucherId);
       setSelectedVoucher(updated || null);
     }
@@ -643,19 +655,50 @@ const Vouchers = () => {
   };
 
   useEffect(() => {
+    let isMounted = true;
+
     const fetchVouchers = async () => {
       try {
         await Promise.all([
-          refreshVouchers(),
-          adminRequest('/v1/admin/menu').then((response) => setMenuTaxonomy(deriveMenuTaxonomy(response)))
+          refreshVouchers({ keepSelection: false, silent: false }),
+          refreshMenuTaxonomy()
         ]);
       } catch (err) {
         console.error('Failed to fetch vouchers', err);
       } finally {
-        setIsLoading(false);
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     };
     fetchVouchers();
+
+    const refreshData = () => {
+      void Promise.all([
+        refreshVouchers({ keepSelection: true, silent: true }),
+        refreshMenuTaxonomy()
+      ]).catch((err) => {
+        console.error('Failed to refresh vouchers', err);
+      });
+    };
+
+    const intervalId = window.setInterval(refreshData, 30000);
+    const handleFocus = () => refreshData();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refreshData();
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   useEffect(() => {

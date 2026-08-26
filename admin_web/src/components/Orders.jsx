@@ -75,7 +75,7 @@ const allOrders = [
     discount: 0,
     total: 15.90,
     status: "Completed",
-    payment: "Touch 'n Go eWallet",
+    payment: "C2 Tokens",
     paymentStatus: "Paid",
     txnId: "TNG291938193183",
     time: "10:21 AM",
@@ -93,7 +93,7 @@ const allOrders = [
     discount: 0,
     total: 15.90,
     status: "Preparing",
-    payment: "Touch 'n Go eWallet",
+    payment: "C2 Tokens",
     paymentStatus: "Paid",
     txnId: "TNG291938193184",
     time: "10:21 AM",
@@ -111,7 +111,7 @@ const allOrders = [
     discount: 0,
     total: 15.90,
     status: "Ready for Pickup",
-    payment: "Touch 'n Go eWallet",
+    payment: "C2 Tokens",
     paymentStatus: "Paid",
     txnId: "TNG291938193185",
     time: "10:21 AM",
@@ -129,7 +129,7 @@ const allOrders = [
     discount: 0,
     total: 15.90,
     status: "Cancelled",
-    payment: "Touch 'n Go eWallet",
+    payment: "C2 Tokens",
     paymentStatus: "Refunded",
     txnId: "TNG291938193186",
     time: "10:21 AM",
@@ -147,7 +147,7 @@ const allOrders = [
     discount: 0,
     total: 15.90,
     status: "Refund Requested",
-    payment: "Touch 'n Go eWallet",
+    payment: "C2 Tokens",
     paymentStatus: "Paid",
     txnId: "TNG291938193187",
     time: "10:21 AM",
@@ -165,7 +165,7 @@ const allOrders = [
     discount: 0,
     total: 15.90,
     status: "Refunded",
-    payment: "Touch 'n Go eWallet",
+    payment: "C2 Tokens",
     paymentStatus: "Refunded",
     txnId: "TNG291938193188",
     time: "10:21 AM",
@@ -183,7 +183,7 @@ const allOrders = [
     discount: 0,
     total: 15.90,
     status: "Completed",
-    payment: "Touch 'n Go eWallet",
+    payment: "C2 Tokens",
     paymentStatus: "Paid",
     txnId: "TNG291938193189",
     time: "10:21 AM",
@@ -201,7 +201,7 @@ const allOrders = [
     discount: 0,
     total: 15.90,
     status: "Completed",
-    payment: "Touch 'n Go eWallet",
+    payment: "C2 Tokens",
     paymentStatus: "Paid",
     txnId: "TNG291938193190",
     time: "10:21 AM",
@@ -219,7 +219,7 @@ const allOrders = [
     discount: 0,
     total: 15.90,
     status: "Completed",
-    payment: "Touch 'n Go eWallet",
+    payment: "C2 Tokens",
     paymentStatus: "Paid",
     txnId: "TNG291938193191",
     time: "10:21 AM",
@@ -237,7 +237,7 @@ const allOrders = [
     discount: 0,
     total: 15.90,
     status: "Completed",
-    payment: "Touch 'n Go eWallet",
+    payment: "C2 Tokens",
     paymentStatus: "Paid",
     txnId: "TNG291938193192",
     time: "10:21 AM",
@@ -255,7 +255,7 @@ const allOrders = [
     discount: 0,
     total: 15.90,
     status: "Completed",
-    payment: "Touch 'n Go eWallet",
+    payment: "C2 Tokens",
     paymentStatus: "Paid",
     txnId: "TNG291938193193",
     time: "10:21 AM",
@@ -273,7 +273,7 @@ const allOrders = [
     discount: 0,
     total: 15.90,
     status: "Completed",
-    payment: "Touch 'n Go eWallet",
+    payment: "C2 Tokens",
     paymentStatus: "Paid",
     txnId: "TNG291938193194",
     time: "10:21 AM",
@@ -291,7 +291,7 @@ const allOrders = [
     discount: 0,
     total: 15.90,
     status: "Completed",
-    payment: "Touch 'n Go eWallet",
+    payment: "C2 Tokens",
     paymentStatus: "Paid",
     txnId: "TNG291938193195",
     time: "10:21 AM",
@@ -338,18 +338,31 @@ const getPaymentBadge = (p) => {
   return <span className="px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md bg-green-100 text-green-600">Paid</span>;
 };
 
-const fmtPrice = (n, payment) => {
-  return `${n.toFixed(2)}`;
+const formatRm = (value) => {
+  const amount = Number(value || 0);
+  return `RM ${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
+
+const formatTokens = (value) => {
+  const amount = Number(value || 0);
+  return `${amount.toLocaleString('en-US')} tokens`;
+};
+
+const OrderValueStack = ({ tokenValue, rmValue, align = 'items-start' }) => (
+  <div className={`flex flex-col leading-tight ${align}`}>
+    <span className="font-bold text-gray-900">{formatTokens(tokenValue)}</span>
+    <span className="text-[11px] text-gray-500">{formatRm(rmValue)}</span>
+  </div>
+);
 const ITEMS_PER_PAGE = 10;
 
 const STATUSES = ["All Status", "Completed", "Preparing", "Ready for Pickup", "Cancelled", "Refund Requested", "Refunded"];
-const PAYMENTS = ["All Payment", "Paid", "Refunded"];
+const PAYMENTS = ["All Payment Status", "Paid", "Refunded"];
 
 // KPI Card matching Customers Page Structure
 
-const KPICard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-white" }) => (
-  <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center space-x-4 min-w-0">
+const KPICard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-white", className = "" }) => (
+  <div className={`bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center space-x-4 min-w-0 ${className}`}>
     <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 ${iconBg} ${iconColor} shadow-sm`}>
       <Icon size={26} strokeWidth={2.2} />
     </div>
@@ -398,7 +411,8 @@ const CustomDateInput = forwardRef(({ value, onClick, onClear }, ref) => (
 
 const OrderDetailPanel = ({ order, onClose, onViewProfile }) => {
   const subtotal = order.items.reduce((s, i) => s + i.unitPrice * i.qty, 0);
-  const total = order.total || (subtotal - order.discount);
+  const total = Number(order.total ?? (subtotal - order.discount) ?? 0);
+  const tokenTotal = order.tokenAmountCharged ?? total;
 
   // Status mapping for the 4-step timeline flow
   const getStepProgress = (status) => {
@@ -528,7 +542,7 @@ const OrderDetailPanel = ({ order, onClose, onViewProfile }) => {
                 <p className="text-xs font-medium text-gray-900">{item.name}</p>
               </div>
               <p className="text-xs text-gray-600 font-medium">x{item.qty}</p>
-              <p className="text-xs font-bold text-gray-900">{fmtPrice(item.unitPrice * item.qty, order.payment)}</p>
+              <p className="text-xs font-bold text-gray-900">{formatRm(item.unitPrice * item.qty)}</p>
             </div>
           ))}
         </div>
@@ -536,35 +550,33 @@ const OrderDetailPanel = ({ order, onClose, onViewProfile }) => {
         <div className="mt-3 pt-3 border-t border-gray-100 space-y-1.5">
           <div className="flex justify-between text-xs text-gray-600">
             <span>Subtotal</span>
-            <span>{fmtPrice(subtotal, order.payment)}</span>
+            <span>{formatRm(subtotal)}</span>
           </div>
           <div className="flex justify-between text-xs text-gray-600">
             <span>Discount</span>
-            <span>{fmtPrice(order.discount, order.payment)}</span>
+            <span>{formatRm(order.discount)}</span>
           </div>
           <div className="flex justify-between text-base font-bold text-gray-900 pt-1">
             <span>Total</span>
-            <span>{fmtPrice(total, order.payment)}</span>
+            <OrderValueStack tokenValue={tokenTotal} rmValue={total} align="items-end" />
           </div>
         </div>
       </div>
 
       {/* Payment Section */}
       <div>
-        <p className="text-xs font-bold text-gray-900 mb-2.5">Payment</p>
+      <p className="text-xs font-bold text-gray-900 mb-2.5">Checkout</p>
         <div className="flex items-center justify-between mb-1.5">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-[#0055A5] flex flex-col items-center justify-center text-white shrink-0 p-0.5 shadow-sm">
-              <span className="text-[7px] font-extrabold leading-none tracking-tighter">Touch</span>
-              <span className="text-[6px] font-bold leading-none text-yellow-300">'n Go</span>
-              <span className="text-[5px] font-light leading-none">eWallet</span>
+            <div className="w-8 h-8 rounded-lg bg-[#2E5E58] flex items-center justify-center text-white shrink-0 shadow-sm">
+              <Coins size={15} strokeWidth={2.3} />
             </div>
-            <span className="text-xs font-semibold text-gray-900">{order.payment}</span>
+            <span className="text-xs font-semibold text-gray-900">C2 Tokens</span>
           </div>
           {getPaymentBadge(order.paymentStatus)}
         </div>
         <p className="text-xs text-gray-500 mt-1">
-          Transaction ID &nbsp;<span className="text-gray-700 font-medium">{order.txnId}</span>
+          Transaction Reference &nbsp;<span className="text-gray-700 font-medium">{order.txnId}</span>
         </p>
       </div>
 
@@ -635,7 +647,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All Status");
-  const [paymentFilter, setPaymentFilter] = useState("All Payment");
+  const [paymentFilter, setPaymentFilter] = useState("All Payment Status");
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [editingOrder, setEditingOrder] = useState(null);
@@ -651,20 +663,57 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
   }, [initialShowRefunds]);
 
   useEffect(() => {
-    const fetchOrders = async () => {
+    let isMounted = true;
+
+    const fetchOrders = async ({ keepSelection = false, silent = false } = {}) => {
       try {
-        setIsLoading(true);
+        if (!silent) {
+          setIsLoading(true);
+        }
         const response = await adminRequest('/v1/admin/orders');
-        if (response && response.orders) {
-          setOrdersList(response.orders);
+        if (!isMounted) return;
+
+        const nextOrders = Array.isArray(response?.orders) ? response.orders : [];
+        setOrdersList(nextOrders);
+
+        if (keepSelection) {
+          setSelectedOrder((prev) => {
+            if (!prev) return null;
+            return nextOrders.find((order) => order.id === prev.id) || null;
+          });
         }
       } catch (err) {
         console.error('Failed to fetch orders', err);
       } finally {
-        setIsLoading(false);
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     };
+
     fetchOrders();
+
+    const refreshOrders = () => {
+      fetchOrders({ keepSelection: true, silent: true });
+    };
+
+    const intervalId = window.setInterval(refreshOrders, 30000);
+    const handleFocus = () => refreshOrders();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refreshOrders();
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   useEffect(() => {
@@ -724,7 +773,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
       o.email.toLowerCase().includes(q);
     const matchStatus = statusFilter === "All Status" || o.status === statusFilter;
     const matchPayment =
-      paymentFilter === "All Payment" ||
+      paymentFilter === "All Payment Status" ||
       o.paymentStatus === paymentFilter ||
       (paymentFilter === "Refunded" && (o.paymentStatus === "Refunded" || o.paymentStatus === "Refund"));
     let matchDate = true;
@@ -766,8 +815,8 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
         <p className="text-gray-500">Manage customer orders and track their status.</p>
       </div>
 
-      {/* KPI Cards — 6 across, fitted and styled matching Customers page */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3.5 mb-6 shrink-0">
+      {/* KPI Cards — horizontally scrollable for wider cards */}
+      <div className="flex gap-3.5 mb-6 shrink-0 overflow-x-auto pb-2 -mx-1 px-1 snap-x snap-mandatory">
         <KPICard
           title="Total Orders"
           value={totalCount}
@@ -775,6 +824,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
           icon={ShoppingBag}
           iconBg="bg-[#1F3A34]"
           iconColor="text-white"
+          className="min-w-[220px] flex-1 snap-start"
         />
         <KPICard
           title="Completed"
@@ -783,6 +833,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
           icon={Clock}
           iconBg="bg-[#2E5E58]"
           iconColor="text-white"
+          className="min-w-[220px] flex-1 snap-start"
         />
         <KPICard
           title="Preparing"
@@ -791,6 +842,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
           icon={Hourglass}
           iconBg="bg-[#6F9F96]"
           iconColor="text-white"
+          className="min-w-[220px] flex-1 snap-start"
         />
         <KPICard
           title="Ready for Pickup"
@@ -799,6 +851,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
           icon={UserCheck}
           iconBg="bg-[#8DAA9E]"
           iconColor="text-white"
+          className="min-w-[220px] flex-1 snap-start"
         />
         <KPICard
           title="Cancelled"
@@ -807,6 +860,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
           icon={Ban}
           iconBg="bg-[#E07A5F]"
           iconColor="text-white"
+          className="min-w-[220px] flex-1 snap-start"
         />
         <KPICard
           title="Refund Requested"
@@ -815,6 +869,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
           icon={RotateCcw}
           iconBg="bg-[#D9C4A9]"
           iconColor="text-white"
+          className="min-w-[220px] flex-1 snap-start"
         />
       </div>
 
@@ -886,17 +941,23 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
           <button
             onClick={() => {
               const rows = [
-                ["Order ID", "Username", "Email", "Status", "Payment", "Date", "Time", "Total (Tokens)"],
-                ...filtered.map(o => [
-                  `"${o.id}"`,
-                  `"${o.customer}"`,
-                  `"${o.email}"`,
-                  `"${o.status}"`,
-                  `"${o.paymentStatus}"`,
-                  `"${o.date}"`,
-                  `"${o.time}"`,
-                  `"${o.total || o.items.reduce((s, i) => s + i.unitPrice * i.qty, 0) - o.discount}"`
-                ])
+                ["Order ID", "Username", "Email", "Status", "Payment Status", "Date", "Time", "Total (Tokens)", "Total (RM)"],
+                ...filtered.map(o => {
+                  const subtotal = o.items.reduce((s, i) => s + i.unitPrice * i.qty, 0);
+                  const rmTotal = Number(o.total ?? (subtotal - o.discount) ?? 0);
+                  const tokenTotal = o.tokenAmountCharged ?? rmTotal;
+                  return [
+                    `"${o.id}"`,
+                    `"${o.customer}"`,
+                    `"${o.email}"`,
+                    `"${o.status}"`,
+                    `"${o.paymentStatus}"`,
+                    `"${o.date}"`,
+                    `"${o.time}"`,
+                    `"${formatTokens(tokenTotal)}"`,
+                    `"${formatRm(rmTotal)}"`
+                  ];
+                })
               ];
               exportToCSV(rows, "orders.csv");
             }}
@@ -921,7 +982,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-white">
                 <tr>
-                  {["Order ID", "Username", "Items", "Total (Token)", "Status", "Payment", "Time", "Actions"].map((h) => (
+                  {["Order ID", "Username", "Items", "Total", "Status", "Payment", "Time", "Actions"].map((h) => (
                     <th key={h} className="px-6 py-4 text-left text-xs font-bold text-gray-900">
                       {h}
                     </th>
@@ -933,13 +994,15 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
                   paginated.map((order, idx) => {
                     const isSelected = selectedOrder?.id === order.id;
                     const itemsLabel = order.items.map((i) => `${i.qty}x ${i.name}`).join(", ");
-                    const rowTotal = order.total || order.items.reduce((s, i) => s + i.unitPrice * i.qty, 0) - order.discount;
+                    const rowSubtotal = order.items.reduce((s, i) => s + i.unitPrice * i.qty, 0);
+                    const rowTotal = Number(order.total ?? (rowSubtotal - order.discount) ?? 0);
+                    const rowTokenTotal = order.tokenAmountCharged ?? rowTotal;
 
                     return (
                       <tr
                         key={order.id}
-                        className={`hover:bg-gray-50 transition-colors ${isSelected ? "bg-gray-50" : ""
-                          }`}
+                        className={`hover:bg-gray-50 transition-colors cursor-pointer ${isSelected ? "bg-gray-50" : ""}`}
+                        onClick={() => setSelectedOrder(isSelected ? null : order)}
                       >
                         <td className="px-6 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
                           {order.id}
@@ -957,7 +1020,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
                           {itemsLabel}
                         </td>
                         <td className="px-6 py-3 whitespace-nowrap text-sm font-bold text-gray-900">
-                          {fmtPrice(rowTotal, order.payment)}
+                          <OrderValueStack tokenValue={rowTokenTotal} rmValue={rowTotal} />
                         </td>
                         <td className="px-6 py-3 whitespace-nowrap">
                           {getStatusBadge(order.status)}
@@ -972,7 +1035,10 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
                           <div className="relative inline-block text-left">
                             <div className="bg-[#1E293B] hover:bg-[#0F172A] text-white px-2.5 py-1.5 rounded-lg inline-flex items-center gap-2 shadow-sm transition-colors">
                               <button
-                                onClick={() => setSelectedOrder(isSelected ? null : order)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedOrder(isSelected ? null : order);
+                                }}
                                 className="text-white/90 hover:text-white cursor-pointer transition-colors"
                                 title="View Details"
                               >
@@ -1133,7 +1199,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Total (Tokens)</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Total (RM)</label>
                 <input
                   type="number"
                   step="0.01"

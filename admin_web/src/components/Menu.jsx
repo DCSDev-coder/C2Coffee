@@ -490,6 +490,17 @@ const Menu = () => {
   const activeSubcategoryOptions = menuSubcategories.filter(
     (subcategory) => subcategory.category_code === editFormData.category_code && subcategory.is_active
   );
+  const selectedSubcategoryRecord = menuSubcategories.find(
+    (subcategory) => subcategory.code === editFormData.subcategory_code
+  ) || null;
+  const subcategoryOptions = selectedSubcategoryRecord && !selectedSubcategoryRecord.is_active
+    ? [
+        ...activeSubcategoryOptions,
+        selectedSubcategoryRecord
+      ].filter((subcategory, index, list) =>
+        list.findIndex((entry) => entry.code === subcategory.code) === index
+      )
+    : activeSubcategoryOptions;
 
   const filteredMenuItems = allMenuItems.filter((item) => {
     const search = searchQuery.trim().toLowerCase();
@@ -1425,9 +1436,9 @@ const Menu = () => {
                       className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34]"
                     >
                       <option value="">General</option>
-                      {activeSubcategoryOptions.map((subcategory) => (
+                      {subcategoryOptions.map((subcategory) => (
                         <option key={subcategory.id} value={subcategory.code}>
-                          {subcategory.name}
+                          {subcategory.name}{subcategory.is_active ? '' : ' (Archived)'}
                         </option>
                       ))}
                     </select>
