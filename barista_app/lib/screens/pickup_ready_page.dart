@@ -3,6 +3,7 @@ import '../services/api_service.dart';
 import '../main.dart';
 import '../widgets/order_card.dart';
 import '../widgets/active_barista_profile.dart';
+import '../widgets/blinking_online_indicator.dart';
 
 
 class PickupReadyPage extends StatelessWidget {
@@ -31,13 +32,36 @@ class PickupReadyPage extends StatelessWidget {
         children: [
           // Dark Green Top Header
           Container(
-            height: 100,
-            decoration: const BoxDecoration(
+            height: 110,
+            padding: const EdgeInsets.only(top: 40, left: 24, right: 24),
+            decoration: BoxDecoration(
               color: darkGreen,
-              borderRadius: BorderRadius.only(
+              borderRadius: const BorderRadius.only(
                 bottomLeft: Radius.circular(16.0),
                 bottomRight: Radius.circular(16.0),
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Row(
+                  children: [
+                    Image.asset(
+                      'assets/images/c2_logo.png',
+                      height: 40,
+                    ),
+                  ],
+                ),
+                const BlinkingOnlineIndicator(),
+              ],
             ),
           ),
           
@@ -76,12 +100,16 @@ class PickupReadyPage extends StatelessWidget {
                   ),
                 ),
                 Center(
-                  child: Text(
-                    orderId,
-                    style: const TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      orderId,
+                      maxLines: 1,
+                      style: const TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
                     ),
                   ),
                 ),

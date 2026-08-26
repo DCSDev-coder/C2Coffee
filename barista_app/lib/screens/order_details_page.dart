@@ -4,6 +4,7 @@ import '../widgets/order_card.dart';
 import '../widgets/active_barista_profile.dart';
 import 'pickup_ready_page.dart';
 import '../services/api_service.dart';
+import '../widgets/blinking_online_indicator.dart';
 
 class OrderDetailsPage extends StatelessWidget {
   final String orderId;
@@ -55,13 +56,36 @@ class OrderDetailsPage extends StatelessWidget {
       children: [
         // Dark Green Top Header
         Container(
-          height: 100,
+          height: 110,
+          padding: const EdgeInsets.only(top: 40, left: 24, right: 24),
           decoration: BoxDecoration(
             color: darkGreen,
             borderRadius: const BorderRadius.only(
               bottomLeft: Radius.circular(16.0),
               bottomRight: Radius.circular(16.0),
             ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Row(
+                children: [
+                  Image.asset(
+                    'assets/images/c2_logo.png',
+                    height: 40,
+                  ),
+                ],
+              ),
+              const BlinkingOnlineIndicator(),
+            ],
           ),
         ),
         
@@ -88,12 +112,17 @@ class OrderDetailsPage extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            '#$orderId',
-                            style: TextStyle(
-                              color: darkGreen,
-                              fontSize: 32,
-                              fontWeight: FontWeight.bold,
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              '#$orderId',
+                              maxLines: 1,
+                              style: TextStyle(
+                                color: darkGreen,
+                                fontSize: 32,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                           FittedBox(

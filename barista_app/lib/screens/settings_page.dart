@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../main.dart';
 import '../services/api_service.dart';
+import '../widgets/active_barista_profile.dart';
+import '../widgets/blinking_online_indicator.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -186,13 +188,36 @@ class _SettingsPageState extends State<SettingsPage> {
             left: 0,
             right: 0,
             child: Container(
-              height: 100,
+              height: 110,
+              padding: const EdgeInsets.only(top: 40, left: 24, right: 24),
               decoration: BoxDecoration(
                 color: darkGreen,
                 borderRadius: const BorderRadius.only(
                   bottomLeft: Radius.circular(16.0),
                   bottomRight: Radius.circular(16.0),
                 ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Row(
+                    children: [
+                      Image.asset(
+                        'assets/images/c2_logo.png',
+                        height: 40,
+                      ),
+                    ],
+                  ),
+                  const BlinkingOnlineIndicator(),
+                ],
               ),
             ),
           ),
