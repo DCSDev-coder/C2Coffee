@@ -23,21 +23,53 @@ const StatCard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-
   </div>
 );
 
-//Main Component
-const LoyaltyProgramSummary = ({ onBack }) => {
-  const metrics = [
-    { title: "Average Tokens per Member", value: "60.12", change: "7.3%", icon: Coins, iconBg: "bg-[#6F9F96]" },
-    { title: "Redemption Rate", value: "55.5%", change: "7.3%", icon: Percent, iconBg: "bg-[#E07A5F]" },
-    { title: "Most Redeemed Reward", value: "Free Latte", change: "", icon: Ticket, iconBg: "bg-[#D4AF7A]" },
-    { title: "Total Points Earned", value: "22,780", change: "8.3%", icon: Coins, iconBg: "bg-[#1F3A34]" }
-  ];
+const parseNumber = (value) => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  const parsed = Number(String(value ?? "").replace(/[%,$\s]/g, ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+};
 
-  const tiersData = [
-    { name: "Legend", count: 414, percentage: "25%", tokensAvg: 1200, iconBg: "bg-[#D4AF7A]/20 text-[#A8824A]" },
-    { name: "Dilamun", count: 414, percentage: "25%", tokensAvg: 800, iconBg: "bg-[#E07A5F]/15 text-[#E07A5F]" },
-    { name: "Ketagih", count: 414, percentage: "25%", tokensAvg: 450, iconBg: "bg-purple-100 text-purple-600" },
-    { name: "Kawan", count: 414, percentage: "25%", tokensAvg: 100, iconBg: "bg-blue-100 text-blue-600" }
-  ];
+const fallbackOverview = {
+  summary: {
+    totalMembers: 0,
+    tokensInCirculation: 0,
+    tokensIssued: 0,
+    tokensRedeemed: 0,
+    redemptionRate: 0,
+    totalRewardRedemptions: 0
+  },
+  tierBreakdown: []
+};
+
+//Main Component
+const LoyaltyProgramSummary = ({ overview, onBack }) => {
+  const liveOverview = overview || fallbackOverview;
+  const summary = liveOverview.summary || fallbackOverview.summary;
+  const tiersData = Array.isArray(liveOverview.tierBreakdown) && liveOverview.tierBreakdown.length > 0
+    ? liveOverview.tierBreakdown.map((tier) => ({
+        name: tier.tierName ?? tier.name,
+        members: parseNumber(tier.members ?? tier.count ?? tier.member_count),
+        percentage: parseNumber(tier.percentage),
+        avgTokens: parseNumber(tier.avgTokens ?? tier.tokensAvg ?? tier.avg_tokens),
+        iconBg: tier.iconBg || "bg-gray-100 text-gray-600"
+      }))
+    : [
+        { name: "Legend", members: 0, percentage: 0, avgTokens: 0, iconBg: "bg-[#D4AF7A]/20 text-[#A8824A]" },
+        { name: "Dilamun", members: 0, percentage: 0, avgTokens: 0, iconBg: "bg-[#E07A5F]/15 text-[#E07A5F]" },
+        { name: "Ketagih", members: 0, percentage: 0, avgTokens: 0, iconBg: "bg-purple-100 text-purple-600" },
+        { name: "Kawan", members: 0, percentage: 0, avgTokens: 0, iconBg: "bg-blue-100 text-blue-600" }
+      ];
+  const topReward = Array.isArray(liveOverview.topRedeemedRewards) && liveOverview.topRedeemedRewards.length > 0
+    ? {
+        ...liveOverview.topRedeemedRewards[0],
+        redemptions: parseNumber(liveOverview.topRedeemedRewards[0].redemptions ?? liveOverview.topRedeemedRewards[0].redemption_count)
+      }
+    : null;
+  const totalMembers = Number(summary.totalMembers ?? 0);
+  const totalRewardRedemptions = Number(summary.totalRewardRedemptions ?? 0);
+  const averageTokensPerMember = totalMembers > 0
+    ? parseNumber(summary.tokensInCirculation ?? 0) / totalMembers
+    : 0;
 
   return (
     <div className="h-full flex flex-col p-8 bg-gray-50/50">
@@ -63,9 +95,34 @@ const LoyaltyProgramSummary = ({ onBack }) => {
       <div className="flex-1 overflow-y-auto pr-2 pb-8">
         {/* Expanded Metrics */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {metrics.map((m, idx) => (
-            <StatCard key={idx} {...m} />
-          ))}
+          <StatCard
+            title="Average Tokens per Member"
+            value={averageTokensPerMember.toFixed(2)}
+            change="Live wallet balance"
+            icon={Coins}
+            iconBg="bg-[#6F9F96]"
+          />
+          <StatCard
+            title="Redemption Rate"
+            value={`${parseNumber(summary.redemptionRate).toFixed(1)}%`}
+            change="Live issued vs redeemed"
+            icon={Percent}
+            iconBg="bg-[#E07A5F]"
+          />
+          <StatCard
+            title="Most Redeemed Reward"
+            value={topReward?.reward || "No redemptions"}
+            change={topReward ? `${parseNumber(topReward.redemptions).toLocaleString('en-US')} redemptions` : "No data yet"}
+            icon={Ticket}
+            iconBg="bg-[#D4AF7A]"
+          />
+          <StatCard
+            title="Tokens Redeemed"
+            value={parseNumber(summary.tokensRedeemed).toLocaleString('en-US')}
+            change="Live ledger total"
+            icon={Coins}
+            iconBg="bg-[#1F3A34]"
+          />
         </div>
 
         {/* Detailed Tier Table */}
@@ -92,13 +149,13 @@ const LoyaltyProgramSummary = ({ onBack }) => {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-center font-bold text-gray-700">
-                      {tier.count.toLocaleString()}
+                      {parseNumber(tier.members ?? tier.count).toLocaleString()}
                     </td>
                     <td className="px-6 py-4 text-center font-bold text-gray-700">
-                      {tier.percentage}
+                      {parseNumber(tier.percentage).toFixed(1)}%
                     </td>
                     <td className="px-6 py-4 text-right font-bold text-gray-900">
-                      {tier.tokensAvg.toLocaleString()}
+                      {parseNumber(tier.avgTokens ?? tier.tokensAvg).toLocaleString('en-US')}
                     </td>
                   </tr>
                 ))}

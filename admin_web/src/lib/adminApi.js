@@ -47,6 +47,10 @@ export async function loadAdminCustomers() {
   return adminRequest('/v1/admin/customers');
 }
 
+export async function loadAdminLoyaltyOverview(limit = 50) {
+  return adminRequest(`/v1/admin/loyalty/overview?limit=${encodeURIComponent(limit)}`);
+}
+
 export async function createAdminCustomer(payload) {
   return adminRequest('/v1/admin/customers', {
     method: 'POST',

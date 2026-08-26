@@ -1,15 +1,61 @@
 import React from 'react';
 import { ArrowLeft, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 
-const TokenTransaction = ({ customer, onBack }) => {
+const defaultTransactions = [
+  { id: 'TXN-001', type: 'Earned', amount: '+145', source: 'Order ORD-2026-001', date: 'Aug 19, 2026', balance: '1,560' },
+  { id: 'TXN-002', type: 'Redeemed', amount: '-500', source: 'Voucher Redemption', date: 'Aug 19, 2026', balance: '1,415' },
+  { id: 'TXN-003', type: 'Earned', amount: '+25', source: 'Order ORD-2026-002', date: 'Aug 19, 2026', balance: '1,440' }
+];
+
+const TokenTransaction = ({ customer, transactions: providedTransactions, onBack }) => {
   const currentBalance = customer?.tokens || customer?.tokensBalance || '0';
   const balanceNum = parseInt(currentBalance.toString().replace(/,/g, ''), 10) || 0;
+  const sourceTransactions = Array.isArray(providedTransactions) && providedTransactions.length > 0
+    ? providedTransactions
+    : defaultTransactions;
 
-  const transactions = [
-    { id: 'TXN-001', type: 'Earned', amount: '+145', source: 'Order ORD-2026-001', date: 'Aug 19, 2026', balance: currentBalance },
-    { id: 'TXN-002', type: 'Redeemed', amount: '-500', source: 'Voucher Redemption', date: 'Aug 19, 2026', balance: (balanceNum - 145).toLocaleString() },
-    { id: 'TXN-003', type: 'Earned', amount: '+25', source: 'Order ORD-2026-002', date: 'Aug 19, 2026', balance: (balanceNum - 145 + 500).toLocaleString() },
-  ];
+  const transactions = sourceTransactions
+    .map((txn) => {
+      const source = txn.source || txn.desc || 'Token activity';
+      const rawAmount = txn.amount ?? txn.tokens ?? 0;
+      const amountValue = typeof rawAmount === 'string'
+        ? Number(rawAmount.replace(/[,+]/g, '').replace(/-/g, '')) || 0
+        : Number(rawAmount || 0);
+      const type = txn.type || (String(txn.amount ?? txn.tokens ?? '').startsWith('-') ? 'Redeemed' : 'Earned');
+      const signedAmount = typeof txn.amount === 'string' && txn.amount.trim()
+        ? txn.amount
+        : `${type === 'Redeemed' ? '-' : '+'}${amountValue.toLocaleString('en-US')}`;
+      const parsedDate = txn.date || txn.time || '';
+      const sortKey = parsedDate ? new Date(parsedDate).getTime() : 0;
+
+      return {
+        id: txn.id,
+        type,
+        amount: signedAmount,
+        source,
+        date: parsedDate,
+        sortKey,
+        delta: type === 'Redeemed' ? -amountValue : amountValue,
+        balance: txn.balance || txn.balanceAfter || null
+      };
+    })
+    .sort((a, b) => (b.sortKey || 0) - (a.sortKey || 0))
+    .map((txn, index, arr) => {
+      if (txn.balance) {
+        return txn;
+      }
+
+      let runningBalance = balanceNum;
+      for (let i = 0; i < index; i += 1) {
+        const previous = arr[i];
+        runningBalance -= previous.delta;
+      }
+
+      return {
+        ...txn,
+        balance: Math.max(0, runningBalance).toLocaleString('en-US')
+      };
+    });
 
   return (
     <div className="px-8 pb-8 pt-2 h-full flex flex-col">
@@ -27,7 +73,7 @@ const TokenTransaction = ({ customer, onBack }) => {
           <h1 className="text-2xl font-bold text-gray-900">Token Transactions</h1>
         </div>
         <p className={`text-gray-500 text-sm mt-0.5 ${onBack ? "ml-8" : ""}`}>
-          Token ledger for {customer.username}
+          Token ledger for {customer?.username || customer?.name || 'Selected member'}
         </p>
       </div>
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden flex-1">

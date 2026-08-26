@@ -11,6 +11,7 @@ import TokenTransaction from './TokenTransaction';
 import LoyaltyAnalytics from './LoyaltyAnalytics';
 import LoyaltyProgramSummary from './LoyaltyProgramSummary';
 import { exportToCSV } from '../utils/exportToCSV';
+import { loadAdminLoyaltyOverview } from '../lib/adminApi';
 
 const CustomDateInput = forwardRef(({ value, onClick, onClear }, ref) => (
   <div className="relative">
@@ -40,175 +41,6 @@ const CustomDateInput = forwardRef(({ value, onClick, onClear }, ref) => (
 ));
 
 
-const initialTransactions = [
-  {
-    id: "tx-1",
-    date: "Aug 19, 2026",
-    time: "10:15 AM",
-    member: {
-      name: "miraelys",
-      email: "mira@gmail.com",
-      phone: "+60 11-63793812",
-      memberId: "C2-001",
-      tier: "Legend",
-      tokensBalance: "1,560",
-      lifetimeEarned: "12,480",
-      lifetimeRedeemed: "10,920",
-      tierProgress: { current: 25, target: 30, expiry: "31 Jan 2027" }
-    },
-    description: "Purchase Order ORD-0510-001",
-    type: "Earned",
-    tokens: "+10",
-    balance: "1,560"
-  },
-  {
-    id: "tx-2",
-    date: "Aug 19, 2026",
-    time: "02:30 PM",
-    member: {
-      name: "alex_chong",
-      email: "alex.c@yahoo.com",
-      phone: "+60 12-3456789",
-      memberId: "C2-002",
-      tier: "Legend",
-      tokensBalance: "2,100",
-      lifetimeEarned: "15,200",
-      lifetimeRedeemed: "13,100",
-      tierProgress: { current: 30, target: 30, expiry: "31 Jan 2027" }
-    },
-    description: "Redeem Free Latte Voucher VCH-1001",
-    type: "Redeemed",
-    tokens: "-250",
-    balance: "2,100"
-  },
-  {
-    id: "tx-3",
-    date: "Aug 19, 2026",
-    time: "11:45 AM",
-    member: {
-      name: "sarah_lee",
-      email: "sarah.lee88@gmail.com",
-      phone: "+60 17-9876543",
-      memberId: "C2-003",
-      tier: "Dilamun",
-      tokensBalance: "450",
-      lifetimeEarned: "1,200",
-      lifetimeRedeemed: "750",
-      tierProgress: { current: 15, target: 20, expiry: "31 Jan 2027" }
-    },
-    description: "Purchase Order ORD-0503-042",
-    type: "Earned",
-    tokens: "+45",
-    balance: "450"
-  },
-  {
-    id: "tx-4",
-    date: "Aug 19, 2026",
-    time: "09:15 AM",
-    member: {
-      name: "khai_rul",
-      email: "khairul.dev@gmail.com",
-      phone: "+60 19-1122334",
-      memberId: "C2-004",
-      tier: "Ketagih",
-      tokensBalance: "3,200",
-      lifetimeEarned: "8,500",
-      lifetimeRedeemed: "5,300",
-      tierProgress: { current: 28, target: 30, expiry: "31 Jan 2027" }
-    },
-    description: "Purchase Order ORD-0502-011",
-    type: "Earned",
-    tokens: "+120",
-    balance: "3,200"
-  },
-  {
-    id: "tx-5",
-    date: "Aug 19, 2026",
-    time: "04:20 PM",
-    member: {
-      name: "jane_doe",
-      email: "janedoe99@outlook.com",
-      phone: "+60 13-5557777",
-      memberId: "C2-005",
-      tier: "Kawan",
-      tokensBalance: "120",
-      lifetimeEarned: "120",
-      lifetimeRedeemed: "0",
-      tierProgress: { current: 3, target: 10, expiry: "31 Jan 2027" }
-    },
-    description: "Purchase Order ORD-0501-088",
-    type: "Earned",
-    tokens: "+15",
-    balance: "120"
-  },
-  {
-    id: "tx-6",
-    date: "Aug 19, 2026",
-    time: "01:10 PM",
-    member: {
-      name: "ahmad_z",
-      email: "ahmad.z@gmail.com",
-      phone: "+60 14-2223333",
-      memberId: "C2-006",
-      tier: "Dilamun",
-      tokensBalance: "1,890",
-      lifetimeEarned: "4,500",
-      lifetimeRedeemed: "2,610",
-      tierProgress: { current: 18, target: 20, expiry: "31 Jan 2027" }
-    },
-    description: "Purchase Order ORD-0430-055",
-    type: "Earned",
-    tokens: "+80",
-    balance: "1,890"
-  },
-  {
-    id: "tx-7",
-    date: "Aug 19, 2026",
-    time: "10:05 AM",
-    member: {
-      name: "lily_tan",
-      email: "lily.tan@company.com",
-      phone: "+60 16-8889999",
-      memberId: "C2-007",
-      tier: "Ketagih",
-      tokensBalance: "4,500",
-      lifetimeEarned: "12,000",
-      lifetimeRedeemed: "7,500",
-      tierProgress: { current: 22, target: 30, expiry: "31 Jan 2027" }
-    },
-    description: "Redeem Free Cake Voucher VCH-1002",
-    type: "Redeemed",
-    tokens: "-500",
-    balance: "4,500"
-  },
-  {
-    id: "tx-8",
-    date: "Aug 19, 2026",
-    time: "08:30 AM",
-    member: {
-      name: "ravi_s",
-      email: "ravi.shankar@gmail.com",
-      phone: "+60 11-1234123",
-      memberId: "C2-008",
-      tier: "Dilamun",
-      tokensBalance: "670",
-      lifetimeEarned: "1,500",
-      lifetimeRedeemed: "830",
-      tierProgress: { current: 15, target: 20, expiry: "31 Jan 2027" }
-    },
-    description: "Purchase Order ORD-0428-002",
-    type: "Earned",
-    tokens: "+25",
-    balance: "670"
-  },
-];
-
-const mockTokenHistory = [
-  { id: 'TXN-001', type: 'Earned', amount: '+145', desc: 'Order ORD-2026-001', date: 'Aug 19, 2026' },
-  { id: 'TXN-002', type: 'Redeemed', amount: '-500', desc: 'Voucher Redemption', date: 'Aug 19, 2026' },
-  { id: 'TXN-003', type: 'Earned', amount: '+25', desc: 'Order ORD-2026-002', date: 'Aug 19, 2026' },
-];
-
 //Helpers
 const getTierColor = (tier) => {
   switch (tier) {
@@ -225,6 +57,21 @@ const getTypeColor = (type) => {
     case 'Earned': return 'bg-green-100 text-green-700';
     case 'Redeemed': return 'bg-red-100 text-red-700';
     default: return 'bg-gray-100 text-gray-700';
+  }
+};
+
+const formatMemberId = (userId) => `C2-${String(Number(userId) || 0).padStart(3, '0')}`;
+
+const calculateTierTarget = (tier) => {
+  switch (String(tier || '').toLowerCase()) {
+    case 'kawan':
+      return 10;
+    case 'dilamun':
+      return 30;
+    case 'ketagih':
+      return 50;
+    default:
+      return 50;
   }
 };
 
@@ -256,6 +103,10 @@ const LoyaltyTokens = ({ onBack, onNavigate }) => {
   const [selectedType, setSelectedType] = useState("All Transaction Types");
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [overview, setOverview] = useState(null);
+  const [transactions, setTransactions] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
 
   const [typeOpen, setTypeOpen] = useState(false);
 
@@ -272,9 +123,59 @@ const LoyaltyTokens = ({ onBack, onNavigate }) => {
     return () => window.removeEventListener('click', handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchOverview = async ({ silent = false } = {}) => {
+      try {
+        if (!silent) {
+          setIsLoading(true);
+        }
+        setLoadError("");
+        const response = await loadAdminLoyaltyOverview(100);
+        if (!isMounted) return;
+
+        setOverview(response ?? null);
+        setTransactions(Array.isArray(response?.transactions) ? response.transactions : []);
+      } catch (error) {
+        console.error('Failed to load loyalty overview', error);
+        if (isMounted) {
+          setLoadError(error?.message || 'Failed to load loyalty data.');
+          setOverview(null);
+          setTransactions([]);
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    fetchOverview();
+
+    const refreshOverview = () => fetchOverview({ silent: true });
+    const intervalId = window.setInterval(refreshOverview, 30000);
+    const handleFocus = () => refreshOverview();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refreshOverview();
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
   const itemsPerPage = 10;
 
-  const filteredTransactions = initialTransactions.filter((tx) => {
+  const filteredTransactions = transactions.filter((tx) => {
     const matchesSearch = tx.member.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       tx.member.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
       tx.member.memberId.toLowerCase().includes(searchQuery.toLowerCase());
@@ -287,19 +188,45 @@ const LoyaltyTokens = ({ onBack, onNavigate }) => {
     return matchesSearch && matchesType && matchesDate;
   });
 
-  const totalPages = Math.max(1, Math.ceil(filteredTransactions.length / itemsPerPage));
-  const paginatedTransactions = filteredTransactions.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const groupedMembers = Object.values(filteredTransactions.reduce((acc, tx) => {
+    const memberId = tx.member.memberId;
+    if (!acc[memberId]) {
+      acc[memberId] = {
+        member: {
+          ...tx.member,
+          tokenHistory: []
+        },
+        transactions: []
+      };
+    }
+
+    acc[memberId].transactions.push(tx);
+    acc[memberId].member.tokenHistory = acc[memberId].transactions.slice(0, 5).map((item) => ({
+      id: item.id,
+      type: item.type,
+      amount: item.tokens,
+      source: item.description,
+      desc: item.description,
+      date: `${item.date} ${item.time}`,
+      balance: item.balance
+    }));
+    acc[memberId].member.lastActivity = acc[memberId].transactions[0];
+    return acc;
+  }, {}));
+
+  const totalPages = Math.max(1, Math.ceil(groupedMembers.length / itemsPerPage));
+  const paginatedMembers = groupedMembers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   if (activeView === 'analytics') {
-    return <LoyaltyAnalytics onBack={() => setActiveView('list')} onViewSummary={() => setActiveView('program_summary')} />;
+    return <LoyaltyAnalytics overview={overview} onBack={() => setActiveView('list')} onViewSummary={() => setActiveView('program_summary')} />;
   }
 
   if (activeView === 'program_summary') {
-    return <LoyaltyProgramSummary onBack={() => setActiveView('analytics')} />;
+    return <LoyaltyProgramSummary overview={overview} onBack={() => setActiveView('analytics')} />;
   }
 
   if (activeView === 'tokens' && selectedCustomer) {
-    return <TokenTransaction customer={{ ...selectedCustomer, username: selectedCustomer.name }} onBack={() => setActiveView('list')} />;
+    return <TokenTransaction customer={{ ...selectedCustomer, username: selectedCustomer.name, transactions: selectedCustomer.tokenHistory || [] }} onBack={() => setActiveView('list')} />;
   }
 
   return (
@@ -308,36 +235,42 @@ const LoyaltyTokens = ({ onBack, onNavigate }) => {
         {/* Header */}
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Loyalty & Tokens</h1>
-          <p className="text-gray-500 text-sm mt-0.5">Manage customer loyalty tiers, points and token transactions.</p>
+          <p className="text-gray-500 text-sm mt-0.5">Live token balances, tier progress, and token transactions.</p>
         </div>
+
+        {loadError && (
+          <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {loadError}
+          </div>
+        )}
 
         {/* KPI Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <KPICard
             title="Total Members"
-            value="2,138"
-            change="12.6% vs last month"
+            value={isLoading ? '—' : (overview?.summary?.totalMembers ?? 0).toLocaleString('en-US')}
+            change="Live from admin API"
             icon={Users}
             iconBg="bg-[#1F3A34]"
           />
           <KPICard
             title="Tokens Held"
-            value="128,560"
-            change="8.2% vs last month"
+            value={isLoading ? '—' : (overview?.summary?.tokensInCirculation ?? 0).toLocaleString('en-US')}
+            change="Live wallet balance"
             icon={Coins}
             iconBg="bg-[#6F9F96]"
           />
           <KPICard
             title="Token Issued"
-            value="15,230"
-            change="17.1% vs last month"
+            value={isLoading ? '—' : (overview?.summary?.tokensIssued ?? 0).toLocaleString('en-US')}
+            change="Issued credits"
             icon={CreditCard}
             iconBg="bg-[#E07A5F]"
           />
           <KPICard
             title="Tokens Redeemed"
-            value="8,450"
-            change="8.7% vs last month"
+            value={isLoading ? '—' : (overview?.summary?.tokensRedeemed ?? 0).toLocaleString('en-US')}
+            change="Spent tokens"
             icon={ShoppingBag}
             iconBg="bg-[#D4AF7A]"
           />
@@ -356,6 +289,10 @@ const LoyaltyTokens = ({ onBack, onNavigate }) => {
               onChange={(e) => setSearchQuery(e.target.value)}
               className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm bg-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1F3A34] focus:border-[#1F3A34]"
             />
+          </div>
+
+          <div className="text-xs text-gray-500 lg:ml-2">
+            Showing {groupedMembers.length.toLocaleString('en-US')} members and {filteredTransactions.length.toLocaleString('en-US')} token events
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
@@ -393,7 +330,7 @@ const LoyaltyTokens = ({ onBack, onNavigate }) => {
               onClick={() => {
                 const rows = [
                   ["Transaction ID", "Member Name", "Tokens", "Balance", "Type", "Source", "Date"],
-                  ...filteredItems.map(t => [
+                  ...filteredTransactions.map(t => [
                     `"${t.id}"`,
                     `"${t.member.name}"`,
                     `"${t.tokens}"`,
@@ -425,16 +362,21 @@ const LoyaltyTokens = ({ onBack, onNavigate }) => {
                     <th className="px-6 py-4 font-extrabold">Date & Time</th>
                     <th className="px-6 py-4 font-extrabold">Username</th>
                     <th className="px-6 py-4 font-extrabold">Member Tier</th>
-                    <th className="px-6 py-4 font-extrabold">Description</th>
+                    <th className="px-6 py-4 font-extrabold">Latest Activity</th>
                     <th className="px-6 py-4 font-extrabold text-right">Tokens</th>
                     <th className="px-6 py-4 font-extrabold text-right">Balance</th>
                     <th className="px-6 py-4 font-extrabold text-center">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {paginatedTransactions.map((tx) => (
+                  {paginatedMembers.map((group) => {
+                    const tx = group.transactions[0];
+                    const transactionCount = group.transactions.length;
+                    const latestWords = tx.description.split(' ').slice(0, 6);
+
+                    return (
                     <tr
-                      key={tx.id}
+                      key={tx.member.memberId}
                       className={`hover:bg-gray-50 cursor-pointer transition-colors ${selectedCustomer && selectedCustomer.memberId === tx.member.memberId ? 'bg-gray-50' : ''}`}
                       onClick={() => setSelectedCustomer(tx.member)}
                     >
@@ -462,13 +404,18 @@ const LoyaltyTokens = ({ onBack, onNavigate }) => {
                             {tx.type}
                           </span>
                           <div className="text-xs">
-                            {tx.description.split(' ').map((word, i) => (
+                            {latestWords.map((word, i) => (
                               <span key={i} className={i === 0 ? "font-semibold text-gray-900 mr-1" : "text-gray-500 mr-1"}>
                                 {word}
                               </span>
                             ))}
                           </div>
                         </div>
+                        {transactionCount > 1 && (
+                          <p className="mt-1 text-[10px] text-gray-400">
+                            {transactionCount} token events for this member
+                          </p>
+                        )}
                       </td>
                       <td className={`px-6 py-3 text-right whitespace-nowrap text-xs font-bold ${tx.tokens.startsWith('+') ? 'text-gray-900' : 'text-gray-900'}`}>
                         {tx.tokens}
@@ -489,7 +436,8 @@ const LoyaltyTokens = ({ onBack, onNavigate }) => {
                         </button>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -501,8 +449,8 @@ const LoyaltyTokens = ({ onBack, onNavigate }) => {
                 totalPages={totalPages}
                 setCurrentPage={setCurrentPage}
                 itemsPerPage={itemsPerPage}
-                totalItems={filteredTransactions.length}
-                itemName="transactions"
+                totalItems={groupedMembers.length}
+                itemName="members"
               />
             </div>
           </div>
@@ -578,7 +526,7 @@ const LoyaltyTokens = ({ onBack, onNavigate }) => {
                       </div>
                       <div>
                         <h4 className="font-bold text-sm">{selectedCustomer.tier}</h4>
-                        <p className="text-[10px] text-gray-400">Until {selectedCustomer.tierProgress.expiry}</p>
+                        <p className="text-[10px] text-gray-400">{selectedCustomer.tierProgress?.label || 'Rolling progress window'}</p>
                       </div>
                     </div>
                     <div className="text-right">
@@ -609,27 +557,31 @@ const LoyaltyTokens = ({ onBack, onNavigate }) => {
                   </div>
 
                   <div className="space-y-4">
-                    {mockTokenHistory.map((history) => (
-                      <div key={history.id} className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0 shadow-sm ${history.type === 'Earned' ? 'bg-gray-900' : 'bg-gray-900'}`}>
-                            {history.type === 'Earned' ? (
-                              <CheckCircle2 size={16} strokeWidth={2.5} />
-                            ) : (
-                              <Percent size={16} strokeWidth={2.5} />
-                            )}
+                    {(selectedCustomer.tokenHistory || []).length > 0 ? (
+                      (selectedCustomer.tokenHistory || []).map((history) => (
+                        <div key={history.id} className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0 shadow-sm ${history.type === 'Earned' ? 'bg-gray-900' : 'bg-gray-900'}`}>
+                              {history.type === 'Earned' ? (
+                                <CheckCircle2 size={16} strokeWidth={2.5} />
+                              ) : (
+                                <Percent size={16} strokeWidth={2.5} />
+                              )}
+                            </div>
+                            <div>
+                              <p className="font-bold text-gray-900 text-xs">{history.type}</p>
+                              <p className="text-[10px] text-gray-500 mt-0.5 leading-tight">{history.desc}</p>
+                              <p className="text-[9px] text-gray-400">{history.date}</p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="font-bold text-gray-900 text-xs">{history.type}</p>
-                            <p className="text-[10px] text-gray-500 mt-0.5 leading-tight">{history.desc}</p>
-                            <p className="text-[9px] text-gray-400">{history.date}</p>
+                          <div className={`font-bold text-xs ${history.type === 'Earned' ? 'text-gray-900' : 'text-gray-900'}`}>
+                            {history.amount}
                           </div>
                         </div>
-                        <div className={`font-bold text-xs ${history.type === 'Earned' ? 'text-gray-900' : 'text-gray-900'}`}>
-                          {history.amount}
-                        </div>
-                      </div>
-                    ))}
+                      ))
+                    ) : (
+                      <p className="text-xs text-gray-500">No recent token history available.</p>
+                    )}
                   </div>
                 </div>
               </div>
