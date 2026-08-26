@@ -122,7 +122,7 @@ const Marketing = ({ setCurrentPage }) => {
 
   return (
     <div className="flex-1 overflow-x-hidden overflow-y-auto bg-[#F9FAFB]">
-      <div className="p-6 lg:p-8 max-w-[1600px] mx-auto w-full h-full flex flex-col">
+      <div className="p-6 lg:p-8 w-full h-full flex flex-col">
         
         {/* Header */}
         <div className="mb-6 shrink-0">

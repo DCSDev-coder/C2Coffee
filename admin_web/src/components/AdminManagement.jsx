@@ -233,7 +233,7 @@ const AdminManagement = ({ currentUser }) => {
 
   return (
     <div className="flex-1 overflow-x-hidden overflow-y-auto bg-[#F9FAFB]">
-      <div className="p-6 lg:p-8 max-w-[1600px] mx-auto w-full h-full flex flex-col">
+      <div className="p-6 lg:p-8 w-full h-full flex flex-col">
         <div className="mb-6 shrink-0">
           <h1 className="text-2xl font-bold text-gray-900">Admin Management</h1>
           <p className="text-sm text-gray-500 mt-1">Manage admin accounts and their access.</p>

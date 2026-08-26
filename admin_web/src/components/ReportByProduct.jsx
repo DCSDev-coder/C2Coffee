@@ -97,7 +97,7 @@ const ReportByProduct = () => {
 
   return (
     <div className="flex-1 overflow-x-hidden overflow-y-auto bg-[#F9FAFB]">
-      <div className="p-6 lg:p-8 max-w-[1600px] mx-auto w-full h-full flex flex-col space-y-6">
+      <div className="p-6 lg:p-8 w-full h-full flex flex-col space-y-6">
         <div className="shrink-0 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div>

@@ -205,7 +205,7 @@ const Settings = ({ setCurrentPage, currentUser }) => {
 
   return (
     <div className="flex-1 overflow-x-hidden overflow-y-auto bg-[#F9FAFB] relative">
-      <div className="p-6 lg:p-8 max-w-[1600px] mx-auto w-full h-full flex flex-col space-y-6">
+      <div className="p-6 lg:p-8 w-full h-full flex flex-col space-y-6">
         
         {/* Header */}
         <div className="shrink-0 flex justify-between items-start">
