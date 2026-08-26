@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../main.dart';
+import '../services/api_service.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -13,6 +14,22 @@ class _SettingsPageState extends State<SettingsPage> {
   final Color darkGreen = const Color(0xFF304A3A);
   final Color beigeColor = const Color(0xFFD3B17D);
   final Color switchOrange = const Color(0xFFE07A5F);
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshBaristas();
+  }
+
+  Future<void> _refreshBaristas() async {
+    final baristas = await ApiService.fetchBaristas();
+    if (baristas.isNotEmpty) {
+      globalBaristas.value = baristas;
+      if (!baristas.contains(globalActiveBarista.value)) {
+        globalActiveBarista.value = baristas.first;
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

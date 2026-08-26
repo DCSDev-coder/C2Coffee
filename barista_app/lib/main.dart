@@ -261,7 +261,13 @@ class _LoginPageState extends State<LoginPage> {
 
                                     if (!context.mounted) return;
                                     // Login successful!
-                                    // We keep the default barista (Nur) instead of changing it to 'test'.
+                                    final baristas = await ApiService.fetchBaristas();
+                                    if (baristas.isNotEmpty) {
+                                      globalBaristas.value = baristas;
+                                      if (!baristas.contains(globalActiveBarista.value)) {
+                                        globalActiveBarista.value = baristas.first;
+                                      }
+                                    }
 
                                     Navigator.pushReplacement(
                                       context,

@@ -120,4 +120,28 @@ class ApiService {
       return []; // Return empty list on failure to not break UI immediately
     }
   }
+
+  static Future<List<String>> fetchBaristas() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/admin/baristas'),
+        headers: _accessToken != null ? {'Authorization': 'Bearer $_accessToken'} : {},
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List<dynamic> baristasJson = data['baristas'] ?? [];
+        List<String> baristas = [];
+        for (var b in baristasJson) {
+          if (b['is_active'] == 1 || b['is_active'] == true) {
+            baristas.add(b['name'].toString());
+          }
+        }
+        return baristas;
+      }
+    } catch (e) {
+      print('Fetch Baristas Error: $e');
+    }
+    return [];
+  }
 }
