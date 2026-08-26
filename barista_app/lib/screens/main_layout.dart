@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'current_order_page.dart';
 import 'history_page.dart';
@@ -19,12 +20,17 @@ class _MainLayoutState extends State<MainLayout> {
   // Start on Current Orders (index 1)
   int _currentIndex = 1;
   late final PageController _pageController;
+  Timer? _refreshTimer;
 
   @override
   void initState() {
     super.initState();
     _pageController = PageController(initialPage: _currentIndex);
     _loadInitialOrders();
+    // Auto-refresh every 10 seconds
+    _refreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      _loadInitialOrders();
+    });
   }
 
   Future<void> _loadInitialOrders() async {
@@ -45,6 +51,7 @@ class _MainLayoutState extends State<MainLayout> {
 
   @override
   void dispose() {
+    _refreshTimer?.cancel();
     _pageController.dispose();
     super.dispose();
   }

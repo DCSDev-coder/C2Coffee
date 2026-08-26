@@ -135,7 +135,7 @@ class _HistoryPageState extends State<HistoryPage> {
                                         ),
                                       ),
                                       Text(
-                                        '142 total orders',
+                                        '${filteredOrders.length} total orders',
                                         style: TextStyle(
                                           color: beigeColor,
                                           fontSize: 16,

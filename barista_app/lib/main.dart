@@ -10,8 +10,7 @@ final ValueNotifier<List<String>> globalBaristas = ValueNotifier<List<String>>([
   'Balqis',
 ]);
 final ValueNotifier<String> globalActiveBarista = ValueNotifier<String>('Nur');
-final ValueNotifier<Map<String, String?>> globalBaristaPfps =
-    ValueNotifier<Map<String, String?>>({});
+
 final ValueNotifier<int> globalDailyGoal = ValueNotifier<int>(200);
 
 final ValueNotifier<List<CurrentOrder>> globalCurrentOrders =
