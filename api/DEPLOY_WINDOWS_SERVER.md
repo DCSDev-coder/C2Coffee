@@ -43,6 +43,7 @@ Then edit `.env` and set the real values for:
 - `DB_NAME`
 - `ACCESS_TOKEN_SECRET`
 - `REFRESH_TOKEN_SECRET`
+- `CORS_ALLOWED_ORIGINS` should include any browser origin you use for local testing, including the barista web build on `http://localhost:60120`
 
 ## 3. Initial auth test mode
 
