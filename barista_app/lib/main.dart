@@ -4,6 +4,8 @@ import 'screens/main_layout.dart';
 
 final ValueNotifier<String> globalActiveBarista = ValueNotifier<String>('Nur');
 final ValueNotifier<List<String>> globalBaristas = ValueNotifier<List<String>>(['Nur', 'Amirah', 'Balqis']);
+final ValueNotifier<Map<String, String?>> globalBaristaPfps = ValueNotifier<Map<String, String?>>({});
+final ValueNotifier<int> globalDailyGoal = ValueNotifier<int>(200);
 
 void main() {
   runApp(const BaristaApp());

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../widgets/order_card.dart';
 import '../widgets/active_barista_profile.dart';
+import '../widgets/daily_orders_card.dart';
 import 'order_details_page.dart';
 
 class CurrentOrderPage extends StatefulWidget {
@@ -140,7 +141,11 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 16.0),
+                const SizedBox(height: 24.0),
+                
+                // Animated Daily Orders Card
+                const DailyOrdersCard(),
+                const SizedBox(height: 24.0),
                 
                 // Search Bar
                 TextField(
