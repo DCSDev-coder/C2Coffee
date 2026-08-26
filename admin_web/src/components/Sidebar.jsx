@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   LayoutDashboard, Users, ShoppingBag, Ticket, Coins, Crown, Package,
-  Coffee, Megaphone, LineChart, UserCog, ClipboardList, Settings, LogOut
+  Coffee, Megaphone, LineChart, UserCog, ClipboardList, Settings, LogOut, UserCheck
 } from 'lucide-react';
 
 const Sidebar = ({ currentPage, setCurrentPage, onLogout, currentTenant }) => {
@@ -19,6 +19,7 @@ const Sidebar = ({ currentPage, setCurrentPage, onLogout, currentTenant }) => {
     { name: 'Finance', icon: LineChart },
     { name: 'Product Report', icon: Package },
     { name: 'Admin Management', icon: UserCog },
+    { name: 'Barista Management', icon: UserCheck },
     { name: 'Audit Logs', icon: ClipboardList },
     { name: 'Settings', icon: Settings }
   ];

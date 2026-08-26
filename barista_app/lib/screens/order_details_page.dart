@@ -3,7 +3,6 @@ import '../main.dart';
 import '../widgets/order_card.dart';
 import '../widgets/active_barista_profile.dart';
 import 'pickup_ready_page.dart';
-import 'pickup_confirmation_page.dart';
 import '../services/api_service.dart';
 
 class OrderDetailsPage extends StatelessWidget {
@@ -230,7 +229,7 @@ class OrderDetailsPage extends StatelessWidget {
                       );
                     }),
                     
-                    if (!isHistory && !isCompleted) ...[
+                    if (!isHistory && !isCompleted && !isReady) ...[
                       const SizedBox(height: 32.0),
                       
                       // Action Button
@@ -258,31 +257,10 @@ class OrderDetailsPage extends StatelessWidget {
                                   },
                                 ),
                               );
-                            } else if (order != null && order.status == OrderStatus.readyForPickup) {
-                              // Move to history
-                              await ApiService.updateOrderStatus(orderId, 'completed');
-                              order.status = OrderStatus.completed;
-                              globalHistoryOrders.value = [order, ...globalHistoryOrders.value];
-                              
-                              globalCurrentOrders.value = globalCurrentOrders.value.where((o) => o.orderId != orderId).toList();
-                              if (!context.mounted) return;
-                              Navigator.pushReplacement(
-                                context,
-                                PageRouteBuilder(
-                                  pageBuilder: (context, animation, secondaryAnimation) => PickupConfirmationPage(
-                                    orderId: orderId,
-                                    customerDetails: customerDetails,
-                                    items: items,
-                                  ),
-                                  transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                                    return FadeTransition(opacity: animation, child: child);
-                                  },
-                                ),
-                              );
                             }
                           },
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: (order?.status == OrderStatus.newOrder || order?.status == OrderStatus.readyForPickup) ? darkGreen : buttonOrange,
+                            backgroundColor: (order?.status == OrderStatus.newOrder) ? darkGreen : buttonOrange,
                             foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(16.0),
@@ -292,7 +270,7 @@ class OrderDetailsPage extends StatelessWidget {
                           child: Text(
                             order?.status == OrderStatus.newOrder 
                               ? 'Start Preparing' 
-                              : (order?.status == OrderStatus.readyForPickup ? 'Confirm Pickup' : 'Mark as Ready'),
+                              : 'Mark as Ready',
                             style: const TextStyle(
                               fontSize: 22,
                               fontWeight: FontWeight.bold,

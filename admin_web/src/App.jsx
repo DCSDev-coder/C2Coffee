@@ -22,6 +22,7 @@ import AllCampaigns from './components/AllCampaigns';
 import AllPushNotifications from './components/AllPushNotifications';
 import AllContentPerformance from './components/AllContentPerformance';
 import AdminManagement from './components/AdminManagement';
+import BaristaManagement from './components/BaristaManagement';
 import TierManagement from './components/TierManagement';
 import ReportByProduct from './components/ReportByProduct';
 import AuditLogs from './components/AuditLogs';
@@ -181,6 +182,7 @@ function App() {
       {currentPage === 'ExpenseBreakdownFull' && <ExpenseBreakdownFull onBack={() => handleNavigate('Finance')} />}
       {currentPage === 'Product Report' && <ReportByProduct onBack={() => handleNavigate('Finance')} />}
       {currentPage === 'Admin Management' && <AdminManagement currentUser={currentUser} />}
+      {currentPage === 'Barista Management' && <BaristaManagement />}
       {currentPage === 'Audit Logs' && <AuditLogs onNavigate={handleNavigate} currentUser={currentUser} />}
       {currentPage === 'Settings' && <Settings setCurrentPage={handleNavigate} currentUser={currentUser} />}
     </Layout>

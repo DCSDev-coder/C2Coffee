@@ -149,15 +149,15 @@ class OrderCard extends StatelessWidget {
             // Order Items
             ...items.map((item) => _buildOrderItem(item, darkGreen)).toList(),
             
-            // Action Button (Only if not history)
-            if (!isHistory) ...[
+            // Action Button (Only if not history or ready)
+            if (!isHistory && !isReadyForPickup) ...[
               const SizedBox(height: 16.0),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: onActionPressed,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: isReadyForPickup ? darkGreen : (isPreparing ? orangeColor : beigeColor),
+                    backgroundColor: isPreparing ? orangeColor : beigeColor,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14.0),
                     shape: RoundedRectangleBorder(
@@ -166,7 +166,7 @@ class OrderCard extends StatelessWidget {
                     elevation: 0,
                   ),
                   child: Text(
-                    isReadyForPickup ? 'Confirm Pickup' : (isPreparing ? 'Mark as Ready' : 'Start Preparing'),
+                    isPreparing ? 'Mark as Ready' : 'Start Preparing',
                     style: const TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
@@ -183,10 +183,6 @@ class OrderCard extends StatelessWidget {
 }
 
   Widget _buildOrderItem(OrderItem item, Color darkGreen) {
-    const int maxTags = 3;
-    final List<String> displayedTags = item.tags.take(maxTags).toList();
-    final int extraTagsCount = item.tags.length > maxTags ? item.tags.length - maxTags : 0;
-
     return Padding(
       padding: const EdgeInsets.only(bottom: 16.0),
       child: Column(
@@ -205,41 +201,22 @@ class OrderCard extends StatelessWidget {
             Wrap(
               spacing: 6.0,
               runSpacing: 6.0,
-              children: [
-                ...displayedTags.map((tag) => Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 6.0),
-                  decoration: BoxDecoration(
-                    color: darkGreen.withOpacity(0.06),
-                    borderRadius: BorderRadius.circular(8.0),
-                    border: Border.all(color: darkGreen.withOpacity(0.1)),
+              children: item.tags.map((tag) => Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 6.0),
+                decoration: BoxDecoration(
+                  color: darkGreen.withOpacity(0.06),
+                  borderRadius: BorderRadius.circular(8.0),
+                  border: Border.all(color: darkGreen.withOpacity(0.1)),
+                ),
+                child: Text(
+                  tag,
+                  style: TextStyle(
+                    color: darkGreen,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
                   ),
-                  child: Text(
-                    tag,
-                    style: TextStyle(
-                      color: darkGreen,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                )),
-                if (extraTagsCount > 0)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 6.0),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(8.0),
-                      border: Border.all(color: Colors.grey.shade200),
-                    ),
-                    child: Text(
-                      '+$extraTagsCount more',
-                      style: TextStyle(
-                        color: Colors.grey.shade600,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-              ],
+                ),
+              )).toList(),
             ),
           ],
         ],

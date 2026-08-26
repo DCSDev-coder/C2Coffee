@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../main.dart';
 import '../widgets/order_card.dart';
 import '../widgets/active_barista_profile.dart';
-import '../widgets/daily_orders_card.dart';
 import 'order_details_page.dart';
 import '../services/api_service.dart';
 import '../widgets/blinking_online_indicator.dart';
@@ -22,7 +21,6 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
 
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
-  int _selectedTab = 0;
 
   @override
   void initState() {
@@ -61,14 +59,6 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
               if (_searchQuery.isEmpty) return true;
               return order.orderId.toLowerCase().contains(_searchQuery) ||
                   order.customerDetails.toLowerCase().contains(_searchQuery);
-            })
-            .where((order) {
-              if (_selectedTab == 0) {
-                return order.status == OrderStatus.newOrder ||
-                    order.status == OrderStatus.preparing;
-              } else {
-                return order.status == OrderStatus.readyForPickup;
-              }
             })
             .toList();
 
@@ -129,16 +119,14 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
                                           fontWeight: FontWeight.bold,
                                         ),
                                       ),
-                                      Text(
-                                        _selectedTab == 0
-                                            ? '$inProgressCount active orders in queue'
-                                            : '$readyCount ready for pickup',
-                                        style: TextStyle(
-                                          color: beigeColor,
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
+                                        Text(
+                                          '${allOrders.length} active orders',
+                                          style: TextStyle(
+                                            color: beigeColor,
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                          ),
                                         ),
-                                      ),
                                     ],
                                   ),
                                 ),
@@ -149,22 +137,7 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
                             ),
                             const SizedBox(height: 24.0),
 
-                            // Animated Daily Orders Card
-                            ValueListenableBuilder<List<CurrentOrder>>(
-                              valueListenable: globalHistoryOrders,
-                              builder: (context, historyOrders, _) {
-                                // Calculate completed orders for today
-                                final today = DateTime.now();
-                                final todayCompletedCount = historyOrders.where((order) {
-                                  return order.status == OrderStatus.completed &&
-                                      order.orderDate.year == today.year &&
-                                      order.orderDate.month == today.month &&
-                                      order.orderDate.day == today.day;
-                                }).length;
-                                return DailyOrdersCard(ordersCompleted: todayCompletedCount);
-                              },
-                            ),
-                            const SizedBox(height: 24.0),
+
 
                             // Search Bar
                             TextField(
@@ -207,129 +180,7 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
                             ),
                             const SizedBox(height: 16.0),
 
-                            // Tabs
-                            Container(
-                              padding: const EdgeInsets.all(4.0),
-                              decoration: BoxDecoration(
-                                color: Colors.grey.shade200,
-                                borderRadius: BorderRadius.circular(30.0),
-                              ),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: GestureDetector(
-                                      onTap: () =>
-                                          setState(() => _selectedTab = 0),
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: 12.0,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: _selectedTab == 0
-                                              ? Colors.white
-                                              : Colors.transparent,
-                                          borderRadius: BorderRadius.circular(
-                                            26.0,
-                                          ),
-                                          boxShadow: _selectedTab == 0
-                                              ? [
-                                                  BoxShadow(
-                                                    color: Colors.black
-                                                        .withOpacity(0.05),
-                                                    blurRadius: 4,
-                                                    offset: const Offset(0, 2),
-                                                  ),
-                                                ]
-                                              : null,
-                                        ),
-                                        child: Center(
-                                          child: Text(
-                                            'In Progress',
-                                            style: TextStyle(
-                                              color: _selectedTab == 0
-                                                  ? darkGreen
-                                                  : Colors.grey,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  Expanded(
-                                    child: GestureDetector(
-                                      onTap: () =>
-                                          setState(() => _selectedTab = 1),
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: 12.0,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: _selectedTab == 1
-                                              ? Colors.white
-                                              : Colors.transparent,
-                                          borderRadius: BorderRadius.circular(
-                                            26.0,
-                                          ),
-                                          boxShadow: _selectedTab == 1
-                                              ? [
-                                                  BoxShadow(
-                                                    color: Colors.black
-                                                        .withOpacity(0.05),
-                                                    blurRadius: 4,
-                                                    offset: const Offset(0, 2),
-                                                  ),
-                                                ]
-                                              : null,
-                                        ),
-                                        child: Center(
-                                          child: Row(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.center,
-                                            children: [
-                                              Text(
-                                                'Ready for Pickup',
-                                                style: TextStyle(
-                                                  color: _selectedTab == 1
-                                                      ? darkGreen
-                                                      : Colors.grey,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                              if (readyCount > 0) ...[
-                                                const SizedBox(width: 6),
-                                                Container(
-                                                  padding: const EdgeInsets.all(
-                                                    4,
-                                                  ),
-                                                  decoration:
-                                                      const BoxDecoration(
-                                                        color: Color(
-                                                          0xFFDF7E65,
-                                                        ),
-                                                        shape: BoxShape.circle,
-                                                      ),
-                                                  child: Text(
-                                                    '$readyCount',
-                                                    style: const TextStyle(
-                                                      color: Colors.white,
-                                                      fontSize: 10,
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 24.0),
+
 
                             if (filteredOrders.isEmpty)
                               Center(

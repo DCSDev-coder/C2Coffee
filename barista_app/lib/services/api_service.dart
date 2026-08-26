@@ -73,8 +73,29 @@ class ApiService {
           if (json['items'] != null) {
             for (var item in json['items']) {
               final title = '${item['qty']}x ${item['name']}';
-              // Default to some empty tags since API doesn't provide them
-              parsedItems.add(OrderItem(title: title, tags: ['Standard']));
+              
+              List<String> tags = [];
+              void addIfPresent(String? val, [String prefix = '', String suffix = '']) {
+                if (val != null && val.trim().isNotEmpty) {
+                  tags.add('$prefix$val$suffix');
+                }
+              }
+
+              addIfPresent(item['bean']?.toString());
+              addIfPresent(item['espressoShot']?.toString(), '', ' Shot');
+              addIfPresent(item['temperature']?.toString());
+              addIfPresent(item['sparkling']?.toString(), 'Sparkling: ');
+              addIfPresent(item['milk']?.toString());
+              addIfPresent(item['sweetness']?.toString());
+              addIfPresent(item['iceLevel']?.toString());
+              addIfPresent(item['orderType']?.toString());
+              addIfPresent(item['remarks']?.toString(), 'Remarks: ');
+
+              if (tags.isEmpty) {
+                tags.add('Standard');
+              }
+              
+              parsedItems.add(OrderItem(title: title, tags: tags));
             }
           }
 

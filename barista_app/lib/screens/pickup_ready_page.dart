@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'pickup_confirmation_page.dart';
 import '../services/api_service.dart';
 import '../main.dart';
 import '../widgets/order_card.dart';
@@ -143,7 +142,7 @@ class PickupReadyPage extends StatelessWidget {
                                   child: Wrap(
                                     spacing: 8.0,
                                     runSpacing: 6.0,
-                                    children: item.tags.take(3).map((tag) {
+                                    children: item.tags.map((tag) {
                                       return Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 4.0),
                                         decoration: BoxDecoration(
@@ -162,11 +161,6 @@ class PickupReadyPage extends StatelessWidget {
                                     }).toList(),
                                   ),
                                 ),
-                                if (item.tags.length > 3)
-                                  const Padding(
-                                    padding: EdgeInsets.only(left: 8.0),
-                                    child: Icon(Icons.add, size: 16, color: Colors.black),
-                                  ),
                               ],
                             ),
                             if (idx < items.length - 1) ...[

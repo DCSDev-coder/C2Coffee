@@ -754,6 +754,31 @@ export async function registerCheckoutRoutes(
             }
           );
         }
+
+        if (item.payload.remarks) {
+          await connection.execute(
+            `
+              INSERT INTO order_item_modifiers (
+                order_item_id,
+                modifier_group_name_snapshot,
+                modifier_option_name_snapshot,
+                price_delta_rm_snapshot,
+                token_price_delta_snapshot
+              )
+              VALUES (
+                :orderItemId,
+                'Remarks',
+                :remarks,
+                0,
+                0
+              )
+            `,
+            {
+              orderItemId: itemResult.insertId,
+              remarks: item.payload.remarks
+            }
+          );
+        }
       }
 
       await connection.execute(

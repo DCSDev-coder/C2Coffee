@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/material.dart';
 
-enum NavPage { history, currentOrder, settings }
+enum NavPage { currentOrder, settings }
 
 class FloatingBottomNav extends StatelessWidget {
   final NavPage activePage;
@@ -39,16 +39,14 @@ class FloatingBottomNav extends StatelessWidget {
             scrollPosition = pageController.page ?? 1.0;
           } else {
             // Fallback for first frame before layout is complete
-            if (activePage == NavPage.history) scrollPosition = 0.0;
-            if (activePage == NavPage.currentOrder) scrollPosition = 1.0;
-            if (activePage == NavPage.settings) scrollPosition = 2.0;
+            if (activePage == NavPage.currentOrder) scrollPosition = 0.0;
+            if (activePage == NavPage.settings) scrollPosition = 1.0;
           }
 
           // Calculate exact X center based on scroll position
-          // index 0 -> 1/6
-          // index 1 -> 3/6 (1/2)
-          // index 2 -> 5/6
-          final double fabXCenter = barWidth * (1 / 6 + (scrollPosition * 2 / 6));
+          // index 0 -> 1/4 (center of left half)
+          // index 1 -> 3/4 (center of right half)
+          final double fabXCenter = barWidth * (1 / 4 + (scrollPosition * 2 / 4));
           final double fabLeft = fabXCenter - 32.0;
 
           return Stack(
@@ -85,21 +83,12 @@ class FloatingBottomNav extends StatelessWidget {
                   child: Row(
                     children: [
                         Expanded(
-                          child: activePage == NavPage.history
-                              ? const SizedBox.shrink()
-                              : _buildSideButton(
-                                  icon: Icons.history,
-                                  label: 'History',
-                                  onTap: () => onTabSelected(0),
-                                ),
-                        ),
-                        Expanded(
                           child: activePage == NavPage.currentOrder
                               ? const SizedBox.shrink()
                               : _buildSideButton(
                                   icon: Icons.shopping_basket,
                                   label: 'Orders',
-                                  onTap: () => onTabSelected(1),
+                                  onTap: () => onTabSelected(0),
                                 ),
                         ),
                         Expanded(
@@ -108,7 +97,7 @@ class FloatingBottomNav extends StatelessWidget {
                               : _buildSideButton(
                                   icon: Icons.settings,
                                   label: 'Settings',
-                                  onTap: () => onTabSelected(2),
+                                  onTap: () => onTabSelected(1),
                                 ),
                         ),
                       ],
@@ -144,11 +133,9 @@ class FloatingBottomNav extends StatelessWidget {
                           icon: AnimatedSwitcher(
                             duration: const Duration(milliseconds: 200),
                             child: Icon(
-                              activePage == NavPage.history
-                                  ? Icons.history
-                                  : (activePage == NavPage.currentOrder
-                                      ? Icons.shopping_basket
-                                      : Icons.settings),
+                              activePage == NavPage.currentOrder
+                                  ? Icons.shopping_basket
+                                  : Icons.settings,
                               key: ValueKey(activePage),
                               color: darkGreen, // High contrast with beige bubble
                               size: 30,

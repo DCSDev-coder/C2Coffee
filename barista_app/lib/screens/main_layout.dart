@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'current_order_page.dart';
-import 'history_page.dart';
 import '../widgets/floating_bottom_nav.dart';
 
 import 'settings_page.dart';
@@ -17,8 +16,8 @@ class MainLayout extends StatefulWidget {
 }
 
 class _MainLayoutState extends State<MainLayout> {
-  // Start on Current Orders (index 1)
-  int _currentIndex = 1;
+  // Start on Current Orders (index 0)
+  int _currentIndex = 0;
   late final PageController _pageController;
   Timer? _refreshTimer;
 
@@ -73,8 +72,6 @@ class _MainLayoutState extends State<MainLayout> {
     // Map integer index to NavPage enum
     NavPage activePage;
     if (_currentIndex == 0) {
-      activePage = NavPage.history;
-    } else if (_currentIndex == 1) {
       activePage = NavPage.currentOrder;
     } else {
       activePage = NavPage.settings;
@@ -93,11 +90,8 @@ class _MainLayoutState extends State<MainLayout> {
               });
             },
             children: [
-              HistoryPage(
-                onSettingsTap: () => _onTabSelected(2),
-              ),
               CurrentOrderPage(
-                onSettingsTap: () => _onTabSelected(2),
+                onSettingsTap: () => _onTabSelected(1),
               ),
               const SettingsPage(),
             ],

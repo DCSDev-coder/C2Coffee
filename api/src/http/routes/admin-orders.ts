@@ -163,7 +163,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
         }
         
         // Map modifiers to specific fields for easy frontend rendering
-        let bean, espressoShot, temperature, sparkling, milk, sweetness, iceLevel;
+        let bean, espressoShot, temperature, sparkling, milk, sweetness, iceLevel, remarks;
         const mods = modifiersByItemId[item.order_item_id] || [];
         
         for (const m of mods) {
@@ -175,6 +175,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           else if (g.includes('milk')) milk = m.option;
           else if (g.includes('sweet')) sweetness = m.option;
           else if (g.includes('ice')) iceLevel = m.option;
+          else if (g.includes('remark')) remarks = m.option;
         }
 
         itemsByOrderId[item.order_id].push({
@@ -189,7 +190,8 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           sparkling,
           milk,
           sweetness,
-          iceLevel
+          iceLevel,
+          remarks
         });
       }
 
