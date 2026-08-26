@@ -3,7 +3,7 @@ import { ArrowLeft, User, Mail, Phone, MapPin, Calendar } from 'lucide-react';
 import { calculateTierProgress } from './Customers';
 
 const ViewProfile = ({ customer, onBack }) => {
-  const progress = calculateTierProgress(customer.orders);
+  const progress = calculateTierProgress(customer.cupsLast180d ?? customer.orders);
   return (
     <div className="px-8 pb-8 pt-2 h-full flex flex-col">
       <div className="mb-6 shrink-0">
@@ -61,7 +61,7 @@ const ViewProfile = ({ customer, onBack }) => {
               </div>
               <div>
                 <p className="text-xs text-gray-500 font-medium mb-1 flex items-center"><Calendar size={14} className="mr-1" /> Joined Date</p>
-                <p className="text-sm font-semibold text-gray-900">Jan 12, 2025</p>
+                <p className="text-sm font-semibold text-gray-900">{customer.joinedAt || 'Unknown'}</p>
               </div>
             </div>
           </div>

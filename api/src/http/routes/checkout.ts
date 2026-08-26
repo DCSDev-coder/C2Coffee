@@ -464,6 +464,7 @@ export async function registerCheckoutRoutes(
       let appliedVoucher: AppliedVoucherRow | null = null;
       let discountRm = 0;
       let discountTokens = 0;
+      const totalBeforeDiscountRm = subtotalRm + modifierTotalRm;
 
       if (payload.applied_voucher_id) {
         const [voucherRows] = await connection.query<Array<AppliedVoucherRow>>(
@@ -543,7 +544,6 @@ export async function registerCheckoutRoutes(
           );
         }
 
-        const totalBeforeDiscountRm = subtotalRm + modifierTotalRm;
         if (appliedVoucher.min_spend_rm !== null) {
           const minSpend = Number(appliedVoucher.min_spend_rm);
           if (!isNaN(minSpend) && minSpend > 0 && totalBeforeDiscountRm < minSpend) {
@@ -621,7 +621,7 @@ export async function registerCheckoutRoutes(
         );
       }
 
-      const finalTotalRm = 0.00;
+      const finalTotalRm = Math.max(0, totalBeforeDiscountRm - discountRm);
 
       const dailyOrderNumber = await _allocateDailyOrderNumber(
         connection,

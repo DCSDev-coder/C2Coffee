@@ -15,6 +15,7 @@ import { registerHealthRoutes } from './http/routes/health.js';
 import { registerMeRoutes } from './http/routes/me.js';
 import { registerAdminVoucherRoutes } from './http/routes/admin-vouchers.js';
 import { registerAdminOrdersRoutes } from './http/routes/admin-orders.js';
+import { registerAdminCustomersRoutes } from './http/routes/admin-customers.js';
 
 export async function buildApp() {
   const app = Fastify({
@@ -59,6 +60,7 @@ export async function buildApp() {
   await registerAdminAuthRoutes(app);
   await registerAdminVoucherRoutes(app);
   await registerAdminOrdersRoutes(app);
+  await registerAdminCustomersRoutes(app);
   await registerAdminMenuRoutes(app);
   await registerMeRoutes(app);
   await registerCatalogRoutes(app);

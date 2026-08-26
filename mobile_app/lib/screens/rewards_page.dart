@@ -286,6 +286,17 @@ class _RewardsPageState extends State<RewardsPage> {
                         color: Colors.black54,
                       ),
                     ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _getTierProgressLabel(),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 11,
+                        color: Colors.black45,
+                        height: 1.1,
+                      ),
+                    ),
                     const SizedBox(height: 8),
                     // Progress bar
                     Padding(
@@ -293,7 +304,7 @@ class _RewardsPageState extends State<RewardsPage> {
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(4),
                         child: LinearProgressIndicator(
-                          value: _session.cupsLast180d / _getMaxCupsForTier(),
+                          value: (_session.cupsLast180d / _getMaxCupsForTier()).clamp(0.0, 1.0).toDouble(),
                           backgroundColor: Colors.grey[200],
                           valueColor: AlwaysStoppedAnimation<Color>(AppColors.deepTeal),
                           minHeight: 8,
@@ -323,12 +334,27 @@ class _RewardsPageState extends State<RewardsPage> {
 
   int _getMaxCupsForTier() {
     switch (_tierToIndex(_session.tier)) {
-      case 0: return 20; // Kawan
-      case 1: return 50; // Dilamun
-      case 2: return 100; // Ketagih
-      case 3: return 100; // Legend (max tier)
-      default: return 20;
+      case 0:
+        return 10; // Kawan -> Dilamun
+      case 1:
+        return 30; // Dilamun -> Ketagih
+      case 2:
+        return 50; // Ketagih -> Legend
+      case 3:
+        return 50; // Legend (max tier)
+      default:
+        return 10;
     }
+  }
+
+  String _getTierProgressLabel() {
+    final currentTier = _tierToIndex(_session.tier);
+    if (currentTier >= 3) {
+      return 'Max tier reached';
+    }
+
+    final nextTier = _tierLabel(currentTier + 1);
+    return '${_session.cupsLast180d} / ${_getMaxCupsForTier()} cups to $nextTier';
   }
 
   Widget _buildActionCards() {
