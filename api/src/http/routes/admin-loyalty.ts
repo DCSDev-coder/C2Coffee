@@ -1,8 +1,14 @@
 import type { FastifyInstance } from 'fastify';
-import type { RowDataPacket } from 'mysql2/promise';
+import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 import { z } from 'zod';
 import { authenticateAdminRequest, requireAdminRole } from '../../admin/guard.js';
 import { mysqlPool } from '../../db/mysql.js';
+import {
+  formatTierName,
+  getActiveLoyaltyTiers,
+  getTierProgress,
+  loadLoyaltyTiers
+} from '../../services/loyalty-tiers.js';
 
 const overviewQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional().default(50)
@@ -74,33 +80,6 @@ function formatTimeLabel(value: Date | string): string {
   }).format(date);
 }
 
-function formatTierName(value: string | null): string {
-  const tier = String(value ?? 'kawan').trim().toLowerCase();
-  switch (tier) {
-    case 'legend':
-      return 'Legend';
-    case 'ketagih':
-      return 'Ketagih';
-    case 'dilamun':
-      return 'Dilamun';
-    default:
-      return 'Kawan';
-  }
-}
-
-function tierTarget(value: string | null): number {
-  switch (String(value ?? '').trim().toLowerCase()) {
-    case 'kawan':
-      return 10;
-    case 'dilamun':
-      return 30;
-    case 'ketagih':
-      return 50;
-    default:
-      return 50;
-  }
-}
-
 function sourceLabel(sourceType: string, remarks: string | null, orderRef: string | null, topupRef: string | null): string {
   if (remarks && remarks.trim()) {
     return remarks.trim();
@@ -154,6 +133,8 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
     const connection = await mysqlPool.getConnection();
 
     try {
+      const tiers = await loadLoyaltyTiers(connection);
+
       const [summaryRows] = await connection.query<SummaryRow[]>(
         `
           SELECT
@@ -182,10 +163,11 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
       const [tierRows] = await connection.query<TierRow[]>(
         `
           SELECT
-            tier_code,
-            COUNT(*) AS member_count,
-            AVG(token_balance) AS avg_tokens
-          FROM (
+            lt.code AS tier_code,
+            COUNT(user_tiers.user_id) AS member_count,
+            AVG(user_tiers.token_balance) AS avg_tokens
+          FROM loyalty_tiers lt
+          LEFT JOIN (
             SELECT
               u.id AS user_id,
               COALESCE((
@@ -199,8 +181,10 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
             FROM users u
             LEFT JOIN token_accounts ta ON ta.user_id = u.id
             WHERE u.deleted_at IS NULL
-          ) user_tiers
-          GROUP BY tier_code
+          ) user_tiers ON user_tiers.tier_code = lt.code
+          WHERE lt.is_active = 1
+          GROUP BY lt.id, lt.code, lt.name, lt.min_cups, lt.sort_order
+          ORDER BY lt.min_cups ASC, lt.sort_order ASC, lt.id ASC
         `
       );
 
@@ -318,26 +302,26 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
       const tokensRedeemed = Number(summaryRow.tokens_redeemed ?? 0);
       const redemptionRate = tokensIssued > 0 ? Number(((tokensRedeemed / tokensIssued) * 100).toFixed(1)) : 0;
       const totalRewardRedemptions = rewardRows.reduce((acc, row) => acc + Number(row.redemption_count ?? 0), 0);
-
       const tierTotals = tierRows.reduce((acc, row) => acc + Number(row.member_count ?? 0), 0) || totalMembers || 1;
+      const tierMap = new Map(tiers.map((tier) => [tier.code, tier]));
 
-      const tierBreakdown = tierRows
-        .map((row) => {
-          const tierCode = String(row.tier_code ?? 'kawan');
-          const memberCount = Number(row.member_count ?? 0);
-          const avgTokens = Number(row.avg_tokens ?? 0);
-          return {
-            tierCode,
-            tierName: formatTierName(tierCode),
-            members: memberCount,
-            percentage: Number(((memberCount / tierTotals) * 100).toFixed(1)),
-            avgTokens: Number(avgTokens.toFixed(2))
-          };
-        })
-        .sort((a, b) => {
-          const order = ['Legend', 'Ketagih', 'Dilamun', 'Kawan'];
-          return order.indexOf(a.tierName) - order.indexOf(b.tierName);
-        });
+      const tierBreakdown = tierRows.map((row) => {
+        const tierCode = String(row.tier_code ?? 'kawan').trim().toLowerCase();
+        const tier = tierMap.get(tierCode);
+        const memberCount = Number(row.member_count ?? 0);
+        const avgTokens = Number(row.avg_tokens ?? 0);
+
+        return {
+          tierCode,
+          tierName: tier?.name ?? formatTierName(tiers, tierCode),
+          members: memberCount,
+          percentage: Number(((memberCount / tierTotals) * 100).toFixed(1)),
+          avgTokens: Number(avgTokens.toFixed(2)),
+          minCups: tier?.minCups ?? 0,
+          badgeColor: tier?.badgeColor ?? null,
+          isActive: tier?.isActive ?? false
+        };
+      });
 
       const issuedVsRedeemed = dailyRows.map((row) => ({
         day: formatDateLabel(row.day),
@@ -383,15 +367,10 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
         const amount = Number(row.amount ?? 0);
         const direction = row.direction === 'credit' ? 'Earned' : 'Redeemed';
         const tokenAmount = `${row.direction === 'credit' ? '+' : '-'}${amount.toLocaleString('en-US')}`;
-        const tierCode = String(row.tier_code ?? 'kawan');
+        const tierCode = String(row.tier_code ?? 'kawan').trim().toLowerCase();
+        const tier = tierMap.get(tierCode);
         const cups = Number(row.cups_last_180d ?? 0);
-        const target = tierTarget(tierCode);
-        const tierProgress = {
-          current: cups,
-          target,
-          remaining: Math.max(0, target - cups),
-          label: 'Rolling 180-day window'
-        };
+        const tierProgress = getTierProgress(cups, tiers);
 
         return {
           id: `TL-${row.ledger_id}`,
@@ -402,7 +381,8 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
             email: row.email || '',
             phone: row.phone_e164,
             memberId: `C2-${String(row.user_id).padStart(3, '0')}`,
-            tier: formatTierName(tierCode),
+            tier: tier?.name ?? formatTierName(tiers, tierCode),
+            tierCode,
             tokensBalance: Number(row.balance_after ?? 0).toLocaleString('en-US'),
             lifetimeEarned: Number(row.lifetime_earned ?? 0).toLocaleString('en-US'),
             lifetimeRedeemed: Number(row.lifetime_redeemed ?? 0).toLocaleString('en-US'),
@@ -426,6 +406,7 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
           redemptionRate,
           totalRewardRedemptions
         },
+        tiers,
         tierBreakdown,
         issuedVsRedeemed,
         sourceBreakdown,
@@ -434,6 +415,155 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
         transactions,
         lastUpdatedAt: new Date().toISOString()
       };
+    } finally {
+      connection.release();
+    }
+  });
+
+  app.get('/v1/admin/loyalty/tiers', { preHandler: [authenticateAdminRequest] }, async (request) => {
+    requireAdminRole(request, 'super_admin');
+    const connection = await mysqlPool.getConnection();
+
+    try {
+      const tiers = await loadLoyaltyTiers(connection);
+      return { tiers };
+    } finally {
+      connection.release();
+    }
+  });
+
+  app.post('/v1/admin/loyalty/tiers', { preHandler: [authenticateAdminRequest] }, async (request) => {
+    requireAdminRole(request, 'super_admin');
+    const payload = z.object({
+      code: z.string().trim().min(1).max(50),
+      name: z.string().trim().min(1).max(255),
+      minCups: z.coerce.number().int().min(0),
+      promotionText: z.string().trim().max(255).optional().default(''),
+      badgeColor: z.string().trim().max(32).optional().nullable(),
+      sortOrder: z.coerce.number().int().min(0).optional().default(0),
+      isActive: z.coerce.boolean().optional().default(true)
+    }).parse(request.body);
+    const connection = await mysqlPool.getConnection();
+
+    try {
+      const normalizedCode = payload.code.trim().toLowerCase();
+      const [insertResult] = await connection.execute<ResultSetHeader>(
+        `
+          INSERT INTO loyalty_tiers (
+            code,
+            name,
+            min_cups,
+            promotion_text,
+            badge_color,
+            sort_order,
+            is_active
+          )
+          VALUES (
+            :code,
+            :name,
+            :minCups,
+            :promotionText,
+            :badgeColor,
+            :sortOrder,
+            :isActive
+          )
+        `,
+        {
+          ...payload,
+          code: normalizedCode
+        }
+      );
+
+      const tiers = await loadLoyaltyTiers(connection);
+      const tier = tiers.find((entry) => entry.id === insertResult.insertId) ?? null;
+
+      return { id: insertResult.insertId, tier };
+    } finally {
+      connection.release();
+    }
+  });
+
+  app.patch('/v1/admin/loyalty/tiers/:tierId', { preHandler: [authenticateAdminRequest] }, async (request) => {
+    requireAdminRole(request, 'super_admin');
+    const tierId = z.coerce.number().int().positive().parse((request.params as { tierId: string }).tierId);
+    const payload = z.object({
+      code: z.string().trim().min(1).max(50).optional(),
+      name: z.string().trim().min(1).max(255).optional(),
+      minCups: z.coerce.number().int().min(0).optional(),
+      promotionText: z.string().trim().max(255).optional(),
+      badgeColor: z.string().trim().max(32).optional().nullable(),
+      sortOrder: z.coerce.number().int().min(0).optional(),
+      isActive: z.coerce.boolean().optional()
+    }).parse(request.body);
+    const entries = Object.entries(payload).filter(([, value]) => value !== undefined);
+
+    if (entries.length === 0) {
+      return { updated: false };
+    }
+
+    const connection = await mysqlPool.getConnection();
+
+    try {
+      const assignments = entries.map(([key]) => {
+        if (key === 'code') {
+          return 'code = :code';
+        }
+        switch (key) {
+          case 'minCups':
+            return 'min_cups = :minCups';
+          case 'promotionText':
+            return 'promotion_text = :promotionText';
+          case 'badgeColor':
+            return 'badge_color = :badgeColor';
+          case 'sortOrder':
+            return 'sort_order = :sortOrder';
+          case 'isActive':
+            return 'is_active = :isActive';
+          default:
+            return `${key} = :${key}`;
+        }
+      });
+
+      const values = {
+        tierId,
+        ...payload,
+        code: payload.code?.trim().toLowerCase()
+      } as any;
+
+      await connection.execute(
+        `
+          UPDATE loyalty_tiers
+          SET ${assignments.join(', ')}
+          WHERE id = :tierId
+        `,
+        values
+      );
+
+      const tiers = await loadLoyaltyTiers(connection);
+      const tier = tiers.find((entry) => entry.id === tierId) ?? null;
+
+      return { updated: true, tier };
+    } finally {
+      connection.release();
+    }
+  });
+
+  app.delete('/v1/admin/loyalty/tiers/:tierId', { preHandler: [authenticateAdminRequest] }, async (request) => {
+    requireAdminRole(request, 'super_admin');
+    const tierId = z.coerce.number().int().positive().parse((request.params as { tierId: string }).tierId);
+    const connection = await mysqlPool.getConnection();
+
+    try {
+      await connection.execute(
+        `
+          UPDATE loyalty_tiers
+          SET is_active = 0
+          WHERE id = :tierId
+        `,
+        { tierId }
+      );
+
+      return { archived: true };
     } finally {
       connection.release();
     }

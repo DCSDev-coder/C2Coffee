@@ -1,9 +1,9 @@
 import React from 'react';
 import { ArrowLeft, User, Mail, Phone, MapPin, Calendar } from 'lucide-react';
-import { calculateTierProgress } from './Customers';
+import { resolveTierProgress } from './Customers';
 
 const ViewProfile = ({ customer, onBack }) => {
-  const progress = calculateTierProgress(customer.cupsLast180d ?? customer.orders);
+  const progress = resolveTierProgress(customer);
   return (
     <div className="px-8 pb-8 pt-2 h-full flex flex-col">
       <div className="mb-6 shrink-0">

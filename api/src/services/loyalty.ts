@@ -1,12 +1,16 @@
 import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
 import { mysqlPool } from '../db/mysql.js';
 import { createUserNotification } from '../http/notifications.js';
+import { formatTierName, getActiveLoyaltyTiers, getTierProgress, loadLoyaltyTiers } from './loyalty-tiers.js';
 
 export async function processOrderLoyalty(
   orderId: number,
   userId: number,
   connection: PoolConnection | typeof mysqlPool = mysqlPool
 ): Promise<void> {
+  const tiers = await loadLoyaltyTiers(connection);
+  const activeTiers = getActiveLoyaltyTiers(tiers);
+
   // 1. Sum qualifying cups for this order
   const [cupRows] = await connection.query<Array<RowDataPacket & { cups: number }>>(
     `
@@ -77,14 +81,8 @@ export async function processOrderLoyalty(
   const cupsLast180d = Number(totalRows[0]?.total_cups ?? 0);
 
   // 4. Determine new tier
-  let newTier = 'kawan';
-  if (cupsLast180d >= 50) {
-    newTier = 'legend';
-  } else if (cupsLast180d >= 30) {
-    newTier = 'ketagih';
-  } else if (cupsLast180d >= 10) {
-    newTier = 'dilamun';
-  }
+  const tierProgress = getTierProgress(cupsLast180d, tiers);
+  const newTier = tierProgress.tierCode;
 
   // 5. Fetch current snapshot
   const [snapshotRows] = await connection.query<
@@ -101,7 +99,7 @@ export async function processOrderLoyalty(
   );
 
   const currentSnapshot = snapshotRows[0];
-  const currentTier = currentSnapshot?.tier_code ?? 'kawan';
+  const currentTier = currentSnapshot?.tier_code ?? activeTiers[0]?.code ?? 'kawan';
   const currentCups = currentSnapshot?.qualifying_cups_last_180d ?? 0;
 
   // 6. If tier changed or cups changed (and we actually had cups awarded), insert new snapshot
@@ -139,15 +137,8 @@ export async function processOrderLoyalty(
     );
 
     if (currentTier !== newTier) {
-      const tierLabelMap: Record<string, string> = {
-        kawan: 'Tier 1',
-        dilamun: 'Tier 2',
-        ketagih: 'Tier 3',
-        legend: 'Tier 4'
-      };
-
-      const fromLabel = tierLabelMap[currentTier] ?? currentTier;
-      const toLabel = tierLabelMap[newTier] ?? newTier;
+      const fromLabel = formatTierName(tiers, currentTier);
+      const toLabel = formatTierName(tiers, newTier);
 
       await createUserNotification(connection, {
         userId,

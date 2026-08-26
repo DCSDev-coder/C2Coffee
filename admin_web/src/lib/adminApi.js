@@ -51,6 +51,30 @@ export async function loadAdminLoyaltyOverview(limit = 50) {
   return adminRequest(`/v1/admin/loyalty/overview?limit=${encodeURIComponent(limit)}`);
 }
 
+export async function loadAdminTierConfigs() {
+  return adminRequest('/v1/admin/loyalty/tiers');
+}
+
+export async function createAdminTier(payload) {
+  return adminRequest('/v1/admin/loyalty/tiers', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function updateAdminTier(tierId, payload) {
+  return adminRequest(`/v1/admin/loyalty/tiers/${tierId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function deleteAdminTier(tierId) {
+  return adminRequest(`/v1/admin/loyalty/tiers/${tierId}`, {
+    method: 'DELETE'
+  });
+}
+
 export async function createAdminCustomer(payload) {
   return adminRequest('/v1/admin/customers', {
     method: 'POST',

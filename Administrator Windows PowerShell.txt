@@ -1,7 +1,3 @@
-PS D:\C2Coffee\api> docker compose down
-[+] down 2/2
- ✔ Container c2coffee-api Removed                                                                        15.8s
- ✔ Network api_default    Removed                                                                         0.3s
 PS D:\C2Coffee\api> docker compose build --no-cache
 #1 [internal] load local bake definitions
 #1 reading from stdin 503B 0.1s done
@@ -18,7 +14,7 @@ PS D:\C2Coffee\api> docker compose build --no-cache
 #4 DONE 0.0s
 
 #3 [internal] load metadata for docker.io/library/node:22-alpine
-#3 DONE 2.1s
+#3 DONE 2.5s
 
 #5 [internal] load .dockerignore
 #5 transferring context: 146B 0.0s done
@@ -35,109 +31,137 @@ PS D:\C2Coffee\api> docker compose build --no-cache
 #8 CACHED
 
 #6 [internal] load build context
-#6 transferring context: 54.35kB 0.1s done
+#6 transferring context: 7.75kB 0.1s done
 #6 DONE 0.1s
 
 #9 [deps 3/4] COPY package.json package-lock.json* ./
 #9 DONE 0.1s
 
-#10 [deps 4/4] RUN npm ci
+#10 [runtime 4/6] RUN npm ci --omit=dev && npm cache clean --force
 #10 ...
 
-#11 [runtime 4/6] RUN npm ci --omit=dev && npm cache clean --force
-#11 12.76
-#11 12.76 added 85 packages, and audited 86 packages in 11s
-#11 12.76
-#11 12.76 28 packages are looking for funding
-#11 12.76   run `npm fund` for details
-#11 12.76
-#11 12.76 found 0 vulnerabilities
-#11 12.77 npm notice
-#11 12.77 npm notice New major version of npm available! 10.9.8 -> 12.0.2
-#11 12.77 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
-#11 12.77 npm notice To update run: npm install -g npm@12.0.2
-#11 12.77 npm notice
-#11 13.29 npm warn using --force Recommended protections disabled.
+#11 [deps 4/4] RUN npm ci
 #11 ...
 
-#10 [deps 4/4] RUN npm ci
-#10 14.00
-#10 14.00 added 91 packages, and audited 92 packages in 12s
-#10 14.00
-#10 14.00 28 packages are looking for funding
-#10 14.00   run `npm fund` for details
-#10 14.00
-#10 14.00 found 0 vulnerabilities
-#10 14.00 npm notice
-#10 14.00 npm notice New major version of npm available! 10.9.8 -> 12.0.2
-#10 14.00 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
-#10 14.00 npm notice To update run: npm install -g npm@12.0.2
-#10 14.00 npm notice
+#10 [runtime 4/6] RUN npm ci --omit=dev && npm cache clean --force
+#10 12.54
+#10 12.54 added 85 packages, and audited 86 packages in 11s
+#10 12.54
+#10 12.54 28 packages are looking for funding
+#10 12.54   run `npm fund` for details
+#10 12.54
+#10 12.54 found 0 vulnerabilities
+#10 12.55 npm notice
+#10 12.55 npm notice New major version of npm available! 10.9.8 -> 12.0.2
+#10 12.55 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
+#10 12.55 npm notice To update run: npm install -g npm@12.0.2
+#10 12.55 npm notice
+#10 13.11 npm warn using --force Recommended protections disabled.
 #10 ...
 
-#11 [runtime 4/6] RUN npm ci --omit=dev && npm cache clean --force
-#11 DONE 14.3s
+#11 [deps 4/4] RUN npm ci
+#11 13.78
+#11 13.78 added 91 packages, and audited 92 packages in 12s
+#11 13.78
+#11 13.78 28 packages are looking for funding
+#11 13.78   run `npm fund` for details
+#11 13.78
+#11 13.78 found 0 vulnerabilities
+#11 13.79 npm notice
+#11 13.79 npm notice New major version of npm available! 10.9.8 -> 12.0.2
+#11 13.79 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
+#11 13.79 npm notice To update run: npm install -g npm@12.0.2
+#11 13.79 npm notice
+#11 DONE 14.2s
 
-#10 [deps 4/4] RUN npm ci
-#10 DONE 14.3s
+#10 [runtime 4/6] RUN npm ci --omit=dev && npm cache clean --force
+#10 DONE 14.2s
 
 #12 [build 3/5] COPY --from=deps /app/node_modules ./node_modules
-#12 DONE 2.8s
+#12 DONE 2.7s
 
 #13 [build 4/5] COPY . .
-#13 DONE 1.9s
+#13 DONE 2.1s
 
 #14 [build 5/5] RUN npm run build
-#14 2.813
-#14 2.813 > @c2coffee/api@0.1.0 build
-#14 2.813 > tsc -p tsconfig.json && node scripts/copy-sql.mjs
-#14 2.813
-#14 23.25 npm notice
-#14 23.25 npm notice New major version of npm available! 10.9.8 -> 12.0.2
-#14 23.25 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
-#14 23.25 npm notice To update run: npm install -g npm@12.0.2
-#14 23.25 npm notice
-#14 DONE 24.2s
+#14 2.804
+#14 2.804 > @c2coffee/api@0.1.0 build
+#14 2.804 > tsc -p tsconfig.json && node scripts/copy-sql.mjs
+#14 2.804
+#14 24.46 npm notice
+#14 24.46 npm notice New major version of npm available! 10.9.8 -> 12.0.2
+#14 24.46 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
+#14 24.46 npm notice To update run: npm install -g npm@12.0.2
+#14 24.46 npm notice
+#14 DONE 24.7s
 
 #15 [runtime 5/6] COPY --from=build /app/dist ./dist
-#15 DONE 1.0s
+#15 DONE 1.1s
 
 #16 [runtime 6/6] RUN chown -R node:node /app
-#16 DONE 14.4s
+#16 DONE 14.8s
 
 #17 exporting to image
 #17 exporting layers
-#17 exporting layers 25.4s done
-#17 exporting manifest sha256:4bf2e4c5f46e08a392d5e90eb155e02f3e58062ba5b2697401dd177026ba04e9 0.0s done
-#17 exporting config sha256:32cb077fcd28eca49ca3bb90a9f020a9f5a2c511732ed32ae31df6e97307cb57
-#17 exporting config sha256:32cb077fcd28eca49ca3bb90a9f020a9f5a2c511732ed32ae31df6e97307cb57 0.4s done
-#17 exporting attestation manifest sha256:0a69285d61c125005d063a9f5b35213b2d6c0960647bf092dceabf65ccf57c77
-#17 exporting attestation manifest sha256:0a69285d61c125005d063a9f5b35213b2d6c0960647bf092dceabf65ccf57c77 0.1s done
-#17 exporting manifest list sha256:d421e950e823d50eda572432827bfbdaeb57d583694cdf843f033ffa1e0ac124 0.1s done
-#17 naming to docker.io/library/api-c2-api:latest
+#17 exporting layers 25.6s done
+#17 exporting manifest sha256:f3f2967bde9a2f5c1296732ece780e5122c751d75f39fa5fc86f12429492f4b1 0.1s done
+#17 exporting config sha256:c0f886210112a813859e4858a5fd8dc1cb74edd297a5fb4f0b7393a4bc7f3b2b
+#17 exporting config sha256:c0f886210112a813859e4858a5fd8dc1cb74edd297a5fb4f0b7393a4bc7f3b2b 0.1s done
+#17 exporting attestation manifest sha256:d0729441f4bcf6a2bf89231a684762a16c51971be40df48a94058932789743c2 0.1s done
+#17 exporting manifest list sha256:047456a680dc3bda1c16617817cc1a76433ff59868ef7ae329a31790f49daf8d
+#17 exporting manifest list sha256:047456a680dc3bda1c16617817cc1a76433ff59868ef7ae329a31790f49daf8d 0.0s done
 #17 naming to docker.io/library/api-c2-api:latest done
 #17 unpacking to docker.io/library/api-c2-api:latest
-#17 unpacking to docker.io/library/api-c2-api:latest 16.2s done
+#17 unpacking to docker.io/library/api-c2-api:latest 17.0s done
 #17 DONE 43.1s
 
 #18 resolving provenance for metadata file
 #18 DONE 0.1s
 [+] build 1/1
- ✔ Image api-c2-api Built                                                                               112.3s
+ ✔ Image api-c2-api Built                                                                               113.7s
 PS D:\C2Coffee\api> docker compose up -d
-[+] up 2/2
- ✔ Network api_default    Created                                                                         0.1s
- ✔ Container c2coffee-api Started                                                                         2.6s
+[+] up 1/1
+ ✔ Container c2coffee-api Started                                                                        20.6s
 
 What's next:
     Filter, search, and stream logs from all your Compose services
     in one place with Docker Desktop's Logs view. docker-desktop://dashboard/logs?appId=api
-PS D:\C2Coffee\api> docker compose logs --tail 100 c2-api
-c2coffee-api  | {"level":30,"time":1787560385906,"pid":1,"hostname":"92a54f101d63","msg":"Server listening athttp://127.0.0.1:8080"}
-c2coffee-api  | {"level":30,"time":1787560385909,"pid":1,"hostname":"92a54f101d63","msg":"Server listening athttp://172.19.0.2:8080"}
-c2coffee-api  | {"level":30,"time":1787560389517,"pid":1,"hostname":"92a54f101d63","reqId":"f5200a9d-0430-45fe-aa0f-b4b0b6bc09ed","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":44064},"msg":"incoming request"}
+PS D:\C2Coffee\api> docker compose run --rm --no-deps c2-api npm run migrate:prod
+Container api-c2-api-run-b48add28cf05 Creating
+Container api-c2-api-run-b48add28cf05 Created
 
-What's next:
-    Filter, search, and stream logs from all your Compose services
-    in one place with Docker Desktop's Logs view. docker-desktop://dashboard/logs?appId=api
+> @c2coffee/api@0.1.0 migrate:prod
+> node dist/db/migrate.js
+
+Applied migration: 017_add_product_kind_to_menu_categories.sql
+Applied migration: 018_create_loyalty_tiers.sql
+npm notice
+npm notice New major version of npm available! 10.9.8 -> 12.0.2
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
+npm notice To update run: npm install -g npm@12.0.2
+npm notice
+PS D:\C2Coffee\api> curl http://127.0.0.1:8080/v1/health
+
+
+StatusCode        : 200
+StatusDescription : OK
+Content           : {"status":"ok","service":"c2coffee-api","database":"ok"}
+RawContent        : HTTP/1.1 200 OK
+                    Content-Security-Policy: default-src 'self';base-uri 'self';font-src 'self' https:
+                    data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src
+                    'none';script-src 's...
+Forms             : {}
+Headers           : {[Content-Security-Policy, default-src 'self';base-uri 'self';font-src 'self' https:
+                    data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src
+                    'none';script-src 'self';script-src-attr 'none';style-src 'self' https:
+                    'unsafe-inline';upgrade-insecure-requests], [Cross-Origin-Opener-Policy, same-origin],
+                    [Cross-Origin-Resource-Policy, same-origin], [Origin-Agent-Cluster, ?1]...}
+Images            : {}
+InputFields       : {}
+Links             : {}
+ParsedHtml        : System.__ComObject
+RawContentLength  : 56
+
+
+
 PS D:\C2Coffee\api>

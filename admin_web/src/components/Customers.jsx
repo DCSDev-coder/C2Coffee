@@ -21,11 +21,13 @@ import {
 
 export const calculateTierProgress = (cupsStr) => {
   const cups = parseInt(cupsStr.toString().replace(/,/g, ''), 10) || 0;
-  if (cups < 10) return { tier: 'Kawan', nextTier: 'Dilamun', target: 10, current: cups, percentage: (cups / 10) * 100, remaining: 10 - cups };
-  if (cups < 30) return { tier: 'Dilamun', nextTier: 'Ketagih', target: 30, current: cups, percentage: (cups / 30) * 100, remaining: 30 - cups };
-  if (cups < 50) return { tier: 'Ketagih', nextTier: 'Legend', target: 50, current: cups, percentage: (cups / 50) * 100, remaining: 50 - cups };
-  return { tier: 'Legend', nextTier: 'Max Tier', target: cups, current: cups, percentage: 100, remaining: 0 };
+  if (cups < 10) return { tier: 'Kawan', nextTier: 'Dilamun', target: 10, current: cups, percentage: (cups / 10) * 100, remaining: 10 - cups, isBaseTier: true };
+  if (cups < 30) return { tier: 'Dilamun', nextTier: 'Ketagih', target: 30, current: cups, percentage: (cups / 30) * 100, remaining: 30 - cups, isBaseTier: false };
+  if (cups < 50) return { tier: 'Ketagih', nextTier: 'Legend', target: 50, current: cups, percentage: (cups / 50) * 100, remaining: 50 - cups, isBaseTier: false };
+  return { tier: 'Legend', nextTier: 'Max Tier', target: cups, current: cups, percentage: 100, remaining: 0, isBaseTier: false };
 };
+
+export const resolveTierProgress = (customer) => customer?.tierProgress ?? calculateTierProgress(customer?.cupsLast180d ?? customer?.orders);
 
 const KPICard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-white" }) => (
   <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center space-x-4 min-w-0">
@@ -295,7 +297,7 @@ const Customers = () => {
   };
 
   const totalCustomers = customers.length;
-  const activeTierMembers = customers.filter((customer) => customer.tier !== 'Kawan').length;
+  const activeTierMembers = customers.filter((customer) => !resolveTierProgress(customer).isBaseTier).length;
   const totalSpendRm = customers.reduce((sum, customer) => sum + Number(customer.totalSpentRm || 0), 0);
   const totalSpendTokens = customers.reduce((sum, customer) => sum + Number(customer.totalSpentTokens || 0), 0);
   const averageSpendRm = totalCustomers > 0 ? totalSpendRm / totalCustomers : 0;

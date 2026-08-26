@@ -3,6 +3,7 @@ import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { z } from 'zod';
 import { authenticateAdminRequest, requireAdminRole } from '../../admin/guard.js';
 import { mysqlPool } from '../../db/mysql.js';
+import { formatTierName, getTierProgress, loadLoyaltyTiers } from '../../services/loyalty-tiers.js';
 
 const listQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(250).optional().default(100)
@@ -55,29 +56,15 @@ function formatDisplayDate(value: string | Date | null): string {
   }).format(date);
 }
 
-function titleCaseTier(value: string | null): string {
-  const tier = String(value ?? '').trim().toLowerCase();
-  switch (tier) {
-    case 'kawan':
-      return 'Kawan';
-    case 'dilamun':
-      return 'Dilamun';
-    case 'ketagih':
-      return 'Ketagih';
-    case 'legend':
-      return 'Legend';
-    default:
-      return 'Kawan';
-  }
-}
-
-function mapCustomerRow(row: CustomerListRow) {
+function mapCustomerRow(row: CustomerListRow, tiers: Awaited<ReturnType<typeof loadLoyaltyTiers>>) {
   const totalSpent = Number(row.total_spent_rm ?? 0);
   const totalSpentTokens = Number(row.total_spent_tokens ?? 0);
   const tokenBalance = Number(row.token_balance ?? 0);
   const orderCount = Number(row.order_count ?? 0);
   const refundCount = Number(row.refund_count ?? 0);
   const cupsLast180d = Number(row.cups_last_180d ?? 0);
+  const tierCode = String(row.tier_code ?? 'kawan').trim().toLowerCase();
+  const tierProgress = getTierProgress(cupsLast180d, tiers);
   const joinedAt = row.joined_at instanceof Date ? row.joined_at : new Date(row.joined_at);
   const lastOrderAt = row.last_order_at ? (row.last_order_at instanceof Date ? row.last_order_at : new Date(row.last_order_at)) : null;
 
@@ -87,7 +74,9 @@ function mapCustomerRow(row: CustomerListRow) {
     displayName: row.display_name || `Customer #${row.id}`,
     email: row.email || '',
     phone: row.phone_e164,
-    tier: titleCaseTier(row.tier_code),
+    tier: formatTierName(tiers, tierCode),
+    tierCode,
+    tierProgress,
     tokens: tokenBalance.toLocaleString('en-US'),
     tokenBalance,
     orders: String(orderCount),
@@ -112,7 +101,8 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
     const { limit } = listQuerySchema.parse(request.query);
     const connection = await mysqlPool.getConnection();
 
-    try {
+  try {
+      const tiers = await loadLoyaltyTiers(connection);
       const [rows] = await connection.query<RowDataPacket[]>(
         `
           SELECT
@@ -167,7 +157,7 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
       );
 
       return {
-        customers: rows.map((row) => mapCustomerRow(row as CustomerListRow))
+        customers: rows.map((row) => mapCustomerRow(row as CustomerListRow, tiers))
       };
     } finally {
       connection.release();
@@ -290,7 +280,9 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
         { userId }
       );
 
-      return { customer: mapCustomerRow(createdRows[0] as CustomerListRow) };
+      const tiers = await loadLoyaltyTiers(connection);
+
+      return { customer: mapCustomerRow(createdRows[0] as CustomerListRow, tiers) };
     } catch (error) {
       await connection.rollback();
       throw error;
@@ -436,7 +428,9 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
         { userId }
       );
 
-      return { customer: mapCustomerRow(rows[0] as CustomerListRow) };
+      const tiers = await loadLoyaltyTiers(connection);
+
+      return { customer: mapCustomerRow(rows[0] as CustomerListRow, tiers) };
     } catch (error) {
       await connection.rollback();
       throw error;
