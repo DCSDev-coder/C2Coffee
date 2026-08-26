@@ -28,28 +28,7 @@ class ActiveBaristaProfile extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      activeName,
-                      style: const TextStyle(
-                        color: darkGreen,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                    Text(
-                      'Active',
-                      style: TextStyle(
-                        color: darkGreen.withValues(alpha: 0.7),
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(width: 12),
+
                 CircleAvatar(
                   radius: 20,
                   backgroundColor: darkGreen.withValues(alpha: 0.1),

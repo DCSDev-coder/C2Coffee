@@ -71,7 +71,21 @@ const allOrders = [
     tier: "Legend",
     memberId: "C2-001",
     avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80",
-    items: [{ name: "Bojito", qty: 1, img: "/BOIJITO.png", unitPrice: 15.90 }],
+    items: [{ 
+      name: "Bojito", 
+      qty: 1, 
+      img: "/BOIJITO.png", 
+      unitPrice: 15.90,
+      bean: "Dato Blend",
+      espressoShot: 2,
+      temperature: "Cold",
+      sparkling: "Yes",
+      milk: "Oat Milk",
+      sweetness: "Less Sweet",
+      iceLevel: "Regular Ice",
+      orderType: "Take Away",
+      remarks: "Extra cold please"
+    }],
     discount: 0,
     total: 15.90,
     status: "Completed",
@@ -525,24 +539,93 @@ const OrderDetailPanel = ({ order, onClose, onViewProfile }) => {
       {/* Order Items Section */}
       <div>
         <p className="text-xs font-bold text-gray-900 mb-2.5">Order Items</p>
-        <div className="space-y-3">
+        <div className="space-y-4">
           {order.items.map((item, i) => (
-            <div key={i} className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 shrink-0 flex items-center justify-center">
-                  <img
-                    src={item.img}
-                    alt={item.name}
-                    className="w-full h-full object-contain"
-                    onError={(e) => {
-                      e.target.style.display = "none";
-                    }}
-                  />
+            <div key={i} className="flex flex-col pb-4 border-b border-gray-50 last:border-0 last:pb-0">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 shrink-0 flex items-center justify-center bg-gray-50 rounded-lg p-1 border border-gray-100">
+                    <img
+                      src={item.img}
+                      alt={item.name}
+                      className="w-full h-full object-contain"
+                      onError={(e) => {
+                        e.target.style.display = "none";
+                      }}
+                    />
+                  </div>
+                  <div className="flex flex-col">
+                    <p className="text-sm font-bold text-gray-900">{item.name}</p>
+                    {item.orderType && (
+                      <span className="inline-flex items-center mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600 w-fit">
+                        {item.orderType}
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <p className="text-xs font-medium text-gray-900">{item.name}</p>
+                <div className="flex flex-col items-end">
+                  <p className="text-sm font-bold text-gray-900">{formatRm(item.unitPrice * item.qty)}</p>
+                  <p className="text-xs text-gray-500 font-medium">Qty: {item.qty}</p>
+                </div>
               </div>
-              <p className="text-xs text-gray-600 font-medium">x{item.qty}</p>
-              <p className="text-xs font-bold text-gray-900">{formatRm(item.unitPrice * item.qty)}</p>
+
+              {/* Customizations Grid */}
+              {(item.bean || item.espressoShot || item.temperature || item.sparkling || item.milk || item.sweetness || item.iceLevel) && (
+                <div className="mt-3 ml-13 pl-3 border-l-2 border-gray-100">
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                    {item.bean && (
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">Bean</span>
+                        <span className="text-xs font-semibold text-gray-800">{item.bean}</span>
+                      </div>
+                    )}
+                    {item.espressoShot && (
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">Shot(s)</span>
+                        <span className="text-xs font-semibold text-gray-800">{item.espressoShot}</span>
+                      </div>
+                    )}
+                    {item.temperature && (
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">Temp</span>
+                        <span className="text-xs font-semibold text-gray-800">{item.temperature}</span>
+                      </div>
+                    )}
+                    {item.sparkling && (
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">Sparkling</span>
+                        <span className="text-xs font-semibold text-gray-800">{item.sparkling}</span>
+                      </div>
+                    )}
+                    {item.milk && (
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">Milk</span>
+                        <span className="text-xs font-semibold text-gray-800">{item.milk}</span>
+                      </div>
+                    )}
+                    {item.sweetness && (
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">Sweetness</span>
+                        <span className="text-xs font-semibold text-gray-800">{item.sweetness}</span>
+                      </div>
+                    )}
+                    {item.iceLevel && (
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">Ice Level</span>
+                        <span className="text-xs font-semibold text-gray-800">{item.iceLevel}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Remarks */}
+              {item.remarks && (
+                <div className="mt-2 ml-13 pl-3 border-l-2 border-amber-200">
+                  <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">Remarks</span>
+                  <p className="text-xs font-medium text-gray-800 mt-0.5">{item.remarks}</p>
+                </div>
+              )}
             </div>
           ))}
         </div>

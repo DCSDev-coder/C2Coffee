@@ -68,7 +68,21 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
             tier: "Legend",
             memberId: "C2-001",
             avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80",
-            items: [{ name: "Bojito", qty: 1, img: "/BOIJITO.png", unitPrice: 15.90 }],
+            items: [{ 
+              name: "Bojito", 
+              qty: 1, 
+              img: "/BOIJITO.png", 
+              unitPrice: 15.90,
+              bean: "Dato Blend",
+              espressoShot: 2,
+              temperature: "Cold",
+              sparkling: "Yes",
+              milk: "Oat Milk",
+              sweetness: "Less Sweet",
+              iceLevel: "Regular Ice",
+              orderType: "Take Away",
+              remarks: "Extra cold please"
+            }],
             discount: 0,
             total: 15.90,
             tokenAmountCharged: 16,
@@ -107,6 +121,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
       const [itemRows] = await connection.query<RowDataPacket[]>(`
         SELECT 
           oi.order_id,
+          oi.id as order_item_id,
           oi.item_name_snapshot as name,
           oi.quantity as qty,
           oi.base_price_rm_snapshot as unitPrice,
@@ -116,17 +131,65 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
         WHERE oi.order_id IN (?)
       `, [orderIds]);
 
+      const itemIds = itemRows.map(i => i.order_item_id);
+      let modifiersByItemId: Record<number, any[]> = {};
+
+      if (itemIds.length > 0) {
+        const [modifierRows] = await connection.query<RowDataPacket[]>(`
+          SELECT 
+            order_item_id,
+            modifier_group_name_snapshot as group_name,
+            modifier_option_name_snapshot as option_name
+          FROM order_item_modifiers
+          WHERE order_item_id IN (?)
+        `, [itemIds]);
+
+        for (const mod of modifierRows) {
+          if (!modifiersByItemId[mod.order_item_id]) {
+            modifiersByItemId[mod.order_item_id] = [];
+          }
+          modifiersByItemId[mod.order_item_id].push({
+            group: mod.group_name,
+            option: mod.option_name
+          });
+        }
+      }
+
       // Group items by order_id
       const itemsByOrderId: Record<number, any[]> = {};
       for (const item of itemRows) {
         if (!itemsByOrderId[item.order_id]) {
           itemsByOrderId[item.order_id] = [];
         }
+        
+        // Map modifiers to specific fields for easy frontend rendering
+        let bean, espressoShot, temperature, sparkling, milk, sweetness, iceLevel;
+        const mods = modifiersByItemId[item.order_item_id] || [];
+        
+        for (const m of mods) {
+          const g = m.group.toLowerCase();
+          if (g.includes('bean') || g.includes('blend')) bean = m.option;
+          else if (g.includes('shot') || g.includes('espresso')) espressoShot = m.option;
+          else if (g.includes('temp')) temperature = m.option;
+          else if (g.includes('sparkling')) sparkling = m.option;
+          else if (g.includes('milk')) milk = m.option;
+          else if (g.includes('sweet')) sweetness = m.option;
+          else if (g.includes('ice')) iceLevel = m.option;
+        }
+
         itemsByOrderId[item.order_id].push({
           name: item.name,
           qty: item.qty,
           unitPrice: Number(item.unitPrice || 0),
-          img: item.img || '/BOIJITO.png'
+          img: item.img || '/BOIJITO.png',
+          modifiers: mods,
+          bean,
+          espressoShot,
+          temperature,
+          sparkling,
+          milk,
+          sweetness,
+          iceLevel
         });
       }
 

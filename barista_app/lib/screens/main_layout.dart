@@ -63,8 +63,8 @@ class _MainLayoutState extends State<MainLayout> {
     });
     _pageController.animateToPage(
       index,
-      duration: const Duration(milliseconds: 350),
-      curve: Curves.easeOutCubic,
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeInOut,
     );
   }
 
@@ -85,6 +85,7 @@ class _MainLayoutState extends State<MainLayout> {
       body: Stack(
         children: [
           PageView(
+            physics: const BouncingScrollPhysics(),
             controller: _pageController,
             onPageChanged: (index) {
               setState(() {

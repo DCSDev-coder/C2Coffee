@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'dart:ui'; // for ImageFilter
+import 'package:flutter/material.dart';
 
 enum NavPage { history, currentOrder, settings }
 
@@ -72,20 +72,18 @@ class FloatingBottomNav extends StatelessWidget {
               // 2. The clipped glassmorphic pill background with a dynamically positioned notch
               ClipPath(
                 clipper: _NotchedClipper(notchCenterPoint: fabXCenter),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 15.0, sigmaY: 15.0),
-                  child: Container(
-                    height: 70,
-                    decoration: BoxDecoration(
-                      color: darkGreen.withOpacity(0.85), // Frosted glass effect
-                      border: Border.all(
-                        color: Colors.white.withOpacity(0.2), // Subtle glass edge
-                        width: 1.5,
-                      ),
-                      borderRadius: BorderRadius.circular(35.0),
+                child: Container(
+                  height: 70,
+                  decoration: BoxDecoration(
+                    color: darkGreen, // Solid color for performance
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.2), 
+                      width: 1.5,
                     ),
-                    child: Row(
-                      children: [
+                    borderRadius: BorderRadius.circular(35.0),
+                  ),
+                  child: Row(
+                    children: [
                         Expanded(
                           child: activePage == NavPage.history
                               ? const SizedBox.shrink()
@@ -117,7 +115,6 @@ class FloatingBottomNav extends StatelessWidget {
                     ),
                   ),
                 ),
-              ),
               
               // 3. Floating Center Button synced with notch
               Positioned(

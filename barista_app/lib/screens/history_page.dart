@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../main.dart';
 import '../widgets/order_card.dart';
+import '../widgets/blinking_online_indicator.dart';
+import '../widgets/custom_date_picker.dart';
 import '../widgets/active_barista_profile.dart';
 import 'order_details_page.dart';
 
@@ -38,22 +40,10 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 
   Future<void> _selectDate() async {
-    final DateTime? picked = await showDatePicker(
+    final DateTime? picked = await showDialog<DateTime>(
       context: context,
-      initialDate: _selectedDate ?? DateTime.now(),
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2030),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: ColorScheme.light(
-              primary: darkGreen,
-              onPrimary: Colors.white,
-              onSurface: darkGreen,
-            ),
-          ),
-          child: child!,
-        );
+      builder: (BuildContext context) {
+        return CustomDatePicker(initialDate: _selectedDate ?? DateTime.now());
       },
     );
     if (picked != null && picked != _selectedDate) {
@@ -204,35 +194,23 @@ class _HistoryPageState extends State<HistoryPage> {
                                   ),
                                 ),
                                 const SizedBox(width: 12.0),
-                                // Calendar Button Beside Search Bar
-                                InkWell(
-                                  onTap: _selectedDate != null
+                                // Simple Calendar Button Beside Search Bar
+                                IconButton(
+                                  onPressed: _selectedDate != null
                                       ? _clearDate
                                       : _selectDate,
-                                  borderRadius: BorderRadius.circular(16.0),
-                                  child: Container(
-                                    height: 48,
-                                    width: 48,
-                                    decoration: BoxDecoration(
-                                      color: _selectedDate != null
-                                          ? darkGreen
-                                          : Colors.white,
-                                      border: Border.all(
-                                        color: _selectedDate != null
-                                            ? darkGreen
-                                            : darkGreen,
-                                        width: 1.5,
-                                      ),
-                                      borderRadius: BorderRadius.circular(16.0),
-                                    ),
-                                    child: Icon(
-                                      _selectedDate != null
-                                          ? Icons.close
-                                          : Icons.calendar_month,
-                                      color: _selectedDate != null
-                                          ? Colors.white
-                                          : darkGreen,
-                                    ),
+                                  icon: Icon(
+                                    _selectedDate != null
+                                        ? Icons.close
+                                        : Icons.calendar_month,
+                                    color: darkGreen,
+                                    size: 28,
+                                  ),
+                                  style: IconButton.styleFrom(
+                                    backgroundColor: _selectedDate != null
+                                        ? darkGreen.withOpacity(0.1)
+                                        : Colors.transparent,
+                                    shape: const CircleBorder(),
                                   ),
                                 ),
                               ],
@@ -354,13 +332,36 @@ class _HistoryPageState extends State<HistoryPage> {
                 left: 0,
                 right: 0,
                 child: Container(
-                  height: 100, // Roughly covers status bar + a bit more
+                  height: 110,
+                  padding: const EdgeInsets.only(top: 40, left: 24, right: 24),
                   decoration: BoxDecoration(
                     color: darkGreen,
                     borderRadius: const BorderRadius.only(
                       bottomLeft: Radius.circular(16.0),
                       bottomRight: Radius.circular(16.0),
                     ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Row(
+                        children: [
+                          Image.asset(
+                            'assets/images/c2_logo.png',
+                            height: 40,
+                          ),
+                        ],
+                      ),
+                      const BlinkingOnlineIndicator(),
+                    ],
                   ),
                 ),
               ),
