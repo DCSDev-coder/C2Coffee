@@ -4,6 +4,7 @@ import '../widgets/order_card.dart';
 import '../widgets/active_barista_profile.dart';
 import 'pickup_ready_page.dart';
 import 'pickup_confirmation_page.dart';
+import '../services/api_service.dart';
 
 class OrderDetailsPage extends StatelessWidget {
   final String orderId;
@@ -111,14 +112,6 @@ class OrderDetailsPage extends StatelessWidget {
                         ],
                       ),
                     ),
-                  ),
-                  ActiveBaristaProfile(
-                    onTap: () {
-                      if (onSettingsTap != null) {
-                        Navigator.of(context).popUntil((route) => route.isFirst);
-                        onSettingsTap!();
-                      }
-                    },
                   ),
                 ],
               ),
@@ -245,8 +238,9 @@ class OrderDetailsPage extends StatelessWidget {
                         width: double.infinity,
                         height: 56,
                         child: ElevatedButton(
-                          onPressed: () {
+                          onPressed: () async {
                             if (order != null && order.status == OrderStatus.newOrder) {
+                              await ApiService.updateOrderStatus(orderId, 'preparing');
                               order.status = OrderStatus.preparing;
                               globalCurrentOrders.value = List.from(globalCurrentOrders.value);
                             } else if (order != null && order.status == OrderStatus.preparing) {
@@ -266,10 +260,12 @@ class OrderDetailsPage extends StatelessWidget {
                               );
                             } else if (order != null && order.status == OrderStatus.readyForPickup) {
                               // Move to history
+                              await ApiService.updateOrderStatus(orderId, 'completed');
                               order.status = OrderStatus.completed;
                               globalHistoryOrders.value = [order, ...globalHistoryOrders.value];
                               
                               globalCurrentOrders.value = globalCurrentOrders.value.where((o) => o.orderId != orderId).toList();
+                              if (!context.mounted) return;
                               Navigator.pushReplacement(
                                 context,
                                 PageRouteBuilder(

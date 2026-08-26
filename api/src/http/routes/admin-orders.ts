@@ -252,4 +252,54 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
       connection.release();
     }
   });
+
+  app.patch('/v1/admin/orders/:orderId/status', async (request, reply) => {
+    const { orderId } = request.params as { orderId: string };
+    const { status } = request.body as { status: string };
+
+    if (!['preparing', 'ready_for_pickup', 'collected', 'completed'].includes(status)) {
+      return reply.status(400).send({ error: { code: 'invalid_status', message: 'Invalid status' } });
+    }
+
+    const effectiveStatus = status === 'completed' ? 'collected' : status;
+
+    const connection = await mysqlPool.getConnection();
+    try {
+      await connection.execute(
+        `
+          UPDATE orders
+          SET status = :status
+          WHERE id = :orderId
+        `,
+        { status: effectiveStatus, orderId }
+      );
+
+      // Insert into order_status_history
+      await connection.execute(
+        `
+          INSERT INTO order_status_history (
+            order_id,
+            to_status,
+            changed_by_type,
+            changed_by_id,
+            reason,
+            created_at
+          )
+          VALUES (
+            :orderId,
+            :status,
+            'admin',
+            'admin',
+            'Updated via Barista app',
+            UTC_TIMESTAMP()
+          )
+        `,
+        { orderId, status: effectiveStatus }
+      );
+
+      return reply.send({ success: true, status: effectiveStatus });
+    } finally {
+      connection.release();
+    }
+  });
 }

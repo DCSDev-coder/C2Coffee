@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'screens/main_layout.dart';
 import 'widgets/order_card.dart';
+import 'services/api_service.dart';
 
 final ValueNotifier<List<String>> globalBaristas = ValueNotifier<List<String>>([
   'Nur',
@@ -10,8 +11,7 @@ final ValueNotifier<List<String>> globalBaristas = ValueNotifier<List<String>>([
   'Balqis',
 ]);
 final ValueNotifier<String> globalActiveBarista = ValueNotifier<String>('Nur');
-final ValueNotifier<Map<String, String?>> globalBaristaPfps =
-    ValueNotifier<Map<String, String?>>({});
+
 final ValueNotifier<int> globalDailyGoal = ValueNotifier<int>(200);
 
 final ValueNotifier<List<CurrentOrder>> globalCurrentOrders =
@@ -87,7 +87,7 @@ class _LoginPageState extends State<LoginPage> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       // Logo
-                      Image.asset('assets/images/c2_logo.png', height: 180),
+                      Image.asset('assets/images/c2_logo.png', height: 240),
                       const SizedBox(height: 32),
 
                       // Glassmorphic Card
@@ -220,7 +220,7 @@ class _LoginPageState extends State<LoginPage> {
 
                                 // Login Button
                                 ElevatedButton(
-                                  onPressed: () {
+                                  onPressed: () async {
                                     final username = _usernameController.text
                                         .trim();
                                     final password = _passwordController.text
@@ -241,14 +241,16 @@ class _LoginPageState extends State<LoginPage> {
                                       return;
                                     }
 
-                                    // Validate Username
-                                    if (username != 'C2Barista') {
+                                    // Validate with API
+                                    final success = await ApiService.login(username, password);
+                                    if (!success) {
+                                      if (!context.mounted) return;
                                       ScaffoldMessenger.of(
                                         context,
                                       ).showSnackBar(
                                         const SnackBar(
                                           content: Text(
-                                            'Username is incorrect. Please try again.',
+                                            'Invalid credentials or network error.',
                                           ),
                                           backgroundColor: Colors.redAccent,
                                           behavior: SnackBarBehavior.floating,
@@ -257,22 +259,7 @@ class _LoginPageState extends State<LoginPage> {
                                       return;
                                     }
 
-                                    // Validate Password
-                                    if (password != '123456') {
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        const SnackBar(
-                                          content: Text(
-                                            'Password is incorrect. Please try again.',
-                                          ),
-                                          backgroundColor: Colors.redAccent,
-                                          behavior: SnackBarBehavior.floating,
-                                        ),
-                                      );
-                                      return;
-                                    }
-
+                                    if (!context.mounted) return;
                                     // Login successful!
                                     // We keep the default barista (Nur) instead of changing it to 'test'.
 

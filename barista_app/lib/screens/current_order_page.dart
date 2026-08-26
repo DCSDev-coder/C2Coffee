@@ -149,7 +149,20 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
                             const SizedBox(height: 24.0),
 
                             // Animated Daily Orders Card
-                            const DailyOrdersCard(),
+                            ValueListenableBuilder<List<CurrentOrder>>(
+                              valueListenable: globalHistoryOrders,
+                              builder: (context, historyOrders, _) {
+                                // Calculate completed orders for today
+                                final today = DateTime.now();
+                                final todayCompletedCount = historyOrders.where((order) {
+                                  return order.status == OrderStatus.completed &&
+                                      order.orderDate.year == today.year &&
+                                      order.orderDate.month == today.month &&
+                                      order.orderDate.day == today.day;
+                                }).length;
+                                return DailyOrdersCard(ordersCompleted: todayCompletedCount);
+                              },
+                            ),
                             const SizedBox(height: 24.0),
 
                             // Search Bar

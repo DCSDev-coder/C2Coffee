@@ -3,12 +3,54 @@ import 'package:http/http.dart' as http;
 import '../widgets/order_card.dart';
 
 class ApiService {
-  // Use the local IP address found via ipconfig
-  static const String baseUrl = 'http://192.168.1.249:3000/v1';
+  static const String baseUrl = 'https://api.c2coffeeandcandle.com/v1';
+  static String? _accessToken;
+
+  static Future<bool> updateOrderStatus(String orderId, String status) async {
+    try {
+      final response = await http.patch(
+        Uri.parse('$baseUrl/admin/orders/$orderId/status'),
+        headers: {
+          'Content-Type': 'application/json',
+          if (_accessToken != null) 'Authorization': 'Bearer $_accessToken',
+        },
+        body: json.encode({'status': status}),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Update Status Error: $e');
+      return false;
+    }
+  }
+
+  static Future<bool> login(String identifier, String password) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/admin/auth/login'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'tenant_code': 'c2coffee',
+          'identifier': identifier,
+          'password': password,
+        }),
+      );
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        _accessToken = data['access_token'];
+        return true;
+      }
+    } catch (e) {
+      print('Login Error: $e');
+    }
+    return false;
+  }
 
   static Future<List<CurrentOrder>> fetchOrders() async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/admin/orders'));
+      final response = await http.get(
+        Uri.parse('$baseUrl/admin/orders'),
+        headers: _accessToken != null ? {'Authorization': 'Bearer $_accessToken'} : {},
+      );
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);

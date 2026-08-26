@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'pickup_confirmation_page.dart';
+import '../services/api_service.dart';
 import '../main.dart';
 import '../widgets/order_card.dart';
 import '../widgets/active_barista_profile.dart';
@@ -47,19 +49,6 @@ class PickupReadyPage extends StatelessWidget {
                 child: ListView(
                   padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
                   children: [
-                    // Active Barista Profile
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: ActiveBaristaProfile(
-                        onTap: () {
-                          if (onSettingsTap != null) {
-                            Navigator.of(context).popUntil((route) => route.isFirst);
-                            onSettingsTap!();
-                          }
-                        },
-                      ),
-                    ),
-                    const SizedBox(height: 24.0),
                     // Huge Checkmark
                 Center(
                   child: Container(
@@ -196,12 +185,14 @@ class PickupReadyPage extends StatelessWidget {
                         width: double.infinity,
                         height: 52,
                         child: ElevatedButton(
-                          onPressed: () {
+                          onPressed: () async {
                             // Update status to readyForPickup and trigger rebuild
+                            await ApiService.updateOrderStatus(orderId, 'ready_for_pickup');
                             final order = globalCurrentOrders.value.firstWhere((o) => o.orderId == orderId);
                             order.status = OrderStatus.readyForPickup;
                             globalCurrentOrders.value = List.from(globalCurrentOrders.value);
 
+                            if (!context.mounted) return;
                             // Pop exactly 2 screens: PickupReadyPage -> OrderDetailsPage -> MainLayout (CurrentOrderPage)
                             int count = 0;
                             Navigator.of(context).popUntil((_) => count++ >= 2);

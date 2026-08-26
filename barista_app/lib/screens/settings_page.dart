@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:image_picker/image_picker.dart';
 import '../main.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -363,102 +361,58 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Widget _buildAestheticCard(String name, {required bool isActive}) {
-    return ValueListenableBuilder<Map<String, String?>>(
-      valueListenable: globalBaristaPfps,
-      builder: (context, pfps, _) {
-        final String? imagePath = pfps[name];
+    final initial = name.isNotEmpty ? name[0].toUpperCase() : '';
 
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 400),
-          curve: Curves.easeInOut,
-          padding: const EdgeInsets.symmetric(horizontal: 20.0),
-          decoration: BoxDecoration(
-            color: isActive ? darkGreen : Colors.white,
-            borderRadius: BorderRadius.circular(20.0),
-            border: Border.all(
-              color: isActive ? darkGreen : Colors.grey.shade200,
-              width: 1.5,
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeInOut,
+      padding: const EdgeInsets.symmetric(horizontal: 20.0),
+      decoration: BoxDecoration(
+        color: isActive ? darkGreen : Colors.white,
+        borderRadius: BorderRadius.circular(20.0),
+        border: Border.all(
+          color: isActive ? darkGreen : Colors.grey.shade200,
+          width: 1.5,
+        ),
+        boxShadow: isActive
+            ? [
+                BoxShadow(
+                  color: darkGreen.withOpacity(0.3),
+                  blurRadius: 15,
+                  offset: const Offset(0, 8),
+                ),
+              ]
+            : [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.02),
+                  blurRadius: 5,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+      ),
+      child: Row(
+        children: [
+          // Avatar
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 400),
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: isActive ? beigeColor : darkGreen.withOpacity(0.1),
+              shape: BoxShape.circle,
             ),
-            boxShadow: isActive
-                ? [
-                    BoxShadow(
-                      color: darkGreen.withOpacity(0.3),
-                      blurRadius: 15,
-                      offset: const Offset(0, 8),
-                    ),
-                  ]
-                : [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.02),
-                      blurRadius: 5,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-          ),
-          child: Row(
-            children: [
-              // Avatar
-              Stack(
-                alignment: Alignment.bottomRight,
-                children: [
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 400),
-                    width: 46,
-                    height: 46,
-                    decoration: BoxDecoration(
-                      color: isActive ? beigeColor : darkGreen.withOpacity(0.1),
-                      shape: BoxShape.circle,
-                      image: imagePath != null
-                          ? DecorationImage(
-                              image: kIsWeb
-                                  ? NetworkImage(imagePath) as ImageProvider
-                                  : FileImage(File(imagePath)),
-                              fit: BoxFit.cover,
-                            )
-                          : null,
-                    ),
-                    child: imagePath == null
-                        ? Icon(
-                            Icons.person,
-                            color: isActive ? darkGreen : darkGreen,
-                          )
-                        : null,
-                  ),
-                  if (isActive)
-                    Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: () async {
-                          final picker = ImagePicker();
-                          final pickedFile = await picker.pickImage(
-                            source: ImageSource.gallery,
-                          );
-                          if (pickedFile != null) {
-                            final currentMap = Map<String, String?>.from(
-                              globalBaristaPfps.value,
-                            );
-                            currentMap[name] = pickedFile.path;
-                            globalBaristaPfps.value = currentMap;
-                          }
-                        },
-                        borderRadius: BorderRadius.circular(12),
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: const BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            Icons.camera_alt,
-                            color: darkGreen,
-                            size: 14,
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
+            child: Center(
+              child: Text(
+                initial,
+                style: TextStyle(
+                  color: isActive ? darkGreen : darkGreen,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
               ),
-              const SizedBox(width: 16.0),
+            ),
+          ),
+          const SizedBox(width: 16.0),
 
               // Name
               AnimatedDefaultTextStyle(
@@ -523,7 +477,5 @@ class _SettingsPageState extends State<SettingsPage> {
             ],
           ),
         );
-      },
-    );
   }
 }
