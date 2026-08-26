@@ -18,7 +18,6 @@ class FloatingBottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const Color darkGreen = Color(0xFF304A3A);
-    const Color beigeColor = Color(0xFFD3B17D);
     
     final double screenWidth = MediaQuery.of(context).size.width;
     double barWidth = screenWidth - 48.0;

@@ -1,12 +1,30 @@
 import 'package:flutter/material.dart';
 
-enum OrderStatus { newOrder, preparing, completed }
+enum OrderStatus { newOrder, preparing, readyForPickup, completed }
 
 class OrderItem {
   final String title;
   final List<String> tags;
 
   OrderItem({required this.title, required this.tags});
+}
+
+class CurrentOrder {
+  OrderStatus status;
+  final String orderId;
+  final String timeDate;
+  final DateTime orderDate;
+  final String customerDetails;
+  final List<OrderItem> items;
+
+  CurrentOrder({
+    required this.status,
+    required this.orderId,
+    required this.timeDate,
+    required this.orderDate,
+    required this.customerDetails,
+    required this.items,
+  });
 }
 
 class OrderCard extends StatelessWidget {
@@ -36,6 +54,7 @@ class OrderCard extends StatelessWidget {
     const Color beigeColor = Color(0xFFD3B17D);
 
     final bool isPreparing = status == OrderStatus.preparing;
+    final bool isReadyForPickup = status == OrderStatus.readyForPickup;
     final bool isHistory = status == OrderStatus.completed;
     
     return GestureDetector(
@@ -134,7 +153,7 @@ class OrderCard extends StatelessWidget {
                 child: ElevatedButton(
                   onPressed: onActionPressed,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: isPreparing ? orangeColor : beigeColor,
+                    backgroundColor: isReadyForPickup ? darkGreen : (isPreparing ? orangeColor : beigeColor),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14.0),
                     shape: RoundedRectangleBorder(
@@ -143,7 +162,7 @@ class OrderCard extends StatelessWidget {
                     elevation: 0,
                   ),
                   child: Text(
-                    isPreparing ? 'Mark as Ready' : 'Start Preparing',
+                    isReadyForPickup ? 'Confirm Pickup' : (isPreparing ? 'Mark as Ready' : 'Start Preparing'),
                     style: const TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,

@@ -4,10 +4,7 @@ import '../main.dart'; // import globals
 class DailyOrdersCard extends StatelessWidget {
   final int ordersCompleted;
 
-  const DailyOrdersCard({
-    super.key,
-    this.ordersCompleted = 142,
-  });
+  const DailyOrdersCard({super.key, this.ordersCompleted = 142});
 
   @override
   Widget build(BuildContext context) {
@@ -18,17 +15,14 @@ class DailyOrdersCard extends StatelessWidget {
       valueListenable: globalDailyGoal,
       builder: (context, dailyGoal, _) {
         final double progress = (ordersCompleted / dailyGoal).clamp(0.0, 1.0);
-        
+
         return Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [
-                darkGreen,
-                darkGreen.withOpacity(0.85),
-              ],
+              colors: [darkGreen, darkGreen.withOpacity(0.85)],
             ),
             borderRadius: BorderRadius.circular(24),
             boxShadow: [
@@ -57,7 +51,9 @@ class DailyOrdersCard extends StatelessWidget {
                           value: value,
                           strokeWidth: 8,
                           backgroundColor: Colors.white.withOpacity(0.1),
-                          valueColor: const AlwaysStoppedAnimation<Color>(beigeColor),
+                          valueColor: const AlwaysStoppedAnimation<Color>(
+                            beigeColor,
+                          ),
                           strokeCap: StrokeCap.round,
                         ),
                         Center(
@@ -98,7 +94,10 @@ class DailyOrdersCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     TweenAnimationBuilder<double>(
-                      tween: Tween<double>(begin: 0.0, end: ordersCompleted.toDouble()),
+                      tween: Tween<double>(
+                        begin: 0.0,
+                        end: ordersCompleted.toDouble(),
+                      ),
                       duration: const Duration(milliseconds: 1500),
                       curve: Curves.easeOutCubic,
                       builder: (context, countValue, child) {
@@ -115,7 +114,10 @@ class DailyOrdersCard extends StatelessWidget {
                               ),
                             ),
                             Padding(
-                              padding: const EdgeInsets.only(bottom: 6.0, left: 4.0),
+                              padding: const EdgeInsets.only(
+                                bottom: 6.0,
+                                left: 4.0,
+                              ),
                               child: Text(
                                 '/ $dailyGoal',
                                 style: const TextStyle(
@@ -134,7 +136,7 @@ class DailyOrdersCard extends StatelessWidget {
                       'Great job! Keep the caffeine flowing.',
                       style: TextStyle(
                         color: Colors.white.withOpacity(0.8),
-                        fontSize: 14,
+                        fontSize: 10,
                       ),
                     ),
                   ],

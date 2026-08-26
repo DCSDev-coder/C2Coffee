@@ -36,6 +36,9 @@ dependencies:
   cupertino_icons: ^1.0.8
   google_fonts: ^8.2.1
   image_picker: ^1.2.3
+  flutter_launcher_icons: ^0.14.4
+  image: ^4.9.2
+  http: ^1.6.0
 
 dev_dependencies:
   flutter_test:
@@ -83,3 +86,12 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+flutter_launcher_icons:
+  image_path: "assets/images/app_icon_square.png"
+  android: true
+  ios: true
+  remove_alpha_ios: true
+  web:
+    generate: true
+    image_path: "assets/images/app_icon_square.png"
+

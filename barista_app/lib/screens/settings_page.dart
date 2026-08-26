@@ -15,7 +15,7 @@ class _SettingsPageState extends State<SettingsPage> {
   final Color darkGreen = const Color(0xFF304A3A);
   final Color beigeColor = const Color(0xFFD3B17D);
   final Color switchOrange = const Color(0xFFE07A5F);
-  
+
   bool _pushNotificationsEnabled = true;
 
   @override
@@ -28,261 +28,321 @@ class _SettingsPageState extends State<SettingsPage> {
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 800),
               child: ListView(
-            padding: const EdgeInsets.only(top: 100, bottom: 120), // padding to scroll past the header and floating bottom bar
-            children: [
-              // Content
-              Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Title
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Settings',
-                            style: TextStyle(
-                              color: darkGreen,
-                              fontSize: 40,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          Text(
-                            'Manage your shift preferences and active barista profile',
-                            style: TextStyle(
-                              color: beigeColor,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
+                padding: const EdgeInsets.only(
+                  top: 100,
+                  bottom: 180,
+                ), // padding to scroll past the header and floating bottom bar
+                children: [
+                  // Content
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24.0,
+                      vertical: 16.0,
                     ),
-                  ],
-                ),
-                const SizedBox(height: 32.0),
-                
-                // Active Staff Section
-                Text(
-                  'Active Staff',
-                  style: TextStyle(
-                    color: darkGreen,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 16.0),
-                
-                // Animated Staff List
-                ValueListenableBuilder<List<String>>(
-                  valueListenable: globalBaristas,
-                  builder: (context, allBaristas, _) {
-                    return ValueListenableBuilder<String>(
-                      valueListenable: globalActiveBarista,
-                      builder: (context, activeBarista, _) {
-                        return SizedBox(
-                          height: allBaristas.length * 90.0, // items, 80 height + 10 padding
-                          child: Stack(
-                            children: allBaristas.map((name) {
-                              int physicalIndex;
-                              if (name == activeBarista) {
-                                physicalIndex = 0;
-                              } else {
-                                // The inactive ones keep their relative order
-                                int relativeIndex = allBaristas
-                                    .where((b) => b != activeBarista)
-                                    .toList()
-                                    .indexOf(name);
-                                physicalIndex = relativeIndex + 1;
-                              }
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // Title
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Settings',
+                                    style: TextStyle(
+                                      color: darkGreen,
+                                      fontSize: 32,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Manage your shift preferences and active barista profile',
+                                    style: TextStyle(
+                                      color: beigeColor,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 32.0),
 
-                              return AnimatedPositioned(
-                                key: ValueKey(name),
-                                duration: const Duration(milliseconds: 500),
-                                curve: Curves.easeOutCubic,
-                                top: physicalIndex * 90.0,
-                                left: 0,
-                                right: 0,
-                                height: 80.0,
-                                child: _buildAestheticCard(name, isActive: name == activeBarista),
-                              );
-                            }).toList(),
+                        // Active Staff Section
+                        Text(
+                          'Active Staff',
+                          style: TextStyle(
+                            color: darkGreen,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
                           ),
-                        );
-                      },
-                    );
-                  }
-                ),
-                
-                const SizedBox(height: 24.0),
-                
-                // Shift Preference Section
-                Text(
-                  'Shift Preference',
-                  style: TextStyle(
-                    color: darkGreen,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 16.0),
-                
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    border: Border.all(color: Colors.grey.shade200, width: 1.5),
-                    borderRadius: BorderRadius.circular(20.0),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.02),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      )
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Push Notifications',
+                        ),
+                        const SizedBox(height: 16.0),
+
+                        // Animated Staff List
+                        ValueListenableBuilder<List<String>>(
+                          valueListenable: globalBaristas,
+                          builder: (context, allBaristas, _) {
+                            return ValueListenableBuilder<String>(
+                              valueListenable: globalActiveBarista,
+                              builder: (context, activeBarista, _) {
+                                return SizedBox(
+                                  height:
+                                      allBaristas.length *
+                                      90.0, // items, 80 height + 10 padding
+                                  child: Stack(
+                                    children: allBaristas.map((name) {
+                                      int physicalIndex;
+                                      if (name == activeBarista) {
+                                        physicalIndex = 0;
+                                      } else {
+                                        // The inactive ones keep their relative order
+                                        int relativeIndex = allBaristas
+                                            .where((b) => b != activeBarista)
+                                            .toList()
+                                            .indexOf(name);
+                                        physicalIndex = relativeIndex + 1;
+                                      }
+
+                                      return AnimatedPositioned(
+                                        key: ValueKey(name),
+                                        duration: const Duration(
+                                          milliseconds: 500,
+                                        ),
+                                        curve: Curves.easeOutCubic,
+                                        top: physicalIndex * 90.0,
+                                        left: 0,
+                                        right: 0,
+                                        height: 80.0,
+                                        child: _buildAestheticCard(
+                                          name,
+                                          isActive: name == activeBarista,
+                                        ),
+                                      );
+                                    }).toList(),
+                                  ),
+                                );
+                              },
+                            );
+                          },
+                        ),
+
+                        const SizedBox(height: 24.0),
+
+                        // Shift Preference Section
+                        Text(
+                          'Shift Preference',
+                          style: TextStyle(
+                            color: darkGreen,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 16.0),
+
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24.0,
+                            vertical: 20.0,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            border: Border.all(
+                              color: Colors.grey.shade200,
+                              width: 1.5,
+                            ),
+                            borderRadius: BorderRadius.circular(20.0),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.02),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Push Notifications',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Receive alerts for new orders.',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: Colors.grey.shade500,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Switch(
+                                value: _pushNotificationsEnabled,
+                                onChanged: (val) {
+                                  setState(() {
+                                    _pushNotificationsEnabled = val;
+                                  });
+                                },
+                                activeColor: Colors.white,
+                                activeTrackColor: darkGreen,
+                                inactiveThumbColor: Colors.white,
+                                inactiveTrackColor: Colors.grey.shade300,
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 24.0),
+
+                        // Daily Goal Section
+                        Text(
+                          'Daily Goal',
+                          style: TextStyle(
+                            color: darkGreen,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 16.0),
+
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24.0,
+                            vertical: 20.0,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            border: Border.all(
+                              color: Colors.grey.shade200,
+                              width: 1.5,
+                            ),
+                            borderRadius: BorderRadius.circular(20.0),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.02),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: ValueListenableBuilder<int>(
+                            valueListenable: globalDailyGoal,
+                            builder: (context, goal, _) {
+                              return Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Daily Orders Goal',
+                                        style: TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w700,
+                                          color: Colors.black87,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Target: $goal orders',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: Colors.grey.shade500,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  Row(
+                                    children: [
+                                      IconButton(
+                                        onPressed: () {
+                                          if (globalDailyGoal.value > 10) {
+                                            globalDailyGoal.value -= 10;
+                                          }
+                                        },
+                                        icon: Icon(
+                                          Icons.remove_circle_outline,
+                                          color: darkGreen,
+                                        ),
+                                      ),
+                                      Text(
+                                        '$goal',
+                                        style: TextStyle(
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.bold,
+                                          color: darkGreen,
+                                        ),
+                                      ),
+                                      IconButton(
+                                        onPressed: () {
+                                          globalDailyGoal.value += 10;
+                                        },
+                                        icon: Icon(
+                                          Icons.add_circle_outline,
+                                          color: darkGreen,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
+                        ),
+                        
+                        const SizedBox(height: 48.0),
+                        
+                        // Log Out Button
+                        ElevatedButton(
+                          onPressed: () {
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(builder: (context) => const LoginPage()),
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFDF7E65), // orange color
+                            padding: const EdgeInsets.symmetric(vertical: 16.0),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16.0),
+                            ),
+                          ),
+                          child: const Text(
+                            'Log Out',
                             style: TextStyle(
                               fontSize: 18,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.black87,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
                             ),
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Receive alerts for new orders.',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Colors.grey.shade500,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                      Switch(
-                        value: _pushNotificationsEnabled,
-                        onChanged: (val) {
-                          setState(() {
-                            _pushNotificationsEnabled = val;
-                          });
-                        },
-                        activeColor: Colors.white,
-                        activeTrackColor: darkGreen,
-                        inactiveThumbColor: Colors.white,
-                        inactiveTrackColor: Colors.grey.shade300,
-                      ),
-                    ],
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                
-                const SizedBox(height: 24.0),
-                
-                // Daily Goal Section
-                Text(
-                  'Daily Goal',
-                  style: TextStyle(
-                    color: darkGreen,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 16.0),
-                
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    border: Border.all(color: Colors.grey.shade200, width: 1.5),
-                    borderRadius: BorderRadius.circular(20.0),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.02),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      )
-                    ],
-                  ),
-                  child: ValueListenableBuilder<int>(
-                    valueListenable: globalDailyGoal,
-                    builder: (context, goal, _) {
-                      return Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Daily Orders Goal',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.black87,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Target: $goal orders',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: Colors.grey.shade500,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                          Row(
-                            children: [
-                              IconButton(
-                                onPressed: () {
-                                  if (globalDailyGoal.value > 10) {
-                                    globalDailyGoal.value -= 10;
-                                  }
-                                },
-                                icon: Icon(Icons.remove_circle_outline, color: darkGreen),
-                              ),
-                              Text(
-                                '$goal',
-                                style: TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                  color: darkGreen,
-                                ),
-                              ),
-                              IconButton(
-                                onPressed: () {
-                                  globalDailyGoal.value += 10;
-                                },
-                                icon: Icon(Icons.add_circle_outline, color: darkGreen),
-                              ),
-                            ],
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-            ],
-            ), // closes ListView
-          ), // closes ConstrainedBox
-        ), // closes Center
-        // Dark Green Top Header (Fixed)
-        Positioned(
+                ],
+              ), // closes ListView
+            ), // closes ConstrainedBox
+          ), // closes Center
+          // Dark Green Top Header (Fixed)
+          Positioned(
             top: 0,
             left: 0,
             right: 0,
@@ -301,7 +361,7 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
     );
   }
-  
+
   Widget _buildAestheticCard(String name, {required bool isActive}) {
     return ValueListenableBuilder<Map<String, String?>>(
       valueListenable: globalBaristaPfps,
@@ -325,14 +385,14 @@ class _SettingsPageState extends State<SettingsPage> {
                       color: darkGreen.withOpacity(0.3),
                       blurRadius: 15,
                       offset: const Offset(0, 8),
-                    )
+                    ),
                   ]
                 : [
                     BoxShadow(
                       color: Colors.black.withOpacity(0.02),
                       blurRadius: 5,
                       offset: const Offset(0, 2),
-                    )
+                    ),
                   ],
           ),
           child: Row(
@@ -348,15 +408,21 @@ class _SettingsPageState extends State<SettingsPage> {
                     decoration: BoxDecoration(
                       color: isActive ? beigeColor : darkGreen.withOpacity(0.1),
                       shape: BoxShape.circle,
-                      image: imagePath != null ? DecorationImage(
-                        image: kIsWeb ? NetworkImage(imagePath) as ImageProvider : FileImage(File(imagePath)),
-                        fit: BoxFit.cover,
-                      ) : null,
+                      image: imagePath != null
+                          ? DecorationImage(
+                              image: kIsWeb
+                                  ? NetworkImage(imagePath) as ImageProvider
+                                  : FileImage(File(imagePath)),
+                              fit: BoxFit.cover,
+                            )
+                          : null,
                     ),
-                    child: imagePath == null ? Icon(
-                      Icons.person,
-                      color: isActive ? darkGreen : darkGreen,
-                    ) : null,
+                    child: imagePath == null
+                        ? Icon(
+                            Icons.person,
+                            color: isActive ? darkGreen : darkGreen,
+                          )
+                        : null,
                   ),
                   if (isActive)
                     Material(
@@ -364,9 +430,13 @@ class _SettingsPageState extends State<SettingsPage> {
                       child: InkWell(
                         onTap: () async {
                           final picker = ImagePicker();
-                          final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+                          final pickedFile = await picker.pickImage(
+                            source: ImageSource.gallery,
+                          );
                           if (pickedFile != null) {
-                            final currentMap = Map<String, String?>.from(globalBaristaPfps.value);
+                            final currentMap = Map<String, String?>.from(
+                              globalBaristaPfps.value,
+                            );
                             currentMap[name] = pickedFile.path;
                             globalBaristaPfps.value = currentMap;
                           }
@@ -378,70 +448,81 @@ class _SettingsPageState extends State<SettingsPage> {
                             color: Colors.white,
                             shape: BoxShape.circle,
                           ),
-                          child: Icon(Icons.camera_alt, color: darkGreen, size: 14),
+                          child: Icon(
+                            Icons.camera_alt,
+                            color: darkGreen,
+                            size: 14,
+                          ),
                         ),
                       ),
                     ),
                 ],
               ),
               const SizedBox(width: 16.0),
-          
-          // Name
-          AnimatedDefaultTextStyle(
-            duration: const Duration(milliseconds: 400),
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-              color: isActive ? Colors.white : Colors.black87,
-              fontFamily: 'Afacad',
-            ),
-            child: Text(name),
-          ),
-          const Spacer(),
-          
-          // Action Button / Icon
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 300),
-            child: isActive
-                ? Row(
-                    key: const ValueKey('check'),
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(4.0),
-                        decoration: const BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
+
+              // Name
+              AnimatedDefaultTextStyle(
+                duration: const Duration(milliseconds: 400),
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: isActive ? Colors.white : Colors.black87,
+                  fontFamily: 'Afacad',
+                ),
+                child: Text(name),
+              ),
+              const Spacer(),
+
+              // Action Button / Icon
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                child: isActive
+                    ? Row(
+                        key: const ValueKey('check'),
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(4.0),
+                            decoration: const BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.check,
+                              color: darkGreen,
+                              size: 20,
+                            ),
+                          ),
+                        ],
+                      )
+                    : TextButton(
+                        key: const ValueKey('switch'),
+                        onPressed: () {
+                          globalActiveBarista.value = name;
+                        },
+                        style: TextButton.styleFrom(
+                          foregroundColor: switchOrange,
+                          backgroundColor: switchOrange.withOpacity(0.1),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16.0,
+                            vertical: 8.0,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12.0),
+                          ),
                         ),
-                        child: Icon(Icons.check, color: darkGreen, size: 20),
+                        child: const Text(
+                          'Switch',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
                       ),
-                    ],
-                  )
-                : TextButton(
-                    key: const ValueKey('switch'),
-                    onPressed: () {
-                      globalActiveBarista.value = name;
-                    },
-                    style: TextButton.styleFrom(
-                      foregroundColor: switchOrange,
-                      backgroundColor: switchOrange.withOpacity(0.1),
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12.0),
-                      ),
-                    ),
-                    child: const Text(
-                      'Switch',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
+              ),
+            ],
           ),
-        ],
-      ),
-    );
+        );
       },
     );
   }

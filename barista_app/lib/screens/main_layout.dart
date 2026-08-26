@@ -4,6 +4,9 @@ import 'history_page.dart';
 import '../widgets/floating_bottom_nav.dart';
 
 import 'settings_page.dart';
+import '../services/api_service.dart';
+import '../widgets/order_card.dart';
+import '../main.dart';
 
 class MainLayout extends StatefulWidget {
   const MainLayout({super.key});
@@ -21,6 +24,23 @@ class _MainLayoutState extends State<MainLayout> {
   void initState() {
     super.initState();
     _pageController = PageController(initialPage: _currentIndex);
+    _loadInitialOrders();
+  }
+
+  Future<void> _loadInitialOrders() async {
+    try {
+      final fetchedOrders = await ApiService.fetchOrders();
+      if (fetchedOrders.isNotEmpty) {
+        globalCurrentOrders.value = fetchedOrders
+            .where((o) => o.status != OrderStatus.completed)
+            .toList();
+        globalHistoryOrders.value = fetchedOrders
+            .where((o) => o.status == OrderStatus.completed)
+            .toList();
+      }
+    } catch (e) {
+      debugPrint('Failed to fetch initial orders: $e');
+    }
   }
 
   @override

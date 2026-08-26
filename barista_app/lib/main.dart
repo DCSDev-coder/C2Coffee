@@ -1,11 +1,24 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'screens/main_layout.dart';
+import 'widgets/order_card.dart';
 
+final ValueNotifier<List<String>> globalBaristas = ValueNotifier<List<String>>([
+  'Nur',
+  'Amirah',
+  'Balqis',
+]);
 final ValueNotifier<String> globalActiveBarista = ValueNotifier<String>('Nur');
-final ValueNotifier<List<String>> globalBaristas = ValueNotifier<List<String>>(['Nur', 'Amirah', 'Balqis']);
-final ValueNotifier<Map<String, String?>> globalBaristaPfps = ValueNotifier<Map<String, String?>>({});
+final ValueNotifier<Map<String, String?>> globalBaristaPfps =
+    ValueNotifier<Map<String, String?>>({});
 final ValueNotifier<int> globalDailyGoal = ValueNotifier<int>(200);
+
+final ValueNotifier<List<CurrentOrder>> globalCurrentOrders =
+    ValueNotifier<List<CurrentOrder>>([]);
+
+final ValueNotifier<List<CurrentOrder>> globalHistoryOrders =
+    ValueNotifier<List<CurrentOrder>>([]);
 
 void main() {
   runApp(const BaristaApp());
@@ -58,16 +71,11 @@ class _LoginPageState extends State<LoginPage> {
         fit: StackFit.expand,
         children: [
           // Background Image
-          Image.asset(
-            'assets/images/login_barista.jpg',
-            fit: BoxFit.cover,
-          ),
-          
+          Image.asset('assets/images/login_barista.jpg', fit: BoxFit.cover),
+
           // Dark Overlay for lower intensity
-          Container(
-            color: Colors.black.withOpacity(0.4),
-          ),
-          
+          Container(color: Colors.black.withOpacity(0.4)),
+
           // Content
           Center(
             child: SingleChildScrollView(
@@ -79,196 +87,270 @@ class _LoginPageState extends State<LoginPage> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       // Logo
-                      Image.asset(
-                        'assets/images/c2_logo.png',
-                        height: 180,
-                      ),
+                      Image.asset('assets/images/c2_logo.png', height: 180),
                       const SizedBox(height: 32),
-                  
-                  // Glassmorphic Card
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(24),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 15.0, sigmaY: 15.0),
-                      child: Container(
-                        padding: const EdgeInsets.all(24.0),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(24),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.3),
-                            width: 1.5,
-                          ),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            // Username Field
-                            const Text(
-                              'Username',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 20,
-                                fontWeight: FontWeight.w600,
+
+                      // Glassmorphic Card
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(24),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 15.0, sigmaY: 15.0),
+                          child: Container(
+                            padding: const EdgeInsets.all(24.0),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(24),
+                              border: Border.all(
+                                color: Colors.white.withOpacity(0.3),
+                                width: 1.5,
                               ),
                             ),
-                            const SizedBox(height: 8),
-                            TextField(
-                              controller: _usernameController,
-                              style: const TextStyle(color: Colors.white),
-                              decoration: InputDecoration(
-                                filled: true,
-                                fillColor: Colors.white.withOpacity(0.05),
-                                suffixIcon: const Icon(
-                                  Icons.person,
-                                  color: Colors.white,
-                                ),
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 12,
-                                ),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(30),
-                                  borderSide: BorderSide(
-                                    color: Colors.white.withOpacity(0.4),
-                                    width: 1.0,
-                                  ),
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(30),
-                                  borderSide: BorderSide(
-                                    color: Colors.white.withOpacity(0.4),
-                                    width: 1.0,
-                                  ),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(30),
-                                  borderSide: const BorderSide(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                // Username Field
+                                const Text(
+                                  'Username',
+                                  style: TextStyle(
                                     color: Colors.white,
-                                    width: 1.5,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
-                              ),
-                            ),
-                            const SizedBox(height: 24),
-                            
-                            // Password Field
-                            const Text(
-                              'Password',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 20,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            TextField(
-                              controller: _passwordController,
-                              obscureText: !_isPasswordVisible,
-                              style: const TextStyle(color: Colors.white),
-                              decoration: InputDecoration(
-                                filled: true,
-                                fillColor: Colors.white.withOpacity(0.05),
-                                suffixIcon: IconButton(
-                                  icon: Icon(
-                                    _isPasswordVisible
-                                        ? Icons.visibility
-                                        : Icons.visibility_off,
-                                    color: Colors.white,
-                                  ),
-                                  onPressed: () {
-                                    setState(() {
-                                      _isPasswordVisible = !_isPasswordVisible;
-                                    });
-                                  },
-                                ),
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 12,
-                                ),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(30),
-                                  borderSide: BorderSide(
-                                    color: Colors.white.withOpacity(0.4),
-                                    width: 1.0,
-                                  ),
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(30),
-                                  borderSide: BorderSide(
-                                    color: Colors.white.withOpacity(0.4),
-                                    width: 1.0,
-                                  ),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(30),
-                                  borderSide: const BorderSide(
-                                    color: Colors.white,
-                                    width: 1.5,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 32),
-                            
-                            // Login Button
-                            ElevatedButton(
-                              onPressed: () {
-                                Navigator.push(
-                                  context,
-                                  PageRouteBuilder(
-                                    pageBuilder: (context, animation, secondaryAnimation) => const MainLayout(),
-                                    transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                                      const begin = Offset(1.0, 0.0); // Start from right
-                                      const end = Offset.zero;
-                                      const curve = Curves.ease;
-                                      var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
-                                      return SlideTransition(
-                                        position: animation.drive(tween),
-                                        child: child,
-                                      );
-                                    },
-                                  ),
-                                );
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF304A3A),
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(30),
-                                ),
-                                elevation: 0,
-                              ),
-                              child: const Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    'Login',
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w600,
+                                const SizedBox(height: 8),
+                                TextField(
+                                  controller: _usernameController,
+                                  style: const TextStyle(color: Colors.white),
+                                  decoration: InputDecoration(
+                                    filled: true,
+                                    fillColor: Colors.white.withOpacity(0.05),
+                                    suffixIcon: const Icon(
+                                      Icons.person,
+                                      color: Colors.white,
+                                    ),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 12,
+                                    ),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(30),
+                                      borderSide: BorderSide(
+                                        color: Colors.white.withOpacity(0.4),
+                                        width: 1.0,
+                                      ),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(30),
+                                      borderSide: BorderSide(
+                                        color: Colors.white.withOpacity(0.4),
+                                        width: 1.0,
+                                      ),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(30),
+                                      borderSide: const BorderSide(
+                                        color: Colors.white,
+                                        width: 1.5,
+                                      ),
                                     ),
                                   ),
-                                  SizedBox(width: 8),
-                                  Icon(Icons.arrow_right_alt, size: 24),
-                                ],
-                              ),
+                                ),
+                                const SizedBox(height: 24),
+
+                                // Password Field
+                                const Text(
+                                  'Password',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                TextField(
+                                  controller: _passwordController,
+                                  obscureText: !_isPasswordVisible,
+                                  style: const TextStyle(color: Colors.white),
+                                  decoration: InputDecoration(
+                                    filled: true,
+                                    fillColor: Colors.white.withOpacity(0.05),
+                                    suffixIcon: IconButton(
+                                      icon: Icon(
+                                        _isPasswordVisible
+                                            ? Icons.visibility
+                                            : Icons.visibility_off,
+                                        color: Colors.white,
+                                      ),
+                                      onPressed: () {
+                                        setState(() {
+                                          _isPasswordVisible =
+                                              !_isPasswordVisible;
+                                        });
+                                      },
+                                    ),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 12,
+                                    ),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(30),
+                                      borderSide: BorderSide(
+                                        color: Colors.white.withOpacity(0.4),
+                                        width: 1.0,
+                                      ),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(30),
+                                      borderSide: BorderSide(
+                                        color: Colors.white.withOpacity(0.4),
+                                        width: 1.0,
+                                      ),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(30),
+                                      borderSide: const BorderSide(
+                                        color: Colors.white,
+                                        width: 1.5,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 32),
+
+                                // Login Button
+                                ElevatedButton(
+                                  onPressed: () {
+                                    final username = _usernameController.text
+                                        .trim();
+                                    final password = _passwordController.text
+                                        .trim();
+
+                                    if (username.isEmpty || password.isEmpty) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'Please enter both username and password',
+                                          ),
+                                          backgroundColor: Colors.redAccent,
+                                          behavior: SnackBarBehavior.floating,
+                                        ),
+                                      );
+                                      return;
+                                    }
+
+                                    // Validate Username
+                                    if (username != 'C2Barista') {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'Username is incorrect. Please try again.',
+                                          ),
+                                          backgroundColor: Colors.redAccent,
+                                          behavior: SnackBarBehavior.floating,
+                                        ),
+                                      );
+                                      return;
+                                    }
+
+                                    // Validate Password
+                                    if (password != '123456') {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'Password is incorrect. Please try again.',
+                                          ),
+                                          backgroundColor: Colors.redAccent,
+                                          behavior: SnackBarBehavior.floating,
+                                        ),
+                                      );
+                                      return;
+                                    }
+
+                                    // Login successful!
+                                    // We keep the default barista (Nur) instead of changing it to 'test'.
+
+                                    Navigator.pushReplacement(
+                                      context,
+                                      PageRouteBuilder(
+                                        pageBuilder:
+                                            (
+                                              context,
+                                              animation,
+                                              secondaryAnimation,
+                                            ) => const MainLayout(),
+                                        transitionsBuilder:
+                                            (
+                                              context,
+                                              animation,
+                                              secondaryAnimation,
+                                              child,
+                                            ) {
+                                              const begin = Offset(
+                                                1.0,
+                                                0.0,
+                                              ); // Start from right
+                                              const end = Offset.zero;
+                                              const curve = Curves.ease;
+                                              var tween = Tween(
+                                                begin: begin,
+                                                end: end,
+                                              ).chain(CurveTween(curve: curve));
+                                              return SlideTransition(
+                                                position: animation.drive(
+                                                  tween,
+                                                ),
+                                                child: child,
+                                              );
+                                            },
+                                      ),
+                                    );
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF304A3A),
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 12,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(30),
+                                    ),
+                                    elevation: 0,
+                                  ),
+                                  child: const Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        'Login',
+                                        style: TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      SizedBox(width: 8),
+                                      Icon(Icons.arrow_right_alt, size: 24),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
+                          ),
                         ),
                       ),
-                    ),
+                      const SizedBox(height: 48), // Padding below card
+                    ],
                   ),
-                  const SizedBox(height: 48), // Padding below card
-                ],
+                ),
               ),
             ),
           ),
-        ),
-      ),
-    ],
+        ],
       ),
     );
   }

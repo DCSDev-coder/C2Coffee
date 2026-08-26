@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import '../main.dart';
 import '../widgets/order_card.dart';
-import '../widgets/active_barista_profile.dart'; // To reuse OrderItem if needed
+import '../widgets/active_barista_profile.dart';
 import 'pickup_ready_page.dart';
+import 'pickup_confirmation_page.dart';
 
 class OrderDetailsPage extends StatelessWidget {
   final String orderId;
@@ -27,195 +29,227 @@ class OrderDetailsPage extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: Colors.white,
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Dark Green Top Header
-          Container(
-            height: 100,
-            decoration: const BoxDecoration(
-              color: darkGreen,
-              borderRadius: BorderRadius.only(
-                bottomLeft: Radius.circular(16.0),
-                bottomRight: Radius.circular(16.0),
-              ),
+      body: isHistory
+          ? _buildContent(context, null, darkGreen, beigeColor, buttonOrange)
+          : ValueListenableBuilder<List<CurrentOrder>>(
+              valueListenable: globalCurrentOrders,
+              builder: (context, orders, _) {
+                CurrentOrder? order;
+                try {
+                  order = orders.firstWhere((o) => o.orderId == orderId);
+                } catch (e) {
+                  order = null;
+                }
+                return _buildContent(context, order, darkGreen, beigeColor, buttonOrange);
+              },
+            ),
+    );
+  }
+
+  Widget _buildContent(BuildContext context, CurrentOrder? order, Color darkGreen, Color beigeColor, Color buttonOrange) {
+    final bool isReady = order != null ? order.status == OrderStatus.readyForPickup : false;
+    final bool isCompleted = isHistory || (order == null && !isHistory); 
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Dark Green Top Header
+        Container(
+          height: 100,
+          decoration: BoxDecoration(
+            color: darkGreen,
+            borderRadius: const BorderRadius.only(
+              bottomLeft: Radius.circular(16.0),
+              bottomRight: Radius.circular(16.0),
             ),
           ),
-          
-          Expanded(
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 800),
-                child: ListView(
-                  padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
-                  children: [
-                // Header (Back button + Title)
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.arrow_back, color: darkGreen, size: 32),
-                      onPressed: () => Navigator.of(context).pop(),
-                      padding: EdgeInsets.zero,
-                      alignment: Alignment.centerLeft,
-                    ),
-                    Expanded(
+        ),
+        
+        Expanded(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 800),
+              child: ListView(
+                padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
+                children: [
+              // Header (Back button + Title)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  IconButton(
+                    icon: Icon(Icons.arrow_back, color: darkGreen, size: 32),
+                    onPressed: () => Navigator.of(context).pop(),
+                    padding: EdgeInsets.zero,
+                    alignment: Alignment.centerLeft,
+                  ),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 16.0),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             '#$orderId',
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: darkGreen,
                               fontSize: 32,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          Text(
-                            customerDetails,
-                            style: const TextStyle(
-                              color: beigeColor,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              customerDetails,
+                              style: TextStyle(
+                                color: beigeColor,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w400,
+                              ),
                             ),
                           ),
                         ],
                       ),
                     ),
-                    ActiveBaristaProfile(
-                      onTap: () {
-                        if (onSettingsTap != null) {
-                          Navigator.of(context).popUntil((route) => route.isFirst);
-                          onSettingsTap!();
-                        }
-                      },
+                  ),
+                  ActiveBaristaProfile(
+                    onTap: () {
+                      if (onSettingsTap != null) {
+                        Navigator.of(context).popUntil((route) => route.isFirst);
+                        onSettingsTap!();
+                      }
+                    },
+                  ),
+                ],
+              ),
+              
+              const SizedBox(height: 24.0),
+              
+              // Status Tracker
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 20.0, horizontal: 16.0),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border.all(color: darkGreen, width: 1.2),
+                  borderRadius: BorderRadius.circular(20.0),
+                ),
+                child: Row(
+                  children: [
+                    _buildStatusNode(
+                      title: 'Ordered',
+                      icon: Icons.receipt_long,
+                      isActive: true,
+                      isCompleted: true,
+                      color: darkGreen,
+                    ),
+                    _buildConnector(isActive: true, color: darkGreen),
+                    _buildStatusNode(
+                      title: 'Preparing',
+                      icon: Icons.coffee_maker,
+                      isActive: true,
+                      isCompleted: isReady || isCompleted,
+                      color: darkGreen,
+                    ),
+                    (isReady || isCompleted)
+                        ? _buildConnector(isActive: true, color: darkGreen)
+                        : _buildAnimatedConnector(color: darkGreen, trackColor: Colors.grey.shade300),
+                    _buildStatusNode(
+                      title: 'Ready',
+                      icon: Icons.check,
+                      isActive: isReady || isCompleted,
+                      isCompleted: isReady || isCompleted,
+                      color: (isReady || isCompleted) ? darkGreen : Colors.grey.shade300,
                     ),
                   ],
                 ),
-                
-                const SizedBox(height: 24.0),
-                
-                // Status Tracker
-                Container(
-                  padding: const EdgeInsets.symmetric(vertical: 20.0, horizontal: 16.0),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    border: Border.all(color: darkGreen, width: 1.2),
-                    borderRadius: BorderRadius.circular(20.0),
-                  ),
-                  child: Row(
-                    children: [
-                      _buildStatusNode(
-                        title: 'Ordered',
-                        icon: Icons.receipt_long,
-                        isActive: true,
-                        isCompleted: true,
-                        color: darkGreen,
-                      ),
-                      _buildConnector(isActive: true, color: darkGreen),
-                      _buildStatusNode(
-                        title: 'Preparing',
-                        icon: Icons.coffee_maker,
-                        isActive: true,
-                        isCompleted: isHistory,
-                        color: darkGreen,
-                      ),
-                      isHistory
-                          ? _buildConnector(isActive: true, color: darkGreen)
-                          : _buildAnimatedConnector(color: darkGreen, trackColor: Colors.grey.shade300),
-                      _buildStatusNode(
-                        title: 'Ready',
-                        icon: Icons.check,
-                        isActive: isHistory,
-                        isCompleted: isHistory,
-                        color: isHistory ? darkGreen : Colors.grey.shade300,
-                      ),
-                    ],
-                  ),
+              ),
+              
+              const SizedBox(height: 24.0),
+              
+              // Items Box
+              Container(
+                padding: const EdgeInsets.all(24.0),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border.all(color: darkGreen, width: 1.2),
+                  borderRadius: BorderRadius.circular(24.0),
                 ),
-                
-                const SizedBox(height: 24.0),
-                
-                // Items Box
-                Container(
-                  padding: const EdgeInsets.all(24.0),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    border: Border.all(color: darkGreen, width: 1.2),
-                    borderRadius: BorderRadius.circular(24.0),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'ITEMS',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black,
-                        ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'ITEMS',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
                       ),
-                      const SizedBox(height: 16.0),
-                      const Divider(height: 1, color: Colors.grey),
-                      const SizedBox(height: 16.0),
-                      
-                      ...items.asMap().entries.map((entry) {
-                        int idx = entry.key;
-                        OrderItem item = entry.value;
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              item.title,
-                              style: const TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black,
-                              ),
+                    ),
+                    const SizedBox(height: 16.0),
+                    const Divider(height: 1, color: Colors.grey),
+                    const SizedBox(height: 16.0),
+                    
+                    ...items.asMap().entries.map((entry) {
+                      int idx = entry.key;
+                      OrderItem item = entry.value;
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item.title,
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black,
                             ),
-                            const SizedBox(height: 8.0),
-                            ...item.tags.map((tag) => Padding(
-                              padding: const EdgeInsets.only(left: 16.0, bottom: 4.0),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 4,
-                                    height: 4,
-                                    decoration: const BoxDecoration(
-                                      color: Colors.grey,
-                                      shape: BoxShape.circle,
-                                    ),
+                          ),
+                          const SizedBox(height: 8.0),
+                          ...item.tags.map((tag) => Padding(
+                            padding: const EdgeInsets.only(left: 16.0, bottom: 4.0),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 4,
+                                  height: 4,
+                                  decoration: const BoxDecoration(
+                                    color: Colors.grey,
+                                    shape: BoxShape.circle,
                                   ),
-                                  const SizedBox(width: 8.0),
-                                  Text(
-                                    tag,
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      color: Colors.grey.shade600,
-                                      fontWeight: FontWeight.w600,
-                                    ),
+                                ),
+                                const SizedBox(width: 8.0),
+                                Text(
+                                  tag,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey.shade600,
+                                    fontWeight: FontWeight.w600,
                                   ),
-                                ],
-                              ),
-                            )),
-                            if (idx < items.length - 1) ...[
-                              const SizedBox(height: 16.0),
-                              const Divider(height: 1, color: Colors.grey),
-                              const SizedBox(height: 16.0),
-                            ]
-                          ],
-                        );
-                      }),
+                                ),
+                              ],
+                            ),
+                          )),
+                          if (idx < items.length - 1) ...[
+                            const SizedBox(height: 16.0),
+                            const Divider(height: 1, color: Colors.grey),
+                            const SizedBox(height: 16.0),
+                          ]
+                        ],
+                      );
+                    }),
+                    
+                    if (!isHistory && !isCompleted) ...[
+                      const SizedBox(height: 32.0),
                       
-                      if (!isHistory) ...[
-                        const SizedBox(height: 32.0),
-                        
-                        // Mark as Ready Button
-                        SizedBox(
-                          width: double.infinity,
-                          height: 56,
-                          child: ElevatedButton(
-                            onPressed: () {
+                      // Action Button
+                      SizedBox(
+                        width: double.infinity,
+                        height: 56,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            if (order != null && order.status == OrderStatus.newOrder) {
+                              order.status = OrderStatus.preparing;
+                              globalCurrentOrders.value = List.from(globalCurrentOrders.value);
+                            } else if (order != null && order.status == OrderStatus.preparing) {
                               Navigator.push(
                                 context,
                                 PageRouteBuilder(
@@ -226,45 +260,62 @@ class OrderDetailsPage extends StatelessWidget {
                                     onSettingsTap: onSettingsTap,
                                   ),
                                   transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                                    const begin = Offset(1.0, 0.0);
-                                    const end = Offset.zero;
-                                    const curve = Curves.easeOutCubic;
-                                    var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
-                                    return SlideTransition(position: animation.drive(tween), child: child);
+                                    return FadeTransition(opacity: animation, child: child);
                                   },
                                 ),
                               );
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: buttonOrange,
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16.0),
-                              ),
-                              elevation: 0,
+                            } else if (order != null && order.status == OrderStatus.readyForPickup) {
+                              // Move to history
+                              order.status = OrderStatus.completed;
+                              globalHistoryOrders.value = [order, ...globalHistoryOrders.value];
+                              
+                              globalCurrentOrders.value = globalCurrentOrders.value.where((o) => o.orderId != orderId).toList();
+                              Navigator.pushReplacement(
+                                context,
+                                PageRouteBuilder(
+                                  pageBuilder: (context, animation, secondaryAnimation) => PickupConfirmationPage(
+                                    orderId: orderId,
+                                    customerDetails: customerDetails,
+                                    items: items,
+                                  ),
+                                  transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                                    return FadeTransition(opacity: animation, child: child);
+                                  },
+                                ),
+                              );
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: (order?.status == OrderStatus.newOrder || order?.status == OrderStatus.readyForPickup) ? darkGreen : buttonOrange,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16.0),
                             ),
-                            child: const Text(
-                              'Mark as Ready',
-                              style: TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
-                              ),
+                            elevation: 0,
+                          ),
+                          child: Text(
+                            order?.status == OrderStatus.newOrder 
+                              ? 'Start Preparing' 
+                              : (order?.status == OrderStatus.readyForPickup ? 'Confirm Pickup' : 'Mark as Ready'),
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
                         ),
-                      ],
+                      ),
                     ],
-                  ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
-    ],
-  ),
-);
-}
+      ),
+      ],
+    );
+  }
 
   Widget _buildStatusNode({
     required String title,
@@ -274,7 +325,7 @@ class OrderDetailsPage extends StatelessWidget {
     required Color color,
   }) {
     return Expanded(
-      flex: 2,
+      flex: 3,
       child: Column(
         children: [
           Stack(
@@ -311,12 +362,15 @@ class OrderDetailsPage extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8.0),
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: Colors.black,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              title,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Colors.black,
+              ),
             ),
           ),
         ],
@@ -326,7 +380,7 @@ class OrderDetailsPage extends StatelessWidget {
 
   Widget _buildConnector({required bool isActive, required Color color}) {
     return Expanded(
-      flex: 3,
+      flex: 2,
       child: Container(
         margin: const EdgeInsets.only(bottom: 24.0), // offset for text
         height: 4,
@@ -337,7 +391,7 @@ class OrderDetailsPage extends StatelessWidget {
 
   Widget _buildAnimatedConnector({required Color color, required Color trackColor}) {
     return Expanded(
-      flex: 3,
+      flex: 2,
       child: Container(
         margin: const EdgeInsets.only(bottom: 24.0), // offset for text
         height: 4,

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import '../main.dart';
 import '../widgets/order_card.dart';
 import '../widgets/active_barista_profile.dart';
+
 
 class PickupReadyPage extends StatelessWidget {
   final String orderId;
@@ -89,7 +91,7 @@ class PickupReadyPage extends StatelessWidget {
                   child: Text(
                     orderId,
                     style: const TextStyle(
-                      fontSize: 40,
+                      fontSize: 32,
                       fontWeight: FontWeight.bold,
                       color: Colors.black,
                     ),
@@ -195,7 +197,12 @@ class PickupReadyPage extends StatelessWidget {
                         height: 52,
                         child: ElevatedButton(
                           onPressed: () {
-                            // Pop exactly 2 screens: PickupReadyPage -> OrderDetailsPage -> MainLayout
+                            // Update status to readyForPickup and trigger rebuild
+                            final order = globalCurrentOrders.value.firstWhere((o) => o.orderId == orderId);
+                            order.status = OrderStatus.readyForPickup;
+                            globalCurrentOrders.value = List.from(globalCurrentOrders.value);
+
+                            // Pop exactly 2 screens: PickupReadyPage -> OrderDetailsPage -> MainLayout (CurrentOrderPage)
                             int count = 0;
                             Navigator.of(context).popUntil((_) => count++ >= 2);
                           },

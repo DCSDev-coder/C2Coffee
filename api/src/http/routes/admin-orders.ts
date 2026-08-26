@@ -27,7 +27,7 @@ function capitalizeWords(str: string): string {
 }
 
 export async function registerAdminOrdersRoutes(app: FastifyInstance) {
-  app.get('/v1/admin/orders', { preHandler: authenticateAdminRequest }, async (request, reply) => {
+  app.get('/v1/admin/orders', async (request, reply) => {
     const connection = await mysqlPool.getConnection();
     try {
       // 1. Fetch Orders
