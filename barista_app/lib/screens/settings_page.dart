@@ -200,7 +200,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
+                    color: Colors.black.withValues(alpha: 0.1),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
@@ -245,14 +245,14 @@ class _SettingsPageState extends State<SettingsPage> {
         boxShadow: isActive
             ? [
                 BoxShadow(
-                  color: darkGreen.withOpacity(0.3),
+                  color: darkGreen.withValues(alpha: 0.3),
                   blurRadius: 15,
                   offset: const Offset(0, 8),
                 ),
               ]
             : [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.02),
+                  color: Colors.black.withValues(alpha: 0.02),
                   blurRadius: 5,
                   offset: const Offset(0, 2),
                 ),
@@ -266,7 +266,7 @@ class _SettingsPageState extends State<SettingsPage> {
             width: 46,
             height: 46,
             decoration: BoxDecoration(
-              color: isActive ? beigeColor : darkGreen.withOpacity(0.1),
+              color: isActive ? beigeColor : darkGreen.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Center(
@@ -324,7 +324,7 @@ class _SettingsPageState extends State<SettingsPage> {
                         },
                         style: TextButton.styleFrom(
                           foregroundColor: switchOrange,
-                          backgroundColor: switchOrange.withOpacity(0.1),
+                          backgroundColor: switchOrange.withValues(alpha: 0.1),
                           padding: const EdgeInsets.symmetric(
                             horizontal: 16.0,
                             vertical: 8.0,

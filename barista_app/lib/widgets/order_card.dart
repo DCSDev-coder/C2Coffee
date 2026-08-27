@@ -167,7 +167,7 @@ class OrderCard extends StatelessWidget {
             ),
             
             // Order Items
-            ...items.map((item) => _buildOrderItem(item, darkGreen)).toList(),
+            ...items.map((item) => _buildOrderItem(item, darkGreen)),
             
             // Action Button (Only if not history or ready)
             if (!isHistory && !isReadyForPickup) ...[
@@ -224,9 +224,9 @@ class OrderCard extends StatelessWidget {
               children: item.tags.map((tag) => Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 6.0),
                 decoration: BoxDecoration(
-                  color: darkGreen.withOpacity(0.06),
+                  color: darkGreen.withValues(alpha: 0.06),
                   borderRadius: BorderRadius.circular(8.0),
-                  border: Border.all(color: darkGreen.withOpacity(0.1)),
+                  border: Border.all(color: darkGreen.withValues(alpha: 0.1)),
                 ),
                 child: Text(
                   tag,

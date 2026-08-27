@@ -1,6 +1,5 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'screens/main_layout.dart';
 import 'widgets/order_card.dart';
 import 'services/api_service.dart';
@@ -74,7 +73,7 @@ class _LoginPageState extends State<LoginPage> {
           Image.asset('assets/images/login_barista.jpg', fit: BoxFit.cover),
 
           // Dark Overlay for lower intensity
-          Container(color: Colors.black.withOpacity(0.4)),
+          Container(color: Colors.black.withValues(alpha: 0.4)),
 
           // Content
           Center(
@@ -98,10 +97,10 @@ class _LoginPageState extends State<LoginPage> {
                           child: Container(
                             padding: const EdgeInsets.all(24.0),
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.15),
+                              color: Colors.white.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(24),
                               border: Border.all(
-                                color: Colors.white.withOpacity(0.3),
+                                color: Colors.white.withValues(alpha: 0.3),
                                 width: 1.5,
                               ),
                             ),
@@ -124,7 +123,7 @@ class _LoginPageState extends State<LoginPage> {
                                   style: const TextStyle(color: Colors.white),
                                   decoration: InputDecoration(
                                     filled: true,
-                                    fillColor: Colors.white.withOpacity(0.05),
+                                    fillColor: Colors.white.withValues(alpha: 0.05),
                                     suffixIcon: const Icon(
                                       Icons.person,
                                       color: Colors.white,
@@ -136,14 +135,14 @@ class _LoginPageState extends State<LoginPage> {
                                     border: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(30),
                                       borderSide: BorderSide(
-                                        color: Colors.white.withOpacity(0.4),
+                                        color: Colors.white.withValues(alpha: 0.4),
                                         width: 1.0,
                                       ),
                                     ),
                                     enabledBorder: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(30),
                                       borderSide: BorderSide(
-                                        color: Colors.white.withOpacity(0.4),
+                                        color: Colors.white.withValues(alpha: 0.4),
                                         width: 1.0,
                                       ),
                                     ),
@@ -174,7 +173,7 @@ class _LoginPageState extends State<LoginPage> {
                                   style: const TextStyle(color: Colors.white),
                                   decoration: InputDecoration(
                                     filled: true,
-                                    fillColor: Colors.white.withOpacity(0.05),
+                                    fillColor: Colors.white.withValues(alpha: 0.05),
                                     suffixIcon: IconButton(
                                       icon: Icon(
                                         _isPasswordVisible
@@ -196,14 +195,14 @@ class _LoginPageState extends State<LoginPage> {
                                     border: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(30),
                                       borderSide: BorderSide(
-                                        color: Colors.white.withOpacity(0.4),
+                                        color: Colors.white.withValues(alpha: 0.4),
                                         width: 1.0,
                                       ),
                                     ),
                                     enabledBorder: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(30),
                                       borderSide: BorderSide(
-                                        color: Colors.white.withOpacity(0.4),
+                                        color: Colors.white.withValues(alpha: 0.4),
                                         width: 1.0,
                                       ),
                                     ),
@@ -269,6 +268,7 @@ class _LoginPageState extends State<LoginPage> {
                                       }
                                     }
 
+                                    if (!context.mounted) return;
                                     Navigator.pushReplacement(
                                       context,
                                       PageRouteBuilder(

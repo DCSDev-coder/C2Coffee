@@ -36,7 +36,7 @@ class FloatingBottomNav extends StatelessWidget {
           decoration: BoxDecoration(
             color: darkGreen, // Solid color for performance
             border: Border.all(
-              color: Colors.white.withOpacity(0.2),
+              color: Colors.white.withValues(alpha: 0.2),
               width: 1.5,
             ),
             borderRadius: BorderRadius.circular(35.0),
@@ -93,7 +93,7 @@ class FloatingBottomNav extends StatelessWidget {
                   borderRadius: BorderRadius.circular(35.0),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.15),
+                      color: Colors.black.withValues(alpha: 0.15),
                       blurRadius: 30,
                       offset: const Offset(0, 10),
                     ),

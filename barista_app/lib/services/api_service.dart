@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../widgets/order_card.dart';
 
@@ -18,7 +19,7 @@ class ApiService {
       );
       return response.statusCode == 200;
     } catch (e) {
-      print('Update Status Error: $e');
+      debugPrint('Update Status Error: $e');
       return false;
     }
   }
@@ -40,7 +41,7 @@ class ApiService {
         return true;
       }
     } catch (e) {
-      print('Login Error: $e');
+      debugPrint('Login Error: $e');
     }
     return false;
   }
@@ -115,7 +116,7 @@ class ApiService {
         throw Exception('Failed to load orders: ${response.statusCode}');
       }
     } catch (e) {
-      print('API Error: $e');
+      debugPrint('API Error: $e');
       return []; // Return empty list on failure to not break UI immediately
     }
   }
@@ -139,7 +140,7 @@ class ApiService {
         return baristas;
       }
     } catch (e) {
-      print('Fetch Baristas Error: $e');
+      debugPrint('Fetch Baristas Error: $e');
     }
     return [];
   }

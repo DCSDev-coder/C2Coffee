@@ -153,7 +153,7 @@ class _CustomDatePickerState extends State<CustomDatePicker> {
                   child: Text(
                     day,
                     style: TextStyle(
-                      color: darkGreen.withOpacity(0.6),
+                      color: darkGreen.withValues(alpha: 0.6),
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
                     ),

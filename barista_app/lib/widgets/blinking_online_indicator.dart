@@ -37,10 +37,10 @@ class _BlinkingOnlineIndicatorState extends State<BlinkingOnlineIndicator>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.15),
+        color: Colors.white.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: Colors.white.withOpacity(0.2),
+          color: Colors.white.withValues(alpha: 0.2),
           width: 1,
         ),
       ),
@@ -58,7 +58,7 @@ class _BlinkingOnlineIndicatorState extends State<BlinkingOnlineIndicator>
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.greenAccent.withOpacity(_animation.value),
+                      color: Colors.greenAccent.withValues(alpha: _animation.value),
                       blurRadius: 4 * _animation.value,
                       spreadRadius: 1 * _animation.value,
                     ),

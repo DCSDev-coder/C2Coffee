@@ -51,7 +51,7 @@ class PickupReadyPage extends StatelessWidget {
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.black.withValues(alpha: 0.1),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),
@@ -102,7 +102,7 @@ class PickupReadyPage extends StatelessWidget {
                         border: Border.all(color: darkGreen, width: 12.0),
                         boxShadow: [
                           BoxShadow(
-                            color: darkGreen.withOpacity(0.3),
+                            color: darkGreen.withValues(alpha: 0.3),
                             blurRadius: 15,
                             spreadRadius: 2,
                             offset: const Offset(0, 5),
@@ -225,9 +225,9 @@ class PickupReadyPage extends StatelessWidget {
                                       children: item.tags.map((tag) => Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 6.0),
                                         decoration: BoxDecoration(
-                                          color: darkGreen.withOpacity(0.06),
+                                          color: darkGreen.withValues(alpha: 0.06),
                                           borderRadius: BorderRadius.circular(8.0),
-                                          border: Border.all(color: darkGreen.withOpacity(0.1)),
+                                          border: Border.all(color: darkGreen.withValues(alpha: 0.1)),
                                         ),
                                         child: Text(
                                           tag,
