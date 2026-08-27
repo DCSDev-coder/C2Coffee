@@ -34,6 +34,10 @@ class _SettingsPageState extends State<SettingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    // Check if it's landscape and width is tablet-sized
+    final bool isLandscapeTablet = size.width > size.height && size.width >= 600;
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: Stack(
@@ -41,18 +45,20 @@ class _SettingsPageState extends State<SettingsPage> {
           Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 800),
-              child: ListView(
-                padding: const EdgeInsets.only(
-                  top: 100,
-                  bottom: 180,
-                ), // padding to scroll past the header and floating bottom bar
-                children: [
-                  // Content
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24.0,
-                      vertical: 16.0,
-                    ),
+              child: ScrollConfiguration(
+                behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+                child: ListView(
+                  padding: const EdgeInsets.only(
+                    top: 100,
+                    bottom: 180,
+                  ), // padding to scroll past the header and floating bottom bar
+                  children: [
+                    // Content
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24.0,
+                        vertical: 16.0,
+                      ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
@@ -179,6 +185,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                 ],
               ), // closes ListView
+              ), // closes ScrollConfiguration
             ), // closes ConstrainedBox
           ), // closes Center
           // Dark Green Top Header (Fixed)

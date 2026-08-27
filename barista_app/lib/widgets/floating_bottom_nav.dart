@@ -31,6 +31,39 @@ class FloatingBottomNav extends StatelessWidget {
       bottom: 24.0,
       child: AnimatedBuilder(
         animation: pageController,
+        child: Container(
+          height: 70,
+          decoration: BoxDecoration(
+            color: darkGreen, // Solid color for performance
+            border: Border.all(
+              color: Colors.white.withOpacity(0.2),
+              width: 1.5,
+            ),
+            borderRadius: BorderRadius.circular(35.0),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: activePage == NavPage.currentOrder
+                    ? const SizedBox.shrink()
+                    : _buildSideButton(
+                        icon: Icons.shopping_basket,
+                        label: 'Orders',
+                        onTap: () => onTabSelected(0),
+                      ),
+              ),
+              Expanded(
+                child: activePage == NavPage.settings
+                    ? const SizedBox.shrink()
+                    : _buildSideButton(
+                        icon: Icons.settings,
+                        label: 'Settings',
+                        onTap: () => onTabSelected(1),
+                      ),
+              ),
+            ],
+          ),
+        ),
         builder: (context, child) {
           // Determine exact scroll position (0.0 to 2.0)
           double scrollPosition = 1.0; // default to center
@@ -71,39 +104,7 @@ class FloatingBottomNav extends StatelessWidget {
               // 2. The clipped glassmorphic pill background with a dynamically positioned notch
               ClipPath(
                 clipper: _NotchedClipper(notchCenterPoint: fabXCenter),
-                child: Container(
-                  height: 70,
-                  decoration: BoxDecoration(
-                    color: darkGreen, // Solid color for performance
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.2),
-                      width: 1.5,
-                    ),
-                    borderRadius: BorderRadius.circular(35.0),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: activePage == NavPage.currentOrder
-                            ? const SizedBox.shrink()
-                            : _buildSideButton(
-                                icon: Icons.shopping_basket,
-                                label: 'Orders',
-                                onTap: () => onTabSelected(0),
-                              ),
-                      ),
-                      Expanded(
-                        child: activePage == NavPage.settings
-                            ? const SizedBox.shrink()
-                            : _buildSideButton(
-                                icon: Icons.settings,
-                                label: 'Settings',
-                                onTap: () => onTabSelected(1),
-                              ),
-                      ),
-                    ],
-                  ),
-                ),
+                child: child,
               ),
 
               // 3. Floating Center Button synced with notch
@@ -200,18 +201,9 @@ class _NotchedClipper extends CustomClipper<Path> {
       height: 80,
     );
 
-    // 1. Get the path with the top notch
-    final notchedPath = const CircularNotchedRectangle().getOuterPath(
-      host,
-      guest,
-    );
-
-    // 2. Get the path with rounded corners
-    final rrectPath = Path()
-      ..addRRect(RRect.fromRectAndRadius(host, const Radius.circular(35.0)));
-
-    // 3. Intersect them to get a rounded rectangle with a top notch
-    return Path.combine(PathOperation.intersect, notchedPath, rrectPath);
+    // Skip the expensive Path.combine operation.
+    // The child Container already has rounded corners, so we only need to provide the notch cutout.
+    return const CircularNotchedRectangle().getOuterPath(host, guest);
   }
 
   @override

@@ -12,7 +12,7 @@ class OrderItem {
 class CurrentOrder {
   OrderStatus status;
   final String orderId;
-  final String timeDate;
+  String timeDate;
   final DateTime orderDate;
   final String customerDetails;
   final List<OrderItem> items;

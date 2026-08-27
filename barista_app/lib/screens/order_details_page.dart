@@ -275,10 +275,11 @@ class OrderDetailsPage extends StatelessWidget {
                                 context,
                                 PageRouteBuilder(
                                   pageBuilder: (context, animation, secondaryAnimation) => PickupReadyPage(
-                                    orderId: orderId,
-                                    customerDetails: customerDetails,
-                                    items: items,
-                                    onSettingsTap: onSettingsTap,
+                                      orderId: orderId,
+                                      customerDetails: customerDetails,
+                                      timeDate: order?.timeDate,
+                                      items: items,
+                                      onSettingsTap: onSettingsTap,
                                   ),
                                   transitionsBuilder: (context, animation, secondaryAnimation, child) {
                                     return FadeTransition(opacity: animation, child: child);

@@ -8,6 +8,7 @@ import '../widgets/blinking_online_indicator.dart';
 class PickupReadyPage extends StatelessWidget {
   final String orderId;
   final String customerDetails;
+  final String? timeDate;
   final List<OrderItem> items;
   final VoidCallback? onSettingsTap;
 
@@ -15,6 +16,7 @@ class PickupReadyPage extends StatelessWidget {
     super.key,
     required this.orderId,
     required this.customerDetails,
+    this.timeDate,
     required this.items,
     this.onSettingsTap,
   });
@@ -23,6 +25,14 @@ class PickupReadyPage extends StatelessWidget {
   Widget build(BuildContext context) {
     const Color darkGreen = Color(0xFF304A3A);
     const Color beigeColor = Color(0xFFD3B17D);
+
+    final now = DateTime.now();
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final hour = now.hour;
+    final minute = now.minute.toString().padLeft(2, '0');
+    final ampm = hour >= 12 ? 'PM' : 'AM';
+    final hour12 = hour % 12 == 0 ? 12 : hour % 12;
+    final formattedTime = '$hour12:$minute $ampm - ${months[now.month - 1]} ${now.day}, ${now.year}';
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -122,6 +132,19 @@ class PickupReadyPage extends StatelessWidget {
                     ),
                   ),
                 ),
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 8.0),
+                    child: Text(
+                      formattedTime,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ),
+                ),
                 
                 const SizedBox(height: 32.0),
                 
@@ -211,6 +234,7 @@ class PickupReadyPage extends StatelessWidget {
                             await ApiService.updateOrderStatus(orderId, 'ready_for_pickup');
                             final order = globalCurrentOrders.value.firstWhere((o) => o.orderId == orderId);
                             order.status = OrderStatus.readyForPickup;
+                            order.timeDate = formattedTime; // Update to the ready time!
                             globalCurrentOrders.value = List.from(globalCurrentOrders.value);
 
                             if (!context.mounted) return;
