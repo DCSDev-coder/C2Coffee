@@ -67,6 +67,23 @@ function getTierBadgeStyle(color) {
   };
 }
 
+function emptyRewardConfig(conditionMode = 'always') {
+  return {
+    enabled: true,
+    label: '',
+    kind: 'promotion',
+    discountUnit: 'token',
+    rewardItemType: 'drink',
+    rewardValue: '',
+    scope: 'all_items',
+    notes: '',
+    condition: {
+      mode: conditionMode,
+      birthdayMatch: conditionMode === 'birthday' ? 'month_day' : null
+    }
+  };
+}
+
 function emptyForm() {
   return {
     id: null,
@@ -74,14 +91,160 @@ function emptyForm() {
     name: '',
     minCups: 0,
     promotionText: '',
+    rewardConfigs: [emptyRewardConfig()],
     badgeColor: '#1F3A34',
     sortOrder: 0,
     isActive: true
   };
 }
 
+function formatRewardScope(scope) {
+  switch (scope) {
+    case 'all_drinks':
+      return 'All drinks';
+    case 'all_food':
+      return 'All food';
+    case 'all_merchandise':
+      return 'All merchandise';
+    case 'selected_skus':
+      return 'Selected items';
+    case 'all_except_skus':
+      return 'All except some items';
+    default:
+      return 'All items';
+  }
+}
+
+function formatRewardCondition(condition) {
+  const mode = condition?.mode || 'always';
+  const birthdayMatch = condition?.birthdayMatch || 'month_day';
+
+  if (mode !== 'birthday') {
+    return 'Always active';
+  }
+
+  return birthdayMatch === 'month'
+    ? 'Birthday month'
+    : 'Birthday date';
+}
+
+function formatRewardSummary(rewardConfig) {
+  if (!rewardConfig) {
+    return 'No perk set';
+  }
+
+  if (!rewardConfig.enabled) {
+    return 'Perk disabled';
+  }
+
+  let summary = '';
+
+  if (rewardConfig.kind === 'discount') {
+    const rewardValue = Number(rewardConfig.rewardValue || 0);
+    const discountUnit = rewardConfig.discountUnit || 'token';
+    const discountLabel = discountUnit === 'percent'
+      ? `${rewardValue}% off`
+      : discountUnit === 'rm'
+        ? `${rewardValue.toLocaleString('en-US')} RM off`
+        : `${rewardValue.toLocaleString('en-US')} ${rewardValue === 1 ? 'token' : 'tokens'} off`;
+    summary = `${discountLabel} · ${formatRewardScope(rewardConfig.scope)}`;
+  } else if (rewardConfig.kind === 'free_item') {
+    const itemLabel = rewardConfig.rewardItemType
+      ? `Free ${rewardConfig.rewardItemType}`
+      : 'Free item';
+    summary = `${itemLabel} · ${formatRewardScope(rewardConfig.scope)}`;
+  } else {
+    summary = rewardConfig.label || 'Custom perk';
+  }
+
+  const conditionLabel = formatRewardCondition(rewardConfig.condition);
+  return conditionLabel === 'Always active' ? summary : `${summary} · ${conditionLabel}`;
+}
+
+function formatTierRewardSummary(tier) {
+  const rewardConfigs = Array.isArray(tier?.rewardConfigs) && tier.rewardConfigs.length > 0
+    ? tier.rewardConfigs
+    : tier?.rewardConfig
+      ? [tier.rewardConfig]
+      : [];
+
+  const enabledRewards = rewardConfigs.filter((reward) => reward?.enabled);
+  if (enabledRewards.length === 0) {
+    return String(tier?.promotionText || '').trim() || 'No perk set';
+  }
+
+  const summaries = enabledRewards.map((reward) => formatRewardSummary(reward));
+  if (summaries.length === 1) {
+    return summaries[0];
+  }
+
+  return `${summaries[0]} +${summaries.length - 1} more`;
+}
+
+function buildPromotionTextFromRewards(rewardConfigs) {
+  const enabledRewards = Array.isArray(rewardConfigs) ? rewardConfigs.filter((reward) => reward?.enabled) : [];
+  if (enabledRewards.length === 0) {
+    return '';
+  }
+
+  const labels = enabledRewards
+    .map((reward) => String(reward.label || '').trim())
+    .filter(Boolean);
+
+  if (labels.length === 0) {
+    return enabledRewards.length === 1 ? formatRewardSummary(enabledRewards[0]) : `${enabledRewards.length} perks configured`;
+  }
+
+  if (labels.length === 1) {
+    return labels[0];
+  }
+
+  return `${labels[0]} +${labels.length - 1} more`;
+}
+
+function toRewardConfigFormValue(rewardConfig) {
+  if (!rewardConfig) {
+    return emptyRewardConfig();
+  }
+
+  return {
+    enabled: Boolean(rewardConfig.enabled),
+    label: String(rewardConfig.label || ''),
+    kind: rewardConfig.kind || 'promotion',
+    discountUnit: rewardConfig.discountUnit || 'token',
+    rewardItemType: rewardConfig.rewardItemType || 'drink',
+    rewardValue: rewardConfig.rewardValue ?? '',
+    scope: rewardConfig.scope || 'all_items',
+    notes: String(rewardConfig.notes || ''),
+    condition: {
+      mode: rewardConfig.condition?.mode || 'always',
+      birthdayMatch: rewardConfig.condition?.mode === 'birthday'
+        ? rewardConfig.condition?.birthdayMatch || 'month_day'
+        : null
+    }
+  };
+}
+
 const TierModal = ({ open, title, form, onChange, onClose, onSave, saving }) => {
   if (!open) return null;
+
+  const rewardConfigs = Array.isArray(form.rewardConfigs) ? form.rewardConfigs : [];
+
+  const updateRewardConfig = (index, patch) => {
+    const next = rewardConfigs.map((reward, rewardIndex) => (
+      rewardIndex === index ? { ...reward, ...patch } : reward
+    ));
+    onChange({ rewardConfigs: next });
+  };
+
+  const addRewardConfig = () => {
+    onChange({ rewardConfigs: [...rewardConfigs, emptyRewardConfig()] });
+  };
+
+  const removeRewardConfig = (index) => {
+    const next = rewardConfigs.filter((_, rewardIndex) => rewardIndex !== index);
+    onChange({ rewardConfigs: next });
+  };
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
@@ -89,7 +252,7 @@ const TierModal = ({ open, title, form, onChange, onClose, onSave, saving }) => 
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
           <div>
             <h2 className="text-lg font-bold text-gray-900">{title}</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Live tier settings used by customer progress, menu pricing, and rewards.</p>
+            <p className="text-xs text-gray-500 mt-0.5">Live tier settings used by customer progress, menu pricing, and tier perks.</p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 cursor-pointer">
             <X size={20} />
@@ -117,10 +280,10 @@ const TierModal = ({ open, title, form, onChange, onClose, onSave, saving }) => 
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34]"
                 required
               />
-              <p className="text-[11px] text-gray-400 mt-1">Used by menu pricing, voucher rules, and customer snapshots.</p>
+              <p className="text-[11px] text-gray-400 mt-1">Used by menu pricing, voucher rules, and member snapshots.</p>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Minimum Cups</label>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Cups Needed</label>
               <input
                 type="number"
                 min={0}
@@ -130,27 +293,207 @@ const TierModal = ({ open, title, form, onChange, onClose, onSave, saving }) => 
                 required
               />
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Sort Order</label>
-              <input
-                type="number"
-                min={0}
-                value={form.sortOrder}
-                onChange={(e) => onChange({ sortOrder: e.target.value })}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34]"
-              />
+            <div className="flex items-end">
+              <p className="text-[11px] text-gray-400 leading-snug">
+                Tiers are sorted automatically by cups needed, then saved in the backend for deterministic fallback.
+              </p>
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Promotion Text</label>
-            <input
-              type="text"
-              value={form.promotionText}
-              onChange={(e) => onChange({ promotionText: e.target.value })}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34]"
-              placeholder="Example: 5% off drinks"
-            />
+          <div className="rounded-xl border border-gray-200 bg-gray-50/70 p-4 space-y-4">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h3 className="text-sm font-bold text-gray-900">Tier Perks</h3>
+                <p className="text-xs text-gray-500 mt-0.5">Add one or more perks for this tier. Each perk can stay always on or be birthday-only.</p>
+              </div>
+              <button
+                type="button"
+                onClick={addRewardConfig}
+                className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-bold text-gray-700 hover:bg-white transition-colors"
+              >
+                <Plus size={14} /> Add Perk
+              </button>
+            </div>
+
+            {rewardConfigs.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-gray-300 bg-white px-4 py-5 text-sm text-gray-500">
+                No perk yet. Add one for welcome perks, birthday perks, tier discounts, or free items.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {rewardConfigs.map((rewardConfig, index) => {
+                  const rewardLabel = rewardConfig.label?.trim() || `Perk ${index + 1}`;
+
+                  return (
+                    <div key={`tier-reward-${index}`} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm space-y-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Perk {index + 1}</p>
+                          <h4 className="text-sm font-bold text-gray-900 mt-0.5">{rewardLabel}</h4>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-700">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(rewardConfig.enabled)}
+                              onChange={(e) => updateRewardConfig(index, { enabled: e.target.checked })}
+                              className="rounded border-gray-300 text-[#1F3A34] focus:ring-[#1F3A34]"
+                            />
+                            Active
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => removeRewardConfig(index)}
+                            className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-2 text-sm font-bold text-red-600 hover:bg-red-50 transition-colors"
+                          >
+                            <Trash2 size={14} /> Remove
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">Perk Label</label>
+                          <input
+                            type="text"
+                            value={rewardConfig.label || ''}
+                            onChange={(e) => updateRewardConfig(index, { label: e.target.value })}
+                            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34]"
+                            placeholder="Example: Birthday Free Drink"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">Perk Type</label>
+                          <select
+                            value={rewardConfig.kind || 'promotion'}
+                            onChange={(e) => updateRewardConfig(index, { kind: e.target.value })}
+                            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34] bg-white"
+                          >
+                            <option value="promotion">Promotion</option>
+                            <option value="discount">Discount</option>
+                            <option value="free_item">Free Item</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">Applies To</label>
+                          <select
+                            value={rewardConfig.scope || 'all_items'}
+                            onChange={(e) => updateRewardConfig(index, { scope: e.target.value })}
+                            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34] bg-white"
+                          >
+                            <option value="all_items">All items</option>
+                            <option value="all_drinks">All drinks</option>
+                            <option value="all_food">All food</option>
+                            <option value="all_merchandise">All merchandise</option>
+                            <option value="selected_skus">Selected items</option>
+                            <option value="all_except_skus">All except some items</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">Availability</label>
+                          <select
+                            value={rewardConfig.condition?.mode || 'always'}
+                            onChange={(e) =>
+                              updateRewardConfig(index, {
+                                condition: {
+                                  mode: e.target.value,
+                                  birthdayMatch: e.target.value === 'birthday'
+                                    ? (rewardConfig.condition?.birthdayMatch || 'month_day')
+                                    : null
+                                }
+                              })
+                            }
+                            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34] bg-white"
+                          >
+                            <option value="always">Always active</option>
+                            <option value="birthday">Birthday only</option>
+                          </select>
+                          <p className="text-[11px] text-gray-400 mt-1">Use birthday only if this perk should appear for members with a matching birthday.</p>
+                        </div>
+
+                        {rewardConfig.condition?.mode === 'birthday' && (
+                          <div>
+                            <label className="block text-xs font-medium text-gray-500 mb-1">Birthday Rule</label>
+                            <select
+                              value={rewardConfig.condition?.birthdayMatch || 'month_day'}
+                              onChange={(e) =>
+                                updateRewardConfig(index, {
+                                  condition: {
+                                    mode: 'birthday',
+                                    birthdayMatch: e.target.value
+                                  }
+                                })
+                              }
+                              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34] bg-white"
+                            >
+                              <option value="month_day">Exact birthday</option>
+                              <option value="month">Birthday month only</option>
+                            </select>
+                          </div>
+                        )}
+
+                        {rewardConfig.kind === 'discount' && (
+                          <>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-500 mb-1">Discount Basis</label>
+                              <select
+                                value={rewardConfig.discountUnit || 'token'}
+                                onChange={(e) => updateRewardConfig(index, { discountUnit: e.target.value })}
+                                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34] bg-white"
+                              >
+                                <option value="token">Token</option>
+                                <option value="rm">RM</option>
+                                <option value="percent">Percent</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-500 mb-1">Discount Amount</label>
+                              <input
+                                type="number"
+                                min={0}
+                                step={rewardConfig.discountUnit === 'percent' ? '0.01' : '1'}
+                                value={rewardConfig.rewardValue ?? ''}
+                                onChange={(e) => updateRewardConfig(index, { rewardValue: e.target.value })}
+                                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34]"
+                                placeholder={rewardConfig.discountUnit === 'percent' ? '5' : '1'}
+                              />
+                            </div>
+                          </>
+                        )}
+
+                        {rewardConfig.kind === 'free_item' && (
+                          <div>
+                            <label className="block text-xs font-medium text-gray-500 mb-1">Free Item</label>
+                            <select
+                              value={rewardConfig.rewardItemType || 'drink'}
+                              onChange={(e) => updateRewardConfig(index, { rewardItemType: e.target.value })}
+                              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34] bg-white"
+                            >
+                              <option value="drink">Drink</option>
+                              <option value="food">Food</option>
+                              <option value="merchandise">Merchandise</option>
+                            </select>
+                          </div>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Admin Notes</label>
+                        <textarea
+                          rows={3}
+                          value={rewardConfig.notes || ''}
+                          onChange={(e) => updateRewardConfig(index, { notes: e.target.value })}
+                          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34] resize-none"
+                          placeholder="Example: birthday perk, one-time welcome perk, or tier cycle perk"
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -278,7 +621,7 @@ const TierManagement = () => {
   }, []);
 
   const sortedTiers = useMemo(() => {
-    return [...tiers].sort((a, b) => parseNumber(a.minCups) - parseNumber(b.minCups) || parseNumber(a.sortOrder) - parseNumber(b.sortOrder) || parseNumber(a.id) - parseNumber(b.id));
+    return [...tiers].sort((a, b) => parseNumber(a.minCups) - parseNumber(b.minCups) || parseNumber(a.id) - parseNumber(b.id));
   }, [tiers]);
 
   const activeTiers = useMemo(() => sortedTiers.filter((tier) => tier.isActive), [sortedTiers]);
@@ -313,14 +656,21 @@ const TierManagement = () => {
   };
 
   const openEditModal = (tier) => {
+    const rewardConfigs = Array.isArray(tier.rewardConfigs) && tier.rewardConfigs.length > 0
+      ? tier.rewardConfigs.map((rewardConfig) => toRewardConfigFormValue(rewardConfig))
+      : tier.rewardConfig
+        ? [toRewardConfigFormValue(tier.rewardConfig)]
+        : [emptyRewardConfig()];
+
     setForm({
       id: tier.id,
       code: tier.code || '',
       name: tier.name || '',
       minCups: parseNumber(tier.minCups),
-      promotionText: tier.promotionText || '',
+      promotionText: tier.promotionText || buildPromotionTextFromRewards(rewardConfigs),
+      rewardConfigs,
       badgeColor: tier.badgeColor || '#1F3A34',
-      sortOrder: parseNumber(tier.sortOrder),
+      sortOrder: parseNumber(tier.sortOrder || tier.minCups),
       isActive: Boolean(tier.isActive)
     });
     setCodeAutoGenerated(false);
@@ -354,13 +704,38 @@ const TierManagement = () => {
     event.preventDefault();
     setSaving(true);
 
+    const rewardConfigs = Array.isArray(form.rewardConfigs)
+      ? form.rewardConfigs.map((rewardConfig) => ({
+          enabled: Boolean(rewardConfig.enabled),
+          label: String(rewardConfig.label || '').trim(),
+          kind: rewardConfig.kind || 'promotion',
+          discountUnit: rewardConfig.discountUnit || null,
+          rewardItemType: rewardConfig.rewardItemType || null,
+          rewardValue:
+            rewardConfig.rewardValue === '' || rewardConfig.rewardValue == null
+              ? null
+              : Number(rewardConfig.rewardValue),
+          scope: rewardConfig.scope || 'all_items',
+          notes: String(rewardConfig.notes || '').trim(),
+          condition: {
+            mode: rewardConfig.condition?.mode || 'always',
+            birthdayMatch: rewardConfig.condition?.mode === 'birthday'
+              ? rewardConfig.condition?.birthdayMatch || 'month_day'
+              : null
+          }
+        }))
+      : [];
+
+    const promotionText = String(form.promotionText || '').trim() || buildPromotionTextFromRewards(rewardConfigs);
+
     const payload = {
       code: slugify(form.code || form.name),
       name: String(form.name || '').trim(),
       minCups: Number(form.minCups || 0),
-      promotionText: String(form.promotionText || '').trim(),
+      promotionText,
+      rewardConfigs,
       badgeColor: String(form.badgeColor || '').trim() || null,
-      sortOrder: Number(form.sortOrder || 0),
+      sortOrder: Number(form.sortOrder || form.minCups || 0),
       isActive: Boolean(form.isActive)
     };
 
@@ -423,20 +798,13 @@ const TierManagement = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 shrink-0">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 shrink-0">
         <StatCard
           title="Total Members"
           value={isLoading ? '—' : totalMembers.toLocaleString('en-US')}
           change="Live loyalty data"
           icon={Users}
           iconBg="bg-[#1F3A34]"
-        />
-        <StatCard
-          title="Active Tiers"
-          value={isLoading ? '—' : activeTierCount.toLocaleString('en-US')}
-          change="Active config rows"
-          icon={Award}
-          iconBg="bg-[#2E5E58]"
         />
         <StatCard
           title="Base Tier"
@@ -510,10 +878,10 @@ const TierManagement = () => {
           <table className="w-full text-left text-sm whitespace-nowrap">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Tier</th>
+                <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Tier Name</th>
                 <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Code</th>
-                <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Min Cups</th>
-                <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Promotion</th>
+                <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Cups Needed</th>
+                <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Perk</th>
                 <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100 text-center">Status</th>
                 <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100 text-center">Actions</th>
               </tr>
@@ -539,9 +907,8 @@ const TierManagement = () => {
                           >
                             <Award size={16} />
                           </div>
-                          <div>
-                            <span className="font-semibold text-gray-900">{tier.name}</span>
-                            <p className="text-[11px] text-gray-400 mt-0.5">Priority {parseNumber(tier.sortOrder) + 1}</p>
+                        <div>
+                          <span className="font-semibold text-gray-900">{tier.name}</span>
                           </div>
                         </div>
                       </td>
@@ -549,8 +916,11 @@ const TierManagement = () => {
                       <td className="px-6 py-4 text-gray-600 font-medium">{formatCupsLabel(tier.minCups)}</td>
                       <td className="px-6 py-4">
                         <span className="inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-semibold border-gray-200 text-gray-700">
-                          {tier.promotionText || 'No promotion text'}
+                          {tier.promotionText || formatTierRewardSummary(tier)}
                         </span>
+                        <p className="text-[11px] text-gray-400 mt-1 max-w-[260px] whitespace-normal leading-snug">
+                          {formatTierRewardSummary(tier)}
+                        </p>
                       </td>
                       <td className="px-6 py-4 text-center">
                         <span className={`inline-flex items-center px-2.5 py-1 rounded-md font-bold text-xs ${getStatusClass(Boolean(tier.isActive))}`}>

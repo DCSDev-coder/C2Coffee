@@ -8,6 +8,7 @@ import { generateOpaqueToken, generateOtpCode, hashSha256, otpMatches } from '..
 import { normalizePhoneE164 } from '../../lib/phone.js';
 import { signAccessToken } from '../../auth/tokens.js';
 import { authenticateRequest } from '../../auth/guard.js';
+import { loadLoyaltyTiers, type LoyaltyTierConfig, type TierRewardConfig } from '../../services/loyalty-tiers.js';
 
 const requestOtpSchema = z.object({
   phone: z.string().min(1),
@@ -37,6 +38,16 @@ interface UserProfileSummary {
   display_name: string;
   status: string;
 }
+
+type BootstrapTierRewardConfig = TierRewardConfig;
+
+type BootstrapTierConfig = Pick<
+  LoyaltyTierConfig,
+  'code' | 'name' | 'minCups' | 'promotionText' | 'badgeColor' | 'sortOrder' | 'isActive'
+> & {
+  rewardConfigs: BootstrapTierRewardConfig[];
+  rewardConfig: BootstrapTierRewardConfig | null;
+};
 
 export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
   app.post('/v1/auth/request-otp', async (request) => {
@@ -653,6 +664,7 @@ export async function getBootstrapForUser(
   token_cap: number;
   tier: string;
   cups_last_180d: number;
+  tiers: BootstrapTierConfig[];
 }> {
   const [tokenRows] = await connection.query<
     Array<
@@ -690,11 +702,25 @@ export async function getBootstrapForUser(
     { userId }
   );
 
+  const allTiers = await loadLoyaltyTiers(connection);
+  const tiers = allTiers.map<BootstrapTierConfig>((tier) => ({
+    code: tier.code,
+    name: tier.name,
+    minCups: tier.minCups,
+    promotionText: tier.promotionText,
+    badgeColor: tier.badgeColor,
+    sortOrder: tier.sortOrder,
+    isActive: tier.isActive,
+    rewardConfigs: tier.rewardConfigs,
+    rewardConfig: tier.rewardConfig
+  }));
+
   return {
     token_balance: tokenRows[0]?.balance_available ?? 0,
     token_reserved: tokenRows[0]?.balance_reserved ?? 0,
     token_cap: tokenRows[0]?.balance_cap ?? 500,
     tier: tierRows[0]?.tier_code ?? 'kawan',
-    cups_last_180d: tierRows[0]?.qualifying_cups_last_180d ?? 0
+    cups_last_180d: tierRows[0]?.qualifying_cups_last_180d ?? 0,
+    tiers
   };
 }

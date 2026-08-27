@@ -1,48 +1,11 @@
 import React, { useState } from "react";
 import {
-  ArrowLeft, ChevronDown, ChevronRight, Ticket, Coins
+  ArrowLeft, ChevronRight
 } from "lucide-react";
 import {
   ResponsiveContainer, AreaChart, Area,
-  XAxis, YAxis, Tooltip, CartesianGrid
+  XAxis, YAxis, Tooltip
 } from "recharts";
-import DatePicker from "react-datepicker";
-import "react-datepicker/dist/react-datepicker.css";
-
-//Shared Components
-
-const CustomInput = React.forwardRef(({ value, onClick }, ref) => (
-  <button
-    onClick={onClick}
-    ref={ref}
-    className="flex items-center gap-1 px-2.5 py-1 bg-[#1F3A34] text-white rounded-lg text-[11px] font-semibold cursor-pointer shadow-xs focus:outline-none"
-  >
-    <span>{value || 'Select Date'}</span>
-    <ChevronDown size={12} />
-  </button>
-));
-CustomInput.displayName = "CustomInput";
-
-const StatCard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-white" }) => (
-  <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center space-x-4 min-w-0">
-    <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 ${iconBg} ${iconColor} shadow-sm`}>
-      <Icon size={26} strokeWidth={2.2} />
-    </div>
-    <div className="flex-1 min-w-0">
-      <h3 className="text-gray-500 text-[11px] sm:text-xs xl:text-sm font-medium leading-tight mt-0.5 whitespace-normal">
-        {title}
-      </h3>
-      <p className="text-2xl font-bold text-gray-900 mt-1 leading-tight">{value}</p>
-      {change && (
-        <div className="flex items-center gap-1 mt-1">
-          <p className="text-[11px] text-gray-500 font-medium leading-tight whitespace-normal">
-            {change.includes('%') && !change.includes('of total') && !change.includes('↑') && !change.includes('↓') && change.includes('vs') ? `↑ ${change}` : change}
-          </p>
-        </div>
-      )}
-    </div>
-  </div>
-);
 
 const parseNumber = (value) => {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -50,7 +13,7 @@ const parseNumber = (value) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
-const emptyRecentActivity = [];
+const formatDateLabel = (value) => (typeof value === "string" && value.trim() ? value : "No date");
 
 //Main Component
 const LoyaltyAnalytics = ({ overview, onBack, onViewSummary }) => {
@@ -58,7 +21,7 @@ const LoyaltyAnalytics = ({ overview, onBack, onViewSummary }) => {
 
   const summary = overview?.summary || {};
   const issuedVsRedeemedData = (Array.isArray(overview?.issuedVsRedeemed) ? overview.issuedVsRedeemed : []).map((entry) => ({
-    day: entry.day,
+    day: formatDateLabel(entry.day),
     issued: parseNumber(entry.issued),
     redeemed: parseNumber(entry.redeemed)
   }));
@@ -68,8 +31,10 @@ const LoyaltyAnalytics = ({ overview, onBack, onViewSummary }) => {
     redemptions: parseNumber(entry.redemptions ?? entry.redemption_count),
     pct: parseNumber(entry.pct ?? entry.percentage)
   }));
-  const activityData = Array.isArray(overview?.recentActivity) ? overview.recentActivity : emptyRecentActivity;
+  const activityData = Array.isArray(overview?.recentActivity) ? overview.recentActivity : [];
   const tokenActivityData = issuedVsRedeemedData;
+  const totalRewardRedemptions = parseNumber(summary.totalRewardRedemptions);
+  const redemptionRate = parseNumber(summary.redemptionRate);
 
   return (
     <div className="h-full flex flex-col px-8 pb-8 pt-2 space-y-6 overflow-y-auto bg-gray-50/30">
@@ -86,30 +51,25 @@ const LoyaltyAnalytics = ({ overview, onBack, onViewSummary }) => {
                 <ArrowLeft size={22} strokeWidth={2.5} />
               </button>
             )}
-            <h1 className="text-2xl font-bold text-gray-900">Loyalty & Tokens</h1>
-          </div>
-          <p className={`text-gray-500 text-sm mt-0.5 ${onBack ? "ml-8" : ""}`}>
-            Live loyalty overview, rewards, and activity.
-          </p>
+          <h1 className="text-2xl font-bold text-gray-900">Loyalty & Tokens</h1>
         </div>
+        <p className={`text-gray-500 text-sm mt-0.5 ${onBack ? "ml-8" : ""}`}>
+          Loyalty overview, rewards, and activity.
+        </p>
+      </div>
       </div>
 
-      {/* Snapshot Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 shrink-0">
-        <StatCard
-          title="Rewards Redeemed"
-          value={parseNumber(summary.totalRewardRedemptions ?? 0).toLocaleString('en-US')}
-          change={`${parseNumber(summary.redemptionRate).toFixed(1)}% redemption rate`}
-          icon={Ticket}
-          iconBg="bg-[#E07A5F]"
-        />
-        <StatCard
-          title="Tokens Redeemed"
-          value={parseNumber(summary.tokensRedeemed).toLocaleString('en-US')}
-          change="Live ledger total"
-          icon={Coins}
-          iconBg="bg-[#D4AF7A]"
-        />
+      {/* Summary Strip */}
+      <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm shrink-0 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-bold text-gray-900">Loyalty Program Summary</h2>
+          <p className="text-xs text-gray-500 mt-0.5">Live member and reward performance.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
+          <span className="px-3 py-1.5 rounded-full bg-gray-100 text-gray-700">Rewards redeemed: {totalRewardRedemptions.toLocaleString('en-US')}</span>
+          <span className="px-3 py-1.5 rounded-full bg-gray-100 text-gray-700">Tokens redeemed: {parseNumber(summary.tokensRedeemed).toLocaleString('en-US')}</span>
+          <span className="px-3 py-1.5 rounded-full bg-gray-100 text-gray-700">Redemption rate: {redemptionRate.toFixed(1)}%</span>
+        </div>
       </div>
 
       {/* Main Sections */}
@@ -118,11 +78,14 @@ const LoyaltyAnalytics = ({ overview, onBack, onViewSummary }) => {
         {/* Top Redeemed Rewards */}
         <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex flex-col h-[420px]">
           <div className="flex items-center justify-between mb-4 shrink-0">
-            <div>
-              <h3 className="text-lg font-bold text-gray-900">Top Redeemed Rewards</h3>
-              <p className="text-xs text-gray-500 mt-0.5">Ranked by actual redemptions.</p>
+          <div>
+            <h3 className="text-lg font-bold text-gray-900">Top Redeemed Rewards</h3>
+              <p className="text-xs text-gray-500 mt-0.5">Ranked by redemptions.</p>
             </div>
-            <button onClick={onViewSummary} className="text-xs font-bold text-[#2E5E58] hover:text-[#1F3A34] transition-colors cursor-pointer whitespace-nowrap">
+            <button
+              onClick={onViewSummary}
+              className="text-xs font-bold text-[#2E5E58] hover:text-[#1F3A34] transition-colors cursor-pointer whitespace-nowrap"
+            >
               View summary
             </button>
           </div>
@@ -137,7 +100,7 @@ const LoyaltyAnalytics = ({ overview, onBack, onViewSummary }) => {
                   <tr className="text-[11px] text-gray-900 border-b border-gray-100 font-extrabold">
                     <th className="py-2 w-10 text-center">Rank</th>
                     <th className="py-2">Reward</th>
-                    <th className="py-2 text-center">Redemption</th>
+                    <th className="py-2 text-center">Redemptions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -173,33 +136,36 @@ const LoyaltyAnalytics = ({ overview, onBack, onViewSummary }) => {
                 </div>
               </div>
             </div>
-            <div className="w-28 relative">
-              <DatePicker portalId="root-portal" popperPlacement="bottom-end" selected={null} customInput={<CustomInput />} dateFormat="d MMM yyyy" onChange={() => { }} />
-            </div>
           </div>
           <div className="flex-1 min-h-0 w-full relative -ml-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={tokenActivityData} margin={{ top: 10, right: 10, left: 15, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorIssued" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#2E5E58" stopOpacity={0.1} />
-                    <stop offset="95%" stopColor="#2E5E58" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="colorRedeemed" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#8AACA5" stopOpacity={0.1} />
-                    <stop offset="95%" stopColor="#8AACA5" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <XAxis dataKey="day" axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 11, fill: '#6B7280', fontWeight: 600, angle: -20, textAnchor: 'end' }} dy={10} height={40} />
-                <YAxis axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 11, fill: '#6B7280', fontWeight: 600 }} dx={-10} tickFormatter={(val) => val >= 1000 ? `${(val / 1000).toFixed(1)}K` : val} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#1F3A34', borderRadius: '8px', border: 'none', color: '#fff', fontSize: '12px', fontWeight: 'bold', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)' }}
-                  itemStyle={{ color: '#fff' }}
-                />
-                <Area type="monotone" dataKey="issued" stroke="#2E5E58" strokeWidth={3} fillOpacity={1} fill="url(#colorIssued)" />
-                <Area type="monotone" dataKey="redeemed" stroke="#8AACA5" strokeWidth={3} fillOpacity={1} fill="url(#colorRedeemed)" />
-              </AreaChart>
-            </ResponsiveContainer>
+            {tokenActivityData.length === 0 ? (
+              <div className="h-full rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-500 flex items-center">
+                No token movement recorded yet.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={tokenActivityData} margin={{ top: 10, right: 10, left: 15, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorIssued" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#2E5E58" stopOpacity={0.1} />
+                      <stop offset="95%" stopColor="#2E5E58" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="colorRedeemed" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#8AACA5" stopOpacity={0.1} />
+                      <stop offset="95%" stopColor="#8AACA5" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis dataKey="day" axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 11, fill: '#6B7280', fontWeight: 600, angle: -20, textAnchor: 'end' }} dy={10} height={40} />
+                  <YAxis axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 11, fill: '#6B7280', fontWeight: 600 }} dx={-10} tickFormatter={(val) => val >= 1000 ? `${(val / 1000).toFixed(1)}K` : val} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#1F3A34', borderRadius: '8px', border: 'none', color: '#fff', fontSize: '12px', fontWeight: 'bold', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)' }}
+                    itemStyle={{ color: '#fff' }}
+                  />
+                  <Area type="monotone" dataKey="issued" stroke="#2E5E58" strokeWidth={3} fillOpacity={1} fill="url(#colorIssued)" />
+                  <Area type="monotone" dataKey="redeemed" stroke="#8AACA5" strokeWidth={3} fillOpacity={1} fill="url(#colorRedeemed)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
 
@@ -212,22 +178,28 @@ const LoyaltyAnalytics = ({ overview, onBack, onViewSummary }) => {
             </button>
           </div>
           <div className="flex-1 overflow-y-auto pr-2">
-            <div className="space-y-4">
-              {activityData.map((activity, idx) => (
-                <div key={idx} className="flex justify-between items-start">
-                  <div className="flex gap-3">
-                    <div className="w-10 h-10 rounded-full bg-[#1F3A34] shrink-0 shadow-sm mt-1"></div>
-                    <div>
-                      <p className="text-[11px] font-bold text-gray-900">
-                        {activity.user} <span className="font-normal">{activity.action}</span>
-                      </p>
-                      <p className="text-[10px] text-gray-500 mt-0.5 leading-tight">{activity.desc}</p>
+            {activityData.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-500">
+                No recent activity yet.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {activityData.map((activity, idx) => (
+                  <div key={idx} className="flex justify-between items-start">
+                    <div className="flex gap-3">
+                      <div className="w-10 h-10 rounded-full bg-[#1F3A34] shrink-0 shadow-sm mt-1"></div>
+                      <div>
+                        <p className="text-[11px] font-bold text-gray-900">
+                          {activity.user} <span className="font-normal">{activity.action}</span>
+                        </p>
+                        <p className="text-[10px] text-gray-500 mt-0.5 leading-tight">{activity.desc}</p>
+                      </div>
                     </div>
+                    <span className="text-[9px] text-gray-400 font-medium whitespace-nowrap mt-1">{activity.time}</span>
                   </div>
-                  <span className="text-[9px] text-gray-400 font-medium whitespace-nowrap mt-1">{activity.time}</span>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 

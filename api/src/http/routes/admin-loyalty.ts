@@ -126,7 +126,86 @@ function sourceDisplayLabel(sourceType: string): string {
   }
 }
 
+const tierRewardConfigSchema = z.object({
+  enabled: z.coerce.boolean().optional().default(true),
+  label: z.string().trim().max(255).optional().default(''),
+  kind: z.enum(['discount', 'free_item', 'promotion']).optional().default('promotion'),
+  discountUnit: z.enum(['token', 'rm', 'percent']).nullable().optional().default(null),
+  rewardItemType: z.enum(['drink', 'food', 'merchandise']).nullable().optional().default(null),
+  rewardValue: z.coerce.number().nullable().optional().default(null),
+  scope: z.enum(['all_items', 'all_drinks', 'all_food', 'all_merchandise', 'selected_skus', 'all_except_skus']).optional().default('all_items'),
+  notes: z.string().trim().max(500).optional().default(''),
+  condition: z.object({
+    mode: z.enum(['always', 'birthday']).optional().default('always'),
+    birthdayMatch: z.enum(['month_day', 'month']).nullable().optional().default(null)
+  }).optional().default({ mode: 'always', birthdayMatch: null })
+});
+
+const loyaltyTierUpsertSchema = z.object({
+  code: z.string().trim().min(1).max(50),
+  name: z.string().trim().min(1).max(255),
+  minCups: z.coerce.number().int().min(0),
+  promotionText: z.string().trim().max(255).optional().default(''),
+  rewardConfig: tierRewardConfigSchema.nullable().optional().default(null),
+  rewardConfigs: z.array(tierRewardConfigSchema).nullable().optional().default(null),
+  badgeColor: z.string().trim().max(32).optional().nullable(),
+  sortOrder: z.coerce.number().int().min(0).optional().default(0),
+  isActive: z.coerce.boolean().optional().default(true)
+});
+
+const loyaltyTierPatchSchema = loyaltyTierUpsertSchema.partial().extend({
+  code: z.string().trim().min(1).max(50).optional()
+});
+
 export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<void> {
+  const normalizeRewardConfigs = (payload: { rewardConfig?: unknown; rewardConfigs?: unknown }) => {
+    const configs = Array.isArray(payload.rewardConfigs) && payload.rewardConfigs.length > 0
+      ? payload.rewardConfigs
+      : payload.rewardConfig
+        ? [payload.rewardConfig]
+        : [];
+
+    return configs
+      .map((rewardEntry) => {
+        const reward = (rewardEntry ?? {}) as Record<string, unknown>;
+
+        return {
+          enabled: Boolean(reward.enabled),
+          label: String(reward.label ?? '').trim(),
+          kind: reward.kind === 'discount' || reward.kind === 'free_item' ? reward.kind : 'promotion',
+          discountUnit: reward.discountUnit === 'token' || reward.discountUnit === 'rm' || reward.discountUnit === 'percent'
+            ? reward.discountUnit
+            : null,
+          rewardItemType: reward.rewardItemType === 'drink' || reward.rewardItemType === 'food' || reward.rewardItemType === 'merchandise'
+            ? reward.rewardItemType
+            : null,
+          rewardValue:
+            reward.rewardValue === '' || reward.rewardValue == null
+              ? null
+              : Number(reward.rewardValue),
+          scope: reward.scope === 'all_items'
+            || reward.scope === 'all_drinks'
+            || reward.scope === 'all_food'
+            || reward.scope === 'all_merchandise'
+            || reward.scope === 'selected_skus'
+            || reward.scope === 'all_except_skus'
+              ? reward.scope
+              : 'all_items',
+          notes: String(reward.notes || '').trim(),
+          condition: {
+            mode: reward.condition && typeof reward.condition === 'object' && (reward.condition as Record<string, unknown>).mode === 'birthday'
+              ? 'birthday'
+              : 'always',
+            birthdayMatch:
+              reward.condition && typeof reward.condition === 'object' && (reward.condition as Record<string, unknown>).mode === 'birthday'
+                ? ((reward.condition as Record<string, unknown>).birthdayMatch === 'month' ? 'month' : 'month_day')
+                : null
+          }
+        };
+      })
+      .filter((reward) => reward.enabled || reward.label || reward.rewardValue != null || reward.discountUnit || reward.rewardItemType || reward.notes);
+  };
+
   app.get('/v1/admin/loyalty/overview', { preHandler: [authenticateAdminRequest] }, async (request) => {
     requireAdminRole(request, 'super_admin');
     const { limit } = overviewQuerySchema.parse(request.query);
@@ -434,19 +513,12 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
 
   app.post('/v1/admin/loyalty/tiers', { preHandler: [authenticateAdminRequest] }, async (request) => {
     requireAdminRole(request, 'super_admin');
-    const payload = z.object({
-      code: z.string().trim().min(1).max(50),
-      name: z.string().trim().min(1).max(255),
-      minCups: z.coerce.number().int().min(0),
-      promotionText: z.string().trim().max(255).optional().default(''),
-      badgeColor: z.string().trim().max(32).optional().nullable(),
-      sortOrder: z.coerce.number().int().min(0).optional().default(0),
-      isActive: z.coerce.boolean().optional().default(true)
-    }).parse(request.body);
+    const payload = loyaltyTierUpsertSchema.parse(request.body);
     const connection = await mysqlPool.getConnection();
 
     try {
       const normalizedCode = payload.code.trim().toLowerCase();
+      const normalizedRewardConfigs = normalizeRewardConfigs(payload);
       const [insertResult] = await connection.execute<ResultSetHeader>(
         `
           INSERT INTO loyalty_tiers (
@@ -454,6 +526,7 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
             name,
             min_cups,
             promotion_text,
+            reward_config_json,
             badge_color,
             sort_order,
             is_active
@@ -463,6 +536,7 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
             :name,
             :minCups,
             :promotionText,
+            :rewardConfigJson,
             :badgeColor,
             :sortOrder,
             :isActive
@@ -470,7 +544,8 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
         `,
         {
           ...payload,
-          code: normalizedCode
+          code: normalizedCode,
+          rewardConfigJson: normalizedRewardConfigs.length > 0 ? JSON.stringify(normalizedRewardConfigs) : null
         }
       );
 
@@ -486,15 +561,7 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
   app.patch('/v1/admin/loyalty/tiers/:tierId', { preHandler: [authenticateAdminRequest] }, async (request) => {
     requireAdminRole(request, 'super_admin');
     const tierId = z.coerce.number().int().positive().parse((request.params as { tierId: string }).tierId);
-    const payload = z.object({
-      code: z.string().trim().min(1).max(50).optional(),
-      name: z.string().trim().min(1).max(255).optional(),
-      minCups: z.coerce.number().int().min(0).optional(),
-      promotionText: z.string().trim().max(255).optional(),
-      badgeColor: z.string().trim().max(32).optional().nullable(),
-      sortOrder: z.coerce.number().int().min(0).optional(),
-      isActive: z.coerce.boolean().optional()
-    }).parse(request.body);
+    const payload = loyaltyTierPatchSchema.parse(request.body);
     const entries = Object.entries(payload).filter(([, value]) => value !== undefined);
 
     if (entries.length === 0) {
@@ -513,6 +580,9 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
             return 'min_cups = :minCups';
           case 'promotionText':
             return 'promotion_text = :promotionText';
+          case 'rewardConfig':
+          case 'rewardConfigs':
+            return 'reward_config_json = :rewardConfigJson';
           case 'badgeColor':
             return 'badge_color = :badgeColor';
           case 'sortOrder':
@@ -524,10 +594,17 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
         }
       });
 
+      const normalizedRewardConfigs = normalizeRewardConfigs(payload);
       const values = {
         tierId,
         ...payload,
-        code: payload.code?.trim().toLowerCase()
+        code: payload.code?.trim().toLowerCase(),
+        rewardConfigJson:
+          payload.rewardConfig === undefined && payload.rewardConfigs === undefined
+            ? undefined
+            : normalizedRewardConfigs.length > 0
+              ? JSON.stringify(normalizedRewardConfigs)
+              : null
       } as any;
 
       await connection.execute(

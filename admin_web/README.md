@@ -12,6 +12,12 @@ Example:
 VITE_API_BASE_URL=https://api.c2coffeeandcandle.com
 ```
 
+Notes:
+
+- The default API target in the app already points to the public API host.
+- If you switch to a local API during development, the browser origin must also be allowed by the API CORS settings.
+- The local Vite dev server commonly runs on `http://localhost:5173`.
+
 Currently, two official plugins are available:
 
 - [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)

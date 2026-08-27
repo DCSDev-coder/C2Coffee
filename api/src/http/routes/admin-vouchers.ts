@@ -32,7 +32,7 @@ const voucherCreateUpdateSchema = z.object({
     .optional()
     .default('all_customers'),
   availabilityMode: z
-    .enum(['always', 'daily', 'weekly', 'annual'])
+    .enum(['always', 'daily', 'weekly', 'annual', 'birthday'])
     .optional()
     .default('always'),
   activeDays: z.array(z.string()).optional().default([]),
@@ -484,7 +484,7 @@ function normalizeAnnualDate(value: string | null | undefined): string | null {
 }
 
 type VoucherSchedule = {
-  mode: 'always' | 'daily' | 'weekly' | 'annual';
+  mode: 'always' | 'daily' | 'weekly' | 'annual' | 'birthday';
   activeDays: string[];
   startTime: string | null;
   endTime: string | null;
@@ -509,7 +509,7 @@ function getScheduleFromScope(scope: Record<string, unknown>): VoucherSchedule {
 
   return {
     mode:
-      mode === 'daily' || mode === 'weekly' || mode === 'annual'
+      mode === 'daily' || mode === 'weekly' || mode === 'annual' || mode === 'birthday'
         ? mode
         : 'always',
     activeDays: normalizeActiveDays(Array.isArray(raw.activeDays) ? raw.activeDays.map((day) => String(day)) : []),
@@ -562,6 +562,10 @@ function buildAvailabilitySummary(schedule: VoucherSchedule, expiryDate: Date | 
   if (schedule.mode === 'annual') {
     const annualDateLabel = formatAnnualDateLabel(schedule.annualDate) || 'selected date';
     return timeLabel ? `Every ${annualDateLabel}, ${timeLabel}` : `Every ${annualDateLabel}`;
+  }
+
+  if (schedule.mode === 'birthday') {
+    return timeLabel ? `On customer birthday, ${timeLabel}` : 'On customer birthday';
   }
 
   if (expiryDate) {

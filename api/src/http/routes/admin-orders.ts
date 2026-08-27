@@ -45,6 +45,13 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           o.token_amount_charged as tokenAmountCharged,
           o.payment_mode as paymentMode,
           o.status as status,
+          COALESCE((
+            SELECT lts.tier_code
+            FROM loyalty_tier_snapshots lts
+            WHERE lts.user_id = u.id
+            ORDER BY lts.effective_at DESC, lts.id DESC
+            LIMIT 1
+          ), 'kawan') AS tier_code,
           p.provider as paymentProvider,
           p.status as paymentStatus,
           p.provider_payment_ref as txnId,
@@ -58,62 +65,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
       `);
 
       if (orderRows.length === 0) {
-        // Fallback to mock data for demonstration purposes if DB is empty
-        const mockOrders = [
-          {
-            id: "ORD-0510-001",
-            customer: "miraelys",
-            email: "mira@gmail.com",
-            phone: "+6011-63793812",
-            tier: "Legend",
-            memberId: "C2-001",
-            avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80",
-            items: [{ 
-              name: "Bojito", 
-              qty: 1, 
-              img: "/BOIJITO.png", 
-              unitPrice: 15.90,
-              bean: "Dato Blend",
-              espressoShot: 2,
-              temperature: "Cold",
-              sparkling: "Yes",
-              milk: "Oat Milk",
-              sweetness: "Less Sweet",
-              iceLevel: "Regular Ice",
-              orderType: "Take Away",
-              remarks: "Extra cold please"
-            }],
-            discount: 0,
-            total: 15.90,
-            tokenAmountCharged: 16,
-            status: "Completed",
-            payment: "C2 Tokens",
-            paymentStatus: "Paid",
-            txnId: "TNG291938193183",
-            time: "10:21 AM",
-            date: "Aug 19, 2026"
-          },
-          {
-            id: "ORD-0510-002",
-            customer: "alex_chong",
-            email: "alex.chong@gmail.com",
-            phone: "+6012-3456789",
-            tier: "Gold",
-            memberId: "C2-002",
-            avatar: "https://images.unsplash.com/photo-1599566150163-29194dcaad36?w=100&auto=format&fit=crop&q=80",
-            items: [{ name: "Latte", qty: 2, img: "/LATTE.png", unitPrice: 12.00 }],
-            discount: 2.00,
-            total: 22.00,
-            tokenAmountCharged: 22,
-            status: "Preparing",
-            payment: "C2 Tokens",
-            paymentStatus: "Paid",
-            txnId: "CC1234567890",
-            time: "10:35 AM",
-            date: "Aug 19, 2026"
-          }
-        ];
-        return reply.send({ orders: mockOrders });
+        return reply.send({ orders: [] });
       }
 
       // 2. Fetch Order Items for these orders
@@ -195,10 +147,6 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
         });
       }
 
-      // We need to fetch loyalty tiers. For simplicity, we just assign "Legend" as fallback or we can query loyalty_tier_snapshots if it exists.
-      // Since it might not exist yet for all users, we'll hardcode "Legend" or query. Let's just hardcode "Legend" for mock parity or check if user_loyalty exists.
-      // We didn't find user_loyalty table earlier.
-
       const formattedOrders = orderRows.map(o => {
         const d = new Date(o.created_at);
         return {
@@ -206,7 +154,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           customer: o.customer || 'Unknown',
           email: o.email || '',
           phone: o.phone || '',
-          tier: 'Legend', // Mocking tier until loyalty service is fully implemented
+          tier: capitalizeWords(String(o.tier_code || 'kawan')),
           memberId: 'C2-' + String(o.user_id).padStart(3, '0'),
           avatar: o.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
           items: itemsByOrderId[o.internal_id] || [],
@@ -246,6 +194,13 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           r.status as status,
           r.created_at as requestedAt,
           o.created_at as orderDate,
+          COALESCE((
+            SELECT lts.tier_code
+            FROM loyalty_tier_snapshots lts
+            WHERE lts.user_id = u.id
+            ORDER BY lts.effective_at DESC, lts.id DESC
+            LIMIT 1
+          ), 'kawan') AS tier_code,
           r.reason as customerNotes
         FROM refunds r
         JOIN orders o ON r.order_id = o.id
@@ -256,32 +211,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
       `);
 
       if (refundRows.length === 0) {
-        // Fallback to mock data for demonstration purposes if DB is empty
-        const mockRefunds = [
-          {
-            id: "REF-0510-001",
-            orderId: "ORD-0510-001",
-            customer: "miraelys",
-            email: "mira@gmail.com",
-            phone: "+6011-63793812",
-            tier: "Legend",
-            memberId: "C2-001",
-            amount: 15.90,
-            reason: "Wrong Item",
-            paymentMethod: "C2 Tokens",
-            status: "Approved",
-            requestedAt: "Aug 19, 2026 10:15 AM",
-            orderDate: "Aug 19, 2026 – 10:18 AM",
-            customerNotes: "I received Flat White instead of Latte",
-            attachment: "/FLAT WHITE.png",
-            timeline: [
-              { label: "Refund Requested", date: "Aug 19, 2026 10:21 AM", done: true },
-              { label: "Under Review", date: "Aug 19, 2026 10:21 AM", done: true },
-              { label: "Refund Completed", date: "Aug 19, 2026 10:21 AM", done: true }
-            ]
-          }
-        ];
-        return reply.send({ refunds: mockRefunds });
+        return reply.send({ refunds: [] });
       }
 
       const formattedRefunds = refundRows.map(r => {
@@ -294,7 +224,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           customer: r.customer || 'Unknown',
           email: r.email || '',
           phone: r.phone || '',
-          tier: 'Legend', // Mocking tier
+          tier: capitalizeWords(String(r.tier_code || 'kawan')),
           memberId: 'C2-' + String(r.user_id).padStart(3, '0'),
           amount: Number(r.amount || 0),
           reason: r.reason || 'Other',

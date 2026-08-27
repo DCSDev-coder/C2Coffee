@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/app_session_service.dart';
+import '../services/catalog_api_service.dart';
 import '../widgets/custom_bottom_nav.dart';
 import 'home_page.dart';
 import 'menu_page.dart';
@@ -38,6 +39,56 @@ class _RewardsPageState extends State<RewardsPage> {
   int _selectedTier = 1;
   bool _isFaqsOpen = false;
 
+  List<LoyaltyTier> get _availableTiers {
+    final tiers = _session.loyaltyTiers.where((tier) => tier.isActive).toList();
+    if (tiers.isNotEmpty) {
+      return tiers;
+    }
+
+    return const [
+      LoyaltyTier(
+        code: 'kawan',
+        name: 'Kawan',
+        minCups: 0,
+        promotionText: 'Entry loyalty tier',
+        badgeColor: '#3B82F6',
+        sortOrder: 0,
+        isActive: true,
+        rewardConfigs: [],
+      ),
+      LoyaltyTier(
+        code: 'dilamun',
+        name: 'Dilamun',
+        minCups: 10,
+        promotionText: 'Progressing loyalty tier',
+        badgeColor: '#E07A5F',
+        sortOrder: 1,
+        isActive: true,
+        rewardConfigs: [],
+      ),
+      LoyaltyTier(
+        code: 'ketagih',
+        name: 'Ketagih',
+        minCups: 30,
+        promotionText: 'High engagement loyalty tier',
+        badgeColor: '#9333EA',
+        sortOrder: 2,
+        isActive: true,
+        rewardConfigs: [],
+      ),
+      LoyaltyTier(
+        code: 'legend',
+        name: 'Legend',
+        minCups: 50,
+        promotionText: 'Top loyalty tier',
+        badgeColor: '#D4AF7A',
+        sortOrder: 3,
+        isActive: true,
+        rewardConfigs: [],
+      ),
+    ];
+  }
+
   @override
   void initState() {
     super.initState();
@@ -63,7 +114,8 @@ class _RewardsPageState extends State<RewardsPage> {
   }
 
   void _syncTierFromSession() {
-    _selectedTier = _tierToIndex(_session.tier);
+    final currentTierIndex = _currentTierIndex();
+    _selectedTier = currentTierIndex.clamp(0, _availableTiers.length - 1);
   }
 
   int _tierToIndex(String tier) {
@@ -81,19 +133,58 @@ class _RewardsPageState extends State<RewardsPage> {
     }
   }
 
-  String _tierLabel(int index) {
-    switch (index) {
-      case 0:
-        return 'Kawan';
-      case 1:
-        return 'Dilamun';
-      case 2:
-        return 'Ketagih';
-      case 3:
-        return 'Legend';
-      default:
-        return 'Kawan';
+  int _currentTierIndex() {
+    final tierCode = _session.tier.trim().toLowerCase();
+    final index = _availableTiers.indexWhere(
+      (tier) => tier.code.trim().toLowerCase() == tierCode,
+    );
+    return index >= 0 ? index : _tierToIndex(tierCode);
+  }
+
+  LoyaltyTier _tierForIndex(int index) {
+    final tiers = _availableTiers;
+    if (tiers.isEmpty) {
+      return const LoyaltyTier(
+        code: 'kawan',
+        name: 'Kawan',
+        minCups: 0,
+        promotionText: 'Entry loyalty tier',
+        badgeColor: '#3B82F6',
+        sortOrder: 0,
+        isActive: true,
+        rewardConfigs: [],
+      );
     }
+
+    return tiers[index.clamp(0, tiers.length - 1)];
+  }
+
+  LoyaltyTier? _currentTier() {
+    final tiers = _availableTiers;
+    if (tiers.isEmpty) return null;
+    final index = _currentTierIndex().clamp(0, tiers.length - 1);
+    return tiers[index];
+  }
+
+  LoyaltyTier? _nextTier() {
+    final tiers = _availableTiers;
+    final currentIndex = _currentTierIndex();
+    if (currentIndex < 0 || currentIndex + 1 >= tiers.length) {
+      return null;
+    }
+    return tiers[currentIndex + 1];
+  }
+
+  int _progressTargetCups() {
+    final nextTier = _nextTier();
+    return nextTier?.minCups ?? _session.cupsLast180d;
+  }
+
+  String _currentTierLabel() =>
+      _currentTier()?.name ?? _tierForIndex(_selectedTier).name;
+
+  List<TierRewardConfig> _visibleRewardsForTier(LoyaltyTier tier) {
+    return tier.rewardConfigs.where((reward) => reward.enabled).toList();
   }
 
   void _onBottomNavTapped(int index) {
@@ -142,34 +233,35 @@ class _RewardsPageState extends State<RewardsPage> {
       },
       title: 'C2 COFFEE SQUAD',
       titleWidget: FittedBox(
-        fit: BoxFit.scaleDown,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-          const Text(
-            'C2 COFFEE SQUAD',
-            style: TextStyle(
-              fontFamily: 'Recoleta',
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-              letterSpacing: 1.0,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            _tierLabel(_tierToIndex(_session.tier)).toUpperCase(),
-            style: const TextStyle(
-              fontFamily: 'Afacad',
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-              letterSpacing: 1.2,
-            ),
-          ),
-        ],
-      )),
-      onBack: () {}, showBackButton: false,
+          fit: BoxFit.scaleDown,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'C2 COFFEE SQUAD',
+                style: TextStyle(
+                  fontFamily: 'Recoleta',
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  letterSpacing: 1.0,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                _currentTierLabel().toUpperCase(),
+                style: const TextStyle(
+                  fontFamily: 'Afacad',
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ],
+          )),
+      onBack: () {},
+      showBackButton: false,
       backgroundColor: beigeBg,
       scrollController: _scrollController,
       bodyPadding: const EdgeInsets.only(bottom: 130),
@@ -304,9 +396,15 @@ class _RewardsPageState extends State<RewardsPage> {
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(4),
                         child: LinearProgressIndicator(
-                          value: (_session.cupsLast180d / _getMaxCupsForTier()).clamp(0.0, 1.0).toDouble(),
+                          value: (_session.cupsLast180d /
+                                  (_progressTargetCups() <= 0
+                                      ? 1
+                                      : _progressTargetCups()))
+                              .clamp(0.0, 1.0)
+                              .toDouble(),
                           backgroundColor: Colors.grey[200],
-                          valueColor: AlwaysStoppedAnimation<Color>(AppColors.deepTeal),
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(AppColors.deepTeal),
                           minHeight: 8,
                         ),
                       ),
@@ -333,28 +431,16 @@ class _RewardsPageState extends State<RewardsPage> {
   }
 
   int _getMaxCupsForTier() {
-    switch (_tierToIndex(_session.tier)) {
-      case 0:
-        return 10; // Kawan -> Dilamun
-      case 1:
-        return 30; // Dilamun -> Ketagih
-      case 2:
-        return 50; // Ketagih -> Legend
-      case 3:
-        return 50; // Legend (max tier)
-      default:
-        return 10;
-    }
+    return _progressTargetCups();
   }
 
   String _getTierProgressLabel() {
-    final currentTier = _tierToIndex(_session.tier);
-    if (currentTier >= 3) {
+    final nextTier = _nextTier();
+    if (nextTier == null) {
       return 'Max tier reached';
     }
 
-    final nextTier = _tierLabel(currentTier + 1);
-    return '${_session.cupsLast180d} / ${_getMaxCupsForTier()} cups to $nextTier';
+    return '${_session.cupsLast180d} / ${_getMaxCupsForTier()} cups to ${nextTier.name}';
   }
 
   Widget _buildActionCards() {
@@ -489,6 +575,15 @@ class _RewardsPageState extends State<RewardsPage> {
   }
 
   Widget _buildTierSection() {
+    final tiers = _availableTiers;
+    if (tiers.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final selectedIndex = _selectedTier.clamp(0, tiers.length - 1);
+    final currentIndex = _currentTierIndex().clamp(0, tiers.length - 1);
+    final selectedTier = tiers[selectedIndex];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -517,18 +612,25 @@ class _RewardsPageState extends State<RewardsPage> {
         ),
         const SizedBox(height: 16),
         // Tab Headers
-        Padding(
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Row(
-            children: [
-              Expanded(child: _buildTierTab(0, 'Tier 1', 'Kawan', 0 > _tierToIndex(_session.tier))),
-              Expanded(child: _buildTierTab(1, 'Tier 2', 'Dilamun', 1 > _tierToIndex(_session.tier))),
-              Expanded(child: _buildTierTab(2, 'Tier 3', 'Ketagih', 2 > _tierToIndex(_session.tier))),
-              Expanded(child: _buildTierTab(3, 'Tier 4', 'Legend', 3 > _tierToIndex(_session.tier))),
-            ],
+            children: List.generate(tiers.length, (index) {
+              final tier = tiers[index];
+              final locked = index > currentIndex;
+              return SizedBox(
+                width: 132,
+                child: _buildTierTab(
+                  index,
+                  tier,
+                  locked,
+                  selectedIndex,
+                ),
+              );
+            }),
           ),
         ),
-        // Tab Content
         Container(
           margin: const EdgeInsets.symmetric(horizontal: 20),
           padding: const EdgeInsets.all(16),
@@ -551,134 +653,13 @@ class _RewardsPageState extends State<RewardsPage> {
               ),
             ],
           ),
-          child: AnimatedCrossFade(
-            duration: const Duration(milliseconds: 280),
-            sizeCurve: Curves.easeInOutCubic,
-            firstCurve: Curves.easeIn,
-            secondCurve: Curves.easeOut,
-            crossFadeState: _selectedTier == 0
-                ? CrossFadeState.showFirst
-                : CrossFadeState.showSecond,
-            firstChild: Column(
-              key: const ValueKey('tier0'),
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _buildRewardListItem(
-                  'RM1 Off Every Order',
-                  'Enjoy RM1 discount on all handcrafted drinks',
-                  icon: Icons.local_offer_outlined,
-                ),
-                const Divider(height: 12),
-                _buildRewardListItem(
-                  '10 Bonus Tokens on Reload',
-                  'Earn 10 bonus tokens when topping up your wallet',
-                  icon: Icons.monetization_on_outlined,
-                ),
-                const Divider(height: 12),
-                _buildRewardListItem(
-                  'Complimentary Welcome Drink',
-                  'Enjoy 1 free handcrafted beverage on your first visit',
-                  icon: Icons.local_cafe_outlined,
-                ),
-              ],
-            ),
-            secondChild: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 250),
-              child: _selectedTier == 1
-                  ? Column(
-                      key: const ValueKey('tier1'),
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _buildRewardListItem(
-                          'RM2 Off Every Order',
-                          'Enjoy RM2 discount on all handcrafted drinks',
-                          icon: Icons.local_offer_outlined,
-                        ),
-                        const Divider(height: 12),
-                        _buildRewardListItem(
-                          'Birthday Treat: 1 Free Drink',
-                          '1 complimentary drink on your birthday (bring a friend)',
-                          icon: Icons.cake_outlined,
-                        ),
-                        const Divider(height: 12),
-                        _buildRewardListItem(
-                          '1 Free Complimentary Drink',
-                          '1 free handcrafted drink of your choice (any drink)',
-                          icon: Icons.local_cafe_outlined,
-                        ),
-                        const Divider(height: 12),
-                        _buildRewardListItem(
-                          '5% Off Merchandise',
-                          'Get 5% discount on official C² cups & merchandise',
-                          icon: Icons.shopping_bag_outlined,
-                        ),
-                      ],
-                    )
-                  : _selectedTier == 2
-                      ? Column(
-                          key: const ValueKey('tier2'),
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            _buildRewardListItem(
-                              'RM3 Off Every Order',
-                              'Enjoy RM3 discount on all handcrafted drinks',
-                              icon: Icons.local_offer_outlined,
-                            ),
-                            const Divider(height: 12),
-                            _buildRewardListItem(
-                              'Birthday Treat: 1 Free Drink',
-                              '1 complimentary drink on your birthday (bring a friend)',
-                              icon: Icons.cake_outlined,
-                            ),
-                            const Divider(height: 12),
-                            _buildRewardListItem(
-                              '1 Free Complimentary Drink',
-                              '1 free handcrafted drink of your choice (any drink)',
-                              icon: Icons.local_cafe_outlined,
-                            ),
-                            const Divider(height: 12),
-                            _buildRewardListItem(
-                              '10% Off Merchandise',
-                              'Get 10% discount on all official C² merchandise',
-                              icon: Icons.shopping_bag_outlined,
-                            ),
-                          ],
-                        )
-                      : Column(
-                          key: const ValueKey('tier3'),
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            _buildRewardListItem(
-                              'Complimentary C² Cup (Nude Colour)',
-                              'Receive an exclusive official C² signature cup in nude colour',
-                              icon: Icons.card_giftcard_outlined,
-                            ),
-                            const Divider(height: 12),
-                            _buildRewardListItem(
-                              'RM4 Off Every Order',
-                              'Enjoy RM4 discount on all handcrafted drinks',
-                              icon: Icons.local_offer_outlined,
-                            ),
-                            const Divider(height: 12),
-                            _buildRewardListItem(
-                              'Birthday Treat: 1 Free Drink',
-                              '1 complimentary drink on your birthday (bring a friend)',
-                              icon: Icons.cake_outlined,
-                            ),
-                            const Divider(height: 12),
-                            _buildRewardListItem(
-                              '1 Free Complimentary Drink',
-                              '1 free handcrafted drink of your choice (any drink)',
-                              icon: Icons.local_cafe_outlined,
-                            ),
-                            const Divider(height: 12),
-                            _buildRewardListItem(
-                              '20% Off Merchandise',
-                              'Get 20% discount on all official C² merchandise',
-                              icon: Icons.shopping_bag_outlined,
-                            ),
-                          ],
-                        ),
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 240),
+            switchInCurve: Curves.easeOutCubic,
+            switchOutCurve: Curves.easeInCubic,
+            child: _buildTierRewardContent(
+              selectedTier,
+              key: ValueKey('tier-${selectedTier.code}'),
             ),
           ),
         ),
@@ -686,10 +667,11 @@ class _RewardsPageState extends State<RewardsPage> {
     );
   }
 
-  Widget _buildTierTab(int index, String title, String subtitle, bool locked) {
-    bool isSelected = index == _selectedTier;
-    bool isCurrentActualTier = index == _tierToIndex(_session.tier);
-    
+  Widget _buildTierTab(
+      int index, LoyaltyTier tier, bool locked, int selectedIndex) {
+    bool isSelected = index == selectedIndex;
+    bool isCurrentActualTier = index == _currentTierIndex();
+
     Color bgColor = locked
         ? AppColors.surfaceLight
         : (isSelected ? AppColors.surfaceLight : Colors.white);
@@ -731,7 +713,7 @@ class _RewardsPageState extends State<RewardsPage> {
                   child: Column(
                     children: [
                       Text(
-                        title,
+                        tier.name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -741,7 +723,7 @@ class _RewardsPageState extends State<RewardsPage> {
                         ),
                       ),
                       Text(
-                        subtitle,
+                        tier.promotionText,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -765,7 +747,8 @@ class _RewardsPageState extends State<RewardsPage> {
               right: 0,
               child: Center(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
                     color: AppColors.deepTeal,
                     borderRadius: BorderRadius.circular(10),
@@ -785,6 +768,66 @@ class _RewardsPageState extends State<RewardsPage> {
         ],
       ),
     );
+  }
+
+  Widget _buildTierRewardContent(LoyaltyTier tier, {Key? key}) {
+    final rewards = _visibleRewardsForTier(tier);
+    return KeyedSubtree(
+      key: key,
+      child: rewards.isEmpty
+          ? Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Text(
+                'No tier rewards have been configured for ${tier.name}.',
+                style: TextStyle(
+                  fontFamily: 'Afacad',
+                  fontSize: 13,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+            )
+          : Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (var i = 0; i < rewards.length; i++) ...[
+                  _buildTierRewardListItem(rewards[i]),
+                  if (i != rewards.length - 1) const Divider(height: 12),
+                ],
+              ],
+            ),
+    );
+  }
+
+  Widget _buildTierRewardListItem(TierRewardConfig reward) {
+    return _buildRewardListItem(
+      reward.title,
+      reward.subtitle,
+      icon: _rewardIconFor(reward),
+    );
+  }
+
+  IconData _rewardIconFor(TierRewardConfig reward) {
+    if (reward.condition.isBirthday) {
+      return Icons.cake_outlined;
+    }
+
+    switch (reward.kind) {
+      case 'discount':
+        return Icons.local_offer_outlined;
+      case 'free_item':
+        switch (reward.rewardItemType) {
+          case 'drink':
+            return Icons.local_cafe_outlined;
+          case 'food':
+            return Icons.lunch_dining_outlined;
+          case 'merchandise':
+            return Icons.card_giftcard_outlined;
+          default:
+            return Icons.card_giftcard_outlined;
+        }
+      default:
+        return Icons.workspace_premium_outlined;
+    }
   }
 
   Widget _buildRewardListItem(String title, String subtitle,

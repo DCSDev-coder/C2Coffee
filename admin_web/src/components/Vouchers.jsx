@@ -52,7 +52,7 @@ const SUGGESTED_TYPE_LABELS = [
   "Merdeka Campaign",
   "Staff Discount",
   "Birthday Treat",
-  "Referral Reward"
+  "Referral Bonus"
 ];
 const AUDIENCE_OPTIONS = [
   { value: "all_customers", label: "All Customers" },
@@ -69,7 +69,8 @@ const AVAILABILITY_MODE_OPTIONS = [
   { value: "always", label: "Always Available" },
   { value: "daily", label: "Every Day, Time Window" },
   { value: "weekly", label: "Specific Days + Time" },
-  { value: "annual", label: "Annual Event + Time" }
+  { value: "annual", label: "Annual Event + Time" },
+  { value: "birthday", label: "Customer Birthday + Time" }
 ];
 const WEEKDAY_OPTIONS = [
   "Sunday",
@@ -1029,7 +1030,7 @@ const Vouchers = () => {
             type="text"
             value={search}
             onChange={(e) => { setSearch(e.target.value); resetPage(); }}
-            placeholder="Search vouchers by name, code or reward..."
+            placeholder="Search vouchers by name, code or benefit..."
             className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-[#2E5E58] focus:border-[#2E5E58] text-sm"
           />
         </div>
@@ -1091,7 +1092,7 @@ const Vouchers = () => {
               <thead>
                 <tr className="bg-white text-gray-900 font-bold border-b border-gray-100">
                   <th className="px-6 py-4 text-left">Voucher Name</th>
-                  <th className="px-6 py-4 text-left">Type</th>
+                  <th className="px-6 py-4 text-left">Voucher Label</th>
                   <th className="px-6 py-4 text-left">Benefit</th>
                   <th className="px-6 py-4 text-left">Tier</th>
                   <th className="px-6 py-4 text-left">Items</th>
@@ -1379,7 +1380,7 @@ const Vouchers = () => {
                 </div>
 
                 <div className="flex justify-between items-center py-1">
-                  <span className="text-gray-500">Type</span>
+                  <span className="text-gray-500">Voucher Label</span>
                   <span className="font-bold text-gray-900">{selectedVoucher.type}</span>
                 </div>
 
@@ -1709,7 +1710,7 @@ const Vouchers = () => {
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block font-bold text-gray-900 mb-1">Internal Label</label>
+                      <label className="block font-bold text-gray-900 mb-1">Voucher Label</label>
                       <input
                         list="voucher-type-labels"
                         value={newVoucher.type}
@@ -1802,7 +1803,7 @@ const Vouchers = () => {
                           />
                         </div>
                         <div>
-                          <label className="block font-bold text-gray-900 mb-1">Reward Quantity</label>
+                          <label className="block font-bold text-gray-900 mb-1">Get Quantity</label>
                           <p className="text-[10px] text-gray-500 mb-1">Free items granted after the buy condition is met.</p>
                           <input
                             type="number"
@@ -1815,8 +1816,8 @@ const Vouchers = () => {
                       </div>
                     ) : (
                       <div>
-                        <label className="block font-bold text-gray-900 mb-1">Reward Quantity</label>
-                        <p className="text-[10px] text-gray-500 mb-1">How many rewards this voucher gives per use.</p>
+                        <label className="block font-bold text-gray-900 mb-1">Benefit Quantity</label>
+                        <p className="text-[10px] text-gray-500 mb-1">How many items this voucher gives per use.</p>
                         <input
                           type="number"
                           min="1"
@@ -2048,7 +2049,7 @@ const Vouchers = () => {
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block font-bold text-gray-900 mb-1">Internal Label</label>
+                      <label className="block font-bold text-gray-900 mb-1">Voucher Label</label>
                       <input
                         list="voucher-type-labels"
                         value={editingVoucher.type}
@@ -2135,7 +2136,7 @@ const Vouchers = () => {
                           />
                         </div>
                         <div>
-                          <label className="block font-bold text-gray-900 mb-1">Reward Quantity</label>
+                          <label className="block font-bold text-gray-900 mb-1">Get Quantity</label>
                           <p className="text-[10px] text-gray-500 mb-1">Free items granted after the buy condition is met.</p>
                           <input
                             type="number"
@@ -2148,8 +2149,8 @@ const Vouchers = () => {
                       </div>
                     ) : (
                       <div>
-                        <label className="block font-bold text-gray-900 mb-1">Reward Quantity</label>
-                        <p className="text-[10px] text-gray-500 mb-1">How many rewards this voucher gives per use.</p>
+                        <label className="block font-bold text-gray-900 mb-1">Benefit Quantity</label>
+                        <p className="text-[10px] text-gray-500 mb-1">How many items this voucher gives per use.</p>
                         <input
                           type="number"
                           min="1"
@@ -2212,9 +2213,9 @@ const Vouchers = () => {
 
                   {editingVoucher.promotionKind === 'bundle' && (
                     <ScopeSelectionSection
-                      appliesToLabel="Reward Applies To"
-                      menuTypesLabel="Reward Menu Types"
-                      specificItemsLabel="Reward Specific Items"
+                      appliesToLabel="Get Applies To"
+                      menuTypesLabel="Get Menu Types"
+                      specificItemsLabel="Get Specific Items"
                       menuTaxonomy={menuTaxonomy}
                       selectedProductKinds={editingVoucher.rewardProductKinds || []}
                       selectedSubcategoryCodes={editingVoucher.rewardSubcategoryCodes || []}

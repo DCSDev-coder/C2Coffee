@@ -32,6 +32,7 @@ class AppSessionService extends ChangeNotifier {
   StoreSummary? _selectedStore;
   List<MenuCategoryGroup> _menuCategories = const [];
   List<HomeBanner> _homeBanners = const [];
+  List<LoyaltyTier> _loyaltyTiers = const [];
 
   CurrentUserProfile? get user => _user;
   int get tokenBalance => _tokenBalance;
@@ -47,6 +48,7 @@ class AppSessionService extends ChangeNotifier {
   StoreSummary? get selectedStore => _selectedStore;
   List<MenuCategoryGroup> get menuCategories => _menuCategories;
   List<HomeBanner> get homeBanners => _homeBanners;
+  List<LoyaltyTier> get loyaltyTiers => _loyaltyTiers;
   Map<String, String?> get userProfileSnapshot =>
       _user?.toLocalProfileMap() ?? const {};
 
@@ -196,6 +198,7 @@ class AppSessionService extends ChangeNotifier {
       _cupsLast180d = bootstrap.cupsLast180d;
       _stores = stores;
       _homeBanners = bootstrap.homeBanners;
+      _loyaltyTiers = bootstrap.loyaltyTiers;
 
       await UserService.overwriteUserProfile(_user!.toLocalProfileMap());
 
@@ -265,6 +268,7 @@ class AppSessionService extends ChangeNotifier {
     _selectedStore = null;
     _menuCategories = const [];
     _homeBanners = const [];
+    _loyaltyTiers = const [];
     notifyListeners();
   }
 

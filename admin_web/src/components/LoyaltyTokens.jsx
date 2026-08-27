@@ -235,7 +235,7 @@ const LoyaltyTokens = ({ onBack, onNavigate }) => {
         {/* Header */}
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Loyalty & Tokens</h1>
-          <p className="text-gray-500 text-sm mt-0.5">Live token balances, tier progress, and token transactions.</p>
+          <p className="text-gray-500 text-sm mt-0.5">Token balances, tier progress, and token transactions.</p>
         </div>
 
         {loadError && (
@@ -245,34 +245,20 @@ const LoyaltyTokens = ({ onBack, onNavigate }) => {
         )}
 
         {/* KPI Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <KPICard
             title="Total Members"
             value={isLoading ? '—' : (overview?.summary?.totalMembers ?? 0).toLocaleString('en-US')}
-            change="Live from admin API"
+            change="Member count"
             icon={Users}
             iconBg="bg-[#1F3A34]"
           />
           <KPICard
             title="Tokens Held"
             value={isLoading ? '—' : (overview?.summary?.tokensInCirculation ?? 0).toLocaleString('en-US')}
-            change="Live wallet balance"
+            change="Wallet balance"
             icon={Coins}
             iconBg="bg-[#6F9F96]"
-          />
-          <KPICard
-            title="Token Issued"
-            value={isLoading ? '—' : (overview?.summary?.tokensIssued ?? 0).toLocaleString('en-US')}
-            change="Issued credits"
-            icon={CreditCard}
-            iconBg="bg-[#E07A5F]"
-          />
-          <KPICard
-            title="Tokens Redeemed"
-            value={isLoading ? '—' : (overview?.summary?.tokensRedeemed ?? 0).toLocaleString('en-US')}
-            change="Spent tokens"
-            icon={ShoppingBag}
-            iconBg="bg-[#D4AF7A]"
           />
         </div>
 

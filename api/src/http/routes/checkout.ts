@@ -16,6 +16,7 @@ import { processOrderLoyalty } from '../../services/loyalty.js';
 import { ApiError } from '../errors.js';
 import { getBootstrapForUser } from './auth.js';
 import { resolveOrderLifecycleStatus } from '../order-lifecycle.js';
+import { getKualaLumpurDateParts } from '../../lib/kuala-lumpur-time.js';
 
 const createOrderSchema = z.object({
   store_id: z.coerce.number().int().positive(),
@@ -165,7 +166,11 @@ function _parseVoucherScope(value: unknown): Record<string, unknown> {
   return {};
 }
 
-function _isVoucherAvailableNow(scope: Record<string, unknown>, now = new Date()): boolean {
+function _isVoucherAvailableNow(
+  scope: Record<string, unknown>,
+  now = new Date(),
+  birthdayMonthDay: string | null = null
+): boolean {
   const schedule =
     scope.schedule && typeof scope.schedule === 'object'
       ? (scope.schedule as Record<string, unknown>)
@@ -180,26 +185,20 @@ function _isVoucherAvailableNow(scope: Record<string, unknown>, now = new Date()
     return true;
   }
 
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'Asia/Kuala_Lumpur',
-    weekday: 'long',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23'
-  }).formatToParts(now);
-
-  const lookup = (type: string) => parts.find((part) => part.type === type)?.value || '';
-  const currentDay = lookup('weekday');
-  const currentTime = `${lookup('hour')}:${lookup('minute')}`;
-  const currentMonthDay = `${lookup('month')}-${lookup('day')}`;
+  const currentParts = getKualaLumpurDateParts(now);
+  const currentDay = currentParts.weekday;
+  const currentTime = `${currentParts.hour}:${currentParts.minute}`;
+  const currentMonthDay = currentParts.monthDay;
   const activeDays = Array.isArray(schedule.activeDays)
     ? schedule.activeDays.map((day) => String(day))
     : [];
   const startTime = typeof schedule.startTime === 'string' ? schedule.startTime : '';
   const endTime = typeof schedule.endTime === 'string' ? schedule.endTime : '';
   const annualDate = typeof schedule.annualDate === 'string' ? schedule.annualDate : '';
+
+  if (mode === 'birthday' && (!birthdayMonthDay || birthdayMonthDay !== currentMonthDay)) {
+    return false;
+  }
 
   if (mode === 'weekly' && activeDays.length > 0 && !activeDays.includes(currentDay)) {
     return false;
@@ -525,7 +524,31 @@ export async function registerCheckoutRoutes(
 
         const voucherScope = _parseVoucherScope(appliedVoucher.eligible_scope_json);
         const promotionRule = _parsePromotionRule(voucherScope);
-        if (!_isVoucherAvailableNow(voucherScope)) {
+        const voucherSchedule =
+          voucherScope.schedule && typeof voucherScope.schedule === 'object'
+            ? (voucherScope.schedule as Record<string, unknown>)
+            : null;
+        const voucherMode = String(voucherSchedule?.mode || 'always').trim();
+        let customerBirthdayMonthDay: string | null = null;
+
+        if (voucherMode === 'birthday') {
+          const [birthdayRows] = await connection.query<
+            Array<RowDataPacket & { birthday_month_day: string | null }>
+          >(
+            `
+              SELECT DATE_FORMAT(up.birthday, '%m-%d') AS birthday_month_day
+              FROM users u
+              LEFT JOIN user_profiles up ON up.user_id = u.id
+              WHERE u.id = :userId
+              LIMIT 1
+            `,
+            { userId: request.auth.userId }
+          );
+
+          customerBirthdayMonthDay = birthdayRows[0]?.birthday_month_day ?? null;
+        }
+
+        if (!_isVoucherAvailableNow(voucherScope, new Date(), customerBirthdayMonthDay)) {
           throw new ApiError(
             400,
             'voucher_not_available_now',

@@ -219,6 +219,10 @@ class RewardVoucherTemplate {
     final startTime = (schedule['startTime'] as String? ?? '').trim();
     final endTime = (schedule['endTime'] as String? ?? '').trim();
 
+    if (mode == 'birthday') {
+      return true;
+    }
+
     if (mode == 'weekly') {
       final activeDays = (schedule['activeDays'] as List? ?? const [])
           .map((day) => day?.toString().trim() ?? '')
@@ -301,6 +305,12 @@ class RewardVoucherTemplate {
       return timeLabel == null
           ? 'Every $annualDate'
           : 'Every $annualDate, $timeLabel';
+    }
+
+    if (mode == 'birthday') {
+      return timeLabel == null
+          ? 'On customer birthday'
+          : 'On customer birthday, $timeLabel';
     }
 
     return timeLabel == null ? 'Always available' : 'Every day, $timeLabel';

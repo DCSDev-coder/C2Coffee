@@ -1,3 +1,5 @@
+import { buildFinanceOverview } from '../utils/reporting';
+
 const ACCESS_TOKEN_KEY = 'c2_admin_access_token';
 const REFRESH_TOKEN_KEY = 'c2_admin_refresh_token';
 
@@ -47,8 +49,28 @@ export async function loadAdminCustomers() {
   return adminRequest('/v1/admin/customers');
 }
 
+export async function loadAdminOrders() {
+  return adminRequest('/v1/admin/orders');
+}
+
+export async function loadAdminRefunds() {
+  return adminRequest('/v1/admin/refunds');
+}
+
 export async function loadAdminLoyaltyOverview(limit = 50) {
   return adminRequest(`/v1/admin/loyalty/overview?limit=${encodeURIComponent(limit)}`);
+}
+
+export async function loadAdminFinanceOverview() {
+  const [ordersResponse, refundsResponse] = await Promise.all([
+    loadAdminOrders(),
+    loadAdminRefunds()
+  ]);
+
+  return buildFinanceOverview(
+    Array.isArray(ordersResponse?.orders) ? ordersResponse.orders : [],
+    Array.isArray(refundsResponse?.refunds) ? refundsResponse.refunds : []
+  );
 }
 
 export async function loadAdminTierConfigs() {

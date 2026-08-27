@@ -115,7 +115,8 @@ class CatalogMenuItem {
       allowChoiceOfBeans: json['allow_choice_of_beans'] as bool? ?? false,
       allowEspressoShot: json['allow_espresso_shot'] as bool? ?? false,
       allowChoiceOfMilk: json['allow_choice_of_milk'] as bool? ?? false,
-      allowChoiceOfSweetness: json['allow_choice_of_sweetness'] as bool? ?? false,
+      allowChoiceOfSweetness:
+          json['allow_choice_of_sweetness'] as bool? ?? false,
       allowIceLevel: json['allow_ice_level'] as bool? ?? false,
       allowTemperature: json['allow_temperature'] as bool? ?? false,
       allowSparklingMixer: json['allow_sparkling_mixer'] as bool? ?? false,
@@ -280,6 +281,205 @@ class HomeBanner {
   }
 }
 
+class TierRewardCondition {
+  final String mode;
+  final String? birthdayMatch;
+
+  const TierRewardCondition({
+    required this.mode,
+    required this.birthdayMatch,
+  });
+
+  bool get isBirthday => mode == 'birthday';
+
+  String get label {
+    if (mode == 'birthday') {
+      return birthdayMatch == 'month' ? 'Birthday month only' : 'Birthday only';
+    }
+    return 'Always active';
+  }
+
+  factory TierRewardCondition.fromApi(Map<String, dynamic> json) {
+    return TierRewardCondition(
+      mode: json['mode'] as String? ?? 'always',
+      birthdayMatch: json['birthdayMatch'] as String?,
+    );
+  }
+}
+
+class TierRewardConfig {
+  final bool enabled;
+  final String label;
+  final String kind;
+  final String? discountUnit;
+  final String? rewardItemType;
+  final num? rewardValue;
+  final String scope;
+  final String notes;
+  final TierRewardCondition condition;
+
+  const TierRewardConfig({
+    required this.enabled,
+    required this.label,
+    required this.kind,
+    required this.discountUnit,
+    required this.rewardItemType,
+    required this.rewardValue,
+    required this.scope,
+    required this.notes,
+    required this.condition,
+  });
+
+  factory TierRewardConfig.fromApi(Map<String, dynamic> json) {
+    return TierRewardConfig(
+      enabled: json['enabled'] as bool? ?? false,
+      label: json['label'] as String? ?? '',
+      kind: json['kind'] as String? ?? 'promotion',
+      discountUnit: json['discountUnit'] as String?,
+      rewardItemType: json['rewardItemType'] as String?,
+      rewardValue: json['rewardValue'] as num?,
+      scope: json['scope'] as String? ?? 'all_items',
+      notes: json['notes'] as String? ?? '',
+      condition: TierRewardCondition.fromApi(
+        Map<String, dynamic>.from(json['condition'] as Map? ?? const {}),
+      ),
+    );
+  }
+
+  String get title {
+    final trimmed = label.trim();
+    if (trimmed.isNotEmpty) return trimmed;
+
+    switch (kind) {
+      case 'discount':
+        return 'Discount reward';
+      case 'free_item':
+        return 'Free item reward';
+      default:
+        return 'Promotion reward';
+    }
+  }
+
+  String get benefitLabel {
+    switch (kind) {
+      case 'discount':
+        if (discountUnit == 'token') {
+          return rewardValue == null
+              ? 'Token discount'
+              : '${rewardValue!.toInt()} tokens off';
+        }
+        if (discountUnit == 'rm') {
+          return rewardValue == null
+              ? 'RM discount'
+              : 'RM ${rewardValue!.toDouble().toStringAsFixed(2)} off';
+        }
+        if (discountUnit == 'percent') {
+          return rewardValue == null
+              ? 'Percentage discount'
+              : '${rewardValue!.toInt()}% off';
+        }
+        return 'Discount';
+      case 'free_item':
+        final itemType = _formatScopeLabel(rewardItemType ?? 'item');
+        final rewardCount = rewardValue?.toInt() ?? 1;
+        return rewardCount == 1
+            ? '1 free $itemType'
+            : '$rewardCount free $itemType';
+      default:
+        return 'Promotion';
+    }
+  }
+
+  String get scopeLabel {
+    switch (scope) {
+      case 'all_drinks':
+        return 'All drinks';
+      case 'all_food':
+        return 'All food';
+      case 'all_merchandise':
+        return 'All merchandise';
+      case 'selected_skus':
+        return 'Selected items';
+      case 'all_except_skus':
+        return 'All except selected items';
+      default:
+        return 'All items';
+    }
+  }
+
+  String get subtitle {
+    final details = <String>[];
+    final benefit = benefitLabel.trim();
+    if (benefit.isNotEmpty) {
+      details.add(benefit);
+    }
+    details.add(scopeLabel);
+    details.add(condition.label);
+    if (notes.trim().isNotEmpty) {
+      details.add(notes.trim());
+    }
+    return details.join(' • ');
+  }
+
+  static String _formatScopeLabel(String value) {
+    switch (value) {
+      case 'drink':
+        return 'drink';
+      case 'food':
+        return 'food';
+      case 'merchandise':
+        return 'merchandise';
+      default:
+        return 'item';
+    }
+  }
+}
+
+class LoyaltyTier {
+  final String code;
+  final String name;
+  final int minCups;
+  final String promotionText;
+  final String? badgeColor;
+  final int sortOrder;
+  final bool isActive;
+  final List<TierRewardConfig> rewardConfigs;
+
+  const LoyaltyTier({
+    required this.code,
+    required this.name,
+    required this.minCups,
+    required this.promotionText,
+    required this.badgeColor,
+    required this.sortOrder,
+    required this.isActive,
+    required this.rewardConfigs,
+  });
+
+  factory LoyaltyTier.fromApi(Map<String, dynamic> json) {
+    final rewardConfigs = (json['rewardConfigs'] as List? ?? const [])
+        .map((reward) => TierRewardConfig.fromApi(
+              Map<String, dynamic>.from(reward as Map),
+            ))
+        .where((reward) => reward.enabled || reward.label.trim().isNotEmpty)
+        .toList();
+
+    return LoyaltyTier(
+      code: json['code'] as String? ?? '',
+      name: json['name'] as String? ?? '',
+      minCups: (json['minCups'] as num?)?.toInt() ?? 0,
+      promotionText: json['promotionText'] as String? ?? '',
+      badgeColor: json['badgeColor'] as String?,
+      sortOrder: (json['sortOrder'] as num?)?.toInt() ?? 0,
+      isActive: json['isActive'] as bool? ?? true,
+      rewardConfigs: rewardConfigs,
+    );
+  }
+
+  List<TierRewardConfig> get enabledRewards =>
+      rewardConfigs.where((reward) => reward.enabled).toList();
+}
+
 class BootstrapSnapshot {
   final CurrentUserProfile user;
   final int tokenBalance;
@@ -288,6 +488,7 @@ class BootstrapSnapshot {
   final String tier;
   final int cupsLast180d;
   final List<HomeBanner> homeBanners;
+  final List<LoyaltyTier> loyaltyTiers;
 
   const BootstrapSnapshot({
     required this.user,
@@ -297,6 +498,7 @@ class BootstrapSnapshot {
     required this.tier,
     required this.cupsLast180d,
     required this.homeBanners,
+    required this.loyaltyTiers,
   });
 }
 
@@ -323,6 +525,12 @@ class CatalogApiService {
             ))
         .toList()
       ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    final loyaltyTiers = (loyalty['tiers'] as List? ?? const [])
+        .map((tier) => LoyaltyTier.fromApi(
+              Map<String, dynamic>.from(tier as Map),
+            ))
+        .toList()
+      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
 
     return BootstrapSnapshot(
       user: user,
@@ -332,6 +540,7 @@ class CatalogApiService {
       tier: loyalty['tier'] as String? ?? 'kawan',
       cupsLast180d: (loyalty['cups_last_180d'] as num?)?.toInt() ?? 0,
       homeBanners: homeBanners,
+      loyaltyTiers: loyaltyTiers,
     );
   }
 

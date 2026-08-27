@@ -19,6 +19,40 @@ import { registerAdminCustomersRoutes } from './http/routes/admin-customers.js';
 import { registerAdminLoyaltyRoutes } from './http/routes/admin-loyalty.js';
 import { registerAdminBaristasRoutes } from './http/routes/admin-baristas.js';
 
+function isAllowedCorsOrigin(origin: string, allowedOrigins: string[]): boolean {
+  let requestUrl: URL;
+
+  try {
+    requestUrl = new URL(origin);
+  } catch {
+    return false;
+  }
+
+  return allowedOrigins.some((allowedOrigin) => {
+    if (allowedOrigin === origin) {
+      return true;
+    }
+
+    let allowedUrl: URL;
+
+    try {
+      allowedUrl = new URL(allowedOrigin);
+    } catch {
+      return false;
+    }
+
+    if (allowedUrl.protocol !== requestUrl.protocol || allowedUrl.hostname !== requestUrl.hostname) {
+      return false;
+    }
+
+    if (allowedUrl.port) {
+      return allowedUrl.port === requestUrl.port;
+    }
+
+    return allowedUrl.hostname === 'localhost' || allowedUrl.hostname === '127.0.0.1';
+  });
+}
+
 export async function buildApp() {
   const app = Fastify({
     logger: {
@@ -47,7 +81,7 @@ export async function buildApp() {
         return;
       }
 
-      callback(null, env.CORS_ALLOWED_ORIGINS.includes(origin));
+      callback(null, isAllowedCorsOrigin(origin, env.CORS_ALLOWED_ORIGINS));
     },
     credentials: false
   });

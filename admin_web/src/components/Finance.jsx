@@ -1,31 +1,55 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Banknote, Briefcase, Wallet, ArrowRightLeft, ArrowRight,
-  ChevronDown, FileText, PlusCircle, BarChart3, DownloadCloud, ArrowUp, Package
-} from "lucide-react";
+  ArrowRight,
+  BarChart3,
+  Download,
+  Layers3,
+  RefreshCw,
+  ReceiptText,
+  ShoppingCart,
+  TrendingUp,
+  Wallet
+} from 'lucide-react';
 import {
-  ResponsiveContainer, AreaChart, Area,
-  XAxis, YAxis, Tooltip,
-  PieChart, Pie, Cell
-} from "recharts";
-import DatePicker from "react-datepicker";
-import "react-datepicker/dist/react-datepicker.css";
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis
+} from 'recharts';
+import { exportToCSV } from '../utils/exportToCSV';
+import { loadAdminFinanceOverview } from '../lib/adminApi';
+import { formatReportMoney, formatReportTokens } from '../utils/reporting';
 
-const CustomInput = React.forwardRef(({ value, onClick }, ref) => (
-  <button
-    onClick={onClick}
-    ref={ref}
-    className="flex items-center justify-between gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-semibold cursor-pointer shadow-sm hover:bg-gray-50 transition-colors min-w-[160px]"
-  >
-    <span>{value || 'Select Date'}</span>
-    <ChevronDown size={16} />
-  </button>
-));
-CustomInput.displayName = "CustomInput";
+const REFRESH_INTERVAL_MS = 60_000;
 
-//Stat Card Component
-const StatCard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-white" }) => (
-  <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center space-x-4 min-w-0 transition-transform duration-200 peer-focus:-rotate-180">
+const COLORS = ['#1F3A34', '#2E5E58', '#6F9F96', '#8AACA5', '#E07A5F', '#D4AF7A'];
+
+const EMPTY_OVERVIEW = {
+  summary: {
+    totalRevenueRm: 0,
+    totalTokensCharged: 0,
+    totalRefundAmountRm: 0,
+    totalRefundTokens: 0,
+    netRevenueRm: 0,
+    totalOrders: 0,
+    activeOrders: 0,
+    completedOrders: 0,
+    refundedOrders: 0,
+    averageOrderValueRm: 0
+  },
+  monthlyRevenue: [],
+  statusBreakdown: [],
+  recentTransactions: []
+};
+
+const StatCard = ({ title, value, subtitle, icon: Icon, iconBg, iconColor = 'text-white' }) => (
+  <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center space-x-4 min-w-0">
     <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 ${iconBg} ${iconColor} shadow-sm`}>
       <Icon size={26} strokeWidth={2.2} />
     </div>
@@ -34,274 +58,342 @@ const StatCard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-
         {title}
       </h3>
       <p className="text-2xl font-bold text-gray-900 mt-1 leading-tight">{value}</p>
-      {change && (
-        <div className="flex items-center gap-1 mt-1">
-          <p className="text-[11px] text-gray-500 font-medium leading-tight whitespace-normal">
-            {change.includes('%') && !change.includes('of total') && !change.includes('↑') && !change.includes('↓') && change.includes('vs') ? `↑ ${change}` : change}
-          </p>
-        </div>
+      {subtitle && (
+        <p className="text-[11px] text-gray-500 font-medium leading-tight whitespace-normal mt-1">
+          {subtitle}
+        </p>
       )}
     </div>
   </div>
 );
 
-
-const revenueData = [
-  { day: "May 1", current: 800, previous: 500 },
-  { day: "May 6", current: 950, previous: 600 },
-  { day: "May 11", current: 850, previous: 650 },
-  { day: "May 16", current: 1200, previous: 800 },
-  { day: "May 21", current: 1100, previous: 900 },
-  { day: "May 26", current: 1350, previous: 950 },
-  { day: "May 31", current: 1500, previous: 1050 }
-];
-
-const expenseData = [
-  { name: "Cost of Goods Sold", value: 18439.94, percentage: "50.8%", color: "#1F3A34" },
-  { name: "Salaries & Wages", value: 7985.80, percentage: "22.0%", color: "#2E5E58" },
-  { name: "Rent & Utilities", value: 4573.68, percentage: "12.6%", color: "#8AACA5" },
-  { name: "Marketing Expenses", value: 2323.14, percentage: "6.4%", color: "#E07A5F" },
-  { name: "Maintenance", value: 1561.86, percentage: "4.3%", color: "#D4AF7A" }
-];
-
-const recentTransactions = [
-  { id: 1, date: "Aug 19, 2026", time: "10:21 AM", desc: "Order ORD-0510-001 (miraelys)", amount: "+15.90", status: "Completed" },
-  { id: 2, date: "Aug 19, 2026", time: "10:18 AM", desc: "Order ORD-0510-002 (miraelys)", amount: "+15.90", status: "Pending" },
-  { id: 3, date: "Aug 19, 2026", time: "10:15 AM", desc: "Order ORD-0510-003 (miraelys)", amount: "+15.90", status: "Completed" },
-  { id: 4, date: "Aug 19, 2026", time: "10:10 AM", desc: "Refund ORD-0510-004 (miraelys)", amount: "-15.90", status: "Refunded" },
-  { id: 5, date: "Aug 19, 2026", time: "9:50 AM", desc: "Order ORD-0510-006 (alex_chong)", amount: "+32.50", status: "Completed" },
-  { id: 6, date: "Aug 19, 2026", time: "9:45 AM", desc: "Order ORD-0510-007 (sarah_lee)", amount: "+45.00", status: "Completed" },
-  { id: 7, date: "Aug 19, 2026", time: "9:30 AM", desc: "Order ORD-0510-008 (khai_rul)", amount: "+18.20", status: "Completed" }
-];
+function FinanceActionButton({ icon: Icon, label, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 transition-colors shadow-sm text-left"
+    >
+      <span className="flex items-center gap-2 font-semibold text-gray-800">
+        <Icon size={16} className="text-[#1F3A34]" />
+        {label}
+      </span>
+      <ArrowRight size={16} className="text-gray-400" />
+    </button>
+  );
+}
 
 const Finance = ({ setCurrentPage }) => {
-  const [selectedDate, setSelectedDate] = useState(null);
+  const [overview, setOverview] = useState(EMPTY_OVERVIEW);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadOverview = async () => {
+      try {
+        setError('');
+        const nextOverview = await loadAdminFinanceOverview();
+        if (!active) return;
+        setOverview(nextOverview || EMPTY_OVERVIEW);
+        setLastUpdatedAt(new Date());
+      } catch (err) {
+        if (!active) return;
+        setError(err instanceof Error ? err.message : 'Unable to load finance data.');
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void loadOverview();
+    const timer = window.setInterval(() => {
+      void loadOverview();
+    }, REFRESH_INTERVAL_MS);
+
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  const summary = overview.summary || EMPTY_OVERVIEW.summary;
+  const monthlyRevenue = Array.isArray(overview.monthlyRevenue) ? overview.monthlyRevenue : [];
+  const statusBreakdown = Array.isArray(overview.statusBreakdown) ? overview.statusBreakdown : [];
+  const recentTransactions = Array.isArray(overview.recentTransactions) ? overview.recentTransactions : [];
+
+  const financeActions = useMemo(() => ([
+    { label: 'Revenue Report', page: 'RevenueReport', icon: BarChart3 },
+    { label: 'All Transactions', page: 'AllTransactions', icon: ReceiptText },
+    { label: 'Expense Breakdown', page: 'ExpenseBreakdownFull', icon: Layers3 },
+    { label: 'Product Report', page: 'Product Report', icon: ShoppingCart },
+    { label: 'Generate Invoice', page: 'GenerateInvoice', icon: Wallet }
+  ]), []);
+
+  const exportRows = useMemo(() => {
+    return [
+      ['Date', 'Time', 'Type', 'Description', 'RM Amount', 'Token Amount', 'Status', 'Payment'],
+      ...recentTransactions.map((transaction) => [
+        `"${transaction.date}"`,
+        `"${transaction.time}"`,
+        `"${transaction.type}"`,
+        `"${transaction.description}"`,
+        Number(transaction.amountRm || 0).toFixed(2),
+        Number(transaction.amountTokens || 0).toFixed(0),
+        `"${transaction.status}"`,
+        `"${transaction.paymentMode || ''}"`
+      ])
+    ];
+  }, [recentTransactions]);
+
+  const handleExport = () => {
+    exportToCSV(exportRows, 'finance_overview.csv');
+  };
+
+  const revenueChartData = monthlyRevenue.map((entry) => ({
+    month: entry.month,
+    grossRevenueRm: entry.revenueRm,
+    refundsRm: entry.refundRm,
+    netRevenueRm: entry.netRm,
+    orders: entry.orders
+  }));
+
+  const topStatusShare = statusBreakdown.reduce((acc, entry) => acc + Number(entry.value || 0), 0);
+  const topTransactions = recentTransactions.slice(0, 8);
+  const refreshOverview = async () => {
+    try {
+      const nextOverview = await loadAdminFinanceOverview();
+      setOverview(nextOverview || EMPTY_OVERVIEW);
+      setLastUpdatedAt(new Date());
+      setError('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to load finance data.');
+    }
+  };
 
   return (
-    <div className="px-8 pb-8 pt-2 h-full flex flex-col space-y-6 overflow-y-auto bg-gray-50/30">
-      {/* Header */}
-      <div className="shrink-0">
-        <h1 className="text-2xl font-bold text-gray-900">Finance</h1>
-        <p className="text-gray-500 text-sm mt-0.5">Overview of the financial performance.</p>
-      </div>
-
-      {/* Stat Cards */}
-      <div className="grid grid-cols-5 gap-4 shrink-0 overflow-x-auto min-w-[800px] pb-2">
-        <StatCard title="Total Revenue" value="RM 152,340.80" change="12.6% vs 1 July - 31 July 2026" icon={Banknote} iconBg="bg-[#1F3A34]" />
-        <StatCard title="Gross Profit" value="RM 78,920.40" change="8.2% vs 1 July - 31 July 2026" icon={Briefcase} iconBg="bg-[#2E5E58]" />
-        <StatCard title="Net Profit" value="RM 42,621.30" change="17.1% vs 1 July - 31 July 2026" icon={Wallet} iconBg="bg-[#6F9F96]" />
-        <StatCard title="Total Expenses" value="RM 36,299.10" change="8.7% vs 1 July - 31 July 2026" icon={FileText} iconBg="bg-[#E07A5F]" />
-        <StatCard title="Transactions" value="8,450" change="9.3% vs 1 July - 31 July 2026" icon={ArrowRightLeft} iconBg="bg-[#D4AF7A]" />
-      </div>
-
-      {/* Global Date Picker */}
-      <div className="flex justify-end shrink-0">
-        <DatePicker portalId="root-portal" popperPlacement="bottom-end"
-          selected={selectedDate}
-          onChange={(date) => setSelectedDate(date)}
-          dateFormat="d MMMM yyyy"
-          customInput={<CustomInput />}
-          portalId="root"
-          popperPlacement="bottom-end"
-        />
-      </div>
-
-      {/* Middle Charts */}
-      <div className="grid grid-cols-12 gap-6 shrink-0">
-        {/* Revenue Overview */}
-        <div className="col-span-7 bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex flex-col min-w-0">
-          <div className="flex justify-between items-start mb-4">
-            <div>
-              <h3 className="text-base font-bold text-gray-900">Revenue Overview</h3>
-              <p className="text-[10px] text-gray-500 font-medium uppercase mt-1">Total Revenue</p>
-              <p className="text-xl font-bold text-gray-900">RM 152,340.80</p>
-
-              <div className="flex items-center gap-3 mt-3">
-                <div className="flex items-center gap-1.5 text-[11px] font-bold text-gray-900">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#8AACA5]"></span>
-                  <span>This Month</span>
-                </div>
-                <div className="flex items-center gap-1.5 text-[11px] font-bold text-gray-900">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#E07A5F]"></span>
-                  <span>Last Month</span>
-                </div>
-              </div>
-            </div>
+    <div className="flex-1 overflow-x-hidden overflow-y-auto bg-[#F9FAFB]">
+      <div className="p-6 lg:p-8 w-full h-full flex flex-col space-y-6">
+        <div className="shrink-0 flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Finance</h1>
+            <p className="text-sm text-gray-500 mt-1">
+              Live finance overview sourced from orders and refunds.
+            </p>
+            <p className="text-xs text-gray-400 mt-2">
+              {loading ? 'Refreshing live data...' : error ? `Showing last successful data. ${error}` : `Last updated ${lastUpdatedAt?.toLocaleString('en-MY') || 'just now'}`}
+            </p>
           </div>
-          <div className="h-64 w-full mt-2 -ml-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={revenueData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorCurrent" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#8AACA5" stopOpacity={0.2} />
-                    <stop offset="95%" stopColor="#8AACA5" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="colorPrevious" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#E07A5F" stopOpacity={0.2} />
-                    <stop offset="95%" stopColor="#E07A5F" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <XAxis dataKey="day" axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 11, fill: '#6B7280', fontWeight: 600 }} dy={10} />
-                <YAxis axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 11, fill: '#6B7280', fontWeight: 600 }} tickFormatter={(val) => val >= 1000 ? `${(val / 1000).toFixed(1)}K` : val} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#1F3A34', borderRadius: '8px', border: 'none', color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
-                  itemStyle={{ color: '#fff' }}
-                />
-                <Area type="monotone" dataKey="current" name="This Month" stroke="#8AACA5" strokeWidth={3} fillOpacity={1} fill="url(#colorCurrent)" />
-                <Area type="monotone" dataKey="previous" name="Last Month" stroke="#E07A5F" strokeWidth={3} fillOpacity={1} fill="url(#colorPrevious)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
 
-        {/* Expense Breakdown */}
-        <div className="col-span-5 bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex flex-col min-w-0">
-          <h3 className="text-base font-bold text-gray-900 mb-6">Expense Breakdown</h3>
-          <div className="flex-1 flex flex-row items-center gap-6">
-            <div className="relative w-48 h-48 shrink-0 flex items-center justify-center">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={expenseData} innerRadius={60} outerRadius={85} paddingAngle={2} dataKey="value" stroke="none">
-                    {expenseData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
-                  </Pie>
-                  <Tooltip
-                    formatter={(value, name) => [`RM ${value.toLocaleString()}`, name]}
-                    contentStyle={{ backgroundColor: '#1F3A34', borderRadius: '8px', border: 'none', color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
-                    itemStyle={{ color: '#fff' }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                <span className="text-base font-bold text-gray-900">RM 36,299.10</span>
-                <span className="text-[11px] text-gray-500 font-medium">Total Expenses</span>
-              </div>
-            </div>
-
-            <div className="flex-1 w-full space-y-3 mt-4 md:mt-0">
-              {expenseData.map((item, i) => (
-                <div key={i} className="flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }}></span>
-                    <span className="font-bold text-gray-900">{item.name}</span>
-                  </div>
-                  <span className="font-bold text-gray-900">{item.percentage}</span>
-                </div>
-              ))}
-              <div className="pt-4 text-right border-t border-gray-100">
-                <button onClick={() => setCurrentPage('ExpenseBreakdownFull')} className="text-[11px] font-bold text-gray-900 hover:underline inline-flex items-center gap-1 cursor-pointer">
-                  View All <ArrowRight size={14} className="ml-0.5" />
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Bottom Section */}
-      <div className="grid grid-cols-12 gap-6 shrink-0">
-        {/* Recent Transactions */}
-        <div className="col-span-7 bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex flex-col h-full min-w-0">
-          <div className="flex justify-between items-center mb-4 shrink-0">
-            <h3 className="text-base font-bold text-gray-900">Recent Transactions</h3>
-            <button onClick={() => setCurrentPage('AllTransactions')} className="text-xs font-bold text-gray-900 hover:underline inline-flex items-center gap-1 cursor-pointer">
-              View All <ArrowRight size={14} className="ml-0.5" />
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => void refreshOverview()}
+              className="flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-bold rounded-lg hover:bg-gray-50 transition-colors cursor-pointer shadow-sm"
+            >
+              <RefreshCw size={16} /> Refresh
+            </button>
+            <button
+              type="button"
+              onClick={handleExport}
+              className="flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-bold rounded-lg hover:bg-gray-50 transition-colors cursor-pointer shadow-sm"
+            >
+              <Download size={16} /> Export
             </button>
           </div>
-          <div className="flex-1 overflow-auto pr-2">
-            <table className="min-w-full text-xs">
-              <thead className="sticky top-0 bg-white">
-                <tr className="border-b border-gray-100 text-left">
-                  <th className="pb-3 font-bold text-gray-900 w-32">Date & Time</th>
-                  <th className="pb-3 font-bold text-gray-900">Description</th>
-                  <th className="pb-3 font-bold text-gray-900 w-28 text-center">Amount (RM)</th>
-                  <th className="pb-3 font-bold text-gray-900 w-24">Status</th>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4 shrink-0">
+          <StatCard
+            title="Gross Revenue"
+            value={formatReportMoney(summary.totalRevenueRm)}
+            subtitle={`${formatReportTokens(summary.totalTokensCharged)} charged`}
+            icon={TrendingUp}
+            iconBg="bg-[#1F3A34]"
+          />
+          <StatCard
+            title="Net Revenue"
+            value={formatReportMoney(summary.netRevenueRm)}
+            subtitle="After completed refunds"
+            icon={BarChart3}
+            iconBg="bg-[#2E5E58]"
+          />
+          <StatCard
+            title="Tokens Charged"
+            value={formatReportTokens(summary.totalTokensCharged)}
+            subtitle={`${summary.totalOrders.toLocaleString('en-US')} orders`}
+            icon={Wallet}
+            iconBg="bg-[#6F9F96]"
+          />
+          <StatCard
+            title="Refunds"
+            value={formatReportMoney(summary.totalRefundAmountRm)}
+            subtitle={`${summary.refundedOrders.toLocaleString('en-US')} refund${summary.refundedOrders === 1 ? '' : 's'}`}
+            icon={ReceiptText}
+            iconBg="bg-[#E07A5F]"
+          />
+          <StatCard
+            title="Average Order"
+            value={formatReportMoney(summary.averageOrderValueRm)}
+            subtitle={`${summary.completedOrders.toLocaleString('en-US')} completed orders`}
+            icon={ShoppingCart}
+            iconBg="bg-[#D4AF7A]"
+          />
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+          <div className="lg:col-span-3 bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex flex-col min-h-[380px]">
+            <div className="flex items-center justify-between gap-4 mb-5">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Revenue by Month</h3>
+                <p className="text-sm text-gray-500">Gross revenue, refunds, and net revenue.</p>
+              </div>
+            </div>
+            <div className="flex-1 min-h-[280px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={revenueChartData} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                  <XAxis dataKey="month" axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 12, fill: '#6B7280', fontWeight: 600 }} dy={10} />
+                  <YAxis axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 12, fill: '#6B7280', fontWeight: 600 }} tickFormatter={(val) => `RM ${(val / 1000).toFixed(0)}K`} />
+                  <Tooltip
+                    cursor={{ fill: '#F3F4F6' }}
+                    contentStyle={{ backgroundColor: '#1F3A34', borderRadius: '8px', border: 'none', color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
+                    itemStyle={{ color: '#fff' }}
+                    formatter={(value, name) => [`RM ${Number(value).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, name]}
+                  />
+                  <Bar dataKey="grossRevenueRm" name="Gross revenue" fill="#1F3A34" radius={[4, 4, 0, 0]} barSize={18} />
+                  <Bar dataKey="refundsRm" name="Refunds" fill="#E07A5F" radius={[4, 4, 0, 0]} barSize={18} />
+                  <Bar dataKey="netRevenueRm" name="Net revenue" fill="#6F9F96" radius={[4, 4, 0, 0]} barSize={18} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex flex-col min-h-[380px]">
+            <div className="flex items-center justify-between gap-4 mb-5">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Order Mix</h3>
+                <p className="text-sm text-gray-500">Status distribution of live orders.</p>
+              </div>
+            </div>
+
+            <div className="flex-1 flex flex-col lg:flex-row gap-4">
+              <div className="w-full lg:w-52 h-52 mx-auto lg:mx-0 shrink-0">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={statusBreakdown} dataKey="value" nameKey="name" innerRadius={60} outerRadius={84} paddingAngle={2} stroke="none">
+                      {statusBreakdown.map((entry, index) => (
+                        <Cell key={`status-${entry.name}`} fill={entry.color || COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(value, name) => [`${Number(value).toLocaleString('en-US')} orders`, name]}
+                      contentStyle={{ backgroundColor: '#1F3A34', borderRadius: '8px', border: 'none', color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
+                      itemStyle={{ color: '#fff' }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="flex-1 space-y-3 overflow-y-auto">
+                {statusBreakdown.length > 0 ? statusBreakdown.map((entry, index) => (
+                  <div key={entry.name} className="flex items-center justify-between gap-3 p-3 rounded-xl border border-gray-100">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: entry.color || COLORS[index % COLORS.length] }} />
+                      <div className="min-w-0">
+                        <p className="font-semibold text-gray-900 truncate">{entry.name}</p>
+                        <p className="text-xs text-gray-500">{Number(entry.value || 0).toLocaleString('en-US')} orders</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-gray-900">{formatReportMoney(entry.amountRm)}</p>
+                      <p className="text-xs text-gray-500">
+                        {topStatusShare > 0 ? `${((Number(entry.value || 0) / topStatusShare) * 100).toFixed(1)}%` : '0%'}
+                      </p>
+                    </div>
+                  </div>
+                )) : (
+                  <div className="flex-1 flex items-center justify-center text-sm text-gray-500 border border-dashed border-gray-200 rounded-xl">
+                    No status data available yet.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm flex flex-col min-h-[420px]">
+          <div className="p-5 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shrink-0">
+            <div>
+              <h3 className="text-lg font-bold text-gray-900">Recent Transactions</h3>
+              <p className="text-sm text-gray-500">Latest orders and refunds from the live backend.</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setCurrentPage?.('AllTransactions')}
+                className="flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-bold rounded-lg hover:bg-gray-50 transition-colors cursor-pointer shadow-sm"
+              >
+                View All
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrentPage?.('RevenueReport')}
+                className="flex items-center gap-1.5 px-4 py-2 bg-[#1F3A34] text-white text-sm font-bold rounded-lg hover:bg-[#2E5E58] transition-colors cursor-pointer shadow-sm"
+              >
+                Revenue Report
+              </button>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto flex-1">
+            <table className="w-full text-left text-sm whitespace-nowrap">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Date & Time</th>
+                  <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Type</th>
+                  <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Description</th>
+                  <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100 text-right">Amount</th>
+                  <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Status</th>
+                  <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Payment</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {recentTransactions.map((tx) => (
-                  <tr key={tx.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="py-3">
-                      <p className="font-bold text-gray-900">{tx.date}</p>
-                      <p className="text-[10px] text-gray-500">{tx.time}</p>
+                {topTransactions.length > 0 ? topTransactions.map((transaction) => (
+                  <tr key={transaction.id} className="hover:bg-gray-50/50 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="font-semibold text-gray-900">{transaction.date}</div>
+                      <div className="text-xs text-gray-500 mt-0.5">{transaction.time}</div>
                     </td>
-                    <td className="py-3 font-bold text-gray-900">{tx.desc}</td>
-                    <td className="py-3 text-center font-bold text-gray-900">{tx.amount}</td>
-                    <td className="py-3">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${tx.status === "Completed" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
-                        }`}>
-                        {tx.status}
+                    <td className="px-6 py-4 text-gray-600 font-medium">{transaction.type}</td>
+                    <td className="px-6 py-4 text-gray-700 font-medium max-w-[360px] truncate">{transaction.description}</td>
+                    <td className={`px-6 py-4 text-right font-bold ${Number(transaction.amountRm || 0) < 0 ? 'text-red-700' : 'text-gray-900'}`}>
+                      <div>{formatReportMoney(transaction.amountRm)}</div>
+                      <div className="text-xs font-semibold text-gray-500">{formatReportTokens(transaction.amountTokens)}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`px-2.5 py-1 rounded-md text-xs font-bold ${
+                        Number(transaction.amountRm || 0) < 0
+                          ? 'bg-red-100 text-red-700'
+                          : 'bg-green-100 text-green-700'
+                      }`}>
+                        {transaction.status}
                       </span>
                     </td>
+                    <td className="px-6 py-4 text-gray-600 font-medium">{transaction.paymentMode || 'C2 Tokens'}</td>
                   </tr>
-                ))}
+                )) : (
+                  <tr>
+                    <td colSpan="6" className="py-12 text-center text-gray-500">
+                      No finance transactions available yet.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
-          </div>
-        </div>
-
-        {/* Right side panel */}
-        <div className="col-span-5 flex flex-col gap-6 min-w-0">
-          {/* Profit Summary */}
-          <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex flex-col flex-1">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-base font-bold text-gray-900">Profit Summary</h3>
-            </div>
-            <div className="space-y-3 flex-1 overflow-y-auto">
-              <div className="flex justify-between items-center text-xs font-bold text-gray-900">
-                <span>Total Revenue</span>
-                <span>RM 152,340.80</span>
-              </div>
-              <div className="flex justify-between items-center text-xs font-bold text-gray-900 pb-3 border-b border-gray-100">
-                <span>Total Expenses</span>
-                <span>-RM 36,299.10</span>
-              </div>
-              <div className="flex justify-between items-center text-sm font-bold text-gray-900 pt-1">
-                <span>Net Profit</span>
-                <span>RM 42,621.30</span>
-              </div>
-              <div className="flex justify-between items-center text-[11px] font-medium text-gray-500">
-                <span>Net Profit Margin</span>
-                <span className="font-bold text-gray-900">28.0%</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Quick Actions */}
-          <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex flex-col">
-            <h3 className="text-base font-bold text-gray-900 mb-4">Quick Actions</h3>
-            <div className="grid grid-cols-4 gap-3">
-              <button
-                onClick={() => setCurrentPage("GenerateInvoice")}
-                className="flex flex-col items-center justify-center p-3 bg-[#1F3A34] text-white rounded-xl shadow-sm hover:opacity-90 transition-opacity cursor-pointer gap-2"
-              >
-                <PlusCircle size={24} />
-                <span className="text-[10px] font-bold text-center leading-tight">Generate<br />Invoice</span>
-              </button>
-
-              <button
-                onClick={() => setCurrentPage("RecordExpense")}
-                className="flex flex-col items-center justify-center p-3 bg-[#8AACA5] text-white rounded-xl shadow-sm hover:opacity-90 transition-opacity cursor-pointer gap-2"
-              >
-                <FileText size={24} />
-                <span className="text-[10px] font-bold text-center leading-tight">Record<br />Expense</span>
-              </button>
-
-              <button
-                onClick={() => setCurrentPage("RevenueReport")}
-                className="flex flex-col items-center justify-center p-3 bg-[#E07A5F] text-white rounded-xl shadow-sm hover:opacity-90 transition-opacity cursor-pointer gap-2"
-              >
-                <BarChart3 size={24} />
-                <span className="text-[10px] font-bold text-center leading-tight">Revenue<br />Report</span>
-              </button>
-
-              <button
-                onClick={() => setCurrentPage("ExportStatement")}
-                className="flex flex-col items-center justify-center p-3 bg-[#D4AF7A] text-white rounded-xl shadow-sm hover:opacity-90 transition-opacity cursor-pointer gap-2"
-              >
-                <DownloadCloud size={24} />
-                <span className="text-[10px] font-bold text-center leading-tight">Export<br />Statement</span>
-              </button>
-            </div>
           </div>
         </div>
       </div>

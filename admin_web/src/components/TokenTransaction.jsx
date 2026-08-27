@@ -1,18 +1,10 @@
 import React from 'react';
 import { ArrowLeft, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 
-const defaultTransactions = [
-  { id: 'TXN-001', type: 'Earned', amount: '+145', source: 'Order ORD-2026-001', date: 'Aug 19, 2026', balance: '1,560' },
-  { id: 'TXN-002', type: 'Redeemed', amount: '-500', source: 'Voucher Redemption', date: 'Aug 19, 2026', balance: '1,415' },
-  { id: 'TXN-003', type: 'Earned', amount: '+25', source: 'Order ORD-2026-002', date: 'Aug 19, 2026', balance: '1,440' }
-];
-
 const TokenTransaction = ({ customer, transactions: providedTransactions, onBack }) => {
   const currentBalance = customer?.tokens || customer?.tokensBalance || '0';
   const balanceNum = parseInt(currentBalance.toString().replace(/,/g, ''), 10) || 0;
-  const sourceTransactions = Array.isArray(providedTransactions) && providedTransactions.length > 0
-    ? providedTransactions
-    : defaultTransactions;
+  const sourceTransactions = Array.isArray(providedTransactions) ? providedTransactions : [];
 
   const transactions = sourceTransactions
     .map((txn) => {
@@ -76,7 +68,12 @@ const TokenTransaction = ({ customer, transactions: providedTransactions, onBack
           Token ledger for {customer?.username || customer?.name || 'Selected member'}
         </p>
       </div>
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden flex-1">
+    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden flex-1">
+      {transactions.length === 0 ? (
+        <div className="h-full flex items-center justify-center px-6 py-10 text-sm text-gray-500">
+          No token transactions available for this member.
+        </div>
+      ) : (
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
@@ -106,6 +103,7 @@ const TokenTransaction = ({ customer, transactions: providedTransactions, onBack
             ))}
           </tbody>
         </table>
+      )}
       </div>
     </div>
   );

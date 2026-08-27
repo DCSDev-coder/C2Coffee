@@ -10,6 +10,11 @@ import {
   isCustomerActiveOrderStatus,
   resolveOrderLifecycleStatus
 } from '../order-lifecycle.js';
+import {
+  getKualaLumpurDateParts,
+  getKualaLumpurDayEndUtc,
+  isBirthdayMonthDay
+} from '../../lib/kuala-lumpur-time.js';
 
 const listQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional().default(20)
@@ -191,9 +196,29 @@ function resolveAutoIssuedVoucherExpiry(
   return new Date(Date.now() + 3650 * 24 * 60 * 60 * 1000);
 }
 
+function getVoucherScheduleMode(scope: Record<string, unknown>): string {
+  const rawSchedule =
+    scope.schedule && typeof scope.schedule === 'object'
+      ? (scope.schedule as Record<string, unknown>)
+      : {};
+  return String(rawSchedule.mode || 'always').trim();
+}
+
 async function syncAutoVisibleVoucherTemplates(
   userId: number
 ): Promise<void> {
+  const [profileRows] = await mysqlPool.query<
+    Array<RowDataPacket & { birthday_month_day: string | null }>
+  >(
+    `
+      SELECT DATE_FORMAT(up.birthday, '%m-%d') AS birthday_month_day
+      FROM user_profiles up
+      WHERE up.user_id = :userId
+      LIMIT 1
+    `,
+    { userId }
+  );
+
   const [tierRows] = await mysqlPool.query<
     Array<RowDataPacket & { tier_code: string | null }>
   >(
@@ -207,7 +232,13 @@ async function syncAutoVisibleVoucherTemplates(
     { userId }
   );
 
+  const currentBirthdayMonthDay = profileRows[0]?.birthday_month_day ?? null;
   const currentTier = tierRows[0]?.tier_code ?? 'kawan';
+  const currentDateParts = getKualaLumpurDateParts();
+  const birthdayIssueCaseRef =
+    currentBirthdayMonthDay && isBirthdayMonthDay(currentBirthdayMonthDay)
+      ? `birthday:${currentDateParts.monthDay}`
+      : null;
 
   const [templates] = await mysqlPool.query<Array<AutoSyncVoucherTemplateRow>>(
     `
@@ -225,26 +256,33 @@ async function syncAutoVisibleVoucherTemplates(
   );
 
   const [existingRows] = await mysqlPool.query<
-    Array<RowDataPacket & { voucher_template_id: number }>
+    Array<RowDataPacket & { voucher_template_id: number; issue_case_ref: string | null }>
   >(
     `
-      SELECT DISTINCT voucher_template_id
+      SELECT DISTINCT voucher_template_id, issue_case_ref
       FROM user_vouchers
       WHERE user_id = :userId
     `,
     { userId }
   );
 
-  const existingTemplateIds = new Set(
-    existingRows.map((row) => Number(row.voucher_template_id))
+  const existingIssueKeys = new Set(
+    existingRows.map((row) => `${Number(row.voucher_template_id)}::${row.issue_case_ref ?? ''}`)
   );
 
   for (const template of templates) {
-    if (existingTemplateIds.has(template.id)) {
+    const scope = parseVoucherScope(template.eligible_scope_json);
+    const scheduleMode = getVoucherScheduleMode(scope);
+    const issueCaseRef = scheduleMode === 'birthday' ? birthdayIssueCaseRef : null;
+
+    if (scheduleMode === 'birthday' && !issueCaseRef) {
       continue;
     }
 
-    const scope = parseVoucherScope(template.eligible_scope_json);
+    if (existingIssueKeys.has(`${template.id}::${issueCaseRef ?? ''}`)) {
+      continue;
+    }
+
     if (!isAutoVisibleAudience(scope)) {
       continue;
     }
@@ -254,7 +292,10 @@ async function syncAutoVisibleVoucherTemplates(
       continue;
     }
 
-    const expiresAt = resolveAutoIssuedVoucherExpiry(template);
+    const expiresAt =
+      scheduleMode === 'birthday'
+        ? getKualaLumpurDayEndUtc()
+        : resolveAutoIssuedVoucherExpiry(template);
     if (expiresAt.getTime() <= Date.now()) {
       continue;
     }
@@ -267,6 +308,7 @@ async function syncAutoVisibleVoucherTemplates(
           status,
           issued_by_type,
           issued_reason,
+          issue_case_ref,
           issued_at,
           expires_at
         )
@@ -276,6 +318,7 @@ async function syncAutoVisibleVoucherTemplates(
           'active',
           'system',
           :issuedReason,
+          :issueCaseRef,
           UTC_TIMESTAMP(),
           :expiresAt
         )
@@ -283,12 +326,16 @@ async function syncAutoVisibleVoucherTemplates(
       {
         userId,
         templateId: template.id,
-        issuedReason: `Campaign voucher: ${template.name}`,
-        expiresAt
+        issuedReason:
+          scheduleMode === 'birthday'
+            ? `Birthday voucher: ${template.name}`
+            : `Campaign voucher: ${template.name}`,
+        expiresAt,
+        issueCaseRef
       }
     );
 
-    existingTemplateIds.add(template.id);
+    existingIssueKeys.add(`${template.id}::${issueCaseRef ?? ''}`);
   }
 }
 
@@ -473,6 +520,7 @@ export async function registerCustomerDataRoutes(
           AND uv.status = 'active'
           AND uv.redeemed_at IS NULL
           AND uv.revoked_at IS NULL
+          AND uv.expires_at > UTC_TIMESTAMP()
           AND vt.is_active = 1
         ORDER BY uv.issued_at DESC, uv.id DESC
         LIMIT :limit

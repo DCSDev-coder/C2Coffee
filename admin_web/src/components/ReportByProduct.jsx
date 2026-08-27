@@ -1,49 +1,30 @@
-import React, { useState } from 'react';
-import { ArrowLeft, Download, Filter, Search, Package, ChevronDown, X, ShoppingCart, DollarSign, TrendingUp } from 'lucide-react';
-import DatePicker from "react-datepicker";
-import "react-datepicker/dist/react-datepicker.css";
+import React, { forwardRef, useEffect, useMemo, useState } from 'react';
+import { ArrowLeft, Download, Package, RefreshCw, Search, ShoppingCart, TrendingUp } from 'lucide-react';
+import { BarChart, Bar, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 import Pagination from './Pagination';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Cell } from 'recharts';
+import { loadAdminMenu } from '../lib/adminApi';
+import { buildProductReportOverview, formatReportMoney, formatReportTokens } from '../utils/reporting';
+import { exportToCSV } from '../utils/exportToCSV';
 
+const REFRESH_INTERVAL_MS = 60_000;
 const COLORS = ['#1F3A34', '#2E5E58', '#6F9F96', '#A8C4A2', '#E07A5F', '#D4AF7A'];
 
-import { initialMenuData } from '../data/menuData';
+const CustomDateInput = forwardRef(({ value, onClick }, ref) => (
+  <button
+    type="button"
+    ref={ref}
+    onClick={onClick}
+    className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 w-full sm:w-auto text-left min-w-[140px]"
+  >
+    {value || 'Select Date'}
+  </button>
+));
 
-const mockProductData = initialMenuData.map((item) => {
-  const salesNum = parseInt(item.sales.replace(/,/g, ''), 10) || 0;
-  const priceNum = parseFloat(item.price.replace('Tokens ', '')) || 0;
-  return {
-    id: item.id,
-    name: item.name,
-    category: item.category,
-    quantitySold: salesNum,
-    revenue: salesNum * priceNum
-  };
-}).sort((a, b) => b.quantitySold - a.quantitySold);
-
-const chartData = mockProductData.slice(0, 5).map(p => ({
-  name: p.name,
-  revenue: p.revenue,
-  quantitySold: p.quantitySold
-}));
-
-const CustomTooltip = ({ active, payload, label }) => {
-  if (active && payload && payload.length) {
-    const data = payload[0].payload;
-    return (
-      <div className="bg-[#1F3A34] p-3 rounded-lg border-none text-white text-xs font-bold shadow-lg">
-        <p className="mb-2 text-sm">{label}</p>
-        <p className="mb-1">Units Sold: {data.quantitySold.toLocaleString()}</p>
-        <p>Revenue: Tokens {data.revenue.toLocaleString()}</p>
-      </div>
-    );
-  }
-  return null;
-};
-
-const StatCard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-white" }) => (
+const StatCard = ({ title, value, subtitle, icon: Icon, iconBg }) => (
   <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center space-x-4 min-w-0">
-    <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 ${iconBg} ${iconColor} shadow-sm`}>
+    <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 ${iconBg} text-white shadow-sm`}>
       <Icon size={26} strokeWidth={2.2} />
     </div>
     <div className="flex-1 min-w-0">
@@ -51,115 +32,202 @@ const StatCard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-
         {title}
       </h3>
       <p className="text-2xl font-bold text-gray-900 mt-1 leading-tight">{value}</p>
-      {change && (
-        <div className="flex items-center gap-1 mt-1">
-          <p className="text-[11px] text-gray-500 font-medium leading-tight whitespace-normal">
-            {change.includes('%') && !change.includes('of total') && !change.includes('↑') && !change.includes('↓') && change.includes('vs') ? `↑ ${change}` : change}
-          </p>
-        </div>
+      {subtitle && (
+        <p className="text-[11px] text-gray-500 font-medium leading-tight whitespace-normal mt-1">{subtitle}</p>
       )}
     </div>
   </div>
 );
 
-const ReportByProduct = () => {
+const CustomTooltip = ({ active, payload, label }) => {
+  if (!active || !payload || !payload.length) {
+    return null;
+  }
+
+  const data = payload[0].payload;
+
+  return (
+    <div className="bg-[#1F3A34] p-3 rounded-lg border-none text-white text-xs font-bold shadow-lg">
+      <p className="mb-2 text-sm">{label}</p>
+      <p className="mb-1">Units Sold: {Number(data.quantitySold || 0).toLocaleString('en-US')}</p>
+      <p>Revenue: {formatReportMoney(data.revenueRm || 0)}</p>
+    </div>
+  );
+};
+
+const ReportByProduct = ({ onBack }) => {
+  const [menuResponse, setMenuResponse] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDate, setSelectedDate] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
 
-  const safeSearchTerm = (searchTerm || '').trim().toLowerCase();
-  const filteredData = mockProductData.filter(product =>
-    product.name.toLowerCase().includes(safeSearchTerm) ||
-    product.category.toLowerCase().includes(safeSearchTerm)
-  );
+  useEffect(() => {
+    let active = true;
+
+    const loadMenu = async () => {
+      try {
+        setError('');
+        const response = await loadAdminMenu();
+        if (!active) return;
+        setMenuResponse(response);
+        setLastUpdatedAt(new Date());
+      } catch (err) {
+        if (!active) return;
+        setError(err instanceof Error ? err.message : 'Unable to load product report.');
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void loadMenu();
+    const timer = window.setInterval(() => {
+      void loadMenu();
+    }, REFRESH_INTERVAL_MS);
+
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  const overview = useMemo(() => buildProductReportOverview(menuResponse, selectedDate), [menuResponse, selectedDate]);
+  const products = overview.products || [];
+  const chartData = overview.chartData || [];
+
+  const safeSearchTerm = searchTerm.trim().toLowerCase();
+  const filteredData = useMemo(() => {
+    return products.filter((product) => (
+      product.name.toLowerCase().includes(safeSearchTerm)
+      || product.category.toLowerCase().includes(safeSearchTerm)
+      || product.subcategory.toLowerCase().includes(safeSearchTerm)
+      || product.productKind.toLowerCase().includes(safeSearchTerm)
+    ));
+  }, [products, safeSearchTerm]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredData.length / itemsPerPage));
+  const currentRows = filteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  const exportRows = useMemo(() => [
+    ['Product Name', 'Category', 'Subcategory', 'Quantity Sold', 'RM Revenue', 'Token Price', 'Last Ordered', 'Active'],
+    ...filteredData.map((product) => [
+      `"${product.name}"`,
+      `"${product.category}"`,
+      `"${product.subcategory}"`,
+      Number(product.quantitySold || 0).toFixed(0),
+      Number(product.revenueRm || 0).toFixed(2),
+      Number(product.basePriceToken || 0).toFixed(0),
+      `"${product.lastOrderedAt ? product.lastOrderedAt.toISOString() : ''}"`,
+      product.isActive ? 'Yes' : 'No'
+    ])
+  ], [filteredData]);
 
   const handleExport = () => {
-    const csvContent = [
-      ["Product Name", "Category", "Quantity Sold", "Total Revenue (Tokens)"],
-      ...filteredData.map(product => [
-        `"${product.name}"`, 
-        `"${product.category}"`, 
-        product.quantitySold, 
-        product.revenue
-      ])
-    ].map(e => e.join(",")).join("\n");
-    
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = "product_report.csv";
-    link.click();
+    exportToCSV(exportRows, 'product_report.csv');
   };
 
-  const totalPages = Math.ceil(filteredData.length / itemsPerPage) || 1;
-  const paginatedData = filteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const refreshMenu = async () => {
+    try {
+      const response = await loadAdminMenu();
+      setMenuResponse(response);
+      setLastUpdatedAt(new Date());
+      setError('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to load product report.');
+    }
+  };
 
   return (
     <div className="flex-1 overflow-x-hidden overflow-y-auto bg-[#F9FAFB]">
       <div className="p-6 lg:p-8 w-full h-full flex flex-col space-y-6">
-        <div className="shrink-0 flex items-center justify-between">
+        <div className="shrink-0 flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
           <div className="flex items-center gap-2.5">
+            <button
+              onClick={onBack}
+              className="p-1 -ml-1 text-gray-700 hover:text-black rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+              title="Back to Finance"
+            >
+              <ArrowLeft size={22} strokeWidth={2.5} />
+            </button>
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Product Report</h1>
-              <p className="text-sm text-gray-500 mt-1">Analyze revenue and sales volume by individual product.</p>
+              <p className="text-sm text-gray-500 mt-1">Live sales and revenue by individual menu item.</p>
+              <p className="text-xs text-gray-400 mt-1">
+                {loading ? 'Refreshing live data...' : error ? `Showing last successful data. ${error}` : `Last updated ${lastUpdatedAt?.toLocaleString('en-MY') || 'just now'}`}
+              </p>
             </div>
           </div>
-          <button 
-            onClick={handleExport}
-            className="flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-bold rounded-lg hover:bg-gray-50 transition-colors cursor-pointer shadow-sm"
-          >
-            <Download size={16} /> Export
-          </button>
+
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => void refreshMenu()}
+              className="flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-bold rounded-lg hover:bg-gray-50 transition-colors cursor-pointer shadow-sm"
+            >
+              <RefreshCw size={16} /> Refresh
+            </button>
+            <button
+              onClick={handleExport}
+              className="flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-bold rounded-lg hover:bg-gray-50 transition-colors cursor-pointer shadow-sm"
+            >
+              <Download size={16} /> Export
+            </button>
+          </div>
         </div>
 
-        {/* KPI Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 shrink-0">
           <StatCard
             title="Total Products"
-            value={mockProductData.length.toString()}
-            change="1.2% vs last month"
+            value={overview.summary.totalProducts.toLocaleString('en-US')}
+            subtitle={`${overview.summary.topProductUnits.toLocaleString('en-US')} units for top product`}
             icon={Package}
             iconBg="bg-[#1F3A34]"
           />
           <StatCard
-            title="Total Items Sold"
-            value="12,560"
-            change="8.2% vs last month"
+            title="Total Units Sold"
+            value={overview.summary.totalUnitsSold.toLocaleString('en-US')}
+            subtitle="Based on completed menu sales"
             icon={ShoppingCart}
             iconBg="bg-[#2E5E58]"
           />
           <StatCard
             title="Total Revenue"
-            value="Tokens 142,560"
-            change="17.1% vs last month"
-            icon={DollarSign}
+            value={formatReportMoney(overview.summary.totalRevenueRm)}
+            subtitle="Live RM revenue from menu items"
+            icon={TrendingUp}
             iconBg="bg-[#E07A5F]"
           />
           <StatCard
             title="Top Product"
-            value={chartData[0]?.name || "-"}
-            change="Top selling item"
+            value={overview.summary.topProduct}
+            subtitle="Highest selling item by units"
             icon={TrendingUp}
             iconBg="bg-[#D4AF7A]"
           />
         </div>
 
-        <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex flex-col h-[350px] shrink-0">
-          <h3 className="text-lg font-bold text-gray-900 mb-6">Top 5 Products by Units Sold</h3>
+        <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex flex-col h-[360px] shrink-0">
+          <div className="flex items-center justify-between gap-4 mb-6">
+            <div>
+              <h3 className="text-lg font-bold text-gray-900">Top 5 Products by Units Sold</h3>
+              <p className="text-sm text-gray-500">Revenue and volume from the live menu endpoint.</p>
+            </div>
+          </div>
           <div className="flex-1 w-full relative">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }} layout="vertical">
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E5E7EB" />
-                <XAxis type="number" axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 12, fill: '#6B7280', fontWeight: 600 }} tickFormatter={(val) => `${(val / 1000).toFixed(1)}K Units`} />
-                <YAxis dataKey="name" type="category" axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 12, fill: '#6B7280', fontWeight: 600 }} width={80} />
-                <Tooltip
-                  cursor={{ fill: '#F3F4F6' }}
-                  content={<CustomTooltip />}
-                />
+                <XAxis type="number" axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 12, fill: '#6B7280', fontWeight: 600 }} />
+                <YAxis dataKey="name" type="category" axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 12, fill: '#6B7280', fontWeight: 600 }} width={110} />
+                <Tooltip cursor={{ fill: '#F3F4F6' }} content={<CustomTooltip />} />
                 <Bar dataKey="quantitySold" radius={[0, 4, 4, 0]} barSize={24}>
                   {chartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    <Cell key={`cell-${entry.name}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Bar>
               </BarChart>
@@ -173,36 +241,26 @@ const ReportByProduct = () => {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
               <input
                 type="text"
-                placeholder="Search products or categories..."
+                placeholder="Search products, categories, or subcategories..."
                 value={searchTerm}
-                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setCurrentPage(1);
+                }}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1F3A34] text-sm"
               />
             </div>
             <div className="relative w-full sm:w-auto">
-              <DatePicker portalId="root-portal"
+              <DatePicker
+                portalId="root-portal"
                 selected={selectedDate}
-                onChange={(date) => { setSelectedDate(date); setCurrentPage(1); }}
+                onChange={(date) => {
+                  setSelectedDate(date);
+                  setCurrentPage(1);
+                }}
                 dateFormat="d MMM yyyy"
                 popperPlacement="bottom-end"
-                customInput={
-                  <div className="relative">
-                    <button className="peer pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 w-full sm:w-auto text-left min-w-[140px]">
-                      {selectedDate ? selectedDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Select Date'}
-                    </button>
-                    <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                      <ChevronDown size={16} className="text-gray-400 transition-transform duration-200 peer-focus:-rotate-180" />
-                    </div>
-                    {selectedDate && (
-                      <button
-                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setSelectedDate(null); setCurrentPage(1); }}
-                        className="absolute inset-y-0 right-8 flex items-center p-1 hover:bg-gray-100 rounded-full my-auto h-6 w-6 justify-center cursor-pointer pointer-events-auto"
-                      >
-                        <X size={14} className="text-gray-500" />
-                      </button>
-                    )}
-                  </div>
-                }
+                customInput={<CustomDateInput />}
               />
             </div>
           </div>
@@ -211,29 +269,51 @@ const ReportByProduct = () => {
             <table className="w-full text-left text-sm whitespace-nowrap">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Product Name</th>
+                  <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Product</th>
                   <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Category</th>
-                  <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100 text-right">Quantity Sold</th>
-                  <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100 text-right">Total Revenue (Tokens)</th>
+                  <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Subcategory</th>
+                  <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100 text-right">Units Sold</th>
+                  <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100 text-right">Revenue</th>
+                  <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100 text-right">Token Price</th>
+                  <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Status</th>
+                  <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Last Ordered</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {paginatedData.length > 0 ? (
-                  paginatedData.map((product) => (
-                    <tr key={product.id} className="hover:bg-gray-50/50 transition-colors">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <span className="font-semibold text-gray-900">{product.name}</span>
+                {currentRows.length > 0 ? currentRows.map((product) => (
+                  <tr key={product.id} className="hover:bg-gray-50/50 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-gray-100 overflow-hidden shrink-0 flex items-center justify-center">
+                          {product.imageUrl ? (
+                            <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <Package size={16} className="text-gray-400" />
+                          )}
                         </div>
-                      </td>
-                      <td className="px-6 py-4 text-gray-600 font-medium">{product.category}</td>
-                      <td className="px-6 py-4 text-right text-gray-600 font-medium">{product.quantitySold.toLocaleString()}</td>
-                      <td className="px-6 py-4 text-right font-bold text-gray-900">Tokens {product.revenue.toLocaleString()}</td>
-                    </tr>
-                  ))
-                ) : (
+                        <div>
+                          <p className="font-semibold text-gray-900">{product.name}</p>
+                          <p className="text-xs text-gray-500">ID: {product.id}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-gray-700 font-medium">{product.category}</td>
+                    <td className="px-6 py-4 text-gray-700 font-medium">{product.subcategory}</td>
+                    <td className="px-6 py-4 text-right text-gray-700 font-medium">{Number(product.quantitySold || 0).toLocaleString('en-US')}</td>
+                    <td className="px-6 py-4 text-right font-bold text-gray-900">{formatReportMoney(product.revenueRm)}</td>
+                    <td className="px-6 py-4 text-right text-gray-700 font-medium">{formatReportTokens(product.basePriceToken)}</td>
+                    <td className="px-6 py-4">
+                      <span className={`px-2.5 py-1 rounded-md text-xs font-bold ${product.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                        {product.isActive ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-gray-700 font-medium">
+                      {product.lastOrderedAt ? product.lastOrderedAt.toLocaleString('en-MY', { dateStyle: 'medium', timeStyle: 'short' }) : '-'}
+                    </td>
+                  </tr>
+                )) : (
                   <tr>
-                    <td colSpan="4" className="py-12 text-center text-gray-500">
+                    <td colSpan="8" className="py-12 text-center text-gray-500">
                       No products found matching your search.
                     </td>
                   </tr>
