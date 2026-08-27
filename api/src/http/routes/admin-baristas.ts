@@ -21,7 +21,12 @@ export async function registerAdminBaristasRoutes(app: FastifyInstance) {
       [admin.tenantCode]
     );
 
-    return reply.send({ baristas: rows });
+    const baristas = rows.map((row: any) => ({
+      ...row,
+      is_active: !!row.is_active
+    }));
+
+    return reply.send({ baristas });
   });
 
   app.post('/v1/admin/baristas', { preHandler: authenticateAdminRequest }, async (request, reply) => {
@@ -39,7 +44,8 @@ export async function registerAdminBaristasRoutes(app: FastifyInstance) {
       [result.insertId]
     );
 
-    return reply.code(201).send({ barista: rows[0] });
+    const barista = { ...rows[0], is_active: !!rows[0].is_active };
+    return reply.code(201).send({ barista });
   });
 
   app.put('/v1/admin/baristas/:id', { preHandler: authenticateAdminRequest }, async (request, reply) => {
@@ -70,7 +76,8 @@ export async function registerAdminBaristasRoutes(app: FastifyInstance) {
       return reply.code(404).send({ error: 'Barista not found' });
     }
 
-    return reply.send({ barista: rows[0] });
+    const barista = { ...rows[0], is_active: !!rows[0].is_active };
+    return reply.send({ barista });
   });
 
   app.delete('/v1/admin/baristas/:id', { preHandler: authenticateAdminRequest }, async (request, reply) => {

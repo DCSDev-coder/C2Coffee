@@ -66,7 +66,7 @@ const BaristaManagement = () => {
         id: b.id,
         name: b.name,
         status: b.is_active ? 'Active' : 'Inactive',
-        is_active: b.is_active,
+        is_active: !!b.is_active,
         createdAt: new Date(b.created_at).toLocaleString(),
         raw: b
       }));
@@ -115,7 +115,7 @@ const BaristaManagement = () => {
   const openModal = (barista = null) => {
     setEditingBarista(barista);
     setFormName(barista ? barista.name : '');
-    setFormStatus(barista ? barista.is_active : true);
+    setFormStatus(barista ? !!barista.is_active : true);
     setFormError('');
     setIsModalOpen(true);
   };
