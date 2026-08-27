@@ -259,12 +259,13 @@ class PickupReadyPage extends StatelessWidget {
                         height: 52,
                         child: ElevatedButton(
                           onPressed: () async {
-                            // Update status to readyForPickup and trigger rebuild
-                            await ApiService.updateOrderStatus(orderId, 'ready_for_pickup');
-                            final order = globalCurrentOrders.value.firstWhere((o) => o.orderId == orderId);
-                            order.status = OrderStatus.readyForPickup;
-                            order.timeDate = formattedTime; // Update to the ready time!
-                            globalCurrentOrders.value = List.from(globalCurrentOrders.value);
+                            // Update status to completed so it's fully done
+                            await ApiService.updateOrderStatus(orderId, 'completed');
+                            
+                            // Remove from current orders entirely
+                            globalCurrentOrders.value = globalCurrentOrders.value
+                                .where((o) => o.orderId != orderId)
+                                .toList();
 
                             if (!context.mounted) return;
                             // Pop exactly 2 screens: PickupReadyPage -> OrderDetailsPage -> MainLayout (CurrentOrderPage)
