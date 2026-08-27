@@ -260,13 +260,24 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
 
     const connection = await mysqlPool.getConnection();
     try {
+      const [rows] = await connection.execute<RowDataPacket[]>(
+        `SELECT id FROM orders WHERE order_ref = :orderId LIMIT 1`,
+        { orderId }
+      );
+
+      if (rows.length === 0) {
+        return reply.status(404).send({ error: { code: 'not_found', message: 'Order not found' } });
+      }
+
+      const internalId = rows[0].id;
+
       await connection.execute(
         `
           UPDATE orders
           SET status = :status
-          WHERE id = :orderId
+          WHERE id = :internalId
         `,
-        { status: effectiveStatus, orderId }
+        { status: effectiveStatus, internalId }
       );
 
       // Insert into order_status_history
@@ -281,7 +292,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
             created_at
           )
           VALUES (
-            :orderId,
+            :internalId,
             :status,
             'admin',
             'admin',
@@ -289,7 +300,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
             UTC_TIMESTAMP()
           )
         `,
-        { orderId, status: effectiveStatus }
+        { internalId, status: effectiveStatus }
       );
 
       return reply.send({ success: true, status: effectiveStatus });
