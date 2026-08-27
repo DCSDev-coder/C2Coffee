@@ -43,16 +43,6 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
     return ValueListenableBuilder<List<CurrentOrder>>(
       valueListenable: globalCurrentOrders,
       builder: (context, allOrders, _) {
-        final int inProgressCount = allOrders
-            .where(
-              (o) =>
-                  o.status == OrderStatus.newOrder ||
-                  o.status == OrderStatus.preparing,
-            )
-            .length;
-        final int readyCount = allOrders
-            .where((o) => o.status == OrderStatus.readyForPickup)
-            .length;
 
         final filteredOrders = allOrders
             .where((order) {

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../main.dart';
 import '../widgets/order_card.dart';
-import '../widgets/active_barista_profile.dart';
 import 'pickup_ready_page.dart';
 import '../services/api_service.dart';
 import '../widgets/blinking_online_indicator.dart';

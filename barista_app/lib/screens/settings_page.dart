@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+
 import '../main.dart';
 import '../services/api_service.dart';
-import '../widgets/active_barista_profile.dart';
 import '../widgets/blinking_online_indicator.dart';
 
 class SettingsPage extends StatefulWidget {

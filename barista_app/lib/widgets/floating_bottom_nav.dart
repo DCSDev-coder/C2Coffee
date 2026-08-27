@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/material.dart';
 
 enum NavPage { currentOrder, settings }
 
@@ -9,7 +8,7 @@ class FloatingBottomNav extends StatelessWidget {
   final PageController pageController;
 
   const FloatingBottomNav({
-    super.key, 
+    super.key,
     required this.activePage,
     required this.onTabSelected,
     required this.pageController,
@@ -18,7 +17,7 @@ class FloatingBottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const Color darkGreen = Color(0xFF304A3A);
-    
+
     final double screenWidth = MediaQuery.of(context).size.width;
     double barWidth = screenWidth - 48.0;
     if (barWidth > 600.0) {
@@ -35,7 +34,8 @@ class FloatingBottomNav extends StatelessWidget {
         builder: (context, child) {
           // Determine exact scroll position (0.0 to 2.0)
           double scrollPosition = 1.0; // default to center
-          if (pageController.hasClients && pageController.position.haveDimensions) {
+          if (pageController.hasClients &&
+              pageController.position.haveDimensions) {
             scrollPosition = pageController.page ?? 1.0;
           } else {
             // Fallback for first frame before layout is complete
@@ -46,7 +46,8 @@ class FloatingBottomNav extends StatelessWidget {
           // Calculate exact X center based on scroll position
           // index 0 -> 1/4 (center of left half)
           // index 1 -> 3/4 (center of right half)
-          final double fabXCenter = barWidth * (1 / 4 + (scrollPosition * 2 / 4));
+          final double fabXCenter =
+              barWidth * (1 / 4 + (scrollPosition * 2 / 4));
           final double fabLeft = fabXCenter - 32.0;
 
           return Stack(
@@ -62,7 +63,7 @@ class FloatingBottomNav extends StatelessWidget {
                       color: Colors.black.withOpacity(0.15),
                       blurRadius: 30,
                       offset: const Offset(0, 10),
-                    )
+                    ),
                   ],
                 ),
               ),
@@ -75,36 +76,36 @@ class FloatingBottomNav extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: darkGreen, // Solid color for performance
                     border: Border.all(
-                      color: Colors.white.withOpacity(0.2), 
+                      color: Colors.white.withOpacity(0.2),
                       width: 1.5,
                     ),
                     borderRadius: BorderRadius.circular(35.0),
                   ),
                   child: Row(
                     children: [
-                        Expanded(
-                          child: activePage == NavPage.currentOrder
-                              ? const SizedBox.shrink()
-                              : _buildSideButton(
-                                  icon: Icons.shopping_basket,
-                                  label: 'Orders',
-                                  onTap: () => onTabSelected(0),
-                                ),
-                        ),
-                        Expanded(
-                          child: activePage == NavPage.settings
-                              ? const SizedBox.shrink()
-                              : _buildSideButton(
-                                  icon: Icons.settings,
-                                  label: 'Settings',
-                                  onTap: () => onTabSelected(1),
-                                ),
-                        ),
-                      ],
-                    ),
+                      Expanded(
+                        child: activePage == NavPage.currentOrder
+                            ? const SizedBox.shrink()
+                            : _buildSideButton(
+                                icon: Icons.shopping_basket,
+                                label: 'Orders',
+                                onTap: () => onTabSelected(0),
+                              ),
+                      ),
+                      Expanded(
+                        child: activePage == NavPage.settings
+                            ? const SizedBox.shrink()
+                            : _buildSideButton(
+                                icon: Icons.settings,
+                                label: 'Settings',
+                                onTap: () => onTabSelected(1),
+                              ),
+                      ),
+                    ],
                   ),
                 ),
-              
+              ),
+
               // 3. Floating Center Button synced with notch
               Positioned(
                 left: fabLeft,
@@ -119,8 +120,8 @@ class FloatingBottomNav extends StatelessWidget {
                           color: Colors.black.withValues(alpha: 0.15),
                           blurRadius: 15,
                           offset: const Offset(0, 8),
-                        )
-                      ]
+                        ),
+                      ],
                     ),
                     child: Material(
                       elevation: 0,
@@ -137,11 +138,13 @@ class FloatingBottomNav extends StatelessWidget {
                                   ? Icons.shopping_basket
                                   : Icons.settings,
                               key: ValueKey(activePage),
-                              color: darkGreen, // High contrast with beige bubble
+                              color:
+                                  darkGreen, // High contrast with beige bubble
                               size: 30,
                             ),
                           ),
-                          onPressed: () {}, // Handled by pageView swipe or can be left empty
+                          onPressed:
+                              () {}, // Handled by pageView swipe or can be left empty
                         ),
                       ),
                     ),
@@ -155,7 +158,11 @@ class FloatingBottomNav extends StatelessWidget {
     );
   }
 
-  Widget _buildSideButton({required IconData icon, required String label, required VoidCallback onTap}) {
+  Widget _buildSideButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
     return InkWell(
       onTap: onTap,
       child: Column(
@@ -166,7 +173,12 @@ class FloatingBottomNav extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             label,
-            style: const TextStyle(color: Colors.white70, fontSize: 13, fontFamily: 'Afacad', fontWeight: FontWeight.bold),
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 13,
+              fontFamily: 'Afacad',
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ],
       ),
@@ -187,18 +199,22 @@ class _NotchedClipper extends CustomClipper<Path> {
       width: 80, // FAB size (64) + total notch margin (16)
       height: 80,
     );
-    
+
     // 1. Get the path with the top notch
-    final notchedPath = const CircularNotchedRectangle().getOuterPath(host, guest);
-    
+    final notchedPath = const CircularNotchedRectangle().getOuterPath(
+      host,
+      guest,
+    );
+
     // 2. Get the path with rounded corners
-    final rrectPath = Path()..addRRect(RRect.fromRectAndRadius(host, const Radius.circular(35.0)));
-    
+    final rrectPath = Path()
+      ..addRRect(RRect.fromRectAndRadius(host, const Radius.circular(35.0)));
+
     // 3. Intersect them to get a rounded rectangle with a top notch
     return Path.combine(PathOperation.intersect, notchedPath, rrectPath);
   }
 
   @override
-  bool shouldReclip(covariant _NotchedClipper oldClipper) => 
+  bool shouldReclip(covariant _NotchedClipper oldClipper) =>
       oldClipper.notchCenterPoint != notchCenterPoint;
 }
