@@ -277,7 +277,7 @@ class OrderDetailsPage extends StatelessWidget {
                                   pageBuilder: (context, animation, secondaryAnimation) => PickupReadyPage(
                                       orderId: orderId,
                                       customerDetails: customerDetails,
-                                      timeDate: order?.timeDate,
+                                      timeDate: order.timeDate,
                                       items: items,
                                       onSettingsTap: onSettingsTap,
                                   ),

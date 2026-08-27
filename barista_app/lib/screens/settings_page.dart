@@ -34,10 +34,6 @@ class _SettingsPageState extends State<SettingsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
-    // Check if it's landscape and width is tablet-sized
-    final bool isLandscapeTablet = size.width > size.height && size.width >= 600;
-
     return Scaffold(
       backgroundColor: Colors.white,
       body: Stack(
