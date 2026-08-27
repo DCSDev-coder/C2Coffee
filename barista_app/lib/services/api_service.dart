@@ -82,7 +82,10 @@ class ApiService {
               }
 
               addIfPresent(item['bean']?.toString());
-              addIfPresent(item['espressoShot']?.toString(), '', ' Shot');
+              final shotVal = item['espressoShot']?.toString();
+              if (shotVal != null && shotVal.trim().isNotEmpty) {
+                addIfPresent(shotVal, '', shotVal.toLowerCase().contains('shot') ? '' : ' Shot');
+              }
               addIfPresent(item['temperature']?.toString());
               addIfPresent(item['sparkling']?.toString(), 'Sparkling: ');
               addIfPresent(item['milk']?.toString());
@@ -90,10 +93,6 @@ class ApiService {
               addIfPresent(item['iceLevel']?.toString());
               addIfPresent(item['orderType']?.toString());
               addIfPresent(item['remarks']?.toString(), 'Remarks: ');
-
-              if (tags.isEmpty) {
-                tags.add('Standard');
-              }
               
               parsedItems.add(OrderItem(title: title, tags: tags));
             }

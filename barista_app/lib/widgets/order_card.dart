@@ -160,7 +160,7 @@ class OrderCard extends StatelessWidget {
                 child: ElevatedButton(
                   onPressed: onActionPressed,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: isPreparing ? orangeColor : beigeColor,
+                    backgroundColor: isPreparing ? beigeColor : darkGreen,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14.0),
                     shape: RoundedRectangleBorder(

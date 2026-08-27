@@ -289,7 +289,7 @@ class OrderDetailsPage extends StatelessWidget {
                             }
                           },
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: (order?.status == OrderStatus.newOrder) ? darkGreen : buttonOrange,
+                            backgroundColor: (order?.status == OrderStatus.newOrder) ? darkGreen : beigeColor,
                             foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(16.0),

@@ -81,68 +81,98 @@ class PickupReadyPage extends StatelessWidget {
                 child: ListView(
                   padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
                   children: [
-                    // Huge Checkmark
-                Center(
-                  child: Container(
-                    width: 100,
-                    height: 100,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: darkGreen, width: 12.0),
+                // Huge Checkmark with Animation
+                TweenAnimationBuilder(
+                  duration: const Duration(milliseconds: 1000),
+                  curve: Curves.elasticOut,
+                  tween: Tween<double>(begin: 0.0, end: 1.0),
+                  builder: (context, double value, child) {
+                    return Transform.scale(
+                      scale: value,
+                      child: child,
+                    );
+                  },
+                  child: Center(
+                    child: Container(
+                      width: 100,
+                      height: 100,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: darkGreen, width: 12.0),
+                        boxShadow: [
+                          BoxShadow(
+                            color: darkGreen.withOpacity(0.3),
+                            blurRadius: 15,
+                            spreadRadius: 2,
+                            offset: const Offset(0, 5),
+                          )
+                        ]
+                      ),
+                      child: const Icon(Icons.check, color: darkGreen, size: 56),
                     ),
-                    child: const Icon(Icons.check, color: darkGreen, size: 56),
                   ),
                 ),
                 
                 const SizedBox(height: 24.0),
                 
-                // Text headers
-                const Center(
-                  child: Text(
-                    'PICKUP READY',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.grey,
-                    ),
-                  ),
-                ),
-                Center(
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      orderId,
-                      maxLines: 1,
-                      style: const TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
+                // Text headers with Fade & Slide Animation
+                TweenAnimationBuilder(
+                  duration: const Duration(milliseconds: 600),
+                  tween: Tween<double>(begin: 0.0, end: 1.0),
+                  builder: (context, double value, child) {
+                    return Opacity(
+                      opacity: value,
+                      child: Transform.translate(
+                        offset: Offset(0, 20 * (1 - value)),
+                        child: child,
                       ),
-                    ),
-                  ),
-                ),
-                Center(
-                  child: Text(
-                    customerDetails,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: beigeColor,
-                    ),
-                  ),
-                ),
-                Center(
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 8.0),
-                    child: Text(
-                      formattedTime,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey,
+                    );
+                  },
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      const Text(
+                        'PICKUP READY',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.grey,
+                          letterSpacing: 2.0,
+                        ),
                       ),
-                    ),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          orderId,
+                          maxLines: 1,
+                          style: const TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        customerDetails,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: beigeColor,
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8.0),
+                        child: Text(
+                          formattedTime,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 
@@ -188,29 +218,28 @@ class PickupReadyPage extends StatelessWidget {
                             const SizedBox(height: 4.0),
                             Row(
                               children: [
-                                Expanded(
-                                  child: Wrap(
-                                    spacing: 8.0,
-                                    runSpacing: 6.0,
-                                    children: item.tags.map((tag) {
-                                      return Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 4.0),
+                                  Expanded(
+                                    child: Wrap(
+                                      spacing: 6.0,
+                                      runSpacing: 6.0,
+                                      children: item.tags.map((tag) => Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 6.0),
                                         decoration: BoxDecoration(
-                                          color: darkGreen,
-                                          borderRadius: BorderRadius.circular(12.0),
+                                          color: darkGreen.withOpacity(0.06),
+                                          borderRadius: BorderRadius.circular(8.0),
+                                          border: Border.all(color: darkGreen.withOpacity(0.1)),
                                         ),
                                         child: Text(
                                           tag,
-                                          style: const TextStyle(
-                                            color: Colors.white,
+                                          style: TextStyle(
+                                            color: darkGreen,
                                             fontSize: 12,
                                             fontWeight: FontWeight.w700,
                                           ),
                                         ),
-                                      );
-                                    }).toList(),
+                                      )).toList(),
+                                    ),
                                   ),
-                                ),
                               ],
                             ),
                             if (idx < items.length - 1) ...[
