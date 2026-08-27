@@ -13,6 +13,7 @@ import { exportToCSV } from '../utils/exportToCSV';
 import RefundDetails from "./RefundDetails";
 import ViewProfile from "./ViewProfile";
 import { adminRequest } from '../lib/adminApi';
+import { formatPaymentLabel } from '../utils/reporting';
 
 //Custom Icons for Timeline 
 
@@ -62,7 +63,7 @@ const SolidCheckSquareIcon = ({ size = 20, className = "" }) => (
 
 // Mock Data
 
-const allOrders = [
+const allOrders = []; /*
   {
     id: "ORD-0510-001",
     customer: "miraelys",
@@ -311,7 +312,7 @@ const allOrders = [
     time: "10:21 AM",
     date: "Aug 19, 2026"
   }
-];
+*/
 
 // Helpers matching Customers Page
 
@@ -346,10 +347,16 @@ const getStatusBadge = (s) => {
 };
 
 const getPaymentBadge = (p) => {
-  if (p === "Refunded" || p === "Refund") {
+  const normalized = String(p || '').trim().toLowerCase();
+
+  if (!normalized) {
+    return <span className="px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md bg-gray-100 text-gray-600">-</span>;
+  }
+
+  if (normalized === "refunded" || normalized === "refund") {
     return <span className="px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md bg-red-100 text-red-600">Refunded</span>;
   }
-  return <span className="px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md bg-green-100 text-green-600">Paid</span>;
+  return <span className="px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md bg-green-100 text-green-600">{formatPaymentLabel(p) || 'Paid'}</span>;
 };
 
 const formatRm = (value) => {
@@ -654,7 +661,9 @@ const OrderDetailPanel = ({ order, onClose, onViewProfile }) => {
             <div className="w-8 h-8 rounded-lg bg-[#2E5E58] flex items-center justify-center text-white shrink-0 shadow-sm">
               <Coins size={15} strokeWidth={2.3} />
             </div>
-            <span className="text-xs font-semibold text-gray-900">C2 Tokens</span>
+            <span className="text-xs font-semibold text-gray-900">
+              {formatPaymentLabel(order.paymentMode)}
+            </span>
           </div>
           {getPaymentBadge(order.paymentStatus)}
         </div>

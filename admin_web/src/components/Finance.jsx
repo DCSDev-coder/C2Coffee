@@ -1,9 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  ArrowRight,
   BarChart3,
   Download,
-  Layers3,
   RefreshCw,
   ReceiptText,
   ShoppingCart,
@@ -14,9 +12,6 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
-  Pie,
-  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -24,11 +19,9 @@ import {
 } from 'recharts';
 import { exportToCSV } from '../utils/exportToCSV';
 import { loadAdminFinanceOverview } from '../lib/adminApi';
-import { formatReportMoney, formatReportTokens } from '../utils/reporting';
+import { formatPaymentLabel, formatReportMoney, formatReportTokens } from '../utils/reporting';
 
 const REFRESH_INTERVAL_MS = 60_000;
-
-const COLORS = ['#1F3A34', '#2E5E58', '#6F9F96', '#8AACA5', '#E07A5F', '#D4AF7A'];
 
 const EMPTY_OVERVIEW = {
   summary: {
@@ -66,22 +59,6 @@ const StatCard = ({ title, value, subtitle, icon: Icon, iconBg, iconColor = 'tex
     </div>
   </div>
 );
-
-function FinanceActionButton({ icon: Icon, label, onClick }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 transition-colors shadow-sm text-left"
-    >
-      <span className="flex items-center gap-2 font-semibold text-gray-800">
-        <Icon size={16} className="text-[#1F3A34]" />
-        {label}
-      </span>
-      <ArrowRight size={16} className="text-gray-400" />
-    </button>
-  );
-}
 
 const Finance = ({ setCurrentPage }) => {
   const [overview, setOverview] = useState(EMPTY_OVERVIEW);
@@ -122,16 +99,15 @@ const Finance = ({ setCurrentPage }) => {
 
   const summary = overview.summary || EMPTY_OVERVIEW.summary;
   const monthlyRevenue = Array.isArray(overview.monthlyRevenue) ? overview.monthlyRevenue : [];
-  const statusBreakdown = Array.isArray(overview.statusBreakdown) ? overview.statusBreakdown : [];
   const recentTransactions = Array.isArray(overview.recentTransactions) ? overview.recentTransactions : [];
-
-  const financeActions = useMemo(() => ([
-    { label: 'Revenue Report', page: 'RevenueReport', icon: BarChart3 },
-    { label: 'All Transactions', page: 'AllTransactions', icon: ReceiptText },
-    { label: 'Expense Breakdown', page: 'ExpenseBreakdownFull', icon: Layers3 },
-    { label: 'Product Report', page: 'Product Report', icon: ShoppingCart },
-    { label: 'Generate Invoice', page: 'GenerateInvoice', icon: Wallet }
-  ]), []);
+  const netTokens = Number(summary.netTokens ?? Math.max(0, Number(summary.totalTokensCharged || 0) - Number(summary.totalRefundTokens || 0)));
+  const tokenRefundRate = Number(summary.totalTokensCharged || 0) > 0
+    ? (Number(summary.totalRefundTokens || 0) / Number(summary.totalTokensCharged || 0)) * 100
+    : 0;
+  const peakTokenMonth = monthlyRevenue.reduce((best, entry) => {
+    if (!best) return entry;
+    return Number(entry.tokensCharged || 0) > Number(best.tokensCharged || 0) ? entry : best;
+  }, null);
 
   const exportRows = useMemo(() => {
     return [
@@ -155,13 +131,25 @@ const Finance = ({ setCurrentPage }) => {
 
   const revenueChartData = monthlyRevenue.map((entry) => ({
     month: entry.month,
-    grossRevenueRm: entry.revenueRm,
-    refundsRm: entry.refundRm,
-    netRevenueRm: entry.netRm,
-    orders: entry.orders
+    tokensCharged: Number(entry.tokensCharged || 0),
+    refundTokens: Number(entry.refundTokens || 0),
+    netTokens: Number(entry.netTokens || 0),
+    grossRevenueRm: Number(entry.revenueRm || 0),
+    netRevenueRm: Number(entry.netRm || 0)
   }));
+  const maxTokenValue = revenueChartData.reduce((max, entry) => Math.max(
+    max,
+    Number(entry.tokensCharged || 0),
+    Number(entry.refundTokens || 0),
+    Number(entry.netTokens || 0)
+  ), 0);
+  const tokenTickStep = Math.max(250, Math.ceil(Math.max(maxTokenValue, 1) / 4 / 250) * 250);
+  const tokenAxisMax = Math.max(tokenTickStep, Math.ceil(maxTokenValue / tokenTickStep) * tokenTickStep);
+  const tokenAxisTicks = Array.from(
+    { length: Math.floor(tokenAxisMax / tokenTickStep) + 1 },
+    (_, index) => index * tokenTickStep
+  );
 
-  const topStatusShare = statusBreakdown.reduce((acc, entry) => acc + Number(entry.value || 0), 0);
   const topTransactions = recentTransactions.slice(0, 8);
   const refreshOverview = async () => {
     try {
@@ -181,7 +169,7 @@ const Finance = ({ setCurrentPage }) => {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Finance</h1>
             <p className="text-sm text-gray-500 mt-1">
-              Live finance overview sourced from orders and refunds.
+              Token-first finance view for daily operations and RM reconciliation.
             </p>
             <p className="text-xs text-gray-400 mt-2">
               {loading ? 'Refreshing live data...' : error ? `Showing last successful data. ${error}` : `Last updated ${lastUpdatedAt?.toLocaleString('en-MY') || 'just now'}`}
@@ -206,121 +194,97 @@ const Finance = ({ setCurrentPage }) => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4 shrink-0">
-          <StatCard
-            title="Gross Revenue"
-            value={formatReportMoney(summary.totalRevenueRm)}
-            subtitle={`${formatReportTokens(summary.totalTokensCharged)} charged`}
-            icon={TrendingUp}
-            iconBg="bg-[#1F3A34]"
-          />
-          <StatCard
-            title="Net Revenue"
-            value={formatReportMoney(summary.netRevenueRm)}
-            subtitle="After completed refunds"
-            icon={BarChart3}
-            iconBg="bg-[#2E5E58]"
-          />
-          <StatCard
-            title="Tokens Charged"
-            value={formatReportTokens(summary.totalTokensCharged)}
-            subtitle={`${summary.totalOrders.toLocaleString('en-US')} orders`}
-            icon={Wallet}
-            iconBg="bg-[#6F9F96]"
-          />
-          <StatCard
-            title="Refunds"
-            value={formatReportMoney(summary.totalRefundAmountRm)}
-            subtitle={`${summary.refundedOrders.toLocaleString('en-US')} refund${summary.refundedOrders === 1 ? '' : 's'}`}
-            icon={ReceiptText}
-            iconBg="bg-[#E07A5F]"
-          />
-          <StatCard
-            title="Average Order"
-            value={formatReportMoney(summary.averageOrderValueRm)}
-            subtitle={`${summary.completedOrders.toLocaleString('en-US')} completed orders`}
-            icon={ShoppingCart}
-            iconBg="bg-[#D4AF7A]"
-          />
+        <div className="overflow-x-auto pb-1">
+          <div className="min-w-[1180px]">
+            <div className="grid grid-cols-4 gap-4 shrink-0">
+              <StatCard
+                title="Tokens Charged"
+                value={formatReportTokens(summary.totalTokensCharged)}
+                subtitle={`${formatReportMoney(summary.totalRevenueRm)} gross RM`}
+                icon={Wallet}
+                iconBg="bg-[#1F3A34]"
+              />
+              <StatCard
+                title="Net Tokens Kept"
+                value={formatReportTokens(netTokens)}
+                subtitle={`${formatReportTokens(summary.totalRefundTokens)} refunded`}
+                icon={BarChart3}
+                iconBg="bg-[#2E5E58]"
+              />
+              <StatCard
+                title="Refund Tokens"
+                value={formatReportTokens(summary.totalRefundTokens)}
+                subtitle={`${tokenRefundRate.toFixed(1)}% of token volume`}
+                icon={ReceiptText}
+                iconBg="bg-[#E07A5F]"
+              />
+              <StatCard
+                title="Orders Processed"
+                value={summary.totalOrders.toLocaleString('en-US')}
+                subtitle={`${summary.activeOrders.toLocaleString('en-US')} active · ${summary.completedOrders.toLocaleString('en-US')} completed`}
+                icon={ShoppingCart}
+                iconBg="bg-[#6F9F96]"
+              />
+            </div>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-          <div className="lg:col-span-3 bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex flex-col min-h-[380px]">
-            <div className="flex items-center justify-between gap-4 mb-5">
-              <div>
-                <h3 className="text-lg font-bold text-gray-900">Revenue by Month</h3>
-                <p className="text-sm text-gray-500">Gross revenue, refunds, and net revenue.</p>
-              </div>
+        <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex flex-col min-h-[440px]">
+          <div className="flex items-start justify-between gap-4 mb-5">
+            <div>
+              <h3 className="text-lg font-bold text-gray-900">Token Flow by Month</h3>
+              <p className="text-sm text-gray-500">Token volume is the primary operating signal. RM stays visible only for reconciliation.</p>
             </div>
-            <div className="flex-1 min-h-[280px]">
+            <div className="flex shrink-0 items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+              Token first
+            </div>
+          </div>
+
+          <div className="overflow-x-auto pb-2">
+            <div className="h-[360px]" style={{ minWidth: `${Math.max(960, revenueChartData.length * 180)}px` }}>
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={revenueChartData} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
+                <BarChart data={revenueChartData} margin={{ top: 20, right: 28, left: 0, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
                   <XAxis dataKey="month" axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 12, fill: '#6B7280', fontWeight: 600 }} dy={10} />
-                  <YAxis axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 12, fill: '#6B7280', fontWeight: 600 }} tickFormatter={(val) => `RM ${(val / 1000).toFixed(0)}K`} />
+                  <YAxis
+                    axisLine={{ stroke: '#E5E7EB' }}
+                    tickLine={false}
+                    tick={{ fontSize: 12, fill: '#6B7280', fontWeight: 600 }}
+                    tickFormatter={(val) => Number(val).toLocaleString('en-US')}
+                    tickCount={tokenAxisTicks.length}
+                    ticks={tokenAxisTicks}
+                    domain={[0, tokenAxisMax]}
+                    allowDecimals={false}
+                    width={68}
+                  />
                   <Tooltip
                     cursor={{ fill: '#F3F4F6' }}
                     contentStyle={{ backgroundColor: '#1F3A34', borderRadius: '8px', border: 'none', color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
                     itemStyle={{ color: '#fff' }}
-                    formatter={(value, name) => [`RM ${Number(value).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, name]}
+                    formatter={(value, name) => [`${Number(value).toLocaleString('en-US')} tokens`, name]}
                   />
-                  <Bar dataKey="grossRevenueRm" name="Gross revenue" fill="#1F3A34" radius={[4, 4, 0, 0]} barSize={18} />
-                  <Bar dataKey="refundsRm" name="Refunds" fill="#E07A5F" radius={[4, 4, 0, 0]} barSize={18} />
-                  <Bar dataKey="netRevenueRm" name="Net revenue" fill="#6F9F96" radius={[4, 4, 0, 0]} barSize={18} />
+                  <Bar dataKey="tokensCharged" name="Tokens charged" fill="#1F3A34" radius={[4, 4, 0, 0]} barSize={22} />
+                  <Bar dataKey="refundTokens" name="Refund tokens" fill="#E07A5F" radius={[4, 4, 0, 0]} barSize={22} />
+                  <Bar dataKey="netTokens" name="Net tokens" fill="#6F9F96" radius={[4, 4, 0, 0]} barSize={22} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
 
-          <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex flex-col min-h-[380px]">
-            <div className="flex items-center justify-between gap-4 mb-5">
-              <div>
-                <h3 className="text-lg font-bold text-gray-900">Order Mix</h3>
-                <p className="text-sm text-gray-500">Status distribution of live orders.</p>
-              </div>
+          <div className="mt-4 grid grid-cols-3 gap-3 text-sm">
+            <div className="rounded-xl border border-gray-200 px-4 py-3">
+              <p className="text-xs uppercase tracking-[0.14em] text-gray-500">Gross RM</p>
+              <p className="mt-1 font-semibold text-gray-900">{formatReportMoney(summary.totalRevenueRm)}</p>
             </div>
-
-            <div className="flex-1 flex flex-col lg:flex-row gap-4">
-              <div className="w-full lg:w-52 h-52 mx-auto lg:mx-0 shrink-0">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={statusBreakdown} dataKey="value" nameKey="name" innerRadius={60} outerRadius={84} paddingAngle={2} stroke="none">
-                      {statusBreakdown.map((entry, index) => (
-                        <Cell key={`status-${entry.name}`} fill={entry.color || COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      formatter={(value, name) => [`${Number(value).toLocaleString('en-US')} orders`, name]}
-                      contentStyle={{ backgroundColor: '#1F3A34', borderRadius: '8px', border: 'none', color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
-                      itemStyle={{ color: '#fff' }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-
-              <div className="flex-1 space-y-3 overflow-y-auto">
-                {statusBreakdown.length > 0 ? statusBreakdown.map((entry, index) => (
-                  <div key={entry.name} className="flex items-center justify-between gap-3 p-3 rounded-xl border border-gray-100">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: entry.color || COLORS[index % COLORS.length] }} />
-                      <div className="min-w-0">
-                        <p className="font-semibold text-gray-900 truncate">{entry.name}</p>
-                        <p className="text-xs text-gray-500">{Number(entry.value || 0).toLocaleString('en-US')} orders</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-bold text-gray-900">{formatReportMoney(entry.amountRm)}</p>
-                      <p className="text-xs text-gray-500">
-                        {topStatusShare > 0 ? `${((Number(entry.value || 0) / topStatusShare) * 100).toFixed(1)}%` : '0%'}
-                      </p>
-                    </div>
-                  </div>
-                )) : (
-                  <div className="flex-1 flex items-center justify-center text-sm text-gray-500 border border-dashed border-gray-200 rounded-xl">
-                    No status data available yet.
-                  </div>
-                )}
-              </div>
+            <div className="rounded-xl border border-gray-200 px-4 py-3">
+              <p className="text-xs uppercase tracking-[0.14em] text-gray-500">Net RM</p>
+              <p className="mt-1 font-semibold text-gray-900">{formatReportMoney(summary.netRevenueRm)}</p>
+            </div>
+            <div className="rounded-xl border border-gray-200 px-4 py-3">
+              <p className="text-xs uppercase tracking-[0.14em] text-gray-500">Peak month</p>
+              <p className="mt-1 font-semibold text-gray-900">
+                {peakTokenMonth ? `${peakTokenMonth.month} · ${formatReportTokens(peakTokenMonth.tokensCharged)}` : '-'}
+              </p>
             </div>
           </div>
         </div>
@@ -329,7 +293,7 @@ const Finance = ({ setCurrentPage }) => {
           <div className="p-5 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shrink-0">
             <div>
               <h3 className="text-lg font-bold text-gray-900">Recent Transactions</h3>
-              <p className="text-sm text-gray-500">Latest orders and refunds from the live backend.</p>
+              <p className="text-sm text-gray-500">Token-first transaction feed, with RM shown for reference.</p>
             </div>
             <div className="flex items-center gap-3">
               <button
@@ -356,7 +320,7 @@ const Finance = ({ setCurrentPage }) => {
                   <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Date & Time</th>
                   <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Type</th>
                   <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Description</th>
-                  <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100 text-right">Amount</th>
+                  <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100 text-right">Tokens</th>
                   <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Status</th>
                   <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Payment</th>
                 </tr>
@@ -370,20 +334,20 @@ const Finance = ({ setCurrentPage }) => {
                     </td>
                     <td className="px-6 py-4 text-gray-600 font-medium">{transaction.type}</td>
                     <td className="px-6 py-4 text-gray-700 font-medium max-w-[360px] truncate">{transaction.description}</td>
-                    <td className={`px-6 py-4 text-right font-bold ${Number(transaction.amountRm || 0) < 0 ? 'text-red-700' : 'text-gray-900'}`}>
-                      <div>{formatReportMoney(transaction.amountRm)}</div>
-                      <div className="text-xs font-semibold text-gray-500">{formatReportTokens(transaction.amountTokens)}</div>
+                    <td className={`px-6 py-4 text-right font-bold ${Number(transaction.amountTokens || 0) < 0 ? 'text-red-700' : 'text-gray-900'}`}>
+                      <div>{formatReportTokens(transaction.amountTokens)}</div>
+                      <div className="text-xs font-semibold text-gray-500">{formatReportMoney(transaction.amountRm)}</div>
                     </td>
                     <td className="px-6 py-4">
                       <span className={`px-2.5 py-1 rounded-md text-xs font-bold ${
-                        Number(transaction.amountRm || 0) < 0
+                        Number(transaction.amountTokens || 0) < 0
                           ? 'bg-red-100 text-red-700'
                           : 'bg-green-100 text-green-700'
                       }`}>
                         {transaction.status}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-gray-600 font-medium">{transaction.paymentMode || 'C2 Tokens'}</td>
+                    <td className="px-6 py-4 text-gray-600 font-medium">{formatPaymentLabel(transaction.paymentMode)}</td>
                   </tr>
                 )) : (
                   <tr>

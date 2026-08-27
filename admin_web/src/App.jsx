@@ -12,10 +12,7 @@ import LoyaltyTokens from './components/LoyaltyTokens';
 import Menu from './components/Menu';
 import Marketing from './components/Marketing';
 import Finance from './components/Finance';
-import GenerateInvoice from './components/GenerateInvoice';
-import RecordExpense from './components/RecordExpense';
 import RevenueReport from './components/RevenueReport';
-import ExportStatement from './components/ExportStatement';
 import AllTransactions from './components/AllTransactions';
 import ExpenseBreakdownFull from './components/ExpenseBreakdownFull';
 import AllCampaigns from './components/AllCampaigns';
@@ -94,7 +91,7 @@ function App() {
   };
 
   const layoutCurrentPage = ['Refunds'].includes(currentPage) ? 'Orders'
-    : ['GenerateInvoice', 'RecordExpense', 'RevenueReport', 'ExportStatement', 'AllTransactions', 'ExpenseBreakdownFull'].includes(currentPage) ? 'Finance'
+    : ['RevenueReport', 'AllTransactions', 'ExpenseBreakdownFull'].includes(currentPage) ? 'Finance'
       : ['AllCampaigns', 'AllPushNotifications', 'AllContentPerformance'].includes(currentPage) ? 'Marketing'
         : currentPage;
 
@@ -174,10 +171,7 @@ function App() {
       {currentPage === 'AllPushNotifications' && <AllPushNotifications onBack={() => handleNavigate('Marketing')} />}
       {currentPage === 'AllContentPerformance' && <AllContentPerformance onBack={() => handleNavigate('Marketing')} />}
       {currentPage === 'Finance' && <Finance setCurrentPage={handleNavigate} />}
-      {currentPage === 'GenerateInvoice' && <GenerateInvoice onBack={() => handleNavigate('Finance')} />}
-      {currentPage === 'RecordExpense' && <RecordExpense onBack={() => handleNavigate('Finance')} />}
       {currentPage === 'RevenueReport' && <RevenueReport onBack={() => handleNavigate('Finance')} />}
-      {currentPage === 'ExportStatement' && <ExportStatement onBack={() => handleNavigate('Finance')} />}
       {currentPage === 'AllTransactions' && <AllTransactions onBack={() => handleNavigate('Finance')} />}
       {currentPage === 'ExpenseBreakdownFull' && <ExpenseBreakdownFull onBack={() => handleNavigate('Finance')} />}
       {currentPage === 'Product Report' && <ReportByProduct onBack={() => handleNavigate('Finance')} />}

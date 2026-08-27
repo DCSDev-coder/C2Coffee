@@ -64,6 +64,20 @@ export function formatReportTokens(value, { withPrefix = true, fractionDigits = 
   return withPrefix ? `${formatted} tokens` : formatted;
 }
 
+export function formatPaymentLabel(value) {
+  const raw = String(value ?? '').trim();
+  if (!raw) {
+    return '-';
+  }
+
+  return raw
+    .replace(/[_-]+/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => (part.length <= 2 ? part.toUpperCase() : part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()))
+    .join(' ');
+}
+
 function monthKey(date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -134,14 +148,17 @@ export function buildFinanceOverview(orders = [], refunds = []) {
       month: monthLabel(orderDate),
       revenueRm: 0,
       refundRm: 0,
+      refundTokens: 0,
       netRm: 0,
       tokensCharged: 0,
+      netTokens: 0,
       orders: 0
     };
 
     if (shouldCountAsRevenue) {
       currentBucket.revenueRm += orderTotalRm;
       currentBucket.tokensCharged += orderTokens;
+      currentBucket.netTokens += orderTokens;
       currentBucket.orders += 1;
       currentBucket.netRm += orderTotalRm;
     }
@@ -166,9 +183,9 @@ export function buildFinanceOverview(orders = [], refunds = []) {
       description: `Order ${order.id}${order.customer ? ` · ${order.customer}` : ''}`,
       amountRm: orderTotalRm,
       amountTokens: orderTokens,
-      status: order.status || 'Completed',
-      paymentStatus: order.paymentStatus || 'Paid',
-      paymentMode: order.paymentMode || order.payment || 'C2 Tokens',
+      status: order.status || '',
+      paymentStatus: order.paymentStatus || '',
+      paymentMode: order.paymentMode || order.payment || '',
       reference: order.txnId || order.id
     });
   }
@@ -193,13 +210,17 @@ export function buildFinanceOverview(orders = [], refunds = []) {
       month: monthLabel(refundDate),
       revenueRm: 0,
       refundRm: 0,
+      refundTokens: 0,
       netRm: 0,
       tokensCharged: 0,
+      netTokens: 0,
       orders: 0
     };
 
     if (isRefundCompleted(refund.status)) {
       currentBucket.refundRm += refundAmountRm;
+      currentBucket.refundTokens += refundTokens;
+      currentBucket.netTokens -= refundTokens;
       currentBucket.netRm -= refundAmountRm;
     }
     monthMap.set(monthKey(refundDate), currentBucket);
@@ -213,9 +234,9 @@ export function buildFinanceOverview(orders = [], refunds = []) {
       description: `Refund ${refund.orderId}${refund.reason ? ` · ${refund.reason}` : ''}`,
       amountRm: -refundAmountRm,
       amountTokens: -refundTokens,
-      status: refund.status || 'Pending',
-      paymentStatus: refund.status || 'Pending',
-      paymentMode: refund.paymentMethod || 'C2 Tokens',
+      status: refund.status || '',
+      paymentStatus: refund.status || '',
+      paymentMode: refund.paymentMethod || '',
       reference: refund.id
     });
   }
@@ -228,6 +249,8 @@ export function buildFinanceOverview(orders = [], refunds = []) {
       refundRm: Number(entry.refundRm.toFixed(2)),
       netRm: Number((entry.revenueRm - entry.refundRm).toFixed(2)),
       tokensCharged: Math.round(entry.tokensCharged),
+      refundTokens: Math.round(entry.refundTokens),
+      netTokens: Math.round(entry.netTokens),
       orders: entry.orders
     }));
 
@@ -253,6 +276,7 @@ export function buildFinanceOverview(orders = [], refunds = []) {
       totalTokensCharged: Math.round(totalTokensCharged),
       totalRefundAmountRm: Number(totalRefundAmountRm.toFixed(2)),
       totalRefundTokens: Math.round(totalRefundTokens),
+      netTokens: Math.round(totalTokensCharged - totalRefundTokens),
       netRevenueRm: totalNetRevenueRm,
       totalOrders,
       activeOrders,
