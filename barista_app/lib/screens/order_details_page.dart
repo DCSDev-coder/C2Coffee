@@ -47,6 +47,8 @@ class OrderDetailsPage extends StatelessWidget {
   }
 
   Widget _buildContent(BuildContext context, CurrentOrder? order, Color darkGreen, Color beigeColor, Color buttonOrange) {
+    final bool isNewOrder = order != null ? order.status == OrderStatus.newOrder : false;
+    final bool isPreparing = order != null ? order.status == OrderStatus.preparing : false;
     final bool isReady = order != null ? order.status == OrderStatus.readyForPickup : false;
     final bool isCompleted = isHistory || (order == null && !isHistory); 
 
@@ -114,25 +116,37 @@ class OrderDetailsPage extends StatelessWidget {
                           FittedBox(
                             fit: BoxFit.scaleDown,
                             alignment: Alignment.centerLeft,
-                            child: Text(
-                              '#$orderId',
-                              maxLines: 1,
-                              style: TextStyle(
-                                color: darkGreen,
-                                fontSize: 32,
-                                fontWeight: FontWeight.bold,
+                            child: Hero(
+                              tag: 'hero_order_id_$orderId',
+                              child: Material(
+                                color: Colors.transparent,
+                                child: Text(
+                                  '#$orderId',
+                                  maxLines: 1,
+                                  style: TextStyle(
+                                    color: darkGreen,
+                                    fontSize: 32,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                               ),
                             ),
                           ),
                           FittedBox(
                             fit: BoxFit.scaleDown,
                             alignment: Alignment.centerLeft,
-                            child: Text(
-                              customerDetails,
-                              style: TextStyle(
-                                color: beigeColor,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w400,
+                            child: Hero(
+                              tag: 'hero_customer_$orderId',
+                              child: Material(
+                                color: Colors.transparent,
+                                child: Text(
+                                  customerDetails,
+                                  style: TextStyle(
+                                    color: beigeColor,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w400,
+                                  ),
+                                ),
                               ),
                             ),
                           ),
@@ -146,41 +160,54 @@ class OrderDetailsPage extends StatelessWidget {
               const SizedBox(height: 24.0),
               
               // Status Tracker
-              Container(
-                padding: const EdgeInsets.symmetric(vertical: 20.0, horizontal: 16.0),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  border: Border.all(color: darkGreen, width: 1.2),
-                  borderRadius: BorderRadius.circular(20.0),
-                ),
-                child: Row(
-                  children: [
-                    _buildStatusNode(
-                      title: 'Ordered',
-                      icon: Icons.receipt_long,
-                      isActive: true,
-                      isCompleted: true,
-                      color: darkGreen,
+              Hero(
+                tag: 'hero_status_$orderId',
+                child: Material(
+                  color: Colors.transparent,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 20.0, horizontal: 16.0),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: Border.all(color: darkGreen, width: 1.2),
+                      borderRadius: BorderRadius.circular(20.0),
                     ),
-                    _buildConnector(isActive: true, color: darkGreen),
-                    _buildStatusNode(
-                      title: 'Preparing',
-                      icon: Icons.coffee_maker,
-                      isActive: true,
-                      isCompleted: isReady || isCompleted,
-                      color: darkGreen,
+                    child: SingleChildScrollView(
+                      physics: const NeverScrollableScrollPhysics(),
+                      child: Row(
+                        children: [
+                          _buildStatusNode(
+                            title: 'Ordered',
+                            icon: Icons.receipt_long,
+                            isActive: true,
+                            isCompleted: true,
+                            color: darkGreen,
+                          ),
+                          (isPreparing || isReady || isCompleted)
+                              ? _buildConnector(isActive: true, color: darkGreen)
+                              : _buildConnector(isActive: false, color: Colors.grey.shade300),
+                          _buildStatusNode(
+                            title: 'Preparing',
+                            icon: Icons.coffee_maker,
+                            isActive: (isPreparing || isReady || isCompleted),
+                            isCompleted: (isPreparing || isReady || isCompleted),
+                            color: (isPreparing || isReady || isCompleted) ? darkGreen : Colors.grey.shade300,
+                          ),
+                          (isReady || isCompleted)
+                              ? _buildConnector(isActive: true, color: darkGreen)
+                              : (isPreparing)
+                                  ? _buildAnimatedConnector(color: darkGreen, trackColor: Colors.grey.shade300)
+                                  : _buildConnector(isActive: false, color: Colors.grey.shade300),
+                          _buildStatusNode(
+                            title: 'Ready',
+                            icon: Icons.check,
+                            isActive: (isReady || isCompleted),
+                            isCompleted: (isReady || isCompleted),
+                            color: (isReady || isCompleted) ? darkGreen : Colors.grey.shade300,
+                          ),
+                        ],
+                      ),
                     ),
-                    (isReady || isCompleted)
-                        ? _buildConnector(isActive: true, color: darkGreen)
-                        : _buildAnimatedConnector(color: darkGreen, trackColor: Colors.grey.shade300),
-                    _buildStatusNode(
-                      title: 'Ready',
-                      icon: Icons.check,
-                      isActive: isReady || isCompleted,
-                      isCompleted: isReady || isCompleted,
-                      color: (isReady || isCompleted) ? darkGreen : Colors.grey.shade300,
-                    ),
-                  ],
+                  ),
                 ),
               ),
               
@@ -266,11 +293,11 @@ class OrderDetailsPage extends StatelessWidget {
                         height: 56,
                         child: ElevatedButton(
                           onPressed: () async {
-                            if (order != null && order.status == OrderStatus.newOrder) {
+                            if (isNewOrder) {
                               await ApiService.updateOrderStatus(orderId, 'preparing');
                               order.status = OrderStatus.preparing;
                               globalCurrentOrders.value = List.from(globalCurrentOrders.value);
-                            } else if (order != null && order.status == OrderStatus.preparing) {
+                            } else if (isPreparing) {
                               Navigator.push(
                                 context,
                                 PageRouteBuilder(
@@ -289,7 +316,7 @@ class OrderDetailsPage extends StatelessWidget {
                             }
                           },
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: (order?.status == OrderStatus.newOrder) ? darkGreen : beigeColor,
+                            backgroundColor: isNewOrder ? darkGreen : beigeColor,
                             foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(16.0),
@@ -297,7 +324,7 @@ class OrderDetailsPage extends StatelessWidget {
                             elevation: 0,
                           ),
                           child: Text(
-                            order?.status == OrderStatus.newOrder 
+                            isNewOrder 
                               ? 'Start Preparing' 
                               : 'Mark as Ready',
                             style: const TextStyle(
@@ -398,18 +425,12 @@ class OrderDetailsPage extends StatelessWidget {
       child: Container(
         margin: const EdgeInsets.only(bottom: 24.0), // offset for text
         height: 4,
-        color: trackColor,
-        alignment: Alignment.centerLeft,
-        child: TweenAnimationBuilder<double>(
-          tween: Tween(begin: 0.0, end: 0.85), // Animates to 85% full
-          duration: const Duration(milliseconds: 1500),
-          curve: Curves.easeOutCubic,
-          builder: (context, value, child) {
-            return FractionallySizedBox(
-              widthFactor: value,
-              child: Container(color: color),
-            );
-          },
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(2.0),
+          child: LinearProgressIndicator(
+            backgroundColor: trackColor,
+            color: color,
+          ),
         ),
       ),
     );

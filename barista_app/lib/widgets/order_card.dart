@@ -50,7 +50,6 @@ class OrderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const Color darkGreen = Color(0xFF304A3A);
-    const Color orangeColor = Color(0xFFDE7D66);
     const Color beigeColor = Color(0xFFD3B17D);
 
     final bool isPreparing = status == OrderStatus.preparing;
@@ -87,18 +86,24 @@ class OrderCard extends StatelessWidget {
                   ),
                 ),
                 if (!isHistory)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
-                    decoration: BoxDecoration(
-                      color: darkGreen,
-                      borderRadius: BorderRadius.circular(20.0),
-                    ),
-                    child: Text(
-                      isPreparing ? 'Preparing' : 'New',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+                  Hero(
+                    tag: 'hero_status_$orderId',
+                    child: Material(
+                      color: Colors.transparent,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+                        decoration: BoxDecoration(
+                          color: darkGreen,
+                          borderRadius: BorderRadius.circular(20.0),
+                        ),
+                        child: Text(
+                          isPreparing ? 'Preparing' : 'New',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -114,13 +119,19 @@ class OrderCard extends StatelessWidget {
                   child: FittedBox(
                     fit: BoxFit.scaleDown,
                     alignment: Alignment.centerLeft,
-                    child: Text(
-                      orderId,
-                      maxLines: 1,
-                      style: const TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
+                    child: Hero(
+                      tag: 'hero_order_id_$orderId',
+                      child: Material(
+                        color: Colors.transparent,
+                        child: Text(
+                          orderId,
+                          maxLines: 1,
+                          style: const TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -135,12 +146,18 @@ class OrderCard extends StatelessWidget {
             ),
             
             // Customer Details
-            Text(
-              customerDetails,
-              style: const TextStyle(
-                color: beigeColor,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
+            Hero(
+              tag: 'hero_customer_$orderId',
+              child: Material(
+                color: Colors.transparent,
+                child: Text(
+                  customerDetails,
+                  style: const TextStyle(
+                    color: beigeColor,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
             ),
             
