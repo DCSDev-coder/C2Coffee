@@ -65,7 +65,7 @@ class ApiService {
             parsedStatus = OrderStatus.preparing;
           } else if (statusStr.contains('ready')) {
             parsedStatus = OrderStatus.readyForPickup;
-          } else if (statusStr.contains('completed')) {
+          } else if (statusStr.contains('completed') || statusStr.contains('collected')) {
             parsedStatus = OrderStatus.completed;
           }
 
