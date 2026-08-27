@@ -19,38 +19,13 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
   final Color darkGreen = const Color(0xFF304A3A);
   final Color beigeColor = const Color(0xFFD3B17D);
 
-  final TextEditingController _searchController = TextEditingController();
-  String _searchQuery = '';
-
-  @override
-  void initState() {
-    super.initState();
-    _searchController.addListener(() {
-      setState(() {
-        _searchQuery = _searchController.text.toLowerCase();
-      });
-    });
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<List<CurrentOrder>>(
       valueListenable: globalCurrentOrders,
       builder: (context, allOrders, _) {
 
-        final filteredOrders = allOrders
-            .where((order) {
-              if (_searchQuery.isEmpty) return true;
-              return order.orderId.toLowerCase().contains(_searchQuery) ||
-                  order.customerDetails.toLowerCase().contains(_searchQuery);
-            })
-            .toList();
+        final filteredOrders = allOrders.toList();
 
         return Scaffold(
           backgroundColor: Colors.white,
@@ -129,46 +104,6 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
 
 
 
-                            // Search Bar
-                            TextField(
-                              controller: _searchController,
-                              decoration: InputDecoration(
-                                hintText: 'Search by order ID or Username...',
-                                hintStyle: const TextStyle(
-                                  color: Colors.grey,
-                                  fontSize: 14,
-                                ),
-                                prefixIcon: Icon(
-                                  Icons.search,
-                                  color: darkGreen,
-                                ),
-                                contentPadding: const EdgeInsets.symmetric(
-                                  vertical: 12.0,
-                                ),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(30.0),
-                                  borderSide: BorderSide(
-                                    color: darkGreen,
-                                    width: 1.5,
-                                  ),
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(30.0),
-                                  borderSide: BorderSide(
-                                    color: darkGreen,
-                                    width: 1.5,
-                                  ),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(30.0),
-                                  borderSide: BorderSide(
-                                    color: darkGreen,
-                                    width: 2.0,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 16.0),
 
 
 
