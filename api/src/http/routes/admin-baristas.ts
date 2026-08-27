@@ -10,28 +10,28 @@ const baristaSchema = z.object({
 });
 
 export async function registerAdminBaristasRoutes(app: FastifyInstance) {
-  app.get('/v1/admin/baristas', async (request, reply) => {
-    const admin = await authenticateAdminRequest(request);
+  app.get('/v1/admin/baristas', { preHandler: authenticateAdminRequest }, async (request, reply) => {
+    const admin = request.adminAuth;
 
     const [rows] = await mysqlPool.query<RowDataPacket[]>(
       `SELECT id, name, is_active, created_at, updated_at
        FROM baristas
        WHERE tenant_code = ?
        ORDER BY created_at DESC`,
-      [admin.tenant_code]
+      [admin.tenantCode]
     );
 
     return reply.send({ baristas: rows });
   });
 
-  app.post('/v1/admin/baristas', async (request, reply) => {
-    const admin = await authenticateAdminRequest(request);
+  app.post('/v1/admin/baristas', { preHandler: authenticateAdminRequest }, async (request, reply) => {
+    const admin = request.adminAuth;
     const body = baristaSchema.parse(request.body);
 
     const [result] = await mysqlPool.query<ResultSetHeader>(
       `INSERT INTO baristas (tenant_code, name, is_active)
        VALUES (?, ?, ?)`,
-      [admin.tenant_code, body.name, body.is_active]
+      [admin.tenantCode, body.name, body.is_active]
     );
 
     const [rows] = await mysqlPool.query<RowDataPacket[]>(
@@ -42,28 +42,28 @@ export async function registerAdminBaristasRoutes(app: FastifyInstance) {
     return reply.code(201).send({ barista: rows[0] });
   });
 
-  app.put('/v1/admin/baristas/:id', async (request, reply) => {
-    const admin = await authenticateAdminRequest(request);
+  app.put('/v1/admin/baristas/:id', { preHandler: authenticateAdminRequest }, async (request, reply) => {
+    const admin = request.adminAuth;
     const { id } = request.params as { id: string };
     const body = baristaSchema.partial().parse(request.body);
 
     if (body.name !== undefined) {
       await mysqlPool.query<ResultSetHeader>(
         'UPDATE baristas SET name = ? WHERE id = ? AND tenant_code = ?',
-        [body.name, id, admin.tenant_code]
+        [body.name, id, admin.tenantCode]
       );
     }
 
     if (body.is_active !== undefined) {
       await mysqlPool.query<ResultSetHeader>(
         'UPDATE baristas SET is_active = ? WHERE id = ? AND tenant_code = ?',
-        [body.is_active, id, admin.tenant_code]
+        [body.is_active, id, admin.tenantCode]
       );
     }
 
     const [rows] = await mysqlPool.query<RowDataPacket[]>(
       'SELECT id, name, is_active, created_at, updated_at FROM baristas WHERE id = ? AND tenant_code = ?',
-      [id, admin.tenant_code]
+      [id, admin.tenantCode]
     );
 
     if (!rows.length) {
@@ -73,13 +73,13 @@ export async function registerAdminBaristasRoutes(app: FastifyInstance) {
     return reply.send({ barista: rows[0] });
   });
 
-  app.delete('/v1/admin/baristas/:id', async (request, reply) => {
-    const admin = await authenticateAdminRequest(request);
+  app.delete('/v1/admin/baristas/:id', { preHandler: authenticateAdminRequest }, async (request, reply) => {
+    const admin = request.adminAuth;
     const { id } = request.params as { id: string };
 
     const [result] = await mysqlPool.query<ResultSetHeader>(
       'DELETE FROM baristas WHERE id = ? AND tenant_code = ?',
-      [id, admin.tenant_code]
+      [id, admin.tenantCode]
     );
 
     if (result.affectedRows === 0) {
