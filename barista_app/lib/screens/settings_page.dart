@@ -317,29 +317,19 @@ class _SettingsPageState extends State<SettingsPage> {
                           ),
                         ],
                       )
-                    : TextButton(
+                    : IconButton(
                         key: const ValueKey('switch'),
                         onPressed: () {
                           globalActiveBarista.value = name;
                         },
-                        style: TextButton.styleFrom(
+                        style: IconButton.styleFrom(
                           foregroundColor: switchOrange,
                           backgroundColor: switchOrange.withValues(alpha: 0.1),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16.0,
-                            vertical: 8.0,
-                          ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12.0),
                           ),
                         ),
-                        child: const Text(
-                          'Switch',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                        ),
+                        icon: const Icon(Icons.swap_horiz_rounded),
                       ),
               ),
             ],
