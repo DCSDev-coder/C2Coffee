@@ -37,7 +37,7 @@ class _MainLayoutState extends State<MainLayout> {
       final fetchedOrders = await ApiService.fetchOrders();
       if (fetchedOrders.isNotEmpty) {
         globalCurrentOrders.value = fetchedOrders
-            .where((o) => o.status != OrderStatus.completed)
+            .where((o) => o.status != OrderStatus.completed && o.status != OrderStatus.readyForPickup)
             .toList();
         globalHistoryOrders.value = fetchedOrders
             .where((o) => o.status == OrderStatus.completed)

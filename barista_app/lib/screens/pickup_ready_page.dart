@@ -259,10 +259,10 @@ class PickupReadyPage extends StatelessWidget {
                         height: 52,
                         child: ElevatedButton(
                           onPressed: () async {
-                            // Update status to completed so it's fully done
-                            await ApiService.updateOrderStatus(orderId, 'completed');
+                            // Update status to ready_for_pickup so the customer sees it's ready
+                            await ApiService.updateOrderStatus(orderId, 'ready_for_pickup');
                             
-                            // Remove from current orders entirely
+                            // Remove from current orders entirely since Barista's job is done
                             globalCurrentOrders.value = globalCurrentOrders.value
                                 .where((o) => o.orderId != orderId)
                                 .toList();
