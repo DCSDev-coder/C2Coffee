@@ -95,4 +95,33 @@ export async function registerAdminBaristasRoutes(app: FastifyInstance) {
 
     return reply.code(204).send();
   });
+
+  app.put('/v1/admin/baristas/set-active-by-name', { preHandler: authenticateAdminRequest }, async (request, reply) => {
+    const admin = request.adminAuth;
+    const body = z.object({ name: z.string() }).parse(request.body);
+
+    await mysqlPool.query(
+      'UPDATE baristas SET is_active = false WHERE tenant_code = ?',
+      [admin.tenantCode]
+    );
+
+    await mysqlPool.query<ResultSetHeader>(
+      'UPDATE baristas SET is_active = true WHERE name = ? AND tenant_code = ?',
+      [body.name, admin.tenantCode]
+    );
+
+    return reply.send({ success: true });
+  });
+
+  app.put('/v1/admin/baristas/set-all-inactive', { preHandler: authenticateAdminRequest }, async (request, reply) => {
+    const admin = request.adminAuth;
+
+    await mysqlPool.query(
+      'UPDATE baristas SET is_active = false WHERE tenant_code = ?',
+      [admin.tenantCode]
+    );
+
+    return reply.send({ success: true });
+  });
 }
+

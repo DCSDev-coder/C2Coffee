@@ -29,6 +29,9 @@ class _SettingsPageState extends State<SettingsPage> {
       if (!baristas.contains(globalActiveBarista.value)) {
         globalActiveBarista.value = baristas.first;
       }
+      // Force sync the backend to match the app's single active barista,
+      // in case the database had multiple active baristas out of sync.
+      await ApiService.setBaristaActive(globalActiveBarista.value);
     }
   }
 
@@ -154,7 +157,9 @@ class _SettingsPageState extends State<SettingsPage> {
                         
                         // Log Out Button
                         ElevatedButton(
-                          onPressed: () {
+                          onPressed: () async {
+                            await ApiService.setAllBaristasInactive();
+                            if (!context.mounted) return;
                             Navigator.pushReplacement(
                               context,
                               MaterialPageRoute(builder: (context) => const LoginPage()),
@@ -319,8 +324,9 @@ class _SettingsPageState extends State<SettingsPage> {
                       )
                     : IconButton(
                         key: const ValueKey('switch'),
-                        onPressed: () {
+                        onPressed: () async {
                           globalActiveBarista.value = name;
+                          await ApiService.setBaristaActive(name);
                         },
                         style: IconButton.styleFrom(
                           foregroundColor: switchOrange,

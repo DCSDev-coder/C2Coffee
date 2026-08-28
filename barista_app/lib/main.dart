@@ -266,6 +266,8 @@ class _LoginPageState extends State<LoginPage> {
                                       if (!baristas.contains(globalActiveBarista.value)) {
                                         globalActiveBarista.value = baristas.first;
                                       }
+                                      // Explicitly set this barista as active in the database
+                                      await ApiService.setBaristaActive(globalActiveBarista.value);
                                     }
 
                                     if (!context.mounted) return;

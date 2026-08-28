@@ -1,10 +1,11 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import '../main.dart';
 import '../widgets/order_card.dart';
 
 class ApiService {
-  static const String baseUrl = 'https://api.c2coffeeandcandle.com/v1';
+  static const String baseUrl = 'http://localhost:8080/v1';
   static String? _accessToken;
 
   static Future<bool> updateOrderStatus(String orderId, String status) async {
@@ -132,10 +133,16 @@ class ApiService {
         final data = json.decode(response.body);
         final List<dynamic> baristasJson = data['baristas'] ?? [];
         List<String> baristas = [];
+        String? activeBaristaName;
         for (var b in baristasJson) {
+          final name = b['name'].toString();
+          baristas.add(name);
           if (b['is_active'] == 1 || b['is_active'] == true) {
-            baristas.add(b['name'].toString());
+            activeBaristaName = name;
           }
+        }
+        if (activeBaristaName != null) {
+          globalActiveBarista.value = activeBaristaName;
         }
         return baristas;
       }
@@ -144,4 +151,38 @@ class ApiService {
     }
     return [];
   }
+
+  static Future<bool> setBaristaActive(String name) async {
+    try {
+      final response = await http.put(
+        Uri.parse('$baseUrl/admin/baristas/set-active-by-name'),
+        headers: {
+          'Content-Type': 'application/json',
+          if (_accessToken != null) 'Authorization': 'Bearer $_accessToken',
+        },
+        body: json.encode({'name': name}),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint('Set Active Barista Error: $e');
+    }
+    return false;
+  }
+
+  static Future<bool> setAllBaristasInactive() async {
+    try {
+      final response = await http.put(
+        Uri.parse('$baseUrl/admin/baristas/set-all-inactive'),
+        headers: {
+          'Content-Type': 'application/json',
+          if (_accessToken != null) 'Authorization': 'Bearer $_accessToken',
+        },
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint('Set All Inactive Error: $e');
+    }
+    return false;
+  }
 }
+
