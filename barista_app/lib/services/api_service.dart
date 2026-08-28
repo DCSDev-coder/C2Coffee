@@ -5,7 +5,7 @@ import '../main.dart';
 import '../widgets/order_card.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://localhost:8080/v1';
+  static const String baseUrl = 'https://api.c2coffeeandcandle.com/v1';
   static String? _accessToken;
 
   static Future<bool> updateOrderStatus(String orderId, String status) async {
