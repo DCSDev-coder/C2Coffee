@@ -17,6 +17,8 @@ import { registerAdminVoucherRoutes } from './http/routes/admin-vouchers.js';
 import { registerAdminOrdersRoutes } from './http/routes/admin-orders.js';
 import { registerAdminCustomersRoutes } from './http/routes/admin-customers.js';
 import { registerAdminLoyaltyRoutes } from './http/routes/admin-loyalty.js';
+import { registerAdminAuditRoutes } from './http/routes/admin-audit.js';
+import { registerAdminMarketingRoutes } from './http/routes/admin-marketing.js';
 import { registerAdminBaristasRoutes } from './http/routes/admin-baristas.js';
 
 function isAllowedCorsOrigin(origin: string, allowedOrigins: string[]): boolean {
@@ -99,6 +101,8 @@ export async function buildApp() {
   await registerAdminCustomersRoutes(app);
   await registerAdminLoyaltyRoutes(app);
   await registerAdminMenuRoutes(app);
+  await registerAdminAuditRoutes(app);
+  await registerAdminMarketingRoutes(app);
   await registerAdminBaristasRoutes(app);
   await registerMeRoutes(app);
   await registerCatalogRoutes(app);

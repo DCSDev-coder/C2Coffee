@@ -4,12 +4,24 @@ import { BarChart, Bar, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import Pagination from './Pagination';
-import { loadAdminMenu } from '../lib/adminApi';
-import { buildProductReportOverview, formatReportMoney, formatReportTokens } from '../utils/reporting';
+import { loadAdminProductReport } from '../lib/adminApi';
+import { formatReportMoney, formatReportTokens } from '../utils/reporting';
 import { exportToCSV } from '../utils/exportToCSV';
 
 const REFRESH_INTERVAL_MS = 60_000;
 const COLORS = ['#1F3A34', '#2E5E58', '#6F9F96', '#A8C4A2', '#E07A5F', '#D4AF7A'];
+const EMPTY_REPORT = {
+  products: [],
+  chartData: [],
+  summary: {
+    totalProducts: 0,
+    totalUnitsSold: 0,
+    totalRevenueRm: 0,
+    topProduct: '',
+    topProductUnits: 0,
+    topProductRevenueRm: 0
+  }
+};
 
 const CustomDateInput = forwardRef(({ value, onClick }, ref) => (
   <button
@@ -56,7 +68,7 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 const ReportByProduct = ({ onBack }) => {
-  const [menuResponse, setMenuResponse] = useState(null);
+  const [reportResponse, setReportResponse] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
@@ -68,12 +80,12 @@ const ReportByProduct = ({ onBack }) => {
   useEffect(() => {
     let active = true;
 
-    const loadMenu = async () => {
+    const loadReport = async () => {
       try {
         setError('');
-        const response = await loadAdminMenu();
+        const response = await loadAdminProductReport(selectedDate);
         if (!active) return;
-        setMenuResponse(response);
+        setReportResponse(response || EMPTY_REPORT);
         setLastUpdatedAt(new Date());
       } catch (err) {
         if (!active) return;
@@ -85,28 +97,28 @@ const ReportByProduct = ({ onBack }) => {
       }
     };
 
-    void loadMenu();
+    void loadReport();
     const timer = window.setInterval(() => {
-      void loadMenu();
+      void loadReport();
     }, REFRESH_INTERVAL_MS);
 
     return () => {
       active = false;
       window.clearInterval(timer);
     };
-  }, []);
+  }, [selectedDate]);
 
-  const overview = useMemo(() => buildProductReportOverview(menuResponse, selectedDate), [menuResponse, selectedDate]);
-  const products = overview.products || [];
-  const chartData = overview.chartData || [];
+  const overview = reportResponse || EMPTY_REPORT;
+  const products = Array.isArray(overview.products) ? overview.products : [];
+  const chartData = Array.isArray(overview.chartData) ? overview.chartData : [];
 
   const safeSearchTerm = searchTerm.trim().toLowerCase();
   const filteredData = useMemo(() => {
     return products.filter((product) => (
-      product.name.toLowerCase().includes(safeSearchTerm)
-      || product.category.toLowerCase().includes(safeSearchTerm)
-      || product.subcategory.toLowerCase().includes(safeSearchTerm)
-      || product.productKind.toLowerCase().includes(safeSearchTerm)
+      String(product.name ?? '').toLowerCase().includes(safeSearchTerm)
+      || String(product.category ?? '').toLowerCase().includes(safeSearchTerm)
+      || String(product.subcategory ?? '').toLowerCase().includes(safeSearchTerm)
+      || String(product.productKind ?? '').toLowerCase().includes(safeSearchTerm)
     ));
   }, [products, safeSearchTerm]);
 
@@ -122,7 +134,7 @@ const ReportByProduct = ({ onBack }) => {
       Number(product.quantitySold || 0).toFixed(0),
       Number(product.revenueRm || 0).toFixed(2),
       Number(product.basePriceToken || 0).toFixed(0),
-      `"${product.lastOrderedAt ? product.lastOrderedAt.toISOString() : ''}"`,
+      `"${product.lastOrderedAt || ''}"`,
       product.isActive ? 'Yes' : 'No'
     ])
   ], [filteredData]);
@@ -131,10 +143,10 @@ const ReportByProduct = ({ onBack }) => {
     exportToCSV(exportRows, 'product_report.csv');
   };
 
-  const refreshMenu = async () => {
+  const refreshReport = async () => {
     try {
-      const response = await loadAdminMenu();
-      setMenuResponse(response);
+      const response = await loadAdminProductReport(selectedDate);
+      setReportResponse(response || EMPTY_REPORT);
       setLastUpdatedAt(new Date());
       setError('');
     } catch (err) {
@@ -166,7 +178,7 @@ const ReportByProduct = ({ onBack }) => {
           <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={() => void refreshMenu()}
+              onClick={() => void refreshReport()}
               className="flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-bold rounded-lg hover:bg-gray-50 transition-colors cursor-pointer shadow-sm"
             >
               <RefreshCw size={16} /> Refresh
@@ -182,30 +194,30 @@ const ReportByProduct = ({ onBack }) => {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 shrink-0">
           <StatCard
-            title="Total Products"
+            title="Products in Report"
             value={overview.summary.totalProducts.toLocaleString('en-US')}
-            subtitle={`${overview.summary.topProductUnits.toLocaleString('en-US')} units for top product`}
+            subtitle="Live menu items included in this report"
             icon={Package}
             iconBg="bg-[#1F3A34]"
           />
           <StatCard
             title="Total Units Sold"
             value={overview.summary.totalUnitsSold.toLocaleString('en-US')}
-            subtitle="Based on completed menu sales"
+            subtitle="From completed menu orders"
             icon={ShoppingCart}
             iconBg="bg-[#2E5E58]"
           />
           <StatCard
             title="Total Revenue"
             value={formatReportMoney(overview.summary.totalRevenueRm)}
-            subtitle="Live RM revenue from menu items"
+            subtitle="Live RM revenue from sold items"
             icon={TrendingUp}
             iconBg="bg-[#E07A5F]"
           />
           <StatCard
-            title="Top Product"
+            title="Best Seller"
             value={overview.summary.topProduct}
-            subtitle="Highest selling item by units"
+            subtitle={overview.summary.topProduct ? `${overview.summary.topProductUnits.toLocaleString('en-US')} units · ${formatReportMoney(overview.summary.topProductRevenueRm)} revenue` : ''}
             icon={TrendingUp}
             iconBg="bg-[#D4AF7A]"
           />
@@ -215,7 +227,7 @@ const ReportByProduct = ({ onBack }) => {
           <div className="flex items-center justify-between gap-4 mb-6">
             <div>
               <h3 className="text-lg font-bold text-gray-900">Top 5 Products by Units Sold</h3>
-              <p className="text-sm text-gray-500">Revenue and volume from the live menu endpoint.</p>
+              <p className="text-sm text-gray-500">Ranked from live order records.</p>
             </div>
           </div>
           <div className="flex-1 w-full relative">
@@ -293,7 +305,6 @@ const ReportByProduct = ({ onBack }) => {
                         </div>
                         <div>
                           <p className="font-semibold text-gray-900">{product.name}</p>
-                          <p className="text-xs text-gray-500">ID: {product.id}</p>
                         </div>
                       </div>
                     </td>
@@ -308,10 +319,10 @@ const ReportByProduct = ({ onBack }) => {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-gray-700 font-medium">
-                      {product.lastOrderedAt ? product.lastOrderedAt.toLocaleString('en-MY', { dateStyle: 'medium', timeStyle: 'short' }) : '-'}
+                      {product.lastOrderedAt ? new Date(product.lastOrderedAt).toLocaleString('en-MY', { dateStyle: 'medium', timeStyle: 'short' }) : ''}
                     </td>
                   </tr>
-                )) : (
+                    )) : (
                   <tr>
                     <td colSpan="8" className="py-12 text-center text-gray-500">
                       No products found matching your search.

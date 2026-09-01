@@ -15,6 +15,7 @@ import 'about_us_page.dart';
 import 'contact_support_page.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../utils/app_colors.dart';
+import '../utils/app_notification.dart';
 import '../widgets/app_page_shell.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -218,9 +219,7 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    AppNotification.showError(context, message);
   }
 
   Future<void> _pickImageFromGallery() async {

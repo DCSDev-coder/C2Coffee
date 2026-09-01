@@ -1,17 +1,21 @@
-# barista_app
+# C2 Coffee Barista App
 
-A new Flutter project.
+Flutter app for barista operations.
 
-## Getting Started
+## API base URL
 
-This project is a starting point for a Flutter application.
+`lib/services/api_config.dart` uses the production API endpoint:
 
-A few resources to get you started if this is your first Flutter project:
+- `https://api.c2coffeeandcandle.com/v1`
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+Examples:
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```bash
+flutter run
+flutter build apk
+flutter build ios
+```
+
+## Notes
+
+- If images or posters fail to load, confirm the API asset file exists under `api/public/menu/uploads/`.

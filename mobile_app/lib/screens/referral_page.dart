@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../services/customer_data_service.dart';
 import '../services/secure_session_service.dart';
 import '../utils/app_colors.dart';
+import '../utils/app_notification.dart';
 import 'loading_order_page.dart';
 import '../widgets/app_page_shell.dart';
 
@@ -96,27 +97,9 @@ class _ReferralPageState extends State<ReferralPage> {
       await _loadReferralData();
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: AppColors.deepTeal,
-          content: const Row(
-            children: [
-              Icon(Icons.check_circle, color: Colors.white),
-              SizedBox(width: 10),
-              Text(
-                'Referral code claimed successfully!',
-                style: TextStyle(
-                  fontFamily: 'Afacad',
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-            ],
-          ),
-          behavior: SnackBarBehavior.floating,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
+      AppNotification.showSuccess(
+        context,
+        'Referral code claimed successfully!',
       );
     } catch (e) {
       if (!mounted) return;
@@ -127,6 +110,7 @@ class _ReferralPageState extends State<ReferralPage> {
       setState(() {
         _claimError = msg;
       });
+      AppNotification.showError(context, msg);
     } finally {
       if (mounted) {
         setState(() {
@@ -138,26 +122,10 @@ class _ReferralPageState extends State<ReferralPage> {
 
   void _copyCode(String code) {
     Clipboard.setData(ClipboardData(text: code));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: AppColors.deepTeal,
-        content: Row(
-          children: [
-            const Icon(Icons.copy, color: Colors.white, size: 20),
-            const SizedBox(width: 10),
-            Text(
-              'Code $code copied to clipboard!',
-              style: const TextStyle(
-                fontFamily: 'Afacad',
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-          ],
-        ),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
+    AppNotification.showSuccess(
+      context,
+      'Code $code copied to clipboard!',
+      icon: Icons.copy_rounded,
     );
   }
 

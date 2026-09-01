@@ -5,12 +5,8 @@ import '../main.dart';
 class ActiveBaristaProfile extends StatelessWidget {
   final String baristaName;
   final VoidCallback? onTap;
-  
-  const ActiveBaristaProfile({
-    super.key,
-    this.baristaName = 'Nur', // Default mock name
-    this.onTap,
-  });
+
+  const ActiveBaristaProfile({super.key, this.baristaName = '', this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -19,7 +15,10 @@ class ActiveBaristaProfile extends StatelessWidget {
     return ValueListenableBuilder<String>(
       valueListenable: globalActiveBarista,
       builder: (context, activeName, _) {
-        final initial = activeName.isNotEmpty ? activeName[0].toUpperCase() : '';
+        final displayName = activeName.isNotEmpty ? activeName : baristaName;
+        final initial = displayName.isNotEmpty
+            ? displayName[0].toUpperCase()
+            : '?';
         return InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(24.0),
@@ -28,7 +27,6 @@ class ActiveBaristaProfile extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-
                 CircleAvatar(
                   radius: 20,
                   backgroundColor: darkGreen.withValues(alpha: 0.1),

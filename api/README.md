@@ -72,6 +72,16 @@ GET /health
 GET /v1/health
 ```
 
+## Uploaded assets
+
+Marketing posters and menu images are served from the API host itself:
+
+- route: `/assets/menu/*`
+- disk root: `api/public/menu/`
+- uploads: `api/public/menu/uploads/`
+
+If an image is visible in the admin upload flow but the mobile app receives a 404, confirm that the file exists on the same API host that is serving the request and that the runtime can read the upload directory.
+
 ## Windows Server Deployment
 
 Recommended production-style deployment:

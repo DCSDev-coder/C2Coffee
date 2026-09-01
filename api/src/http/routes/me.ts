@@ -5,6 +5,7 @@ import { authenticateRequest } from '../../auth/guard.js';
 import { env } from '../../config/env.js';
 import { mysqlPool } from '../../db/mysql.js';
 import { ApiError } from '../errors.js';
+import { ensureSignupIdentityAvailable } from '../services/signup-identity.js';
 
 const profileUpsertSchema = z.object({
   display_name: z.string().trim().min(1).max(255),
@@ -33,6 +34,12 @@ export async function registerMeRoutes(app: FastifyInstance): Promise<void> {
 
   app.put('/v1/me/profile', { preHandler: authenticateRequest }, async (request) => {
     const payload = profileUpsertSchema.parse(request.body);
+    const normalizedEmail = nullableString(payload.email);
+
+    await ensureSignupIdentityAvailable({
+      email: normalizedEmail,
+      excludeUserId: request.auth.userId
+    });
 
     await mysqlPool.execute(
       `
@@ -82,7 +89,7 @@ export async function registerMeRoutes(app: FastifyInstance): Promise<void> {
       {
         userId: request.auth.userId,
         displayName: payload.display_name,
-        email: nullableString(payload.email),
+        email: normalizedEmail,
         birthday: nullableString(payload.birthday),
         gender: nullableString(payload.gender),
         houseLine: nullableString(payload.house_line),

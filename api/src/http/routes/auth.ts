@@ -8,12 +8,20 @@ import { generateOpaqueToken, generateOtpCode, hashSha256, otpMatches } from '..
 import { normalizePhoneE164 } from '../../lib/phone.js';
 import { signAccessToken } from '../../auth/tokens.js';
 import { authenticateRequest } from '../../auth/guard.js';
-import { loadLoyaltyTiers, type LoyaltyTierConfig, type TierRewardConfig } from '../../services/loyalty-tiers.js';
+import { loadLoyaltyTiers, type LoyaltyTierConfig } from '../../services/loyalty-tiers.js';
+import { sendOtpEmail } from '../../services/otp-email.js';
+import { ensureSignupIdentityAvailable } from '../services/signup-identity.js';
 
 const requestOtpSchema = z.object({
   phone: z.string().min(1),
   device_fingerprint: z.string().trim().min(8).max(255),
-  preferred_channel: z.enum(['whatsapp', 'sms'])
+  email: z.string().trim().email().max(255).optional().or(z.literal('')),
+  preferred_channel: z.enum(['email', 'whatsapp', 'sms']).optional()
+});
+
+const signupIdentitySchema = z.object({
+  phone: z.string().trim().min(1).max(32),
+  email: z.string().trim().email().max(255)
 });
 
 const verifyOtpSchema = z.object({
@@ -39,21 +47,34 @@ interface UserProfileSummary {
   status: string;
 }
 
-type BootstrapTierRewardConfig = TierRewardConfig;
-
 type BootstrapTierConfig = Pick<
   LoyaltyTierConfig,
-  'code' | 'name' | 'minCups' | 'promotionText' | 'badgeColor' | 'sortOrder' | 'isActive'
-> & {
-  rewardConfigs: BootstrapTierRewardConfig[];
-  rewardConfig: BootstrapTierRewardConfig | null;
-};
+  'code' | 'name' | 'minCups' | 'badgeColor' | 'sortOrder' | 'isActive'
+>;
 
 export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
+  app.post('/v1/auth/check-signup-identity', async (request) => {
+    const payload = signupIdentitySchema.parse(request.body);
+
+    await ensureSignupIdentityAvailable({
+      phone: normalizePhoneE164(payload.phone),
+      email: payload.email
+    });
+
+    return {
+      available: true
+    };
+  });
+
   app.post('/v1/auth/request-otp', async (request) => {
     const payload = requestOtpSchema.parse(request.body);
     const phone = normalizePhoneE164(payload.phone);
     const device = await findOrCreateDevice(payload.device_fingerprint);
+    const resolvedEmail = await resolveOtpEmail({
+      phone,
+      providedEmail: payload.email?.trim() || null,
+      connection: mysqlPool
+    });
 
     const [latestRows] = await mysqlPool.query<Array<RowDataPacket & { requested_at: Date }>>(
       `
@@ -97,6 +118,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
           device_id,
           channel,
           otp_hash,
+          provider_message_ref,
           expires_at,
           max_attempts,
           requested_at
@@ -104,8 +126,9 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
         VALUES (
           :phone,
           :deviceId,
-          :channel,
+          'email',
           :otpHash,
+          :providerMessageRef,
           DATE_ADD(UTC_TIMESTAMP(), INTERVAL :expirySeconds SECOND),
           :maxAttempts,
           UTC_TIMESTAMP()
@@ -114,8 +137,8 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
       {
         phone,
         deviceId: device.id,
-        channel: payload.preferred_channel,
         otpHash: hashSha256(otpCode),
+        providerMessageRef: null,
         expirySeconds: env.OTP_EXPIRY_SECONDS,
         maxAttempts: env.OTP_MAX_ATTEMPTS
       }
@@ -141,16 +164,62 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
       {
         phone,
         deviceFingerprint: payload.device_fingerprint,
-        channelRequested: payload.preferred_channel
+        channelRequested: 'email'
       }
     );
 
-    if (env.OTP_DELIVERY_MODE === 'log') {
+    if (env.OTP_DELIVERY_MODE === 'email') {
+      try {
+        const delivery = await sendOtpEmail({
+          to: resolvedEmail,
+          otpCode
+        });
+
+        if (delivery.messageId) {
+          await mysqlPool.execute(
+            `
+              UPDATE auth_otps
+              SET provider_message_ref = :providerMessageRef
+              WHERE id = :id
+            `,
+            {
+              providerMessageRef: delivery.messageId,
+              id: insertResult.insertId
+            }
+          );
+        }
+      } catch (error) {
+        app.log.error(
+          {
+            err: error,
+            phone,
+            requestId: insertResult.insertId
+          },
+          'Failed to send OTP email.'
+        );
+
+        await mysqlPool.execute(
+          `
+            UPDATE auth_otps
+            SET status = 'cancelled'
+            WHERE id = :id
+          `,
+          { id: insertResult.insertId }
+        );
+
+        throw new ApiError(
+          503,
+          'otp_delivery_failed',
+          'We could not send the verification code right now. Please try again shortly.'
+        );
+      }
+    } else if (env.OTP_DELIVERY_MODE === 'log') {
       app.log.warn(
         {
           phone,
           requestId: insertResult.insertId,
-          channel: payload.preferred_channel,
+          channel: 'email',
+          email: resolvedEmail,
           otpCode
         },
         'OTP generated in log delivery mode. No provider dispatch was attempted.'
@@ -159,10 +228,10 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
 
     const response: Record<string, unknown> = {
       request_id: String(insertResult.insertId),
-      channel: payload.preferred_channel,
+      channel: 'email',
       expires_in_seconds: env.OTP_EXPIRY_SECONDS,
       resend_in_seconds: env.OTP_RESEND_SECONDS,
-      secondary_channel_available: 'sms'
+      secondary_channel_available: 'none'
     };
 
     if (env.NODE_ENV !== 'production' || env.OTP_DEBUG_EXPOSE_CODE) {
@@ -189,8 +258,8 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
 
       const device = await findOrCreateDevice(payload.device_fingerprint, connection);
 
-      const [otpRows] = await connection.query<
-        Array<
+  const [otpRows] = await connection.query<
+      Array<
           RowDataPacket & {
             id: number;
             phone_e164: string;
@@ -655,6 +724,42 @@ async function findOrCreateUserForPhone(
   };
 }
 
+async function resolveOtpEmail({
+  phone,
+  providedEmail,
+  connection
+}: {
+  phone: string;
+  providedEmail: string | null;
+  connection: PoolConnection | typeof mysqlPool;
+}): Promise<string> {
+  if (providedEmail) {
+    return providedEmail.trim().toLowerCase();
+  }
+
+  const [rows] = await connection.query<Array<RowDataPacket & { email: string | null }>>(
+    `
+      SELECT up.email
+      FROM users u
+      LEFT JOIN user_profiles up ON up.user_id = u.id
+      WHERE u.phone_e164 = :phone
+      LIMIT 1
+    `,
+    { phone }
+  );
+
+  const email = rows[0]?.email?.trim().toLowerCase();
+  if (!email) {
+    throw new ApiError(
+      400,
+      'otp_email_required',
+      'Email address is required for OTP verification.'
+    );
+  }
+
+  return email;
+}
+
 export async function getBootstrapForUser(
   userId: number,
   connection: PoolConnection | typeof mysqlPool = mysqlPool
@@ -707,12 +812,9 @@ export async function getBootstrapForUser(
     code: tier.code,
     name: tier.name,
     minCups: tier.minCups,
-    promotionText: tier.promotionText,
     badgeColor: tier.badgeColor,
     sortOrder: tier.sortOrder,
-    isActive: tier.isActive,
-    rewardConfigs: tier.rewardConfigs,
-    rewardConfig: tier.rewardConfig
+    isActive: tier.isActive
   }));
 
   return {

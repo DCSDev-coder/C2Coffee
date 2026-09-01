@@ -3,6 +3,7 @@ import '../services/app_session_service.dart';
 import '../services/cart_service.dart';
 import 'loading_order_page.dart';
 import '../utils/app_colors.dart';
+import '../utils/app_notification.dart';
 import '../widgets/catalog_product_image.dart';
 import '../widgets/token_price_pair.dart';
 
@@ -1248,12 +1249,9 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                       onPressed: () {
                         final selectedStore = _session.selectedStore;
                         if (selectedStore == null) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content:
-                                  const Text('Please select a store first.'),
-                              backgroundColor: orangeColor,
-                            ),
+                          AppNotification.showError(
+                            context,
+                            'Please select a store first.',
                           );
                           return;
                         }
@@ -1292,17 +1290,10 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                           ),
                         );
 
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content:
-                                Text('Added $quantity x $_itemName to cart!'),
-                            duration: const Duration(seconds: 2),
-                            backgroundColor: orangeColor,
-                            behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
+                        AppNotification.showSuccess(
+                          context,
+                          'Added $quantity x $_itemName to cart!',
+                          icon: Icons.shopping_bag_outlined,
                         );
                         InteractiveFillingLoader.showPop(context);
                       },

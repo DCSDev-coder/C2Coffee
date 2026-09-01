@@ -6,29 +6,9 @@ export type LoyaltyTierConfig = {
   code: string;
   name: string;
   minCups: number;
-  promotionText: string;
-  rewardConfigs: TierRewardConfig[];
-  rewardConfig: TierRewardConfig | null;
   badgeColor: string | null;
   sortOrder: number;
   isActive: boolean;
-};
-
-export type TierRewardCondition = {
-  mode: 'always' | 'birthday';
-  birthdayMatch: 'month_day' | 'month' | null;
-};
-
-export type TierRewardConfig = {
-  enabled: boolean;
-  label: string;
-  kind: 'discount' | 'free_item' | 'promotion';
-  discountUnit: 'token' | 'rm' | 'percent' | null;
-  rewardItemType: 'drink' | 'food' | 'merchandise' | null;
-  rewardValue: number | null;
-  scope: 'all_items' | 'all_drinks' | 'all_food' | 'all_merchandise' | 'selected_skus' | 'all_except_skus';
-  notes: string;
-  condition: TierRewardCondition;
 };
 
 type LoyaltyTierRow = RowDataPacket & {
@@ -36,102 +16,10 @@ type LoyaltyTierRow = RowDataPacket & {
   code: string;
   name: string;
   min_cups: number | string;
-  promotion_text: string | null;
-  reward_config_json: string | Record<string, unknown> | null;
   badge_color: string | null;
   sort_order: number | string;
   is_active: number | string;
 };
-
-function normalizeRewardCondition(raw: Record<string, unknown> | null | undefined): TierRewardCondition {
-  const mode = raw?.mode === 'birthday' ? 'birthday' : 'always';
-  const birthdayMatch = raw?.birthdayMatch === 'month'
-    ? 'month'
-    : raw?.birthdayMatch === 'month_day'
-      ? 'month_day'
-      : null;
-
-  return {
-    mode,
-    birthdayMatch: mode === 'birthday' ? birthdayMatch ?? 'month_day' : null
-  };
-}
-
-function normalizeRewardConfig(value: unknown): TierRewardConfig | null {
-  if (!value || typeof value !== 'object') {
-    return null;
-  }
-
-  const raw = value as Record<string, unknown>;
-  const enabled = Boolean(raw.enabled ?? false);
-  const label = String(raw.label ?? '').trim();
-  const kind = raw.kind === 'discount' || raw.kind === 'free_item' ? raw.kind : 'promotion';
-  const discountUnit = raw.discountUnit === 'token' || raw.discountUnit === 'rm' || raw.discountUnit === 'percent'
-    ? raw.discountUnit
-    : null;
-  const rewardItemType = raw.rewardItemType === 'drink' || raw.rewardItemType === 'food' || raw.rewardItemType === 'merchandise'
-    ? raw.rewardItemType
-    : null;
-  const rewardValueRaw = raw.rewardValue;
-  const rewardValue = typeof rewardValueRaw === 'number' && Number.isFinite(rewardValueRaw)
-    ? rewardValueRaw
-    : typeof rewardValueRaw === 'string' && rewardValueRaw.trim() !== ''
-      ? Number(rewardValueRaw)
-      : null;
-  const scope = raw.scope === 'all_items'
-    || raw.scope === 'all_drinks'
-    || raw.scope === 'all_food'
-    || raw.scope === 'all_merchandise'
-    || raw.scope === 'selected_skus'
-    || raw.scope === 'all_except_skus'
-      ? raw.scope
-      : 'all_items';
-  const notes = String(raw.notes ?? '').trim();
-  const condition = normalizeRewardCondition(
-    raw.condition && typeof raw.condition === 'object'
-      ? (raw.condition as Record<string, unknown>)
-      : null
-  );
-
-  if (!enabled && !label && rewardValue == null && discountUnit == null && rewardItemType == null && notes === '') {
-    return null;
-  }
-
-  return {
-    enabled,
-    label,
-    kind,
-    discountUnit,
-    rewardItemType,
-    rewardValue,
-    scope,
-    notes,
-    condition
-  };
-}
-
-function parseRewardConfigs(value: LoyaltyTierRow['reward_config_json']): TierRewardConfig[] {
-  if (value == null) {
-    return [];
-  }
-
-  const raw = typeof value === 'string'
-    ? (() => {
-        try {
-          return JSON.parse(value) as unknown;
-        } catch {
-          return null;
-        }
-      })()
-    : value;
-
-  if (Array.isArray(raw)) {
-    return raw.map(normalizeRewardConfig).filter((reward): reward is TierRewardConfig => Boolean(reward));
-  }
-
-  const reward = normalizeRewardConfig(raw);
-  return reward ? [reward] : [];
-}
 
 export type TierProgress = {
   tierCode: string;
@@ -155,8 +43,6 @@ export async function loadLoyaltyTiers(
         code,
         name,
         min_cups,
-        promotion_text,
-        reward_config_json,
         badge_color,
         sort_order,
         is_active
@@ -170,15 +56,6 @@ export async function loadLoyaltyTiers(
     code: String(row.code ?? '').trim().toLowerCase(),
     name: String(row.name ?? '').trim(),
     minCups: Number(row.min_cups ?? 0),
-    promotionText: String(row.promotion_text ?? ''),
-    rewardConfigs: (() => {
-      const rewardConfigs = parseRewardConfigs(row.reward_config_json);
-      return rewardConfigs;
-    })(),
-    rewardConfig: (() => {
-      const rewardConfigs = parseRewardConfigs(row.reward_config_json);
-      return rewardConfigs[0] ?? null;
-    })(),
     badgeColor: row.badge_color ? String(row.badge_color) : null,
     sortOrder: Number(row.sort_order ?? 0),
     isActive: Number(row.is_active ?? 0) === 1

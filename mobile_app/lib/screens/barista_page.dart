@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../widgets/catalog_product_image.dart';
 import 'loading_order_page.dart';
-import 'product_detail_page.dart';
+import 'mont_broga_page.dart';
+import 'simple_product_detail_page.dart';
 import '../utils/app_colors.dart';
 
 class BaristaPage extends StatefulWidget {
@@ -225,7 +227,7 @@ class _BaristaPageState extends State<BaristaPage> {
       onTap: () {
         InteractiveFillingLoader.show(
           context,
-          targetPage: ProductDetailPage(item: item),
+          targetPage: _detailPageForItem(item),
         );
       },
       child: Container(
@@ -250,8 +252,11 @@ class _BaristaPageState extends State<BaristaPage> {
                     top: 12, bottom: 8, left: 8, right: 8),
                 child: Transform.scale(
                   scale: item['scale'] as double? ?? 1.0,
-                  child: Image.asset(
-                    item['image'],
+                  child: CatalogProductImage(
+                    assetPath: item['image']?.toString().isNotEmpty == true
+                        ? item['image']?.toString()
+                        : null,
+                    imageUrl: item['image_url']?.toString(),
                     fit: BoxFit.contain,
                   ),
                 ),
@@ -304,5 +309,13 @@ class _BaristaPageState extends State<BaristaPage> {
         ),
       ),
     );
+  }
+
+  Widget _detailPageForItem(Map<String, dynamic> item) {
+    final isDrink = item['isDrink'] as bool? ?? false;
+    if (isDrink) {
+      return MontBrogaPage(item: item);
+    }
+    return SimpleProductDetailPage(item: item);
   }
 }

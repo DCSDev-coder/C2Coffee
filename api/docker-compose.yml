@@ -6,15 +6,11 @@ services:
     env_file:
       - .env
     ports:
-      - "127.0.0.1:8080:8080"
+      - "8080:8080"
+    volumes:
+      - ./public/menu/uploads:/app/dist/public/menu/uploads
     healthcheck:
-      test:
-        [
-          "CMD",
-          "node",
-          "-e",
-          "fetch('http://127.0.0.1:8080/v1/health').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"
-        ]
+      test: [ "CMD", "node", "-e", "fetch('http://127.0.0.1:8080/v1/health').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))" ]
       interval: 30s
       timeout: 5s
       retries: 3

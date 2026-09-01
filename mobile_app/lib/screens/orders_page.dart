@@ -7,17 +7,16 @@ import '../services/app_session_service.dart';
 import '../services/auth_api_service.dart';
 import '../services/checkout_api_service.dart';
 import '../services/customer_data_service.dart';
-import '../services/catalog_api_service.dart';
-import '../services/cart_service.dart';
+import '../services/order_reorder_service.dart';
 import '../services/secure_session_service.dart';
 import '../utils/app_colors.dart';
+import '../utils/app_notification.dart';
 import '../utils/global_state.dart';
 import '../widgets/custom_bottom_nav.dart';
 import '../widgets/order_status_banner.dart';
-import 'order_confirmation_page.dart';
 import 'home_page.dart';
-import 'loading_order_page.dart';
 import 'menu_page.dart';
+import 'order_status_detail_page.dart';
 import 'profile_page.dart';
 import 'rewards_page.dart';
 import '../widgets/app_page_shell.dart';
@@ -70,7 +69,9 @@ class _OrdersPageState extends State<OrdersPage>
       if (_activeOrder!.status != globalOrderStatusRawStatus.value) {
         _loadOrders(silent: true);
       }
-    } else if (mounted && _activeOrder == null && globalOrderStatusRawStatus.value != null) {
+    } else if (mounted &&
+        _activeOrder == null &&
+        globalOrderStatusRawStatus.value != null) {
       _loadOrders(silent: true);
     }
   }
@@ -140,7 +141,8 @@ class _OrdersPageState extends State<OrdersPage>
 
     try {
       await _session.loadAuthenticatedState(force: forceSessionReload);
-      final accessToken = await SecureSessionService.instance.getValidAccessToken();
+      final accessToken =
+          await SecureSessionService.instance.getValidAccessToken();
       if (accessToken == null || accessToken.isEmpty) {
         throw ApiException(
           'Missing access token.',
@@ -295,7 +297,6 @@ class _OrdersPageState extends State<OrdersPage>
       ),
     );
   }
-
 
   Widget _buildActiveOrdersTab() {
     if (_isOrdersLoading) {
@@ -478,6 +479,17 @@ class _OrdersPageState extends State<OrdersPage>
               color: Colors.black54,
             ),
           ),
+          if ((order.baristaName ?? '').trim().isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Prepared by: ${order.baristaName!.trim()}',
+              style: const TextStyle(
+                fontFamily: 'Afacad',
+                fontSize: 14,
+                color: Colors.black54,
+              ),
+            ),
+          ],
           const SizedBox(height: 4),
           Text(
             'Created: $createdLabel',
@@ -520,9 +532,9 @@ class _OrdersPageState extends State<OrdersPage>
                       fontSize: 14,
                       color: Colors.black87,
                     ),
+                  ),
+                ),
               ),
-              ),
-            ),
           const SizedBox(height: 12),
           if (isActive) ...[
             Row(
@@ -601,12 +613,36 @@ class _OrdersPageState extends State<OrdersPage>
                 ),
               ],
             ),
-          if (showCollectedAction) ...[
+          if (isActive) ...[
             const SizedBox(height: 14),
             SizedBox(
               width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => _openOrderStatus(order),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.deepTeal,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                child: const Text(
+                  'View Status',
+                  style: TextStyle(
+                    fontFamily: 'Recoleta',
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+          ],
+          if (showCollectedAction) ...[
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
               child: OutlinedButton(
-                onPressed: () => _collectOrder(order),
+                onPressed: () => _confirmCollectOrder(order),
                 style: OutlinedButton.styleFrom(
                   side: BorderSide(color: AppColors.deepTeal, width: 1.5),
                   padding: const EdgeInsets.symmetric(vertical: 14),
@@ -675,133 +711,76 @@ class _OrdersPageState extends State<OrdersPage>
   }
 
   Future<void> _reorderOrder(CustomerOrder order) async {
-    try {
-      final selectedStore = _session.selectedStore;
-      if (selectedStore?.id != order.store.id) {
-        await _session.selectStore(
-          StoreSummary(
-            id: order.store.id,
-            code: 'reorder',
-            name: order.store.name,
-            supportsPickup: true,
-            pickupLeadMinutes: 0,
-            status: 'active',
+    await OrderReorderService.instance.reorderOrder(context, order);
+  }
+
+  Future<void> _openOrderStatus(CustomerOrder order) async {
+    final result = await Navigator.of(context).push<CustomerOrder>(
+      MaterialPageRoute(
+        builder: (_) => OrderStatusDetailPage(order: order),
+      ),
+    );
+    if (!mounted) return;
+    if (result != null || order.isActive) {
+      await _loadOrders(forceSessionReload: true, silent: true);
+    }
+  }
+
+  Future<void> _confirmCollectOrder(CustomerOrder order) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Text(
+          'Confirm pickup?',
+          style: TextStyle(
+            fontFamily: 'Recoleta',
+            fontWeight: FontWeight.bold,
+            color: AppColors.deepTeal,
           ),
-        );
-      }
-
-      final menuItemsById = {
-        for (final item in _session.allMenuItems) item.id: item,
-      };
-      final menuItemMetaById = {
-        for (final category in _session.menuCategories)
-          for (final item in category.items)
-            item.id: {
-              'categoryCode': category.code,
-              'categoryName': category.name,
-              'subcategoryCode': item.subcategoryCode,
-              'subcategoryName': item.subcategoryName,
-              'productKindCode': item.productKindCode,
-              'productKindName': item.productKindName,
-            },
-      };
-      final itemsToAdd = <CartItem>[];
-
-      for (final orderItem in order.items) {
-        final currentMenuItem = menuItemsById[orderItem.menuItemId];
-        if (currentMenuItem == null || !currentMenuItem.isAvailable) {
-          throw ApiException(
-            'One or more items from this order are no longer available.',
-            code: 'order_item_unavailable',
-          );
-        }
-
-        final modifiers = orderItem.modifiers
-            .map(
-              (modifier) => CartModifier(
-                groupName: modifier.groupName,
-                optionName: modifier.optionName,
-                priceDeltaRm: double.tryParse(modifier.priceDeltaRm) ?? 0.0,
-                tokenPriceDelta: modifier.tokenPriceDelta,
+        ),
+        content: const Text(
+          'Only mark this order as collected after you have received it from the counter.',
+          style: TextStyle(fontFamily: 'Afacad', height: 1.35),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                fontFamily: 'Afacad',
+                color: AppColors.deepTeal,
               ),
-            )
-            .toList();
-
-        final currentTokenPrice = currentMenuItem.tokenPrices[_session.tier] ??
-            (currentMenuItem.basePriceToken > 0
-                ? currentMenuItem.basePriceToken
-                : orderItem.tokenPrice ?? 0);
-        final currentMenuMeta = menuItemMetaById[currentMenuItem.id] ?? const <String, String?>{};
-
-        itemsToAdd.add(
-          CartItem(
-            id: 'reorder-${order.id}-${orderItem.id}',
-            menuItemId: currentMenuItem.id,
-            menuItemCode: currentMenuItem.code,
-            name: currentMenuItem.name,
-            categoryCode: currentMenuMeta['categoryCode'],
-            categoryName: currentMenuMeta['categoryName'],
-            subcategoryCode: currentMenuMeta['subcategoryCode'],
-            subcategoryName: currentMenuMeta['subcategoryName'],
-            productKindCode: currentMenuMeta['productKindCode'],
-            productKindName: currentMenuMeta['productKindName'],
-            imageAssetPath: null,
-            imageUrl: currentMenuItem.imageUrl,
-            basePriceRm: double.tryParse(currentMenuItem.basePriceRm) ??
-                double.tryParse(orderItem.basePriceRm) ??
-                0.0,
-            tokenPrice: currentTokenPrice,
-            quantity: orderItem.quantity,
-            remarks: null,
-            displayDetails: null,
-            modifiers: modifiers,
+            ),
           ),
-        );
-      }
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.deepTeal,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: const Text(
+              'I have collected it',
+              style: TextStyle(fontFamily: 'Afacad'),
+            ),
+          ),
+        ],
+      ),
+    );
 
-      if (itemsToAdd.isEmpty) {
-        throw ApiException(
-          'This order has no items to reorder.',
-          code: 'order_empty',
-        );
-      }
-
-      CartService.instance.clear();
-      for (final item in itemsToAdd) {
-        CartService.instance.addItem(
-          storeId: order.store.id,
-          storeName: order.store.name,
-          item: item,
-        );
-      }
-
-      if (!mounted) return;
-      InteractiveFillingLoader.show(
-        context,
-        targetPage: const OrderConfirmationPage(),
-      );
-    } on ApiException catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error.message),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Unable to reorder this order right now.'),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
+    if (confirmed == true) {
+      await _collectOrder(order);
     }
   }
 
   Future<void> _collectOrder(CustomerOrder order) async {
     try {
-      final accessToken = await SecureSessionService.instance.getValidAccessToken();
+      final accessToken =
+          await SecureSessionService.instance.getValidAccessToken();
       if (accessToken == null || accessToken.isEmpty) {
         throw ApiException(
           'Missing access token.',
@@ -818,15 +797,12 @@ class _OrdersPageState extends State<OrdersPage>
       await _loadOrders(forceSessionReload: true, silent: true);
     } on ApiException catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_friendlyMessage(error))),
-      );
+      AppNotification.showError(context, _friendlyMessage(error));
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Unable to mark the order as collected right now.'),
-        ),
+      AppNotification.showError(
+        context,
+        'Unable to mark the order as collected right now.',
       );
     }
   }

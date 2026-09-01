@@ -1,12 +1,14 @@
 import 'dart:ui' as dart_ui;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../services/catalog_api_service.dart';
 import '../utils/app_colors.dart';
 
 class PosterPopup extends StatefulWidget {
+  final HomeBanner? banner;
   final VoidCallback? onClose;
 
-  const PosterPopup({super.key, this.onClose});
+  const PosterPopup({super.key, this.banner, this.onClose});
 
   @override
   State<PosterPopup> createState() => _PosterPopupState();
@@ -18,6 +20,14 @@ class _PosterPopupState extends State<PosterPopup>
   late Animation<double> _scaleAnimation;
   late Animation<double> _fadeAnimation;
   bool _dontShowAgain = false;
+
+  String get _dismissPreferenceKey {
+    final code = (widget.banner?.code ?? '').trim();
+    if (code.isEmpty) {
+      return 'hide_menu_ad_popup_expiry';
+    }
+    return 'hide_menu_ad_popup_expiry_$code';
+  }
 
   @override
   void initState() {
@@ -42,7 +52,7 @@ class _PosterPopupState extends State<PosterPopup>
   Future<void> _loadDontShowAgainState() async {
     final prefs = await SharedPreferences.getInstance();
     if (mounted) {
-      final expiryString = prefs.getString('hide_menu_ad_popup_expiry');
+      final expiryString = prefs.getString(_dismissPreferenceKey);
       bool isHidden = false;
       if (expiryString != null) {
         final expiryDate = DateTime.tryParse(expiryString);
@@ -61,10 +71,9 @@ class _PosterPopupState extends State<PosterPopup>
     if (value) {
       // Hide for 24 hours
       final expiry = DateTime.now().add(const Duration(hours: 24));
-      await prefs.setString(
-          'hide_menu_ad_popup_expiry', expiry.toIso8601String());
+      await prefs.setString(_dismissPreferenceKey, expiry.toIso8601String());
     } else {
-      await prefs.remove('hide_menu_ad_popup_expiry');
+      await prefs.remove(_dismissPreferenceKey);
     }
   }
 
@@ -76,6 +85,8 @@ class _PosterPopupState extends State<PosterPopup>
 
   @override
   Widget build(BuildContext context) {
+    final banner = widget.banner;
+
     return AnimatedBuilder(
       animation: _animationController,
       builder: (context, child) {
@@ -106,8 +117,9 @@ class _PosterPopupState extends State<PosterPopup>
                     scale: _scaleAnimation,
                     child: Container(
                       width: MediaQuery.of(context).size.width * 0.85,
-                      constraints: const BoxConstraints(maxWidth: 400),
+                      constraints: const BoxConstraints(maxWidth: 420),
                       decoration: BoxDecoration(
+                        color: Colors.white,
                         borderRadius: BorderRadius.circular(24),
                         boxShadow: [
                           BoxShadow(
@@ -120,42 +132,90 @@ class _PosterPopupState extends State<PosterPopup>
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(24),
                         child: Stack(
-                          clipBehavior: Clip.none,
                           children: [
-                            // Poster image
-                            Image.asset(
-                              'assets/images/poster.jpg',
-                              width: double.infinity,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                return Container(
-                                  height: 350,
-                                  color: Colors.grey.shade200,
-                                  child: const Center(
-                                    child: Column(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        Icon(
-                                          Icons.image_not_supported,
-                                          size: 48,
-                                          color: Colors.grey,
+                            AspectRatio(
+                              aspectRatio: 0.82,
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  _buildPosterImage(banner),
+                                  Positioned(
+                                    left: 14,
+                                    bottom: 14,
+                                    child: GestureDetector(
+                                      behavior: HitTestBehavior.opaque,
+                                      onTap: () {
+                                        final newVal = !_dontShowAgain;
+                                        setState(() {
+                                          _dontShowAgain = newVal;
+                                        });
+                                        _saveDontShowAgainState(newVal);
+                                      },
+                                      child: AnimatedContainer(
+                                        duration:
+                                            const Duration(milliseconds: 180),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 9,
                                         ),
-                                        SizedBox(height: 8),
-                                        Text(
-                                          'Poster not found',
-                                          style: TextStyle(
-                                            fontFamily: 'Afacad',
-                                            color: Colors.grey,
+                                        decoration: BoxDecoration(
+                                          color: Colors.black.withValues(
+                                            alpha: 0.42,
+                                          ),
+                                          borderRadius:
+                                              BorderRadius.circular(999),
+                                          border: Border.all(
+                                            color: Colors.white.withValues(
+                                              alpha: 0.18,
+                                            ),
                                           ),
                                         ),
-                                      ],
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            AnimatedContainer(
+                                              duration: const Duration(
+                                                milliseconds: 180,
+                                              ),
+                                              width: 18,
+                                              height: 18,
+                                              decoration: BoxDecoration(
+                                                color: _dontShowAgain
+                                                    ? AppColors.deepTeal
+                                                    : Colors.transparent,
+                                                borderRadius:
+                                                    BorderRadius.circular(5),
+                                                border: Border.all(
+                                                  color: Colors.white,
+                                                  width: 1.5,
+                                                ),
+                                              ),
+                                              child: _dontShowAgain
+                                                  ? const Icon(
+                                                      Icons.check,
+                                                      size: 12,
+                                                      color: Colors.white,
+                                                    )
+                                                  : null,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            const Text(
+                                              "Don't show again",
+                                              style: TextStyle(
+                                                fontFamily: 'Afacad',
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w700,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
                                     ),
                                   ),
-                                );
-                              },
+                                ],
+                              ),
                             ),
-                            // Close button on top right
                             Positioned(
                               top: 12,
                               right: 12,
@@ -165,13 +225,11 @@ class _PosterPopupState extends State<PosterPopup>
                                   width: 36,
                                   height: 36,
                                   decoration: BoxDecoration(
-                                    color: AppColors.deepTeal
-                                        .withValues(alpha: 0.85),
+                                    color: AppColors.deepTeal.withValues(alpha: 0.85),
                                     shape: BoxShape.circle,
                                     boxShadow: [
                                       BoxShadow(
-                                        color: Colors.black
-                                            .withValues(alpha: 0.25),
+                                        color: Colors.black.withValues(alpha: 0.25),
                                         blurRadius: 8,
                                         offset: const Offset(0, 2),
                                       ),
@@ -181,66 +239,6 @@ class _PosterPopupState extends State<PosterPopup>
                                     Icons.close,
                                     color: Colors.white,
                                     size: 18,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            // "Don't show again" overlay on bottom left
-                            Positioned(
-                              bottom: 12,
-                              left: 12,
-                              child: GestureDetector(
-                                behavior: HitTestBehavior.opaque,
-                                onTap: () {
-                                  final newVal = !_dontShowAgain;
-                                  setState(() {
-                                    _dontShowAgain = newVal;
-                                  });
-                                  _saveDontShowAgainState(newVal);
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 10, vertical: 5),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black.withValues(alpha: 0.45),
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      SizedBox(
-                                        width: 18,
-                                        height: 18,
-                                        child: Checkbox(
-                                          value: _dontShowAgain,
-                                          activeColor: AppColors.deepTeal,
-                                          checkColor: Colors.white,
-                                          side: const BorderSide(
-                                              color: Colors.white, width: 1.5),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(4),
-                                          ),
-                                          onChanged: (bool? val) {
-                                            final newVal = val ?? false;
-                                            setState(() {
-                                              _dontShowAgain = newVal;
-                                            });
-                                            _saveDontShowAgainState(newVal);
-                                          },
-                                        ),
-                                      ),
-                                      const SizedBox(width: 6),
-                                      const Text(
-                                        "Don't show again",
-                                        style: TextStyle(
-                                          fontFamily: 'Afacad',
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                    ],
                                   ),
                                 ),
                               ),
@@ -259,6 +257,56 @@ class _PosterPopupState extends State<PosterPopup>
     );
   }
 
+  Widget _buildPosterImage(HomeBanner? banner) {
+    final resolvedSource = resolveCatalogImageSource(banner?.imageSource);
+    if (resolvedSource == null) {
+      return Container(
+        color: const Color(0xFFF3F4F6),
+        alignment: Alignment.center,
+        child: const Text(
+          'Poster unavailable',
+          style: TextStyle(
+            fontFamily: 'Afacad',
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF6B7280),
+          ),
+        ),
+      );
+    }
+
+    if (resolvedSource.startsWith('http://') ||
+        resolvedSource.startsWith('https://')) {
+      return Image.network(
+        resolvedSource,
+        width: double.infinity,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) =>
+            _buildPosterFallback(),
+      );
+    }
+
+    return Image.asset(
+      resolvedSource,
+      width: double.infinity,
+      fit: BoxFit.cover,
+      errorBuilder: (context, error, stackTrace) => _buildPosterFallback(),
+    );
+  }
+
+  Widget _buildPosterFallback() {
+    return Container(
+      color: const Color(0xFFF3F4F6),
+      alignment: Alignment.center,
+      child: Image.asset(
+        'assets/images/c2_logo.png',
+        width: 84,
+        height: 84,
+        fit: BoxFit.contain,
+      ),
+    );
+  }
+
   void _closePopup() {
     _animationController.reverse().then((_) {
       if (mounted) {
@@ -271,9 +319,18 @@ class _PosterPopupState extends State<PosterPopup>
 
 // Helper function to show the poster popup
 Future<void> showPosterPopup(BuildContext context,
-    {VoidCallback? onClose}) async {
+    {HomeBanner? banner, VoidCallback? onClose}) async {
+  if (banner == null) {
+    onClose?.call();
+    return;
+  }
+
   final prefs = await SharedPreferences.getInstance();
-  final expiryString = prefs.getString('hide_menu_ad_popup_expiry');
+  final code = banner.code.trim();
+  final dismissKey = code.isEmpty
+      ? 'hide_menu_ad_popup_expiry'
+      : 'hide_menu_ad_popup_expiry_$code';
+  final expiryString = prefs.getString(dismissKey);
   if (expiryString != null) {
     final expiryDate = DateTime.tryParse(expiryString);
     if (expiryDate != null && DateTime.now().isBefore(expiryDate)) {
@@ -289,6 +346,6 @@ Future<void> showPosterPopup(BuildContext context,
     barrierDismissible: false,
     barrierColor: Colors.transparent,
     useSafeArea: false,
-    builder: (context) => PosterPopup(onClose: onClose),
+    builder: (context) => PosterPopup(banner: banner, onClose: onClose),
   );
 }

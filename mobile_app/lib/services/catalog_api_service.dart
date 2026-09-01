@@ -6,6 +6,29 @@ import 'api_config.dart';
 import 'auth_api_service.dart';
 import 'secure_session_service.dart';
 
+String? resolveCatalogImageSource(String? source) {
+  final value = source?.trim() ?? '';
+  if (value.isEmpty) {
+    return null;
+  }
+
+  if (value.startsWith('http://') ||
+      value.startsWith('https://') ||
+      value.startsWith('data:') ||
+      value.startsWith('blob:')) {
+    return value;
+  }
+
+  if (value.startsWith('assets/')) {
+    return value;
+  }
+
+  final baseOrigin = ApiConfig.baseUrl.replaceFirst(RegExp(r'/v1/?$'), '');
+  return value.startsWith('/')
+      ? '$baseOrigin$value'
+      : '$baseOrigin/$value';
+}
+
 class StoreSummary {
   final int id;
   final String code;
@@ -251,23 +274,64 @@ class HomeBanner {
   final String title;
   final String subtitle;
   final String imageSource;
+  final String bannerType;
+  final String destinationType;
+  final String? secondaryDestinationType;
+  final String? targetValue;
+  final DateTime? startsAt;
+  final DateTime? endsAt;
   final String placement;
   final int sortOrder;
+  final bool floatingPriority;
 
   const HomeBanner({
     required this.code,
     required this.title,
     required this.subtitle,
     required this.imageSource,
+    required this.bannerType,
+    required this.destinationType,
+    required this.secondaryDestinationType,
+    required this.targetValue,
+    required this.startsAt,
+    required this.endsAt,
     required this.placement,
     required this.sortOrder,
+    required this.floatingPriority,
   });
-
-  bool get appearsOnHome =>
-      placement == 'home' || placement == 'both' || placement.isEmpty;
 
   bool get appearsOnProfile =>
       placement == 'profile' || placement == 'both' || placement.isEmpty;
+
+  bool get isEventLive {
+    if (bannerType != 'event' || startsAt == null || endsAt == null) {
+      return false;
+    }
+
+    final now = DateTime.now().toUtc();
+    return !now.isBefore(startsAt!.toUtc()) && !now.isAfter(endsAt!.toUtc());
+  }
+
+  String get routeLabel {
+    switch (bannerType) {
+      case 'voucher':
+        return destinationType == 'reward_section'
+            ? 'Rewards'
+            : 'Menu';
+      case 'event':
+        return isEventLive ? 'Menu during event' : 'Calendar before start';
+      case 'new_item':
+        return targetValue?.trim().isNotEmpty == true
+            ? 'Menu · specific item'
+            : 'Menu';
+      default:
+        return destinationType == 'reward_section'
+            ? 'Rewards'
+            : destinationType == 'calendar'
+                ? 'Calendar'
+                : 'Menu';
+    }
+  }
 
   factory HomeBanner.fromApi(Map<String, dynamic> json) {
     return HomeBanner(
@@ -275,163 +339,17 @@ class HomeBanner {
       title: json['title'] as String? ?? '',
       subtitle: json['subtitle'] as String? ?? '',
       imageSource: json['image_source'] as String? ?? '',
+      bannerType: json['banner_type'] as String? ?? 'general',
+      destinationType: json['destination_type'] as String? ?? 'menu',
+      secondaryDestinationType:
+          json['secondary_destination_type'] as String?,
+      targetValue: json['target_value'] as String?,
+      startsAt: DateTime.tryParse(json['starts_at'] as String? ?? ''),
+      endsAt: DateTime.tryParse(json['ends_at'] as String? ?? ''),
       placement: json['placement'] as String? ?? 'both',
       sortOrder: (json['sort_order'] as num?)?.toInt() ?? 0,
+      floatingPriority: (json['floating_priority'] as num?)?.toInt() == 1,
     );
-  }
-}
-
-class TierRewardCondition {
-  final String mode;
-  final String? birthdayMatch;
-
-  const TierRewardCondition({
-    required this.mode,
-    required this.birthdayMatch,
-  });
-
-  bool get isBirthday => mode == 'birthday';
-
-  String get label {
-    if (mode == 'birthday') {
-      return birthdayMatch == 'month' ? 'Birthday month only' : 'Birthday only';
-    }
-    return 'Always active';
-  }
-
-  factory TierRewardCondition.fromApi(Map<String, dynamic> json) {
-    return TierRewardCondition(
-      mode: json['mode'] as String? ?? 'always',
-      birthdayMatch: json['birthdayMatch'] as String?,
-    );
-  }
-}
-
-class TierRewardConfig {
-  final bool enabled;
-  final String label;
-  final String kind;
-  final String? discountUnit;
-  final String? rewardItemType;
-  final num? rewardValue;
-  final String scope;
-  final String notes;
-  final TierRewardCondition condition;
-
-  const TierRewardConfig({
-    required this.enabled,
-    required this.label,
-    required this.kind,
-    required this.discountUnit,
-    required this.rewardItemType,
-    required this.rewardValue,
-    required this.scope,
-    required this.notes,
-    required this.condition,
-  });
-
-  factory TierRewardConfig.fromApi(Map<String, dynamic> json) {
-    return TierRewardConfig(
-      enabled: json['enabled'] as bool? ?? false,
-      label: json['label'] as String? ?? '',
-      kind: json['kind'] as String? ?? 'promotion',
-      discountUnit: json['discountUnit'] as String?,
-      rewardItemType: json['rewardItemType'] as String?,
-      rewardValue: json['rewardValue'] as num?,
-      scope: json['scope'] as String? ?? 'all_items',
-      notes: json['notes'] as String? ?? '',
-      condition: TierRewardCondition.fromApi(
-        Map<String, dynamic>.from(json['condition'] as Map? ?? const {}),
-      ),
-    );
-  }
-
-  String get title {
-    final trimmed = label.trim();
-    if (trimmed.isNotEmpty) return trimmed;
-
-    switch (kind) {
-      case 'discount':
-        return 'Discount reward';
-      case 'free_item':
-        return 'Free item reward';
-      default:
-        return 'Promotion reward';
-    }
-  }
-
-  String get benefitLabel {
-    switch (kind) {
-      case 'discount':
-        if (discountUnit == 'token') {
-          return rewardValue == null
-              ? 'Token discount'
-              : '${rewardValue!.toInt()} tokens off';
-        }
-        if (discountUnit == 'rm') {
-          return rewardValue == null
-              ? 'RM discount'
-              : 'RM ${rewardValue!.toDouble().toStringAsFixed(2)} off';
-        }
-        if (discountUnit == 'percent') {
-          return rewardValue == null
-              ? 'Percentage discount'
-              : '${rewardValue!.toInt()}% off';
-        }
-        return 'Discount';
-      case 'free_item':
-        final itemType = _formatScopeLabel(rewardItemType ?? 'item');
-        final rewardCount = rewardValue?.toInt() ?? 1;
-        return rewardCount == 1
-            ? '1 free $itemType'
-            : '$rewardCount free $itemType';
-      default:
-        return 'Promotion';
-    }
-  }
-
-  String get scopeLabel {
-    switch (scope) {
-      case 'all_drinks':
-        return 'All drinks';
-      case 'all_food':
-        return 'All food';
-      case 'all_merchandise':
-        return 'All merchandise';
-      case 'selected_skus':
-        return 'Selected items';
-      case 'all_except_skus':
-        return 'All except selected items';
-      default:
-        return 'All items';
-    }
-  }
-
-  String get subtitle {
-    final details = <String>[];
-    final benefit = benefitLabel.trim();
-    if (benefit.isNotEmpty) {
-      details.add(benefit);
-    }
-    details.add(scopeLabel);
-    details.add(condition.label);
-    if (notes.trim().isNotEmpty) {
-      details.add(notes.trim());
-    }
-    return details.join(' • ');
-  }
-
-  static String _formatScopeLabel(String value) {
-    switch (value) {
-      case 'drink':
-        return 'drink';
-      case 'food':
-        return 'food';
-      case 'merchandise':
-        return 'merchandise';
-      default:
-        return 'item';
-    }
   }
 }
 
@@ -439,45 +357,29 @@ class LoyaltyTier {
   final String code;
   final String name;
   final int minCups;
-  final String promotionText;
   final String? badgeColor;
   final int sortOrder;
   final bool isActive;
-  final List<TierRewardConfig> rewardConfigs;
 
   const LoyaltyTier({
     required this.code,
     required this.name,
     required this.minCups,
-    required this.promotionText,
     required this.badgeColor,
     required this.sortOrder,
     required this.isActive,
-    required this.rewardConfigs,
   });
 
   factory LoyaltyTier.fromApi(Map<String, dynamic> json) {
-    final rewardConfigs = (json['rewardConfigs'] as List? ?? const [])
-        .map((reward) => TierRewardConfig.fromApi(
-              Map<String, dynamic>.from(reward as Map),
-            ))
-        .where((reward) => reward.enabled || reward.label.trim().isNotEmpty)
-        .toList();
-
     return LoyaltyTier(
       code: json['code'] as String? ?? '',
       name: json['name'] as String? ?? '',
       minCups: (json['minCups'] as num?)?.toInt() ?? 0,
-      promotionText: json['promotionText'] as String? ?? '',
       badgeColor: json['badgeColor'] as String?,
       sortOrder: (json['sortOrder'] as num?)?.toInt() ?? 0,
       isActive: json['isActive'] as bool? ?? true,
-      rewardConfigs: rewardConfigs,
     );
   }
-
-  List<TierRewardConfig> get enabledRewards =>
-      rewardConfigs.where((reward) => reward.enabled).toList();
 }
 
 class BootstrapSnapshot {
@@ -524,7 +426,14 @@ class CatalogApiService {
               Map<String, dynamic>.from(banner as Map),
             ))
         .toList()
-      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+      ..sort((a, b) {
+        final sortOrderComparison = a.sortOrder.compareTo(b.sortOrder);
+        if (sortOrderComparison != 0) {
+          return sortOrderComparison;
+        }
+
+        return a.code.compareTo(b.code);
+      });
     final loyaltyTiers = (loyalty['tiers'] as List? ?? const [])
         .map((tier) => LoyaltyTier.fromApi(
               Map<String, dynamic>.from(tier as Map),

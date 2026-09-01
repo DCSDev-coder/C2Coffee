@@ -10,7 +10,8 @@ VALUES
   ('super_admin', 'Super Admin', 'Full administrative access'),
   ('marketing_admin', 'Marketing Admin', 'Campaign, voucher, and reward operations'),
   ('operations_admin', 'Operations Admin', 'Store, order, menu, refund, and operational support'),
-  ('support_admin', 'Support Admin', 'Customer lookup and limited support actions')
+  ('support_admin', 'Support Admin', 'Customer lookup and limited support actions'),
+  ('barista', 'Barista', 'Barista app access for preparing customer orders')
 ON DUPLICATE KEY UPDATE
   name = VALUES(name),
   description = VALUES(description);
@@ -167,6 +168,7 @@ INSERT INTO home_banners (
   image_source,
   placement,
   sort_order,
+  floating_priority,
   is_active
 )
 VALUES
@@ -177,6 +179,7 @@ VALUES
     'assets/images/operationhour.jpeg',
     'both',
     10,
+    1,
     1
   ),
   (
@@ -186,6 +189,7 @@ VALUES
     'assets/images/happyhour.jpeg',
     'both',
     20,
+    0,
     1
   ),
   (
@@ -195,6 +199,7 @@ VALUES
     'assets/images/incaseofemergency.jpeg',
     'both',
     30,
+    0,
     1
   )
 ON DUPLICATE KEY UPDATE
@@ -203,6 +208,7 @@ ON DUPLICATE KEY UPDATE
   image_source = VALUES(image_source),
   placement = VALUES(placement),
   sort_order = VALUES(sort_order),
+  floating_priority = VALUES(floating_priority),
   is_active = VALUES(is_active);
 
 INSERT INTO menu_categories (code, name, sort_order, is_active)

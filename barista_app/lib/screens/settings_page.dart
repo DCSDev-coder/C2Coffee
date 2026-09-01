@@ -4,342 +4,486 @@ import '../main.dart';
 import '../services/api_service.dart';
 import '../widgets/blinking_online_indicator.dart';
 
-class SettingsPage extends StatefulWidget {
+class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
 
-  @override
-  State<SettingsPage> createState() => _SettingsPageState();
-}
+  static const Color ink = Color(0xFF203E32);
+  static const Color green = Color(0xFF304A3A);
+  static const Color gold = Color(0xFFD3B17D);
+  static const Color canvas = Color(0xFFF7F6F1);
 
-class _SettingsPageState extends State<SettingsPage> {
-  final Color darkGreen = const Color(0xFF304A3A);
-  final Color beigeColor = const Color(0xFFD3B17D);
-  final Color switchOrange = const Color(0xFFE07A5F);
+  Future<void> _signOut(BuildContext context) async {
+    final shouldSignOut = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => _SignOutSheet(
+        onCancel: () => Navigator.pop(sheetContext, false),
+        onConfirm: () => Navigator.pop(sheetContext, true),
+      ),
+    );
 
-  @override
-  void initState() {
-    super.initState();
-    _refreshBaristas();
-  }
-
-  Future<void> _refreshBaristas() async {
-    final baristas = await ApiService.fetchBaristas();
-    if (baristas.isNotEmpty) {
-      globalBaristas.value = baristas;
-      if (!baristas.contains(globalActiveBarista.value)) {
-        globalActiveBarista.value = baristas.first;
-      }
-      // Force sync the backend to match the app's single active barista,
-      // in case the database had multiple active baristas out of sync.
-      await ApiService.setBaristaActive(globalActiveBarista.value);
-    }
+    if (shouldSignOut != true || !context.mounted) return;
+    ApiService.logout();
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => const LoginPage()),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: canvas,
       body: Stack(
         children: [
           Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 800),
-              child: ScrollConfiguration(
-                behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
-                child: ListView(
-                  padding: const EdgeInsets.only(
-                    top: 100,
-                    bottom: 180,
-                  ), // padding to scroll past the header and floating bottom bar
-                  children: [
-                    // Content
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24.0,
-                        vertical: 16.0,
-                      ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(24, 132, 24, 148),
+                children: [
+                  const Text(
+                    'Workstation',
+                    style: TextStyle(
+                      color: ink,
+                      fontSize: 34,
+                      height: 1.05,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Manage the staff identity assigned to orders from this device.',
+                    style: TextStyle(
+                      color: ink.withValues(alpha: 0.65),
+                      fontSize: 16,
+                      height: 1.4,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 36),
+                  const _SectionLabel(label: 'CURRENT SHIFT'),
+                  const SizedBox(height: 12),
+                  ValueListenableBuilder<String>(
+                    valueListenable: globalActiveBarista,
+                    builder: (context, activeBarista, _) {
+                      return _ActiveBaristaCard(name: activeBarista);
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  _SettingsActionTile(
+                    icon: Icons.manage_accounts_outlined,
+                    title: 'Change barista',
+                    subtitle:
+                        'Select the staff member starting the next shift.',
+                    onTap: () {
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const BaristaSelectionPage(),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 32),
+                  const _SectionLabel(label: 'SESSION'),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: ink.withValues(alpha: 0.10)),
+                    ),
+                    child: Row(
                       children: [
-                        // Title
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Settings',
-                                    style: TextStyle(
-                                      color: darkGreen,
-                                      fontSize: 32,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  Text(
-                                    'Manage your shift preferences and active barista profile',
-                                    style: TextStyle(
-                                      color: beigeColor,
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: gold.withValues(alpha: 0.18),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.lock_outline_rounded,
+                            color: ink,
+                            size: 21,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Shared Barista App account',
+                                style: TextStyle(
+                                  color: ink,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 32.0),
-
-                        // Active Staff Section
-                        Text(
-                          'Active Staff',
-                          style: TextStyle(
-                            color: darkGreen,
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 16.0),
-
-                        // Animated Staff List
-                        ValueListenableBuilder<List<String>>(
-                          valueListenable: globalBaristas,
-                          builder: (context, allBaristas, _) {
-                            return ValueListenableBuilder<String>(
-                              valueListenable: globalActiveBarista,
-                              builder: (context, activeBarista, _) {
-                                return SizedBox(
-                                  height:
-                                      allBaristas.length *
-                                      90.0, // items, 80 height + 10 padding
-                                  child: Stack(
-                                    children: allBaristas.map((name) {
-                                      int physicalIndex;
-                                      if (name == activeBarista) {
-                                        physicalIndex = 0;
-                                      } else {
-                                        // The inactive ones keep their relative order
-                                        int relativeIndex = allBaristas
-                                            .where((b) => b != activeBarista)
-                                            .toList()
-                                            .indexOf(name);
-                                        physicalIndex = relativeIndex + 1;
-                                      }
-
-                                      return AnimatedPositioned(
-                                        key: ValueKey(name),
-                                        duration: const Duration(
-                                          milliseconds: 500,
-                                        ),
-                                        curve: Curves.easeOutCubic,
-                                        top: physicalIndex * 90.0,
-                                        left: 0,
-                                        right: 0,
-                                        height: 80.0,
-                                        child: _buildAestheticCard(
-                                          name,
-                                          isActive: name == activeBarista,
-                                        ),
-                                      );
-                                    }).toList(),
-                                  ),
-                                );
-                              },
-                            );
-                          },
-                        ),
-
-
-                        const SizedBox(height: 48.0),
-                        
-                        // Log Out Button
-                        ElevatedButton(
-                          onPressed: () async {
-                            await ApiService.setAllBaristasInactive();
-                            if (!context.mounted) return;
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(builder: (context) => const LoginPage()),
-                            );
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFDF7E65), // orange color
-                            padding: const EdgeInsets.symmetric(vertical: 16.0),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16.0),
-                            ),
-                          ),
-                          child: const Text(
-                            'Log Out',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
+                              const SizedBox(height: 3),
+                              Text(
+                                'Staff identity is selected separately for order records.',
+                                style: TextStyle(
+                                  color: ink.withValues(alpha: 0.60),
+                                  fontSize: 13,
+                                  height: 1.35,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
                     ),
                   ),
-                ],
-              ), // closes ListView
-              ), // closes ScrollConfiguration
-            ), // closes ConstrainedBox
-          ), // closes Center
-          // Dark Green Top Header (Fixed)
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: Container(
-              height: 110,
-              padding: const EdgeInsets.only(top: 40, left: 24, right: 24),
-              decoration: BoxDecoration(
-                color: darkGreen,
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(16.0),
-                  bottomRight: Radius.circular(16.0),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Row(
-                    children: [
-                      Image.asset(
-                        'assets/images/c2_logo.png',
-                        height: 40,
+                  const SizedBox(height: 28),
+                  TextButton.icon(
+                    onPressed: () => _signOut(context),
+                    icon: const Icon(Icons.logout_rounded, size: 19),
+                    label: const Text('Sign out from this device'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: const Color(0xFFB54E3D),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 14,
                       ),
-                    ],
+                      alignment: Alignment.centerLeft,
+                      textStyle: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
-                  const BlinkingOnlineIndicator(),
                 ],
               ),
+            ),
+          ),
+          const _WorkstationHeader(),
+        ],
+      ),
+    );
+  }
+}
+
+class _WorkstationHeader extends StatelessWidget {
+  const _WorkstationHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      top: 0,
+      left: 0,
+      right: 0,
+      child: Container(
+        height: 96,
+        padding: const EdgeInsets.fromLTRB(24, 37, 24, 16),
+        decoration: BoxDecoration(
+          color: SettingsPage.ink,
+          borderRadius: const BorderRadius.vertical(
+            bottom: Radius.circular(24),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: SettingsPage.ink.withValues(alpha: 0.15),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Image.asset('assets/images/c2_logo.png', height: 34),
+            const Spacer(),
+            const BlinkingOnlineIndicator(),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  final String label;
+
+  const _SectionLabel({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      label,
+      style: TextStyle(
+        color: SettingsPage.ink.withValues(alpha: 0.48),
+        fontSize: 11,
+        letterSpacing: 1.6,
+        fontWeight: FontWeight.w800,
+      ),
+    );
+  }
+}
+
+class _ActiveBaristaCard extends StatelessWidget {
+  final String name;
+
+  const _ActiveBaristaCard({required this.name});
+
+  @override
+  Widget build(BuildContext context) {
+    final displayName = name.trim().isEmpty
+        ? 'No barista selected'
+        : name.trim();
+    final initial = displayName.substring(0, 1).toUpperCase();
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: SettingsPage.green,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: SettingsPage.green.withValues(alpha: 0.20),
+            blurRadius: 22,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: const BoxDecoration(
+              color: SettingsPage.gold,
+              shape: BoxShape.circle,
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              initial,
+              style: const TextStyle(
+                color: SettingsPage.ink,
+                fontSize: 21,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Preparing orders as',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  displayName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 23,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.verified_rounded,
+                  color: Color(0xFFD3B17D),
+                  size: 15,
+                ),
+                SizedBox(width: 5),
+                Text(
+                  'ACTIVE',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    letterSpacing: 0.8,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildAestheticCard(String name, {required bool isActive}) {
-    final initial = name.isNotEmpty ? name[0].toUpperCase() : '';
+class _SettingsActionTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
 
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 400),
-      curve: Curves.easeInOut,
-      padding: const EdgeInsets.symmetric(horizontal: 20.0),
-      decoration: BoxDecoration(
-        color: isActive ? darkGreen : Colors.white,
-        borderRadius: BorderRadius.circular(20.0),
-        border: Border.all(
-          color: isActive ? darkGreen : Colors.grey.shade200,
-          width: 1.5,
-        ),
-        boxShadow: isActive
-            ? [
-                BoxShadow(
-                  color: darkGreen.withValues(alpha: 0.3),
-                  blurRadius: 15,
-                  offset: const Offset(0, 8),
-                ),
-              ]
-            : [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.02),
-                  blurRadius: 5,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-      ),
-      child: Row(
-        children: [
-          // Avatar
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 400),
-            width: 46,
-            height: 46,
-            decoration: BoxDecoration(
-              color: isActive ? beigeColor : darkGreen.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Center(
-              child: Text(
-                initial,
-                style: TextStyle(
-                  color: isActive ? darkGreen : darkGreen,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                ),
-              ),
-            ),
+  const _SettingsActionTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          padding: const EdgeInsets.all(17),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: SettingsPage.ink.withValues(alpha: 0.10)),
           ),
-          const SizedBox(width: 16.0),
-
-              // Name
-              AnimatedDefaultTextStyle(
-                duration: const Duration(milliseconds: 400),
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  color: isActive ? Colors.white : Colors.black87,
-                  fontFamily: 'Afacad',
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: SettingsPage.gold.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: Text(name),
+                child: Icon(icon, color: SettingsPage.ink, size: 22),
               ),
-              const Spacer(),
-
-              // Action Button / Icon
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 300),
-                child: isActive
-                    ? Row(
-                        key: const ValueKey('check'),
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(4.0),
-                            decoration: const BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              Icons.check,
-                              color: darkGreen,
-                              size: 20,
-                            ),
-                          ),
-                        ],
-                      )
-                    : IconButton(
-                        key: const ValueKey('switch'),
-                        onPressed: () async {
-                          globalActiveBarista.value = name;
-                          await ApiService.setBaristaActive(name);
-                        },
-                        style: IconButton.styleFrom(
-                          foregroundColor: switchOrange,
-                          backgroundColor: switchOrange.withValues(alpha: 0.1),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12.0),
-                          ),
-                        ),
-                        icon: const Icon(Icons.swap_horiz_rounded),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: SettingsPage.ink,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
                       ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        color: SettingsPage.ink.withValues(alpha: 0.58),
+                        fontSize: 13,
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: SettingsPage.ink.withValues(alpha: 0.45),
+                size: 24,
               ),
             ],
           ),
-        );
+        ),
+      ),
+    );
+  }
+}
+
+class _SignOutSheet extends StatelessWidget {
+  final VoidCallback onCancel;
+  final VoidCallback onConfirm;
+
+  const _SignOutSheet({required this.onCancel, required this.onConfirm});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(24, 14, 24, 28),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 38,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.black12,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'Sign out from this device?',
+              style: TextStyle(
+                color: SettingsPage.ink,
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'The next staff member will need the shared Barista App login before selecting their name.',
+              style: TextStyle(
+                color: SettingsPage.ink.withValues(alpha: 0.62),
+                fontSize: 15,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: onCancel,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: SettingsPage.ink,
+                      side: BorderSide(
+                        color: SettingsPage.ink.withValues(alpha: 0.20),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: const Text('Cancel'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: onConfirm,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFFB54E3D),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: const Text('Sign out'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

@@ -104,6 +104,8 @@ type OrderSummaryRow = RowDataPacket & {
   store_name: string;
   item_count: number;
   primary_item_name: string | null;
+  barista_name: string | null;
+  barista_username: string | null;
 };
 
 type OrderItemRow = RowDataPacket & {
@@ -581,11 +583,17 @@ export async function registerCustomerDataRoutes(
           o.updated_at,
           s.id AS store_id,
           s.name AS store_name,
+          COALESCE(ready_barista.name, preparing_barista.name) AS barista_name,
+          NULL AS barista_username,
           COUNT(oi.id) AS item_count,
           MIN(oi.item_name_snapshot) AS primary_item_name
         FROM orders o
         JOIN stores s
           ON s.id = o.store_id
+        LEFT JOIN baristas preparing_barista
+          ON preparing_barista.id = o.preparing_by_barista_id
+        LEFT JOIN baristas ready_barista
+          ON ready_barista.id = o.ready_by_barista_id
         LEFT JOIN order_items oi
           ON oi.order_id = o.id
         WHERE o.user_id = :userId
@@ -605,7 +613,9 @@ export async function registerCustomerDataRoutes(
           o.created_at,
           o.updated_at,
           s.id,
-          s.name
+          s.name,
+          ready_barista.name,
+          preparing_barista.name
         ORDER BY o.id DESC
         LIMIT :limit
       `,
@@ -748,6 +758,8 @@ export async function registerCustomerDataRoutes(
           id: row.store_id,
           name: row.store_name
         },
+        barista_name: row.barista_name,
+        barista_username: row.barista_username,
         item_count: row.item_count,
         primary_item_name: row.primary_item_name,
         items: itemsByOrder.get(row.id) ?? [],

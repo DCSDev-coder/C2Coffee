@@ -1,7 +1,5 @@
-import { mkdir, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 import type { FastifyInstance } from 'fastify';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
@@ -9,6 +7,7 @@ import { z } from 'zod';
 import { mysqlPool } from '../../db/mysql.js';
 import { ApiError } from '../errors.js';
 import { authenticateAdminRequest } from '../../admin/guard.js';
+import { mimeTypeForAssetPath, saveMediaAsset } from '../../lib/media-assets.js';
 
 const tierCodes = ['kawan', 'dilamun', 'ketagih', 'legend'] as const;
 
@@ -308,13 +307,6 @@ function resolveProductKind(productKindCode: string | null | undefined, category
 }
 
 export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<void> {
-  const routeDir = path.dirname(fileURLToPath(import.meta.url));
-  const publicRoot = path.resolve(routeDir, '../../public');
-  const menuRoot = path.join(publicRoot, 'menu');
-  const uploadRoot = path.join(menuRoot, 'uploads');
-
-  await mkdir(uploadRoot, { recursive: true });
-
   app.get('/v1/admin/menu', { preHandler: authenticateAdminRequest }, async () => {
     const [rows] = await mysqlPool.query<Array<AdminMenuRow>>(
       `
@@ -409,6 +401,108 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
     );
 
     return buildMenuResponse(rows);
+  });
+
+  app.get('/v1/admin/reports/products', { preHandler: authenticateAdminRequest }, async (request) => {
+    const selectedDateRaw = typeof request.query === 'object' && request.query !== null
+      ? (request.query as { selected_date?: string }).selected_date
+      : undefined;
+    const selectedDate = selectedDateRaw ? new Date(selectedDateRaw) : null;
+    const safeSelectedDate = selectedDate && !Number.isNaN(selectedDate.getTime()) ? selectedDate : null;
+
+    const [rows] = await mysqlPool.query<Array<AdminMenuRow>>(
+      `
+        SELECT
+          c.id AS category_id,
+          c.code AS category_code,
+          c.name AS category_name,
+          CASE
+            WHEN LOWER(c.code) IN ('coffee', 'non_coffee') THEN 'drink'
+            WHEN LOWER(c.code) = 'food' THEN 'food'
+            WHEN LOWER(c.code) = 'merchandise' THEN 'merchandise'
+            WHEN LOWER(c.code) = 'candles' THEN 'candle'
+            ELSE 'other'
+          END AS category_product_kind_code,
+          c.sort_order AS category_sort_order,
+          c.is_active AS category_is_active,
+          sc.id AS subcategory_id,
+          sc.code AS subcategory_code,
+          sc.name AS subcategory_name,
+          sc.sort_order AS subcategory_sort_order,
+          sc.is_active AS subcategory_is_active,
+          i.id AS item_id,
+          i.code AS item_code,
+          i.name AS item_name,
+          i.description AS item_description,
+          CAST(i.base_price_rm AS CHAR) AS base_price_rm,
+          i.base_price_token,
+          i.image_url,
+          i.is_active AS is_available,
+          i.is_handcrafted_drink,
+          i.is_qualifying_cup,
+          i.allow_choice_of_beans,
+          i.allow_espresso_shot,
+          i.allow_choice_of_milk,
+          i.allow_choice_of_sweetness,
+          i.allow_ice_level,
+          i.allow_temperature,
+          i.allow_sparkling_mixer,
+          i.allow_order_type,
+          i.allow_remarks,
+          i.sort_order AS item_sort_order,
+          i.created_at AS item_created_at,
+          i.updated_at AS item_updated_at,
+          tp.tier_code,
+          tp.token_price,
+          sales.total_units_sold,
+          sales.total_revenue_rm,
+          sales.last_ordered_at,
+          img.id AS modifier_group_id,
+          img.code AS modifier_group_code,
+          img.name AS modifier_group_name,
+          img.selection_type AS modifier_group_selection_type,
+          img.min_select AS modifier_group_min_select,
+          img.max_select AS modifier_group_max_select,
+          img.is_required AS modifier_group_is_required,
+          img.sort_order AS modifier_group_sort_order,
+          imo.id AS modifier_option_id,
+          imo.code AS modifier_option_code,
+          imo.name AS modifier_option_name,
+          CAST(imo.price_delta_rm AS CHAR) AS modifier_option_price_delta_rm,
+          imo.token_price_delta AS modifier_option_token_price_delta,
+          imo.sort_order AS modifier_option_sort_order,
+          imo.is_active AS modifier_option_is_active
+        FROM menu_categories c
+        JOIN menu_items i
+          ON i.category_id = c.id
+        LEFT JOIN menu_subcategories sc
+          ON sc.id = i.subcategory_id
+        LEFT JOIN (
+          SELECT
+            oi.menu_item_id,
+            SUM(oi.quantity) AS total_units_sold,
+            CAST(SUM(oi.line_subtotal_rm) AS CHAR) AS total_revenue_rm,
+            MAX(o.created_at) AS last_ordered_at
+          FROM order_items oi
+          JOIN orders o ON o.id = oi.order_id
+          WHERE o.status IN ('paid', 'accepted', 'preparing', 'ready_for_pickup', 'collected')
+          GROUP BY oi.menu_item_id
+        ) sales
+          ON sales.menu_item_id = i.id
+        LEFT JOIN menu_item_token_prices tp
+          ON tp.menu_item_id = i.id
+         AND tp.is_enabled = 1
+         AND tp.effective_from <= UTC_TIMESTAMP()
+         AND (tp.effective_to IS NULL OR tp.effective_to > UTC_TIMESTAMP())
+        LEFT JOIN item_modifier_groups img
+          ON img.menu_item_id = i.id
+        LEFT JOIN item_modifier_options imo
+          ON imo.modifier_group_id = img.id
+        ORDER BY c.sort_order ASC, c.id ASC, i.sort_order ASC, i.id ASC, tp.tier_code ASC
+      `
+    );
+
+    return buildProductReportResponse(buildMenuResponse(rows), safeSelectedDate);
   });
 
   app.post('/v1/admin/menu/items', { preHandler: authenticateAdminRequest }, async (request) => {
@@ -530,7 +624,7 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
       const payload = adminMenuImageUploadSchema.parse(request.body);
       const fileExtension = extensionForMimeType(payload.mime_type);
       const uploadName = `${Date.now()}-${randomUUID()}-${slugifyFileName(payload.file_name)}${fileExtension}`;
-      const targetPath = path.join(uploadRoot, uploadName);
+      const assetPath = `/assets/menu/uploads/${uploadName}`;
       const base64Payload = payload.data_url.includes('base64,')
         ? payload.data_url.split('base64,').pop() || ''
         : payload.data_url;
@@ -540,10 +634,15 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
         throw new ApiError(400, 'invalid_upload', 'Uploaded image data was empty.');
       }
 
-      await writeFile(targetPath, fileBuffer);
+      await saveMediaAsset({
+        assetPath,
+        fileName: payload.file_name,
+        mimeType: payload.mime_type || mimeTypeForAssetPath(payload.file_name),
+        content: fileBuffer
+      });
 
       return {
-        image_url: `/assets/menu/uploads/${uploadName}`
+        image_url: assetPath
       };
     }
   );
@@ -1152,6 +1251,100 @@ function buildMenuResponse(rows: Array<AdminMenuRow>): AdminMenuResponse {
     subcategories: [...subcategories.values()].sort((a, b) => a.sort_order - b.sort_order || a.id - b.id)
   };
 }
+
+type ProductReportProduct = {
+  id: number;
+  name: string;
+  category: string;
+  subcategory: string;
+  productKind: string;
+  quantitySold: number;
+  revenueRm: number;
+  basePriceRm: number;
+  basePriceToken: number;
+  lastOrderedAt: string | null;
+  imageUrl: string;
+  isActive: boolean;
+};
+
+type ProductReportResponse = {
+  products: ProductReportProduct[];
+  chartData: Array<Pick<ProductReportProduct, 'name' | 'quantitySold' | 'revenueRm'>>;
+  summary: {
+    totalProducts: number;
+    totalUnitsSold: number;
+    totalRevenueRm: number;
+    topProduct: string;
+    topProductUnits: number;
+    topProductRevenueRm: number;
+  };
+};
+
+function buildProductReportResponse(menuResponse: AdminMenuResponse, selectedDate: Date | null = null): ProductReportResponse {
+  const categories = Array.isArray(menuResponse?.categories) ? menuResponse.categories : [];
+
+  const products = categories.flatMap((category) => {
+    const items = Array.isArray(category.items) ? category.items : [];
+    return items.map((item) => {
+      const lastOrderedAt = item.last_ordered_at ? new Date(item.last_ordered_at) : null;
+
+      return {
+        id: item.id,
+        name: item.name,
+        category: category.name ?? '',
+        subcategory: item.subcategory_name ?? category.product_kind_name ?? '',
+        productKind: category.product_kind_name ?? '',
+        quantitySold: Math.round(item.sales_count ?? 0),
+        revenueRm: Number((item.total_revenue_rm ?? '0').toString()),
+        basePriceRm: Number((item.base_price_rm ?? '0').toString()),
+        basePriceToken: Math.round(item.base_price_token ?? 0),
+        lastOrderedAt,
+        imageUrl: item.image_url || '',
+        isActive: Boolean(item.is_active)
+      };
+    });
+  });
+
+  const filteredProducts = products.filter((product) => {
+    if (!selectedDate || !product.lastOrderedAt) {
+      return true;
+    }
+
+    return product.lastOrderedAt.getTime() >= selectedDate.getTime();
+  });
+
+  const sortedProducts = filteredProducts.sort((a, b) =>
+    b.quantitySold - a.quantitySold
+      || b.revenueRm - a.revenueRm
+      || a.name.localeCompare(b.name)
+  );
+
+  const chartData = sortedProducts.slice(0, 5).map((product) => ({
+    name: product.name,
+    quantitySold: product.quantitySold,
+    revenueRm: product.revenueRm
+  }));
+
+  const totalUnitsSold = sortedProducts.reduce((acc, product) => acc + product.quantitySold, 0);
+  const totalRevenueRm = sortedProducts.reduce((acc, product) => acc + product.revenueRm, 0);
+  const topProduct = sortedProducts[0] || null;
+
+  return {
+    products: sortedProducts.map((product) => ({
+      ...product,
+      lastOrderedAt: product.lastOrderedAt ? product.lastOrderedAt.toISOString() : null
+    })),
+    chartData,
+    summary: {
+        totalProducts: sortedProducts.length,
+        totalUnitsSold,
+        totalRevenueRm: Number(totalRevenueRm.toFixed(2)),
+        topProduct: topProduct?.name ?? '',
+        topProductUnits: topProduct?.quantitySold || 0,
+        topProductRevenueRm: Number((topProduct?.revenueRm || 0).toFixed(2))
+      }
+    };
+  }
 
 async function loadMenuItemById(menuItemId: number): Promise<AdminMenuItem | null> {
   const [rows] = await mysqlPool.query<Array<AdminMenuRow>>(

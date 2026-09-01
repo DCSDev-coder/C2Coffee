@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'loading_order_page.dart';
 import '../utils/app_colors.dart';
+import '../utils/app_notification.dart';
 import '../widgets/catalog_product_image.dart';
 
 /// Unified Product Detail Page for all items (Drinks, Pastries, Merch, and Candles)
@@ -1124,17 +1125,10 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                     child: ElevatedButton(
                       onPressed: () {
                         if (!_isDrink) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content:
-                                  Text('Added $quantity x $_itemName to cart!'),
-                              duration: const Duration(seconds: 2),
-                              backgroundColor: orangeColor,
-                              behavior: SnackBarBehavior.floating,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
+                          AppNotification.showSuccess(
+                            context,
+                            'Added $quantity x $_itemName to cart!',
+                            icon: Icons.shopping_bag_outlined,
                           );
                           InteractiveFillingLoader.showPop(context);
                         } else {

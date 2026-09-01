@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
@@ -30,7 +31,9 @@ class Signup2 extends StatefulWidget {
 // Aliases for compatibility
 typedef Signup2Backup = Signup2;
 
-class _Signup2State extends State<Signup2> {
+enum _Signup2ErrorField { house, street, postcode, city, state, gender, terms }
+
+class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
 
   final TextEditingController _houseController = TextEditingController();
@@ -38,9 +41,14 @@ class _Signup2State extends State<Signup2> {
   final TextEditingController _postcodeController = TextEditingController();
   final TextEditingController _cityController = TextEditingController();
   final TextEditingController _stateController = TextEditingController();
+  late final AnimationController _shakeController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 420),
+  );
 
   String? _selectedGender;
   bool _agreedToTerms = false;
+  final Set<_Signup2ErrorField> _errorFields = <_Signup2ErrorField>{};
 
   // Avatar State
   File? _pickedImage;
@@ -55,8 +63,6 @@ class _Signup2State extends State<Signup2> {
   @override
   void initState() {
     super.initState();
-    _cityController.text = 'Semenyih';
-    _stateController.text = 'Selangor';
     _houseController.addListener(_onFieldChanged);
     _streetController.addListener(_onFieldChanged);
     _postcodeController.addListener(_onFieldChanged);
@@ -82,7 +88,64 @@ class _Signup2State extends State<Signup2> {
     precacheImage(const AssetImage('assets/images/datin.png'), context);
   }
 
-  void _onFieldChanged() => setState(() {});
+  void _onFieldChanged() {
+    if (_errorFields.isNotEmpty) {
+      setState(() {
+        _errorFields.clear();
+      });
+      _shakeController.stop();
+      _shakeController.value = 0;
+      return;
+    }
+
+    setState(() {});
+  }
+
+  void _clearSignup2Errors() {
+    if (_errorFields.isEmpty) return;
+    setState(() {
+      _errorFields.clear();
+    });
+    _shakeController.stop();
+    _shakeController.value = 0;
+  }
+
+  void _markSignup2Errors(Set<_Signup2ErrorField> fields) {
+    setState(() {
+      _errorFields
+        ..clear()
+        ..addAll(fields);
+    });
+    _shakeController.forward(from: 0);
+  }
+
+  Set<_Signup2ErrorField> _collectSignup2ValidationErrors() {
+    final errors = <_Signup2ErrorField>{};
+
+    if (_houseController.text.trim().isEmpty) {
+      errors.add(_Signup2ErrorField.house);
+    }
+    if (_streetController.text.trim().isEmpty) {
+      errors.add(_Signup2ErrorField.street);
+    }
+    if (_postcodeController.text.trim().isEmpty) {
+      errors.add(_Signup2ErrorField.postcode);
+    }
+    if (_cityController.text.trim().isEmpty) {
+      errors.add(_Signup2ErrorField.city);
+    }
+    if (_stateController.text.trim().isEmpty) {
+      errors.add(_Signup2ErrorField.state);
+    }
+    if (_selectedGender == null) {
+      errors.add(_Signup2ErrorField.gender);
+    }
+    if (!_agreedToTerms) {
+      errors.add(_Signup2ErrorField.terms);
+    }
+
+    return errors;
+  }
 
   @override
   void dispose() {
@@ -96,27 +159,12 @@ class _Signup2State extends State<Signup2> {
     _postcodeController.dispose();
     _cityController.dispose();
     _stateController.dispose();
+    _shakeController.dispose();
     super.dispose();
   }
 
-  bool get _isFormValid {
-    return _houseController.text.trim().isNotEmpty &&
-        _streetController.text.trim().isNotEmpty &&
-        _postcodeController.text.trim().isNotEmpty &&
-        _cityController.text.trim().isNotEmpty &&
-        _stateController.text.trim().isNotEmpty &&
-        _selectedGender != null &&
-        _agreedToTerms;
-  }
-
   void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-        duration: const Duration(seconds: 2),
-      ),
-    );
+    showAuthErrorBanner(context, message);
   }
 
   Future<void> _pickImageFromGallery() async {
@@ -538,323 +586,378 @@ class _Signup2State extends State<Signup2> {
                         duration: const Duration(milliseconds: 220),
                         curve: Curves.easeOutCubic,
                         padding: EdgeInsets.only(bottom: cardBottomInset),
-                        child: Container(
-                          width: double.infinity,
-                          clipBehavior: Clip.antiAlias,
-                          decoration: const BoxDecoration(
-                            color: Colors.white,
-                            borderRadius:
-                                BorderRadius.vertical(top: Radius.circular(40)),
-                          ),
-                          child: SingleChildScrollView(
-                            keyboardDismissBehavior:
-                                ScrollViewKeyboardDismissBehavior.onDrag,
-                            physics: const ClampingScrollPhysics(),
-                            padding: EdgeInsets.fromLTRB(
-                              24,
-                              16,
-                              24,
-                              20 + mediaQuery.padding.bottom,
+                        child: AuthCardEntrance(
+                          child: Container(
+                            width: double.infinity,
+                            clipBehavior: Clip.antiAlias,
+                            decoration: const BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.vertical(
+                                  top: Radius.circular(40)),
                             ),
-                            child: Form(
-                              key: _formKey,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  // Address Header
-                                  const Text(
-                                    'Address',
-                                    style: TextStyle(
-                                        fontFamily: 'Recoleta',
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                        color: Color(0xFF2E5E58)),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  _buildTextField(
-                                    label: 'Unit / House No.',
-                                    hintText:
-                                        'e.g. A-12-03, Residensi Eco Forest',
-                                    controller: _houseController,
-                                  ),
-                                  const SizedBox(height: 10),
-                                  _buildTextField(
-                                    label: 'Street Name / Residential Area',
-                                    hintText: 'e.g. Jalan Eco Forest 1',
-                                    controller: _streetController,
-                                  ),
-                                  const SizedBox(height: 10),
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        flex: 4,
-                                        child: _buildTextField(
-                                          label: 'Postcode',
-                                          hintText: '43500',
-                                          controller: _postcodeController,
-                                          keyboardType: TextInputType.number,
+                            child: SingleChildScrollView(
+                              keyboardDismissBehavior:
+                                  ScrollViewKeyboardDismissBehavior.onDrag,
+                              physics: const ClampingScrollPhysics(),
+                              padding: EdgeInsets.fromLTRB(
+                                24,
+                                16,
+                                24,
+                                20 + mediaQuery.padding.bottom,
+                              ),
+                              child: Form(
+                                key: _formKey,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    // Address Header
+                                    const Text(
+                                      'Address',
+                                      style: TextStyle(
+                                          fontFamily: 'Recoleta',
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF2E5E58)),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    _buildFieldShake(
+                                      field: _Signup2ErrorField.house,
+                                      child: _buildTextField(
+                                        label: 'Unit / House No.',
+                                        hintText: 'e.g. A-12-03',
+                                        controller: _houseController,
+                                        hasError: _errorFields.contains(
+                                          _Signup2ErrorField.house,
                                         ),
                                       ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        flex: 6,
-                                        child: _buildTextField(
-                                          label: 'City',
-                                          hintText: 'Semenyih',
-                                          controller: _cityController,
+                                    ),
+                                    const SizedBox(height: 10),
+                                    _buildFieldShake(
+                                      field: _Signup2ErrorField.street,
+                                      child: _buildTextField(
+                                        label: 'Street Name / Residential Area',
+                                        hintText: 'e.g. Jalan Mawar 3',
+                                        controller: _streetController,
+                                        hasError: _errorFields.contains(
+                                          _Signup2ErrorField.street,
                                         ),
                                       ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 10),
-                                  _buildTextField(
-                                    label: 'State',
-                                    hintText: 'Selangor',
-                                    controller: _stateController,
-                                  ),
-                                  const SizedBox(height: 10),
-                                  Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'Gender',
-                                        style: TextStyle(
-                                            fontFamily: 'Recoleta',
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.bold,
-                                            color: orangeColor),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          flex: 4,
+                                          child: _buildFieldShake(
+                                            field: _Signup2ErrorField.postcode,
+                                            child: _buildTextField(
+                                              label: 'Postcode',
+                                              hintText: 'e.g. 43000',
+                                              controller: _postcodeController,
+                                              keyboardType:
+                                                  TextInputType.number,
+                                              hasError: _errorFields.contains(
+                                                _Signup2ErrorField.postcode,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          flex: 6,
+                                          child: _buildFieldShake(
+                                            field: _Signup2ErrorField.city,
+                                            child: _buildTextField(
+                                              label: 'City',
+                                              hintText: 'e.g. Kajang',
+                                              controller: _cityController,
+                                              hasError: _errorFields.contains(
+                                                _Signup2ErrorField.city,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 10),
+                                    _buildFieldShake(
+                                      field: _Signup2ErrorField.state,
+                                      child: _buildTextField(
+                                        label: 'State',
+                                        hintText: 'e.g. Selangor',
+                                        controller: _stateController,
+                                        hasError: _errorFields.contains(
+                                          _Signup2ErrorField.state,
+                                        ),
                                       ),
-                                      const SizedBox(height: 4),
-                                      Row(
+                                    ),
+                                    const SizedBox(height: 10),
+                                    _buildFieldShake(
+                                      field: _Signup2ErrorField.gender,
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
-                                          Expanded(
-                                              child: _buildGenderButton(
-                                                  'Female', Icons.female)),
-                                          const SizedBox(width: 12),
-                                          Expanded(
-                                              child: _buildGenderButton(
-                                                  'Male', Icons.male)),
+                                          const Text(
+                                            'Gender',
+                                            style: TextStyle(
+                                                fontFamily: 'Recoleta',
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.bold,
+                                                color: orangeColor),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: _buildGenderButton(
+                                                  'Female',
+                                                  Icons.female,
+                                                  hasError:
+                                                      _errorFields.contains(
+                                                    _Signup2ErrorField.gender,
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Expanded(
+                                                child: _buildGenderButton(
+                                                  'Male',
+                                                  Icons.male,
+                                                  hasError:
+                                                      _errorFields.contains(
+                                                    _Signup2ErrorField.gender,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
                                         ],
                                       ),
-                                    ],
-                                  ),
+                                    ),
 
-                                  const SizedBox(height: 16),
+                                    const SizedBox(height: 16),
 
-                                  // Terms & Conditions (I agree)
-                                  _buildTermsAndConditions(),
-
-                                  const SizedBox(height: 16),
-
-                                  // Already a member? Login
-                                  Center(
-                                    child: GestureDetector(
-                                      onTap: () {
-                                        Navigator.push(
-                                          context,
-                                          buildAuthRoute(const LoginPage()),
-                                        );
-                                      },
-                                      child: RichText(
-                                        text: const TextSpan(
-                                          style: TextStyle(
-                                              fontFamily: 'Afacad',
-                                              fontSize: 14,
-                                              color: Colors.black87),
-                                          children: [
-                                            TextSpan(
-                                                text: 'Already a member? '),
-                                            TextSpan(
-                                              text: 'Login',
-                                              style: TextStyle(
-                                                  fontFamily: 'Recoleta',
-                                                  fontWeight: FontWeight.bold,
-                                                  color: Color(0xFF1F3A34)),
-                                            ),
-                                          ],
+                                    // Terms & Conditions (I agree)
+                                    _buildFieldShake(
+                                      field: _Signup2ErrorField.terms,
+                                      child: _buildTermsAndConditions(
+                                        hasError: _errorFields.contains(
+                                          _Signup2ErrorField.terms,
                                         ),
                                       ),
                                     ),
-                                  ),
 
-                                  const SizedBox(height: 20),
+                                    const SizedBox(height: 16),
 
-                                  // PREVIOUS STEP BUTTON
-                                  SizedBox(
-                                    width: double.infinity,
-                                    height: 48,
-                                    child: ElevatedButton(
-                                      onPressed: () => Navigator.pop(context),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.white,
-                                        foregroundColor: orangeColor,
-                                        elevation: 0,
-                                        shadowColor: Colors.transparent,
-                                        side: BorderSide(
-                                            color: Colors.grey.shade300,
-                                            width: 1),
-                                        shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(30)),
-                                      ),
-                                      child: const Text(
-                                        'PREVIOUS STEP',
-                                        style: TextStyle(
-                                            fontFamily: 'Recoleta',
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.bold,
-                                            letterSpacing: 1.0),
+                                    // Already a member? Login
+                                    Center(
+                                      child: GestureDetector(
+                                        onTap: () {
+                                          Navigator.push(
+                                            context,
+                                            buildAuthRoute(const LoginPage()),
+                                          );
+                                        },
+                                        child: RichText(
+                                          text: const TextSpan(
+                                            style: TextStyle(
+                                                fontFamily: 'Afacad',
+                                                fontSize: 14,
+                                                color: Colors.black87),
+                                            children: [
+                                              TextSpan(
+                                                  text: 'Already a member? '),
+                                              TextSpan(
+                                                text: 'Login',
+                                                style: TextStyle(
+                                                    fontFamily: 'Recoleta',
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Color(0xFF1F3A34)),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
                                       ),
                                     ),
-                                  ),
 
-                                  const SizedBox(height: 10),
+                                    const SizedBox(height: 20),
 
-                                  // SIGN UP BUTTON
-                                  SizedBox(
-                                    width: double.infinity,
-                                    height: 48,
-                                    child: ElevatedButton(
-                                      onPressed: _isFormValid
-                                          ? () async {
-                                              final fullAddress =
-                                                  '${_houseController.text.trim()}, ${_streetController.text.trim()}, ${_postcodeController.text.trim()} ${_cityController.text.trim()}, ${_stateController.text.trim()}';
-                                              await UserService
-                                                  .saveUserProfile({
-                                                'gender': _selectedGender ?? '',
-                                                'address': fullAddress,
-                                                'state': _stateController.text
-                                                    .trim(),
-                                              });
+                                    // PREVIOUS STEP BUTTON
+                                    SizedBox(
+                                      width: double.infinity,
+                                      height: 48,
+                                      child: ElevatedButton(
+                                        onPressed: () => Navigator.pop(context),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.white,
+                                          foregroundColor: orangeColor,
+                                          elevation: 0,
+                                          shadowColor: Colors.transparent,
+                                          side: BorderSide(
+                                              color: Colors.grey.shade300,
+                                              width: 1),
+                                          shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(30)),
+                                        ),
+                                        child: const Text(
+                                          'PREVIOUS STEP',
+                                          style: TextStyle(
+                                              fontFamily: 'Recoleta',
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                              letterSpacing: 1.0),
+                                        ),
+                                      ),
+                                    ),
 
-                                              if (!context.mounted) return;
-                                              final profile = await UserService
-                                                  .getUserProfile();
+                                    const SizedBox(height: 10),
 
-                                              final phone =
-                                                  profile['phone']?.trim() ??
-                                                      '';
-                                              if (phone.isEmpty) {
-                                                _showError(
-                                                    'Phone number is missing. Please restart signup.');
-                                                return;
-                                              }
+                                    // SIGN UP BUTTON
+                                    SizedBox(
+                                      width: double.infinity,
+                                      height: 48,
+                                      child: ElevatedButton(
+                                        onPressed: () async {
+                                          final validationErrors =
+                                              _collectSignup2ValidationErrors();
+                                          if (validationErrors.isNotEmpty) {
+                                            _markSignup2Errors(
+                                                validationErrors);
+                                            _showError(
+                                              'Please complete the highlighted fields before continuing.',
+                                            );
+                                            return;
+                                          }
 
-                                              try {
-                                                final deviceFingerprint =
-                                                    await AuthApiService
-                                                        .instance
-                                                        .getOrCreateDeviceFingerprint();
-                                                final otpRequest =
-                                                    await AuthApiService
-                                                        .instance
-                                                        .requestOtp(
+                                          final fullAddress =
+                                              '${_houseController.text.trim()}, ${_streetController.text.trim()}, ${_postcodeController.text.trim()} ${_cityController.text.trim()}, ${_stateController.text.trim()}';
+                                          final profile = await UserService
+                                              .getUserProfile();
+
+                                          final phone =
+                                              profile['phone']?.trim() ?? '';
+                                          if (phone.isEmpty) {
+                                            _showError(
+                                                'Phone number is missing. Please restart signup.');
+                                            return;
+                                          }
+
+                                          try {
+                                            await UserService.saveUserProfile({
+                                              'gender': _selectedGender ?? '',
+                                              'address': fullAddress,
+                                              'state':
+                                                  _stateController.text.trim(),
+                                            });
+
+                                            final deviceFingerprint =
+                                                await AuthApiService.instance
+                                                    .getOrCreateDeviceFingerprint();
+                                            final otpRequest =
+                                                await AuthApiService.instance
+                                                    .requestOtp(
+                                              phone: phone,
+                                              deviceFingerprint:
+                                                  deviceFingerprint,
+                                              email: profile['email']?.trim(),
+                                            );
+
+                                            if (!context.mounted) return;
+                                            Navigator.push(
+                                              context,
+                                              buildAuthRoute(
+                                                OtpVerificationPage(
                                                   phone: phone,
+                                                  requestId:
+                                                      otpRequest.requestId,
                                                   deviceFingerprint:
                                                       deviceFingerprint,
-                                                );
-
-                                                if (!context.mounted) return;
-                                                Navigator.push(
-                                                  context,
-                                                  buildAuthRoute(
-                                                    OtpVerificationPage(
-                                                      phone: phone,
-                                                      requestId:
-                                                          otpRequest.requestId,
-                                                      deviceFingerprint:
-                                                          deviceFingerprint,
-                                                      debugOtpCode: otpRequest
-                                                          .debugOtpCode,
-                                                      expiresInSeconds:
-                                                          otpRequest
-                                                              .expiresInSeconds,
-                                                      resendInSeconds:
-                                                          otpRequest
-                                                              .resendInSeconds,
-                                                      isSignup: true,
-                                                      signupProfile: {
-                                                        'display_name': profile[
-                                                                'username'] ??
+                                                  debugOtpCode:
+                                                      otpRequest.debugOtpCode,
+                                                  expiresInSeconds: otpRequest
+                                                      .expiresInSeconds,
+                                                  resendInSeconds: otpRequest
+                                                      .resendInSeconds,
+                                                  isSignup: true,
+                                                  signupProfile: {
+                                                    'display_name':
+                                                        profile['username'] ??
                                                             'C2 Member',
-                                                        'email':
-                                                            profile['email'] ??
-                                                                '',
-                                                        'birthday': profile[
-                                                                'birthday'] ??
+                                                    'email':
+                                                        profile['email'] ?? '',
+                                                    'birthday':
+                                                        profile['birthday'] ??
                                                             '',
-                                                        'gender':
-                                                            _selectedGender ??
-                                                                '',
-                                                        'house_line':
-                                                            _houseController
-                                                                .text
-                                                                .trim(),
-                                                        'street_line':
-                                                            _streetController
-                                                                .text
-                                                                .trim(),
-                                                        'postcode':
-                                                            _postcodeController
-                                                                .text
-                                                                .trim(),
-                                                        'city': _cityController
-                                                            .text
+                                                    'gender':
+                                                        _selectedGender ?? '',
+                                                    'house_line':
+                                                        _houseController.text
                                                             .trim(),
-                                                        'state':
-                                                            _stateController
-                                                                .text
-                                                                .trim(),
-                                                      },
-                                                      initialPickedImage:
-                                                          _pickedImage,
-                                                      initialPresetPath:
-                                                          _presetAvatarPath,
-                                                      initialAvatarIndex:
-                                                          _selectedAvatarIndex,
-                                                    ),
-                                                  ),
-                                                );
-                                              } on ApiException catch (error) {
-                                                if (!context.mounted) return;
-                                                _showError(error.message);
-                                              } catch (_) {
-                                                if (!context.mounted) return;
-                                                _showError(
-                                                    'Unable to request OTP right now.');
-                                              }
-                                            }
-                                          : null,
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: orangeColor,
-                                        disabledBackgroundColor:
-                                            Colors.grey.shade400,
-                                        foregroundColor: Colors.white,
-                                        disabledForegroundColor: Colors.white70,
-                                        elevation: 0,
-                                        shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(30)),
-                                      ),
-                                      child: const Text(
-                                        'SIGN UP',
-                                        style: TextStyle(
-                                            fontFamily: 'Recoleta',
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.bold,
-                                            letterSpacing: 1.0),
+                                                    'street_line':
+                                                        _streetController.text
+                                                            .trim(),
+                                                    'postcode':
+                                                        _postcodeController.text
+                                                            .trim(),
+                                                    'city': _cityController.text
+                                                        .trim(),
+                                                    'state': _stateController
+                                                        .text
+                                                        .trim(),
+                                                  },
+                                                  initialPickedImage:
+                                                      _pickedImage,
+                                                  initialPresetPath:
+                                                      _presetAvatarPath,
+                                                  initialAvatarIndex:
+                                                      _selectedAvatarIndex,
+                                                ),
+                                              ),
+                                            );
+                                          } on ApiException catch (error) {
+                                            if (!context.mounted) return;
+                                            _showError(
+                                              friendlyAuthErrorMessage(
+                                                error,
+                                                fallback:
+                                                    'We could not send the verification code right now. Please try again shortly.',
+                                              ),
+                                            );
+                                          } catch (_) {
+                                            if (!context.mounted) return;
+                                            _showError(
+                                                'Unable to request OTP right now.');
+                                          }
+                                        },
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: orangeColor,
+                                          foregroundColor: Colors.white,
+                                          elevation: 0,
+                                          shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(30)),
+                                        ),
+                                        child: const Text(
+                                          'SIGN UP',
+                                          style: TextStyle(
+                                              fontFamily: 'Recoleta',
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                              letterSpacing: 1.0),
+                                        ),
                                       ),
                                     ),
-                                  ),
 
-                                  // Bottom padding
-                                  SizedBox(
-                                      height: 20 +
-                                          MediaQuery.of(context)
-                                              .padding
-                                              .bottom),
-                                ],
+                                    // Bottom padding
+                                    SizedBox(
+                                        height: 20 +
+                                            MediaQuery.of(context)
+                                                .padding
+                                                .bottom),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
@@ -877,6 +980,7 @@ class _Signup2State extends State<Signup2> {
     required TextEditingController controller,
     TextInputType keyboardType = TextInputType.text,
     bool readOnly = false,
+    bool hasError = false,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -894,6 +998,10 @@ class _Signup2State extends State<Signup2> {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: hasError ? Colors.redAccent : Colors.transparent,
+              width: hasError ? 1.8 : 0,
+            ),
             boxShadow: [
               BoxShadow(
                 color: Colors.grey.withValues(alpha: 0.18),
@@ -924,8 +1032,20 @@ class _Signup2State extends State<Signup2> {
                   borderSide: BorderSide.none),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(20),
+                borderSide: BorderSide(
+                  color: hasError ? Colors.redAccent : const Color(0xFF2E5E58),
+                  width: 1.5,
+                ),
+              ),
+              errorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(20),
                 borderSide:
-                    const BorderSide(color: Color(0xFF2E5E58), width: 1.5),
+                    const BorderSide(color: Colors.redAccent, width: 1.8),
+              ),
+              focusedErrorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(20),
+                borderSide:
+                    const BorderSide(color: Colors.redAccent, width: 2.0),
               ),
               contentPadding:
                   const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -936,7 +1056,11 @@ class _Signup2State extends State<Signup2> {
     );
   }
 
-  Widget _buildGenderButton(String gender, IconData icon) {
+  Widget _buildGenderButton(
+    String gender,
+    IconData icon, {
+    bool hasError = false,
+  }) {
     final bool isSelected = _selectedGender == gender;
     const Color orangeColor = Color(0xFF1F3A34);
 
@@ -945,6 +1069,9 @@ class _Signup2State extends State<Signup2> {
         setState(() {
           _selectedGender = gender;
         });
+        if (_errorFields.contains(_Signup2ErrorField.gender)) {
+          _clearSignup2Errors();
+        }
       },
       child: Container(
         height: 44,
@@ -952,10 +1079,12 @@ class _Signup2State extends State<Signup2> {
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected ? orangeColor : Colors.grey.shade300,
+            color: hasError
+                ? Colors.redAccent
+                : (isSelected ? orangeColor : Colors.grey.shade300),
             width: isSelected ? 2 : 1,
           ),
-          boxShadow: isSelected
+          boxShadow: isSelected && !hasError
               ? [
                   BoxShadow(
                     color: orangeColor.withValues(alpha: 0.1),
@@ -1089,6 +1218,9 @@ class _Signup2State extends State<Signup2> {
                       setState(() {
                         _agreedToTerms = true;
                       });
+                      if (_errorFields.contains(_Signup2ErrorField.terms)) {
+                        _clearSignup2Errors();
+                      }
                       Navigator.pop(context);
                     },
                     style: ElevatedButton.styleFrom(
@@ -1118,61 +1250,96 @@ class _Signup2State extends State<Signup2> {
     );
   }
 
-  Widget _buildTermsAndConditions() {
+  Widget _buildTermsAndConditions({bool hasError = false}) {
     const Color brandColor = Color(0xFF1F3A34);
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        SizedBox(
-          width: 24,
-          height: 24,
-          child: Checkbox(
-            value: _agreedToTerms,
-            activeColor: brandColor,
-            checkColor: Colors.white,
-            side: const BorderSide(
-              color: Color(0xFF1F3A34),
-              width: 1.5,
-            ),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(4),
-            ),
-            onChanged: (bool? value) {
-              setState(() {
-                _agreedToTerms = value ?? false;
-              });
-            },
-          ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: hasError ? Colors.redAccent : Colors.transparent,
+          width: hasError ? 1.5 : 0,
         ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text.rich(
-            TextSpan(
-              text: 'I agree to the ',
-              style: const TextStyle(
-                fontFamily: 'Afacad',
-                fontSize: 13.5,
-                color: Colors.black87,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 24,
+            height: 24,
+            child: Checkbox(
+              value: _agreedToTerms,
+              activeColor: brandColor,
+              checkColor: Colors.white,
+              side: BorderSide(
+                color: hasError ? Colors.redAccent : const Color(0xFF1F3A34),
+                width: 1.5,
               ),
-              children: [
-                TextSpan(
-                  text: 'Terms & Conditions',
-                  style: const TextStyle(
-                    fontFamily: 'Afacad',
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.bold,
-                    color: brandColor,
-                    decoration: TextDecoration.underline,
-                  ),
-                  recognizer: TapGestureRecognizer()
-                    ..onTap = _showTermsAndConditionsDialog,
-                ),
-              ],
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(4),
+              ),
+              onChanged: (bool? value) {
+                setState(() {
+                  _agreedToTerms = value ?? false;
+                });
+                if (_errorFields.contains(_Signup2ErrorField.terms)) {
+                  _clearSignup2Errors();
+                }
+              },
             ),
           ),
-        ),
-      ],
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                text: 'I agree to the ',
+                style: const TextStyle(
+                  fontFamily: 'Afacad',
+                  fontSize: 13.5,
+                  color: Colors.black87,
+                ),
+                children: [
+                  TextSpan(
+                    text: 'Terms & Conditions',
+                    style: const TextStyle(
+                      fontFamily: 'Afacad',
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.bold,
+                      color: brandColor,
+                      decoration: TextDecoration.underline,
+                    ),
+                    recognizer: TapGestureRecognizer()
+                      ..onTap = _showTermsAndConditionsDialog,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFieldShake({
+    required _Signup2ErrorField field,
+    required Widget child,
+  }) {
+    if (!_errorFields.contains(field)) {
+      return child;
+    }
+
+    return AnimatedBuilder(
+      animation: _shakeController,
+      child: child,
+      builder: (context, child) {
+        final progress = _shakeController.value;
+        final offsetX = math.sin(progress * math.pi * 6) * (1 - progress) * 10;
+        return Transform.translate(
+          offset: Offset(offsetX, 0),
+          child: child,
+        );
+      },
     );
   }
 }

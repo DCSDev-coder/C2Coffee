@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/material.dart';
@@ -21,12 +22,20 @@ class LoginPage extends StatefulWidget {
 // Aliases for compatibility
 typedef LoginBackup = LoginPage;
 
-class _LoginPageState extends State<LoginPage> {
+enum _LoginErrorField { phone }
+
+class _LoginPageState extends State<LoginPage>
+    with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _phoneController = TextEditingController();
   final FocusNode _phoneFocusNode = FocusNode();
+  late final AnimationController _shakeController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 420),
+  );
   bool _isPhoneValid = false;
   String _fullPhoneNumber = '';
+  final Set<_LoginErrorField> _errorFields = <_LoginErrorField>{};
 
   @override
   void initState() {
@@ -41,29 +50,39 @@ class _LoginPageState extends State<LoginPage> {
     precacheImage(const AssetImage('assets/images/c2_logo.png'), context);
   }
 
-  void _onFieldChanged() => setState(() {});
+  void _onFieldChanged() {
+    if (_errorFields.isNotEmpty) {
+      setState(() {
+        _errorFields.clear();
+      });
+      _shakeController.stop();
+      _shakeController.value = 0;
+      return;
+    }
+
+    setState(() {});
+  }
 
   @override
   void dispose() {
     _phoneController.removeListener(_onFieldChanged);
     _phoneController.dispose();
     _phoneFocusNode.dispose();
+    _shakeController.dispose();
     super.dispose();
   }
 
-  bool get _isFormValid {
-    final isPhoneValid = _fullPhoneNumber.isNotEmpty && _isPhoneValid;
-    return isPhoneValid;
+  void _markLoginError() {
+    setState(() {
+      _errorFields
+        ..clear()
+        ..add(_LoginErrorField.phone);
+    });
+    _shakeController.forward(from: 0);
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-        duration: const Duration(seconds: 2),
-      ),
-    );
+    showAuthErrorBanner(context, message);
   }
 
   Widget _buildMainAvatar({required bool compact}) {
@@ -188,129 +207,149 @@ class _LoginPageState extends State<LoginPage> {
                 right: 0,
                 bottom: sheetBottom,
                 height: loginCardHeight,
-                child: Container(
-                  width: double.infinity,
-                  clipBehavior: Clip.antiAlias,
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    borderRadius:
-                        BorderRadius.vertical(top: Radius.circular(40)),
-                  ),
-                  child: SingleChildScrollView(
-                    keyboardDismissBehavior:
-                        ScrollViewKeyboardDismissBehavior.onDrag,
-                    physics: const ClampingScrollPhysics(),
-                    padding: EdgeInsets.fromLTRB(
-                      24,
-                      16,
-                      24,
-                      20 + mediaQuery.padding.bottom,
+                child: AuthCardEntrance(
+                  child: Container(
+                    width: double.infinity,
+                    clipBehavior: Clip.antiAlias,
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      borderRadius:
+                          BorderRadius.vertical(top: Radius.circular(40)),
                     ),
-                    child: Form(
-                      key: _formKey,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildPhoneField(),
-                          const SizedBox(height: 14),
-                          Center(
-                            child: GestureDetector(
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  buildAuthRoute(const Signup1()),
-                                );
-                              },
-                              child: RichText(
-                                text: const TextSpan(
-                                  style: TextStyle(
-                                      fontFamily: 'Afacad',
-                                      fontSize: 14,
-                                      color: Colors.black87),
-                                  children: [
-                                    TextSpan(text: 'New member? '),
-                                    TextSpan(
-                                      text: 'Join now',
-                                      style: TextStyle(
-                                          fontFamily: 'Recoleta',
-                                          fontWeight: FontWeight.bold,
-                                          color: Color(0xFF1F3A34)),
-                                    ),
-                                  ],
+                    child: SingleChildScrollView(
+                      keyboardDismissBehavior:
+                          ScrollViewKeyboardDismissBehavior.onDrag,
+                      physics: const ClampingScrollPhysics(),
+                      padding: EdgeInsets.fromLTRB(
+                        24,
+                        16,
+                        24,
+                        20 + mediaQuery.padding.bottom,
+                      ),
+                      child: Form(
+                        key: _formKey,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildFieldShake(
+                              field: _LoginErrorField.phone,
+                              child: _buildPhoneField(
+                                hasError: _errorFields.contains(
+                                  _LoginErrorField.phone,
                                 ),
                               ),
                             ),
-                          ),
-                          const SizedBox(height: 14),
-                          SizedBox(
-                            width: double.infinity,
-                            height: 48,
-                            child: ElevatedButton(
-                              onPressed: _isFormValid
-                                  ? () async {
-                                      await UserService.saveUserProfile({
-                                        'phone': _fullPhoneNumber,
-                                      });
-
-                                      try {
-                                        final deviceFingerprint =
-                                            await AuthApiService.instance
-                                                .getOrCreateDeviceFingerprint();
-                                        final otpRequest = await AuthApiService
-                                            .instance
-                                            .requestOtp(
-                                          phone: _fullPhoneNumber,
-                                          deviceFingerprint: deviceFingerprint,
-                                        );
-
-                                        if (!context.mounted) return;
-                                        Navigator.push(
-                                          context,
-                                          buildAuthRoute(
-                                            OtpVerificationPage(
-                                              phone: _fullPhoneNumber,
-                                              requestId: otpRequest.requestId,
-                                              deviceFingerprint:
-                                                  deviceFingerprint,
-                                              debugOtpCode:
-                                                  otpRequest.debugOtpCode,
-                                              expiresInSeconds:
-                                                  otpRequest.expiresInSeconds,
-                                              resendInSeconds:
-                                                  otpRequest.resendInSeconds,
-                                            ),
-                                          ),
-                                        );
-                                      } on ApiException catch (error) {
-                                        if (!context.mounted) return;
-                                        _showError(error.message);
-                                      } catch (_) {
-                                        if (!context.mounted) return;
-                                        _showError(
-                                            'Unable to request OTP right now.');
-                                      }
-                                    }
-                                  : null,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: orangeColor,
-                                disabledBackgroundColor: Colors.grey.shade400,
-                                foregroundColor: Colors.white,
-                                disabledForegroundColor: Colors.white70,
-                                elevation: 0,
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(30)),
-                              ),
-                              child: const Text(
-                                'LOGIN',
-                                style: TextStyle(
-                                    fontFamily: 'Recoleta',
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    letterSpacing: 1.0),
+                            const SizedBox(height: 14),
+                            Center(
+                              child: GestureDetector(
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    buildAuthRoute(const Signup1()),
+                                  );
+                                },
+                                child: RichText(
+                                  text: const TextSpan(
+                                    style: TextStyle(
+                                        fontFamily: 'Afacad',
+                                        fontSize: 14,
+                                        color: Colors.black87),
+                                    children: [
+                                      TextSpan(text: 'New member? '),
+                                      TextSpan(
+                                        text: 'Join now',
+                                        style: TextStyle(
+                                            fontFamily: 'Recoleta',
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xFF1F3A34)),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 14),
+                            SizedBox(
+                              width: double.infinity,
+                              height: 48,
+                              child: ElevatedButton(
+                                onPressed: () async {
+                                  if (_fullPhoneNumber.isEmpty ||
+                                      !_isPhoneValid) {
+                                    _markLoginError();
+                                    _showError(
+                                      'Please enter a valid phone number before continuing.',
+                                    );
+                                    return;
+                                  }
+
+                                  await UserService.saveUserProfile({
+                                    'phone': _fullPhoneNumber,
+                                  });
+
+                                  try {
+                                    final deviceFingerprint =
+                                        await AuthApiService.instance
+                                            .getOrCreateDeviceFingerprint();
+                                    final otpRequest = await AuthApiService
+                                        .instance
+                                        .requestOtp(
+                                      phone: _fullPhoneNumber,
+                                      deviceFingerprint: deviceFingerprint,
+                                    );
+
+                                    if (!context.mounted) return;
+                                    Navigator.push(
+                                      context,
+                                      buildAuthRoute(
+                                        OtpVerificationPage(
+                                          phone: _fullPhoneNumber,
+                                          requestId: otpRequest.requestId,
+                                          deviceFingerprint: deviceFingerprint,
+                                          debugOtpCode: otpRequest.debugOtpCode,
+                                          expiresInSeconds:
+                                              otpRequest.expiresInSeconds,
+                                          resendInSeconds:
+                                              otpRequest.resendInSeconds,
+                                        ),
+                                      ),
+                                    );
+                                  } on ApiException catch (error) {
+                                    if (!context.mounted) return;
+                                    _markLoginError();
+                                    _showError(
+                                      friendlyAuthErrorMessage(
+                                        error,
+                                        fallback:
+                                            'Unable to request OTP right now.',
+                                      ),
+                                    );
+                                  } catch (_) {
+                                    if (!context.mounted) return;
+                                    _markLoginError();
+                                    _showError(
+                                        'Unable to request OTP right now.');
+                                  }
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: orangeColor,
+                                  foregroundColor: Colors.white,
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(30)),
+                                ),
+                                child: const Text(
+                                  'LOGIN',
+                                  style: TextStyle(
+                                      fontFamily: 'Recoleta',
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 1.0),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -323,7 +362,7 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  Widget _buildPhoneField() {
+  Widget _buildPhoneField({bool hasError = false}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -340,6 +379,10 @@ class _LoginPageState extends State<LoginPage> {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: hasError ? Colors.redAccent : Colors.transparent,
+              width: hasError ? 1.8 : 0,
+            ),
             boxShadow: [
               BoxShadow(
                 color: Colors.grey.withValues(alpha: 0.18),
@@ -372,8 +415,20 @@ class _LoginPageState extends State<LoginPage> {
                   borderSide: BorderSide.none),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(20),
+                borderSide: BorderSide(
+                  color: hasError ? Colors.redAccent : const Color(0xFF2E5E58),
+                  width: 1.5,
+                ),
+              ),
+              errorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(20),
                 borderSide:
-                    const BorderSide(color: Color(0xFF2E5E58), width: 1.5),
+                    const BorderSide(color: Colors.redAccent, width: 1.8),
+              ),
+              focusedErrorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(20),
+                borderSide:
+                    const BorderSide(color: Colors.redAccent, width: 2.0),
               ),
               contentPadding:
                   const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -396,6 +451,28 @@ class _LoginPageState extends State<LoginPage> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildFieldShake({
+    required _LoginErrorField field,
+    required Widget child,
+  }) {
+    if (!_errorFields.contains(field)) {
+      return child;
+    }
+
+    return AnimatedBuilder(
+      animation: _shakeController,
+      child: child,
+      builder: (context, child) {
+        final progress = _shakeController.value;
+        final offsetX = math.sin(progress * math.pi * 6) * (1 - progress) * 10;
+        return Transform.translate(
+          offset: Offset(offsetX, 0),
+          child: child,
+        );
+      },
     );
   }
 }

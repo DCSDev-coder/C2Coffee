@@ -1,32 +1,18 @@
-# React + Vite
+# C2 Coffee Admin Web
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+React + Vite admin panel.
 
 ## API base URL
 
-Set `VITE_API_BASE_URL` to the admin API origin before running the web app.
-
-Example:
-
-```env
-VITE_API_BASE_URL=https://api.c2coffeeandcandle.com
-```
+`admin_web/src/lib/adminApi.js` is locked to `https://api.c2coffeeandcandle.com`.
 
 Notes:
 
-- The default API target in the app already points to the public API host.
-- If you switch to a local API during development, the browser origin must also be allowed by the API CORS settings.
-- The local Vite dev server commonly runs on `http://localhost:5173`.
+- `admin_web/src/lib/adminApi.js` already has refresh-token handling and formats expired-session errors as a sign-in prompt.
+- In the current deployment, the Windows API container is exposed through IIS, so the public domain is the normal client target.
+- The local Vite dev server commonly runs on `http://localhost:5173`, but it still calls the public API host.
 
-Currently, two official plugins are available:
+## Asset and session flow
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+- Marketing posters and menu images are read from the API, not from the web app bundle.
+- If a request fails after the app sits idle, the app should attempt a token refresh first and then ask the admin to sign in again if the refresh token is no longer valid.

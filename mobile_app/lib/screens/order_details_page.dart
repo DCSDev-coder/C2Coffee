@@ -1,116 +1,100 @@
 import 'package:flutter/material.dart';
-import 'loading_order_page.dart';
-import 'product_detail_page.dart';
+
+import '../services/app_session_service.dart';
+import '../services/customer_data_service.dart';
+import '../services/order_reorder_service.dart';
 import '../utils/app_colors.dart';
 import '../widgets/app_page_shell.dart';
 import '../widgets/catalog_product_image.dart';
+import 'loading_order_page.dart';
 
 class OrderDetailsPage extends StatelessWidget {
-  final Map<String, dynamic> item;
+  final CustomerOrder order;
 
-  const OrderDetailsPage({super.key, required this.item});
+  const OrderDetailsPage({super.key, required this.order});
 
-  void _handleOrderAgain(BuildContext context) {
-    final detailsStr = item['details']?.toString() ?? '';
-
-    // Parse Bean Blend
-    String bean = 'Dato Blend';
-    if (detailsStr.contains('Datin Blend')) {
-      bean = 'Datin Blend';
-    } else if (detailsStr.contains('Dato Blend')) {
-      bean = 'Dato Blend';
+  String? _resolveOrderImageUrl() {
+    final allMenuItems = AppSessionService.instance.allMenuItems;
+    for (final orderItem in order.items) {
+      for (final menuItem in allMenuItems) {
+        if (menuItem.id != orderItem.menuItemId) continue;
+        final imageUrl = menuItem.imageUrl?.trim();
+        if (imageUrl != null && imageUrl.isNotEmpty) {
+          return imageUrl;
+        }
+      }
     }
-
-    // Parse Temperature
-    String temp = 'Hot';
-    if (detailsStr.contains('Cold') || detailsStr.contains('Iced')) {
-      temp = 'Cold';
-    } else if (detailsStr.contains('Hot')) {
-      temp = 'Hot';
-    }
-
-    // Parse Milk
-    String milk = 'Fresh Milk';
-    if (detailsStr.contains('Oat Milk')) {
-      milk = 'Oat Milk';
-    } else if (detailsStr.contains('Fresh Milk')) {
-      milk = 'Fresh Milk';
-    }
-
-    // Parse Sweetness
-    String sweetness = 'Regular Sweet';
-    if (detailsStr.contains('No Sugar')) {
-      sweetness = 'No Sugar';
-    } else if (detailsStr.contains('Less Sweet')) {
-      sweetness = 'Less Sweet';
-    } else if (detailsStr.contains('Reg. Sweet') ||
-        detailsStr.contains('Regular Sweet')) {
-      sweetness = 'Regular Sweet';
-    }
-
-    // Parse Ice Level
-    String iceLevel = 'Regular Ice';
-    if (detailsStr.contains('Less Ice')) {
-      iceLevel = 'Less Ice';
-    } else if (detailsStr.contains('Reg. Ice') ||
-        detailsStr.contains('Regular Ice')) {
-      iceLevel = 'Regular Ice';
-    }
-
-    // Parse Order Type
-    String orderType = 'Dine In';
-    if (detailsStr.contains('Take Away')) {
-      orderType = 'Take Away';
-    } else if (detailsStr.contains('Dine In')) {
-      orderType = 'Dine In';
-    }
-
-    final int qty = (item['quantity'] is int) ? item['quantity'] as int : 1;
-    final String remarks = item['remarks']?.toString() ?? '';
-
-    final Map<String, dynamic> drinkItem = {
-      'name': item['name'] ?? 'Mont Broga',
-      'image': '',
-      'image_url': item['image_url']?.toString(),
-      'price': '16.90',
-      'desc': 'Black coffee layered with orangey cold foam and orange zest.',
-    };
-
-    InteractiveFillingLoader.show(
-      context,
-      targetPage: ProductDetailPage(
-        item: drinkItem,
-        initialBean: bean,
-        initialTemperature: temp,
-        initialMilk: milk,
-        initialSweetness: sweetness,
-        initialIceLevel: iceLevel,
-        initialOrderType: orderType,
-        initialRemarks: remarks,
-        initialQuantity: qty,
-        isReorder: true,
-      ),
-    );
+    return null;
   }
 
-  void _navigateBackToPurchaseHistory(BuildContext context) {
+  String _displayName() {
+    final primaryTitle = order.primaryItemName?.trim();
+    if (primaryTitle != null && primaryTitle.isNotEmpty) {
+      return primaryTitle;
+    }
+
+    final itemTitle = order.items.isNotEmpty ? order.items.first.name.trim() : '';
+    if (itemTitle.isNotEmpty) {
+      return itemTitle;
+    }
+
+    return order.orderRef.isNotEmpty ? order.orderRef : 'Order ${order.id}';
+  }
+
+  String _formatDateTime(DateTime value) {
+    final local = value.toLocal();
+    final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
+    final minute = local.minute.toString().padLeft(2, '0');
+    final period = local.hour >= 12 ? 'pm' : 'am';
+    return '${local.day.toString().padLeft(2, '0')}/${local.month.toString().padLeft(2, '0')}/${local.year} · $hour:$minute $period';
+  }
+
+  String _buildDetails() {
+    if (order.items.isEmpty) {
+      return 'No item details available.';
+    }
+
+    final buffer = StringBuffer();
+    for (final item in order.items) {
+      if (buffer.isNotEmpty) buffer.writeln();
+      buffer.write('${item.quantity}x ${item.name}');
+
+      final modifierLabels = item.modifiers
+          .map((modifier) => modifier.optionName.trim())
+          .where((value) => value.isNotEmpty)
+          .toList();
+      if (modifierLabels.isNotEmpty) {
+        buffer.write(' / ${modifierLabels.join(' / ')}');
+      }
+    }
+    return buffer.toString();
+  }
+
+  Future<void> _handleOrderAgain(BuildContext context) async {
+    await OrderReorderService.instance.reorderOrder(context, order);
+  }
+
+  void _navigateBack(BuildContext context) {
     InteractiveFillingLoader.showPop(context);
   }
 
   @override
   Widget build(BuildContext context) {
-    Color orangeColor = AppColors.deepTeal;
+    final imageUrl = _resolveOrderImageUrl();
+    final firstItem = order.items.isNotEmpty ? order.items.first : null;
+    final totalItems = order.itemCount > 0 ? order.itemCount : order.items.length;
+    final totalLabel = totalItems > 0 ? '$totalItems item${totalItems == 1 ? '' : 's'}' : '0 items';
     const Color bgColor = Colors.white;
 
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
-        _navigateBackToPurchaseHistory(context);
+        _navigateBack(context);
       },
       child: AppPageShell(
         title: 'ORDER DETAILS',
-        onBack: () => _navigateBackToPurchaseHistory(context),
+        onBack: () => _navigateBack(context),
         backgroundColor: bgColor,
         child: Column(
           children: [
@@ -140,9 +124,9 @@ class OrderDetailsPage extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         CatalogProductImage(
-                          imageUrl: item['image_url']?.toString(),
-                          width: 55,
-                          height: 75,
+                          imageUrl: imageUrl,
+                          width: 70,
+                          height: 92,
                           fit: BoxFit.contain,
                         ),
                         const SizedBox(width: 16),
@@ -151,7 +135,7 @@ class OrderDetailsPage extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                '${item['date']} . ${item['time']}',
+                                _formatDateTime(order.createdAt),
                                 style: const TextStyle(
                                   fontFamily: 'Afacad',
                                   fontSize: 12,
@@ -162,30 +146,34 @@ class OrderDetailsPage extends StatelessWidget {
                               Row(
                                 mainAxisAlignment:
                                     MainAxisAlignment.spaceBetween,
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    item['name'],
-                                    style: TextStyle(
-                                      fontFamily: 'Recoleta',
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
-                                      color: AppColors.deepTeal,
+                                  Expanded(
+                                    child: Text(
+                                      _displayName(),
+                                      style: TextStyle(
+                                        fontFamily: 'Recoleta',
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.deepTeal,
+                                      ),
                                     ),
                                   ),
+                                  const SizedBox(width: 12),
                                   Text(
-                                    'x${item['quantity']}',
+                                    'x${totalItems > 0 ? totalItems : 1}',
                                     style: TextStyle(
                                       fontFamily: 'Afacad',
                                       fontSize: 22,
                                       fontWeight: FontWeight.bold,
-                                      color: orangeColor,
+                                      color: AppColors.deepTeal,
                                     ),
                                   ),
                                 ],
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                item['details'],
+                                _buildDetails(),
                                 style: const TextStyle(
                                   fontFamily: 'Afacad',
                                   fontSize: 14,
@@ -195,13 +183,24 @@ class OrderDetailsPage extends StatelessWidget {
                               ),
                               const SizedBox(height: 16),
                               Text(
-                                'Remarks: ${item['remarks']}',
+                                'Store: ${order.store.name}',
                                 style: const TextStyle(
                                   fontFamily: 'Afacad',
                                   fontSize: 14,
                                   color: Colors.black87,
                                 ),
                               ),
+                              if (firstItem != null) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Order Ref: ${order.orderRef}',
+                                  style: const TextStyle(
+                                    fontFamily: 'Afacad',
+                                    fontSize: 14,
+                                    color: Colors.black54,
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         ),
@@ -212,15 +211,16 @@ class OrderDetailsPage extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
                         Text(
-                          '${item['quantity']} item  ',
+                          totalLabel,
                           style: const TextStyle(
                             fontFamily: 'Afacad',
                             fontSize: 14,
                             color: Colors.black87,
                           ),
                         ),
+                        const SizedBox(width: 10),
                         Text(
-                          'RM16.90',
+                          'RM${double.tryParse(order.finalTotalRm)?.toStringAsFixed(2) ?? order.finalTotalRm}',
                           style: TextStyle(
                             fontFamily: 'Afacad',
                             fontSize: 14,
@@ -234,7 +234,6 @@ class OrderDetailsPage extends StatelessWidget {
                 ),
               ),
             ),
-            // Moved higher right below the details card
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: SizedBox(
@@ -244,20 +243,19 @@ class OrderDetailsPage extends StatelessWidget {
                   onPressed: () => _handleOrderAgain(context),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.surfaceLight,
-                    foregroundColor: orangeColor,
+                    foregroundColor: AppColors.deepTeal,
                     side: BorderSide(color: AppColors.border),
                     elevation: 0,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(25),
                     ),
                   ),
-                  child: Text(
+                  child: const Text(
                     'Order Again',
                     style: TextStyle(
                       fontFamily: 'Recoleta',
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.deepTeal,
                     ),
                   ),
                 ),

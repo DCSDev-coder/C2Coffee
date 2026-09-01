@@ -77,6 +77,21 @@ function App() {
     void restoreAdminSession();
   }, []);
 
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      setIsLoggedIn(false);
+      setCurrentTenant(null);
+      setCurrentUser(null);
+      setCurrentPage('Dashboard');
+      setPrevPage('Dashboard');
+    };
+
+    window.addEventListener('c2-admin-session-expired', handleSessionExpired);
+    return () => {
+      window.removeEventListener('c2-admin-session-expired', handleSessionExpired);
+    };
+  }, []);
+
   const handleNavigate = (newPage) => {
     if (currentPage !== newPage) {
       if (currentPage !== 'Notifications' && currentPage !== 'Profile') {

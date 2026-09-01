@@ -2,6 +2,8 @@ import type { FastifyInstance } from 'fastify';
 import type { RowDataPacket } from 'mysql2/promise';
 import { authenticateAdminRequest } from '../../admin/guard.js';
 import { mysqlPool } from '../../db/mysql.js';
+import { ApiError } from '../errors.js';
+import { z } from 'zod';
 
 function formatDisplayDate(dateObj: Date): string {
   if (!dateObj) return '';
@@ -26,8 +28,18 @@ function capitalizeWords(str: string): string {
   return str.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
 }
 
+function requireOrderAccess(request: { adminAuth?: { roles?: string[] } }): void {
+  const roles = request.adminAuth?.roles ?? [];
+  const allowedRoles = ['super_admin', 'operations_admin', 'barista'];
+  if (!allowedRoles.some((role) => roles.includes(role))) {
+    throw new ApiError(403, 'admin_forbidden', 'You do not have permission to manage orders.');
+  }
+}
+
 export async function registerAdminOrdersRoutes(app: FastifyInstance) {
-  app.get('/v1/admin/orders', async (request, reply) => {
+  app.get('/v1/admin/orders', { preHandler: authenticateAdminRequest }, async (request, reply) => {
+    requireOrderAccess(request);
+
     const connection = await mysqlPool.getConnection();
     try {
       // 1. Fetch Orders
@@ -55,14 +67,20 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           p.provider as paymentProvider,
           p.status as paymentStatus,
           p.provider_payment_ref as txnId,
+          COALESCE(ready_barista.name, preparing_barista.name) as baristaName,
           o.created_at
         FROM orders o
         JOIN users u ON o.user_id = u.id
         JOIN user_profiles up ON u.id = up.user_id
+        JOIN stores s ON s.id = o.store_id
+        JOIN admin_tenants t ON t.id = s.tenant_id
         LEFT JOIN payments p ON o.id = p.order_id
+        LEFT JOIN baristas preparing_barista ON preparing_barista.id = o.preparing_by_barista_id
+        LEFT JOIN baristas ready_barista ON ready_barista.id = o.ready_by_barista_id
+        WHERE t.code = :tenantCode
         ORDER BY o.created_at DESC
         LIMIT 50
-      `);
+      `, { tenantCode: request.adminAuth.tenantCode });
 
       if (orderRows.length === 0) {
         return reply.send({ orders: [] });
@@ -166,6 +184,8 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           payment: o.paymentMode || '',
           paymentStatus: capitalizeWords(o.paymentStatus || ''),
           txnId: o.txnId || `TXN${o.internal_id}`,
+          baristaName: o.baristaName || '',
+          baristaUsername: '',
           time: formatDisplayTime(d),
           date: formatDisplayDate(d)
         };
@@ -248,9 +268,14 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
     }
   });
 
-  app.patch('/v1/admin/orders/:orderId/status', async (request, reply) => {
+  app.patch('/v1/admin/orders/:orderId/status', { preHandler: authenticateAdminRequest }, async (request, reply) => {
+    requireOrderAccess(request);
+
     const { orderId } = request.params as { orderId: string };
-    const { status } = request.body as { status: string };
+    const { status, barista_id: baristaId } = z.object({
+      status: z.string().trim(),
+      barista_id: z.coerce.number().int().positive().optional()
+    }).parse(request.body);
 
     if (!['preparing', 'ready_for_pickup', 'collected', 'completed'].includes(status)) {
       return reply.status(400).send({ error: { code: 'invalid_status', message: 'Invalid status' } });
@@ -258,11 +283,24 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
 
     const effectiveStatus = status === 'completed' ? 'collected' : status;
 
+    if (['preparing', 'ready_for_pickup'].includes(effectiveStatus) && !baristaId) {
+      throw new ApiError(400, 'barista_required', 'Select the Barista preparing this order.');
+    }
+
     const connection = await mysqlPool.getConnection();
+    let committed = false;
     try {
+      await connection.beginTransaction();
       const [rows] = await connection.execute<RowDataPacket[]>(
-        `SELECT id FROM orders WHERE order_ref = :orderId LIMIT 1`,
-        { orderId }
+        `SELECT o.id, o.status
+         FROM orders o
+         JOIN stores s ON s.id = o.store_id
+         JOIN admin_tenants t ON t.id = s.tenant_id
+         WHERE o.order_ref = :orderId
+           AND t.code = :tenantCode
+         LIMIT 1
+         FOR UPDATE`,
+        { orderId, tenantCode: request.adminAuth.tenantCode }
       );
 
       if (rows.length === 0) {
@@ -270,14 +308,88 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
       }
 
       const internalId = rows[0].id;
+      const fromStatus = rows[0].status;
+
+      if (fromStatus === effectiveStatus) {
+        await connection.commit();
+        committed = true;
+        return reply.send({ success: true, status: effectiveStatus, unchanged: true });
+      }
+
+      const allowedPreviousStatuses: Record<string, string[]> = {
+        preparing: ['paid', 'accepted'],
+        ready_for_pickup: ['preparing'],
+        collected: ['ready_for_pickup']
+      };
+
+      if (request.adminAuth.roles.includes('barista') && effectiveStatus === 'collected') {
+        throw new ApiError(403, 'collection_customer_only', 'Customers confirm collection in the mobile app.');
+      }
+
+      if (!(allowedPreviousStatuses[effectiveStatus] ?? []).includes(fromStatus)) {
+        throw new ApiError(
+          409,
+          'invalid_order_transition',
+          `This order is already ${capitalizeWords(fromStatus)} and cannot be changed to ${capitalizeWords(effectiveStatus)}.`
+        );
+      }
+
+      const timestampUpdates: string[] = [];
+      let baristaName = '';
+
+      if (baristaId) {
+        const [baristaRows] = await connection.execute<RowDataPacket[]>(
+          `SELECT id, name
+           FROM baristas
+           WHERE id = :baristaId
+             AND tenant_code = :tenantCode
+             AND is_active = true
+           LIMIT 1`,
+          { baristaId, tenantCode: request.adminAuth.tenantCode }
+        );
+
+        if (baristaRows.length === 0) {
+          throw new ApiError(400, 'barista_unavailable', 'The selected Barista is no longer active.');
+        }
+
+        baristaName = baristaRows[0].name;
+      }
+
+      if (effectiveStatus === 'preparing') {
+        timestampUpdates.push(
+          'accepted_at = COALESCE(accepted_at, UTC_TIMESTAMP())',
+          'preparing_by_admin_user_id = :adminUserId',
+          'preparing_by_barista_id = :baristaId'
+        );
+      }
+
+      if (effectiveStatus === 'ready_for_pickup') {
+        timestampUpdates.push(
+          'accepted_at = COALESCE(accepted_at, UTC_TIMESTAMP())',
+          'preparing_by_admin_user_id = COALESCE(preparing_by_admin_user_id, :adminUserId)',
+          'preparing_by_barista_id = COALESCE(preparing_by_barista_id, :baristaId)',
+          'ready_at = COALESCE(ready_at, UTC_TIMESTAMP())',
+          'ready_by_admin_user_id = :adminUserId',
+          'ready_by_barista_id = :baristaId'
+        );
+      }
+
+      if (effectiveStatus === 'collected') {
+        timestampUpdates.push(
+          'ready_at = COALESCE(ready_at, UTC_TIMESTAMP())',
+          'ready_by_admin_user_id = COALESCE(ready_by_admin_user_id, :adminUserId)',
+          'collected_at = COALESCE(collected_at, UTC_TIMESTAMP())'
+        );
+      }
 
       await connection.execute(
         `
           UPDATE orders
           SET status = :status
+              ${timestampUpdates.length > 0 ? `, ${timestampUpdates.join(', ')}` : ''}
           WHERE id = :internalId
         `,
-        { status: effectiveStatus, internalId }
+        { status: effectiveStatus, internalId, adminUserId: request.adminAuth.adminUserId, baristaId: baristaId ?? null }
       );
 
       // Insert into order_status_history
@@ -285,6 +397,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
         `
           INSERT INTO order_status_history (
             order_id,
+            from_status,
             to_status,
             changed_by_type,
             changed_by_id,
@@ -293,17 +406,39 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           )
           VALUES (
             :internalId,
+            :fromStatus,
             :status,
             'admin',
-            'admin',
-            'Updated via Barista app',
+            :adminUserId,
+            :reason,
             UTC_TIMESTAMP()
           )
         `,
-        { internalId, status: effectiveStatus }
+        {
+          internalId,
+          fromStatus,
+          status: effectiveStatus,
+          adminUserId: request.adminAuth.adminUserId,
+          reason: `Updated by ${baristaName || request.adminAuth.fullName || request.adminAuth.username}`
+        }
       );
 
-      return reply.send({ success: true, status: effectiveStatus });
+      await connection.commit();
+      committed = true;
+      return reply.send({
+        success: true,
+        status: effectiveStatus,
+        barista: {
+          id: baristaId ?? null,
+          name: baristaName,
+          username: ''
+        }
+      });
+    } catch (error) {
+      if (!committed) {
+        await connection.rollback();
+      }
+      throw error;
     } finally {
       connection.release();
     }

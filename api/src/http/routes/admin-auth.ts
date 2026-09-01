@@ -23,7 +23,7 @@ const adminSetupSchema = z.object({
 
 const adminCreateSchema = z.object({
   username: z.string().trim().min(3).max(80),
-  temp_password: z.string().trim().min(8).max(200),
+  password: z.string().trim().min(8).max(200),
   email: z.string().trim().email().max(255).optional().or(z.literal('')),
   full_name: z.string().trim().min(1).max(255).optional().or(z.literal('')),
   role_codes: z.array(z.string().trim().min(1).max(50)).optional()
@@ -33,6 +33,7 @@ const adminUpdateSchema = z.object({
   username: z.string().trim().min(3).max(80).optional(),
   email: z.string().trim().email().max(255).optional().or(z.literal('')),
   full_name: z.string().trim().min(1).max(255).optional().or(z.literal('')),
+  password: z.string().trim().min(8).max(200).optional(),
   status: z.enum(['active', 'inactive']).optional(),
   role_codes: z.array(z.string().trim().min(1).max(50)).optional()
 });
@@ -154,16 +155,24 @@ export async function registerAdminAuthRoutes(app: FastifyInstance): Promise<voi
       { adminUserId: admin.id }
     );
 
+    const user = await getAdminUserResponse(admin.id);
+    const isBaristaAccount =
+      user.roles.length === 1 && user.roles[0] === 'barista';
+
     return {
       access_token: session.accessToken,
       refresh_token: session.refreshToken,
-      setup_required: admin.must_change_password === 1 || admin.must_set_email === 1 || !admin.email,
+      setup_required:
+        !isBaristaAccount &&
+        (admin.must_change_password === 1 ||
+          admin.must_set_email === 1 ||
+          !admin.email),
       tenant: {
         code: admin.tenant_code,
         name: admin.tenant_name,
         display_name: admin.tenant_display_name
       },
-      user: await getAdminUserResponse(admin.id),
+      user,
       session: session.responseSession
     };
   });
@@ -202,7 +211,7 @@ export async function registerAdminAuthRoutes(app: FastifyInstance): Promise<voi
 
     const session = rows[0];
     if (!session || !['active', 'invited'].includes(session.status)) {
-      throw new ApiError(401, 'invalid_refresh_token', 'Refresh token is invalid or expired.');
+      throw new ApiError(401, 'invalid_refresh_token', 'Your sign-in session has expired. Please sign in again.');
     }
 
     const nextRefreshToken = generateOpaqueToken();
@@ -302,17 +311,39 @@ export async function registerAdminAuthRoutes(app: FastifyInstance): Promise<voi
 
     const payload = adminCreateSchema.parse(request.body);
     const normalizedFullName = payload.full_name?.trim() || payload.username;
-    const passwordHash = await hashPassword(payload.temp_password);
-    const setupRequired = !payload.email;
+    const passwordHash = await hashPassword(payload.password);
     const roleCodes = Array.from(
       new Set((payload.role_codes?.length ? payload.role_codes : ['support_admin']).map((role) => role.trim()))
     );
+    const isBaristaAccount = roleCodes.length === 1 && roleCodes[0] === 'barista';
+    const setupRequired = !isBaristaAccount && !payload.email;
 
     const connection = await mysqlPool.getConnection();
     await connection.query("SET time_zone = '+00:00'");
 
     try {
       await connection.beginTransaction();
+
+      if (isBaristaAccount) {
+        const [existingBaristaAccounts] = await connection.query<RowDataPacket[]>(
+          `SELECT u.id
+           FROM admin_users u
+           JOIN admin_user_roles ur ON ur.admin_user_id = u.id
+           JOIN admin_roles r ON r.id = ur.admin_role_id
+           WHERE u.tenant_id = :tenantId
+             AND r.code = 'barista'
+           LIMIT 1`,
+          { tenantId: request.adminAuth.tenantId }
+        );
+
+        if (existingBaristaAccounts.length > 0) {
+          throw new ApiError(
+            409,
+            'barista_account_exists',
+            'This tenant already has a Barista App account. Update that shared account instead.'
+          );
+        }
+      }
 
       const [insertResult] = await connection.execute<ResultSetHeader>(
         `
@@ -337,7 +368,7 @@ export async function registerAdminAuthRoutes(app: FastifyInstance): Promise<voi
             :fullName,
             :passwordHash,
             'active',
-            1,
+            :mustChangePassword,
             :mustSetEmail,
             UTC_TIMESTAMP(),
             NULL,
@@ -351,6 +382,7 @@ export async function registerAdminAuthRoutes(app: FastifyInstance): Promise<voi
           email: nullableString(payload.email),
           fullName: normalizedFullName,
           passwordHash,
+          mustChangePassword: isBaristaAccount ? 0 : 1,
           mustSetEmail: setupRequired ? 1 : 0
         }
       );
@@ -401,7 +433,7 @@ export async function registerAdminAuthRoutes(app: FastifyInstance): Promise<voi
 
       return {
         user: await getAdminUserResponse(adminUserId),
-        setup_required: true
+        setup_required: setupRequired
       };
     } catch (error) {
       await connection.rollback();
@@ -505,6 +537,10 @@ export async function registerAdminAuthRoutes(app: FastifyInstance): Promise<voi
         updates.push('status = :status');
         queryParams.status = payload.status;
       }
+      if (payload.password !== undefined) {
+        updates.push('password_hash = :passwordHash');
+        queryParams.passwordHash = await hashPassword(payload.password);
+      }
 
       if (updates.length > 0) {
         updates.push('updated_at = UTC_TIMESTAMP()');
@@ -544,6 +580,15 @@ export async function registerAdminAuthRoutes(app: FastifyInstance): Promise<voi
             }
           );
         }
+      }
+
+      if (payload.password !== undefined) {
+        await connection.execute(
+          `UPDATE admin_sessions
+           SET revoked_at = UTC_TIMESTAMP(), revoke_reason = 'password_changed_by_admin'
+           WHERE admin_user_id = :adminUserId AND revoked_at IS NULL`,
+          { adminUserId }
+        );
       }
 
       await connection.commit();

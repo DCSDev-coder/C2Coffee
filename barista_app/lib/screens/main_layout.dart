@@ -26,23 +26,32 @@ class _MainLayoutState extends State<MainLayout> {
     super.initState();
     _pageController = PageController(initialPage: _currentIndex);
     _loadInitialOrders();
-    // Auto-refresh every 10 seconds
-    _refreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+    // Keep the queue current without relying on a manual refresh.
+    _refreshTimer = Timer.periodic(const Duration(seconds: 5), (_) {
       _loadInitialOrders();
     });
   }
 
   Future<void> _loadInitialOrders() async {
     try {
-      final fetchedOrders = await ApiService.fetchOrders();
-      if (fetchedOrders.isNotEmpty) {
-        globalCurrentOrders.value = fetchedOrders
-            .where((o) => o.status != OrderStatus.completed && o.status != OrderStatus.readyForPickup)
-            .toList();
-        globalHistoryOrders.value = fetchedOrders
-            .where((o) => o.status == OrderStatus.completed)
-            .toList();
+      final result = await ApiService.fetchOrders();
+      if (!result.isSuccess) {
+        globalOrderSyncError.value = result.errorMessage;
+        return;
       }
+      final fetchedOrders = result.orders;
+      globalCurrentOrders.value = fetchedOrders
+          .where(
+            (o) =>
+                o.status != OrderStatus.completed &&
+                o.status != OrderStatus.readyForPickup,
+          )
+          .toList();
+      globalHistoryOrders.value = fetchedOrders
+          .where((o) => o.status == OrderStatus.completed)
+          .toList();
+      globalOrderSyncError.value = null;
+      globalLastOrderSync.value = DateTime.now();
     } catch (e) {
       debugPrint('Failed to fetch initial orders: $e');
     }
@@ -90,13 +99,11 @@ class _MainLayoutState extends State<MainLayout> {
               });
             },
             children: [
-              CurrentOrderPage(
-                onSettingsTap: () => _onTabSelected(1),
-              ),
+              CurrentOrderPage(onSettingsTap: () => _onTabSelected(1)),
               const SettingsPage(),
             ],
           ),
-          
+
           FloatingBottomNav(
             activePage: activePage,
             onTabSelected: _onTabSelected,

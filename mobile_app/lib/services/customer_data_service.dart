@@ -98,7 +98,8 @@ class RewardVoucherTemplate {
       requiresDrinkInCart: json['requires_drink_in_cart'] as bool? ?? false,
       eligibleScope: _parseScopeMap(json['eligible_scope_json']),
       excludeScope: _parseScopeMap(json['exclude_scope_json']),
-      promotionRule: _promotionRuleFromScope(_parseScopeMap(json['eligible_scope_json'])),
+      promotionRule:
+          _promotionRuleFromScope(_parseScopeMap(json['eligible_scope_json'])),
     );
   }
 
@@ -135,14 +136,19 @@ class RewardVoucherTemplate {
   }
 
   String get eligibilityLabel {
-    final qualifyingLabel = _scopeLabelFromMap(_promotionScope(eligibleScope, 'qualifying_scope'));
-    final rewardLabel = _scopeLabelFromMap(_promotionScope(eligibleScope, 'reward_scope'));
-    final promotionKind = (promotionRule['kind'] as String? ?? 'standard').trim();
-    final qualifyingQty = (promotionRule['qualifying_quantity'] as num?)?.toInt() ?? 1;
+    final qualifyingLabel =
+        _scopeLabelFromMap(_promotionScope(eligibleScope, 'qualifying_scope'));
+    final rewardLabel =
+        _scopeLabelFromMap(_promotionScope(eligibleScope, 'reward_scope'));
+    final promotionKind =
+        (promotionRule['kind'] as String? ?? 'standard').trim();
+    final qualifyingQty =
+        (promotionRule['qualifying_quantity'] as num?)?.toInt() ?? 1;
     final rewardQty = (promotionRule['reward_quantity'] as num?)?.toInt() ?? 1;
 
     if (promotionKind == 'bundle') {
-      final buyLabel = qualifyingLabel.isNotEmpty ? qualifyingLabel : 'Selected items';
+      final buyLabel =
+          qualifyingLabel.isNotEmpty ? qualifyingLabel : 'Selected items';
       final freeLabel = rewardLabel.isNotEmpty ? rewardLabel : buyLabel;
       return 'Buy $qualifyingQty from $buyLabel, get $rewardQty from $freeLabel';
     }
@@ -180,8 +186,8 @@ class RewardVoucherTemplate {
     return 'Ready to use';
   }
 
-  List<String> get productKindCodes =>
-      _stringListFromScope(eligibleScope, ['product_kind_codes', 'product_kinds']);
+  List<String> get productKindCodes => _stringListFromScope(
+      eligibleScope, ['product_kind_codes', 'product_kinds']);
 
   List<String> get subcategoryCodes =>
       _stringListFromScope(eligibleScope, ['subcategory_codes']);
@@ -202,12 +208,11 @@ class RewardVoucherTemplate {
   }
 
   bool get isAvailableNow {
-    final schedule =
-        eligibleScope['schedule'] is Map<String, dynamic>
-            ? eligibleScope['schedule'] as Map<String, dynamic>
-            : eligibleScope['schedule'] is Map
-                ? Map<String, dynamic>.from(eligibleScope['schedule'] as Map)
-                : <String, dynamic>{};
+    final schedule = eligibleScope['schedule'] is Map<String, dynamic>
+        ? eligibleScope['schedule'] as Map<String, dynamic>
+        : eligibleScope['schedule'] is Map
+            ? Map<String, dynamic>.from(eligibleScope['schedule'] as Map)
+            : <String, dynamic>{};
     final mode = (schedule['mode'] as String? ?? 'always').trim();
     if (mode == 'always') {
       return true;
@@ -254,8 +259,10 @@ class RewardVoucherTemplate {
   }
 
   bool matchesCartSnapshot(CartSnapshot snapshot) {
-    final promotionKind = (promotionRule['kind'] as String? ?? 'standard').trim();
-    final qualifyingQty = (promotionRule['qualifying_quantity'] as num?)?.toInt() ?? 1;
+    final promotionKind =
+        (promotionRule['kind'] as String? ?? 'standard').trim();
+    final qualifyingQty =
+        (promotionRule['qualifying_quantity'] as num?)?.toInt() ?? 1;
     final rewardQty = (promotionRule['reward_quantity'] as num?)?.toInt() ?? 1;
     final qualifyingScope = _promotionScope(eligibleScope, 'qualifying_scope');
     final rewardScope = _promotionScope(eligibleScope, 'reward_scope');
@@ -273,15 +280,16 @@ class RewardVoucherTemplate {
   }
 
   String get availabilityLabel {
-    final schedule =
-        eligibleScope['schedule'] is Map<String, dynamic>
-            ? eligibleScope['schedule'] as Map<String, dynamic>
-            : eligibleScope['schedule'] is Map
-                ? Map<String, dynamic>.from(eligibleScope['schedule'] as Map)
-                : <String, dynamic>{};
+    final schedule = eligibleScope['schedule'] is Map<String, dynamic>
+        ? eligibleScope['schedule'] as Map<String, dynamic>
+        : eligibleScope['schedule'] is Map
+            ? Map<String, dynamic>.from(eligibleScope['schedule'] as Map)
+            : <String, dynamic>{};
     final mode = (schedule['mode'] as String? ?? 'always').trim();
-    final startTime = _formatTimeLabel((schedule['startTime'] as String? ?? '').trim());
-    final endTime = _formatTimeLabel((schedule['endTime'] as String? ?? '').trim());
+    final startTime =
+        _formatTimeLabel((schedule['startTime'] as String? ?? '').trim());
+    final endTime =
+        _formatTimeLabel((schedule['endTime'] as String? ?? '').trim());
     final timeLabel = _joinTimeRange(startTime, endTime);
 
     if (mode == 'daily') {
@@ -295,13 +303,15 @@ class RewardVoucherTemplate {
           .toList();
       final dayLabel =
           activeDays.isEmpty ? 'Selected days' : activeDays.join(', ');
-      return timeLabel == null ? 'Every $dayLabel' : 'Every $dayLabel, $timeLabel';
+      return timeLabel == null
+          ? 'Every $dayLabel'
+          : 'Every $dayLabel, $timeLabel';
     }
 
     if (mode == 'annual') {
-      final annualDate =
-          _formatAnnualDateLabel((schedule['annualDate'] as String? ?? '').trim()) ??
-              'Selected date';
+      final annualDate = _formatAnnualDateLabel(
+              (schedule['annualDate'] as String? ?? '').trim()) ??
+          'Selected date';
       return timeLabel == null
           ? 'Every $annualDate'
           : 'Every $annualDate, $timeLabel';
@@ -333,11 +343,13 @@ class RewardVoucherTemplate {
     return <String, dynamic>{};
   }
 
-  static Map<String, dynamic> _promotionRuleFromScope(Map<String, dynamic> scope) {
+  static Map<String, dynamic> _promotionRuleFromScope(
+      Map<String, dynamic> scope) {
     final rawRule = _parseScopeMap(scope['promotion_rule']);
     return <String, dynamic>{
       'kind': (rawRule['kind'] as String? ?? 'standard').trim(),
-      'qualifying_quantity': (rawRule['qualifying_quantity'] as num?)?.toInt() ?? 1,
+      'qualifying_quantity':
+          (rawRule['qualifying_quantity'] as num?)?.toInt() ?? 1,
       'reward_quantity': (rawRule['reward_quantity'] as num?)?.toInt() ?? 1,
       'qualifying_scope': _parseScopeMap(rawRule['qualifying_scope']),
       'reward_scope': _parseScopeMap(rawRule['reward_scope']),
@@ -371,7 +383,8 @@ class RewardVoucherTemplate {
       return categories.map(_formatScopeValue).join(', ');
     }
 
-    final productKinds = _scopeValues(scope, ['product_kind_codes', 'product_kinds']);
+    final productKinds =
+        _scopeValues(scope, ['product_kind_codes', 'product_kinds']);
     if (productKinds.isNotEmpty) {
       return productKinds.map(_formatScopeValue).join(', ');
     }
@@ -395,13 +408,13 @@ class RewardVoucherTemplate {
         .map(_normalizeScopeValue)
         .where((value) => value.isNotEmpty)
         .toSet();
-    final productKindCodes = _scopeValues(scope, ['product_kind_codes', 'product_kinds'])
-        .map(_normalizeScopeValue)
-        .where((value) => value.isNotEmpty)
-        .toSet();
+    final productKindCodes =
+        _scopeValues(scope, ['product_kind_codes', 'product_kinds'])
+            .map(_normalizeScopeValue)
+            .where((value) => value.isNotEmpty)
+            .toSet();
 
-    final hasExplicitScope =
-        itemCodes.isNotEmpty ||
+    final hasExplicitScope = itemCodes.isNotEmpty ||
         subcategoryCodes.isNotEmpty ||
         categoryCodes.isNotEmpty ||
         productKindCodes.isNotEmpty;
@@ -433,7 +446,9 @@ class RewardVoucherTemplate {
     List<String> keys,
   ) {
     final values = _stringListFromScope(scope, keys);
-    return values.length == 1 && _normalizeScopeValue(values.first) == _normalizeScopeValue('All Items')
+    return values.length == 1 &&
+            _normalizeScopeValue(values.first) ==
+                _normalizeScopeValue('All Items')
         ? const <String>[]
         : values;
   }
@@ -722,6 +737,8 @@ class CustomerOrder {
   final CustomerOrderStore store;
   final int itemCount;
   final String? primaryItemName;
+  final String? baristaName;
+  final String? baristaUsername;
   final List<CustomerOrderItem> items;
   final List<CustomerOrderStatusEvent> statusHistory;
 
@@ -739,6 +756,8 @@ class CustomerOrder {
     required this.store,
     required this.itemCount,
     required this.primaryItemName,
+    required this.baristaName,
+    required this.baristaUsername,
     required this.items,
     required this.statusHistory,
   });
@@ -761,6 +780,8 @@ class CustomerOrder {
       store: store,
       itemCount: itemCount,
       primaryItemName: primaryItemName,
+      baristaName: baristaName,
+      baristaUsername: baristaUsername,
       items: items,
       statusHistory: statusHistory ?? this.statusHistory,
     );
@@ -796,6 +817,8 @@ class CustomerOrder {
       ),
       itemCount: (json['item_count'] as num?)?.toInt() ?? 0,
       primaryItemName: json['primary_item_name'] as String?,
+      baristaName: json['barista_name'] as String?,
+      baristaUsername: json['barista_username'] as String?,
       items: (json['items'] as List? ?? const [])
           .map((item) => CustomerOrderItem.fromApi(
                 Map<String, dynamic>.from(item as Map),
@@ -926,7 +949,7 @@ class CustomerDataService {
   Future<Map<String, dynamic>> topUpWallet({
     required String accessToken,
     required int tokenAmount,
-    String provider = 'touch_n_go_sandbox',
+    String provider = 'touch_n_go',
   }) async {
     return _post(
       '/wallet/topup',

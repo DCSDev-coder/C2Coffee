@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,6 +11,7 @@ import 'allowed_countries.dart';
 import 'signup2.dart';
 import 'login.dart';
 import 'auth_transition.dart';
+import '../services/auth_api_service.dart';
 import '../services/user_service.dart';
 
 class Signup1 extends StatefulWidget {
@@ -22,7 +24,9 @@ class Signup1 extends StatefulWidget {
 // Aliases for compatibility
 typedef Signup1Backup = Signup1;
 
-class _Signup1State extends State<Signup1> {
+enum _Signup1ErrorField { username, email, phone, birthday }
+
+class _Signup1State extends State<Signup1> with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
 
   final TextEditingController _usernameController = TextEditingController();
@@ -30,6 +34,10 @@ class _Signup1State extends State<Signup1> {
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _birthdayController = TextEditingController();
   final FocusNode _phoneFocusNode = FocusNode();
+  late final AnimationController _shakeController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 420),
+  );
 
   File? _pickedImage;
   String? _presetAvatarPath;
@@ -37,6 +45,7 @@ class _Signup1State extends State<Signup1> {
   bool _isPhoneValid = false;
   int _selectedAvatarIndex = -1;
   String _fullPhoneNumber = '';
+  final Set<_Signup1ErrorField> _errorFields = <_Signup1ErrorField>{};
 
   final List<Map<String, dynamic>> _avatarOptions = [
     {'path': 'assets/images/dato.png', 'name': 'Dato'},
@@ -60,7 +69,18 @@ class _Signup1State extends State<Signup1> {
     precacheImage(const AssetImage('assets/images/datin.png'), context);
   }
 
-  void _onFieldChanged() => setState(() {});
+  void _onFieldChanged() {
+    if (_errorFields.isNotEmpty) {
+      setState(() {
+        _errorFields.clear();
+      });
+      _shakeController.stop();
+      _shakeController.value = 0;
+      return;
+    }
+
+    setState(() {});
+  }
 
   @override
   void dispose() {
@@ -73,21 +93,68 @@ class _Signup1State extends State<Signup1> {
     _phoneController.dispose();
     _birthdayController.dispose();
     _phoneFocusNode.dispose();
+    _shakeController.dispose();
     super.dispose();
   }
 
-  bool get _isFormValid {
+  void _showError(String message) {
+    showAuthErrorBanner(context, message);
+  }
+
+  void _markSignup1Errors(Set<_Signup1ErrorField> fields) {
+    setState(() {
+      _errorFields
+        ..clear()
+        ..addAll(fields);
+    });
+    _shakeController.forward(from: 0);
+  }
+
+  Set<_Signup1ErrorField> _errorsFromSignupIdentityError(ApiException error) {
+    final fields = <_Signup1ErrorField>{};
+    final message = error.message.toLowerCase();
+
+    if (error.code == 'signup_phone_email_conflict' ||
+        (message.contains('phone') && message.contains('email'))) {
+      fields
+        ..add(_Signup1ErrorField.phone)
+        ..add(_Signup1ErrorField.email);
+      return fields;
+    }
+
+    if (error.code == 'signup_phone_taken' || message.contains('phone')) {
+      fields.add(_Signup1ErrorField.phone);
+    }
+    if (error.code == 'signup_email_taken' || message.contains('email')) {
+      fields.add(_Signup1ErrorField.email);
+    }
+
+    return fields;
+  }
+
+  Set<_Signup1ErrorField> _collectSignup1ValidationErrors() {
+    final errors = <_Signup1ErrorField>{};
     final username = _usernameController.text.trim();
     final email = _emailController.text.trim();
     final birthday = _birthdayController.text.trim();
 
-    final isUsernameValid = username.isNotEmpty;
     final isEmailValid = email.isNotEmpty &&
         RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email);
-    final isPhoneValid = _fullPhoneNumber.isNotEmpty && _isPhoneValid;
-    final isBirthdayValid = birthday.isNotEmpty && _selectedDate != null;
 
-    return isUsernameValid && isEmailValid && isPhoneValid && isBirthdayValid;
+    if (username.isEmpty) {
+      errors.add(_Signup1ErrorField.username);
+    }
+    if (!isEmailValid) {
+      errors.add(_Signup1ErrorField.email);
+    }
+    if (_fullPhoneNumber.isEmpty || !_isPhoneValid) {
+      errors.add(_Signup1ErrorField.phone);
+    }
+    if (birthday.isEmpty || _selectedDate == null) {
+      errors.add(_Signup1ErrorField.birthday);
+    }
+
+    return errors;
   }
 
   String get _birthdayApiValue {
@@ -743,142 +810,214 @@ class _Signup1State extends State<Signup1> {
                         duration: const Duration(milliseconds: 220),
                         curve: Curves.easeOutCubic,
                         padding: EdgeInsets.only(bottom: cardBottomInset),
-                        child: Container(
-                          width: double.infinity,
-                          clipBehavior: Clip.antiAlias,
-                          decoration: const BoxDecoration(
-                            color: Colors.white,
-                            borderRadius:
-                                BorderRadius.vertical(top: Radius.circular(40)),
-                          ),
-                          child: SingleChildScrollView(
-                            keyboardDismissBehavior:
-                                ScrollViewKeyboardDismissBehavior.onDrag,
-                            physics: const ClampingScrollPhysics(),
-                            padding: EdgeInsets.fromLTRB(
-                              24,
-                              16,
-                              24,
-                              20 + mediaQuery.padding.bottom,
+                        child: AuthCardEntrance(
+                          child: Container(
+                            width: double.infinity,
+                            clipBehavior: Clip.antiAlias,
+                            decoration: const BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.vertical(
+                                  top: Radius.circular(40)),
                             ),
-                            child: Form(
-                              key: _formKey,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  _buildTextField(
-                                    label: 'Username',
-                                    hintText: 'Username',
-                                    controller: _usernameController,
-                                  ),
-                                  const SizedBox(height: 10),
-                                  _buildTextField(
-                                    label: 'Email',
-                                    hintText: 'Email@gmail.com',
-                                    controller: _emailController,
-                                    keyboardType: TextInputType.emailAddress,
-                                  ),
-                                  const SizedBox(height: 10),
-                                  _buildPhoneField(),
-                                  const SizedBox(height: 10),
-                                  _buildBirthdayField(),
-
-                                  const SizedBox(height: 12),
-
-                                  Center(
-                                    child: GestureDetector(
-                                      onTap: () {
-                                        Navigator.push(
-                                          context,
-                                          buildAuthRoute(const LoginPage()),
-                                        );
-                                      },
-                                      child: RichText(
-                                        text: const TextSpan(
-                                          style: TextStyle(
-                                              fontFamily: 'Afacad',
-                                              fontSize: 14,
-                                              color: Colors.black87),
-                                          children: [
-                                            TextSpan(
-                                                text: 'Already a member? '),
-                                            TextSpan(
-                                              text: 'Login',
-                                              style: TextStyle(
-                                                  fontFamily: 'Recoleta',
-                                                  fontWeight: FontWeight.bold,
-                                                  color: Color(0xFF1F3A34)),
-                                            ),
-                                          ],
+                            child: SingleChildScrollView(
+                              keyboardDismissBehavior:
+                                  ScrollViewKeyboardDismissBehavior.onDrag,
+                              physics: const ClampingScrollPhysics(),
+                              padding: EdgeInsets.fromLTRB(
+                                24,
+                                16,
+                                24,
+                                20 + mediaQuery.padding.bottom,
+                              ),
+                              child: Form(
+                                key: _formKey,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _buildFieldShake(
+                                      field: _Signup1ErrorField.username,
+                                      child: _buildTextField(
+                                        label: 'Username',
+                                        hintText: 'Username',
+                                        controller: _usernameController,
+                                        hasError: _errorFields.contains(
+                                          _Signup1ErrorField.username,
                                         ),
                                       ),
                                     ),
-                                  ),
-                                  const SizedBox(height: 12),
-
-                                  SizedBox(
-                                    width: double.infinity,
-                                    height: 48,
-                                    child: ElevatedButton(
-                                      onPressed: _isFormValid
-                                          ? () async {
-                                              // Save profile details to UserService
-                                              await UserService
-                                                  .saveUserProfile({
-                                                'username': _usernameController
-                                                    .text
-                                                    .trim(),
-                                                'email': _emailController.text
-                                                    .trim(),
-                                                'phone': _fullPhoneNumber,
-                                                'birthday': _birthdayApiValue,
-                                              });
-
-                                              if (!context.mounted) return;
-                                              Navigator.push(
-                                                context,
-                                                buildAuthRoute(
-                                                  Signup2(
-                                                    initialPickedImage:
-                                                        _pickedImage,
-                                                    initialPresetPath:
-                                                        _presetAvatarPath,
-                                                    initialAvatarIndex:
-                                                        _selectedAvatarIndex,
-                                                  ),
-                                                ),
-                                              );
-                                            }
-                                          : null,
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor:
-                                            const Color(0xFF1F3A34),
-                                        disabledBackgroundColor:
-                                            Colors.grey.shade400,
-                                        foregroundColor: Colors.white,
-                                        disabledForegroundColor: Colors.white70,
-                                        elevation: 0,
-                                        shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(30)),
-                                      ),
-                                      child: const Text(
-                                        'NEXT STEP',
-                                        style: TextStyle(
-                                            fontFamily: 'Recoleta',
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.bold,
-                                            letterSpacing: 1.0),
+                                    const SizedBox(height: 10),
+                                    _buildFieldShake(
+                                      field: _Signup1ErrorField.email,
+                                      child: _buildTextField(
+                                        label: 'Email',
+                                        hintText: 'e.g. name@example.com',
+                                        controller: _emailController,
+                                        keyboardType:
+                                            TextInputType.emailAddress,
+                                        hasError: _errorFields.contains(
+                                          _Signup1ErrorField.email,
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                  // Bottom padding
-                                  SizedBox(
-                                      height: 20 +
-                                          MediaQuery.of(context)
-                                              .padding
-                                              .bottom),
-                                ],
+                                    const SizedBox(height: 10),
+                                    _buildFieldShake(
+                                      field: _Signup1ErrorField.phone,
+                                      child: _buildPhoneField(
+                                        hasError: _errorFields.contains(
+                                          _Signup1ErrorField.phone,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    _buildFieldShake(
+                                      field: _Signup1ErrorField.birthday,
+                                      child: _buildBirthdayField(
+                                        hasError: _errorFields.contains(
+                                          _Signup1ErrorField.birthday,
+                                        ),
+                                      ),
+                                    ),
+
+                                    const SizedBox(height: 12),
+
+                                    Center(
+                                      child: GestureDetector(
+                                        onTap: () {
+                                          Navigator.push(
+                                            context,
+                                            buildAuthRoute(const LoginPage()),
+                                          );
+                                        },
+                                        child: RichText(
+                                          text: const TextSpan(
+                                            style: TextStyle(
+                                                fontFamily: 'Afacad',
+                                                fontSize: 14,
+                                                color: Colors.black87),
+                                            children: [
+                                              TextSpan(
+                                                  text: 'Already a member? '),
+                                              TextSpan(
+                                                text: 'Login',
+                                                style: TextStyle(
+                                                    fontFamily: 'Recoleta',
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Color(0xFF1F3A34)),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+
+                                    SizedBox(
+                                      width: double.infinity,
+                                      height: 48,
+                                      child: ElevatedButton(
+                                        onPressed: () async {
+                                          final validationErrors =
+                                              _collectSignup1ValidationErrors();
+                                          if (validationErrors.isNotEmpty) {
+                                            _markSignup1Errors(
+                                                validationErrors);
+                                            _showError(
+                                              'Please complete the highlighted fields before continuing.',
+                                            );
+                                            return;
+                                          }
+
+                                          final username =
+                                              _usernameController.text.trim();
+                                          final email =
+                                              _emailController.text.trim();
+
+                                          try {
+                                            await AuthApiService.instance
+                                                .checkSignupIdentity(
+                                              phone: _fullPhoneNumber,
+                                              email: email,
+                                            );
+                                          } on ApiException catch (error) {
+                                            if (!context.mounted) return;
+                                            final duplicateFields =
+                                                _errorsFromSignupIdentityError(
+                                              error,
+                                            );
+                                            if (duplicateFields.isNotEmpty) {
+                                              _markSignup1Errors(
+                                                  duplicateFields);
+                                            }
+                                            _showError(
+                                              friendlyAuthErrorMessage(
+                                                error,
+                                                fallback:
+                                                    'That phone number or email is already in use. Please choose different details.',
+                                              ),
+                                            );
+                                            return;
+                                          } catch (_) {
+                                            if (!context.mounted) return;
+                                            _showError(
+                                              'We could not confirm your account details right now. Please try again.',
+                                            );
+                                            return;
+                                          }
+
+                                          // Save profile details to UserService
+                                          await UserService.saveUserProfile({
+                                            'username': username,
+                                            'email': email,
+                                            'phone': _fullPhoneNumber,
+                                            'birthday': _birthdayApiValue,
+                                          });
+
+                                          if (!context.mounted) return;
+                                          Navigator.push(
+                                            context,
+                                            buildAuthRoute(
+                                              Signup2(
+                                                initialPickedImage:
+                                                    _pickedImage,
+                                                initialPresetPath:
+                                                    _presetAvatarPath,
+                                                initialAvatarIndex:
+                                                    _selectedAvatarIndex,
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor:
+                                              const Color(0xFF1F3A34),
+                                          disabledBackgroundColor:
+                                              Colors.grey.shade400,
+                                          foregroundColor: Colors.white,
+                                          disabledForegroundColor:
+                                              Colors.white70,
+                                          elevation: 0,
+                                          shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(30)),
+                                        ),
+                                        child: const Text(
+                                          'NEXT STEP',
+                                          style: TextStyle(
+                                              fontFamily: 'Recoleta',
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                              letterSpacing: 1.0),
+                                        ),
+                                      ),
+                                    ),
+                                    // Bottom padding
+                                    SizedBox(
+                                        height: 20 +
+                                            MediaQuery.of(context)
+                                                .padding
+                                                .bottom),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
@@ -903,6 +1042,7 @@ class _Signup1State extends State<Signup1> {
     bool readOnly = false,
     VoidCallback? onTap,
     Widget? suffixIcon,
+    bool hasError = false,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -920,6 +1060,10 @@ class _Signup1State extends State<Signup1> {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: hasError ? Colors.redAccent : Colors.transparent,
+              width: hasError ? 1.8 : 0,
+            ),
             boxShadow: [
               BoxShadow(
                 color: Colors.grey.withValues(alpha: 0.18),
@@ -952,8 +1096,20 @@ class _Signup1State extends State<Signup1> {
                   borderSide: BorderSide.none),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(20),
+                borderSide: BorderSide(
+                  color: hasError ? Colors.redAccent : const Color(0xFF2E5E58),
+                  width: 1.5,
+                ),
+              ),
+              errorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(20),
                 borderSide:
-                    const BorderSide(color: Color(0xFF2E5E58), width: 1.5),
+                    const BorderSide(color: Colors.redAccent, width: 1.8),
+              ),
+              focusedErrorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(20),
+                borderSide:
+                    const BorderSide(color: Colors.redAccent, width: 2.0),
               ),
               contentPadding:
                   const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -964,7 +1120,7 @@ class _Signup1State extends State<Signup1> {
     );
   }
 
-  Widget _buildBirthdayField() {
+  Widget _buildBirthdayField({bool hasError = false}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -983,6 +1139,10 @@ class _Signup1State extends State<Signup1> {
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: hasError ? Colors.redAccent : Colors.transparent,
+                width: hasError ? 1.8 : 0,
+              ),
               boxShadow: [
                 BoxShadow(
                   color: Colors.grey.withValues(alpha: 0.18),
@@ -1006,8 +1166,21 @@ class _Signup1State extends State<Signup1> {
                     borderSide: BorderSide.none),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(20),
+                  borderSide: BorderSide(
+                    color:
+                        hasError ? Colors.redAccent : const Color(0xFF2E5E58),
+                    width: 1.5,
+                  ),
+                ),
+                errorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(20),
                   borderSide:
-                      const BorderSide(color: Color(0xFF2E5E58), width: 1.5),
+                      const BorderSide(color: Colors.redAccent, width: 1.8),
+                ),
+                focusedErrorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(20),
+                  borderSide:
+                      const BorderSide(color: Colors.redAccent, width: 2.0),
                 ),
                 contentPadding:
                     const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -1029,7 +1202,7 @@ class _Signup1State extends State<Signup1> {
     );
   }
 
-  Widget _buildPhoneField() {
+  Widget _buildPhoneField({bool hasError = false}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1046,6 +1219,10 @@ class _Signup1State extends State<Signup1> {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: hasError ? Colors.redAccent : Colors.transparent,
+              width: hasError ? 1.8 : 0,
+            ),
             boxShadow: [
               BoxShadow(
                 color: Colors.grey.withValues(alpha: 0.18),
@@ -1078,8 +1255,20 @@ class _Signup1State extends State<Signup1> {
                   borderSide: BorderSide.none),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(20),
+                borderSide: BorderSide(
+                  color: hasError ? Colors.redAccent : const Color(0xFF2E5E58),
+                  width: 1.5,
+                ),
+              ),
+              errorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(20),
                 borderSide:
-                    const BorderSide(color: Color(0xFF2E5E58), width: 1.5),
+                    const BorderSide(color: Colors.redAccent, width: 1.8),
+              ),
+              focusedErrorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(20),
+                borderSide:
+                    const BorderSide(color: Colors.redAccent, width: 2.0),
               ),
               contentPadding:
                   const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -1102,6 +1291,28 @@ class _Signup1State extends State<Signup1> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildFieldShake({
+    required _Signup1ErrorField field,
+    required Widget child,
+  }) {
+    if (!_errorFields.contains(field)) {
+      return child;
+    }
+
+    return AnimatedBuilder(
+      animation: _shakeController,
+      child: child,
+      builder: (context, child) {
+        final progress = _shakeController.value;
+        final offsetX = math.sin(progress * math.pi * 6) * (1 - progress) * 10;
+        return Transform.translate(
+          offset: Offset(offsetX, 0),
+          child: child,
+        );
+      },
     );
   }
 }

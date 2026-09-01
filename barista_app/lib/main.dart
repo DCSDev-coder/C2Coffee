@@ -4,14 +4,14 @@ import 'screens/main_layout.dart';
 import 'widgets/order_card.dart';
 import 'services/api_service.dart';
 
-final ValueNotifier<List<String>> globalBaristas = ValueNotifier<List<String>>([
-  'Nur',
-  'Amirah',
-  'Balqis',
-]);
-final ValueNotifier<String> globalActiveBarista = ValueNotifier<String>('Nur');
-
-
+final ValueNotifier<String> globalActiveBarista = ValueNotifier<String>('');
+final ValueNotifier<int?> globalActiveBaristaId = ValueNotifier<int?>(null);
+final ValueNotifier<String?> globalOrderSyncError = ValueNotifier<String?>(
+  null,
+);
+final ValueNotifier<DateTime?> globalLastOrderSync = ValueNotifier<DateTime?>(
+  null,
+);
 
 final ValueNotifier<List<CurrentOrder>> globalCurrentOrders =
     ValueNotifier<List<CurrentOrder>>([]);
@@ -123,7 +123,9 @@ class _LoginPageState extends State<LoginPage> {
                                   style: const TextStyle(color: Colors.white),
                                   decoration: InputDecoration(
                                     filled: true,
-                                    fillColor: Colors.white.withValues(alpha: 0.05),
+                                    fillColor: Colors.white.withValues(
+                                      alpha: 0.05,
+                                    ),
                                     suffixIcon: const Icon(
                                       Icons.person,
                                       color: Colors.white,
@@ -135,14 +137,18 @@ class _LoginPageState extends State<LoginPage> {
                                     border: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(30),
                                       borderSide: BorderSide(
-                                        color: Colors.white.withValues(alpha: 0.4),
+                                        color: Colors.white.withValues(
+                                          alpha: 0.4,
+                                        ),
                                         width: 1.0,
                                       ),
                                     ),
                                     enabledBorder: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(30),
                                       borderSide: BorderSide(
-                                        color: Colors.white.withValues(alpha: 0.4),
+                                        color: Colors.white.withValues(
+                                          alpha: 0.4,
+                                        ),
                                         width: 1.0,
                                       ),
                                     ),
@@ -173,7 +179,9 @@ class _LoginPageState extends State<LoginPage> {
                                   style: const TextStyle(color: Colors.white),
                                   decoration: InputDecoration(
                                     filled: true,
-                                    fillColor: Colors.white.withValues(alpha: 0.05),
+                                    fillColor: Colors.white.withValues(
+                                      alpha: 0.05,
+                                    ),
                                     suffixIcon: IconButton(
                                       icon: Icon(
                                         _isPasswordVisible
@@ -195,14 +203,18 @@ class _LoginPageState extends State<LoginPage> {
                                     border: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(30),
                                       borderSide: BorderSide(
-                                        color: Colors.white.withValues(alpha: 0.4),
+                                        color: Colors.white.withValues(
+                                          alpha: 0.4,
+                                        ),
                                         width: 1.0,
                                       ),
                                     ),
                                     enabledBorder: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(30),
                                       borderSide: BorderSide(
-                                        color: Colors.white.withValues(alpha: 0.4),
+                                        color: Colors.white.withValues(
+                                          alpha: 0.4,
+                                        ),
                                         width: 1.0,
                                       ),
                                     ),
@@ -241,7 +253,10 @@ class _LoginPageState extends State<LoginPage> {
                                     }
 
                                     // Validate with API
-                                    final success = await ApiService.login(username, password);
+                                    final success = await ApiService.login(
+                                      username,
+                                      password,
+                                    );
                                     if (!success) {
                                       if (!context.mounted) return;
                                       ScaffoldMessenger.of(
@@ -249,25 +264,13 @@ class _LoginPageState extends State<LoginPage> {
                                       ).showSnackBar(
                                         const SnackBar(
                                           content: Text(
-                                            'Invalid credentials or network error.',
+                                            'Use a valid Barista account created in Admin Web.',
                                           ),
                                           backgroundColor: Colors.redAccent,
                                           behavior: SnackBarBehavior.floating,
                                         ),
                                       );
                                       return;
-                                    }
-
-                                    if (!context.mounted) return;
-                                    // Login successful!
-                                    final baristas = await ApiService.fetchBaristas();
-                                    if (baristas.isNotEmpty) {
-                                      globalBaristas.value = baristas;
-                                      if (!baristas.contains(globalActiveBarista.value)) {
-                                        globalActiveBarista.value = baristas.first;
-                                      }
-                                      // Explicitly set this barista as active in the database
-                                      await ApiService.setBaristaActive(globalActiveBarista.value);
                                     }
 
                                     if (!context.mounted) return;
@@ -279,7 +282,7 @@ class _LoginPageState extends State<LoginPage> {
                                               context,
                                               animation,
                                               secondaryAnimation,
-                                            ) => const MainLayout(),
+                                            ) => const BaristaSelectionPage(),
                                         transitionsBuilder:
                                             (
                                               context,
@@ -346,6 +349,106 @@ class _LoginPageState extends State<LoginPage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class BaristaSelectionPage extends StatefulWidget {
+  const BaristaSelectionPage({super.key});
+
+  @override
+  State<BaristaSelectionPage> createState() => _BaristaSelectionPageState();
+}
+
+class _BaristaSelectionPageState extends State<BaristaSelectionPage> {
+  late final Future<List<BaristaStaff>> _staffFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _staffFuture = ApiService.fetchActiveBaristas();
+  }
+
+  void _startShift(BaristaStaff staff) {
+    ApiService.selectBarista(staff);
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => const MainLayout()),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const green = Color(0xFF304A3A);
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8F5EF),
+      appBar: AppBar(
+        backgroundColor: green,
+        foregroundColor: Colors.white,
+        title: const Text('Select Barista'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              ApiService.logout();
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (_) => const LoginPage()),
+              );
+            },
+            child: const Text('Log out', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+      body: FutureBuilder<List<BaristaStaff>>(
+        future: _staffFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final staff = snapshot.data ?? const <BaristaStaff>[];
+          if (staff.isEmpty) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(32),
+                child: Text(
+                  'No active baristas are available. Ask an administrator to add or activate a staff name.',
+                ),
+              ),
+            );
+          }
+
+          return ListView.separated(
+            padding: const EdgeInsets.all(24),
+            itemCount: staff.length,
+            separatorBuilder: (_, _) => const SizedBox(height: 12),
+            itemBuilder: (context, index) {
+              final member = staff[index];
+              return FilledButton.tonalIcon(
+                onPressed: () => _startShift(member),
+                icon: CircleAvatar(
+                  backgroundColor: green,
+                  foregroundColor: Colors.white,
+                  child: Text(member.name.substring(0, 1).toUpperCase()),
+                ),
+                label: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      member.name,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          );
+        },
       ),
     );
   }

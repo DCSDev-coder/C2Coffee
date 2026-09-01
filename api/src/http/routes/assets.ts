@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 
 import type { FastifyInstance } from 'fastify';
 
+import { loadMediaAsset, normalizeAssetPath, mimeTypeForAssetPath } from '../../lib/media-assets.js';
+
 export async function registerAssetRoutes(
   app: FastifyInstance
 ): Promise<void> {
@@ -19,6 +21,20 @@ export async function registerAssetRoutes(
       return reply.status(404).send();
     }
 
+    const assetPath = normalizeAssetPath(`/assets/menu/${relativePath}`);
+    if (!assetPath) {
+      return reply.status(404).send();
+    }
+
+    const databaseAsset = await loadMediaAsset(assetPath);
+    if (databaseAsset) {
+      return reply
+        .header('Cross-Origin-Resource-Policy', 'cross-origin')
+        .header('Cache-Control', 'public, max-age=31536000, immutable')
+        .type(databaseAsset.mime_type)
+        .send(databaseAsset.content);
+    }
+
     const resolvedPath = path.resolve(menuRoot, relativePath);
     if (!resolvedPath.startsWith(menuRoot)) {
       return reply.status(404).send();
@@ -29,26 +45,10 @@ export async function registerAssetRoutes(
       return reply
         .header('Cross-Origin-Resource-Policy', 'cross-origin')
         .header('Cache-Control', 'public, max-age=31536000, immutable')
-        .type(_mimeTypeFor(resolvedPath))
+        .type(mimeTypeForAssetPath(resolvedPath))
         .send(content);
     } catch {
       return reply.status(404).send();
     }
   });
-}
-
-function _mimeTypeFor(filePath: string): string {
-  const extension = path.extname(filePath).toLowerCase();
-
-  switch (extension) {
-    case '.png':
-      return 'image/png';
-    case '.jpg':
-    case '.jpeg':
-      return 'image/jpeg';
-    case '.webp':
-      return 'image/webp';
-    default:
-      return 'application/octet-stream';
-  }
 }

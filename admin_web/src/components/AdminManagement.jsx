@@ -47,6 +47,10 @@ const RoleTag = ({ role }) => {
     displayRole = 'Operations Admin';
     bgColor = 'bg-[#1F3A34]/10';
     textColor = 'text-[#1F3A34]';
+  } else if (role === 'barista' || role === 'Barista') {
+    displayRole = 'Barista';
+    bgColor = 'bg-[#D4AF7A]/20';
+    textColor = 'text-[#9A681D]';
   } else {
     displayRole = role || 'Support Admin';
     bgColor = 'bg-gray-100';
@@ -68,12 +72,12 @@ const StatusTag = ({ status }) => {
   );
 };
 
-const AdminManagement = ({ currentUser }) => {
+const AdminManagement = ({ currentUser, initialRole = 'All Admin' }) => {
   const [admins, setAdmins] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedRole, setSelectedRole] = useState('All Admin');
+  const [selectedRole, setSelectedRole] = useState(initialRole);
   const [selectedStatus, setSelectedStatus] = useState('All Status');
   const [selectedDate, setSelectedDate] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -87,6 +91,7 @@ const AdminManagement = ({ currentUser }) => {
   
   // Modal form states
   const [formUsername, setFormUsername] = useState('');
+  const [formFullName, setFormFullName] = useState('');
   const [formEmail, setFormEmail] = useState('');
   const [formRole, setFormRole] = useState('super_admin');
   const [formStatus, setFormStatus] = useState('active');
@@ -103,6 +108,7 @@ const AdminManagement = ({ currentUser }) => {
       const formatted = (response.users || []).map(u => ({
         id: u.id,
         username: u.username,
+        fullName: u.full_name || u.username,
         email: u.email || '',
         role: (u.roles && u.roles.length > 0) ? u.roles[0] : 'support_admin',
         status: u.status === 'active' ? 'Active' : 'Inactive',
@@ -122,27 +128,44 @@ const AdminManagement = ({ currentUser }) => {
     fetchAdmins();
   }, []);
 
+  useEffect(() => {
+    setSelectedRole(initialRole);
+    setCurrentPage(1);
+  }, [initialRole]);
+
   // Derived filtered data
   const filteredAdmins = useMemo(() => {
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+    const selectedDateIsValid =
+      selectedDate instanceof Date && !Number.isNaN(selectedDate.getTime());
+
     return admins.filter(admin => {
-      const matchesSearch = admin.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        admin.email.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = !normalizedSearch ||
+        admin.username.toLowerCase().includes(normalizedSearch) ||
+        admin.fullName.toLowerCase().includes(normalizedSearch) ||
+        admin.email.toLowerCase().includes(normalizedSearch);
       
       let matchesRole = true;
       if (selectedRole !== 'All Admin') {
-        const roleMap = { 'Super Admin': 'super_admin', 'Marketing Admin': 'marketing_admin', 'Support Admin': 'support_admin' };
+        const roleMap = {
+          'Super Admin': 'super_admin',
+          'Marketing Admin': 'marketing_admin',
+          'Operations Admin': 'operations_admin',
+          'Support Admin': 'support_admin',
+          Barista: 'barista'
+        };
         matchesRole = admin.role === roleMap[selectedRole];
       }
       const matchesStatus = selectedStatus === 'All Status' || admin.status === selectedStatus;
 
       let matchesDate = true;
-      if (selectedDate) {
+      if (selectedDateIsValid) {
         matchesDate = admin.loginDate.toDateString() === selectedDate.toDateString();
       }
 
       return matchesSearch && matchesRole && matchesStatus && matchesDate;
     });
-  }, [searchTerm, selectedRole, selectedStatus, selectedDate]);
+  }, [admins, searchTerm, selectedRole, selectedStatus, selectedDate]);
 
   const totalPages = Math.ceil(filteredAdmins.length / itemsPerPage) || 1;
   const paginatedAdmins = filteredAdmins.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -170,6 +193,7 @@ const AdminManagement = ({ currentUser }) => {
   const openModal = (admin = null) => {
     setEditingAdmin(admin);
     setFormUsername(admin ? admin.username : '');
+    setFormFullName(admin ? admin.fullName : '');
     setFormEmail(admin ? admin.email : '');
     setFormRole(admin ? admin.role : 'super_admin');
     setFormStatus(admin ? (admin.status === 'Active' ? 'active' : 'inactive') : 'active');
@@ -201,23 +225,26 @@ const AdminManagement = ({ currentUser }) => {
           method: 'PUT',
           body: JSON.stringify({
             username: formUsername,
-            email: formEmail,
+            full_name: formRole === 'barista' ? '' : formFullName,
+            email: formRole === 'barista' ? '' : formEmail,
             role_codes: [formRole],
-            status: formStatus
+            status: formStatus,
+            ...(formPassword ? { password: formPassword } : {})
           })
         });
       } else {
         // Create
         if (!formPassword) {
-          throw new Error('Temporary password is required for new admins');
+          throw new Error('Password is required for a new account');
         }
         await adminRequest('/v1/admin/users', {
           method: 'POST',
           body: JSON.stringify({
             username: formUsername,
-            email: formEmail,
+            full_name: formRole === 'barista' ? '' : formFullName,
+            email: formRole === 'barista' ? '' : formEmail,
             role_codes: [formRole],
-            temp_password: formPassword
+            password: formPassword
           })
         });
       }
@@ -235,8 +262,12 @@ const AdminManagement = ({ currentUser }) => {
     <div className="flex-1 overflow-x-hidden overflow-y-auto bg-[#F9FAFB]">
       <div className="p-6 lg:p-8 w-full h-full flex flex-col">
         <div className="mb-6 shrink-0">
-          <h1 className="text-2xl font-bold text-gray-900">Admin Management</h1>
-          <p className="text-sm text-gray-500 mt-1">Manage admin accounts and their access.</p>
+          <h1 className="text-2xl font-bold text-gray-900">{initialRole === 'Barista' ? 'Barista Management' : 'Admin Management'}</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            {initialRole === 'Barista'
+              ? 'Create and manage Barista app accounts. Each prepared order records the signed-in staff member.'
+              : 'Manage staff and admin accounts, including Barista app access.'}
+          </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 shrink-0">
@@ -331,7 +362,7 @@ const AdminManagement = ({ currentUser }) => {
               </button>
               {isRoleDropdownOpen && (
                 <div className="absolute top-full left-0 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg z-10 py-1 transition-transform duration-200 peer-focus:-rotate-180">
-                  {['All Admin', 'Super Admin', 'Marketing Admin', 'Support Admin'].map(role => (
+                  {['All Admin', 'Super Admin', 'Marketing Admin', 'Operations Admin', 'Support Admin', 'Barista'].map(role => (
                     <button
                       key={role}
                       onClick={() => {
@@ -388,7 +419,7 @@ const AdminManagement = ({ currentUser }) => {
               className="flex items-center space-x-2 px-4 py-2 border border-transparent rounded-lg bg-[#1F3A34] text-white font-medium hover:bg-[#2E5E58] transition-colors h-10"
             >
               <Plus size={16} />
-              <span>New Admin</span>
+              <span>New Account</span>
             </button>
           </div>
         </div>
@@ -416,6 +447,9 @@ const AdminManagement = ({ currentUser }) => {
                             {admin.username.charAt(0).toUpperCase()}
                           </div>
                           <span className="font-semibold text-gray-900">{admin.username}</span>
+                          {admin.fullName !== admin.username && (
+                            <span className="text-xs text-gray-500">{admin.fullName}</span>
+                          )}
                         </div>
                       </td>
                       <td className="py-4 px-6 text-sm text-gray-600">{admin.email}</td>
@@ -495,7 +529,7 @@ const AdminManagement = ({ currentUser }) => {
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl p-6 shadow-2xl max-w-md w-full border border-gray-100 flex flex-col">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-gray-900">{editingAdmin ? 'Edit Admin' : 'New Admin'}</h2>
+              <h2 className="text-xl font-bold text-gray-900">{editingAdmin ? 'Edit Account' : 'New Account'}</h2>
               <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-900 cursor-pointer transition-colors">
                 <X size={20} />
               </button>
@@ -517,6 +551,20 @@ const AdminManagement = ({ currentUser }) => {
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
                 />
               </div>
+              {formRole !== 'barista' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Staff Name</label>
+                <input
+                  type="text"
+                  required
+                  value={formFullName}
+                  onChange={(e) => setFormFullName(e.target.value)}
+                  placeholder="Name shown on prepared orders"
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
+                />
+              </div>
+              )}
+              {formRole !== 'barista' && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
                 <input
@@ -526,19 +574,21 @@ const AdminManagement = ({ currentUser }) => {
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
                 />
               </div>
+              )}
               
-              {!editingAdmin && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Temporary Password</label>
+              <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {formRole === 'barista' ? 'Barista App Password' : editingAdmin ? 'New Password (optional)' : 'Initial Password'}
+                  </label>
                   <input
                     type="password"
-                    required
+                    required={!editingAdmin}
                     value={formPassword}
                     onChange={(e) => setFormPassword(e.target.value)}
+                    placeholder={editingAdmin ? 'Leave blank to keep the current password' : undefined}
                     className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
                   />
                 </div>
-              )}
               
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -552,6 +602,7 @@ const AdminManagement = ({ currentUser }) => {
                     <option value="marketing_admin">Marketing Admin</option>
                     <option value="operations_admin">Operations Admin</option>
                     <option value="support_admin">Support Admin</option>
+                    <option value="barista">Barista</option>
                   </select>
                 </div>
                 <div>
@@ -580,7 +631,7 @@ const AdminManagement = ({ currentUser }) => {
                   disabled={isSubmitting}
                   className="px-5 py-2.5 bg-[#1F3A34] text-white rounded-lg text-sm font-medium hover:bg-[#2E5E58] transition-colors disabled:opacity-50"
                 >
-                  {isSubmitting ? 'Saving...' : editingAdmin ? 'Save Changes' : 'Create Admin'}
+                  {isSubmitting ? 'Saving...' : editingAdmin ? 'Save Changes' : 'Create Account'}
                 </button>
               </div>
             </form>

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Settings as SettingsIcon, Shield, Database, ChevronRight, Cloud, Clock, FileText, X } from 'lucide-react';
+import { adminRequest } from '../lib/adminApi';
 
 const Settings = ({ setCurrentPage, currentUser }) => {
 
@@ -86,13 +87,8 @@ const Settings = ({ setCurrentPage, currentUser }) => {
     const fetchSettings = async () => {
       try {
         setIsLoading(true);
-        // Replace with your actual API endpoint
-        const response = await fetch('/api/settings'); 
-        if (response.ok) {
-          const data = await response.json();
-          // Assuming data matches the settings structure
-          setSettings(prev => ({ ...prev, ...data }));
-        }
+        const data = await adminRequest('/api/settings');
+        setSettings(prev => ({ ...prev, ...data }));
       } catch (error) {
         console.error("Failed to load settings:", error);
       } finally {
@@ -116,41 +112,33 @@ const Settings = ({ setCurrentPage, currentUser }) => {
 
   const handleSave = async (key) => {
     const updatedSettings = { ...settings, [key]: tempValue };
+    const previousSettings = settings;
     
     // Optimistic update for UI responsiveness
     setSettings(updatedSettings);
     closeModal();
-    showToast(t.successSaved);
 
     try {
-      // Replace with your actual API endpoint
-      const response = await fetch('/api/settings', {
+      await adminRequest('/api/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedSettings),
       });
-      
-      if (!response.ok) {
-        throw new Error('API request failed');
-      }
+      showToast(t.successSaved);
     } catch (error) {
       console.error("Failed to save settings to API:", error);
-      // Optional: show error toast or revert changes
+      setSettings(previousSettings);
+      showToast(error instanceof Error ? error.message : 'We could not save this change. Please try again.');
     }
   };
 
   const handleBackup = async () => {
-    showToast(t.successBackup);
     try {
-      // Replace with your actual API endpoint for backup
-      const response = await fetch('/api/settings/backup', { method: 'POST' });
-      if (response.ok) {
-        showToast('Backup completed successfully.');
-      } else {
-        throw new Error('Backup failed');
-      }
+      await adminRequest('/api/settings/backup', { method: 'POST' });
+      showToast('Backup completed successfully.');
     } catch (error) {
       console.error("Backup process failed:", error);
+      showToast(error instanceof Error ? error.message : 'We could not complete the backup. Please try again.');
     }
   };
 
@@ -240,16 +228,18 @@ const Settings = ({ setCurrentPage, currentUser }) => {
                 const newVal = settings.twoFactor === 'Enabled' ? 'Disabled' : 'Enabled';
                 const updatedSettings = { ...settings, twoFactor: newVal };
                 setSettings(updatedSettings);
-                showToast(`${t.twoFactor} ${newVal === 'Enabled' ? t.statusEnabled : t.statusDisabled}`);
                 
                 try {
-                  await fetch('/api/settings', {
+                  await adminRequest('/api/settings', {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(updatedSettings)
                   });
+                  showToast(`${t.twoFactor} ${newVal === 'Enabled' ? t.statusEnabled : t.statusDisabled}`);
                 } catch (error) {
                   console.error("Failed to update 2FA setting:", error);
+                  setSettings(prev => ({ ...prev, twoFactor: settings.twoFactor }));
+                  showToast(error instanceof Error ? error.message : 'We could not update this setting. Please try again.');
                 }
               }}
             />

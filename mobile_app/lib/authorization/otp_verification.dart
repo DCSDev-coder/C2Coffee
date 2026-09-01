@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:io';
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -47,13 +48,17 @@ class OtpVerificationPage extends StatefulWidget {
 typedef OtpVerification = OtpVerificationPage;
 typedef OtpBackup = OtpVerificationPage;
 
-class _OtpVerificationPageState extends State<OtpVerificationPage> {
+enum _OtpErrorField { code }
+
+class _OtpVerificationPageState extends State<OtpVerificationPage>
+    with SingleTickerProviderStateMixin {
   File? _pickedImage;
   String? _presetAvatarPath = 'assets/images/dato.png';
   int _selectedAvatarIndex = 0;
 
   final TextEditingController _otpInputController = TextEditingController();
   final FocusNode _otpInputFocusNode = FocusNode();
+  late final AnimationController _shakeController;
 
   Timer? _timer;
   int _resendCountdown = 45;
@@ -62,7 +67,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
   bool _isSubmitting = false;
   bool _hasOtpExpired = false;
   late String _requestId;
-  String? _debugOtpCode;
+  final Set<_OtpErrorField> _errorFields = <_OtpErrorField>{};
 
   final List<Map<String, dynamic>> _avatarOptions = [
     {'path': 'assets/images/dato.png', 'name': 'Dato'},
@@ -72,6 +77,10 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
   @override
   void initState() {
     super.initState();
+    _shakeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 420),
+    );
     if (widget.initialPickedImage != null) {
       _pickedImage = widget.initialPickedImage;
       _presetAvatarPath = null;
@@ -82,14 +91,10 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
     }
 
     _requestId = widget.requestId;
-    _debugOtpCode = widget.debugOtpCode;
     _startOtpLifecycle(
       resendInSeconds: widget.resendInSeconds,
       expiresInSeconds: widget.expiresInSeconds,
     );
-    if (_debugOtpCode != null && _debugOtpCode!.length == 6) {
-      _fillOtpCode(_debugOtpCode!);
-    }
   }
 
   @override
@@ -141,23 +146,33 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
     _hasOtpExpired = true;
     _isResendEnabled = true;
     _clearOtpCode();
+    _markOtpError();
     if (showMessage && mounted) {
       _showError('OTP expired. Please request a new code.');
     }
   }
 
-  void _fillOtpCode(String otp) {
-    final sanitized = otp.replaceAll(RegExp(r'[^0-9]'), '');
-    _otpInputController.text =
-        sanitized.length > 6 ? sanitized.substring(0, 6) : sanitized;
-    _otpInputController.selection = TextSelection.fromPosition(
-      TextPosition(offset: _otpInputController.text.length),
-    );
-  }
-
   void _clearOtpCode() {
     _otpInputController.clear();
     _otpInputFocusNode.requestFocus();
+  }
+
+  void _markOtpError() {
+    setState(() {
+      _errorFields
+        ..clear()
+        ..add(_OtpErrorField.code);
+    });
+    _shakeController.forward(from: 0);
+  }
+
+  void _clearOtpError() {
+    if (_errorFields.isEmpty) return;
+    setState(() {
+      _errorFields.clear();
+    });
+    _shakeController.stop();
+    _shakeController.value = 0;
   }
 
   void _handleOtpChanged(String value) {
@@ -176,17 +191,15 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
       _otpInputFocusNode.unfocus();
     }
 
+    if (_errorFields.isNotEmpty) {
+      _clearOtpError();
+    }
+
     setState(() {});
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-        duration: const Duration(seconds: 2),
-      ),
-    );
+    showAuthErrorBanner(context, message);
   }
 
   @override
@@ -194,6 +207,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
     _timer?.cancel();
     _otpInputController.dispose();
     _otpInputFocusNode.dispose();
+    _shakeController.dispose();
     super.dispose();
   }
 
@@ -466,6 +480,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
 
   Future<void> _verifyOTP() async {
     if (_hasOtpExpired) {
+      _markOtpError();
       _showError('OTP expired. Please request a new code.');
       return;
     }
@@ -473,6 +488,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
     final otp = _otpInputController.text;
 
     if (otp.length != 6) {
+      _markOtpError();
       _showError('Please enter all 6 digits');
       return;
     }
@@ -524,6 +540,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
       );
     } on ApiException catch (error) {
       if (!mounted) return;
+      _markOtpError();
       if (error.code == 'otp_expired' ||
           error.code == 'otp_not_pending' ||
           error.code == 'otp_not_found' ||
@@ -532,7 +549,12 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
           _markOtpExpired();
         });
       }
-      _showError(error.message);
+      _showError(
+        friendlyAuthErrorMessage(
+          error,
+          fallback: 'Unable to verify OTP right now.',
+        ),
+      );
     } catch (_) {
       if (!mounted) return;
       _showError('Unable to verify OTP right now.');
@@ -550,24 +572,26 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
       final otpRequest = await AuthApiService.instance.requestOtp(
         phone: widget.phone,
         deviceFingerprint: widget.deviceFingerprint,
+        email: widget.signupProfile?['email']?.trim(),
       );
 
       if (!mounted) return;
       setState(() {
         _requestId = otpRequest.requestId;
-        _debugOtpCode = otpRequest.debugOtpCode;
       });
       _clearOtpCode();
       _startOtpLifecycle(
         resendInSeconds: otpRequest.resendInSeconds,
         expiresInSeconds: otpRequest.expiresInSeconds,
       );
-      if (_debugOtpCode != null && _debugOtpCode!.length == 6) {
-        _fillOtpCode(_debugOtpCode!);
-      }
     } on ApiException catch (error) {
       if (!mounted) return;
-      _showError(error.message);
+      _showError(
+        friendlyAuthErrorMessage(
+          error,
+          fallback: 'Unable to resend OTP right now.',
+        ),
+      );
     } catch (_) {
       if (!mounted) return;
       _showError('Unable to resend OTP right now.');
@@ -576,6 +600,28 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
         setState(() => _isSubmitting = false);
       }
     }
+  }
+
+  Widget _buildFieldShake({
+    required _OtpErrorField field,
+    required Widget child,
+  }) {
+    if (!_errorFields.contains(field)) {
+      return child;
+    }
+
+    return AnimatedBuilder(
+      animation: _shakeController,
+      child: child,
+      builder: (context, child) {
+        final progress = _shakeController.value;
+        final offsetX = math.sin(progress * math.pi * 6) * (1 - progress) * 10;
+        return Transform.translate(
+          offset: Offset(offsetX, 0),
+          child: child,
+        );
+      },
+    );
   }
 
   @override
@@ -695,7 +741,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                           ),
                           const SizedBox(height: 2),
                           const Text(
-                            'We\'ve sent a text to your phone number.\nPlease fill in the security code',
+                            'We\'ve sent a code to your email address.\nPlease fill in the security code',
                             textAlign: TextAlign.center,
                             style: TextStyle(
                                 fontFamily: 'Afacad',
@@ -707,232 +753,275 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                     ),
                     // White Card Section
                     Expanded(
-                      child: Container(
-                        width: double.infinity,
-                        clipBehavior: Clip.antiAlias,
-                        decoration: const BoxDecoration(
-                          color: Colors.white,
-                          borderRadius:
-                              BorderRadius.vertical(top: Radius.circular(40)),
-                        ),
-                        child: SingleChildScrollView(
-                          keyboardDismissBehavior:
-                              ScrollViewKeyboardDismissBehavior.onDrag,
-                          physics: const ClampingScrollPhysics(),
-                          padding: EdgeInsets.fromLTRB(
-                            24,
-                            24,
-                            24,
-                            32 + mediaQuery.padding.bottom,
+                      child: AuthCardEntrance(
+                        child: Container(
+                          width: double.infinity,
+                          clipBehavior: Clip.antiAlias,
+                          decoration: const BoxDecoration(
+                            color: Colors.white,
+                            borderRadius:
+                                BorderRadius.vertical(top: Radius.circular(40)),
                           ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              const Text(
-                                'Please fill in the security code.',
-                                style: TextStyle(
-                                    fontFamily: 'Recoleta',
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.normal,
-                                    color: Color(0xFF1F3A34)),
-                              ),
-                              const SizedBox(height: 30),
-                              GestureDetector(
-                                behavior: HitTestBehavior.translucent,
-                                onTap: () {
-                                  if (_otpInputFocusNode.hasFocus) {
-                                    FocusScope.of(context).unfocus();
-                                    return;
-                                  }
+                          child: SingleChildScrollView(
+                            keyboardDismissBehavior:
+                                ScrollViewKeyboardDismissBehavior.onDrag,
+                            physics: const ClampingScrollPhysics(),
+                            padding: EdgeInsets.fromLTRB(
+                              24,
+                              24,
+                              24,
+                              32 + mediaQuery.padding.bottom,
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                const Text(
+                                  'Please fill in the security code.',
+                                  style: TextStyle(
+                                      fontFamily: 'Recoleta',
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.normal,
+                                      color: Color(0xFF1F3A34)),
+                                ),
+                                const SizedBox(height: 30),
+                                GestureDetector(
+                                  behavior: HitTestBehavior.translucent,
+                                  onTap: () {
+                                    if (_otpInputFocusNode.hasFocus) {
+                                      FocusScope.of(context).unfocus();
+                                      return;
+                                    }
 
-                                  _otpInputFocusNode.requestFocus();
-                                },
-                                child: Column(
-                                  children: [
-                                    Stack(
+                                    _otpInputFocusNode.requestFocus();
+                                  },
+                                  child: _buildFieldShake(
+                                    field: _OtpErrorField.code,
+                                    child: Column(
                                       children: [
-                                        Positioned.fill(
-                                          child: Opacity(
-                                            opacity: 0.0,
-                                            child: TextFormField(
-                                              controller: _otpInputController,
-                                              focusNode: _otpInputFocusNode,
-                                              keyboardType:
-                                                  TextInputType.number,
-                                              textInputAction:
-                                                  TextInputAction.done,
-                                              autofillHints: const [
-                                                AutofillHints.oneTimeCode,
-                                              ],
-                                              inputFormatters: [
-                                                FilteringTextInputFormatter
-                                                    .digitsOnly,
-                                                LengthLimitingTextInputFormatter(
-                                                    6),
-                                              ],
-                                              decoration: const InputDecoration(
-                                                border: InputBorder.none,
-                                                counterText: '',
-                                                contentPadding: EdgeInsets.zero,
-                                                isCollapsed: true,
-                                              ),
-                                              onChanged: _handleOtpChanged,
-                                            ),
-                                          ),
-                                        ),
-                                        Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.spaceBetween,
-                                          children: List.generate(6, (index) {
-                                            final digits =
-                                                _otpInputController.text;
-                                            final hasValue =
-                                                index < digits.length;
-                                            final isActive = _otpInputFocusNode
-                                                    .hasFocus
-                                                ? index ==
-                                                    digits.length.clamp(0, 5)
-                                                : false;
-
-                                            return AnimatedContainer(
-                                              duration: const Duration(
-                                                  milliseconds: 120),
-                                              width: 50,
-                                              height: 60,
-                                              decoration: BoxDecoration(
-                                                color: Colors.white,
-                                                borderRadius:
-                                                    BorderRadius.circular(12),
-                                                border: Border.all(
-                                                  color: isActive
-                                                      ? const Color(0xFF2E5E58)
-                                                      : orangeColor,
-                                                  width: isActive ? 2 : 1.5,
-                                                ),
-                                              ),
-                                              child: Center(
-                                                child: Text(
-                                                  hasValue ? digits[index] : '',
-                                                  style: const TextStyle(
-                                                    fontFamily: 'Afacad',
-                                                    fontSize: 26,
-                                                    fontWeight: FontWeight.bold,
-                                                    color: Colors.black87,
+                                        Stack(
+                                          children: [
+                                            Positioned.fill(
+                                              child: Opacity(
+                                                opacity: 0.0,
+                                                child: TextFormField(
+                                                  controller:
+                                                      _otpInputController,
+                                                  focusNode: _otpInputFocusNode,
+                                                  keyboardType:
+                                                      TextInputType.number,
+                                                  textInputAction:
+                                                      TextInputAction.done,
+                                                  autofillHints: const [
+                                                    AutofillHints.oneTimeCode,
+                                                  ],
+                                                  inputFormatters: [
+                                                    FilteringTextInputFormatter
+                                                        .digitsOnly,
+                                                    LengthLimitingTextInputFormatter(
+                                                        6),
+                                                  ],
+                                                  decoration:
+                                                      const InputDecoration(
+                                                    border: InputBorder.none,
+                                                    counterText: '',
+                                                    contentPadding:
+                                                        EdgeInsets.zero,
+                                                    isCollapsed: true,
                                                   ),
+                                                  onChanged: _handleOtpChanged,
                                                 ),
                                               ),
-                                            );
-                                          }),
+                                            ),
+                                            Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment
+                                                      .spaceBetween,
+                                              children:
+                                                  List.generate(6, (index) {
+                                                final digits =
+                                                    _otpInputController.text;
+                                                final hasValue =
+                                                    index < digits.length;
+                                                final isActive =
+                                                    _otpInputFocusNode.hasFocus
+                                                        ? index ==
+                                                            digits.length
+                                                                .clamp(0, 5)
+                                                        : false;
+                                                final hasError =
+                                                    _errorFields.contains(
+                                                        _OtpErrorField.code);
+
+                                                return AnimatedContainer(
+                                                  duration: const Duration(
+                                                      milliseconds: 120),
+                                                  width: 50,
+                                                  height: 60,
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.white,
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            12),
+                                                    border: Border.all(
+                                                      color: hasError
+                                                          ? Colors.redAccent
+                                                          : (isActive
+                                                              ? const Color(
+                                                                  0xFFD4AF37)
+                                                              : orangeColor),
+                                                      width: hasError
+                                                          ? 1.8
+                                                          : (isActive
+                                                              ? 2.4
+                                                              : 1.5),
+                                                    ),
+                                                    boxShadow: hasError
+                                                        ? [
+                                                            BoxShadow(
+                                                              color: Colors
+                                                                  .redAccent
+                                                                  .withValues(
+                                                                      alpha:
+                                                                          0.18),
+                                                              blurRadius: 10,
+                                                              offset:
+                                                                  const Offset(
+                                                                      0, 2),
+                                                            ),
+                                                          ]
+                                                        : (isActive
+                                                            ? [
+                                                                BoxShadow(
+                                                                  color: const Color(
+                                                                          0xFFD4AF37)
+                                                                      .withValues(
+                                                                          alpha:
+                                                                              0.18),
+                                                                  blurRadius:
+                                                                      10,
+                                                                  offset:
+                                                                      const Offset(
+                                                                          0, 2),
+                                                                ),
+                                                              ]
+                                                            : []),
+                                                  ),
+                                                  child: Center(
+                                                    child: Text(
+                                                      hasValue
+                                                          ? digits[index]
+                                                          : '',
+                                                      style: const TextStyle(
+                                                        fontFamily: 'Afacad',
+                                                        fontSize: 26,
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                        color: Colors.black87,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                );
+                                              }),
+                                            ),
+                                          ],
                                         ),
                                       ],
                                     ),
-                                  ],
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 24),
-                              RichText(
-                                textAlign: TextAlign.center,
-                                text: TextSpan(
-                                  style: const TextStyle(
-                                      fontFamily: 'Afacad',
-                                      fontSize: 14,
-                                      color: Colors.black54),
-                                  children: [
-                                    const TextSpan(
-                                        text: 'Didn\'t receive the code?\n'),
-                                    if (_isResendEnabled)
-                                      WidgetSpan(
-                                        child: GestureDetector(
-                                          onTap: _isSubmitting
-                                              ? null
-                                              : () => _handleResendOtp(),
-                                          child: const Text(
-                                            'Resend Code',
-                                            style: TextStyle(
-                                              fontFamily: 'Recoleta',
-                                              fontWeight: FontWeight.bold,
-                                              color: orangeColor,
-                                            ),
-                                          ),
-                                        ),
-                                      )
-                                    else
-                                      TextSpan(
-                                        text:
-                                            'Resend Code (00:${_resendCountdown.toString().padLeft(2, '0')})',
-                                        style: TextStyle(
-                                            color: Colors.grey.shade500),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                              if (_hasOtpExpired) ...[
-                                const SizedBox(height: 10),
-                                const Text(
-                                  'This security code has expired. Please request a new code.',
+                                const SizedBox(height: 24),
+                                RichText(
                                   textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontFamily: 'Afacad',
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.redAccent,
-                                  ),
-                                ),
-                              ],
-                              if (_debugOtpCode != null) ...[
-                                const SizedBox(height: 12),
-                                Text(
-                                  'Dev OTP: $_debugOtpCode',
-                                  style: const TextStyle(
-                                    fontFamily: 'Afacad',
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: Color(0xFF1F3A34),
-                                  ),
-                                ),
-                              ],
-                              const SizedBox(height: 32),
-                              SizedBox(
-                                width: double.infinity,
-                                height: 48,
-                                child: ElevatedButton(
-                                  onPressed: _isSubmitting || _hasOtpExpired
-                                      ? null
-                                      : _verifyOTP,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: orangeColor,
-                                    disabledBackgroundColor:
-                                        Colors.grey.shade400,
-                                    foregroundColor: Colors.white,
-                                    disabledForegroundColor: Colors.white70,
-                                    elevation: 0,
-                                    shape: RoundedRectangleBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(30)),
-                                  ),
-                                  child: _isSubmitting
-                                      ? const SizedBox(
-                                          width: 22,
-                                          height: 22,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2.2,
-                                            valueColor:
-                                                AlwaysStoppedAnimation<Color>(
-                                              Colors.white,
+                                  text: TextSpan(
+                                    style: const TextStyle(
+                                        fontFamily: 'Afacad',
+                                        fontSize: 14,
+                                        color: Colors.black54),
+                                    children: [
+                                      const TextSpan(
+                                          text: 'Didn\'t receive the code?\n'),
+                                      if (_isResendEnabled)
+                                        WidgetSpan(
+                                          child: GestureDetector(
+                                            onTap: _isSubmitting
+                                                ? null
+                                                : () => _handleResendOtp(),
+                                            child: const Text(
+                                              'Resend Code',
+                                              style: TextStyle(
+                                                fontFamily: 'Recoleta',
+                                                fontWeight: FontWeight.bold,
+                                                color: orangeColor,
+                                              ),
                                             ),
                                           ),
                                         )
-                                      : const Text(
-                                          'VERIFY',
+                                      else
+                                        TextSpan(
+                                          text:
+                                              'Resend Code (00:${_resendCountdown.toString().padLeft(2, '0')})',
                                           style: TextStyle(
-                                              fontFamily: 'Recoleta',
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.bold,
-                                              letterSpacing: 1.0),
+                                              color: Colors.grey.shade500),
                                         ),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                            ],
+                                if (_hasOtpExpired) ...[
+                                  const SizedBox(height: 10),
+                                  const Text(
+                                    'This security code has expired. Please request a new code.',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontFamily: 'Afacad',
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.redAccent,
+                                    ),
+                                  ),
+                                ],
+                                const SizedBox(height: 32),
+                                SizedBox(
+                                  width: double.infinity,
+                                  height: 48,
+                                  child: ElevatedButton(
+                                    onPressed: _isSubmitting || _hasOtpExpired
+                                        ? null
+                                        : _verifyOTP,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: orangeColor,
+                                      disabledBackgroundColor:
+                                          Colors.grey.shade400,
+                                      foregroundColor: Colors.white,
+                                      disabledForegroundColor: Colors.white70,
+                                      elevation: 0,
+                                      shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(30)),
+                                    ),
+                                    child: _isSubmitting
+                                        ? const SizedBox(
+                                            width: 22,
+                                            height: 22,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2.2,
+                                              valueColor:
+                                                  AlwaysStoppedAnimation<Color>(
+                                                Colors.white,
+                                              ),
+                                            ),
+                                          )
+                                        : const Text(
+                                            'VERIFY',
+                                            style: TextStyle(
+                                                fontFamily: 'Recoleta',
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.bold,
+                                                letterSpacing: 1.0),
+                                          ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),

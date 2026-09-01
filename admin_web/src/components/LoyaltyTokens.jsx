@@ -11,7 +11,7 @@ import TokenTransaction from './TokenTransaction';
 import LoyaltyAnalytics from './LoyaltyAnalytics';
 import LoyaltyProgramSummary from './LoyaltyProgramSummary';
 import { exportToCSV } from '../utils/exportToCSV';
-import { loadAdminLoyaltyOverview } from '../lib/adminApi';
+import { adjustAdminCustomerTokens, loadAdminLoyaltyOverview } from '../lib/adminApi';
 
 const CustomDateInput = forwardRef(({ value, onClick, onClear }, ref) => (
   <div className="relative">
@@ -113,6 +113,9 @@ const LoyaltyTokens = ({ onBack, onNavigate }) => {
   const [isEditTokensOpen, setIsEditTokensOpen] = useState(false);
   const [editTokenAmount, setEditTokenAmount] = useState("");
   const [editTokenAction, setEditTokenAction] = useState("Add");
+  const [editTokenReason, setEditTokenReason] = useState("Local cross-app order test");
+  const [editTokenError, setEditTokenError] = useState("");
+  const [isSavingTokenAdjustment, setIsSavingTokenAdjustment] = useState(false);
   const [menuOpenId, setMenuOpenId] = useState(null);
   const [activeView, setActiveView] = useState("list");
   const [selectedDate, setSelectedDate] = useState(null);
@@ -188,31 +191,37 @@ const LoyaltyTokens = ({ onBack, onNavigate }) => {
     return matchesSearch && matchesType && matchesDate;
   });
 
-  const groupedMembers = Object.values(filteredTransactions.reduce((acc, tx) => {
-    const memberId = tx.member.memberId;
-    if (!acc[memberId]) {
-      acc[memberId] = {
+  const walletMembers = Array.isArray(overview?.members) ? overview.members : [];
+  const groupedMembers = walletMembers
+    .filter((member) => {
+      const needle = searchQuery.trim().toLowerCase();
+      if (!needle) return true;
+      return [member.name, member.email, member.phone, member.memberId]
+        .some((value) => String(value || '').toLowerCase().includes(needle));
+    })
+    .map((member) => {
+      const memberTransactions = filteredTransactions.filter((tx) => tx.member.memberId === member.memberId);
+      return {
         member: {
-          ...tx.member,
-          tokenHistory: []
+          ...member,
+          tokenHistory: memberTransactions.slice(0, 5).map((item) => ({
+            id: item.id,
+            type: item.type,
+            amount: item.tokens,
+            source: item.description,
+            desc: item.description,
+            date: `${item.date} ${item.time}`,
+            balance: item.balance
+          })),
+          lastActivity: memberTransactions[0] || null
         },
-        transactions: []
+        transactions: memberTransactions
       };
-    }
-
-    acc[memberId].transactions.push(tx);
-    acc[memberId].member.tokenHistory = acc[memberId].transactions.slice(0, 5).map((item) => ({
-      id: item.id,
-      type: item.type,
-      amount: item.tokens,
-      source: item.description,
-      desc: item.description,
-      date: `${item.date} ${item.time}`,
-      balance: item.balance
-    }));
-    acc[memberId].member.lastActivity = acc[memberId].transactions[0];
-    return acc;
-  }, {}));
+    })
+    .filter((group) => {
+      const isActivityFilterActive = selectedType !== 'All Transaction Types' || selectedDate !== null;
+      return !isActivityFilterActive || group.transactions.length > 0;
+    });
 
   const totalPages = Math.max(1, Math.ceil(groupedMembers.length / itemsPerPage));
   const paginatedMembers = groupedMembers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -358,63 +367,67 @@ const LoyaltyTokens = ({ onBack, onNavigate }) => {
                   {paginatedMembers.map((group) => {
                     const tx = group.transactions[0];
                     const transactionCount = group.transactions.length;
-                    const latestWords = tx.description.split(' ').slice(0, 6);
+                    const latestWords = tx?.description?.split(' ').slice(0, 6) || [];
 
                     return (
                     <tr
-                      key={tx.member.memberId}
-                      className={`hover:bg-gray-50 cursor-pointer transition-colors ${selectedCustomer && selectedCustomer.memberId === tx.member.memberId ? 'bg-gray-50' : ''}`}
-                      onClick={() => setSelectedCustomer(tx.member)}
+                      key={group.member.memberId}
+                      className={`hover:bg-gray-50 cursor-pointer transition-colors ${selectedCustomer && selectedCustomer.memberId === group.member.memberId ? 'bg-gray-50' : ''}`}
+                      onClick={() => setSelectedCustomer(group.member)}
                     >
                       <td className="px-6 py-3.5 whitespace-nowrap">
-                        <p className="font-semibold text-gray-900 text-xs">{tx.date}</p>
-                        <p className="text-[11px] text-gray-500 mt-0.5">{tx.time}</p>
+                        <p className="font-semibold text-gray-900 text-xs">{tx?.date || 'No activity'}</p>
+                        <p className="text-[11px] text-gray-500 mt-0.5">{tx?.time || '—'}</p>
                       </td>
                       <td className="px-6 py-3.5 whitespace-nowrap">
                         <div className="flex items-center gap-3">
                           <div className="h-10 w-10 rounded-full bg-[#2E5E58] shrink-0 shadow-sm"></div>
                           <div>
-                            <p className="text-sm font-bold text-gray-900">{tx.member.name}</p>
-                            <p className="text-xs text-gray-500 mt-0.5">{tx.member.email}</p>
+                            <p className="text-sm font-bold text-gray-900">{group.member.name}</p>
+                            <p className="text-xs text-gray-500 mt-0.5">{group.member.email || group.member.phone}</p>
                           </div>
                         </div>
                       </td>
                       <td className="px-6 py-3 whitespace-nowrap">
-                        <span className={`px-2.5 py-1 text-[10px] font-bold rounded-md ${getTierColor(tx.member.tier)}`}>
-                          {tx.member.tier}
+                        <span className={`px-2.5 py-1 text-[10px] font-bold rounded-md ${getTierColor(group.member.tier)}`}>
+                          {group.member.tier}
                         </span>
                       </td>
                       <td className="px-6 py-3 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <span className={`px-2 py-0.5 text-[10px] font-bold rounded-md ${getTypeColor(tx.type)}`}>
-                            {tx.type}
-                          </span>
-                          <div className="text-xs">
-                            {latestWords.map((word, i) => (
-                              <span key={i} className={i === 0 ? "font-semibold text-gray-900 mr-1" : "text-gray-500 mr-1"}>
-                                {word}
-                              </span>
-                            ))}
+                        {tx ? (
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2 py-0.5 text-[10px] font-bold rounded-md ${getTypeColor(tx.type)}`}>
+                              {tx.type}
+                            </span>
+                            <div className="text-xs">
+                              {latestWords.map((word, i) => (
+                                <span key={i} className={i === 0 ? "font-semibold text-gray-900 mr-1" : "text-gray-500 mr-1"}>
+                                  {word}
+                                </span>
+                              ))}
+                            </div>
                           </div>
-                        </div>
+                        ) : (
+                          <span className="text-xs text-gray-500">No token activity yet</span>
+                        )}
                         {transactionCount > 1 && (
                           <p className="mt-1 text-[10px] text-gray-400">
                             {transactionCount} token events for this member
                           </p>
                         )}
                       </td>
-                      <td className={`px-6 py-3 text-right whitespace-nowrap text-xs font-bold ${tx.tokens.startsWith('+') ? 'text-gray-900' : 'text-gray-900'}`}>
-                        {tx.tokens}
+                      <td className="px-6 py-3 text-right whitespace-nowrap text-xs font-bold text-gray-900">
+                        {tx?.tokens || '—'}
                       </td>
                       <td className="px-6 py-3 text-right whitespace-nowrap text-xs font-bold text-gray-900">
-                        {tx.balance}
+                        {group.member.tokensBalance}
                       </td>
                       <td className="px-6 py-3 whitespace-nowrap text-sm font-medium text-center">
                         <button
                           className="p-1.5 bg-[#1E293B] hover:bg-[#0F172A] text-white rounded shadow-sm transition-colors cursor-pointer"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setSelectedCustomer(selectedCustomer?.memberId === tx.member.memberId ? null : tx.member);
+                            setSelectedCustomer(selectedCustomer?.memberId === group.member.memberId ? null : group.member);
                           }}
                           title="View Details"
                         >
@@ -576,7 +589,11 @@ const LoyaltyTokens = ({ onBack, onNavigate }) => {
             {/* Footer Action */}
             <div className="p-4 border-t border-gray-100 bg-white rounded-b-2xl shrink-0">
               <button
-                onClick={() => setIsEditTokensOpen(true)}
+                onClick={() => {
+                  setEditTokenError("");
+                  setEditTokenReason("Local cross-app order test");
+                  setIsEditTokensOpen(true);
+                }}
                 className="w-full py-2.5 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-sm"
               >
                 <Edit3 size={16} /> Edit Tokens
@@ -633,23 +650,74 @@ const LoyaltyTokens = ({ onBack, onNavigate }) => {
                   placeholder="e.g. 100"
                 />
               </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1.5">Reason</label>
+                <input
+                  type="text"
+                  value={editTokenReason}
+                  onChange={(e) => setEditTokenReason(e.target.value)}
+                  maxLength={500}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-[#1F3A34] focus:border-[#1F3A34] sm:text-sm outline-none"
+                  placeholder="e.g. Local cross-app order test"
+                />
+                <p className="mt-1.5 text-xs text-gray-500">This is recorded in the token ledger and audit log.</p>
+              </div>
+
+              {editTokenError && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                  {editTokenError}
+                </div>
+              )}
             </div>
             <div className="p-5 border-t border-gray-100 flex justify-end space-x-3 bg-gray-50">
               <button
-                onClick={() => setIsEditTokensOpen(false)}
+                onClick={() => {
+                  setIsEditTokensOpen(false);
+                  setEditTokenError("");
+                }}
+                disabled={isSavingTokenAdjustment}
                 className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-bold text-gray-700 bg-white hover:bg-gray-50 transition-colors cursor-pointer"
               >
                 Cancel
               </button>
               <button
-                onClick={() => {
-                  alert(`Successfully ${editTokenAction.toLowerCase()}ed ${editTokenAmount || 0} tokens for ${selectedCustomer.name}.`);
-                  setIsEditTokensOpen(false);
-                  setEditTokenAmount("");
+                onClick={async () => {
+                  const amount = Number(editTokenAmount);
+                  if (!Number.isInteger(amount) || amount < 1) {
+                    setEditTokenError('Enter a whole token amount of at least 1.');
+                    return;
+                  }
+
+                  if (editTokenReason.trim().length < 3) {
+                    setEditTokenError('Enter a short reason for this adjustment.');
+                    return;
+                  }
+
+                  setIsSavingTokenAdjustment(true);
+                  setEditTokenError("");
+                  try {
+                    await adjustAdminCustomerTokens(selectedCustomer.id, {
+                      action: editTokenAction === 'Add' ? 'credit' : 'debit',
+                      amount,
+                      reason: editTokenReason.trim()
+                    });
+                    const response = await loadAdminLoyaltyOverview(100);
+                    setOverview(response ?? null);
+                    setTransactions(Array.isArray(response?.transactions) ? response.transactions : []);
+                    setSelectedCustomer(null);
+                    setIsEditTokensOpen(false);
+                    setEditTokenAmount("");
+                  } catch (error) {
+                    setEditTokenError(error?.message || 'We could not update this token wallet.');
+                  } finally {
+                    setIsSavingTokenAdjustment(false);
+                  }
                 }}
-                className="px-4 py-2 bg-[#2E5E58] text-white rounded-lg text-sm font-bold hover:bg-[#1F3A34] transition-colors shadow-sm cursor-pointer"
+                disabled={isSavingTokenAdjustment}
+                className="px-4 py-2 bg-[#2E5E58] text-white rounded-lg text-sm font-bold hover:bg-[#1F3A34] disabled:cursor-not-allowed disabled:opacity-60 transition-colors shadow-sm cursor-pointer"
               >
-                Confirm
+                {isSavingTokenAdjustment ? 'Updating...' : 'Confirm'}
               </button>
             </div>
           </div>

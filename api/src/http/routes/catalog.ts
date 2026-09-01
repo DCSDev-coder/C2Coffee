@@ -159,37 +159,80 @@ type HomeBannerRow = RowDataPacket & {
   title: string;
   subtitle: string;
   image_source: string;
+  banner_type: 'voucher' | 'event' | 'new_item' | 'general';
+  destination_type: 'reward_section' | 'menu' | 'calendar';
+  secondary_destination_type: 'reward_section' | 'menu' | 'calendar' | null;
+  target_value: string | null;
+  starts_at: Date | string | null;
+  ends_at: Date | string | null;
   placement: 'home' | 'profile' | 'both';
   sort_order: number;
+  floating_priority: number;
   is_active: number;
 };
 
-const defaultHomeBanners = [
-  {
-    code: 'operation_hours',
-    title: 'Operation Hours',
-    subtitle: 'Open daily with updated store hours and pickup coverage.',
-    image_source: 'assets/images/operationhour.jpeg',
-    placement: 'both' as const,
-    sort_order: 10
-  },
-  {
-    code: 'happy_hour',
-    title: 'Happy Hour',
-    subtitle: 'Limited-time rewards and extra reasons to stop by.',
-    image_source: 'assets/images/happyhour.jpeg',
-    placement: 'both' as const,
-    sort_order: 20
-  },
-  {
-    code: 'emergency_notice',
-    title: 'Emergency Notice',
-    subtitle: 'Important store advisories and service updates from the team.',
-    image_source: 'assets/images/incaseofemergency.jpeg',
-    placement: 'both' as const,
-    sort_order: 30
+let homeBannerColumnsPromise: Promise<Set<string>> | null = null;
+
+async function getHomeBannerColumns(): Promise<Set<string>> {
+  if (!homeBannerColumnsPromise) {
+    homeBannerColumnsPromise = mysqlPool
+      .query<Array<RowDataPacket>>('SHOW COLUMNS FROM home_banners')
+      .then(([rows]) => new Set(rows.map((row) => String((row as { Field?: string }).Field ?? '').trim()).filter(Boolean)));
   }
-];
+
+  return homeBannerColumnsPromise;
+}
+
+function supportsHomeBannerTargeting(columns: Set<string>): boolean {
+  return [
+    'banner_type',
+    'destination_type',
+    'secondary_destination_type',
+    'target_value',
+    'starts_at',
+    'ends_at'
+  ].every((column) => columns.has(column));
+}
+
+function buildHomeBannerSelectClause(columns: Set<string>): string {
+  const selects = [
+    'hb.code',
+    'hb.title',
+    'hb.subtitle',
+    'hb.image_source'
+  ];
+
+  if (supportsHomeBannerTargeting(columns)) {
+    selects.push(
+      'hb.banner_type',
+      'hb.destination_type',
+      'hb.secondary_destination_type',
+      'hb.target_value',
+      'hb.starts_at',
+      'hb.ends_at'
+    );
+  } else {
+    selects.push(
+      "'general' AS banner_type",
+      "'menu' AS destination_type",
+      'NULL AS secondary_destination_type',
+      'NULL AS target_value',
+      'NULL AS starts_at',
+      'NULL AS ends_at'
+    );
+  }
+
+  selects.push(
+    'hb.placement',
+    'hb.sort_order',
+    columns.has('floating_priority')
+      ? 'hb.floating_priority'
+      : '0 AS floating_priority',
+    'hb.is_active'
+  );
+
+  return selects.join(',\n          ');
+}
 
 export async function registerCatalogRoutes(app: FastifyInstance): Promise<void> {
   app.get('/v1/bootstrap', { preHandler: authenticateRequest }, async (request) => {
@@ -483,44 +526,43 @@ async function listActiveHomeBanners(): Promise<
     image_source: string;
     placement: 'home' | 'profile' | 'both';
     sort_order: number;
+    floating_priority: number;
   }>
 > {
-  try {
-    const [rows] = await mysqlPool.query<Array<HomeBannerRow>>(
-      `
-        SELECT
-          code,
-          title,
-          subtitle,
-          image_source,
-          placement,
-          sort_order,
-          is_active
-        FROM home_banners
-        WHERE is_active = 1
-        ORDER BY sort_order ASC, id ASC
-      `
-    );
+  const columns = await getHomeBannerColumns();
+  const supportsTargeting = supportsHomeBannerTargeting(columns);
+  const selectClause = buildHomeBannerSelectClause(columns);
+  const whereClauses = ['hb.is_active = 1'];
 
-    return rows
-      .filter((row) => row.is_active === 1)
-      .map((row) => ({
-        code: row.code,
-        title: row.title,
-        subtitle: row.subtitle,
-        image_source: row.image_source,
-        placement: row.placement,
-        sort_order: row.sort_order
-      }));
-  } catch (error) {
-    if (
-      error instanceof Error &&
-      'code' in error &&
-      (error as { code?: string }).code === 'ER_NO_SUCH_TABLE'
-    ) {
-      return defaultHomeBanners;
-    }
-
-    throw error;
+  if (supportsTargeting) {
+    whereClauses.push("(hb.banner_type <> 'event' OR hb.ends_at IS NULL OR hb.ends_at > UTC_TIMESTAMP())");
   }
+
+  const [rows] = await mysqlPool.query<Array<HomeBannerRow>>(
+    `
+      SELECT
+        ${selectClause}
+      FROM home_banners hb
+      WHERE ${whereClauses.join(' AND ')}
+      ORDER BY hb.floating_priority DESC, hb.sort_order ASC, hb.id ASC
+    `
+  );
+
+  return rows
+    .filter((row) => row.is_active === 1)
+    .map((row) => ({
+      code: row.code,
+      title: row.title,
+      subtitle: row.subtitle,
+      image_source: row.image_source,
+      banner_type: row.banner_type,
+      destination_type: row.destination_type,
+      secondary_destination_type: row.secondary_destination_type,
+      target_value: row.target_value,
+      starts_at: row.starts_at ? new Date(row.starts_at).toISOString() : null,
+      ends_at: row.ends_at ? new Date(row.ends_at).toISOString() : null,
+      placement: row.placement,
+      sort_order: row.sort_order,
+      floating_priority: row.floating_priority
+    }));
 }

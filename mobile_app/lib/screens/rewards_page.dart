@@ -50,41 +50,33 @@ class _RewardsPageState extends State<RewardsPage> {
         code: 'kawan',
         name: 'Kawan',
         minCups: 0,
-        promotionText: 'Entry loyalty tier',
         badgeColor: '#3B82F6',
         sortOrder: 0,
         isActive: true,
-        rewardConfigs: [],
       ),
       LoyaltyTier(
         code: 'dilamun',
         name: 'Dilamun',
         minCups: 10,
-        promotionText: 'Progressing loyalty tier',
         badgeColor: '#E07A5F',
         sortOrder: 1,
         isActive: true,
-        rewardConfigs: [],
       ),
       LoyaltyTier(
         code: 'ketagih',
         name: 'Ketagih',
         minCups: 30,
-        promotionText: 'High engagement loyalty tier',
         badgeColor: '#9333EA',
         sortOrder: 2,
         isActive: true,
-        rewardConfigs: [],
       ),
       LoyaltyTier(
         code: 'legend',
         name: 'Legend',
         minCups: 50,
-        promotionText: 'Top loyalty tier',
         badgeColor: '#D4AF7A',
         sortOrder: 3,
         isActive: true,
-        rewardConfigs: [],
       ),
     ];
   }
@@ -148,11 +140,9 @@ class _RewardsPageState extends State<RewardsPage> {
         code: 'kawan',
         name: 'Kawan',
         minCups: 0,
-        promotionText: 'Entry loyalty tier',
         badgeColor: '#3B82F6',
         sortOrder: 0,
         isActive: true,
-        rewardConfigs: [],
       );
     }
 
@@ -182,10 +172,6 @@ class _RewardsPageState extends State<RewardsPage> {
 
   String _currentTierLabel() =>
       _currentTier()?.name ?? _tierForIndex(_selectedTier).name;
-
-  List<TierRewardConfig> _visibleRewardsForTier(LoyaltyTier tier) {
-    return tier.rewardConfigs.where((reward) => reward.enabled).toList();
-  }
 
   void _onBottomNavTapped(int index) {
     if (index == 3) return;
@@ -574,6 +560,43 @@ class _RewardsPageState extends State<RewardsPage> {
     );
   }
 
+  List<String> _getTierPerks(String tierCode) {
+    switch (tierCode.toLowerCase()) {
+      case 'kawan':
+        return [
+          'RM 1.00 OFF every handcrafted drink',
+          'Earn 1 Loyalty Cup for every handcrafted drink',
+          'Birthday surprise rewards & offers',
+        ];
+      case 'dilamun':
+        return [
+          'RM 2.00 OFF every handcrafted drink',
+          '5% OFF all merchandise items',
+          'Early access to seasonal menu drops',
+          'Earn 1 Loyalty Cup for every handcrafted drink',
+        ];
+      case 'ketagih':
+        return [
+          'RM 3.00 OFF every handcrafted drink',
+          '10% OFF all merchandise items',
+          'VIP member perks & special promotions',
+          'Exclusive birthday bonus rewards',
+        ];
+      case 'legend':
+        return [
+          'RM 4.00 OFF every handcrafted drink',
+          '20% OFF all merchandise items',
+          'VIP private tasting sessions & events',
+          'Highest tier privileges & priority access',
+        ];
+      default:
+        return [
+          'Special discounts on handcrafted drinks',
+          'Exclusive member perks and rewards',
+        ];
+    }
+  }
+
   Widget _buildTierSection() {
     final tiers = _availableTiers;
     if (tiers.isEmpty) {
@@ -581,7 +604,6 @@ class _RewardsPageState extends State<RewardsPage> {
     }
 
     final selectedIndex = _selectedTier.clamp(0, tiers.length - 1);
-    final currentIndex = _currentTierIndex().clamp(0, tiers.length - 1);
     final selectedTier = tiers[selectedIndex];
 
     return Column(
@@ -610,54 +632,34 @@ class _RewardsPageState extends State<RewardsPage> {
             ],
           ),
         ),
-        const SizedBox(height: 16),
-        // Tab Headers
+        const SizedBox(height: 14),
+        // Pill Buttons Row (Top - Separated)
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Row(
             children: List.generate(tiers.length, (index) {
               final tier = tiers[index];
-              final locked = index > currentIndex;
-              return SizedBox(
-                width: 132,
-                child: _buildTierTab(
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: _buildTierPill(
                   index,
                   tier,
-                  locked,
                   selectedIndex,
                 ),
               );
             }),
           ),
         ),
-        Container(
-          margin: const EdgeInsets.symmetric(horizontal: 20),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            border: Border.all(
-              color: AppColors.border,
-              width: 1,
-            ),
-            borderRadius: const BorderRadius.only(
-              bottomLeft: Radius.circular(16),
-              bottomRight: Radius.circular(16),
-              topRight: Radius.circular(16),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.03),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
+        const SizedBox(height: 14),
+        // Information Card (Bottom - Separated)
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
           child: AnimatedSwitcher(
             duration: const Duration(milliseconds: 240),
             switchInCurve: Curves.easeOutCubic,
             switchOutCurve: Curves.easeInCubic,
-            child: _buildTierRewardContent(
+            child: _buildTierStateContent(
               selectedTier,
               key: ValueKey('tier-${selectedTier.code}'),
             ),
@@ -667,224 +669,69 @@ class _RewardsPageState extends State<RewardsPage> {
     );
   }
 
-  Widget _buildTierTab(
-      int index, LoyaltyTier tier, bool locked, int selectedIndex) {
-    bool isSelected = index == selectedIndex;
-    bool isCurrentActualTier = index == _currentTierIndex();
+  Widget _buildTierPill(int index, LoyaltyTier tier, int selectedIndex) {
+    final isSelected = index == selectedIndex;
+    final isCurrentActualTier = index == _currentTierIndex();
 
-    Color bgColor = locked
-        ? AppColors.surfaceLight
+    // Darker background for current actual tier, subtle tint/white for others
+    final Color bgColor = isCurrentActualTier
+        ? const Color(0xFFD5E6E3)
         : (isSelected ? AppColors.surfaceLight : Colors.white);
-    Color textColor = locked
-        ? Colors.grey.shade400
-        : (isSelected ? AppColors.gold : Colors.black87);
+
+    // Darker rich gold for active/selected tab font
+    const Color darkGold = Color(0xFFAD6D15);
+
+    final Color textColor = isSelected ? darkGold : AppColors.textDark;
 
     return GestureDetector(
       onTap: () {
-        if (!locked) {
-          setState(() {
-            _selectedTier = index;
-          });
-        }
+        setState(() {
+          _selectedTier = index;
+        });
       },
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Container(
-            margin: const EdgeInsets.only(right: 1),
-            padding: const EdgeInsets.symmetric(horizontal: 1, vertical: 12),
-            decoration: BoxDecoration(
-              color: bgColor,
-              border: Border.all(
-                color: isSelected ? AppColors.border : AppColors.surfaceLight,
-                width: 1,
-              ),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(16),
-                topRight: Radius.circular(16),
-              ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (locked) Icon(Icons.lock, size: 12, color: textColor),
-                if (locked) const SizedBox(width: 2),
-                Flexible(
-                  child: Column(
-                    children: [
-                      Text(
-                        tier.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontFamily: 'Afacad',
-                          fontSize: 12.5,
-                          color: textColor,
-                        ),
-                      ),
-                      Text(
-                        tier.promotionText,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontFamily: 'Recoleta',
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: textColor,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (locked) const SizedBox(width: 14),
-              ],
-            ),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: isSelected
+                ? const Color(0xFFAD6D15)
+                : (isCurrentActualTier ? AppColors.sageTeal : const Color(0xFFE2EBE9)),
+            width: isSelected ? 1.5 : 1,
           ),
-          if (isCurrentActualTier)
-            Positioned(
-              top: -8,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: AppColors.deepTeal,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Text(
-                    'Current',
-                    style: TextStyle(
-                      fontFamily: 'Afacad',
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
+          boxShadow: [
+            if (isSelected)
+              BoxShadow(
+                color: const Color(0xFFAD6D15).withValues(alpha: 0.12),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
               ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTierRewardContent(LoyaltyTier tier, {Key? key}) {
-    final rewards = _visibleRewardsForTier(tier);
-    return KeyedSubtree(
-      key: key,
-      child: rewards.isEmpty
-          ? Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Text(
-                'No tier rewards have been configured for ${tier.name}.',
-                style: TextStyle(
-                  fontFamily: 'Afacad',
-                  fontSize: 13,
-                  color: Colors.grey.shade600,
-                ),
-              ),
-            )
-          : Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (var i = 0; i < rewards.length; i++) ...[
-                  _buildTierRewardListItem(rewards[i]),
-                  if (i != rewards.length - 1) const Divider(height: 12),
-                ],
-              ],
-            ),
-    );
-  }
-
-  Widget _buildTierRewardListItem(TierRewardConfig reward) {
-    return _buildRewardListItem(
-      reward.title,
-      reward.subtitle,
-      icon: _rewardIconFor(reward),
-    );
-  }
-
-  IconData _rewardIconFor(TierRewardConfig reward) {
-    if (reward.condition.isBirthday) {
-      return Icons.cake_outlined;
-    }
-
-    switch (reward.kind) {
-      case 'discount':
-        return Icons.local_offer_outlined;
-      case 'free_item':
-        switch (reward.rewardItemType) {
-          case 'drink':
-            return Icons.local_cafe_outlined;
-          case 'food':
-            return Icons.lunch_dining_outlined;
-          case 'merchandise':
-            return Icons.card_giftcard_outlined;
-          default:
-            return Icons.card_giftcard_outlined;
-        }
-      default:
-        return Icons.workspace_premium_outlined;
-    }
-  }
-
-  Widget _buildRewardListItem(String title, String subtitle,
-      {IconData icon = Icons.coffee}) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () {
-        _showRewardDetailDialog(title, subtitle, icon);
-      },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
+          ],
+        ),
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceLight,
-                shape: BoxShape.circle,
+            if (isCurrentActualTier) ...[
+              Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: AppColors.deepTeal,
+                  shape: BoxShape.circle,
+                ),
               ),
-              child: icon == Icons.local_offer_outlined
-                  ? Image.asset(
-                      'assets/images/voucher.png',
-                      width: 32,
-                      height: 32,
-                    )
-                  : Icon(icon, color: AppColors.gold, size: 20),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontFamily: 'Afacad',
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.deepTeal,
-                    ),
-                  ),
-                  if (subtitle.isNotEmpty)
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        fontFamily: 'Afacad',
-                        fontSize: 12,
-                        color: Colors.grey.shade700,
-                      ),
-                    ),
-                ],
+              const SizedBox(width: 6),
+            ],
+            Text(
+              tier.name,
+              style: TextStyle(
+                fontFamily: 'Recoleta',
+                fontSize: 14,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                color: textColor,
               ),
-            ),
-            Icon(
-              Icons.chevron_right,
-              color: Colors.grey.shade400,
-              size: 20,
             ),
           ],
         ),
@@ -892,43 +739,42 @@ class _RewardsPageState extends State<RewardsPage> {
     );
   }
 
-  void _showRewardDetailDialog(String title, String subtitle, IconData icon) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+  Widget _buildTierStateContent(LoyaltyTier tier, {Key? key}) {
+    final currentIndex = _currentTierIndex();
+    final selectedIndex = _selectedTier;
+    final isCurrent = selectedIndex == currentIndex;
+    final isUnlocked = selectedIndex < currentIndex;
+    final perks = _getTierPerks(tier.code);
+
+    return Container(
+      key: key,
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.border, width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
-      builder: (context) => Padding(
-        padding: EdgeInsets.only(
-          top: 24,
-          left: 24,
-          right: 24,
-          bottom: 24 + MediaQuery.paddingOf(context).bottom,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceLight,
-                    shape: BoxShape.circle,
-                  ),
-                  child: icon == Icons.local_offer_outlined
-                      ? Image.asset(
-                          'assets/images/voucher.png',
-                          width: 44,
-                          height: 44,
-                        )
-                      : Icon(icon, color: orangeColor, size: 28),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Text(
-                    title,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    tier.name,
                     style: TextStyle(
                       fontFamily: 'Recoleta',
                       fontSize: 18,
@@ -936,47 +782,122 @@ class _RewardsPageState extends State<RewardsPage> {
                       color: AppColors.deepTeal,
                     ),
                   ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${tier.minCups} cups required',
+                    style: TextStyle(
+                      fontFamily: 'Afacad',
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+              ),
+              if (isCurrent)
+                _buildStateChip(
+                  'CURRENT TIER',
+                  AppColors.deepTeal,
+                  icon: Icons.check_circle_rounded,
+                )
+              else if (isUnlocked)
+                _buildStateChip(
+                  'UNLOCKED',
+                  AppColors.sageTeal,
+                )
+              else
+                _buildStateChip(
+                  tier.minCups - _session.cupsLast180d > 0
+                      ? '${tier.minCups - _session.cupsLast180d} CUPS TO UNLOCK'
+                      : 'LOCKED',
+                  const Color(0xFFAD6D15),
+                  icon: Icons.lock_outline_rounded,
                 ),
-                IconButton(
-                  icon: const Icon(Icons.close, color: Colors.grey),
-                  onPressed: () => Navigator.pop(context),
-                ),
-              ],
+            ],
+          ),
+          const SizedBox(height: 14),
+          Container(
+            height: 1,
+            color: AppColors.surfaceLight,
+          ),
+          const SizedBox(height: 14),
+          Text(
+            'Tier Benefits',
+            style: TextStyle(
+              fontFamily: 'Recoleta',
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textDark,
             ),
-            const SizedBox(height: 16),
-            Text(
-              subtitle,
-              style: const TextStyle(
-                fontFamily: 'Afacad',
-                fontSize: 14,
-                color: Colors.black87,
-                height: 1.4,
+          ),
+          const SizedBox(height: 10),
+          ...perks.map(
+            (perk) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    margin: const EdgeInsets.only(top: 2),
+                    padding: const EdgeInsets.all(3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFAD6D15).withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.check_rounded,
+                      size: 12,
+                      color: Color(0xFFAD6D15),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      perk,
+                      style: const TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.black87,
+                        height: 1.3,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.deepTeal,
-                minimumSize: const Size(double.infinity, 48),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: const Text(
-                'CLAIM REWARD NOW',
-                style: TextStyle(
-                  fontFamily: 'Afacad',
-                  fontWeight: FontWeight.bold,
-                  fontSize: 15,
-                  color: Colors.white,
-                ),
-              ),
-            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStateChip(String label, Color color, {IconData? icon}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 13, color: color),
+            const SizedBox(width: 4),
           ],
-        ),
+          Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'Afacad',
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: color,
+              letterSpacing: 0.4,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1118,7 +1039,7 @@ class _RewardsPageState extends State<RewardsPage> {
               children: [
                 _buildExpansionTile(
                   'How do I place an order?',
-                  'Browse the menu, select your preferred drink, customize it to your liking, and tap Add to Cart. Proceed to checkout, choose your payment method, and confirm your order.',
+                  'Browse the menu, select your preferred drink, customize it to your liking, and tap Add to Cart. Proceed to checkout and confirm your order using C2 Tokens.',
                 ),
                 const Divider(height: 1),
                 _buildExpansionTile(
@@ -1133,7 +1054,7 @@ class _RewardsPageState extends State<RewardsPage> {
                 const Divider(height: 1),
                 _buildExpansionTile(
                   'Can I cancel my order?',
-                  'Orders can be cancelled through the app within 2 minutes of placing them. After the barista begins brewing, cancellation is no longer possible.',
+                  'You can edit your cart before checkout. Once an order is submitted to the store queue, customer self-cancellation is not available in the app. Contact support if you need help with an order.',
                 ),
                 const Divider(height: 1),
                 _buildExpansionTile(

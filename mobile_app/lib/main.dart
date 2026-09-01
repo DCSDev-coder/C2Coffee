@@ -7,6 +7,7 @@ import 'package:c2_coffee/services/secure_session_service.dart';
 import 'package:c2_coffee/screens/home_page.dart';
 import 'package:c2_coffee/screens/splash_screen.dart';
 import 'package:c2_coffee/utils/app_colors.dart';
+import 'package:c2_coffee/utils/app_notification.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,6 +24,7 @@ class C2CoffeeApp extends StatelessWidget {
       valueListenable: AppColors.currentTier,
       builder: (context, tier, child) {
         return MaterialApp(
+          navigatorKey: AppNotification.navigatorKey,
           title: 'C² Coffee',
           debugShowCheckedModeBanner: false,
           theme: AppColors.getThemeData(),

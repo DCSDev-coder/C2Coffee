@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../utils/app_colors.dart';
+import '../utils/app_notification.dart';
 import 'terms_of_use_page.dart';
 import 'privacy_policy_page.dart';
 import '../widgets/app_page_shell.dart';
@@ -41,14 +42,10 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
 
   void _copyToClipboard(String text, String label) {
     Clipboard.setData(ClipboardData(text: text));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$label copied to clipboard'),
-        backgroundColor: AppColors.deepTeal,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
+    AppNotification.showSuccess(
+      context,
+      '$label copied to clipboard',
+      icon: Icons.copy_rounded,
     );
   }
 

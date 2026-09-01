@@ -2,6 +2,9 @@ import 'dart:io';
 import 'dart:async';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import '../services/catalog_api_service.dart';
+import '../services/customer_data_service.dart';
+import '../services/secure_session_service.dart';
 import '../widgets/custom_bottom_nav.dart';
 import '../services/app_session_service.dart';
 import '../services/user_service.dart';
@@ -24,12 +27,14 @@ class ProfilePage extends StatefulWidget {
   final File? initialPickedImage;
   final String? initialPresetPath;
   final int initialAvatarIndex;
+  final bool initialScrollToCalendar;
 
   const ProfilePage({
     super.key,
     this.initialPickedImage,
     this.initialPresetPath,
     this.initialAvatarIndex = 0,
+    this.initialScrollToCalendar = false,
   });
 
   @override
@@ -39,6 +44,13 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   final AppSessionService _session = AppSessionService.instance;
   final ScrollController _scrollController = ScrollController();
+  final GlobalKey _calendarSectionKey = GlobalKey();
+  Set<DateTime> _calendarOrderDates = {};
+  Set<DateTime> _calendarEventDates = {};
+  Map<DateTime, List<CustomerOrder>> _calendarOrdersByDate = {};
+  Map<DateTime, List<String>> _calendarOrderTitlesByDate = {};
+  Map<DateTime, List<String>> _calendarEventTitlesByDate = {};
+  bool _calendarLoading = true;
   File? _persistedPickedImage;
   String? _persistedPresetPath;
   String _username = 'C2 Member';
@@ -55,6 +67,12 @@ class _ProfilePageState extends State<ProfilePage> {
       try {
         await _session.loadAuthenticatedState();
       } catch (_) {}
+      await _loadCalendarMarkers();
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (widget.initialScrollToCalendar) {
+        _scrollToCalendarSection();
+      }
     });
   }
 
@@ -90,6 +108,143 @@ class _ProfilePageState extends State<ProfilePage> {
     _session.removeListener(_handleSessionChanged);
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _scrollToCalendarSection() {
+    final calendarContext = _calendarSectionKey.currentContext;
+    if (calendarContext == null) return;
+
+    Scrollable.ensureVisible(
+      calendarContext,
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeInOut,
+      alignment: 0.08,
+    );
+  }
+
+  DateTime _dateOnly(DateTime value) {
+    return DateTime(value.year, value.month, value.day);
+  }
+
+  void _addCalendarTitle(
+    Map<DateTime, List<String>> titlesByDate,
+    DateTime date,
+    String title,
+  ) {
+    final normalizedDate = _dateOnly(date);
+    final normalizedTitle = title.trim();
+    if (normalizedTitle.isEmpty) return;
+
+    final titles = titlesByDate.putIfAbsent(normalizedDate, () => <String>[]);
+    if (!titles.contains(normalizedTitle)) {
+      titles.add(normalizedTitle);
+    }
+  }
+
+  Map<DateTime, List<String>> _buildEventTitlesByDate() {
+    final titlesByDate = <DateTime, List<String>>{};
+
+    for (final banner in _session.homeBanners) {
+      if (banner.bannerType != 'event' || banner.startsAt == null) {
+        continue;
+      }
+
+      final start = _dateOnly(banner.startsAt!.toLocal());
+      final end = _dateOnly((banner.endsAt ?? banner.startsAt!).toLocal());
+      if (end.isBefore(start)) {
+        continue;
+      }
+
+      final title = banner.title.trim();
+      if (title.isEmpty) {
+        continue;
+      }
+
+      var cursor = start;
+      while (!cursor.isAfter(end)) {
+        _addCalendarTitle(titlesByDate, cursor, title);
+        cursor = cursor.add(const Duration(days: 1));
+      }
+    }
+
+    return titlesByDate;
+  }
+
+  List<String> _orderTitlesForOrder(CustomerOrder order) {
+    final primaryTitle = order.primaryItemName?.trim();
+    if (primaryTitle != null && primaryTitle.isNotEmpty) {
+      return [primaryTitle];
+    }
+
+    final itemTitles = order.items
+        .map((item) => item.name.trim())
+        .where((title) => title.isNotEmpty)
+        .toList();
+    if (itemTitles.isNotEmpty) {
+      return itemTitles;
+    }
+
+    return ['Order ${order.dailyOrderNumber}'];
+  }
+
+  Future<void> _loadCalendarMarkers() async {
+    if (!mounted) return;
+
+    setState(() {
+      _calendarLoading = true;
+    });
+
+    try {
+      final accessToken =
+          await SecureSessionService.instance.getValidAccessToken();
+
+      final orderDates = <DateTime>{};
+      final ordersByDate = <DateTime, List<CustomerOrder>>{};
+      final orderTitlesByDate = <DateTime, List<String>>{};
+      if (accessToken != null && accessToken.isNotEmpty) {
+        final snapshot = await CustomerDataService.instance.getOrders(
+          accessToken: accessToken,
+          limit: 100,
+        );
+
+        final allOrders = <CustomerOrder>[
+          ...snapshot.orders,
+          if (snapshot.activeOrder != null) snapshot.activeOrder!,
+        ];
+
+        for (final order in allOrders) {
+          final orderDate = _dateOnly(order.createdAt.toLocal());
+          orderDates.add(orderDate);
+          ordersByDate.putIfAbsent(orderDate, () => <CustomerOrder>[]).add(order);
+          for (final title in _orderTitlesForOrder(order)) {
+            _addCalendarTitle(orderTitlesByDate, orderDate, title);
+          }
+        }
+      }
+
+      final eventTitlesByDate = _buildEventTitlesByDate();
+      final eventDates = eventTitlesByDate.keys.toSet();
+
+      if (!mounted) return;
+      setState(() {
+        _calendarOrderDates = orderDates;
+        _calendarEventDates = eventDates;
+        _calendarOrdersByDate = ordersByDate;
+        _calendarOrderTitlesByDate = orderTitlesByDate;
+        _calendarEventTitlesByDate = eventTitlesByDate;
+        _calendarLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _calendarOrderDates = {};
+        _calendarOrdersByDate = {};
+        _calendarOrderTitlesByDate = {};
+        _calendarEventTitlesByDate = _buildEventTitlesByDate();
+        _calendarEventDates = _calendarEventTitlesByDate.keys.toSet();
+        _calendarLoading = false;
+      });
+    }
   }
 
   void _onBottomNavTapped(int index) {
@@ -507,16 +662,31 @@ class _ProfilePageState extends State<ProfilePage> {
                 const SizedBox(height: 24),
 
                 // Calendar Section
-                Text('Calendar',
-                    style: TextStyle(
-                        fontFamily: 'Recoleta',
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.deepTeal)),
-                const SizedBox(height: 12),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 24.0),
-                  child: CustomCalendarWidget(),
+                Container(
+                  key: _calendarSectionKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Calendar',
+                          style: TextStyle(
+                              fontFamily: 'Recoleta',
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.deepTeal)),
+                      const SizedBox(height: 12),
+                      Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 24.0),
+                        child: CustomCalendarWidget(
+                          orderDates: _calendarOrderDates,
+                          eventDates: _calendarEventDates,
+                          ordersByDate: _calendarOrdersByDate,
+                          orderTitlesByDate: _calendarOrderTitlesByDate,
+                          eventTitlesByDate: _calendarEventTitlesByDate,
+                          isLoading: _calendarLoading,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 24),
 
@@ -639,16 +809,64 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Widget _buildBannerImage(String source) {
-    final image = source.startsWith('http://') || source.startsWith('https://')
-        ? Image.network(source, width: 100, height: 100, fit: BoxFit.cover)
-        : Image.asset(source, width: 100, height: 100, fit: BoxFit.cover);
+    final resolvedSource = resolveCatalogImageSource(source);
+    final image = resolvedSource == null
+        ? _buildBannerFallback()
+        : (resolvedSource.startsWith('http://') ||
+                resolvedSource.startsWith('https://'))
+            ? Image.network(
+                resolvedSource,
+                width: 100,
+                height: 100,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) =>
+                    _buildBannerFallback(),
+              )
+            : Image.asset(
+                resolvedSource,
+                width: 100,
+                height: 100,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) =>
+                    _buildBannerFallback(),
+              );
 
     return image;
+  }
+
+  Widget _buildBannerFallback() {
+    return Container(
+      width: 100,
+      height: 100,
+      color: const Color(0xFFF6F7F8),
+      alignment: Alignment.center,
+      child: Image.asset(
+        'assets/images/c2_logo.png',
+        width: 48,
+        height: 48,
+        fit: BoxFit.contain,
+      ),
+    );
   }
 }
 
 class CustomCalendarWidget extends StatefulWidget {
-  const CustomCalendarWidget({super.key});
+  final Set<DateTime> orderDates;
+  final Set<DateTime> eventDates;
+  final Map<DateTime, List<CustomerOrder>> ordersByDate;
+  final Map<DateTime, List<String>> orderTitlesByDate;
+  final Map<DateTime, List<String>> eventTitlesByDate;
+  final bool isLoading;
+
+  const CustomCalendarWidget({
+    super.key,
+    this.orderDates = const {},
+    this.eventDates = const {},
+    this.ordersByDate = const {},
+    this.orderTitlesByDate = const {},
+    this.eventTitlesByDate = const {},
+    this.isLoading = false,
+  });
 
   @override
   State<CustomCalendarWidget> createState() => _CustomCalendarWidgetState();
@@ -656,15 +874,6 @@ class CustomCalendarWidget extends StatefulWidget {
 
 class _CustomCalendarWidgetState extends State<CustomCalendarWidget> {
   DateTime _currentMonth = DateTime.now();
-
-  // Dummy dates to indicate drink bought
-  final List<DateTime> _drinkBoughtDates = [
-    DateTime(DateTime.now().year, DateTime.now().month, 4),
-    DateTime(DateTime.now().year, DateTime.now().month, 10),
-    DateTime(DateTime.now().year, DateTime.now().month, 18),
-    DateTime(DateTime.now().year, DateTime.now().month, 26),
-    DateTime(DateTime.now().year, DateTime.now().month, 31),
-  ];
 
   void _previousMonth() {
     setState(() {
@@ -678,9 +887,24 @@ class _CustomCalendarWidgetState extends State<CustomCalendarWidget> {
     });
   }
 
-  bool _isDrinkBought(DateTime date) {
-    return _drinkBoughtDates.any((d) =>
-        d.year == date.year && d.month == date.month && d.day == date.day);
+  bool _hasOrder(DateTime date) {
+    return widget.orderDates.contains(DateTime(date.year, date.month, date.day));
+  }
+
+  bool _hasEvent(DateTime date) {
+    return widget.eventDates.contains(DateTime(date.year, date.month, date.day));
+  }
+
+  List<CustomerOrder> _ordersForDate(DateTime date) {
+    return widget.ordersByDate[DateTime(date.year, date.month, date.day)] ??
+        const [];
+  }
+
+  void _openOrderForDate(BuildContext context, CustomerOrder order) {
+    InteractiveFillingLoader.show(
+      context,
+      targetPage: OrderDetailsPage(order: order),
+    );
   }
 
   @override
@@ -729,120 +953,375 @@ class _CustomCalendarWidgetState extends State<CustomCalendarWidget> {
         ),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 8,
-              offset: const Offset(0, 2))
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
         ],
       ),
-      child: Column(
-        children: [
-          // Header
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              IconButton(
-                  icon: Icon(Icons.chevron_left, color: AppColors.deepTeal),
-                  onPressed: _previousMonth),
-              Text(
-                '${monthNames[_currentMonth.month - 1]} ${_currentMonth.year}',
-                style: TextStyle(
-                    fontFamily: 'Recoleta',
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.deepTeal),
+      child: widget.isLoading
+          ? const Padding(
+              padding: EdgeInsets.symmetric(vertical: 28),
+              child: Center(
+                child: CircularProgressIndicator(),
               ),
-              IconButton(
-                  icon: Icon(Icons.chevron_right, color: AppColors.deepTeal),
-                  onPressed: _nextMonth),
-            ],
-          ),
-          const SizedBox(height: 16),
-          // Days of week
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: dayNames
-                .map((day) => SizedBox(
-                      width: 30,
-                      child: Center(
-                          child: Text(day,
-                              style: const TextStyle(
-                                  fontFamily: 'Afacad',
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.grey))),
-                    ))
-                .toList(),
-          ),
-          const SizedBox(height: 12),
-          // Grid
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: daysInMonth + emptySlots,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 7,
-              childAspectRatio: 1.0,
-            ),
-            itemBuilder: (context, index) {
-              if (index < emptySlots) return const SizedBox();
-
-              final int day = index - emptySlots + 1;
-              final DateTime date =
-                  DateTime(_currentMonth.year, _currentMonth.month, day);
-              final bool isBought = _isDrinkBought(date);
-
-              return GestureDetector(
-                onTap: isBought
-                    ? () {
-                        final String formattedDate =
-                            "${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}";
-
-                        final pastOrderItem = {
-                          'id': '${date.millisecondsSinceEpoch}',
-                          'date': formattedDate,
-                          'time': '10:30 am',
-                          'name': 'Mont Broga',
-                          'details':
-                              'Dato Blend / Hot / Fresh Milk /\nReg. Sweet / Reg. Ice /\nTake Away',
-                          'remarks': 'None',
-                          'quantity': 1,
-                          'image': '',
-                          'image_url': '',
-                        };
-
-                        InteractiveFillingLoader.show(
-                          context,
-                          targetPage: OrderDetailsPage(item: pastOrderItem),
-                        );
-                      }
-                    : null,
-                child: Container(
-                  margin: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.transparent,
-                    border: isBought
-                        ? Border.all(color: AppColors.deepTeal, width: 1.5)
-                        : null,
-                  ),
-                  child: Center(
-                    child: Text(
-                      day.toString(),
+            )
+          : Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    IconButton(
+                      icon: Icon(Icons.chevron_left, color: AppColors.deepTeal),
+                      onPressed: _previousMonth,
+                    ),
+                    Text(
+                      '${monthNames[_currentMonth.month - 1]} ${_currentMonth.year}',
                       style: TextStyle(
-                        fontFamily: 'Afacad',
-                        fontSize: 16,
+                        fontFamily: 'Recoleta',
+                        fontSize: 20,
                         fontWeight: FontWeight.bold,
-                        color: isBought ? AppColors.deepTeal : Colors.black87,
+                        color: AppColors.deepTeal,
                       ),
                     ),
+                    IconButton(
+                      icon: Icon(Icons.chevron_right, color: AppColors.deepTeal),
+                      onPressed: _nextMonth,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: dayNames
+                      .map(
+                        (day) => SizedBox(
+                          width: 30,
+                          child: Center(
+                            child: Text(
+                              day,
+                              style: const TextStyle(
+                                fontFamily: 'Afacad',
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ),
+                const SizedBox(height: 12),
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: daysInMonth + emptySlots,
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 7,
+                    childAspectRatio: 1.0,
+                  ),
+                  itemBuilder: (context, index) {
+                    if (index < emptySlots) return const SizedBox();
+
+                    final int day = index - emptySlots + 1;
+                    final DateTime date =
+                        DateTime(_currentMonth.year, _currentMonth.month, day);
+                    final bool hasOrder = _hasOrder(date);
+                    final bool hasEvent = _hasEvent(date);
+
+                    final Color orderColor = AppColors.deepTeal;
+                    const Color eventColor = Color(0xFFE5A93C);
+                    final bool showCombinedMarker = hasOrder && hasEvent;
+                    final bool showOrderMarker = hasOrder || hasEvent;
+
+                    return GestureDetector(
+                      onTap: hasOrder
+                          ? () {
+                              final orders = _ordersForDate(date);
+                              if (orders.isEmpty) return;
+                              _openOrderForDate(context, orders.first);
+                            }
+                          : null,
+                      onLongPress: (hasOrder || hasEvent)
+                          ? () => _showDaySummary(context, date)
+                          : null,
+                      child: Container(
+                        margin: const EdgeInsets.all(4),
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            if (showOrderMarker)
+                              Container(
+                                width: 34,
+                                height: 34,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: hasOrder
+                                      ? orderColor.withValues(alpha: 0.14)
+                                      : eventColor.withValues(alpha: 0.14),
+                                  border: Border.all(
+                                    color: hasOrder ? orderColor : eventColor,
+                                    width: 1.8,
+                                  ),
+                                ),
+                              ),
+                            if (showCombinedMarker)
+                              Container(
+                                width: hasOrder ? 12 : 34,
+                                height: hasOrder ? 12 : 34,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: eventColor,
+                                  border: hasOrder
+                                      ? Border.all(
+                                          color: Colors.white,
+                                          width: 1.5,
+                                        )
+                                      : Border.all(
+                                        color: eventColor.withValues(alpha: 0.45),
+                                        width: 1.5,
+                                      ),
+                                ),
+                              ),
+                            if (!showOrderMarker)
+                              Container(
+                                width: 34,
+                                height: 34,
+                                decoration: const BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.transparent,
+                                ),
+                              ),
+                            Text(
+                              day.toString(),
+                              style: TextStyle(
+                                fontFamily: 'Afacad',
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: hasOrder
+                                    ? AppColors.deepTeal
+                                    : hasEvent
+                                        ? AppColors.deepTeal
+                                        : Colors.black87,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+    );
+  }
+
+  void _showDaySummary(BuildContext context, DateTime date) {
+    final orders = _ordersForDate(date);
+    final eventTitles =
+        widget.eventTitlesByDate[DateTime(date.year, date.month, date.day)] ??
+            const [];
+
+    if (orders.isEmpty && eventTitles.isEmpty) {
+      return;
+    }
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: EdgeInsets.only(
+              left: 16,
+              right: 16,
+              bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 16,
+            ),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: AppColors.border),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.12),
+                    blurRadius: 18,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Daily details',
+                              style: TextStyle(
+                                fontFamily: 'Recoleta',
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.deepTeal,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () => Navigator.pop(sheetContext),
+                            icon: const Icon(Icons.close),
+                            color: Colors.grey,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}',
+                        style: TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 14,
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
+                      if (orders.isNotEmpty) ...[
+                        const SizedBox(height: 18),
+                        _buildSummarySection(
+                          title: 'Orders',
+                          icon: Icons.receipt_long_outlined,
+                          color: AppColors.deepTeal,
+                          titles: orders.map(_buildOrderTitle).toList(),
+                          onTapTitle: (index) =>
+                              _openOrderForDate(context, orders[index]),
+                        ),
+                      ],
+                      if (eventTitles.isNotEmpty) ...[
+                        const SizedBox(height: 18),
+                        _buildSummarySection(
+                          title: 'Events',
+                          icon: Icons.event_outlined,
+                          color: const Color(0xFFE5A93C),
+                          titles: eventTitles,
+                        ),
+                      ],
+                    ],
                   ),
                 ),
-              );
-            },
+              ),
+            ),
           ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSummarySection({
+    required String title,
+    required IconData icon,
+    required Color color,
+    required List<String> titles,
+    void Function(int index)? onTapTitle,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 18, color: color),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: TextStyle(
+                  fontFamily: 'Recoleta',
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.deepTeal,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          for (var index = 0; index < titles.length; index++) ...[
+            InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: onTapTitle == null ? null : () => onTapTitle(index),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      margin: const EdgeInsets.only(top: 7),
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: color,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        titles[index],
+                        style: TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 16,
+                          color: Colors.grey.shade900,
+                          height: 1.25,
+                        ),
+                      ),
+                    ),
+                    if (onTapTitle != null)
+                      Icon(
+                        Icons.chevron_right,
+                        size: 18,
+                        color: color.withValues(alpha: 0.7),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+          if (onTapTitle != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Tap an order to open details and reorder.',
+              style: TextStyle(
+                fontFamily: 'Afacad',
+                fontSize: 12,
+                color: Colors.grey.shade700,
+              ),
+            ),
+          ],
         ],
       ),
     );
+  }
+
+  String _buildOrderTitle(CustomerOrder order) {
+    final primaryTitle = order.primaryItemName?.trim();
+    if (primaryTitle != null && primaryTitle.isNotEmpty) {
+      return primaryTitle;
+    }
+
+    final itemTitle = order.items.isNotEmpty ? order.items.first.name.trim() : '';
+    if (itemTitle.isNotEmpty) {
+      return itemTitle;
+    }
+
+    return order.orderRef.isNotEmpty ? order.orderRef : 'Order ${order.id}';
   }
 }
 

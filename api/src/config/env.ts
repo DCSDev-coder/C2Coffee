@@ -6,7 +6,7 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(8080),
   HOST: z.string().default('0.0.0.0'),
   LOG_LEVEL: z.string().default('info'),
-  OTP_DELIVERY_MODE: z.enum(['stub', 'log']).default('stub'),
+  OTP_DELIVERY_MODE: z.enum(['stub', 'log', 'email']).default('stub'),
   OTP_DEBUG_EXPOSE_CODE: z.coerce.boolean().default(false),
   ACCESS_TOKEN_TTL_MINUTES: z.coerce.number().int().positive().default(15),
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(30),
@@ -32,7 +32,14 @@ const envSchema = z.object({
   WHATSAPP_CLOUD_API_TOKEN: z.string().optional().default(''),
   WHATSAPP_PHONE_NUMBER_ID: z.string().optional().default(''),
   SMS_PROVIDER_BASE_URL: z.string().optional().default(''),
-  SMS_PROVIDER_API_KEY: z.string().optional().default('')
+  SMS_PROVIDER_API_KEY: z.string().optional().default(''),
+  EMAIL_SMTP_HOST: z.string().optional().default(''),
+  EMAIL_SMTP_PORT: z.coerce.number().int().positive().default(587),
+  EMAIL_SMTP_SECURE: z.coerce.boolean().default(false),
+  EMAIL_SMTP_USER: z.string().optional().default(''),
+  EMAIL_SMTP_PASSWORD: z.string().optional().default(''),
+  EMAIL_FROM_ADDRESS: z.string().email().optional().default(''),
+  EMAIL_FROM_NAME: z.string().optional().default('C2 Coffee & Candle')
 });
 
 const parsedEnv = envSchema.safeParse(process.env);

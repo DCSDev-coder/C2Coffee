@@ -7,6 +7,7 @@ import '../services/customer_data_service.dart';
 import '../services/secure_session_service.dart';
 
 import '../utils/app_colors.dart';
+import '../utils/app_notification.dart';
 import 'loading_order_page.dart';
 import '../widgets/app_page_shell.dart';
 
@@ -21,6 +22,7 @@ class TopUpWalletPage extends StatefulWidget {
 
 class _TopUpWalletPageState extends State<TopUpWalletPage> {
   final AppSessionService _session = AppSessionService.instance;
+  static const bool _topUpGatewayEnabled = false;
   int? _selectedAmount;
   final List<int> _presetAmounts = [20, 50, 100];
   bool _isTransactionsLoading = true;
@@ -71,7 +73,8 @@ class _TopUpWalletPageState extends State<TopUpWalletPage> {
 
     try {
       await _session.loadAuthenticatedState(force: forceSessionReload);
-      final accessToken = await SecureSessionService.instance.getValidAccessToken();
+      final accessToken =
+          await SecureSessionService.instance.getValidAccessToken();
       if (accessToken == null || accessToken.isEmpty) {
         throw ApiException(
           'Missing access token.',
@@ -79,7 +82,8 @@ class _TopUpWalletPageState extends State<TopUpWalletPage> {
         );
       }
 
-      final transactions = await CustomerDataService.instance.getWalletTransactions(
+      final transactions =
+          await CustomerDataService.instance.getWalletTransactions(
         accessToken: accessToken,
         limit: 50,
       );
@@ -188,111 +192,104 @@ class _TopUpWalletPageState extends State<TopUpWalletPage> {
         ),
         bodyPadding: EdgeInsets.zero,
         child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildBalanceCard(),
-                    const SizedBox(height: 24),
-                    Text(
-                      'Select amount',
-                      style: TextStyle(
-                        fontFamily: 'Recoleta',
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: brandColor,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: List.generate(_presetAmounts.length, (i) {
-                        final amount = _presetAmounts[i];
-                        final selected = _selectedAmount == i;
-                        return Expanded(
-                          child: GestureDetector(
-                            onTap: () => setState(() => _selectedAmount = i),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 180),
-                              margin: EdgeInsets.only(
-                                right: i < _presetAmounts.length - 1 ? 12 : 0,
-                              ),
-                              padding: const EdgeInsets.symmetric(vertical: 18),
-                              decoration: BoxDecoration(
-                                color: selected
-                                    ? brandColor
-                                    : AppColors.surfaceLight,
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(
-                                  color: selected
-                                      ? brandColor
-                                      : AppColors.border,
-                                  width: 1.5,
-                                ),
-                              ),
-                              child: Column(
-                                children: [
-                                  Text(
-                                    'TOKENS',
-                                    style: TextStyle(
-                                      fontFamily: 'Afacad',
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.bold,
-                                      color: selected
-                                          ? Colors.white70
-                                          : Colors.grey.shade600,
-                                      letterSpacing: 0.5,
-                                    ),
-                                  ),
-                                  Text(
-                                    '$amount',
-                                    style: TextStyle(
-                                      fontFamily: 'Recoleta',
-                                      fontSize: 28,
-                                      fontWeight: FontWeight.bold,
-                                      color: selected
-                                          ? Colors.white
-                                          : brandColor,
-                                      height: 1.1,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        );
-                      }),
-                    ),
-                    const SizedBox(height: 24),
-                    _buildTopUpCard(),
-                    const SizedBox(height: 28),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Recent Transactions',
-                          style: TextStyle(
-                            fontFamily: 'Recoleta',
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            color: brandColor,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    _buildFilterPills(brandColor),
-                    const SizedBox(height: 16),
-                    if (_isTransactionsLoading)
-                      _buildTransactionsLoading()
-                    else if (_transactionsError != null)
-                      _buildTransactionsPlaceholder(
-                          message: _transactionsError!)
-                    else
-                      _buildTransactionsList(),
-                    const SizedBox(height: 40),
-                  ],
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildBalanceCard(),
+              const SizedBox(height: 24),
+              Text(
+                'Select amount',
+                style: TextStyle(
+                  fontFamily: 'Recoleta',
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: brandColor,
                 ),
               ),
+              const SizedBox(height: 16),
+              Row(
+                children: List.generate(_presetAmounts.length, (i) {
+                  final amount = _presetAmounts[i];
+                  final selected = _selectedAmount == i;
+                  return Expanded(
+                    child: GestureDetector(
+                      onTap: () => setState(() => _selectedAmount = i),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        margin: EdgeInsets.only(
+                          right: i < _presetAmounts.length - 1 ? 12 : 0,
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 18),
+                        decoration: BoxDecoration(
+                          color: selected ? brandColor : AppColors.surfaceLight,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: selected ? brandColor : AppColors.border,
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Column(
+                          children: [
+                            Text(
+                              'TOKENS',
+                              style: TextStyle(
+                                fontFamily: 'Afacad',
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: selected
+                                    ? Colors.white70
+                                    : Colors.grey.shade600,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            Text(
+                              '$amount',
+                              style: TextStyle(
+                                fontFamily: 'Recoleta',
+                                fontSize: 28,
+                                fontWeight: FontWeight.bold,
+                                color: selected ? Colors.white : brandColor,
+                                height: 1.1,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ),
+              const SizedBox(height: 24),
+              _buildTopUpCard(),
+              const SizedBox(height: 28),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Recent Transactions',
+                    style: TextStyle(
+                      fontFamily: 'Recoleta',
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: brandColor,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _buildFilterPills(brandColor),
+              const SizedBox(height: 16),
+              if (_isTransactionsLoading)
+                _buildTransactionsLoading()
+              else if (_transactionsError != null)
+                _buildTransactionsPlaceholder(message: _transactionsError!)
+              else
+                _buildTransactionsList(),
+              const SizedBox(height: 40),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -366,15 +363,22 @@ class _TopUpWalletPageState extends State<TopUpWalletPage> {
     });
 
     try {
-      final accessToken = await SecureSessionService.instance.getValidAccessToken();
+      final accessToken =
+          await SecureSessionService.instance.getValidAccessToken();
       if (accessToken == null || accessToken.isEmpty) {
         throw Exception('Missing access token. Please log in again.');
+      }
+
+      if (!_topUpGatewayEnabled) {
+        throw Exception(
+          'Touch \'n Go top-up is not available yet. Please top up at the counter for now.',
+        );
       }
 
       final result = await CustomerDataService.instance.topUpWallet(
         accessToken: accessToken,
         tokenAmount: tokenAmount,
-        provider: 'touch_n_go_sandbox',
+        provider: 'touch_n_go',
       );
 
       await _session.loadAuthenticatedState(force: true);
@@ -382,29 +386,9 @@ class _TopUpWalletPageState extends State<TopUpWalletPage> {
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: AppColors.deepTeal,
-          content: Row(
-            children: [
-              const Icon(Icons.check_circle, color: Colors.white),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'Successfully topped up $tokenAmount tokens (Ref: ${result['topup_ref'] ?? ''})',
-                  style: const TextStyle(
-                    fontFamily: 'Afacad',
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          behavior: SnackBarBehavior.floating,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
+      AppNotification.showSuccess(
+        context,
+        'Successfully topped up $tokenAmount tokens (Ref: ${result['topup_ref'] ?? ''})',
       );
     } catch (e) {
       if (!mounted) return;
@@ -412,17 +396,9 @@ class _TopUpWalletPageState extends State<TopUpWalletPage> {
           .toString()
           .replaceFirst('Exception: ', '')
           .replaceFirst('ApiException: ', '');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: Colors.red.shade700,
-          content: Text(
-            msg,
-            style: const TextStyle(fontFamily: 'Afacad', color: Colors.white),
-          ),
-          behavior: SnackBarBehavior.floating,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
+      AppNotification.showError(
+        context,
+        msg,
       );
     } finally {
       if (mounted) {
@@ -472,9 +448,11 @@ class _TopUpWalletPageState extends State<TopUpWalletPage> {
           ),
           const SizedBox(height: 10),
           Text(
-          tokenAmount == null
-                ? 'Select an amount above to reload your token balance via Touch \'n Go.'
-                : 'Reloading $tokenAmount tokens for RM $rmAmount through Touch \'n Go. Tokens will be credited to your wallet immediately.',
+            !_topUpGatewayEnabled
+                ? 'Online Touch \'n Go top-up is coming soon. For now, please top up your C2 Tokens at the counter.'
+                : tokenAmount == null
+                    ? 'Select an amount above to reload your token balance via Touch \'n Go.'
+                    : 'Reloading $tokenAmount tokens for RM $rmAmount through Touch \'n Go. Tokens will be credited after payment is confirmed.',
             style: const TextStyle(
               fontFamily: 'Afacad',
               fontSize: 15,
@@ -486,7 +464,9 @@ class _TopUpWalletPageState extends State<TopUpWalletPage> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: _selectedAmount == null || _isProcessingTopUp
+              onPressed: !_topUpGatewayEnabled ||
+                      _selectedAmount == null ||
+                      _isProcessingTopUp
                   ? null
                   : _handleTopUp,
               style: ElevatedButton.styleFrom(
@@ -508,9 +488,11 @@ class _TopUpWalletPageState extends State<TopUpWalletPage> {
                       ),
                     )
                   : Text(
-                      _selectedAmount == null
-                          ? 'SELECT AN AMOUNT'
-                          : 'CONTINUE WITH TOUCH \'N GO',
+                      !_topUpGatewayEnabled
+                          ? 'ONLINE TOP-UP COMING SOON'
+                          : _selectedAmount == null
+                              ? 'SELECT AN AMOUNT'
+                              : 'CONTINUE WITH TOUCH \'N GO',
                       style: const TextStyle(
                         fontFamily: 'Recoleta',
                         fontSize: 16,
@@ -702,7 +684,8 @@ class _TopUpWalletPageState extends State<TopUpWalletPage> {
   }
 
   Widget _buildTransactionRow(WalletTransaction transaction) {
-    final createdLabel = DateFormat('dd MMM yyyy, h:mm a').format(transaction.createdAt);
+    final createdLabel =
+        DateFormat('dd MMM yyyy, h:mm a').format(transaction.createdAt);
     final amountLabel =
         '${transaction.isCredit ? '+' : '-'} ${transaction.amount} tokens';
 

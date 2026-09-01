@@ -2,9 +2,13 @@ import { buildFinanceOverview } from '../utils/reporting';
 
 const ACCESS_TOKEN_KEY = 'c2_admin_access_token';
 const REFRESH_TOKEN_KEY = 'c2_admin_refresh_token';
+const ADMIN_REFRESH_PATH = '/v1/admin/auth/refresh';
+const ADMIN_API_BASE_URL = 'https://api.c2coffeeandcandle.com';
+
+let refreshSessionPromise = null;
 
 export function getAdminApiBaseUrl() {
-  return import.meta.env.VITE_API_BASE_URL || 'https://api.c2coffeeandcandle.com';
+  return ADMIN_API_BASE_URL;
 }
 
 export function loadAdminTokens() {
@@ -36,6 +40,91 @@ export function clearAdminTokens() {
   window.localStorage.removeItem(REFRESH_TOKEN_KEY);
 }
 
+function buildAdminError(message, code = 'unexpected_error', status = 500) {
+  const error = new Error(message);
+  error.code = code;
+  error.status = status;
+  return error;
+}
+
+function broadcastAdminSessionExpired() {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.dispatchEvent(new Event('c2-admin-session-expired'));
+}
+
+async function refreshAdminSession() {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  const { refreshToken } = loadAdminTokens();
+  if (!refreshToken) {
+    return null;
+  }
+
+  if (!refreshSessionPromise) {
+    refreshSessionPromise = (async () => {
+      let response;
+      try {
+        response = await fetch(`${getAdminApiBaseUrl()}${ADMIN_REFRESH_PATH}`, {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ refresh_token: refreshToken })
+        });
+      } catch {
+        throw buildAdminError('We could not refresh your admin session. Please try again.', 'network_error', 503);
+      }
+
+      const isJson = response.headers.get('content-type')?.includes('application/json');
+      const body = isJson ? await response.json().catch(() => null) : null;
+
+      if (!response.ok) {
+        const code = body?.error?.code || 'invalid_refresh_token';
+        const message = code === 'invalid_refresh_token'
+          ? 'Your admin session has expired. Please sign in again.'
+          : body?.error?.message || 'We could not refresh your admin session. Please sign in again.';
+
+        clearAdminTokens();
+        broadcastAdminSessionExpired();
+
+        throw buildAdminError(message, code, response.status);
+      }
+
+      saveAdminTokens({
+        accessToken: body?.access_token || '',
+        refreshToken: body?.refresh_token || refreshToken
+      });
+
+      return body;
+    })().finally(() => {
+      refreshSessionPromise = null;
+    });
+  }
+
+  return refreshSessionPromise;
+}
+
+function formatAdminErrorMessage(body, response) {
+  const code = body?.error?.code || 'unexpected_error';
+  const message = body?.error?.message || '';
+
+  if (response.status === 401 || ['invalid_access_token', 'missing_bearer_token', 'session_not_found', 'session_version_mismatch'].includes(code)) {
+    return 'Your admin session has expired. Please sign in again.';
+  }
+
+  if (code === 'unexpected_error') {
+    return 'We could not complete this request. Please try again.';
+  }
+
+  return message || 'We could not complete this request. Please try again.';
+}
+
 export async function loadAdminTenants() {
   const response = await adminRequest('/v1/admin/tenants');
   return response.tenants || [];
@@ -43,6 +132,11 @@ export async function loadAdminTenants() {
 
 export async function loadAdminMenu() {
   return adminRequest('/v1/admin/menu');
+}
+
+export async function loadAdminProductReport(selectedDate = null) {
+  const query = selectedDate ? `?selected_date=${encodeURIComponent(selectedDate.toISOString())}` : '';
+  return adminRequest(`/v1/admin/reports/products${query}`);
 }
 
 export async function loadAdminCustomers() {
@@ -57,8 +151,82 @@ export async function loadAdminRefunds() {
   return adminRequest('/v1/admin/refunds');
 }
 
+export async function loadAdminVouchers() {
+  return adminRequest('/v1/admin/vouchers');
+}
+
+export async function loadAdminAuditLogs(params = {}) {
+  const searchParams = new URLSearchParams();
+
+  if (params.search) {
+    searchParams.set('search', params.search);
+  }
+  if (params.targetType) {
+    searchParams.set('target_type', params.targetType);
+  }
+  if (params.actionCode) {
+    searchParams.set('action_code', params.actionCode);
+  }
+  if (params.selectedDate instanceof Date && !Number.isNaN(params.selectedDate.getTime())) {
+    searchParams.set('selected_date', params.selectedDate.toISOString());
+  }
+  if (params.limit) {
+    searchParams.set('limit', String(params.limit));
+  }
+
+  const query = searchParams.toString();
+  return adminRequest(`/v1/admin/audit-logs${query ? `?${query}` : ''}`);
+}
+
+export async function loadAdminMarketingBanners(params = {}) {
+  const searchParams = new URLSearchParams();
+
+  if (params.search) {
+    searchParams.set('search', params.search);
+  }
+  if (params.bannerType) {
+    searchParams.set('banner_type', params.bannerType);
+  }
+  if (params.placement) {
+    searchParams.set('placement', params.placement);
+  }
+  if (params.isActive !== undefined && params.isActive !== null && params.isActive !== '') {
+    searchParams.set('is_active', params.isActive ? '1' : '0');
+  }
+
+  const query = searchParams.toString();
+  return adminRequest(`/v1/admin/marketing/banners${query ? `?${query}` : ''}`);
+}
+
+export async function createAdminMarketingBanner(payload) {
+  return adminRequest('/v1/admin/marketing/banners', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function updateAdminMarketingBanner(bannerId, payload) {
+  return adminRequest(`/v1/admin/marketing/banners/${bannerId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function deleteAdminMarketingBanner(bannerId) {
+  return adminRequest(`/v1/admin/marketing/banners/${bannerId}`, {
+    method: 'DELETE'
+  });
+}
+
 export async function loadAdminLoyaltyOverview(limit = 50) {
   return adminRequest(`/v1/admin/loyalty/overview?limit=${encodeURIComponent(limit)}`);
+}
+
+export async function adjustAdminCustomerTokens(customerId, payload) {
+  return adminRequest(`/v1/admin/loyalty/customers/${customerId}/adjustment`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
 }
 
 export async function loadAdminFinanceOverview() {
@@ -189,7 +357,7 @@ export async function uploadAdminMenuImage(file) {
   });
 }
 
-export async function adminRequest(path, options = {}) {
+export async function adminRequest(path, options = {}, retryOnUnauthorized = true) {
   const { headers: optionHeaders, ...requestOptions } = options;
   const { accessToken } = loadAdminTokens();
   const headers = {
@@ -208,21 +376,36 @@ export async function adminRequest(path, options = {}) {
     headers['Authorization'] = `Bearer ${accessToken}`;
   }
 
-  const response = await fetch(`${getAdminApiBaseUrl()}${path}`, {
-    ...requestOptions,
-    headers
-  });
+  let response;
+  try {
+    response = await fetch(`${getAdminApiBaseUrl()}${path}`, {
+      ...requestOptions,
+      headers
+    });
+  } catch {
+    throw buildAdminError('We could not reach the admin service. Please check your connection and try again.', 'network_error', 503);
+  }
 
   const isJson = response.headers.get('content-type')?.includes('application/json');
   const body = isJson ? await response.json().catch(() => null) : null;
 
+  if (response.status === 401 && retryOnUnauthorized && path !== ADMIN_REFRESH_PATH) {
+    try {
+      await refreshAdminSession();
+      return adminRequest(path, options, false);
+    } catch (refreshError) {
+      if (refreshError instanceof Error) {
+        throw refreshError;
+      }
+
+      throw buildAdminError('Your admin session has expired. Please sign in again.', 'invalid_refresh_token', 401);
+    }
+  }
+
   if (!response.ok) {
-    const message = body?.error?.message || 'Unexpected admin API error.';
+    const message = formatAdminErrorMessage(body, response);
     const code = body?.error?.code || 'unexpected_error';
-    const error = new Error(message);
-    error.code = code;
-    error.status = response.status;
-    throw error;
+    throw buildAdminError(message, code, response.status);
   }
 
   return body;

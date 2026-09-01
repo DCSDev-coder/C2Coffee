@@ -53,6 +53,12 @@ class _HomePageState extends State<HomePage> {
   Timer? _carouselTimer;
   int _currentBannerIndex = 0;
 
+  List<HomeBanner> get _sortedHomeBanners {
+    final banners = _session.homeBanners.toList();
+    banners.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    return banners;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -61,10 +67,11 @@ class _HomePageState extends State<HomePage> {
       try {
         await _session.loadAuthenticatedState();
       } catch (_) {}
+      if (!mounted) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _showPosterIfNeeded());
     });
     _carouselTimer = Timer.periodic(const Duration(seconds: 4), (_) {
-      final banners =
-          _session.homeBanners.where((banner) => banner.appearsOnHome).toList();
+      final banners = _sortedHomeBanners;
       if (!_pageController.hasClients || banners.isEmpty) return;
       _currentBannerIndex = (_currentBannerIndex + 1) % banners.length;
       _pageController.animateToPage(
@@ -73,7 +80,6 @@ class _HomePageState extends State<HomePage> {
         curve: Curves.easeInOut,
       );
     });
-    WidgetsBinding.instance.addPostFrameCallback((_) => _showPosterIfNeeded());
   }
 
   @override
@@ -105,7 +111,28 @@ class _HomePageState extends State<HomePage> {
   void _showPosterIfNeeded() {
     if (_hasShownPoster || !mounted) return;
     _hasShownPoster = true;
-    showPosterPopup(context);
+    final banners = _sortedHomeBanners
+        .where((banner) => banner.floatingPriority)
+        .toList();
+    if (banners.isEmpty) {
+      return;
+    }
+
+    Future<void> showSequence(int index) async {
+      if (!mounted || index >= banners.length) {
+        return;
+      }
+
+      await showPosterPopup(
+        context,
+        banner: banners[index],
+        onClose: () {
+          unawaited(showSequence(index + 1));
+        },
+      );
+    }
+
+    unawaited(showSequence(0));
   }
 
   void _onBottomNavTapped(int index) {
@@ -474,8 +501,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildHeroBanner() {
-    final banners =
-        _session.homeBanners.where((banner) => banner.appearsOnHome).toList();
+    final banners = _sortedHomeBanners;
 
     if (banners.isEmpty) {
       return Padding(
@@ -516,51 +542,27 @@ class _HomePageState extends State<HomePage> {
                   setState(() => _currentBannerIndex = index),
               itemBuilder: (context, index) {
                 final banner = banners[index];
-                return Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    _buildBannerImage(banner.imageSource),
-                    Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.transparent,
-                            Colors.black.withValues(alpha: 0.55),
-                          ],
+                return GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => _handleBannerTap(banner),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      _buildBannerImage(banner.imageSource),
+                      Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              Colors.black.withValues(alpha: 0.18),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(18),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            banner.title,
-                            style: const TextStyle(
-                              fontFamily: 'Recoleta',
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            banner.subtitle,
-                            style: const TextStyle(
-                              fontFamily: 'Afacad',
-                              fontSize: 14,
-                              color: Colors.white,
-                              height: 1.35,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 );
               },
             ),
@@ -594,19 +596,121 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildBannerImage(String source) {
-    if (source.startsWith('http://') || source.startsWith('https://')) {
+    final resolvedSource = resolveCatalogImageSource(source);
+    if (resolvedSource == null) {
+      return _buildBannerFallback();
+    }
+
+    if (resolvedSource.startsWith('http://') ||
+        resolvedSource.startsWith('https://')) {
       return Image.network(
-        source,
+        resolvedSource,
         width: double.infinity,
         fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => _buildBannerFallback(),
       );
     }
 
     return Image.asset(
-      source,
+      resolvedSource,
       width: double.infinity,
       fit: BoxFit.cover,
+      errorBuilder: (context, error, stackTrace) => _buildBannerFallback(),
     );
+  }
+
+  Widget _buildBannerFallback() {
+    return Container(
+      color: const Color(0xFFF6F7F8),
+      alignment: Alignment.center,
+      child: Image.asset(
+        'assets/images/c2_logo.png',
+        width: 72,
+        height: 72,
+        fit: BoxFit.contain,
+      ),
+    );
+  }
+
+  void _handleBannerTap(HomeBanner banner) {
+    if (banner.bannerType == 'event') {
+      if (banner.isEventLive) {
+        CustomBottomNav.switchTab(context, const MenuPage());
+      } else {
+        CustomBottomNav.switchTab(
+          context,
+          const ProfilePage(initialScrollToCalendar: true),
+        );
+      }
+      return;
+    }
+
+    if (banner.bannerType == 'voucher') {
+      if (banner.destinationType == 'reward_section') {
+        CustomBottomNav.switchTab(context, const RewardsPage());
+      } else {
+        CustomBottomNav.switchTab(context, const MenuPage());
+      }
+      return;
+    }
+
+    if (banner.bannerType == 'new_item') {
+      final targetItem = _findLegacyMenuItemByCode(banner.targetValue);
+      if (targetItem != null) {
+        InteractiveFillingLoader.show(
+          context,
+          targetPage: _detailPageForItem(targetItem),
+        );
+      } else {
+        CustomBottomNav.switchTab(context, const MenuPage());
+      }
+      return;
+    }
+
+    switch (banner.destinationType) {
+      case 'reward_section':
+        CustomBottomNav.switchTab(context, const RewardsPage());
+        break;
+      case 'calendar':
+        CustomBottomNav.switchTab(
+          context,
+          const ProfilePage(initialScrollToCalendar: true),
+        );
+        break;
+      case 'menu':
+      default:
+        CustomBottomNav.switchTab(context, const MenuPage());
+        break;
+    }
+  }
+
+  Map<String, dynamic>? _findLegacyMenuItemByCode(String? code) {
+    final targetCode = code?.trim();
+    if (targetCode == null || targetCode.isEmpty) {
+      return null;
+    }
+
+    for (final category in _session.menuCategories) {
+      for (final item in category.items) {
+        if (item.code == targetCode && item.isAvailable) {
+          return CatalogPresentation.toLegacyItem(
+            item,
+            category.code,
+            category.name,
+          );
+        }
+      }
+    }
+
+    return null;
+  }
+
+  Widget _detailPageForItem(Map<String, dynamic> item) {
+    final isDrink = item['isDrink'] as bool? ?? false;
+    if (isDrink) {
+      return MontBrogaPage(item: item);
+    }
+    return SimpleProductDetailPage(item: item);
   }
 
   Widget _buildActionButtons() {

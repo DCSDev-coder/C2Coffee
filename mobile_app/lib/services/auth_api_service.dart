@@ -17,6 +17,35 @@ class ApiException implements Exception {
   String toString() => message;
 }
 
+String friendlyAuthErrorMessage(
+  ApiException error, {
+  required String fallback,
+}) {
+  final message = error.message.trim();
+
+  switch (error.code) {
+    case 'signup_phone_taken':
+      return 'That phone number is already in use. Please choose another one.';
+    case 'signup_email_taken':
+      return 'That email address is already in use. Please choose another one.';
+    case 'signup_phone_email_conflict':
+      return 'That phone number and email are already in use. Please choose different details.';
+    case 'otp_email_required':
+      return 'Please add an email address before requesting the verification code.';
+    case 'otp_delivery_failed':
+      return 'We could not send the verification code right now. Please try again shortly.';
+    case 'otp_cooldown_active':
+      return error.message;
+    case 'validation_error':
+      return message.isNotEmpty ? message : fallback;
+    default:
+      if (RegExp(r'^Request failed with status \d+\.?$').hasMatch(message)) {
+        return fallback;
+      }
+      return message.isNotEmpty ? message : fallback;
+  }
+}
+
 class OtpRequestResult {
   final String requestId;
   final String channel;
@@ -168,16 +197,15 @@ class AuthApiService {
   Future<OtpRequestResult> requestOtp({
     required String phone,
     required String deviceFingerprint,
-    String preferredChannel = 'whatsapp',
+    String? email,
   }) async {
-    final response = await _post(
-      '/auth/request-otp',
-      body: {
-        'phone': phone,
-        'device_fingerprint': deviceFingerprint,
-        'preferred_channel': preferredChannel,
-      },
-    );
+    final body = <String, dynamic>{
+      'phone': phone,
+      'device_fingerprint': deviceFingerprint,
+      if (email != null && email.trim().isNotEmpty) 'email': email.trim(),
+    };
+
+    final response = await _post('/auth/request-otp', body: body);
 
     return OtpRequestResult(
       requestId: response['request_id'] as String,
@@ -185,6 +213,19 @@ class AuthApiService {
       expiresInSeconds: (response['expires_in_seconds'] as num).toInt(),
       resendInSeconds: (response['resend_in_seconds'] as num).toInt(),
       debugOtpCode: response['debug_otp_code'] as String?,
+    );
+  }
+
+  Future<void> checkSignupIdentity({
+    required String phone,
+    required String email,
+  }) async {
+    await _post(
+      '/auth/check-signup-identity',
+      body: {
+        'phone': phone.trim(),
+        'email': email.trim(),
+      },
     );
   }
 

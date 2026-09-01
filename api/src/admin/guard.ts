@@ -34,7 +34,7 @@ export async function authenticateAdminRequest(
   const authorization = request.headers.authorization;
 
   if (!authorization?.startsWith('Bearer ')) {
-    throw new ApiError(401, 'missing_bearer_token', 'Missing Bearer token.');
+    throw new ApiError(401, 'missing_bearer_token', 'Your admin session is missing. Please sign in again.');
   }
 
   const token = authorization.slice('Bearer '.length).trim();
@@ -43,7 +43,7 @@ export async function authenticateAdminRequest(
   try {
     payload = await verifyAdminAccessToken(token);
   } catch {
-    throw new ApiError(401, 'invalid_access_token', 'Access token is invalid or expired.');
+    throw new ApiError(401, 'invalid_access_token', 'Your admin session has expired. Please sign in again.');
   }
 
   const [rows] = await mysqlPool.query<
@@ -95,11 +95,11 @@ export async function authenticateAdminRequest(
 
   const session = rows[0];
   if (!session) {
-    throw new ApiError(401, 'session_not_found', 'Session is invalid or expired.');
+    throw new ApiError(401, 'session_not_found', 'Your admin session is no longer available. Please sign in again.');
   }
 
   if (session.access_token_version !== payload.accessTokenVersion) {
-    throw new ApiError(401, 'session_version_mismatch', 'Session is no longer valid.');
+    throw new ApiError(401, 'session_version_mismatch', 'Your admin session has been refreshed elsewhere. Please sign in again.');
   }
 
   if (!['active', 'invited'].includes(session.status)) {
@@ -133,6 +133,34 @@ export async function authenticateAdminRequest(
     mustChangePassword: session.must_change_password === 1,
     mustSetEmail: session.must_set_email === 1 || !session.email
   };
+
+  enforceBaristaRouteAccess(request);
+}
+
+function enforceBaristaRouteAccess(request: FastifyRequest): void {
+  const roles = request.adminAuth.roles;
+  const hasBroaderAdminRole = roles.some((role) => role !== 'barista');
+  if (!roles.includes('barista') || hasBroaderAdminRole) {
+    return;
+  }
+
+  const path = request.url.split('?')[0];
+  const canReadOrders = request.method === 'GET' && path === '/v1/admin/orders';
+  const canReadBaristaRoster = request.method === 'GET' && path === '/v1/admin/baristas';
+  const canUpdateOrderStatus =
+    request.method === 'PATCH' &&
+    /^\/v1\/admin\/orders\/[^/]+\/status$/.test(path);
+  const canUseOwnSession =
+    (request.method === 'GET' && path === '/v1/admin/auth/me') ||
+    (request.method === 'POST' && path === '/v1/admin/auth/logout');
+
+  if (!canReadOrders && !canReadBaristaRoster && !canUpdateOrderStatus && !canUseOwnSession) {
+    throw new ApiError(
+      403,
+      'barista_route_forbidden',
+      'Barista accounts can only select staff and view or update orders.'
+    );
+  }
 }
 
 export function requireAdminRole(request: FastifyRequest, roleCode: string): void {

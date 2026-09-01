@@ -10,9 +10,6 @@ export type OrderLifecycleStatus =
   | 'cancelled'
   | 'refunded';
 
-export const ORDER_PREPARING_DELAY_MS = 8_000;
-export const ORDER_READY_DELAY_MS = 60_000;
-
 export type OrderLifecycleSource = {
   status: string;
   createdAt: Date;
@@ -40,35 +37,11 @@ export function resolveOrderLifecycleStatus(
       return 'preparing';
     case 'accepted':
       return 'accepted';
-    case 'paid':
     default:
-      break;
+      // Customer-facing progress must follow the persisted workflow. A paid
+      // order remains ordered until a barista explicitly starts preparation.
+      return 'paid';
   }
-
-  if (order.collectedAt) {
-    return 'collected';
-  }
-
-  if (order.readyAt) {
-    return 'ready_for_pickup';
-  }
-
-  if (order.acceptedAt) {
-    return 'accepted';
-  }
-
-  const referenceTime = order.paidAt ?? order.createdAt;
-  const ageMs = Date.now() - referenceTime.getTime();
-
-  if (ageMs >= ORDER_READY_DELAY_MS) {
-    return 'ready_for_pickup';
-  }
-
-  if (ageMs >= ORDER_PREPARING_DELAY_MS) {
-    return 'preparing';
-  }
-
-  return 'paid';
 }
 
 export function isCustomerActiveOrderStatus(status: string): boolean {

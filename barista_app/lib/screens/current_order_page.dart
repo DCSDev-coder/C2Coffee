@@ -18,13 +18,88 @@ class CurrentOrderPage extends StatefulWidget {
 class _CurrentOrderPageState extends State<CurrentOrderPage> {
   final Color darkGreen = const Color(0xFF304A3A);
   final Color beigeColor = const Color(0xFFD3B17D);
+  final Set<String> _updatingOrderIds = <String>{};
+
+  Future<void> _refreshOrders() async {
+    final result = await ApiService.fetchOrders();
+    if (!result.isSuccess) {
+      globalOrderSyncError.value = result.errorMessage;
+      return;
+    }
+
+    final orders = result.orders;
+    globalCurrentOrders.value = orders
+        .where(
+          (order) =>
+              order.status != OrderStatus.completed &&
+              order.status != OrderStatus.readyForPickup,
+        )
+        .toList();
+    globalHistoryOrders.value = orders
+        .where((order) => order.status == OrderStatus.completed)
+        .toList();
+    globalOrderSyncError.value = null;
+    globalLastOrderSync.value = DateTime.now();
+  }
+
+  Future<void> _startPreparing(CurrentOrder order) async {
+    if (_updatingOrderIds.contains(order.orderId)) return;
+    setState(() => _updatingOrderIds.add(order.orderId));
+
+    final result = await ApiService.updateOrderStatus(
+      order.orderId,
+      'preparing',
+    );
+    if (!mounted) return;
+
+    setState(() => _updatingOrderIds.remove(order.orderId));
+    if (!result.isSuccess) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(result.errorMessage!)));
+      return;
+    }
+
+    order.status = OrderStatus.preparing;
+    order.baristaName = ApiService.activeBaristaName;
+    globalCurrentOrders.value = List<CurrentOrder>.from(
+      globalCurrentOrders.value,
+    );
+  }
+
+  void _openOrderDetails(CurrentOrder order) {
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            OrderDetailsPage(
+              orderId: order.orderId,
+              customerDetails: order.customerDetails,
+              baristaName: order.baristaName,
+              items: order.items,
+              onSettingsTap: widget.onSettingsTap,
+            ),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          const begin = Offset(1.0, 0.0);
+          const end = Offset.zero;
+          final tween = Tween(
+            begin: begin,
+            end: end,
+          ).chain(CurveTween(curve: Curves.easeOutCubic));
+          return SlideTransition(
+            position: animation.drive(tween),
+            child: child,
+          );
+        },
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<List<CurrentOrder>>(
       valueListenable: globalCurrentOrders,
       builder: (context, allOrders, _) {
-
         final filteredOrders = allOrders.toList();
 
         return Scaffold(
@@ -34,56 +109,43 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
               Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 800),
-                child: RefreshIndicator(
-                  color: darkGreen,
-                  onRefresh: () async {
-                    try {
-                      final fetchedOrders = await ApiService.fetchOrders();
-                      if (fetchedOrders.isNotEmpty) {
-                        globalCurrentOrders.value = fetchedOrders
-                            .where((o) => o.status != OrderStatus.completed && o.status != OrderStatus.readyForPickup)
-                            .toList();
-                        globalHistoryOrders.value = fetchedOrders
-                            .where((o) => o.status == OrderStatus.completed)
-                            .toList();
-                      }
-                    } catch (e) {
-                      debugPrint('Failed to fetch orders: $e');
-                    }
-                  },
-                  child: ListView(
-                    padding: const EdgeInsets.only(
-                      top: 100,
-                      bottom: 180,
-                    ), // padding to scroll past the header and floating bottom bar
-                    children: [
-                      // Content
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24.0,
-                          vertical: 16.0,
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            // Title & Active Barista Profile
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Current Order',
-                                        style: TextStyle(
-                                          color: darkGreen,
-                                          fontSize: 32,
-                                          fontWeight: FontWeight.bold,
+                  child: RefreshIndicator(
+                    color: darkGreen,
+                    onRefresh: _refreshOrders,
+                    child: ListView(
+                      padding: const EdgeInsets.only(
+                        top: 100,
+                        bottom: 180,
+                      ), // padding to scroll past the header and floating bottom bar
+                      children: [
+                        // Content
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24.0,
+                            vertical: 16.0,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              // Title & Active Barista Profile
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Current Order',
+                                          style: TextStyle(
+                                            color: darkGreen,
+                                            fontSize: 32,
+                                            fontWeight: FontWeight.bold,
+                                          ),
                                         ),
-                                      ),
                                         Text(
                                           '${allOrders.length} active orders',
                                           style: TextStyle(
@@ -92,141 +154,104 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
                                             fontWeight: FontWeight.bold,
                                           ),
                                         ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
-                                ),
-                                ActiveBaristaProfile(
-                                  onTap: widget.onSettingsTap,
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 24.0),
-
-
-
-
-
-
-                            if (filteredOrders.isEmpty)
-                              Center(
-                                child: Padding(
-                                  padding: const EdgeInsets.all(32.0),
-                                  child: Column(
-                                    children: [
-                                      Icon(
-                                        Icons.search_off,
-                                        size: 48,
-                                        color: Colors.grey.shade300,
+                                  ActiveBaristaProfile(
+                                    onTap: widget.onSettingsTap,
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 24.0),
+                              ValueListenableBuilder<String?>(
+                                valueListenable: globalOrderSyncError,
+                                builder: (context, syncError, _) {
+                                  if (syncError == null) {
+                                    return const SizedBox.shrink();
+                                  }
+                                  return Container(
+                                    margin: const EdgeInsets.only(bottom: 16),
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFFF4E5),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: const Color(0xFFD3B17D),
                                       ),
-                                      const SizedBox(height: 16),
-                                      Text(
-                                        'No orders found.',
-                                        style: TextStyle(
-                                          color: Colors.grey.shade500,
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.cloud_off_outlined,
+                                          color: Color(0xFF8A5A13),
                                         ),
-                                      ),
-                                    ],
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: Text(
+                                            '$syncError Showing the last successful queue.',
+                                          ),
+                                        ),
+                                        TextButton(
+                                          onPressed: _refreshOrders,
+                                          child: const Text('Retry'),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
+
+                              if (filteredOrders.isEmpty)
+                                Center(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(32.0),
+                                    child: Column(
+                                      children: [
+                                        Icon(
+                                          Icons.search_off,
+                                          size: 48,
+                                          color: Colors.grey.shade300,
+                                        ),
+                                        const SizedBox(height: 16),
+                                        Text(
+                                          'No orders found.',
+                                          style: TextStyle(
+                                            color: Colors.grey.shade500,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
-                                ),
-                              )
-                            else
-                              ...filteredOrders.map((order) {
-                                return OrderCard(
-                                  timeDate: order.timeDate,
-                                  status: order.status,
-                                  orderId: order.orderId,
-                                  customerDetails: order.customerDetails,
-                                  items: order.items,
-                                  onActionPressed: () {
-                                    Navigator.push(
-                                      context,
-                                      PageRouteBuilder(
-                                        pageBuilder:
-                                            (
-                                              context,
-                                              animation,
-                                              secondaryAnimation,
-                                            ) => OrderDetailsPage(
-                                              orderId: order.orderId,
-                                              customerDetails:
-                                                  order.customerDetails,
-                                              items: order.items,
-                                              onSettingsTap:
-                                                  widget.onSettingsTap,
-                                            ),
-                                        transitionsBuilder:
-                                            (
-                                              context,
-                                              animation,
-                                              secondaryAnimation,
-                                              child,
-                                            ) {
-                                              const begin = Offset(1.0, 0.0);
-                                              const end = Offset.zero;
-                                              const curve = Curves.easeOutCubic;
-                                              var tween = Tween(
-                                                begin: begin,
-                                                end: end,
-                                              ).chain(CurveTween(curve: curve));
-                                              return SlideTransition(
-                                                position: animation.drive(
-                                                  tween,
-                                                ),
-                                                child: child,
-                                              );
-                                            },
-                                      ),
-                                    );
-                                  },
-                                  onTap: () {
-                                    Navigator.push(
-                                      context,
-                                      PageRouteBuilder(
-                                        pageBuilder:
-                                            (
-                                              context,
-                                              animation,
-                                              secondaryAnimation,
-                                            ) => OrderDetailsPage(
-                                              orderId: order.orderId,
-                                              customerDetails:
-                                                  order.customerDetails,
-                                              items: order.items,
-                                              onSettingsTap:
-                                                  widget.onSettingsTap,
-                                            ),
-                                        transitionsBuilder:
-                                            (
-                                              context,
-                                              animation,
-                                              secondaryAnimation,
-                                              child,
-                                            ) {
-                                              const begin = Offset(1.0, 0.0);
-                                              const end = Offset.zero;
-                                              const curve = Curves.easeOutCubic;
-                                              var tween = Tween(
-                                                begin: begin,
-                                                end: end,
-                                              ).chain(CurveTween(curve: curve));
-                                              return SlideTransition(
-                                                position: animation.drive(
-                                                  tween,
-                                                ),
-                                                child: child,
-                                              );
-                                            },
-                                      ),
-                                    );
-                                  },
-                                );
-                              }),
-                          ],
+                                )
+                              else
+                                ...filteredOrders.map((order) {
+                                  return OrderCard(
+                                    timeDate: order.timeDate,
+                                    status: order.status,
+                                    orderId: order.orderId,
+                                    customerDetails: order.customerDetails,
+                                    baristaName: order.baristaName,
+                                    items: order.items,
+                                    isActionLoading: _updatingOrderIds.contains(
+                                      order.orderId,
+                                    ),
+                                    onActionPressed: () {
+                                      if (order.status ==
+                                          OrderStatus.newOrder) {
+                                        _startPreparing(order);
+                                      } else {
+                                        _openOrderDetails(order);
+                                      }
+                                    },
+                                    onTap: () => _openOrderDetails(order),
+                                  );
+                                }),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
                 ),
               ),
               // Dark Green Top Header (Fixed)
@@ -257,10 +282,7 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
                     children: [
                       Row(
                         children: [
-                          Image.asset(
-                            'assets/images/c2_logo.png',
-                            height: 40,
-                          ),
+                          Image.asset('assets/images/c2_logo.png', height: 40),
                         ],
                       ),
                       const BlinkingOnlineIndicator(),

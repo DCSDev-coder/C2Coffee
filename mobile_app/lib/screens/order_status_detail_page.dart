@@ -1,203 +1,610 @@
-import 'package:flutter/material.dart';
 import 'dart:async';
+
+import 'package:flutter/material.dart';
+
+import '../services/app_session_service.dart';
+import '../services/auth_api_service.dart';
+import '../services/checkout_api_service.dart';
+import '../services/customer_data_service.dart';
+import '../services/secure_session_service.dart';
 import '../utils/app_colors.dart';
+import '../utils/app_notification.dart';
+import '../widgets/app_page_shell.dart';
 
 class OrderStatusDetailPage extends StatefulWidget {
-  const OrderStatusDetailPage({super.key});
+  final CustomerOrder order;
+
+  const OrderStatusDetailPage({
+    super.key,
+    required this.order,
+  });
 
   @override
   State<OrderStatusDetailPage> createState() => _OrderStatusDetailPageState();
 }
 
 class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
-  int _currentPhase = 0;
-  Timer? _timer;
-
-  Color get orangeColor => AppColors.deepTeal;
-  final Color bgColor = Colors.white;
+  late CustomerOrder _order;
+  Timer? _pollTimer;
+  bool _isRefreshing = false;
+  bool _isCollecting = false;
+  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
-    _startSimulation();
-  }
-
-  void _startSimulation() {
-    // Start at Phase 0 (Received)
-    _timer = Timer.periodic(const Duration(seconds: 4), (timer) {
-      if (_currentPhase < 2) {
-        setState(() {
-          _currentPhase++;
-        });
-      } else {
-        timer.cancel();
-      }
+    _order = widget.order;
+    _startPolling();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _refreshOrder(silent: true);
     });
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
+    _pollTimer?.cancel();
     super.dispose();
   }
 
-  Widget _buildContent() {
-    switch (_currentPhase) {
-      case 0: // Received
-        return _buildStateContent(
-          timeEstimate: '1 - 2 MINUTES',
-          imagePath: 'assets/images/status received.png',
-          title: 'Order Received . . .',
-          description:
-              "We've successfully received your order and payment. Your selected barista will begin preparing your drink shortly.",
+  void _startPolling() {
+    _pollTimer?.cancel();
+    if (!_order.isActive) return;
+
+    _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      _refreshOrder(silent: true);
+    });
+  }
+
+  Future<void> _refreshOrder({bool silent = false}) async {
+    if (_isRefreshing) return;
+    if (!silent) {
+      setState(() {
+        _errorMessage = null;
+      });
+    }
+
+    _isRefreshing = true;
+    try {
+      final accessToken =
+          await SecureSessionService.instance.getValidAccessToken();
+      if (accessToken == null || accessToken.isEmpty) {
+        throw ApiException(
+          'Missing access token.',
+          code: 'missing_access_token',
         );
-      case 1: // Brewing
-        return _buildStateContent(
-          timeEstimate: '3 - 5 MINUTES',
-          imagePath: 'assets/images/status brew.png',
-          title: 'Brewing . . .',
-          description:
-              "Your drink is currently being handcrafted by our barista. We're making sure every cup is brewed to perfection.",
-        );
-      case 2: // Finished
-      default:
-        return _buildStateContent(
-          timeEstimate: 'Finished',
-          imagePath: 'assets/images/status bag.png',
-          title: 'Ready for pickup!',
-          description:
-              "Great news! Your order is ready. Head over to the pickup counter and enjoy your freshly crafted beverage.",
-        );
+      }
+
+      final snapshot = await CustomerDataService.instance.getOrders(
+        accessToken: accessToken,
+        limit: 100,
+      );
+      AppSessionService.instance.syncBackendOrderState(
+        snapshot.orders.where((order) => order.isActive).toList(),
+      );
+
+      CustomerOrder? latest;
+      for (final order in snapshot.orders) {
+        if (order.id == _order.id) {
+          latest = order;
+          break;
+        }
+      }
+
+      if (!mounted) return;
+      if (latest != null) {
+        setState(() {
+          _order = latest!;
+          _errorMessage = null;
+        });
+        if (!_order.isActive) {
+          _pollTimer?.cancel();
+        }
+      }
+    } on ApiException catch (error) {
+      if (!mounted || silent) return;
+      setState(() {
+        _errorMessage = _friendlyMessage(error);
+      });
+    } catch (_) {
+      if (!mounted || silent) return;
+      setState(() {
+        _errorMessage = 'Unable to refresh this order right now.';
+      });
+    } finally {
+      _isRefreshing = false;
     }
   }
 
-  Widget _buildStateContent({
-    required String timeEstimate,
-    required String imagePath,
-    required String title,
-    required String description,
-  }) {
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 500),
-      child: Container(
-        key: ValueKey<String>(title),
-        padding: const EdgeInsets.symmetric(horizontal: 40),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              timeEstimate,
-              style: TextStyle(
-                fontFamily: 'Recoleta',
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-                color: orangeColor,
-              ),
-            ),
-            const SizedBox(height: 40),
-            // Actual image from assets
-            Center(
-              child: Image.asset(
-                imagePath,
-                height: 250,
-                width:
-                    250, // Force square bounds to ensure consistent centering
-                alignment: Alignment.center,
-                fit: BoxFit.contain,
-              ),
-            ),
-            const SizedBox(height: 50),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontFamily: 'Recoleta',
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-                color: orangeColor,
-              ),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              height: 80, // Fixed height to prevent layout jumps
-              child: Text(
-                description,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontFamily: 'Afacad',
-                  fontSize: 18,
-                  color: Colors.black87,
-                  height: 1.4,
-                ),
-              ),
-            ),
-          ],
+  Future<void> _confirmCollect() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Text(
+          'Confirm pickup?',
+          style: TextStyle(
+            fontFamily: 'Recoleta',
+            fontWeight: FontWeight.bold,
+            color: AppColors.deepTeal,
+          ),
         ),
+        content: const Text(
+          'Only mark this order as collected after you have received it from the counter.',
+          style: TextStyle(fontFamily: 'Afacad', height: 1.35),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                fontFamily: 'Afacad',
+                color: AppColors.deepTeal,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.deepTeal,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: const Text(
+              'I have collected it',
+              style: TextStyle(fontFamily: 'Afacad'),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _collectOrder();
+    }
+  }
+
+  Future<void> _collectOrder() async {
+    if (_isCollecting) return;
+    setState(() {
+      _isCollecting = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final accessToken =
+          await SecureSessionService.instance.getValidAccessToken();
+      if (accessToken == null || accessToken.isEmpty) {
+        throw ApiException(
+          'Missing access token.',
+          code: 'missing_access_token',
+        );
+      }
+
+      await CheckoutApiService.instance.collectOrder(
+        accessToken: accessToken,
+        orderId: _order.id,
+      );
+      await _refreshOrder(silent: true);
+
+      if (!mounted) return;
+      AppNotification.showSuccess(
+        context,
+        'Order marked as collected.',
+      );
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      final msg = _friendlyMessage(error);
+      setState(() {
+        _errorMessage = msg;
+      });
+      AppNotification.showError(context, msg);
+    } catch (_) {
+      if (!mounted) return;
+      const msg = 'Unable to mark this order as collected right now.';
+      setState(() {
+        _errorMessage = msg;
+      });
+      AppNotification.showError(context, msg);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isCollecting = false;
+        });
+      }
+    }
+  }
+
+  String _friendlyMessage(ApiException error) {
+    switch (error.code) {
+      case 'missing_access_token':
+      case 'missing_bearer_token':
+      case 'invalid_access_token':
+      case 'session_not_found':
+      case 'session_version_mismatch':
+      case 'user_not_active':
+        return 'Your session has expired. Please log in again.';
+      case 'order_not_ready_for_collection':
+        return 'This order is not ready for pickup yet.';
+      default:
+        return error.message;
+    }
+  }
+
+  String _orderTitle() {
+    final orderNumber =
+        _order.dailyOrderNumber > 0 ? _order.dailyOrderNumber : _order.id;
+    return 'Order #$orderNumber';
+  }
+
+  String _statusTitle(String status) {
+    switch (status) {
+      case 'pending_payment':
+        return 'Order received';
+      case 'paid':
+        return 'Payment confirmed';
+      case 'accepted':
+        return 'Order accepted';
+      case 'preparing':
+        return 'Brewing';
+      case 'ready_for_pickup':
+        return 'Ready for pickup';
+      case 'collected':
+        return 'Collected';
+      case 'cancelled':
+        return 'Cancelled';
+      case 'refunded':
+        return 'Refunded';
+      default:
+        return 'Order update';
+    }
+  }
+
+  String _statusDescription(String status) {
+    switch (status) {
+      case 'pending_payment':
+        return 'We received your order and are confirming the payment status.';
+      case 'paid':
+        return 'Your token payment is confirmed. The store will accept the order shortly.';
+      case 'accepted':
+        return 'The store accepted your order and will start preparing it.';
+      case 'preparing':
+        return 'Your drink is being prepared by the barista.';
+      case 'ready_for_pickup':
+        return 'Your order is ready. Please collect it at the pickup counter.';
+      case 'collected':
+        return 'This order has been marked as collected.';
+      case 'cancelled':
+        return 'This order was cancelled. Contact support if you need help.';
+      case 'refunded':
+        return 'This order was refunded. Check your wallet history for any token return.';
+      default:
+        return 'Open My Order for the latest details.';
+    }
+  }
+
+  String _estimateLabel(String status) {
+    switch (status) {
+      case 'pending_payment':
+        return 'CONFIRMING';
+      case 'paid':
+        return 'WAITING FOR STORE';
+      case 'accepted':
+        return 'IN QUEUE';
+      case 'preparing':
+        return 'BREWING NOW';
+      case 'ready_for_pickup':
+        return 'READY';
+      case 'collected':
+        return 'DONE';
+      case 'cancelled':
+        return 'CANCELLED';
+      case 'refunded':
+        return 'REFUNDED';
+      default:
+        return 'UPDATING';
+    }
+  }
+
+  void _leavePage() {
+    Navigator.of(context).maybePop(_order);
+  }
+
+  String _imagePath(String status) {
+    switch (status) {
+      case 'preparing':
+        return 'assets/images/status brew.png';
+      case 'ready_for_pickup':
+      case 'collected':
+        return 'assets/images/status bag.png';
+      default:
+        return 'assets/images/status received.png';
+    }
+  }
+
+  int _workflowStage(String status) {
+    switch (status) {
+      case 'pending_payment':
+      case 'paid':
+      case 'accepted':
+        return 0;
+      case 'preparing':
+        return 1;
+      case 'ready_for_pickup':
+      case 'collected':
+        return 2;
+      default:
+        return 0;
+    }
+  }
+
+  Widget _buildWorkflowNode({
+    required String title,
+    required IconData icon,
+    required bool isActive,
+    required bool isCompleted,
+    required Color activeColor,
+  }) {
+    final color = isActive ? activeColor : Colors.grey.shade300;
+    return Expanded(
+      flex: 3,
+      child: Column(
+        children: [
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                child: Icon(icon, color: Colors.white, size: 24),
+              ),
+              if (isCompleted)
+                Positioned(
+                  bottom: -2,
+                  right: -2,
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: activeColor,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.check,
+                          size: 12, color: Colors.white),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              title,
+              style: TextStyle(
+                fontFamily: 'Afacad',
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: isActive ? Colors.black87 : Colors.grey.shade500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWorkflowConnector({required bool isActive}) {
+    return Expanded(
+      flex: 2,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 26),
+        height: 4,
+        decoration: BoxDecoration(
+          color: isActive ? AppColors.deepTeal : Colors.grey.shade300,
+          borderRadius: BorderRadius.circular(999),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWorkflowTracker(String status) {
+    final stage = _workflowStage(status);
+    final isReady = stage == 2;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: AppColors.deepTeal, width: 1.2),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        children: [
+          _buildWorkflowNode(
+            title: 'Ordered',
+            icon: Icons.receipt_long,
+            isActive: true,
+            isCompleted: true,
+            activeColor: AppColors.deepTeal,
+          ),
+          _buildWorkflowConnector(isActive: stage >= 1),
+          _buildWorkflowNode(
+            title: 'Preparing',
+            icon: Icons.coffee_maker,
+            isActive: stage >= 1,
+            isCompleted: stage >= 1,
+            activeColor: AppColors.deepTeal,
+          ),
+          _buildWorkflowConnector(isActive: isReady),
+          _buildWorkflowNode(
+            title: 'Ready',
+            icon: Icons.check,
+            isActive: isReady,
+            isCompleted: isReady,
+            activeColor: AppColors.deepTeal,
+          ),
+        ],
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: bgColor,
-      body: Column(
-        children: [
-          // Header
-          Container(
-            padding:
-                EdgeInsets.only(top: MediaQuery.paddingOf(context).top + 14, bottom: 12, left: 20, right: 20),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border(
-                bottom: BorderSide(color: AppColors.border, width: 1),
+    final status = _order.status;
+    final canCollect = status == 'ready_for_pickup';
+
+    return AppPageShell(
+      title: 'ORDER STATUS',
+      onBack: _leavePage,
+      backgroundColor: Colors.white,
+      scrollable: false,
+      bodyPadding: EdgeInsets.zero,
+      trailing: IconButton(
+        onPressed: () => _refreshOrder(),
+        icon: Icon(Icons.refresh, color: AppColors.deepTeal),
+      ),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(24, 28, 24, 36),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Text(
+              _estimateLabel(status),
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Recoleta',
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                color: AppColors.deepTeal,
               ),
             ),
-            child: Stack(
+            const SizedBox(height: 8),
+            Text(
+              _orderTitle(),
+              style: const TextStyle(
+                fontFamily: 'Afacad',
+                fontSize: 15,
+                color: Colors.black54,
+              ),
+            ),
+            const SizedBox(height: 28),
+            Image.asset(
+              _imagePath(status),
+              height: 220,
+              width: 220,
               alignment: Alignment.center,
-              children: [
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: Icon(Icons.arrow_back_ios,
-                        color: AppColors.deepTeal, size: 20),
+              fit: BoxFit.contain,
+            ),
+            const SizedBox(height: 28),
+            _buildWorkflowTracker(status),
+            const SizedBox(height: 28),
+            Text(
+              _statusTitle(status),
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Recoleta',
+                fontSize: 30,
+                fontWeight: FontWeight.bold,
+                color: AppColors.deepTeal,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              _statusDescription(status),
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontFamily: 'Afacad',
+                fontSize: 17,
+                color: Colors.black87,
+                height: 1.35,
+              ),
+            ),
+            if ((_order.baristaName ?? '').trim().isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(
+                'Prepared by ${_order.baristaName!.trim()}',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'Afacad',
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.deepTeal,
+                ),
+              ),
+            ],
+            if (_errorMessage != null) ...[
+              const SizedBox(height: 18),
+              Text(
+                _errorMessage!,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'Afacad',
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.red.shade700,
+                ),
+              ),
+            ],
+            const SizedBox(height: 32),
+            if (canCollect)
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _isCollecting ? null : _confirmCollect,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.deepTeal,
+                    disabledBackgroundColor:
+                        AppColors.deepTeal.withValues(alpha: 0.35),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                  ),
+                  child: Text(
+                    _isCollecting ? 'UPDATING...' : 'MARK AS COLLECTED',
+                    style: const TextStyle(
+                      fontFamily: 'Recoleta',
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
-                Text(
-                  'ORDER STATUS',
-                  style: TextStyle(
-                    fontFamily: 'Recoleta',
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.deepTeal,
-                    letterSpacing: 1.0,
+              )
+            else
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: _leavePage,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.deepTeal,
+                    side: BorderSide(color: AppColors.border),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                  ),
+                  child: const Text(
+                    'BACK TO MY ORDER',
+                    style: TextStyle(
+                      fontFamily: 'Recoleta',
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                return SingleChildScrollView(
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      minHeight: constraints.maxHeight,
-                    ),
-                    child: Align(
-                      alignment: const Alignment(0, -1.0), // Shift even higher
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 40, bottom: 40),
-                        child: _buildContent(),
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
+              ),
+          ],
+        ),
       ),
     );
   }

@@ -61,259 +61,6 @@ const SolidCheckSquareIcon = ({ size = 20, className = "" }) => (
   </svg>
 );
 
-// Mock Data
-
-const allOrders = []; /*
-  {
-    id: "ORD-0510-001",
-    customer: "miraelys",
-    email: "mira@gmail.com",
-    phone: "+6011-63793812",
-    tier: "Legend",
-    memberId: "C2-001",
-    avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80",
-    items: [{ 
-      name: "Bojito", 
-      qty: 1, 
-      img: "/BOIJITO.png", 
-      unitPrice: 15.90,
-      bean: "Dato Blend",
-      espressoShot: 2,
-      temperature: "Cold",
-      sparkling: "Yes",
-      milk: "Oat Milk",
-      sweetness: "Less Sweet",
-      iceLevel: "Regular Ice",
-      orderType: "Take Away",
-      remarks: "Extra cold please"
-    }],
-    discount: 0,
-    total: 15.90,
-    status: "Completed",
-    payment: "C2 Tokens",
-    paymentStatus: "Paid",
-    txnId: "TNG291938193183",
-    time: "10:21 AM",
-    date: "Aug 19, 2026"
-  },
-  {
-    id: "ORD-0510-002",
-    customer: "alex_chong",
-    email: "alex.c@yahoo.com",
-    phone: "+6012-3456789",
-    tier: "Legend",
-    memberId: "C2-002",
-    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&auto=format&fit=crop&q=80",
-    items: [{ name: "Bojito", qty: 1, img: "/BOIJITO.png", unitPrice: 15.90 }],
-    discount: 0,
-    total: 15.90,
-    status: "Preparing",
-    payment: "C2 Tokens",
-    paymentStatus: "Paid",
-    txnId: "TNG291938193184",
-    time: "10:21 AM",
-    date: "Aug 19, 2026"
-  },
-  {
-    id: "ORD-0510-003",
-    customer: "sarah_lee",
-    email: "sarah.lee88@gmail.com",
-    phone: "+6017-9876543",
-    tier: "Dilamun",
-    memberId: "C2-003",
-    avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&auto=format&fit=crop&q=80",
-    items: [{ name: "Bojito", qty: 1, img: "/BOIJITO.png", unitPrice: 15.90 }],
-    discount: 0,
-    total: 15.90,
-    status: "Ready for Pickup",
-    payment: "C2 Tokens",
-    paymentStatus: "Paid",
-    txnId: "TNG291938193185",
-    time: "10:21 AM",
-    date: "Aug 19, 2026"
-  },
-  {
-    id: "ORD-0510-004",
-    customer: "khai_rul",
-    email: "khairul.dev@gmail.com",
-    phone: "+6019-1122334",
-    tier: "Ketagih",
-    memberId: "C2-004",
-    avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&auto=format&fit=crop&q=80",
-    items: [{ name: "Bojito", qty: 1, img: "/BOIJITO.png", unitPrice: 15.90 }],
-    discount: 0,
-    total: 15.90,
-    status: "Cancelled",
-    payment: "C2 Tokens",
-    paymentStatus: "Refunded",
-    txnId: "TNG291938193186",
-    time: "10:21 AM",
-    date: "Aug 19, 2026"
-  },
-  {
-    id: "ORD-0510-005",
-    customer: "jane_doe",
-    email: "janedoe99@outlook.com",
-    phone: "+6013-5557777",
-    tier: "Kawan",
-    memberId: "C2-005",
-    avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&auto=format&fit=crop&q=80",
-    items: [{ name: "Bojito", qty: 1, img: "/BOIJITO.png", unitPrice: 15.90 }],
-    discount: 0,
-    total: 15.90,
-    status: "Refund Requested",
-    payment: "C2 Tokens",
-    paymentStatus: "Paid",
-    txnId: "TNG291938193187",
-    time: "10:21 AM",
-    date: "Aug 19, 2026"
-  },
-  {
-    id: "ORD-0510-006",
-    customer: "ahmad_z",
-    email: "ahmad.z@gmail.com",
-    phone: "+6014-2223333",
-    tier: "Dilamun",
-    memberId: "C2-006",
-    avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&auto=format&fit=crop&q=80",
-    items: [{ name: "Bojito", qty: 1, img: "/BOIJITO.png", unitPrice: 15.90 }],
-    discount: 0,
-    total: 15.90,
-    status: "Refunded",
-    payment: "C2 Tokens",
-    paymentStatus: "Refunded",
-    txnId: "TNG291938193188",
-    time: "10:21 AM",
-    date: "Aug 19, 2026"
-  },
-  {
-    id: "ORD-0510-007",
-    customer: "lily_tan",
-    email: "lily.tan@company.com",
-    phone: "+6016-8889999",
-    tier: "Ketagih",
-    memberId: "C2-007",
-    avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&auto=format&fit=crop&q=80",
-    items: [{ name: "Bojito", qty: 1, img: "/BOIJITO.png", unitPrice: 15.90 }],
-    discount: 0,
-    total: 15.90,
-    status: "Completed",
-    payment: "C2 Tokens",
-    paymentStatus: "Paid",
-    txnId: "TNG291938193189",
-    time: "10:21 AM",
-    date: "Aug 19, 2026"
-  },
-  {
-    id: "ORD-0510-008",
-    customer: "ravi_s",
-    email: "ravi.shankar@gmail.com",
-    phone: "+6011-1234123",
-    tier: "Dilamun",
-    memberId: "C2-008",
-    avatar: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=100&auto=format&fit=crop&q=80",
-    items: [{ name: "Bojito", qty: 1, img: "/BOIJITO.png", unitPrice: 15.90 }],
-    discount: 0,
-    total: 15.90,
-    status: "Completed",
-    payment: "C2 Tokens",
-    paymentStatus: "Paid",
-    txnId: "TNG291938193190",
-    time: "10:21 AM",
-    date: "Aug 19, 2026"
-  },
-  {
-    id: "ORD-0510-009",
-    customer: "fatimah_n",
-    email: "fatimah.n@yahoo.com",
-    phone: "+6012-4445555",
-    tier: "Legend",
-    memberId: "C2-009",
-    avatar: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=100&auto=format&fit=crop&q=80",
-    items: [{ name: "Bojito", qty: 1, img: "/BOIJITO.png", unitPrice: 15.90 }],
-    discount: 0,
-    total: 15.90,
-    status: "Completed",
-    payment: "C2 Tokens",
-    paymentStatus: "Paid",
-    txnId: "TNG291938193191",
-    time: "10:21 AM",
-    date: "Aug 19, 2026"
-  },
-  {
-    id: "ORD-0510-010",
-    customer: "wei_jie",
-    email: "weijie_w@gmail.com",
-    phone: "+6017-6667777",
-    tier: "Kawan",
-    memberId: "C2-010",
-    avatar: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=100&auto=format&fit=crop&q=80",
-    items: [{ name: "Bojito", qty: 1, img: "/BOIJITO.png", unitPrice: 15.90 }],
-    discount: 0,
-    total: 15.90,
-    status: "Completed",
-    payment: "C2 Tokens",
-    paymentStatus: "Paid",
-    txnId: "TNG291938193192",
-    time: "10:21 AM",
-    date: "Aug 19, 2026"
-  },
-  {
-    id: "ORD-0510-011",
-    customer: "nur_aini",
-    email: "nur.aini@outlook.com",
-    phone: "+6019-8887777",
-    tier: "Ketagih",
-    memberId: "C2-011",
-    avatar: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=100&auto=format&fit=crop&q=80",
-    items: [{ name: "Bojito", qty: 1, img: "/BOIJITO.png", unitPrice: 15.90 }],
-    discount: 0,
-    total: 15.90,
-    status: "Completed",
-    payment: "C2 Tokens",
-    paymentStatus: "Paid",
-    txnId: "TNG291938193193",
-    time: "10:21 AM",
-    date: "Aug 19, 2026"
-  },
-  {
-    id: "ORD-0510-012",
-    customer: "danial_h",
-    email: "danial.hakim@gmail.com",
-    phone: "+6013-9990000",
-    tier: "Legend",
-    memberId: "C2-012",
-    avatar: "https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=100&auto=format&fit=crop&q=80",
-    items: [{ name: "Bojito", qty: 1, img: "/BOIJITO.png", unitPrice: 15.90 }],
-    discount: 0,
-    total: 15.90,
-    status: "Completed",
-    payment: "C2 Tokens",
-    paymentStatus: "Paid",
-    txnId: "TNG291938193194",
-    time: "10:21 AM",
-    date: "Aug 19, 2026"
-  },
-  {
-    id: "ORD-0510-013",
-    customer: "mei_ling",
-    email: "mei.l@yahoo.com",
-    phone: "+6014-7778888",
-    tier: "Dilamun",
-    memberId: "C2-013",
-    avatar: "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=100&auto=format&fit=crop&q=80",
-    items: [{ name: "Bojito", qty: 1, img: "/BOIJITO.png", unitPrice: 15.90 }],
-    discount: 0,
-    total: 15.90,
-    status: "Completed",
-    payment: "C2 Tokens",
-    paymentStatus: "Paid",
-    txnId: "TNG291938193195",
-    time: "10:21 AM",
-    date: "Aug 19, 2026"
-  }
-*/
-
 // Helpers matching Customers Page
 
 const getTierColor = (tier) => {
@@ -541,6 +288,17 @@ const OrderDetailPanel = ({ order, onClose, onViewProfile }) => {
             View Profile
           </button>
         </div>
+      </div>
+
+      {/* Order Items Section */}
+      <div>
+        <p className="text-xs font-bold text-gray-900 mb-1">Prepared By</p>
+        <p className="text-sm font-semibold text-[#1F3A34]">
+          {order.baristaName || 'Not assigned yet'}
+        </p>
+        {order.baristaUsername && (
+          <p className="text-xs text-gray-500 mt-0.5">@{order.baristaUsername}</p>
+        )}
       </div>
 
       {/* Order Items Section */}
@@ -1033,7 +791,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
           <button
             onClick={() => {
               const rows = [
-                ["Order ID", "Username", "Email", "Status", "Payment Status", "Date", "Time", "Total (Tokens)", "Total (RM)"],
+                ["Order ID", "Username", "Email", "Barista", "Status", "Payment Status", "Date", "Time", "Total (Tokens)", "Total (RM)"],
                 ...filtered.map(o => {
                   const subtotal = o.items.reduce((s, i) => s + i.unitPrice * i.qty, 0);
                   const rmTotal = Number(o.total ?? (subtotal - o.discount) ?? 0);
@@ -1042,6 +800,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
                     `"${o.id}"`,
                     `"${o.customer}"`,
                     `"${o.email}"`,
+                    `"${o.baristaName || ''}"`,
                     `"${o.status}"`,
                     `"${o.paymentStatus}"`,
                     `"${o.date}"`,
@@ -1074,7 +833,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-white">
                 <tr>
-                  {["Order ID", "Username", "Items", "Total", "Status", "Payment", "Time", "Actions"].map((h) => (
+                  {["Order ID", "Username", "Items", "Total", "Barista", "Status", "Payment", "Time", "Actions"].map((h) => (
                     <th key={h} className="px-6 py-4 text-left text-xs font-bold text-gray-900">
                       {h}
                     </th>
@@ -1113,6 +872,9 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
                         </td>
                         <td className="px-6 py-3 whitespace-nowrap text-sm font-bold text-gray-900">
                           <OrderValueStack tokenValue={rowTokenTotal} rmValue={rowTotal} />
+                        </td>
+                        <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-700 font-medium">
+                          {order.baristaName || 'Unassigned'}
                         </td>
                         <td className="px-6 py-3 whitespace-nowrap">
                           {getStatusBadge(order.status)}
