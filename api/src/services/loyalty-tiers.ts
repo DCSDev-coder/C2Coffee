@@ -9,6 +9,11 @@ export type LoyaltyTierConfig = {
   badgeColor: string | null;
   sortOrder: number;
   isActive: boolean;
+  rewardConfig: LoyaltyTierRewardConfig | null;
+};
+
+export type LoyaltyTierRewardConfig = {
+  voucherTemplateId: number;
 };
 
 type LoyaltyTierRow = RowDataPacket & {
@@ -19,7 +24,27 @@ type LoyaltyTierRow = RowDataPacket & {
   badge_color: string | null;
   sort_order: number | string;
   is_active: number | string;
+  reward_config_json: unknown;
 };
+
+function parseRewardConfig(value: unknown): LoyaltyTierRewardConfig | null {
+  if (!value) return null;
+
+  let parsed: unknown = value;
+  if (typeof value === 'string') {
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      return null;
+    }
+  }
+
+  if (!parsed || typeof parsed !== 'object') return null;
+  const voucherTemplateId = Number((parsed as { voucherTemplateId?: unknown }).voucherTemplateId);
+  return Number.isInteger(voucherTemplateId) && voucherTemplateId > 0
+    ? { voucherTemplateId }
+    : null;
+}
 
 export type TierProgress = {
   tierCode: string;
@@ -45,7 +70,8 @@ export async function loadLoyaltyTiers(
         min_cups,
         badge_color,
         sort_order,
-        is_active
+        is_active,
+        reward_config_json
       FROM loyalty_tiers
       ORDER BY min_cups ASC, sort_order ASC, id ASC
     `
@@ -58,7 +84,8 @@ export async function loadLoyaltyTiers(
     minCups: Number(row.min_cups ?? 0),
     badgeColor: row.badge_color ? String(row.badge_color) : null,
     sortOrder: Number(row.sort_order ?? 0),
-    isActive: Number(row.is_active ?? 0) === 1
+    isActive: Number(row.is_active ?? 0) === 1,
+    rewardConfig: parseRewardConfig(row.reward_config_json)
   }));
 }
 

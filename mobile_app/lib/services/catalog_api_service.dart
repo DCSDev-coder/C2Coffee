@@ -360,6 +360,8 @@ class LoyaltyTier {
   final String? badgeColor;
   final int sortOrder;
   final bool isActive;
+  final bool hasTierUnlockVoucher;
+  final TierRewardSummary? tierReward;
 
   const LoyaltyTier({
     required this.code,
@@ -368,6 +370,8 @@ class LoyaltyTier {
     required this.badgeColor,
     required this.sortOrder,
     required this.isActive,
+    required this.hasTierUnlockVoucher,
+    required this.tierReward,
   });
 
   factory LoyaltyTier.fromApi(Map<String, dynamic> json) {
@@ -378,6 +382,32 @@ class LoyaltyTier {
       badgeColor: json['badgeColor'] as String?,
       sortOrder: (json['sortOrder'] as num?)?.toInt() ?? 0,
       isActive: json['isActive'] as bool? ?? true,
+      hasTierUnlockVoucher: json['hasTierUnlockVoucher'] as bool? ?? false,
+      tierReward: json['tierReward'] is Map
+          ? TierRewardSummary.fromApi(
+              Map<String, dynamic>.from(json['tierReward'] as Map),
+            )
+          : null,
+    );
+  }
+}
+
+class TierRewardSummary {
+  final String name;
+  final String benefitLabel;
+  final String description;
+
+  const TierRewardSummary({
+    required this.name,
+    required this.benefitLabel,
+    required this.description,
+  });
+
+  factory TierRewardSummary.fromApi(Map<String, dynamic> json) {
+    return TierRewardSummary(
+      name: json['name'] as String? ?? 'Tier reward',
+      benefitLabel: json['benefitLabel'] as String? ?? 'Voucher reward',
+      description: json['description'] as String? ?? '',
     );
   }
 }
@@ -439,7 +469,11 @@ class CatalogApiService {
               Map<String, dynamic>.from(tier as Map),
             ))
         .toList()
-      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+      ..sort((a, b) {
+        final cupsComparison = a.minCups.compareTo(b.minCups);
+        if (cupsComparison != 0) return cupsComparison;
+        return a.sortOrder.compareTo(b.sortOrder);
+      });
 
     return BootstrapSnapshot(
       user: user,

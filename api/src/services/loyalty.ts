@@ -1,4 +1,4 @@
-import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
+import type { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { mysqlPool } from '../db/mysql.js';
 import { createUserNotification } from '../http/notifications.js';
 import { formatTierName, getActiveLoyaltyTiers, getTierProgress, loadLoyaltyTiers } from './loyalty-tiers.js';
@@ -136,7 +136,13 @@ export async function processOrderLoyalty(
       }
     );
 
-    if (currentTier !== newTier) {
+    const currentTierConfig = activeTiers.find((tier) => tier.code === currentTier);
+    const newTierConfig = activeTiers.find((tier) => tier.code === newTier);
+    const isTierUpgrade = currentTier !== newTier
+      && newTierConfig !== undefined
+      && (!currentTierConfig || newTierConfig.minCups > currentTierConfig.minCups);
+
+    if (isTierUpgrade) {
       const fromLabel = formatTierName(tiers, currentTier);
       const toLabel = formatTierName(tiers, newTier);
 
@@ -151,6 +157,69 @@ export async function processOrderLoyalty(
           qualifying_cups_last_180d: cupsLast180d
         }
       });
+
+    }
+
+    // Award every configured threshold crossed by this order. The unique
+    // issue-case key prevents reissuing if a member later drops and requalifies.
+    const unlockedTiers = activeTiers.filter((tier) =>
+      tier.minCups > currentCups
+      && tier.minCups <= cupsLast180d
+      && Boolean(tier.rewardConfig?.voucherTemplateId)
+    );
+
+    for (const tier of unlockedTiers) {
+      const voucherTemplateId = tier.rewardConfig?.voucherTemplateId;
+      if (!voucherTemplateId) continue;
+
+      const [issueResult] = await connection.execute<ResultSetHeader>(
+        `
+          INSERT IGNORE INTO user_vouchers (
+            user_id,
+            voucher_template_id,
+            status,
+            issued_by_type,
+            issued_reason,
+            issue_case_ref,
+            tier_at_issue,
+            issued_at,
+            expires_at
+          )
+          SELECT
+            :userId,
+            vt.id,
+            'active',
+            'system',
+            :issuedReason,
+            :issueCaseRef,
+            :tierCode,
+            UTC_TIMESTAMP(),
+            DATE_ADD(UTC_TIMESTAMP(), INTERVAL COALESCE(vt.expires_in_days, 30) DAY)
+          FROM voucher_templates vt
+          WHERE vt.id = :voucherTemplateId
+            AND vt.is_active = 1
+        `,
+        {
+          userId,
+          voucherTemplateId,
+          issuedReason: `Tier unlock reward: ${tier.name}`,
+          issueCaseRef: `tier_unlock:${tier.code}`,
+          tierCode: tier.code
+        }
+      );
+
+      if (issueResult.affectedRows > 0) {
+        await createUserNotification(connection, {
+          userId,
+          type: 'tier_reward',
+          title: `${tier.name} reward unlocked`,
+          body: 'A tier reward voucher has been added to your account.',
+          data: {
+            tier_code: tier.code,
+            voucher_template_id: voucherTemplateId
+          }
+        });
+      }
     }
   }
 }

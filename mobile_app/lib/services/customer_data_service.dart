@@ -248,6 +248,13 @@ class RewardVoucherTemplate {
       }
     }
 
+    if (mode == 'monthly') {
+      final monthlyDay = (schedule['monthlyDay'] as num?)?.toInt() ?? 0;
+      if (monthlyDay > 0 && monthlyDay != now.day) {
+        return false;
+      }
+    }
+
     if (startTime.isNotEmpty && currentTime.compareTo(startTime) < 0) {
       return false;
     }
@@ -315,6 +322,14 @@ class RewardVoucherTemplate {
       return timeLabel == null
           ? 'Every $annualDate'
           : 'Every $annualDate, $timeLabel';
+    }
+
+    if (mode == 'monthly') {
+      final monthlyDay = (schedule['monthlyDay'] as num?)?.toInt() ?? 0;
+      final label = monthlyDay > 0 ? 'day $monthlyDay' : 'the selected day';
+      return timeLabel == null
+          ? 'Every month on $label'
+          : 'Every month on $label, $timeLabel';
     }
 
     if (mode == 'birthday') {

@@ -12,8 +12,7 @@ import {
 } from '../order-lifecycle.js';
 import {
   getKualaLumpurDateParts,
-  getKualaLumpurDayEndUtc,
-  isBirthdayMonthDay
+  getKualaLumpurDayEndUtc
 } from '../../lib/kuala-lumpur-time.js';
 
 const listQuerySchema = z.object({
@@ -206,6 +205,56 @@ function getVoucherScheduleMode(scope: Record<string, unknown>): string {
   return String(rawSchedule.mode || 'always').trim();
 }
 
+function getVoucherSchedule(scope: Record<string, unknown>): Record<string, unknown> {
+  return scope.schedule && typeof scope.schedule === 'object'
+    ? (scope.schedule as Record<string, unknown>)
+    : {};
+}
+
+function isScheduleActiveNow(
+  schedule: Record<string, unknown>,
+  birthdayMonthDay: string | null,
+  now = new Date()
+): boolean {
+  const mode = String(schedule.mode || 'always').trim();
+  if (mode === 'always') return true;
+
+  const current = getKualaLumpurDateParts(now);
+  const currentTime = `${current.hour}:${current.minute}`;
+  const startTime = typeof schedule.startTime === 'string' ? schedule.startTime : '';
+  const endTime = typeof schedule.endTime === 'string' ? schedule.endTime : '';
+  const activeDays = Array.isArray(schedule.activeDays)
+    ? schedule.activeDays.map((day) => String(day))
+    : [];
+  const annualDate = typeof schedule.annualDate === 'string' ? schedule.annualDate : '';
+  const monthlyDay = Number(schedule.monthlyDay ?? 0);
+
+  if (mode === 'birthday' && birthdayMonthDay !== current.monthDay) return false;
+  if (mode === 'weekly' && activeDays.length > 0 && !activeDays.includes(current.weekday)) return false;
+  if (mode === 'annual' && annualDate && annualDate !== current.monthDay) return false;
+  if (mode === 'monthly' && monthlyDay > 0 && monthlyDay !== Number(current.day)) return false;
+  if (startTime && currentTime < startTime) return false;
+  if (endTime && currentTime > endTime) return false;
+
+  return true;
+}
+
+function recurringIssueCaseRef(
+  scheduleMode: string,
+  currentDate: ReturnType<typeof getKualaLumpurDateParts>
+): string | null {
+  switch (scheduleMode) {
+    case 'birthday':
+      return `birthday:${currentDate.dateKey}`;
+    case 'annual':
+      return `annual:${currentDate.monthDay}:${currentDate.year}`;
+    case 'monthly':
+      return `monthly:${currentDate.year}-${currentDate.month}`;
+    default:
+      return null;
+  }
+}
+
 async function syncAutoVisibleVoucherTemplates(
   userId: number
 ): Promise<void> {
@@ -237,10 +286,6 @@ async function syncAutoVisibleVoucherTemplates(
   const currentBirthdayMonthDay = profileRows[0]?.birthday_month_day ?? null;
   const currentTier = tierRows[0]?.tier_code ?? 'kawan';
   const currentDateParts = getKualaLumpurDateParts();
-  const birthdayIssueCaseRef =
-    currentBirthdayMonthDay && isBirthdayMonthDay(currentBirthdayMonthDay)
-      ? `birthday:${currentDateParts.monthDay}`
-      : null;
 
   const [templates] = await mysqlPool.query<Array<AutoSyncVoucherTemplateRow>>(
     `
@@ -275,9 +320,10 @@ async function syncAutoVisibleVoucherTemplates(
   for (const template of templates) {
     const scope = parseVoucherScope(template.eligible_scope_json);
     const scheduleMode = getVoucherScheduleMode(scope);
-    const issueCaseRef = scheduleMode === 'birthday' ? birthdayIssueCaseRef : null;
+    const schedule = getVoucherSchedule(scope);
+    const issueCaseRef = recurringIssueCaseRef(scheduleMode, currentDateParts);
 
-    if (scheduleMode === 'birthday' && !issueCaseRef) {
+    if (!isScheduleActiveNow(schedule, currentBirthdayMonthDay)) {
       continue;
     }
 
@@ -295,7 +341,7 @@ async function syncAutoVisibleVoucherTemplates(
     }
 
     const expiresAt =
-      scheduleMode === 'birthday'
+      scheduleMode === 'birthday' || scheduleMode === 'annual' || scheduleMode === 'monthly'
         ? getKualaLumpurDayEndUtc()
         : resolveAutoIssuedVoucherExpiry(template);
     if (expiresAt.getTime() <= Date.now()) {
@@ -331,7 +377,11 @@ async function syncAutoVisibleVoucherTemplates(
         issuedReason:
           scheduleMode === 'birthday'
             ? `Birthday voucher: ${template.name}`
-            : `Campaign voucher: ${template.name}`,
+            : scheduleMode === 'annual'
+              ? `Annual voucher: ${template.name}`
+              : scheduleMode === 'monthly'
+                ? `Monthly voucher: ${template.name}`
+                : `Campaign voucher: ${template.name}`,
         expiresAt,
         issueCaseRef
       }

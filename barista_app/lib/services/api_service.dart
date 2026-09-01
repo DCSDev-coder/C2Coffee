@@ -99,10 +99,14 @@ class ApiService {
       );
       if (response.statusCode != 200) return const [];
       final data = json.decode(response.body) as Map<String, dynamic>;
-      return (data['baristas'] as List? ?? const [])
+      final staff = (data['baristas'] as List? ?? const [])
           .map((row) => BaristaStaff.fromJson(row as Map<String, dynamic>))
           .where((staff) => staff.isActive)
           .toList();
+      staff.sort(
+        (first, second) => first.createdAt.compareTo(second.createdAt),
+      );
+      return staff;
     } catch (e) {
       debugPrint('Barista roster error: $e');
       return const [];
@@ -188,15 +192,18 @@ class ApiService {
                 }
               }
 
-              // Fallbacks for date
+              // Keep the real creation time so the preparation queue is FIFO.
               final dateStr = json['date'] ?? 'Aug 19, 2026';
               final timeStr = json['time'] ?? '10:00 AM';
+              final createdAt =
+                  DateTime.tryParse(json['createdAt']?.toString() ?? '') ??
+                  DateTime.fromMillisecondsSinceEpoch(0);
 
               return CurrentOrder(
                 status: parsedStatus,
                 orderId: json['id'] ?? 'ORD-000',
                 timeDate: '$timeStr - $dateStr',
-                orderDate: DateTime.now(), // Fallback for sorting if needed
+                orderDate: createdAt,
                 customerDetails:
                     '${json['customer'] ?? 'guest'} - ${parsedItems.length} items',
                 baristaName: (json['baristaName'] as String?)?.trim() ?? '',
@@ -205,6 +212,9 @@ class ApiService {
             })
             .whereType<CurrentOrder>()
             .toList();
+        orders.sort(
+          (first, second) => first.orderDate.compareTo(second.orderDate),
+        );
         return OrdersFetchResult.success(orders);
       } else {
         return OrdersFetchResult.failure(_responseMessage(response));
@@ -266,16 +276,21 @@ class BaristaStaff {
   final int id;
   final String name;
   final bool isActive;
+  final DateTime createdAt;
 
   const BaristaStaff({
     required this.id,
     required this.name,
     required this.isActive,
+    required this.createdAt,
   });
 
   factory BaristaStaff.fromJson(Map<String, dynamic> json) => BaristaStaff(
     id: (json['id'] as num).toInt(),
     name: (json['name'] as String? ?? '').trim(),
     isActive: json['is_active'] == true,
+    createdAt:
+        DateTime.tryParse(json['created_at']?.toString() ?? '') ??
+        DateTime.fromMillisecondsSinceEpoch(0),
   );
 }

@@ -314,9 +314,14 @@ class _OrdersPageState extends State<OrdersPage>
 
     final activeOrders = _displayActiveOrders;
     if (activeOrders.isNotEmpty) {
+      final bottomInset = MediaQuery.paddingOf(context).bottom;
       return ListView(
-        padding:
-            const EdgeInsets.only(left: 16, right: 16, top: 20, bottom: 120),
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          top: 20,
+          bottom: 190 + bottomInset,
+        ),
         children: [
           Text(
             '${activeOrders.length} active order${activeOrders.length == 1 ? '' : 's'}',
@@ -358,9 +363,14 @@ class _OrdersPageState extends State<OrdersPage>
 
     final historyOrders = _displayHistoryOrders;
     if (historyOrders.isNotEmpty) {
+      final bottomInset = MediaQuery.paddingOf(context).bottom;
       return ListView(
-        padding:
-            const EdgeInsets.only(left: 16, right: 16, top: 20, bottom: 120),
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          top: 20,
+          bottom: 190 + bottomInset,
+        ),
         children: [
           for (var i = 0; i < historyOrders.length; i++) ...[
             if (i > 0) const SizedBox(height: 12),

@@ -3,8 +3,8 @@ import {
   Search, Filter, ChevronDown, Download, CheckCircle, Clock, CheckCircle2,
   MapPin, Phone, MessageSquare, Printer, Receipt, Eye, Share2, CornerUpLeft, MessageCircle,
   X, ShoppingBag, Hourglass, UserCheck, Ban, RotateCcw, XCircle,
-  Coins, Wallet, Users, Package, Square, Pencil, Trash2,
-  FileText, CheckSquare, ArrowUp, MoreVertical, Edit3, Navigation, Plus
+  Coins, Wallet, Users, Package, Square,
+  FileText, CheckSquare, ArrowUp, Edit3, Navigation, Plus
 } from "lucide-react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -500,8 +500,6 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
   const [paymentFilter, setPaymentFilter] = useState("All Payment Status");
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedOrder, setSelectedOrder] = useState(null);
-  const [editingOrder, setEditingOrder] = useState(null);
-  const [menuOpenId, setMenuOpenId] = useState(null);
   const [showRefundsView, setShowRefundsView] = useState(initialShowRefunds);
   const [viewingProfileFor, setViewingProfileFor] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -595,25 +593,6 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
   }
 
   const resetPage = () => setCurrentPage(1);
-
-  const handleEditSave = async (e) => {
-    e.preventDefault();
-    try {
-      await adminRequest(`/v1/admin/orders/${editingOrder.id}`, {
-        method: 'PUT',
-        body: JSON.stringify(editingOrder)
-      });
-      setOrdersList((prev) =>
-        prev.map((o) => (o.id === editingOrder.id ? { ...o, ...editingOrder } : o))
-      );
-      if (selectedOrder && selectedOrder.id === editingOrder.id) {
-        setSelectedOrder((prev) => ({ ...prev, ...editingOrder }));
-      }
-      setEditingOrder(null);
-    } catch (err) {
-      alert('Error updating order: ' + err.message);
-    }
-  };
 
   const filtered = ordersList.filter((o) => {
     const q = search.toLowerCase();
@@ -886,67 +865,16 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
                           {order.time}
                         </td>
                         <td className="px-6 py-3 whitespace-nowrap text-sm font-medium">
-                          <div className="relative inline-block text-left">
-                            <div className="bg-[#1E293B] hover:bg-[#0F172A] text-white px-2.5 py-1.5 rounded-lg inline-flex items-center gap-2 shadow-sm transition-colors">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedOrder(isSelected ? null : order);
-                                }}
-                                className="text-white/90 hover:text-white cursor-pointer transition-colors"
-                                title="View Details"
-                              >
-                                <Eye size={15} />
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setMenuOpenId(menuOpenId === order.id ? null : order.id);
-                                }}
-                                className="text-white/90 hover:text-white cursor-pointer transition-colors"
-                                title="More Options"
-                              >
-                                <MoreVertical size={15} />
-                              </button>
-                            </div>
-
-                            {menuOpenId === order.id && (
-                              <div className="absolute right-0 top-full mt-1.5 w-32 bg-white rounded-xl shadow-lg border border-gray-200 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setEditingOrder({ ...order });
-                                    setMenuOpenId(null);
-                                  }}
-                                  className="w-full px-3 py-2 text-left text-xs font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2 cursor-pointer transition-colors"
-                                >
-                                  <Pencil size={13} className="text-gray-500" />
-                                  Edit
-                                </button>
-                                <button
-                                  onClick={async (e) => {
-                                    e.stopPropagation();
-                                    if (confirm(`Are you sure you want to delete order "${order.id}"?`)) {
-                                      try {
-                                        await adminRequest(`/v1/admin/orders/${order.id}`, { method: 'DELETE' });
-                                        setOrdersList((prev) => prev.filter((o) => o.id !== order.id));
-                                        if (selectedOrder?.id === order.id) {
-                                          setSelectedOrder(null);
-                                        }
-                                      } catch (err) {
-                                        alert('Error deleting order: ' + err.message);
-                                      }
-                                    }
-                                    setMenuOpenId(null);
-                                  }}
-                                  className="w-full px-3 py-2 text-left text-xs font-medium text-red-600 hover:bg-red-50 flex items-center gap-2 cursor-pointer transition-colors"
-                                >
-                                  <Trash2 size={13} className="text-red-500" />
-                                  Delete
-                                </button>
-                              </div>
-                            )}
-                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedOrder(isSelected ? null : order);
+                            }}
+                            className="bg-[#1E293B] hover:bg-[#0F172A] text-white px-2.5 py-1.5 rounded-lg inline-flex items-center shadow-sm transition-colors cursor-pointer"
+                            title="View order details"
+                          >
+                            <Eye size={15} />
+                          </button>
                         </td>
                       </tr>
                     );
@@ -985,103 +913,6 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
         )}
       </div>
 
-      {/* Edit Order Modal */}
-      {editingOrder && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-xl">
-            <div className="flex justify-between items-center mb-6">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">Edit Order</h2>
-                <p className="text-xs text-gray-500">{editingOrder.id}</p>
-              </div>
-              <button onClick={() => setEditingOrder(null)} className="text-gray-400 hover:text-gray-900 cursor-pointer">
-                <X size={20} />
-              </button>
-            </div>
-
-            <form onSubmit={handleEditSave} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Username</label>
-                <input
-                  type="text"
-                  value={editingOrder.customer || ""}
-                  onChange={(e) => setEditingOrder({ ...editingOrder, customer: e.target.value })}
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-[#2E5E58] focus:border-[#2E5E58]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Customer Email</label>
-                <input
-                  type="email"
-                  value={editingOrder.email || ""}
-                  onChange={(e) => setEditingOrder({ ...editingOrder, email: e.target.value })}
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-[#2E5E58] focus:border-[#2E5E58]"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Order Status</label>
-                  <select
-                    value={editingOrder.status}
-                    onChange={(e) => setEditingOrder({ ...editingOrder, status: e.target.value })}
-                    className="peer w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium focus:ring-[#2E5E58] focus:border-[#2E5E58] bg-white cursor-pointer"
-                  >
-                    <option value="Completed">Completed</option>
-                    <option value="Preparing">Preparing</option>
-                    <option value="Ready for Pickup">Ready for Pickup</option>
-                    <option value="Cancelled">Cancelled</option>
-                    <option value="Refund Requested">Refund Requested</option>
-                    <option value="Refunded">Refunded</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Payment Status</label>
-                  <select
-                    value={editingOrder.paymentStatus}
-                    onChange={(e) => setEditingOrder({ ...editingOrder, paymentStatus: e.target.value })}
-                    className="peer w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium focus:ring-[#2E5E58] focus:border-[#2E5E58] bg-white cursor-pointer"
-                  >
-                    <option value="Paid">Paid</option>
-                    <option value="Refunded">Refunded</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Total (RM)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={editingOrder.total || 0}
-                  onChange={(e) => setEditingOrder({ ...editingOrder, total: parseFloat(e.target.value) || 0 })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-[#2E5E58] focus:border-[#2E5E58]"
-                />
-              </div>
-
-              <div className="pt-4 flex justify-end space-x-3">
-                <button
-                  type="button"
-                  onClick={() => setEditingOrder(null)}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 text-sm font-medium text-white bg-[#2E5E58] border border-transparent rounded-lg hover:bg-[#1F3A34] cursor-pointer"
-                >
-                  Save Changes
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

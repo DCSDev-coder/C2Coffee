@@ -314,8 +314,12 @@ class _ProfilePageState extends State<ProfilePage> {
       backgroundColor: bgColor,
       extendBody: true,
       scrollController: _scrollController,
-      bodyPadding: const EdgeInsets.only(
-        left: 16, right: 16, top: 20, bottom: 130),
+      bodyPadding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        top: 20,
+        bottom: 180 + MediaQuery.paddingOf(context).bottom,
+      ),
       bottomNavigationBar: CustomBottomNav(
         selectedIndex: 4,
         onItemTapped: _onBottomNavTapped,

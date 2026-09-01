@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
+import type { PoolConnection, RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 import { z } from 'zod';
 import { authenticateAdminRequest, requireAdminRole } from '../../admin/guard.js';
 import { mysqlPool } from '../../db/mysql.js';
@@ -145,7 +145,10 @@ const loyaltyTierUpsertSchema = z.object({
   minCups: z.coerce.number().int().min(0),
   badgeColor: z.string().trim().max(32).optional().nullable(),
   sortOrder: z.coerce.number().int().min(0).optional().default(0),
-  isActive: z.coerce.boolean().optional().default(true)
+  isActive: z.coerce.boolean().optional().default(true),
+  rewardConfig: z.object({
+    voucherTemplateId: z.coerce.number().int().positive()
+  }).nullable().optional().default(null)
 });
 
 const loyaltyTierPatchSchema = loyaltyTierUpsertSchema.partial().extend({
@@ -157,6 +160,28 @@ const tokenAdjustmentSchema = z.object({
   amount: z.coerce.number().int().min(1).max(500),
   reason: z.string().trim().min(3).max(500)
 });
+
+async function validateTierRewardVoucher(
+  connection: typeof mysqlPool | PoolConnection,
+  rewardConfig: { voucherTemplateId: number } | null | undefined
+): Promise<void> {
+  if (!rewardConfig) return;
+
+  const [rows] = await connection.query<Array<RowDataPacket & { id: number }>>(
+    `
+      SELECT id
+      FROM voucher_templates
+      WHERE id = :voucherTemplateId
+        AND is_active = 1
+      LIMIT 1
+    `,
+    { voucherTemplateId: rewardConfig.voucherTemplateId }
+  );
+
+  if (!rows[0]) {
+    throw new ApiError(400, 'tier_reward_voucher_unavailable', 'Select an active voucher for the tier unlock reward.');
+  }
+}
 
 export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<void> {
   app.get('/v1/admin/loyalty/overview', { preHandler: [authenticateAdminRequest] }, async (request) => {
@@ -707,6 +732,7 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
 
     try {
       const normalizedCode = payload.code.trim().toLowerCase();
+      await validateTierRewardVoucher(connection, payload.rewardConfig);
       const [insertResult] = await connection.execute<ResultSetHeader>(
         `
           INSERT INTO loyalty_tiers (
@@ -715,7 +741,8 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
             min_cups,
             badge_color,
             sort_order,
-            is_active
+            is_active,
+            reward_config_json
           )
           VALUES (
             :code,
@@ -723,12 +750,14 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
             :minCups,
             :badgeColor,
             :sortOrder,
-            :isActive
+            :isActive,
+            :rewardConfig
           )
         `,
         {
           ...payload,
-          code: normalizedCode
+          code: normalizedCode,
+          rewardConfig: payload.rewardConfig ? JSON.stringify(payload.rewardConfig) : null
         }
       );
 
@@ -754,6 +783,9 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
     const connection = await mysqlPool.getConnection();
 
     try {
+      if (Object.prototype.hasOwnProperty.call(payload, 'rewardConfig')) {
+        await validateTierRewardVoucher(connection, payload.rewardConfig);
+      }
       const assignments = entries.map(([key]) => {
         if (key === 'code') {
           return 'code = :code';
@@ -767,6 +799,8 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
             return 'sort_order = :sortOrder';
           case 'isActive':
             return 'is_active = :isActive';
+          case 'rewardConfig':
+            return 'reward_config_json = :rewardConfig';
           default:
             return `${key} = :${key}`;
         }
@@ -776,6 +810,9 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
         tierId,
         ...payload,
         code: payload.code?.trim().toLowerCase(),
+        rewardConfig: payload.rewardConfig === undefined
+          ? undefined
+          : payload.rewardConfig ? JSON.stringify(payload.rewardConfig) : null,
       } as any;
 
       await connection.execute(

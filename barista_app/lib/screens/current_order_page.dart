@@ -154,6 +154,34 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
                                             fontWeight: FontWeight.bold,
                                           ),
                                         ),
+                                        ValueListenableBuilder<DateTime?>(
+                                          valueListenable: globalLastOrderSync,
+                                          builder: (context, lastSync, _) {
+                                            if (lastSync == null) {
+                                              return const SizedBox.shrink();
+                                            }
+                                            final hour = lastSync.hour
+                                                .remainder(12)
+                                                .toString()
+                                                .padLeft(2, '0');
+                                            final minute = lastSync.minute
+                                                .toString()
+                                                .padLeft(2, '0');
+                                            final suffix = lastSync.hour >= 12
+                                                ? 'PM'
+                                                : 'AM';
+                                            return Text(
+                                              'Updated $hour:$minute $suffix',
+                                              style: TextStyle(
+                                                color: darkGreen.withValues(
+                                                  alpha: 0.62,
+                                                ),
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            );
+                                          },
+                                        ),
                                       ],
                                     ),
                                   ),

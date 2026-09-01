@@ -41,44 +41,12 @@ class _RewardsPageState extends State<RewardsPage> {
 
   List<LoyaltyTier> get _availableTiers {
     final tiers = _session.loyaltyTiers.where((tier) => tier.isActive).toList();
-    if (tiers.isNotEmpty) {
-      return tiers;
-    }
-
-    return const [
-      LoyaltyTier(
-        code: 'kawan',
-        name: 'Kawan',
-        minCups: 0,
-        badgeColor: '#3B82F6',
-        sortOrder: 0,
-        isActive: true,
-      ),
-      LoyaltyTier(
-        code: 'dilamun',
-        name: 'Dilamun',
-        minCups: 10,
-        badgeColor: '#E07A5F',
-        sortOrder: 1,
-        isActive: true,
-      ),
-      LoyaltyTier(
-        code: 'ketagih',
-        name: 'Ketagih',
-        minCups: 30,
-        badgeColor: '#9333EA',
-        sortOrder: 2,
-        isActive: true,
-      ),
-      LoyaltyTier(
-        code: 'legend',
-        name: 'Legend',
-        minCups: 50,
-        badgeColor: '#D4AF7A',
-        sortOrder: 3,
-        isActive: true,
-      ),
-    ];
+    tiers.sort((a, b) {
+      final cupsComparison = a.minCups.compareTo(b.minCups);
+      if (cupsComparison != 0) return cupsComparison;
+      return a.sortOrder.compareTo(b.sortOrder);
+    });
+    return tiers;
   }
 
   @override
@@ -87,7 +55,7 @@ class _RewardsPageState extends State<RewardsPage> {
     _syncTierFromSession();
     _session.addListener(_handleSessionChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _session.loadAuthenticatedState();
+      _session.loadAuthenticatedState(force: true);
     });
   }
 
@@ -106,23 +74,12 @@ class _RewardsPageState extends State<RewardsPage> {
   }
 
   void _syncTierFromSession() {
+    if (_availableTiers.isEmpty) {
+      _selectedTier = 0;
+      return;
+    }
     final currentTierIndex = _currentTierIndex();
     _selectedTier = currentTierIndex.clamp(0, _availableTiers.length - 1);
-  }
-
-  int _tierToIndex(String tier) {
-    switch (tier.toLowerCase()) {
-      case 'kawan':
-        return 0;
-      case 'dilamun':
-        return 1;
-      case 'ketagih':
-        return 2;
-      case 'legend':
-        return 3;
-      default:
-        return 0;
-    }
   }
 
   int _currentTierIndex() {
@@ -130,23 +87,7 @@ class _RewardsPageState extends State<RewardsPage> {
     final index = _availableTiers.indexWhere(
       (tier) => tier.code.trim().toLowerCase() == tierCode,
     );
-    return index >= 0 ? index : _tierToIndex(tierCode);
-  }
-
-  LoyaltyTier _tierForIndex(int index) {
-    final tiers = _availableTiers;
-    if (tiers.isEmpty) {
-      return const LoyaltyTier(
-        code: 'kawan',
-        name: 'Kawan',
-        minCups: 0,
-        badgeColor: '#3B82F6',
-        sortOrder: 0,
-        isActive: true,
-      );
-    }
-
-    return tiers[index.clamp(0, tiers.length - 1)];
+    return index >= 0 ? index : 0;
   }
 
   LoyaltyTier? _currentTier() {
@@ -170,8 +111,7 @@ class _RewardsPageState extends State<RewardsPage> {
     return nextTier?.minCups ?? _session.cupsLast180d;
   }
 
-  String _currentTierLabel() =>
-      _currentTier()?.name ?? _tierForIndex(_selectedTier).name;
+  String _currentTierLabel() => _currentTier()?.name ?? 'Member';
 
   void _onBottomNavTapped(int index) {
     if (index == 3) return;
@@ -250,7 +190,9 @@ class _RewardsPageState extends State<RewardsPage> {
       showBackButton: false,
       backgroundColor: beigeBg,
       scrollController: _scrollController,
-      bodyPadding: const EdgeInsets.only(bottom: 130),
+      bodyPadding: EdgeInsets.only(
+        bottom: 180 + MediaQuery.paddingOf(context).bottom,
+      ),
       bottomNavigationBar: CustomBottomNav(
         selectedIndex: 3,
         onItemTapped: _onBottomNavTapped,
@@ -560,47 +502,47 @@ class _RewardsPageState extends State<RewardsPage> {
     );
   }
 
-  List<String> _getTierPerks(String tierCode) {
-    switch (tierCode.toLowerCase()) {
-      case 'kawan':
-        return [
-          'RM 1.00 OFF every handcrafted drink',
-          'Earn 1 Loyalty Cup for every handcrafted drink',
-          'Birthday surprise rewards & offers',
-        ];
-      case 'dilamun':
-        return [
-          'RM 2.00 OFF every handcrafted drink',
-          '5% OFF all merchandise items',
-          'Early access to seasonal menu drops',
-          'Earn 1 Loyalty Cup for every handcrafted drink',
-        ];
-      case 'ketagih':
-        return [
-          'RM 3.00 OFF every handcrafted drink',
-          '10% OFF all merchandise items',
-          'VIP member perks & special promotions',
-          'Exclusive birthday bonus rewards',
-        ];
-      case 'legend':
-        return [
-          'RM 4.00 OFF every handcrafted drink',
-          '20% OFF all merchandise items',
-          'VIP private tasting sessions & events',
-          'Highest tier privileges & priority access',
-        ];
-      default:
-        return [
-          'Special discounts on handcrafted drinks',
-          'Exclusive member perks and rewards',
-        ];
+  List<String> _getTierDetails(LoyaltyTier tier, {required bool isCurrent}) {
+    final details = <String>[
+      'Reach ${tier.minCups} qualifying cups within 180 days to hold this tier.',
+    ];
+
+    if (tier.hasTierUnlockVoucher && tier.minCups > 0) {
+      final reward = tier.tierReward;
+      if (reward == null) {
+        details.add('No reward details have been set for this tier yet.');
+      } else {
+        details.add('${reward.name}: ${reward.benefitLabel}.');
+        if (reward.description.isNotEmpty) {
+          details.add(reward.description);
+        }
+        details.add('This reward is added to My Rewards the first time you reach this tier.');
+      }
     }
+
+    if (isCurrent) {
+      details.add('You are currently in this tier.');
+    }
+
+    return details;
   }
 
   Widget _buildTierSection() {
     final tiers = _availableTiers;
     if (tiers.isEmpty) {
-      return const SizedBox.shrink();
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: Text(
+          _session.isBootstrapLoading
+              ? 'Loading your tier progress...'
+              : 'Tier details are not available right now.',
+          style: const TextStyle(
+            fontFamily: 'Afacad',
+            fontSize: 15,
+            color: Colors.black54,
+          ),
+        ),
+      );
     }
 
     final selectedIndex = _selectedTier.clamp(0, tiers.length - 1);
@@ -744,7 +686,7 @@ class _RewardsPageState extends State<RewardsPage> {
     final selectedIndex = _selectedTier;
     final isCurrent = selectedIndex == currentIndex;
     final isUnlocked = selectedIndex < currentIndex;
-    final perks = _getTierPerks(tier.code);
+    final details = _getTierDetails(tier, isCurrent: isCurrent);
 
     return Container(
       key: key,
@@ -822,7 +764,7 @@ class _RewardsPageState extends State<RewardsPage> {
           ),
           const SizedBox(height: 14),
           Text(
-            'Tier Benefits',
+            'Tier Details',
             style: TextStyle(
               fontFamily: 'Recoleta',
               fontSize: 15,
@@ -831,8 +773,8 @@ class _RewardsPageState extends State<RewardsPage> {
             ),
           ),
           const SizedBox(height: 10),
-          ...perks.map(
-            (perk) => Padding(
+          ...details.map(
+            (detail) => Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -853,7 +795,7 @@ class _RewardsPageState extends State<RewardsPage> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      perk,
+                      detail,
                       style: const TextStyle(
                         fontFamily: 'Afacad',
                         fontSize: 14,

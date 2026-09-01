@@ -32,13 +32,14 @@ const voucherCreateUpdateSchema = z.object({
     .optional()
     .default('all_customers'),
   availabilityMode: z
-    .enum(['always', 'daily', 'weekly', 'annual', 'birthday'])
+    .enum(['always', 'daily', 'weekly', 'monthly', 'annual', 'birthday'])
     .optional()
     .default('always'),
   activeDays: z.array(z.string()).optional().default([]),
   startTime: z.string().trim().optional().nullable(),
   endTime: z.string().trim().optional().nullable(),
-  annualDate: z.string().trim().optional().nullable()
+  annualDate: z.string().trim().optional().nullable(),
+  monthlyDay: z.coerce.number().int().min(1).max(28).optional().nullable()
 });
 
 const customerSearchQuerySchema = z.object({
@@ -484,11 +485,12 @@ function normalizeAnnualDate(value: string | null | undefined): string | null {
 }
 
 type VoucherSchedule = {
-  mode: 'always' | 'daily' | 'weekly' | 'annual' | 'birthday';
+  mode: 'always' | 'daily' | 'weekly' | 'monthly' | 'annual' | 'birthday';
   activeDays: string[];
   startTime: string | null;
   endTime: string | null;
   annualDate: string | null;
+  monthlyDay: number | null;
   timezone: 'Asia/Kuala_Lumpur';
 };
 
@@ -499,6 +501,7 @@ function buildScheduleFromPayload(payload: VoucherPayload): VoucherSchedule {
     startTime: normalizeTimeValue(payload.startTime),
     endTime: normalizeTimeValue(payload.endTime),
     annualDate: payload.availabilityMode === 'annual' ? normalizeAnnualDate(payload.annualDate) : null,
+    monthlyDay: payload.availabilityMode === 'monthly' ? payload.monthlyDay ?? null : null,
     timezone: 'Asia/Kuala_Lumpur'
   };
 }
@@ -509,13 +512,17 @@ function getScheduleFromScope(scope: Record<string, unknown>): VoucherSchedule {
 
   return {
     mode:
-      mode === 'daily' || mode === 'weekly' || mode === 'annual' || mode === 'birthday'
+      mode === 'daily' || mode === 'weekly' || mode === 'monthly' || mode === 'annual' || mode === 'birthday'
         ? mode
         : 'always',
     activeDays: normalizeActiveDays(Array.isArray(raw.activeDays) ? raw.activeDays.map((day) => String(day)) : []),
     startTime: normalizeTimeValue(typeof raw.startTime === 'string' ? raw.startTime : null),
     endTime: normalizeTimeValue(typeof raw.endTime === 'string' ? raw.endTime : null),
     annualDate: normalizeAnnualDate(typeof raw.annualDate === 'string' ? raw.annualDate : null),
+    monthlyDay:
+      Number.isInteger(Number(raw.monthlyDay)) && Number(raw.monthlyDay) >= 1 && Number(raw.monthlyDay) <= 28
+        ? Number(raw.monthlyDay)
+        : null,
     timezone: 'Asia/Kuala_Lumpur'
   };
 }
@@ -562,6 +569,11 @@ function buildAvailabilitySummary(schedule: VoucherSchedule, expiryDate: Date | 
   if (schedule.mode === 'annual') {
     const annualDateLabel = formatAnnualDateLabel(schedule.annualDate) || 'selected date';
     return timeLabel ? `Every ${annualDateLabel}, ${timeLabel}` : `Every ${annualDateLabel}`;
+  }
+
+  if (schedule.mode === 'monthly') {
+    const dayLabel = schedule.monthlyDay ?? 'selected day';
+    return timeLabel ? `Every month on day ${dayLabel}, ${timeLabel}` : `Every month on day ${dayLabel}`;
   }
 
   if (schedule.mode === 'birthday') {
@@ -837,6 +849,7 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
         startTime: schedule.startTime,
         endTime: schedule.endTime,
         annualDate: schedule.annualDate,
+        monthlyDay: schedule.monthlyDay,
         availabilityLabel,
         totalQty: hasColumn(voucherColumns, 'total_quantity') ? (templateRow.total_quantity ?? null) : null,
         limitPerUser: hasColumn(voucherColumns, 'limit_per_user') ? (templateRow.limit_per_user ?? 1) : 1,
@@ -1017,7 +1030,9 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
     const effectiveValidUntil =
       payload.status === 'Expired'
         ? new Date(Date.now() - 60 * 1000)
-        : validUntil;
+        : schedule.mode === 'always'
+          ? validUntil
+          : null;
     const scopeJson = JSON.stringify({
       frontend_type: payload.benefitType,
       type_label: payload.type,
@@ -1104,7 +1119,9 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
     const effectiveValidUntil =
       payload.status === 'Expired'
         ? new Date(Date.now() - 60 * 1000)
-        : validUntil;
+        : schedule.mode === 'always'
+          ? validUntil
+          : null;
     const scopeJson = JSON.stringify({
       frontend_type: payload.benefitType,
       type_label: payload.type,

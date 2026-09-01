@@ -186,6 +186,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           txnId: o.txnId || `TXN${o.internal_id}`,
           baristaName: o.baristaName || '',
           baristaUsername: '',
+          createdAt: d.toISOString(),
           time: formatDisplayTime(d),
           date: formatDisplayDate(d)
         };

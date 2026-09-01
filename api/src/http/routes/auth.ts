@@ -50,7 +50,14 @@ interface UserProfileSummary {
 type BootstrapTierConfig = Pick<
   LoyaltyTierConfig,
   'code' | 'name' | 'minCups' | 'badgeColor' | 'sortOrder' | 'isActive'
->;
+> & {
+  hasTierUnlockVoucher: boolean;
+  tierReward: {
+    name: string;
+    benefitLabel: string;
+    description: string;
+  } | null;
+};
 
 export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
   app.post('/v1/auth/check-signup-identity', async (request) => {
@@ -808,13 +815,55 @@ export async function getBootstrapForUser(
   );
 
   const allTiers = await loadLoyaltyTiers(connection);
+  const rewardTemplateIds = allTiers
+    .map((tier) => tier.rewardConfig?.voucherTemplateId)
+    .filter((id): id is number => Number.isInteger(id));
+  const rewardByTemplateId = new Map<number, BootstrapTierConfig['tierReward']>();
+
+  if (rewardTemplateIds.length > 0) {
+    const [rewardRows] = await connection.query<
+      Array<RowDataPacket & { id: number; name: string; eligible_scope_json: unknown }>
+    >(
+      `
+        SELECT id, name, eligible_scope_json
+        FROM voucher_templates
+        WHERE is_active = 1
+          AND id IN (${rewardTemplateIds.map(() => '?').join(', ')})
+      `,
+      rewardTemplateIds
+    );
+
+    for (const row of rewardRows) {
+      let scope: Record<string, unknown> = {};
+      if (typeof row.eligible_scope_json === 'string') {
+        try {
+          scope = JSON.parse(row.eligible_scope_json) as Record<string, unknown>;
+        } catch {
+          scope = {};
+        }
+      } else if (row.eligible_scope_json && typeof row.eligible_scope_json === 'object') {
+        scope = row.eligible_scope_json as Record<string, unknown>;
+      }
+
+      rewardByTemplateId.set(Number(row.id), {
+        name: String(row.name ?? 'Tier reward'),
+        benefitLabel: String(scope.reward ?? scope.benefit_type ?? 'Voucher reward'),
+        description: String(scope.description ?? '').trim()
+      });
+    }
+  }
+
   const tiers = allTiers.map<BootstrapTierConfig>((tier) => ({
     code: tier.code,
     name: tier.name,
     minCups: tier.minCups,
     badgeColor: tier.badgeColor,
     sortOrder: tier.sortOrder,
-    isActive: tier.isActive
+    isActive: tier.isActive,
+    hasTierUnlockVoucher: Boolean(tier.rewardConfig?.voucherTemplateId),
+    tierReward: tier.rewardConfig?.voucherTemplateId
+      ? rewardByTemplateId.get(tier.rewardConfig.voucherTemplateId) ?? null
+      : null
   }));
 
   return {

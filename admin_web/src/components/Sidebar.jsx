@@ -9,17 +9,17 @@ const Sidebar = ({ currentPage, setCurrentPage, onLogout, currentTenant }) => {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const menuItems = [
     { name: 'Dashboard', icon: LayoutDashboard },
-    { name: 'Customers', icon: Users },
     { name: 'Orders', icon: ShoppingBag },
+    { name: 'Menu', icon: Coffee },
+    { name: 'Customers', icon: Users },
+    { name: 'Marketing', icon: Megaphone },
     { name: 'Voucher', icon: Ticket },
     { name: 'Loyalty & Tokens', icon: Coins },
     { name: 'Tier Management', icon: Crown },
-    { name: 'Menu', icon: Coffee },
-    { name: 'Marketing', icon: Megaphone },
     { name: 'Finance', icon: LineChart },
     { name: 'Product Report', icon: Package },
-    { name: 'Admin Management', icon: UserCog },
     { name: 'Barista Management', icon: UserCheck },
+    { name: 'Admin Management', icon: UserCog },
     { name: 'Audit Logs', icon: ClipboardList },
     { name: 'Settings', icon: Settings }
   ];

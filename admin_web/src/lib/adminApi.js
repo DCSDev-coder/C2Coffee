@@ -147,6 +147,11 @@ export async function loadAdminOrders() {
   return adminRequest('/v1/admin/orders');
 }
 
+export async function loadAdminDashboard(date = null) {
+  const query = date ? `?date=${encodeURIComponent(date)}` : '';
+  return adminRequest(`/v1/admin/dashboard${query}`);
+}
+
 export async function loadAdminRefunds() {
   return adminRequest('/v1/admin/refunds');
 }

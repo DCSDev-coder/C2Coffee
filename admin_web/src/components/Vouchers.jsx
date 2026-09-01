@@ -69,8 +69,9 @@ const AVAILABILITY_MODE_OPTIONS = [
   { value: "always", label: "Always Available" },
   { value: "daily", label: "Every Day, Time Window" },
   { value: "weekly", label: "Specific Days + Time" },
-  { value: "annual", label: "Annual Event + Time" },
-  { value: "birthday", label: "Customer Birthday + Time" }
+  { value: "monthly", label: "Every Month on a Date" },
+  { value: "annual", label: "Every Year on a Date" },
+  { value: "birthday", label: "Every Customer Birthday" }
 ];
 const WEEKDAY_OPTIONS = [
   "Sunday",
@@ -107,7 +108,8 @@ const createEmptyVoucherForm = () => ({
   activeDays: [],
   startTime: "",
   endTime: "",
-  annualDate: ""
+  annualDate: "",
+  monthlyDay: ""
 });
 
 const normalizeVoucherForm = (voucher) => ({
@@ -140,6 +142,7 @@ const normalizeVoucherForm = (voucher) => ({
   startTime: voucher?.startTime || "",
   endTime: voucher?.endTime || "",
   annualDate: voucher?.annualDate ? `2026-${voucher.annualDate}` : "",
+  monthlyDay: voucher?.monthlyDay || "",
   audience: voucher?.audience || "all_customers",
   availabilityMode: voucher?.availabilityMode || "always"
 });
@@ -803,7 +806,8 @@ const Vouchers = () => {
       activeDays: newVoucher.activeDays,
       startTime: newVoucher.startTime || null,
       endTime: newVoucher.endTime || null,
-      annualDate: newVoucher.annualDate || null
+      annualDate: newVoucher.annualDate || null,
+      monthlyDay: newVoucher.monthlyDay === "" ? null : Number(newVoucher.monthlyDay)
     };
 
     try {
@@ -849,7 +853,8 @@ const Vouchers = () => {
         activeDays: editingVoucher.activeDays,
         startTime: editingVoucher.startTime || null,
         endTime: editingVoucher.endTime || null,
-        annualDate: editingVoucher.annualDate || null
+        annualDate: editingVoucher.annualDate || null,
+        monthlyDay: editingVoucher.monthlyDay === "" ? null : Number(editingVoucher.monthlyDay)
       };
 
       await adminRequest(`/v1/admin/vouchers/${editingVoucher.id}`, {
@@ -922,7 +927,8 @@ const Vouchers = () => {
         activeDays: voucher.activeDays || [],
         startTime: voucher.startTime || null,
         endTime: voucher.endTime || null,
-        annualDate: voucher.annualDate || null
+        annualDate: voucher.annualDate || null,
+        monthlyDay: voucher.monthlyDay || null
       };
       await adminRequest('/v1/admin/vouchers', {
         method: 'POST',
@@ -1880,10 +1886,10 @@ const Vouchers = () => {
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block font-bold text-gray-900 mb-1">Availability</label>
+                      <label className="block font-bold text-gray-900 mb-1">Repeat Schedule</label>
                       <select
                         value={newVoucher.availabilityMode}
-                        onChange={(e) => setNewVoucher({ ...newVoucher, availabilityMode: e.target.value, activeDays: [], annualDate: "" })}
+                        onChange={(e) => setNewVoucher({ ...newVoucher, availabilityMode: e.target.value, activeDays: [], annualDate: "", monthlyDay: "" })}
                         className="peer w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
                       >
                         {AVAILABILITY_MODE_OPTIONS.map((option) => (
@@ -1892,7 +1898,7 @@ const Vouchers = () => {
                       </select>
                     </div>
                     <div>
-                      <label className="block font-bold text-gray-900 mb-1">Start Time</label>
+                      <label className="block font-bold text-gray-900 mb-1">Start Time <span className="font-normal text-gray-400">(optional)</span></label>
                       <input
                         type="time"
                         value={newVoucher.startTime}
@@ -1902,7 +1908,7 @@ const Vouchers = () => {
                     </div>
                     {newVoucher.availabilityMode !== "always" && (
                       <div>
-                        <label className="block font-bold text-gray-900 mb-1">End Time</label>
+                        <label className="block font-bold text-gray-900 mb-1">End Time <span className="font-normal text-gray-400">(optional)</span></label>
                         <input
                           type="time"
                           value={newVoucher.endTime}
@@ -1913,7 +1919,7 @@ const Vouchers = () => {
                     )}
                     {newVoucher.availabilityMode === "annual" && (
                       <div>
-                        <label className="block font-bold text-gray-900 mb-1">Annual Date</label>
+                        <label className="block font-bold text-gray-900 mb-1">Annual Day <span className="font-normal text-gray-400">(repeats yearly)</span></label>
                         <input
                           type="date"
                           value={newVoucher.annualDate}
@@ -1922,7 +1928,27 @@ const Vouchers = () => {
                         />
                       </div>
                     )}
+                    {newVoucher.availabilityMode === "monthly" && (
+                      <div>
+                        <label className="block font-bold text-gray-900 mb-1">Day of Month <span className="font-normal text-gray-400">(1-28)</span></label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="28"
+                          value={newVoucher.monthlyDay}
+                          onChange={(e) => setNewVoucher({ ...newVoucher, monthlyDay: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
+                        />
+                      </div>
+                    )}
                   </div>
+                  {(newVoucher.availabilityMode === "annual" || newVoucher.availabilityMode === "birthday" || newVoucher.availabilityMode === "monthly") && (
+                    <p className="-mt-1 text-xs leading-5 text-gray-500">
+                      {newVoucher.availabilityMode === "birthday"
+                        ? 'The system uses each customer\'s saved birthday. No admin date is required.'
+                        : 'A new reward is issued once per customer during each matching repeat period. Times are optional.'}
+                    </p>
+                  )}
 
                   {newVoucher.availabilityMode === "weekly" && (
                     <div>
@@ -2234,10 +2260,10 @@ const Vouchers = () => {
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block font-bold text-gray-900 mb-1">Availability</label>
+                      <label className="block font-bold text-gray-900 mb-1">Repeat Schedule</label>
                       <select
                         value={editingVoucher.availabilityMode}
-                        onChange={(e) => setEditingVoucher({ ...editingVoucher, availabilityMode: e.target.value, activeDays: [], annualDate: "" })}
+                        onChange={(e) => setEditingVoucher({ ...editingVoucher, availabilityMode: e.target.value, activeDays: [], annualDate: "", monthlyDay: "" })}
                         className="peer w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
                       >
                         {AVAILABILITY_MODE_OPTIONS.map((option) => (
@@ -2246,7 +2272,7 @@ const Vouchers = () => {
                       </select>
                     </div>
                     <div>
-                      <label className="block font-bold text-gray-900 mb-1">Start Time</label>
+                      <label className="block font-bold text-gray-900 mb-1">Start Time <span className="font-normal text-gray-400">(optional)</span></label>
                       <input
                         type="time"
                         value={editingVoucher.startTime || ""}
@@ -2256,7 +2282,7 @@ const Vouchers = () => {
                     </div>
                     {editingVoucher.availabilityMode !== "always" && (
                       <div>
-                        <label className="block font-bold text-gray-900 mb-1">End Time</label>
+                        <label className="block font-bold text-gray-900 mb-1">End Time <span className="font-normal text-gray-400">(optional)</span></label>
                         <input
                           type="time"
                           value={editingVoucher.endTime || ""}
@@ -2267,7 +2293,7 @@ const Vouchers = () => {
                     )}
                     {editingVoucher.availabilityMode === "annual" && (
                       <div>
-                        <label className="block font-bold text-gray-900 mb-1">Annual Date</label>
+                        <label className="block font-bold text-gray-900 mb-1">Annual Day <span className="font-normal text-gray-400">(repeats yearly)</span></label>
                         <input
                           type="date"
                           value={editingVoucher.annualDate || ""}
@@ -2276,7 +2302,27 @@ const Vouchers = () => {
                         />
                       </div>
                     )}
+                    {editingVoucher.availabilityMode === "monthly" && (
+                      <div>
+                        <label className="block font-bold text-gray-900 mb-1">Day of Month <span className="font-normal text-gray-400">(1-28)</span></label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="28"
+                          value={editingVoucher.monthlyDay || ""}
+                          onChange={(e) => setEditingVoucher({ ...editingVoucher, monthlyDay: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
+                        />
+                      </div>
+                    )}
                   </div>
+                  {(editingVoucher.availabilityMode === "annual" || editingVoucher.availabilityMode === "birthday" || editingVoucher.availabilityMode === "monthly") && (
+                    <p className="-mt-1 text-xs leading-5 text-gray-500">
+                      {editingVoucher.availabilityMode === "birthday"
+                        ? 'The system uses each customer\'s saved birthday. No admin date is required.'
+                        : 'A new reward is issued once per customer during each matching repeat period. Times are optional.'}
+                    </p>
+                  )}
 
                   {editingVoucher.availabilityMode === "weekly" && (
                     <div>

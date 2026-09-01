@@ -195,6 +195,7 @@ function _isVoucherAvailableNow(
   const startTime = typeof schedule.startTime === 'string' ? schedule.startTime : '';
   const endTime = typeof schedule.endTime === 'string' ? schedule.endTime : '';
   const annualDate = typeof schedule.annualDate === 'string' ? schedule.annualDate : '';
+  const monthlyDay = Number(schedule.monthlyDay ?? 0);
 
   if (mode === 'birthday' && (!birthdayMonthDay || birthdayMonthDay !== currentMonthDay)) {
     return false;
@@ -205,6 +206,10 @@ function _isVoucherAvailableNow(
   }
 
   if (mode === 'annual' && annualDate && annualDate !== currentMonthDay) {
+    return false;
+  }
+
+  if (mode === 'monthly' && monthlyDay > 0 && monthlyDay !== Number(currentParts.day)) {
     return false;
   }
 

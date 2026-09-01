@@ -251,7 +251,8 @@ export async function registerCatalogRoutes(app: FastifyInstance): Promise<void>
       loyalty: {
         tier: summary.tier,
         cups_last_180d: summary.cups_last_180d,
-        next_tier: null
+        next_tier: null,
+        tiers: summary.tiers
       },
       active_order: null,
       home_banners: await listActiveHomeBanners()
