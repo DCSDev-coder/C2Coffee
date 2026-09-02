@@ -384,6 +384,16 @@ class RewardVoucherTemplate {
   }
 
   static String _scopeLabelFromMap(Map<String, dynamic> scope) {
+    final productKinds =
+        _scopeValues(scope, ['product_kind_codes', 'product_kinds']);
+    const allMenuProductKinds = {'drink', 'food', 'merchandise', 'candle'};
+    final normalizedKinds = productKinds
+        .map(_normalizeScopeValue)
+        .toSet();
+    if (allMenuProductKinds.every(normalizedKinds.contains)) {
+      return 'All menu items';
+    }
+
     final items = _scopeValues(scope, ['items', 'item_codes']);
     if (items.isNotEmpty) {
       final labels = items.map(_formatScopeValue).toList();
@@ -398,8 +408,6 @@ class RewardVoucherTemplate {
       return categories.map(_formatScopeValue).join(', ');
     }
 
-    final productKinds =
-        _scopeValues(scope, ['product_kind_codes', 'product_kinds']);
     if (productKinds.isNotEmpty) {
       return productKinds.map(_formatScopeValue).join(', ');
     }

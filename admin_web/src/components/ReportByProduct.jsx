@@ -4,7 +4,7 @@ import { BarChart, Bar, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import Pagination from './Pagination';
-import { loadAdminProductReport } from '../lib/adminApi';
+import { getAdminApiBaseUrl, loadAdminProductReport } from '../lib/adminApi';
 import { formatReportMoney, formatReportTokens } from '../utils/reporting';
 import { exportToCSV } from '../utils/exportToCSV';
 
@@ -22,6 +22,15 @@ const EMPTY_REPORT = {
     topProductRevenueRm: 0
   }
 };
+
+function resolveProductImageUrl(imageUrl) {
+  const value = String(imageUrl ?? '').trim();
+  if (!value || /^data:/i.test(value) || /^https?:\/\//i.test(value)) {
+    return value;
+  }
+
+  return `${getAdminApiBaseUrl()}${value.startsWith('/') ? value : `/${value}`}`;
+}
 
 const CustomDateInput = forwardRef(({ value, onClick }, ref) => (
   <button
@@ -298,7 +307,7 @@ const ReportByProduct = ({ onBack }) => {
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-lg bg-gray-100 overflow-hidden shrink-0 flex items-center justify-center">
                           {product.imageUrl ? (
-                            <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
+                            <img src={resolveProductImageUrl(product.imageUrl)} alt={product.name} className="w-full h-full object-cover" />
                           ) : (
                             <Package size={16} className="text-gray-400" />
                           )}

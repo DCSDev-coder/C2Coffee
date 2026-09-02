@@ -90,6 +90,7 @@ const BENEFIT_TYPES = new Set([
   'Token Discount',
   'Birthday Voucher'
 ]);
+const ALL_MENU_PRODUCT_KINDS = ['drink', 'food', 'merchandise', 'candle'];
 
 const DAY_NAME_MAP: Record<string, string> = {
   sunday: 'Sunday',
@@ -296,11 +297,36 @@ function addDays(base: Date, days: number): Date {
   return date;
 }
 
+function formatScopeLabel(value: string): string {
+  return value
+    .replaceAll(/[_-]+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function voucherScopeLabel(payload: VoucherPayload): string {
+  const productKinds = normalizeScopeCodes(payload.productKinds).map((value) => value.toLowerCase());
+  const includesEveryCoreKind = ALL_MENU_PRODUCT_KINDS.every((kind) => productKinds.includes(kind));
+  if (includesEveryCoreKind) return 'All menu items';
+
+  const items = normalizeEligibleItems(payload.eligibleItems).filter((item) => item !== 'All Items');
+  if (items.length === 1) return items[0];
+  if (items.length > 1) return 'Selected items';
+
+  const subcategories = normalizeScopeCodes(payload.subcategoryCodes);
+  if (subcategories.length === 1) return formatScopeLabel(subcategories[0]);
+  if (subcategories.length > 1) return 'Selected menu types';
+
+  if (productKinds.length === 1) return formatScopeLabel(productKinds[0]);
+  if (productKinds.length > 1) return 'Selected menu types';
+  return 'All menu items';
+}
+
 function deriveReward(payload: VoucherPayload): string {
   const explicitReward = payload.reward?.trim();
   if (explicitReward) return explicitReward;
 
-  const firstItem = payload.eligibleItems[0]?.trim();
+  const scopeLabel = voucherScopeLabel(payload);
   const promoLabel = payload.benefitType === 'Free Food' ? 'Food' : 'Drink';
 
   if (payload.promotionKind === 'bundle') {
@@ -310,11 +336,11 @@ function deriveReward(payload: VoucherPayload): string {
   }
 
   if (payload.benefitType === 'Free Drink') {
-    return firstItem ? `Free ${firstItem}` : 'Free Drink';
+    return `${scopeLabel === 'All menu items' ? 'Free item' : 'Free drink'} - ${scopeLabel}`;
   }
 
   if (payload.benefitType === 'Free Food') {
-    return firstItem ? `Free ${firstItem}` : 'Free Food';
+    return `${scopeLabel === 'All menu items' ? 'Free item' : 'Free food'} - ${scopeLabel}`;
   }
 
   if (payload.benefitType === 'Discount' || payload.benefitType === 'Percentage Off') {
@@ -326,7 +352,7 @@ function deriveReward(payload: VoucherPayload): string {
   }
 
   if (payload.benefitType === 'Birthday Voucher') {
-    return 'Birthday Treat';
+    return `Birthday treat - ${scopeLabel}`;
   }
 
   return payload.name;

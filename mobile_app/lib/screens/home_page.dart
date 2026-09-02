@@ -53,6 +53,8 @@ class _HomePageState extends State<HomePage> {
   Timer? _carouselTimer;
   int _currentBannerIndex = 0;
 
+  static const _carouselInterval = Duration(seconds: 4);
+
   List<HomeBanner> get _sortedHomeBanners {
     final banners = _session.homeBanners.toList();
     banners.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
@@ -68,18 +70,10 @@ class _HomePageState extends State<HomePage> {
         await _session.loadAuthenticatedState();
       } catch (_) {}
       if (!mounted) return;
-      WidgetsBinding.instance.addPostFrameCallback((_) => _showPosterIfNeeded());
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => _showPosterIfNeeded());
     });
-    _carouselTimer = Timer.periodic(const Duration(seconds: 4), (_) {
-      final banners = _sortedHomeBanners;
-      if (!_pageController.hasClients || banners.isEmpty) return;
-      _currentBannerIndex = (_currentBannerIndex + 1) % banners.length;
-      _pageController.animateToPage(
-        _currentBannerIndex,
-        duration: const Duration(milliseconds: 350),
-        curve: Curves.easeInOut,
-      );
-    });
+    _restartCarouselTimer();
   }
 
   @override
@@ -88,6 +82,21 @@ class _HomePageState extends State<HomePage> {
     _pageController.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _restartCarouselTimer() {
+    _carouselTimer?.cancel();
+    _carouselTimer = Timer.periodic(_carouselInterval, (_) {
+      final banners = _sortedHomeBanners;
+      if (!mounted || !_pageController.hasClients || banners.length < 2) return;
+
+      _currentBannerIndex = (_currentBannerIndex + 1) % banners.length;
+      _pageController.animateToPage(
+        _currentBannerIndex,
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeInOut,
+      );
+    });
   }
 
   Future<void> _loadAvatarState() async {
@@ -111,9 +120,8 @@ class _HomePageState extends State<HomePage> {
   void _showPosterIfNeeded() {
     if (_hasShownPoster || !mounted) return;
     _hasShownPoster = true;
-    final banners = _sortedHomeBanners
-        .where((banner) => banner.floatingPriority)
-        .toList();
+    final banners =
+        _sortedHomeBanners.where((banner) => banner.floatingPriority).toList();
     if (banners.isEmpty) {
       return;
     }
@@ -535,36 +543,44 @@ class _HomePageState extends State<HomePage> {
         borderRadius: BorderRadius.circular(24),
         child: Stack(
           children: [
-            PageView.builder(
-              controller: _pageController,
-              itemCount: banners.length,
-              onPageChanged: (index) =>
-                  setState(() => _currentBannerIndex = index),
-              itemBuilder: (context, index) {
-                final banner = banners[index];
-                return GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () => _handleBannerTap(banner),
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      _buildBannerImage(banner.imageSource),
-                      Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Colors.transparent,
-                              Colors.black.withValues(alpha: 0.18),
-                            ],
+            NotificationListener<ScrollStartNotification>(
+              onNotification: (notification) {
+                if (notification.dragDetails != null) {
+                  _restartCarouselTimer();
+                }
+                return false;
+              },
+              child: PageView.builder(
+                controller: _pageController,
+                itemCount: banners.length,
+                onPageChanged: (index) =>
+                    setState(() => _currentBannerIndex = index),
+                itemBuilder: (context, index) {
+                  final banner = banners[index];
+                  return GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => _handleBannerTap(banner),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        _buildBannerImage(banner.imageSource),
+                        Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.transparent,
+                                Colors.black.withValues(alpha: 0.18),
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                );
-              },
+                      ],
+                    ),
+                  );
+                },
+              ),
             ),
             Positioned(
               bottom: 12,

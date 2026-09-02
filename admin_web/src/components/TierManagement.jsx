@@ -52,11 +52,22 @@ function formatTierStatus(value) {
   return value ? 'Active' : 'Inactive';
 }
 
-function formatTierReward(tier, voucherOptions) {
-  const voucherTemplateId = Number(tier?.rewardConfig?.voucherTemplateId || 0);
-  if (!voucherTemplateId) return 'No automatic voucher';
-  const voucher = voucherOptions.find((entry) => Number(entry.db_id) === voucherTemplateId);
-  return voucher ? voucher.name : `Voucher #${voucherTemplateId}`;
+function formatTierRewards(tier, voucherOptions) {
+  const tierCode = String(tier?.code || '').trim().toLowerCase();
+  const targetedVouchers = voucherOptions.filter((voucher) =>
+    voucher.status === 'Active'
+      && String(voucher.tier || '').trim().toLowerCase() === tierCode
+  );
+  const configuredVoucherId = Number(tier?.rewardConfig?.voucherTemplateId || 0);
+  const configuredVoucher = configuredVoucherId
+    ? voucherOptions.find((voucher) => Number(voucher.db_id) === configuredVoucherId)
+    : null;
+  const vouchers = configuredVoucher && !targetedVouchers.some((voucher) => Number(voucher.db_id) === configuredVoucherId)
+    ? [configuredVoucher, ...targetedVouchers]
+    : targetedVouchers;
+
+  if (vouchers.length === 0) return 'No tier vouchers';
+  return vouchers.map((voucher) => voucher.name).join(', ');
 }
 
 function getStatusClass(isActive) {
@@ -524,7 +535,7 @@ const TierManagement = () => {
                 <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Tier Name</th>
                 <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Code</th>
                 <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Cups Needed</th>
-                <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Tier Unlock Voucher</th>
+                <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Tier Vouchers</th>
                 <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100 text-center">Status</th>
                 <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100 text-center">Actions</th>
               </tr>
@@ -557,7 +568,7 @@ const TierManagement = () => {
                       </td>
                       <td className="px-6 py-4 text-gray-600 font-medium">{tier.code}</td>
                       <td className="px-6 py-4 text-gray-600 font-medium">{formatCupsLabel(tier.minCups)}</td>
-                      <td className="px-6 py-4 text-gray-600 font-medium">{formatTierReward(tier, voucherOptions)}</td>
+                      <td className="px-6 py-4 text-gray-600 font-medium whitespace-normal min-w-52">{formatTierRewards(tier, voucherOptions)}</td>
                       <td className="px-6 py-4 text-center">
                         <span className={`inline-flex items-center px-2.5 py-1 rounded-md font-bold text-xs ${getStatusClass(Boolean(tier.isActive))}`}>
                           {formatTierStatus(Boolean(tier.isActive))}

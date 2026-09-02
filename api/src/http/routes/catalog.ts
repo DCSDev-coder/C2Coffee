@@ -259,6 +259,15 @@ export async function registerCatalogRoutes(app: FastifyInstance): Promise<void>
     };
   });
 
+  app.get('/v1/loyalty/tiers', { preHandler: authenticateRequest }, async (request) => {
+    const summary = await getBootstrapForUser(request.auth.userId);
+    return {
+      tier: summary.tier,
+      cups_last_180d: summary.cups_last_180d,
+      tiers: summary.tiers
+    };
+  });
+
   app.get('/v1/stores', { preHandler: authenticateRequest }, async () => {
     return {
       stores: await listActiveStores()

@@ -361,6 +361,7 @@ class LoyaltyTier {
   final int sortOrder;
   final bool isActive;
   final bool hasTierUnlockVoucher;
+  final List<TierRewardSummary> tierRewards;
   final TierRewardSummary? tierReward;
 
   const LoyaltyTier({
@@ -371,6 +372,7 @@ class LoyaltyTier {
     required this.sortOrder,
     required this.isActive,
     required this.hasTierUnlockVoucher,
+    required this.tierRewards,
     required this.tierReward,
   });
 
@@ -383,6 +385,12 @@ class LoyaltyTier {
       sortOrder: (json['sortOrder'] as num?)?.toInt() ?? 0,
       isActive: json['isActive'] as bool? ?? true,
       hasTierUnlockVoucher: json['hasTierUnlockVoucher'] as bool? ?? false,
+      tierRewards: (json['tierRewards'] as List? ?? const [])
+          .whereType<Map>()
+          .map((reward) => TierRewardSummary.fromApi(
+                Map<String, dynamic>.from(reward),
+              ))
+          .toList(),
       tierReward: json['tierReward'] is Map
           ? TierRewardSummary.fromApi(
               Map<String, dynamic>.from(json['tierReward'] as Map),
@@ -393,11 +401,13 @@ class LoyaltyTier {
 }
 
 class TierRewardSummary {
+  final int id;
   final String name;
   final String benefitLabel;
   final String description;
 
   const TierRewardSummary({
+    required this.id,
     required this.name,
     required this.benefitLabel,
     required this.description,
@@ -405,6 +415,7 @@ class TierRewardSummary {
 
   factory TierRewardSummary.fromApi(Map<String, dynamic> json) {
     return TierRewardSummary(
+      id: (json['id'] as num?)?.toInt() ?? 0,
       name: json['name'] as String? ?? 'Tier reward',
       benefitLabel: json['benefitLabel'] as String? ?? 'Voucher reward',
       description: json['description'] as String? ?? '',
@@ -464,7 +475,7 @@ class CatalogApiService {
 
         return a.code.compareTo(b.code);
       });
-    final loyaltyTiers = (loyalty['tiers'] as List? ?? const [])
+    var loyaltyTiers = (loyalty['tiers'] as List? ?? const [])
         .map((tier) => LoyaltyTier.fromApi(
               Map<String, dynamic>.from(tier as Map),
             ))
@@ -474,6 +485,26 @@ class CatalogApiService {
         if (cupsComparison != 0) return cupsComparison;
         return a.sortOrder.compareTo(b.sortOrder);
       });
+
+    // A dedicated endpoint keeps tier visibility recoverable if an older
+    // bootstrap response is temporarily served during a rolling API release.
+    if (loyaltyTiers.isEmpty) {
+      try {
+        final tierResponse = await _get('/loyalty/tiers', accessToken: accessToken);
+        loyaltyTiers = (tierResponse['tiers'] as List? ?? const [])
+            .map((tier) => LoyaltyTier.fromApi(
+                  Map<String, dynamic>.from(tier as Map),
+                ))
+            .toList()
+          ..sort((a, b) {
+            final cupsComparison = a.minCups.compareTo(b.minCups);
+            if (cupsComparison != 0) return cupsComparison;
+            return a.sortOrder.compareTo(b.sortOrder);
+          });
+      } catch (_) {
+        // The normal bootstrap error state remains the user-facing fallback.
+      }
+    }
 
     return BootstrapSnapshot(
       user: user,

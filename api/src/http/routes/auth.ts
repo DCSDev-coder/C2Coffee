@@ -52,12 +52,80 @@ type BootstrapTierConfig = Pick<
   'code' | 'name' | 'minCups' | 'badgeColor' | 'sortOrder' | 'isActive'
 > & {
   hasTierUnlockVoucher: boolean;
+  tierRewards: Array<{
+    id: number;
+    name: string;
+    benefitLabel: string;
+    description: string;
+  }>;
   tierReward: {
     name: string;
     benefitLabel: string;
     description: string;
   } | null;
 };
+
+const ALL_MENU_PRODUCT_KINDS = ['drink', 'food', 'merchandise', 'candle'];
+
+function formatScopeLabel(value: string): string {
+  return value
+    .replaceAll(/[_-]+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function scopeValues(scope: Record<string, unknown>, key: string): string[] {
+  const value = scope[key];
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => String(item).trim()).filter(Boolean);
+}
+
+function getVoucherScope(scope: Record<string, unknown>): Record<string, unknown> {
+  const rule = scope.promotion_rule;
+  if (rule && typeof rule === 'object') {
+    const qualifyingScope = (rule as Record<string, unknown>).qualifying_scope;
+    if (qualifyingScope && typeof qualifyingScope === 'object') {
+      return qualifyingScope as Record<string, unknown>;
+    }
+  }
+  return scope;
+}
+
+function voucherScopeLabel(scope: Record<string, unknown>): string {
+  const voucherScope = getVoucherScope(scope);
+  const productKinds = scopeValues(voucherScope, 'product_kind_codes').map((value) => value.toLowerCase());
+  const includesEveryCoreKind = ALL_MENU_PRODUCT_KINDS.every((kind) => productKinds.includes(kind));
+  if (includesEveryCoreKind) return 'All menu items';
+
+  const items = scopeValues(voucherScope, 'items').filter((item) => item.toLowerCase() !== 'all items');
+  if (items.length === 1) return items[0];
+  if (items.length > 1) return 'Selected items';
+
+  const subcategories = scopeValues(voucherScope, 'subcategory_codes');
+  if (subcategories.length === 1) return formatScopeLabel(subcategories[0]);
+  if (subcategories.length > 1) return 'Selected menu types';
+
+  if (productKinds.length === 1) return formatScopeLabel(productKinds[0]);
+  if (productKinds.length > 1) return 'Selected menu types';
+  return 'All menu items';
+}
+
+function tierRewardBenefitLabel(scope: Record<string, unknown>): string {
+  const benefitType = String(scope.benefit_type ?? scope.frontend_type ?? '').trim();
+  const scopeLabel = voucherScopeLabel(scope);
+  const storedBenefit = String(scope.reward ?? '').trim();
+  let benefit = storedBenefit || benefitType || 'Voucher reward';
+
+  if (benefitType === 'Birthday Voucher') {
+    benefit = 'Birthday treat';
+  } else if (benefitType === 'Free Drink') {
+    benefit = scopeLabel === 'All menu items' ? 'Free item' : 'Free drink';
+  } else if (benefitType === 'Free Food') {
+    benefit = scopeLabel === 'All menu items' ? 'Free item' : 'Free food';
+  }
+
+  return `${benefit} - ${scopeLabel}`;
+}
 
 export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
   app.post('/v1/auth/check-signup-identity', async (request) => {
@@ -815,12 +883,14 @@ export async function getBootstrapForUser(
   );
 
   const allTiers = await loadLoyaltyTiers(connection);
-  const rewardTemplateIds = allTiers
-    .map((tier) => tier.rewardConfig?.voucherTemplateId)
-    .filter((id): id is number => Number.isInteger(id));
   const rewardByTemplateId = new Map<number, BootstrapTierConfig['tierReward']>();
 
-  if (rewardTemplateIds.length > 0) {
+  const tierRewardsByCode = new Map<
+    string,
+    Array<NonNullable<BootstrapTierConfig['tierReward']> & { id: number }>
+  >();
+
+  if (allTiers.length > 0) {
     const [rewardRows] = await connection.query<
       Array<RowDataPacket & { id: number; name: string; eligible_scope_json: unknown }>
     >(
@@ -828,9 +898,7 @@ export async function getBootstrapForUser(
         SELECT id, name, eligible_scope_json
         FROM voucher_templates
         WHERE is_active = 1
-          AND id IN (${rewardTemplateIds.map(() => '?').join(', ')})
-      `,
-      rewardTemplateIds
+      `
     );
 
     for (const row of rewardRows) {
@@ -845,11 +913,20 @@ export async function getBootstrapForUser(
         scope = row.eligible_scope_json as Record<string, unknown>;
       }
 
-      rewardByTemplateId.set(Number(row.id), {
+      const reward = {
         name: String(row.name ?? 'Tier reward'),
-        benefitLabel: String(scope.reward ?? scope.benefit_type ?? 'Voucher reward'),
+        benefitLabel: tierRewardBenefitLabel(scope),
         description: String(scope.description ?? '').trim()
-      });
+      };
+      const templateId = Number(row.id);
+      rewardByTemplateId.set(templateId, reward);
+
+      const tierCode = String(scope.tier ?? '').trim().toLowerCase();
+      if (tierCode && tierCode !== 'all tiers' && allTiers.some((tier) => tier.code === tierCode)) {
+        const tierRewards = tierRewardsByCode.get(tierCode) ?? [];
+        tierRewards.push({ id: templateId, ...reward });
+        tierRewardsByCode.set(tierCode, tierRewards);
+      }
     }
   }
 
@@ -861,6 +938,17 @@ export async function getBootstrapForUser(
     sortOrder: tier.sortOrder,
     isActive: tier.isActive,
     hasTierUnlockVoucher: Boolean(tier.rewardConfig?.voucherTemplateId),
+    tierRewards: (() => {
+      const targetedRewards = [...(tierRewardsByCode.get(tier.code) ?? [])];
+      const configuredTemplateId = tier.rewardConfig?.voucherTemplateId;
+      if (configuredTemplateId && !targetedRewards.some((reward) => reward.id === configuredTemplateId)) {
+        const configuredReward = rewardByTemplateId.get(configuredTemplateId);
+        if (configuredReward) {
+          targetedRewards.unshift({ id: configuredTemplateId, ...configuredReward });
+        }
+      }
+      return targetedRewards;
+    })(),
     tierReward: tier.rewardConfig?.voucherTemplateId
       ? rewardByTemplateId.get(tier.rewardConfig.voucherTemplateId) ?? null
       : null

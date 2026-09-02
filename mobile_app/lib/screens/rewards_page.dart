@@ -36,7 +36,8 @@ class _RewardsPageState extends State<RewardsPage> {
   final ScrollController _scrollController = ScrollController();
   Color get orangeColor => AppColors.deepTeal;
   final Color beigeBg = Colors.white;
-  int _selectedTier = 1;
+  int _selectedTier = 0;
+  String? _selectedTierCode;
   bool _isFaqsOpen = false;
 
   List<LoyaltyTier> get _availableTiers {
@@ -74,12 +75,28 @@ class _RewardsPageState extends State<RewardsPage> {
   }
 
   void _syncTierFromSession() {
-    if (_availableTiers.isEmpty) {
+    final tiers = _availableTiers;
+    if (tiers.isEmpty) {
       _selectedTier = 0;
+      _selectedTierCode = null;
       return;
     }
+
+    // Keep the tier the customer chose open while background data refreshes.
+    // Fall back to the current tier only when the chosen tier no longer exists.
+    if (_selectedTierCode != null) {
+      final selectedIndex = tiers.indexWhere(
+        (tier) => tier.code.trim().toLowerCase() == _selectedTierCode,
+      );
+      if (selectedIndex >= 0) {
+        _selectedTier = selectedIndex;
+        return;
+      }
+    }
+
     final currentTierIndex = _currentTierIndex();
-    _selectedTier = currentTierIndex.clamp(0, _availableTiers.length - 1);
+    _selectedTier = currentTierIndex.clamp(0, tiers.length - 1);
+    _selectedTierCode = tiers[_selectedTier].code.trim().toLowerCase();
   }
 
   int _currentTierIndex() {
@@ -502,29 +519,46 @@ class _RewardsPageState extends State<RewardsPage> {
     );
   }
 
-  List<String> _getTierDetails(LoyaltyTier tier, {required bool isCurrent}) {
-    final details = <String>[
-      'Reach ${tier.minCups} qualifying cups within 180 days to hold this tier.',
-    ];
+  List<String> _getTierDetails(LoyaltyTier tier) {
+    return tier.tierRewards
+        .map((reward) => '${reward.name}: ${reward.benefitLabel}')
+        .toList();
+  }
 
-    if (tier.hasTierUnlockVoucher && tier.minCups > 0) {
-      final reward = tier.tierReward;
-      if (reward == null) {
-        details.add('No reward details have been set for this tier yet.');
-      } else {
-        details.add('${reward.name}: ${reward.benefitLabel}.');
-        if (reward.description.isNotEmpty) {
-          details.add(reward.description);
-        }
-        details.add('This reward is added to My Rewards the first time you reach this tier.');
-      }
-    }
+  Widget _buildTierProgress({
+    required LoyaltyTier tier,
+    required int selectedIndex,
+    required int currentIndex,
+  }) {
+    final cups = _session.cupsLast180d;
+    final nextTier = _nextTier();
+    final targetCups = tier.minCups == 0
+        ? 1
+        : selectedIndex == currentIndex && nextTier != null
+            ? nextTier.minCups
+            : tier.minCups;
+    final collectedCups =
+        selectedIndex < currentIndex ? targetCups : cups.clamp(0, targetCups);
 
-    if (isCurrent) {
-      details.add('You are currently in this tier.');
-    }
-
-    return details;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceLight,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Center(
+        child: Text(
+          '$collectedCups / $targetCups cups collected',
+          style: TextStyle(
+            fontFamily: 'Afacad',
+            fontSize: 15,
+            fontWeight: FontWeight.bold,
+            color: AppColors.deepTeal,
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildTierSection() {
@@ -629,6 +663,7 @@ class _RewardsPageState extends State<RewardsPage> {
       onTap: () {
         setState(() {
           _selectedTier = index;
+          _selectedTierCode = tier.code.trim().toLowerCase();
         });
       },
       child: AnimatedContainer(
@@ -640,7 +675,9 @@ class _RewardsPageState extends State<RewardsPage> {
           border: Border.all(
             color: isSelected
                 ? const Color(0xFFAD6D15)
-                : (isCurrentActualTier ? AppColors.sageTeal : const Color(0xFFE2EBE9)),
+                : (isCurrentActualTier
+                    ? AppColors.sageTeal
+                    : const Color(0xFFE2EBE9)),
             width: isSelected ? 1.5 : 1,
           ),
           boxShadow: [
@@ -686,7 +723,7 @@ class _RewardsPageState extends State<RewardsPage> {
     final selectedIndex = _selectedTier;
     final isCurrent = selectedIndex == currentIndex;
     final isUnlocked = selectedIndex < currentIndex;
-    final details = _getTierDetails(tier, isCurrent: isCurrent);
+    final details = _getTierDetails(tier);
 
     return Container(
       key: key,
@@ -724,16 +761,6 @@ class _RewardsPageState extends State<RewardsPage> {
                       color: AppColors.deepTeal,
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${tier.minCups} cups required',
-                    style: TextStyle(
-                      fontFamily: 'Afacad',
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.grey.shade600,
-                    ),
-                  ),
                 ],
               ),
               if (isCurrent)
@@ -763,16 +790,24 @@ class _RewardsPageState extends State<RewardsPage> {
             color: AppColors.surfaceLight,
           ),
           const SizedBox(height: 14),
-          Text(
-            'Tier Details',
-            style: TextStyle(
-              fontFamily: 'Recoleta',
-              fontSize: 15,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textDark,
-            ),
+          _buildTierProgress(
+            tier: tier,
+            selectedIndex: selectedIndex,
+            currentIndex: currentIndex,
           ),
-          const SizedBox(height: 10),
+          if (details.isNotEmpty) ...[
+            const SizedBox(height: 18),
+            Text(
+              'Vouchers',
+              style: TextStyle(
+                fontFamily: 'Recoleta',
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textDark,
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
           ...details.map(
             (detail) => Padding(
               padding: const EdgeInsets.only(bottom: 8),

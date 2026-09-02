@@ -1837,7 +1837,7 @@ const Vouchers = () => {
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block font-bold text-gray-900 mb-1">Tier</label>
+                      <label className="block font-bold text-gray-900 mb-1">Eligible Member Tier</label>
                       <select
                         value={newVoucher.tier}
                         onChange={(e) => setNewVoucher({ ...newVoucher, tier: e.target.value })}
@@ -1849,6 +1849,7 @@ const Vouchers = () => {
                         <option value="Dilamun">Dilamun</option>
                         <option value="Ketagih">Ketagih</option>
                       </select>
+                      <p className="mt-1 text-[11px] text-gray-400">This limits who can receive the voucher. To set a tier reward, choose this voucher in Tier Management.</p>
                     </div>
                   </div>
 
@@ -2190,7 +2191,7 @@ const Vouchers = () => {
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block font-bold text-gray-900 mb-1">Tier</label>
+                      <label className="block font-bold text-gray-900 mb-1">Eligible Member Tier</label>
                       <select
                         value={editingVoucher.tier}
                         onChange={(e) => setEditingVoucher({ ...editingVoucher, tier: e.target.value })}
@@ -2202,6 +2203,7 @@ const Vouchers = () => {
                         <option value="Dilamun">Dilamun</option>
                         <option value="Ketagih">Ketagih</option>
                       </select>
+                      <p className="mt-1 text-[11px] text-gray-400">This limits who can receive the voucher. To set a tier reward, choose this voucher in Tier Management.</p>
                     </div>
                   </div>
 
