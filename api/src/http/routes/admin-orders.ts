@@ -2,6 +2,8 @@ import type { FastifyInstance } from 'fastify';
 import type { RowDataPacket } from 'mysql2/promise';
 import { authenticateAdminRequest } from '../../admin/guard.js';
 import { mysqlPool } from '../../db/mysql.js';
+import { processOrderLoyalty } from '../../services/loyalty.js';
+import { awardReferralForCollectedOrder } from '../../services/referrals.js';
 import { ApiError } from '../errors.js';
 import { z } from 'zod';
 
@@ -293,7 +295,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
     try {
       await connection.beginTransaction();
       const [rows] = await connection.execute<RowDataPacket[]>(
-        `SELECT o.id, o.status
+        `SELECT o.id, o.user_id, o.status
          FROM orders o
          JOIN stores s ON s.id = o.store_id
          JOIN admin_tenants t ON t.id = s.tenant_id
@@ -423,6 +425,13 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           reason: `Updated by ${baristaName || request.adminAuth.fullName || request.adminAuth.username}`
         }
       );
+
+      // Super admins may record collection on behalf of a customer. Keep the
+      // reward outcome identical to customer-confirmed collection.
+      if (effectiveStatus === 'collected') {
+        await processOrderLoyalty(internalId, Number(rows[0].user_id), connection);
+        await awardReferralForCollectedOrder(connection, Number(rows[0].user_id), internalId);
+      }
 
       await connection.commit();
       committed = true;

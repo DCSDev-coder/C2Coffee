@@ -134,6 +134,17 @@ export async function loadAdminMenu() {
   return adminRequest('/v1/admin/menu');
 }
 
+export async function loadAdminHomeFeatured() {
+  return adminRequest('/v1/admin/home-featured');
+}
+
+export async function saveAdminHomeFeatured(section, itemIds) {
+  return adminRequest('/v1/admin/home-featured', {
+    method: 'PUT',
+    body: JSON.stringify({ section, itemIds })
+  });
+}
+
 export async function loadAdminProductReport(selectedDate = null) {
   const query = selectedDate ? `?selected_date=${encodeURIComponent(selectedDate.toISOString())}` : '';
   return adminRequest(`/v1/admin/reports/products${query}`);

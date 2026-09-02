@@ -712,6 +712,14 @@ async function findOrCreateUserForPhone(
 
   await connection.execute(
     `
+      INSERT INTO user_referral_codes (user_id, code)
+      VALUES (:userId, CONCAT('C2-', LPAD(:userId, 8, '0')))
+    `,
+    { userId: userInsert.insertId }
+  );
+
+  await connection.execute(
+    `
       INSERT INTO user_profiles (
         user_id,
         display_name,

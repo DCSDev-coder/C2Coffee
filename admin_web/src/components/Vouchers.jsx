@@ -110,6 +110,7 @@ const createEmptyVoucherForm = () => ({
   endTime: "",
   annualDate: "",
   monthlyDay: ""
+  ,isReferralReward: false
 });
 
 const normalizeVoucherForm = (voucher) => ({
@@ -145,6 +146,7 @@ const normalizeVoucherForm = (voucher) => ({
   monthlyDay: voucher?.monthlyDay || "",
   audience: voucher?.audience || "all_customers",
   availabilityMode: voucher?.availabilityMode || "always"
+  ,isReferralReward: Boolean(voucher?.isReferralReward)
 });
 
 const audienceLabel = (value) =>
@@ -808,6 +810,7 @@ const Vouchers = () => {
       endTime: newVoucher.endTime || null,
       annualDate: newVoucher.annualDate || null,
       monthlyDay: newVoucher.monthlyDay === "" ? null : Number(newVoucher.monthlyDay)
+      ,isReferralReward: Boolean(newVoucher.isReferralReward)
     };
 
     try {
@@ -855,6 +858,7 @@ const Vouchers = () => {
         endTime: editingVoucher.endTime || null,
         annualDate: editingVoucher.annualDate || null,
         monthlyDay: editingVoucher.monthlyDay === "" ? null : Number(editingVoucher.monthlyDay)
+        ,isReferralReward: Boolean(editingVoucher.isReferralReward)
       };
 
       await adminRequest(`/v1/admin/vouchers/${editingVoucher.id}`, {
@@ -1745,6 +1749,11 @@ const Vouchers = () => {
                     </div>
                   </div>
 
+                  <label className="flex gap-2 rounded-lg border border-[#D7E4E0] bg-[#F4F8F7] px-3 py-2 text-xs text-gray-700 cursor-pointer">
+                    <input type="checkbox" checked={newVoucher.isReferralReward} onChange={(e) => setNewVoucher({ ...newVoucher, isReferralReward: e.target.checked })} />
+                    <span><strong>Referral reward</strong><br />Issue this voucher to the referrer after their friend collects a first order. Selecting this replaces the current referral reward.</span>
+                  </label>
+
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block font-bold text-gray-900 mb-1">Status</label>
@@ -2073,6 +2082,11 @@ const Vouchers = () => {
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
                     />
                   </div>
+
+                  <label className="flex gap-2 rounded-lg border border-[#D7E4E0] bg-[#F4F8F7] px-3 py-2 text-xs text-gray-700 cursor-pointer">
+                    <input type="checkbox" checked={editingVoucher.isReferralReward} onChange={(e) => setEditingVoucher({ ...editingVoucher, isReferralReward: e.target.checked })} />
+                    <span><strong>Referral reward</strong><br />Issue this voucher to the referrer after their friend collects a first order. Selecting this replaces the current referral reward.</span>
+                  </label>
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>

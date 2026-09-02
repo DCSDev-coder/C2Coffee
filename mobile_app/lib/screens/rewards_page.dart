@@ -1026,7 +1026,7 @@ class _RewardsPageState extends State<RewardsPage> {
                 const Divider(height: 1),
                 _buildExpansionTile(
                   'How do I earn reward tokens & cups?',
-                  'You earn 1 cup for every handcrafted beverage purchased. Collect enough cups to level up your tier (Kawan → Dilamun → Ketagih → Legend) and unlock exclusive benefits and vouchers!',
+                  'You earn 1 cup for every qualifying handcrafted beverage collected. Collect enough cups to level up your tier (Kawan → Dilamun → Ketagih → Legend) and unlock exclusive benefits and vouchers!',
                 ),
                 const Divider(height: 1),
                 _buildExpansionTile(

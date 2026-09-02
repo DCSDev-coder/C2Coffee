@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../services/customer_data_service.dart';
 import '../services/secure_session_service.dart';
@@ -129,11 +130,18 @@ class _ReferralPageState extends State<ReferralPage> {
     );
   }
 
+  Future<void> _shareCode(String code) async {
+    await Share.share(
+      'Join C2 Coffee and enter my referral code $code before your first order. Once you collect your first order, I receive a reward.',
+      subject: 'Join me at C2 Coffee',
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final Color brandColor = AppColors.deepTeal;
     final Color cardBgColor = AppColors.surfaceLight;
-    final referralCode = _snapshot?.referralCode ?? 'C2-MEMBER';
+    final referralCode = _snapshot?.referralCode ?? '';
 
     return PopScope(
       canPop: true,
@@ -220,9 +228,7 @@ class _ReferralPageState extends State<ReferralPage> {
                                             fontWeight: FontWeight.w500,
                                           ),
                                           children: [
-                                            const TextSpan(
-                                                text:
-                                                    'Sharing with a friend\ngives you '),
+                                            const TextSpan(text: 'When your friend collects their first order, you receive '),
                                             TextSpan(
                                               text: '1 Free Drink Voucher 🔥',
                                               style: TextStyle(
@@ -232,7 +238,7 @@ class _ReferralPageState extends State<ReferralPage> {
                                             ),
                                             const TextSpan(
                                                 text:
-                                                    ' on their first order.'),
+                                                    '.'),
                                           ],
                                         ),
                                       ),
@@ -273,7 +279,7 @@ class _ReferralPageState extends State<ReferralPage> {
                                       ),
                                       const SizedBox(height: 12),
                                       InkWell(
-                                        onTap: () => _copyCode(referralCode),
+                                        onTap: () => _shareCode(referralCode),
                                         borderRadius: BorderRadius.circular(8),
                                         child: Container(
                                           width: double.infinity,
@@ -329,7 +335,7 @@ class _ReferralPageState extends State<ReferralPage> {
                                                   size: 20),
                                               SizedBox(width: 8),
                                               Text(
-                                                'Copy & Share Code',
+                                                'Share Code',
                                                 style: TextStyle(
                                                   fontFamily: 'Afacad',
                                                   fontSize: 18,
@@ -698,7 +704,7 @@ class _ReferralPageState extends State<ReferralPage> {
         ),
         const SizedBox(height: 16),
         Text(
-          '*Get 1 Free Drink for every 10 friends!',
+          'Your referral reward is set by C2 Coffee.',
           style: TextStyle(
             fontFamily: 'Afacad',
             fontSize: 13,

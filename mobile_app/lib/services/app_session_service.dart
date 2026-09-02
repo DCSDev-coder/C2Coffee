@@ -31,6 +31,8 @@ class AppSessionService extends ChangeNotifier {
   List<StoreSummary> _stores = const [];
   StoreSummary? _selectedStore;
   List<MenuCategoryGroup> _menuCategories = const [];
+  List<int> _homeFeaturedDrinkIds = const [];
+  List<int> _homeFeaturedLifestyleIds = const [];
   List<HomeBanner> _homeBanners = const [];
   List<LoyaltyTier> _loyaltyTiers = const [];
 
@@ -47,6 +49,8 @@ class AppSessionService extends ChangeNotifier {
   List<StoreSummary> get stores => _stores;
   StoreSummary? get selectedStore => _selectedStore;
   List<MenuCategoryGroup> get menuCategories => _menuCategories;
+  List<int> get homeFeaturedDrinkIds => _homeFeaturedDrinkIds;
+  List<int> get homeFeaturedLifestyleIds => _homeFeaturedLifestyleIds;
   List<HomeBanner> get homeBanners => _homeBanners;
   List<LoyaltyTier> get loyaltyTiers => _loyaltyTiers;
   Map<String, String?> get userProfileSnapshot =>
@@ -285,15 +289,31 @@ class AppSessionService extends ChangeNotifier {
         accessToken: accessToken,
         storeId: storeId,
       );
+      try {
+        final featured = await CatalogApiService.instance.getHomeFeatured(
+          accessToken: accessToken,
+          storeId: storeId,
+        );
+        _homeFeaturedDrinkIds = featured.drinks;
+        _homeFeaturedLifestyleIds = featured.lifestyle;
+      } catch (_) {
+        // Keep the catalog usable while an older API is being rolled over.
+        _homeFeaturedDrinkIds = const [];
+        _homeFeaturedLifestyleIds = const [];
+      }
     } on ApiException catch (error) {
       _menuError = _friendlyErrorMessage(
         error,
         fallback: 'Unable to load the menu right now.',
       );
       _menuCategories = const [];
+      _homeFeaturedDrinkIds = const [];
+      _homeFeaturedLifestyleIds = const [];
     } catch (error) {
       _menuError = 'Unable to load the menu right now.';
-      _menuCategories = const [];
+    _menuCategories = const [];
+    _homeFeaturedDrinkIds = const [];
+    _homeFeaturedLifestyleIds = const [];
     } finally {
       _isMenuLoading = false;
       notifyListeners();

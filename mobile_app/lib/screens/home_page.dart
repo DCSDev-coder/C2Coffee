@@ -177,35 +177,41 @@ class _HomePageState extends State<HomePage> {
   }
 
   List<Map<String, dynamic>> _featuredDrinkItems() {
-    final items = <Map<String, dynamic>>[];
+    final itemsById = <int, Map<String, dynamic>>{};
     for (final category in _session.menuCategories) {
       for (final item in category.items) {
         if (item.isAvailable &&
             CatalogPresentation.isDrinkCategory(category.name, item)) {
-          items.add(
+          itemsById[item.id] =
             CatalogPresentation.toLegacyItem(
-                item, category.code, category.name),
-          );
+                item, category.code, category.name);
         }
       }
     }
-    return items.take(6).toList();
+    return _session.homeFeaturedDrinkIds
+        .map((id) => itemsById[id])
+        .whereType<Map<String, dynamic>>()
+        .take(6)
+        .toList();
   }
 
   List<Map<String, dynamic>> _featuredLifestyleItems() {
-    final items = <Map<String, dynamic>>[];
+    final itemsById = <int, Map<String, dynamic>>{};
     for (final category in _session.menuCategories) {
       for (final item in category.items) {
         if (item.isAvailable &&
             CatalogPresentation.isLifestyleCategory(category.name, item)) {
-          items.add(
+          itemsById[item.id] =
             CatalogPresentation.toLegacyItem(
-                item, category.code, category.name),
-          );
+                item, category.code, category.name);
         }
       }
     }
-    return items.take(6).toList();
+    return _session.homeFeaturedLifestyleIds
+        .map((id) => itemsById[id])
+        .whereType<Map<String, dynamic>>()
+        .take(6)
+        .toList();
   }
 
   int? _tokenPriceForItem(Map<String, dynamic> item) {
@@ -303,27 +309,28 @@ class _HomePageState extends State<HomePage> {
                                 _session.loadAuthenticatedState(force: true),
                           )
                         else ...[
-                          _buildProductSection(
-                            title: 'Featured Drinks',
-                            items: featuredDrinks,
-                            onSeeAll: () => InteractiveFillingLoader.show(
-                              context,
-                              targetPage: const MenuPage(),
+                          if (featuredDrinks.isNotEmpty) ...[
+                            _buildProductSection(
+                              title: 'Featured Drinks',
+                              items: featuredDrinks,
+                              onSeeAll: () => InteractiveFillingLoader.show(
+                                context,
+                                targetPage: const MenuPage(),
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 24),
-                          _buildProductSection(
-                            title: featuredLifestyle.isNotEmpty
-                                ? 'Lifestyle Picks'
-                                : 'Store Picks',
-                            items: featuredLifestyle.isNotEmpty
-                                ? featuredLifestyle
-                                : featuredDrinks.skip(3).toList(),
-                            onSeeAll: () => InteractiveFillingLoader.show(
-                              context,
-                              targetPage: const MenuPage(),
+                            const SizedBox(height: 24),
+                          ],
+                          if (featuredLifestyle.isNotEmpty) ...[
+                            const SizedBox(height: 24),
+                            _buildProductSection(
+                              title: 'Lifestyle Picks',
+                              items: featuredLifestyle,
+                              onSeeAll: () => InteractiveFillingLoader.show(
+                                context,
+                                targetPage: const MenuPage(),
+                              ),
                             ),
-                          ),
+                          ],
                         ],
                       ],
                     ),

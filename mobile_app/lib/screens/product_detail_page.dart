@@ -307,125 +307,9 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
     return parsed;
   }
 
-  String get _itemDescription {
-    if (widget.item['desc'] != null &&
-        widget.item['desc'].toString().isNotEmpty) {
-      return widget.item['desc'].toString();
-    }
-    final name = _itemName.toLowerCase();
-
-    // Pastries, Merch, Candles descriptions
-    if (name.contains('curry puff')) {
-      return 'Crispy, golden pastry crust packed with savory spiced minced lamb filling. Freshly baked daily.';
-    }
-    if (_isMerchandise) {
-      return 'Premium durable tumbler designed for daily coffee rituals, maintaining your beverage temperature effortlessly.';
-    }
-    if (_isCandle) {
-      if (name.contains('gunung')) {
-        return 'Earthy cedar and forest pine notes inspired by the misty Broga peaks. Hand-poured natural soy wax.';
-      } else if (name.contains('lime')) {
-        return 'Zesty citrus lime blended with crisp sea salt minerals for a refreshing, revitalizing ambience.';
-      } else if (name.contains('sage')) {
-        return 'Calming herbal sage paired with coastal driftwood notes for a serene, relaxing space.';
-      } else if (name.contains('tobacco')) {
-        return 'Warm aromatic tobacco leaf layered with creamy vanilla and subtle spices for a cozy aroma.';
-      }
-      return 'Handcrafted soy scented candle formulated with fine fragrance oils to elevate your everyday sanctuary.';
-    }
-
-    // Drinks descriptions
-    if (name.contains('shakerato')) {
-      return 'Chilled, shaken espresso with sweet silky and refreshing cream.';
-    }
-    if (name.contains('mont broga')) {
-      return 'Black coffee layered with orangey cold foam and orange zest.';
-    }
-    if (name.contains('yuzukano')) {
-      return 'Aerated espresso topping the chilled yuzu puree.';
-    }
-    if (name.contains('senja di broga')) {
-      return 'Sweet sparkling orange juice topped with espresso.';
-    }
-    if (name.contains('espresso bomb')) {
-      return 'The trendy espresso bomb is here. Choice of sparkling of ginger ade or tonic water.';
-    }
-    if (name.contains('pinky blush')) {
-      return 'Creamy strawberry, delicate banana puree, mix and shaken with milk.';
-    }
-    if (name.contains('solero fizz')) {
-      return 'Bright citrus notes with sparkling soda and creamy, silky cold foam.';
-    }
-    if (name.contains('paddle pop')) {
-      return 'Creamy strawberry, delicate banana puree, mix and shaken with milk.';
-    }
-    if (name.contains('cloudy jasmine')) {
-      return 'Refreshing jasmine tea soda with silky butterscotch cream foam.';
-    }
-    if (name.contains('boijito')) {
-      return 'Sparkling mojito with hand-picked mint and calamansi flavour.';
-    }
-    if (name.contains('bloody peach')) {
-      return 'Sparkling jasmine tea with peach flavour and top with grenadine syrup.';
-    }
-    if (name.contains('fuji fizz')) {
-      return 'Ginger, apple and cinnamon comes together in a fizzy drinks. Fruity and spice.';
-    }
-    if (name.contains('spicy mimosa')) {
-      return 'Hot and spicy orange juice topped with ginger ade and red berry based of grenadine syrup.';
-    }
-    if (name.contains('onde2pop')) {
-      return 'Green apple and coconut shaken together and topped with sparkling soda .';
-    }
-    if (name.contains('matcha latte')) {
-      return 'Ceremonial grade matcha with smooth, creamy milk.';
-    }
-    if (name.contains('monkey matcha')) {
-      return 'Ceremonial grade matcha with ripe banana puree.';
-    }
-    if (name.contains('pinky promise matcha')) {
-      return 'Ceremonial grade matcha with strawberry puree sweetness.';
-    }
-    if (name.contains('milk chocolate')) {
-      return 'Rich and smooth chocolate milk drinks topped with marshmallows.';
-    }
-    if (name.contains('nutty chocolate')) {
-      return 'Chocolate drink mixed with crunchy peanut butter.';
-    }
-    if (name.contains('v60')) {
-      return 'Hand-poured coffee revealing delicate aroma and clarity.';
-    }
-    if (name.contains('pocco')) {
-      return 'An espresso and oatmilk-small in size, rich in flavour.';
-    }
-    if (name.contains('butterscotch latte')) {
-      return 'Smooth espresso and milk mix with butterscotch flavour.';
-    }
-    if (name.contains('hazelnut latte')) {
-      return 'Espresso and milk mixed with hazelnut flavour.';
-    }
-    if (name.contains('vanilla latte')) {
-      return 'Gentle vanilla sweetness lifting smooth espresso.';
-    }
-    if (name.contains('flat white')) {
-      return 'Espresso top with hot milk with a thin layer of smooth foam.';
-    }
-    if (name.contains('cappuccino') || name.contains('cappucino')) {
-      return 'Espresso topped with light and thick foam and delicate milk.';
-    }
-    if (name.contains('blue cloud')) {
-      return 'Black coffee with coconut flavour topped with creamy light blue cold foam.';
-    }
-    if (name.contains('mocha')) {
-      return 'Chocolate and espresso mixed with milk.';
-    }
-    if (name.contains('latte')) {
-      return 'Espresso top with milk with layered of smooth foam.';
-    }
-    if (name == 'espresso' || name.contains('espresso')) {
-      return 'Pure, concentrated coffee. Choose between bold taste note or lighter note';
-    }
-    return 'Specialty handcrafted item prepared fresh to order.';
+  String? get _itemDescription {
+    final description = widget.item['desc']?.toString().trim() ?? '';
+    return description.isEmpty ? null : description;
   }
 
   double get totalPrice {
@@ -631,15 +515,17 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                           color: Colors.black,
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _itemDescription,
-                        style: const TextStyle(
-                          fontFamily: 'Afacad',
-                          fontSize: 14,
-                          color: Colors.black87,
+                      if (_itemDescription != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          _itemDescription!,
+                          style: const TextStyle(
+                            fontFamily: 'Afacad',
+                            fontSize: 14,
+                            color: Colors.black87,
+                          ),
                         ),
-                      ),
+                      ],
                       const SizedBox(height: 16),
                       Container(
                         padding: const EdgeInsets.symmetric(vertical: 12),

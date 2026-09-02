@@ -423,6 +423,13 @@ class TierRewardSummary {
   }
 }
 
+class HomeFeaturedItems {
+  final List<int> drinks;
+  final List<int> lifestyle;
+
+  const HomeFeaturedItems({required this.drinks, required this.lifestyle});
+}
+
 class BootstrapSnapshot {
   final CurrentUserProfile user;
   final int tokenBalance;
@@ -451,6 +458,21 @@ class CatalogApiService {
   static final CatalogApiService instance = CatalogApiService._();
 
   final http.Client _client = http.Client();
+
+  Future<HomeFeaturedItems> getHomeFeatured({
+    required String accessToken,
+    required int storeId,
+  }) async {
+    final response = await _get('/home/featured?store_id=$storeId', accessToken: accessToken);
+    List<int> readIds(String key) => (response[key] as List? ?? const [])
+        .whereType<num>()
+        .map((value) => value.toInt())
+        .toList();
+    return HomeFeaturedItems(
+      drinks: readIds('featured_drinks'),
+      lifestyle: readIds('lifestyle_picks'),
+    );
+  }
 
   Future<BootstrapSnapshot> getBootstrap({
     required String accessToken,

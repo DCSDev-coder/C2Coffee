@@ -27,7 +27,9 @@ import {
   uploadAdminMenuImage,
   updateAdminMenuCategory,
   updateAdminMenuSubcategory,
-  updateAdminMenuItem
+  updateAdminMenuItem,
+  loadAdminHomeFeatured,
+  saveAdminHomeFeatured
 } from '../lib/adminApi';
 
 const RESTRICTED_CATEGORIES = new Set(['C2 Pastries', 'C2 Merchandise', '5luxes Candles']);
@@ -417,6 +419,9 @@ const Menu = () => {
   const [selectedMenuTemplate, setSelectedMenuTemplate] = useState('custom');
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [isSubcategoryModalOpen, setIsSubcategoryModalOpen] = useState(false);
+  const [isHomePicksOpen, setIsHomePicksOpen] = useState(false);
+  const [homePickIds, setHomePickIds] = useState({ featured_drinks: [], lifestyle_picks: [] });
+  const [isSavingHomePicks, setIsSavingHomePicks] = useState(false);
   const [categoryForm, setCategoryForm] = useState({
     id: null,
     code: '',
@@ -444,6 +449,12 @@ const Menu = () => {
       const subcategories = response.subcategories || [];
       setMenuCategories(categories);
       setMenuSubcategories(subcategories);
+      const homePicks = await loadAdminHomeFeatured();
+      const placements = homePicks.placements || [];
+      setHomePickIds({
+        featured_drinks: placements.filter((entry) => entry.section === 'featured_drinks').sort((a, b) => a.sortOrder - b.sortOrder).map((entry) => entry.itemId),
+        lifestyle_picks: placements.filter((entry) => entry.section === 'lifestyle_picks').sort((a, b) => a.sortOrder - b.sortOrder).map((entry) => entry.itemId)
+      });
 
       if (selectedCategory !== 'All' && !categories.some((category) => category.code === selectedCategory)) {
         setSelectedCategory('All');
@@ -484,6 +495,33 @@ const Menu = () => {
   ];
 
   const allMenuItems = flattenMenuData(menuCategories);
+  const homePickItems = (section) => allMenuItems.filter((item) => {
+    const kind = String(item.product_kind_code || '').toLowerCase();
+    return item.is_active && (section === 'featured_drinks'
+      ? kind === 'drink'
+      : kind === 'merchandise' || kind === 'candle');
+  });
+  const toggleHomePick = (section, itemId) => {
+    setHomePickIds((current) => {
+      const existing = current[section] || [];
+      if (existing.includes(itemId)) return { ...current, [section]: existing.filter((id) => id !== itemId) };
+      if (existing.length >= 6) return current;
+      return { ...current, [section]: [...existing, itemId] };
+    });
+  };
+  const saveHomePicks = async () => {
+    setIsSavingHomePicks(true);
+    setErrorMessage('');
+    try {
+      await saveAdminHomeFeatured('featured_drinks', homePickIds.featured_drinks);
+      await saveAdminHomeFeatured('lifestyle_picks', homePickIds.lifestyle_picks);
+      setIsHomePicksOpen(false);
+    } catch (error) {
+      setErrorMessage(error.message || 'Unable to save Home Picks.');
+    } finally {
+      setIsSavingHomePicks(false);
+    }
+  };
   const selectedCategoryRecord = menuCategories.find((category) => category.code === editFormData.category_code) || null;
   const selectedProductKind = selectedCategoryRecord?.product_kind_code || 'drink';
   const showDrinkControls = selectedProductKind === 'drink';
@@ -1017,6 +1055,12 @@ const Menu = () => {
             </button>
 
             <button
+              onClick={() => setIsHomePicksOpen(true)}
+              className="flex items-center px-4 py-2 border border-[#1F3A34] rounded-lg text-sm font-medium text-[#1F3A34] bg-white hover:bg-[#F3F7F5] whitespace-nowrap"
+            >
+              Home Picks
+            </button>
+            <button
               onClick={openCreateModal}
               className="flex items-center px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium whitespace-nowrap cursor-pointer"
             >
@@ -1315,6 +1359,25 @@ const Menu = () => {
         )}
       </div>
 
+      {isHomePicksOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-2xl rounded-2xl bg-white shadow-xl">
+            <div className="flex items-start justify-between border-b border-gray-100 px-6 py-5">
+              <div><h2 className="text-lg font-bold text-gray-900">Home Picks</h2><p className="mt-1 text-sm text-gray-500">Select up to six items per section. Empty slots use 30-day best sellers for the selected store.</p></div>
+              <button onClick={() => setIsHomePicksOpen(false)} className="text-gray-400 hover:text-gray-700"><X size={20} /></button>
+            </div>
+            <div className="max-h-[60vh] space-y-6 overflow-y-auto px-6 py-5">
+              {[['featured_drinks', 'Featured Drinks'], ['lifestyle_picks', 'Lifestyle Picks']].map(([section, label]) => (
+                <div key={section}><div className="mb-2 flex items-center justify-between"><h3 className="font-bold text-gray-900">{label}</h3><span className="text-xs font-medium text-gray-500">{homePickIds[section].length}/6 selected</span></div>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">{homePickItems(section).map((item) => <label key={item.id} className="flex cursor-pointer items-center gap-3 rounded-lg border border-gray-200 px-3 py-2 text-sm hover:bg-gray-50"><input type="checkbox" checked={homePickIds[section].includes(item.id)} onChange={() => toggleHomePick(section, item.id)} /><span className="min-w-0 truncate font-medium text-gray-800">{item.name}</span></label>)}</div>
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-end gap-3 border-t border-gray-100 px-6 py-4"><button onClick={() => setIsHomePicksOpen(false)} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium">Cancel</button><button disabled={isSavingHomePicks} onClick={saveHomePicks} className="rounded-lg bg-[#1F3A34] px-4 py-2 text-sm font-bold text-white disabled:opacity-60">{isSavingHomePicks ? 'Saving...' : 'Save Home Picks'}</button></div>
+          </div>
+        </div>
+      )}
+
       {isEditModalOpen && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -1338,6 +1401,23 @@ const Menu = () => {
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34]"
                     required
                   />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-medium text-gray-500 mb-1">
+                    Customer Description <span className="font-normal">(Optional)</span>
+                  </label>
+                  <textarea
+                    value={editFormData.description}
+                    onChange={(event) => setEditFormData({ ...editFormData, description: event.target.value })}
+                    rows={3}
+                    maxLength={5000}
+                    placeholder="Describe the taste, use, scent, material, or what makes this item special."
+                    className="w-full resize-y border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34]"
+                  />
+                  <p className="mt-1 text-[11px] text-gray-500">
+                    Shown on the mobile product page. Leave blank to hide it for this item.
+                  </p>
                 </div>
 
                 <div className="md:col-span-2 rounded-2xl border border-gray-200 bg-gray-50 p-4 space-y-3">

@@ -13,6 +13,7 @@ import { env } from '../../config/env.js';
 import { getUtcConnection, mysqlPool } from '../../db/mysql.js';
 import { createUserNotification } from '../notifications.js';
 import { processOrderLoyalty } from '../../services/loyalty.js';
+import { awardReferralForCollectedOrder } from '../../services/referrals.js';
 import { ApiError } from '../errors.js';
 import { getBootstrapForUser } from './auth.js';
 import { resolveOrderLifecycleStatus } from '../order-lifecycle.js';
@@ -982,110 +983,6 @@ export async function registerCheckoutRoutes(
         accountBalanceCap = account.balance_cap;
       }
 
-      // Automatically qualify and reward pending referral when referred user completes their first order
-      const [pendingReferralRows] = await connection.query<
-        Array<RowDataPacket & { id: number; referrer_user_id: number }>
-      >(
-        `
-          SELECT id, referrer_user_id
-          FROM referrals
-          WHERE referred_user_id = :userId
-            AND status = 'pending'
-          LIMIT 1
-          FOR UPDATE
-        `,
-        { userId: request.auth.userId }
-      );
-
-      if (pendingReferralRows.length > 0) {
-        const referral = pendingReferralRows[0]!;
-        await connection.execute(
-          `
-            UPDATE referrals
-            SET status = 'rewarded',
-                qualified_order_id = :orderId,
-                qualified_at = UTC_TIMESTAMP(),
-                rewarded_at = UTC_TIMESTAMP()
-            WHERE id = :referralId
-          `,
-          {
-            referralId: referral.id,
-            orderId
-          }
-        );
-
-        // Check how many rewarded referrals the referrer now has
-        const [rewardedCountRows] = await connection.query<Array<RowDataPacket & { count: number }>>(
-          `
-            SELECT COUNT(*) AS count
-            FROM referrals
-            WHERE referrer_user_id = :referrerUserId
-              AND status = 'rewarded'
-          `,
-          { referrerUserId: referral.referrer_user_id }
-        );
-        const rewardedCount = rewardedCountRows[0]?.count ?? 0;
-
-        // Issue 1 Free Drink reward voucher to the referrer for every 10 successful referrals
-        if (rewardedCount > 0 && rewardedCount % 10 === 0) {
-          const [rewardTemplates] = await connection.query<
-            Array<RowDataPacket & { id: number; expires_in_days: number }>
-          >(
-            `
-              SELECT id, expires_in_days
-              FROM voucher_templates
-              WHERE code = 'WELCOME10'
-                 OR discount_mode = 'free_drink'
-              ORDER BY id ASC
-              LIMIT 1
-            `
-          );
-
-          if (rewardTemplates.length > 0) {
-            const tpl = rewardTemplates[0]!;
-            await connection.execute(
-              `
-                INSERT INTO user_vouchers (
-                  user_id,
-                  voucher_template_id,
-                  status,
-                  issued_by_type,
-                  issued_reason,
-                  issued_at,
-                  expires_at
-                )
-                VALUES (
-                  :referrerUserId,
-                  :templateId,
-                  'active',
-                  'system',
-                  'Referral Friend 1st Order Reward',
-                  UTC_TIMESTAMP(),
-                  DATE_ADD(UTC_TIMESTAMP(), INTERVAL :days DAY)
-                )
-              `,
-              {
-                referrerUserId: referral.referrer_user_id,
-                templateId: tpl.id,
-                days: tpl.expires_in_days || 30
-              }
-            );
-
-            await createUserNotification(connection, {
-              userId: referral.referrer_user_id,
-              type: 'referral_reward',
-              title: 'Referral reward unlocked',
-              body: 'You have qualified for a referral reward voucher.',
-              data: {
-                referral_user_id: request.auth.userId,
-                referral_order_id: orderId
-              }
-            });
-          }
-        }
-      }
-      await processOrderLoyalty(orderId, request.auth.userId, connection);
-
       await createUserNotification(connection, {
         userId: request.auth.userId,
         type: 'order_created',
@@ -1326,6 +1223,10 @@ export async function registerCheckoutRoutes(
           order_ref: order.order_ref
         }
       });
+
+      // A pickup is only eligible for loyalty and referral rewards once collected.
+      await processOrderLoyalty(order.id, request.auth.userId, connection);
+      await awardReferralForCollectedOrder(connection, request.auth.userId, order.id);
 
       await connection.commit();
       committed = true;

@@ -21,6 +21,7 @@ import { registerAdminAuditRoutes } from './http/routes/admin-audit.js';
 import { registerAdminMarketingRoutes } from './http/routes/admin-marketing.js';
 import { registerAdminBaristasRoutes } from './http/routes/admin-baristas.js';
 import { registerAdminDashboardRoutes } from './http/routes/admin-dashboard.js';
+import { registerHomeFeaturedRoutes } from './http/routes/home-featured.js';
 
 function isAllowedCorsOrigin(origin: string, allowedOrigins: string[]): boolean {
   let requestUrl: URL;
@@ -106,6 +107,7 @@ export async function buildApp() {
   await registerAdminAuditRoutes(app);
   await registerAdminMarketingRoutes(app);
   await registerAdminBaristasRoutes(app);
+  await registerHomeFeaturedRoutes(app);
   await registerMeRoutes(app);
   await registerCatalogRoutes(app);
   await registerCheckoutRoutes(app);

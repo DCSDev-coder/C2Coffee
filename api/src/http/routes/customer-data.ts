@@ -69,6 +69,7 @@ type AutoSyncVoucherTemplateRow = RowDataPacket & {
   id: number;
   code: string;
   name: string;
+  is_referral_reward?: number;
   expires_in_days: number | null;
   valid_until: Date | null;
   eligible_scope_json: string | Record<string, unknown> | null;
@@ -293,6 +294,7 @@ async function syncAutoVisibleVoucherTemplates(
         id,
         code,
         name,
+        is_referral_reward,
         expires_in_days,
         valid_until,
         eligible_scope_json
@@ -318,6 +320,11 @@ async function syncAutoVisibleVoucherTemplates(
   );
 
   for (const template of templates) {
+    // Referral rewards are issued only after an invited customer collects.
+    if (Number(template.is_referral_reward ?? 0) === 1) {
+      continue;
+    }
+
     const scope = parseVoucherScope(template.eligible_scope_json);
     const scheduleMode = getVoucherScheduleMode(scope);
     const schedule = getVoucherSchedule(scope);
@@ -1050,26 +1057,21 @@ export async function registerCustomerDataRoutes(
   app.get('/v1/referrals', { preHandler: authenticateRequest }, async (request) => {
     const userId = request.auth.userId;
 
-    const [userRows] = await mysqlPool.query<
-      Array<RowDataPacket & { id: number; phone_e164: string }>
-    >(
+    await mysqlPool.execute(
       `
-        SELECT id, phone_e164
-        FROM users
-        WHERE id = :userId
-        LIMIT 1
+        INSERT IGNORE INTO user_referral_codes (user_id, code)
+        VALUES (:userId, CONCAT('C2-', LPAD(:userId, 8, '0')))
       `,
       { userId }
     );
-
-    const user = userRows[0];
-    if (!user) {
-      throw new ApiError(404, 'user_not_found', 'User not found.');
+    const [codeRows] = await mysqlPool.query<Array<RowDataPacket & { code: string }>>(
+      'SELECT code FROM user_referral_codes WHERE user_id = :userId LIMIT 1',
+      { userId }
+    );
+    const referralCode = codeRows[0]?.code;
+    if (!referralCode) {
+      throw new ApiError(500, 'referral_code_unavailable', 'Referral code is temporarily unavailable.');
     }
-
-    const phoneDigits = user.phone_e164.replace(/[^0-9]/g, '');
-    const phoneSuffix = phoneDigits.slice(-4);
-    const referralCode = `C2-${phoneSuffix || user.id.toString().padStart(4, '0')}`.toUpperCase();
 
     const [referredRows] = await mysqlPool.query<
       Array<RowDataPacket & {
@@ -1146,6 +1148,24 @@ export async function registerCustomerDataRoutes(
     const userId = request.auth.userId;
     const cleanCode = code.trim().toUpperCase();
 
+    const [rewardTemplateRows] = await mysqlPool.query<Array<RowDataPacket & { id: number }>>(
+      `
+        SELECT id
+        FROM voucher_templates
+        WHERE is_active = 1
+          AND is_referral_reward = 1
+          AND (valid_until IS NULL OR valid_until > UTC_TIMESTAMP())
+        LIMIT 1
+      `
+    );
+    if (!rewardTemplateRows[0]) {
+      throw new ApiError(
+        409,
+        'referral_reward_unavailable',
+        'Referrals are temporarily unavailable while the referral reward is being configured.'
+      );
+    }
+
     const [pastOrders] = await mysqlPool.query<Array<RowDataPacket & { count: number }>>(
       `
         SELECT COUNT(*) AS count
@@ -1182,25 +1202,14 @@ export async function registerCustomerDataRoutes(
       );
     }
 
-    const codeSuffix = cleanCode.replace(/^C2-?/, '');
-    const [referrerRows] = await mysqlPool.query<
-      Array<RowDataPacket & { id: number; phone_e164: string }>
-    >(
+    const [referrerRows] = await mysqlPool.query<Array<RowDataPacket & { id: number }>>(
       `
-        SELECT id, phone_e164
-        FROM users
-        WHERE id != :userId
-          AND (
-            phone_e164 LIKE :phonePattern
-            OR id = :possibleId
-          )
+        SELECT urc.user_id AS id
+        FROM user_referral_codes urc
+        WHERE urc.code = :code
         LIMIT 1
       `,
-      {
-        userId,
-        phonePattern: `%${codeSuffix}`,
-        possibleId: isNaN(Number(codeSuffix)) ? -1 : Number(codeSuffix)
-      }
+      { code: cleanCode }
     );
 
     const referrer = referrerRows[0];
@@ -1248,46 +1257,11 @@ export async function registerCustomerDataRoutes(
       userId,
       type: 'referral_claimed',
       title: 'Referral code applied',
-      body: 'Your referral code has been saved. Place your first order to unlock the welcome reward.',
+      body: 'Your referral code has been saved. Collect your first order to unlock your friend\'s referral reward.',
       data: {
         referral_code: cleanCode
       }
     });
-
-    // Also grant new user a welcome voucher if they don't have one
-    const [templates] = await mysqlPool.query<Array<RowDataPacket & { id: number; expires_in_days: number }>>(
-      `SELECT id, expires_in_days FROM voucher_templates WHERE code = 'WELCOME10' AND is_active = 1`
-    );
-
-    for (const tpl of templates) {
-      await mysqlPool.execute(
-        `
-          INSERT IGNORE INTO user_vouchers (
-            user_id,
-            voucher_template_id,
-            status,
-            issued_by_type,
-            issued_reason,
-            issued_at,
-            expires_at
-          )
-          VALUES (
-            :userId,
-            :templateId,
-            'active',
-            'system',
-            'Referral Welcome Voucher',
-            UTC_TIMESTAMP(),
-            DATE_ADD(UTC_TIMESTAMP(), INTERVAL :days DAY)
-          )
-        `,
-        {
-          userId,
-          templateId: tpl.id,
-          days: tpl.expires_in_days || 30
-        }
-      );
-    }
 
     return {
       success: true,
