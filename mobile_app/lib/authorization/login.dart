@@ -29,10 +29,7 @@ class _LoginPageState extends State<LoginPage>
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _phoneController = TextEditingController();
   final FocusNode _phoneFocusNode = FocusNode();
-  late final AnimationController _shakeController = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 420),
-  );
+  late final AnimationController _shakeController;
   bool _isPhoneValid = false;
   String _fullPhoneNumber = '';
   final Set<_LoginErrorField> _errorFields = <_LoginErrorField>{};
@@ -40,6 +37,10 @@ class _LoginPageState extends State<LoginPage>
   @override
   void initState() {
     super.initState();
+    _shakeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 420),
+    );
     _phoneController.addListener(_onFieldChanged);
   }
 

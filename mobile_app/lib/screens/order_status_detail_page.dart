@@ -28,6 +28,7 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
   Timer? _pollTimer;
   bool _isRefreshing = false;
   bool _isCollecting = false;
+  bool _isCancelling = false;
   String? _errorMessage;
 
   @override
@@ -214,6 +215,83 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
           _isCollecting = false;
         });
       }
+    }
+  }
+
+  bool get _canCancelOrder =>
+      _order.status == 'paid' &&
+      _order.paymentMode == 'token' &&
+      _order.tokenAmountCharged > 0;
+
+  Future<void> _cancelOrder() async {
+    if (_isCancelling) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Text(
+          'Cancel this order?',
+          style: TextStyle(
+            fontFamily: 'Recoleta',
+            fontWeight: FontWeight.bold,
+            color: AppColors.deepTeal,
+          ),
+        ),
+        content: const Text(
+          'This is only available before the store starts preparing your order. Your tokens will be returned immediately and this cannot be undone.',
+          style: TextStyle(fontFamily: 'Afacad', height: 1.35),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.deepTeal,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Cancel order'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() {
+      _isCancelling = true;
+      _errorMessage = null;
+    });
+    try {
+      final accessToken =
+          await SecureSessionService.instance.getValidAccessToken();
+      if (accessToken == null || accessToken.isEmpty) {
+        throw ApiException('Missing access token.',
+            code: 'missing_access_token');
+      }
+      final result = await CustomerDataService.instance.cancelOrder(
+        accessToken: accessToken,
+        orderId: _order.id,
+      );
+      await _refreshOrder(silent: true);
+      if (!mounted) return;
+      AppNotification.showSuccess(
+        context,
+        '${result['returned_tokens'] ?? 0} tokens returned. Your order is cancelled.',
+      );
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      final message = _friendlyMessage(error);
+      setState(() => _errorMessage = message);
+      AppNotification.showError(context, message);
+    } catch (_) {
+      if (!mounted) return;
+      const message = 'Unable to cancel this order right now.';
+      setState(() => _errorMessage = message);
+      AppNotification.showError(context, message);
+    } finally {
+      if (mounted) setState(() => _isCancelling = false);
     }
   }
 
@@ -603,6 +681,23 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
                   ),
                 ),
               ),
+            if (_canCancelOrder) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: TextButton(
+                  onPressed: _isCancelling ? null : _cancelOrder,
+                  child: Text(
+                    _isCancelling ? 'CANCELLING...' : 'CANCEL ORDER',
+                    style: TextStyle(
+                      fontFamily: 'Afacad',
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.deepTeal,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),

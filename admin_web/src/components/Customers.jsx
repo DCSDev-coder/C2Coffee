@@ -120,7 +120,8 @@ const CustomDateInput = forwardRef(({ value, onClick, onClear }, ref) => (
   </div>
 ));
 
-const Customers = () => {
+const Customers = ({ currentUser }) => {
+  const canManageCustomers = Array.isArray(currentUser?.roles) && currentUser.roles.includes('super_admin');
   const [customers, setCustomers] = useState([]);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -136,6 +137,9 @@ const Customers = () => {
   const [menuOpenId, setMenuOpenId] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
+  const [customerConfirmation, setCustomerConfirmation] = useState(null);
+  const [confirmationPassword, setConfirmationPassword] = useState('');
+  const [isConfirming, setIsConfirming] = useState(false);
   const itemsPerPage = 10;
 
   useEffect(() => {
@@ -261,17 +265,8 @@ const Customers = () => {
       email: String(form.get('email') || '').trim()
     };
 
-    createAdminCustomer(payload)
-      .then((response) => {
-        if (response?.customer) {
-          setCustomers((prev) => [response.customer, ...prev]);
-          setSelectedCustomer(response.customer);
-        }
-        setIsAddModalOpen(false);
-      })
-      .catch((error) => {
-        alert(`Error adding customer: ${error.message}`);
-      });
+    setCustomerConfirmation({ type: 'create', payload, label: payload.displayName || 'this customer' });
+    setConfirmationPassword('');
   };
 
   const handleEditCustomer = (e) => {
@@ -283,17 +278,57 @@ const Customers = () => {
       email: String(form.get('email') || '').trim()
     };
 
-    updateAdminCustomer(editingCustomer.id, payload)
-      .then((response) => {
-        if (response?.customer) {
-          setCustomers((prev) => prev.map((customer) => (customer.id === response.customer.id ? response.customer : customer)));
-          setSelectedCustomer((prev) => (prev?.id === response.customer.id ? response.customer : prev));
+    setCustomerConfirmation({ type: 'edit', payload, customer: editingCustomer, label: editingCustomer.username });
+    setConfirmationPassword('');
+  };
+
+  const confirmCustomerAction = async () => {
+    if (!customerConfirmation || !confirmationPassword) return;
+
+    setIsConfirming(true);
+    try {
+      const payload = {
+        ...customerConfirmation.payload,
+        confirmation_password: confirmationPassword
+      };
+      let response;
+      if (customerConfirmation.type === 'create') {
+        response = await createAdminCustomer(payload);
+      } else if (customerConfirmation.type === 'edit') {
+        response = await updateAdminCustomer(customerConfirmation.customer.id, payload);
+      } else {
+        response = await deleteAdminCustomer(customerConfirmation.customer.id, payload);
+      }
+
+      if (customerConfirmation.type === 'delete') {
+        setCustomers((prev) => prev.filter((customer) => customer.id !== customerConfirmation.customer.id));
+        if (selectedCustomer?.id === customerConfirmation.customer.id) {
+          setSelectedCustomer(null);
         }
-        setEditingCustomer(null);
-      })
-      .catch((error) => {
-      alert(`Error updating customer: ${error.message}`);
-      });
+      } else if (response?.customer) {
+        setCustomers((prev) => customerConfirmation.type === 'create'
+          ? [response.customer, ...prev]
+          : prev.map((customer) => (customer.id === response.customer.id ? response.customer : customer))
+        );
+        setSelectedCustomer((prev) => (prev?.id === response.customer.id ? response.customer : prev));
+      }
+
+      setIsAddModalOpen(false);
+      setEditingCustomer(null);
+      setCustomerConfirmation(null);
+      setConfirmationPassword('');
+    } catch (error) {
+      setCustomerConfirmation((current) => ({
+        ...current,
+        error: error?.message || 'The customer change could not be saved.'
+      }));
+    } finally {
+      setIsConfirming(false);
+    }
+  };
+
+  const submitCustomerConfirmation = () => {
+    void confirmCustomerAction();
   };
 
   const totalCustomers = customers.length;
@@ -390,9 +425,11 @@ const Customers = () => {
             <Download size={16} className="mr-2" /> Export
           </button>
 
-          <button onClick={() => setIsAddModalOpen(true)} className="flex items-center px-4 py-2 bg-[#1F3A34] text-white border-transparent text-sm font-bold rounded-lg hover:bg-[#2E5E58] transition-colors shadow-sm cursor-pointer">
-            <Plus size={16} className="mr-2" /> Add Customer
-          </button>
+          {canManageCustomers && (
+            <button onClick={() => setIsAddModalOpen(true)} className="flex items-center px-4 py-2 bg-[#1F3A34] text-white border-transparent text-sm font-bold rounded-lg hover:bg-[#2E5E58] transition-colors shadow-sm cursor-pointer">
+              <Plus size={16} className="mr-2" /> Add Customer
+            </button>
+          )}
         </div>
       </div>
 
@@ -462,7 +499,7 @@ const Customers = () => {
                           >
                             <Eye size={15} />
                           </button>
-                          <button
+                          {canManageCustomers && <button
                             onClick={(e) => {
                               e.stopPropagation();
                               setMenuOpenId(menuOpenId === customer.id ? null : customer.id);
@@ -471,10 +508,10 @@ const Customers = () => {
                             title="More Options"
                           >
                             <MoreVertical size={15} />
-                          </button>
+                          </button>}
                         </div>
 
-                        {menuOpenId === customer.id && (
+                        {canManageCustomers && menuOpenId === customer.id && (
                           <div className="absolute right-0 top-full mt-1.5 w-32 bg-white rounded-xl shadow-lg border border-gray-200 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
                             <button
                               onClick={(e) => {
@@ -490,18 +527,8 @@ const Customers = () => {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                if (confirm(`Are you sure you want to delete customer "${customer.username}"?`)) {
-                                  deleteAdminCustomer(customer.id)
-                                    .then(() => {
-                                      setCustomers((prev) => prev.filter((c) => c.id !== customer.id));
-                                      if (selectedCustomer?.id === customer.id) {
-                                        setSelectedCustomer(null);
-                                      }
-                                    })
-                                    .catch((error) => {
-                                      alert(`Error deleting customer: ${error.message}`);
-                                    });
-                                }
+                                setCustomerConfirmation({ type: 'delete', customer, label: customer.username });
+                                setConfirmationPassword('');
                                 setMenuOpenId(null);
                               }}
                               className="w-full px-3 py-2 text-left text-xs font-medium text-red-600 hover:bg-red-50 flex items-center gap-2 cursor-pointer transition-colors"
@@ -613,14 +640,14 @@ const Customers = () => {
               </div>
             </div>
 
-            <div className="mt-auto">
+            {canManageCustomers && <div className="mt-auto">
               <button
                 onClick={() => setEditingCustomer(selectedCustomer)}
                 className="w-full py-3 border border-gray-300 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors"
               >
                 ✎ Edit Customer
               </button>
-            </div>
+            </div>}
           </div>
         )}
       </div>
@@ -688,6 +715,65 @@ const Customers = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {customerConfirmation && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <h2 className="text-xl font-bold text-gray-900">
+              {customerConfirmation.type === 'delete'
+                ? 'Delete customer?'
+                : customerConfirmation.type === 'edit'
+                  ? 'Save customer changes?'
+                  : 'Create customer?'}
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-gray-600">
+              {customerConfirmation.type === 'delete'
+                ? `Delete ${customerConfirmation.label}?`
+                : customerConfirmation.type === 'edit'
+                  ? `Apply the changes to ${customerConfirmation.label}?`
+                  : `Create ${customerConfirmation.label}?`}
+            </p>
+            {customerConfirmation.error && (
+              <div className="mt-4 rounded-lg border border-red-100 bg-red-50 p-3 text-sm text-red-600">
+                {customerConfirmation.error}
+              </div>
+            )}
+            <div className="mt-4">
+              <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="customer-action-confirmation-password">
+                Confirm with your current password
+              </label>
+              <input
+                id="customer-action-confirmation-password"
+                type="password"
+                autoComplete="current-password"
+                value={confirmationPassword}
+                onChange={(event) => setConfirmationPassword(event.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-[#2E5E58] focus:ring-[#2E5E58]"
+              />
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                disabled={isConfirming}
+                onClick={() => {
+                  setCustomerConfirmation(null);
+                  setConfirmationPassword('');
+                }}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                Go Back
+              </button>
+              <button
+                type="button"
+                disabled={isConfirming || !confirmationPassword}
+                onClick={submitCustomerConfirmation}
+                className={`rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-50 ${customerConfirmation.type === 'delete' ? 'bg-red-600 hover:bg-red-700' : 'bg-[#2E5E58] hover:bg-[#1F3A34]'}`}
+              >
+                {isConfirming ? 'Confirming...' : customerConfirmation.type === 'delete' ? 'Delete' : 'Confirm'}
+              </button>
+            </div>
           </div>
         </div>
       )}

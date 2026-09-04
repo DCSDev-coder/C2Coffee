@@ -51,4 +51,21 @@ export async function registerAssetRoutes(
       return reply.status(404).send();
     }
   });
+
+  app.get('/assets/avatars/*', async (request, reply) => {
+    const params = request.params as { '*': string };
+    const relativePath = decodeURIComponent(params['*'] ?? '').trim();
+    const assetPath = normalizeAssetPath(`/assets/avatars/${relativePath}`);
+    const databaseAsset = assetPath ? await loadMediaAsset(assetPath) : null;
+
+    if (!databaseAsset) {
+      return reply.status(404).send();
+    }
+
+    return reply
+      .header('Cross-Origin-Resource-Policy', 'cross-origin')
+      .header('Cache-Control', 'private, max-age=3600')
+      .type(databaseAsset.mime_type)
+      .send(databaseAsset.content);
+  });
 }

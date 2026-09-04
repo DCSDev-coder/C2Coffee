@@ -6,7 +6,7 @@ const Login = ({ onLoginSuccess }) => {
   const [mode, setMode] = useState('login');
   const [tenantCode, setTenantCode] = useState('c2coffee');
   const [tenants, setTenants] = useState([]);
-  const [identifier, setIdentifier] = useState('Boss');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [email, setEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -54,19 +54,25 @@ const Login = ({ onLoginSuccess }) => {
           accessToken: response.access_token,
           refreshToken: response.refresh_token
         });
+        setIdentifier('');
+        setPassword('');
         setMode('setup');
         setEmail(response.user?.email || '');
         return;
       }
 
+      setIdentifier('');
+      setPassword('');
       onLoginSuccess({
         accessToken: response.access_token,
         refreshToken: response.refresh_token,
         tenant: response.tenant,
         user: response.user
       });
-    } catch (error) {
-      setErrorMessage(error.message || 'Unable to sign in.');
+    } catch {
+      setIdentifier('');
+      setPassword('');
+      setErrorMessage('Denied');
     } finally {
       setIsSubmitting(false);
     }
@@ -178,7 +184,7 @@ const Login = ({ onLoginSuccess }) => {
                   value={identifier}
                   onChange={(event) => setIdentifier(event.target.value)}
                   className="w-full rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-white placeholder-white/40 outline-none focus:border-white/50"
-                  placeholder="Boss"
+                  placeholder="Admin username"
                   autoComplete="username"
                 />
               </label>

@@ -2,7 +2,7 @@ import React, { useState, forwardRef, useEffect } from "react";
 import {
   Search, Filter, ChevronDown, Download, CheckCircle, Clock, CheckCircle2,
   MapPin, Phone, MessageSquare, Printer, Receipt, Eye, Share2, CornerUpLeft, MessageCircle,
-  X, ShoppingBag, Hourglass, UserCheck, Ban, RotateCcw, XCircle,
+  X, ShoppingBag, Ban, RotateCcw, XCircle,
   Coins, Wallet, Users, Package, Square,
   FileText, CheckSquare, ArrowUp, Edit3, Navigation, Plus
 } from "lucide-react";
@@ -179,7 +179,7 @@ const CustomDateInput = forwardRef(({ value, onClick, onClear }, ref) => (
 
 const OrderDetailPanel = ({ order, onClose, onViewProfile }) => {
   const subtotal = order.items.reduce((s, i) => s + i.unitPrice * i.qty, 0);
-  const total = Number(order.total ?? (subtotal - order.discount) ?? 0);
+  const total = Number(order.total ?? (subtotal - Number(order.discount || 0)));
   const tokenTotal = order.tokenAmountCharged ?? total;
 
   // Status mapping for the 4-step timeline flow
@@ -631,8 +631,6 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
   // KPI counts based on active list
   const totalCount = ordersList.length;
   const completed = ordersList.filter(o => o.status === "Completed").length;
-  const preparing = ordersList.filter(o => o.status === "Preparing").length;
-  const readyPU = ordersList.filter(o => o.status === "Ready for Pickup" || o.status === "Ready").length;
   const cancelled = ordersList.filter(o => o.status === "Cancelled").length;
   const refunds = ordersList.filter(o => o.status === "Refund Requested" || o.status === "Refunded").length;
 
@@ -644,61 +642,39 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
         <p className="text-gray-500">Manage customer orders and track their status.</p>
       </div>
 
-      {/* KPI Cards — horizontally scrollable for wider cards */}
-      <div className="flex gap-3.5 mb-6 shrink-0 overflow-x-auto pb-2 -mx-1 px-1 snap-x snap-mandatory">
+      {/* Operational totals only. Workflow stages remain available in the status filter. */}
+      <div className="grid grid-cols-1 gap-3.5 mb-6 shrink-0 sm:grid-cols-2 xl:grid-cols-4">
         <KPICard
           title="Total Orders"
           value={totalCount}
-          change="12.6% vs yesterday"
           icon={ShoppingBag}
           iconBg="bg-[#1F3A34]"
           iconColor="text-white"
-          className="min-w-[220px] flex-1 snap-start"
+          className="min-w-0"
         />
         <KPICard
           title="Completed"
           value={completed}
-          change="8.2% vs yesterday"
           icon={Clock}
           iconBg="bg-[#2E5E58]"
           iconColor="text-white"
-          className="min-w-[220px] flex-1 snap-start"
-        />
-        <KPICard
-          title="Preparing"
-          value={preparing}
-          change="17.1% vs yesterday"
-          icon={Hourglass}
-          iconBg="bg-[#6F9F96]"
-          iconColor="text-white"
-          className="min-w-[220px] flex-1 snap-start"
-        />
-        <KPICard
-          title="Ready for Pickup"
-          value={readyPU}
-          change="2.3% vs yesterday"
-          icon={UserCheck}
-          iconBg="bg-[#8DAA9E]"
-          iconColor="text-white"
-          className="min-w-[220px] flex-1 snap-start"
+          className="min-w-0"
         />
         <KPICard
           title="Cancelled"
           value={cancelled}
-          change="9.3% vs yesterday"
           icon={Ban}
           iconBg="bg-[#E07A5F]"
           iconColor="text-white"
-          className="min-w-[220px] flex-1 snap-start"
+          className="min-w-0"
         />
         <KPICard
-          title="Refund Requested"
+          title="Refunds"
           value={refunds}
-          change="6.5% vs yesterday"
           icon={RotateCcw}
           iconBg="bg-[#D9C4A9]"
           iconColor="text-white"
-          className="min-w-[220px] flex-1 snap-start"
+          className="min-w-0"
         />
       </div>
 
@@ -773,7 +749,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
                 ["Order ID", "Username", "Email", "Barista", "Status", "Payment Status", "Date", "Time", "Total (Tokens)", "Total (RM)"],
                 ...filtered.map(o => {
                   const subtotal = o.items.reduce((s, i) => s + i.unitPrice * i.qty, 0);
-                  const rmTotal = Number(o.total ?? (subtotal - o.discount) ?? 0);
+                  const rmTotal = Number(o.total ?? (subtotal - Number(o.discount || 0)));
                   const tokenTotal = o.tokenAmountCharged ?? rmTotal;
                   return [
                     `"${o.id}"`,
@@ -825,7 +801,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
                     const isSelected = selectedOrder?.id === order.id;
                     const itemsLabel = order.items.map((i) => `${i.qty}x ${i.name}`).join(", ");
                     const rowSubtotal = order.items.reduce((s, i) => s + i.unitPrice * i.qty, 0);
-                    const rowTotal = Number(order.total ?? (rowSubtotal - order.discount) ?? 0);
+                    const rowTotal = Number(order.total ?? (rowSubtotal - Number(order.discount || 0)));
                     const rowTokenTotal = order.tokenAmountCharged ?? rowTotal;
 
                     return (

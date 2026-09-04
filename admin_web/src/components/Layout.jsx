@@ -10,6 +10,7 @@ const Layout = ({ children, currentPage, setCurrentPage, onLogout, currentTenant
         setCurrentPage={setCurrentPage}
         onLogout={onLogout}
         currentTenant={currentTenant}
+        currentUser={currentUser}
       />
       <div className="flex-1 flex flex-col h-screen pl-64 min-w-0 overflow-y-auto overflow-x-hidden">
         <div className="sticky top-0 z-40 bg-background">

@@ -1,8 +1,10 @@
 import type { FastifyInstance } from 'fastify';
-import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
+import type { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { z } from 'zod';
-import { authenticateAdminRequest, requireAdminRole } from '../../admin/guard.js';
+import { authenticateAdminRequest, requireAdminRole, requireAnyAdminRole } from '../../admin/guard.js';
 import { mysqlPool } from '../../db/mysql.js';
+import { ApiError } from '../errors.js';
+import { verifyPassword } from '../../lib/password.js';
 import { formatTierName, getTierProgress, loadLoyaltyTiers } from '../../services/loyalty-tiers.js';
 
 const listQuerySchema = z.object({
@@ -13,14 +15,20 @@ const createCustomerSchema = z.object({
   phone: z.string().trim().min(3).max(20),
   displayName: z.string().trim().min(1).max(255).optional(),
   email: z.string().trim().email().max(255).optional().or(z.literal('')),
-  status: z.enum(['active', 'blocked', 'closed']).optional().default('active')
+  status: z.enum(['active', 'blocked', 'closed']).optional().default('active'),
+  confirmation_password: z.string().trim().min(8).max(200)
 });
 
 const updateCustomerSchema = z.object({
   phone: z.string().trim().min(3).max(20).optional(),
   displayName: z.string().trim().min(1).max(255).optional(),
   email: z.string().trim().email().max(255).optional().or(z.literal('')),
-  status: z.enum(['active', 'blocked', 'closed']).optional()
+  status: z.enum(['active', 'blocked', 'closed']).optional(),
+  confirmation_password: z.string().trim().min(8).max(200)
+});
+
+const deleteCustomerSchema = z.object({
+  confirmation_password: z.string().trim().min(8).max(200)
 });
 
 const customerListQueryRowSchema = z.object({
@@ -95,9 +103,39 @@ function mapCustomerRow(row: CustomerListRow, tiers: Awaited<ReturnType<typeof l
   };
 }
 
+async function assertCustomerMembership(connection: PoolConnection, tenantId: number, userId: number): Promise<void> {
+  const [rows] = await connection.execute<Array<RowDataPacket & { user_id: number }>>(
+    `
+      SELECT user_id
+      FROM customer_tenant_memberships
+      WHERE tenant_id = :tenantId AND user_id = :userId
+      LIMIT 1
+    `,
+    { tenantId, userId }
+  );
+  if (!rows[0]) {
+    throw new Error('Customer is not available for this tenant.');
+  }
+}
+
+async function requireAdminActionConfirmation(
+  connection: PoolConnection,
+  adminUserId: number,
+  confirmationPassword: string
+): Promise<void> {
+  const [rows] = await connection.query<Array<RowDataPacket & { password_hash: string | null }>>(
+    `SELECT password_hash FROM admin_users WHERE id = :adminUserId LIMIT 1 FOR UPDATE`,
+    { adminUserId }
+  );
+  const admin = rows[0];
+  if (!admin?.password_hash || !(await verifyPassword(confirmationPassword, admin.password_hash))) {
+    throw new ApiError(401, 'admin_action_confirmation_failed', 'Current password confirmation is incorrect.');
+  }
+}
+
 export async function registerAdminCustomersRoutes(app: FastifyInstance): Promise<void> {
   app.get('/v1/admin/customers', { preHandler: [authenticateAdminRequest] }, async (request) => {
-    requireAdminRole(request, 'super_admin');
+    requireAnyAdminRole(request, ['super_admin', 'support_admin']);
     const { limit } = listQuerySchema.parse(request.query);
     const connection = await mysqlPool.getConnection();
 
@@ -136,6 +174,8 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
               LIMIT 1
             ) AS cups_last_180d
           FROM users u
+          JOIN customer_tenant_memberships ctm
+            ON ctm.user_id = u.id AND ctm.tenant_id = :tenantId
           LEFT JOIN user_profiles up ON up.user_id = u.id
           LEFT JOIN token_accounts ta ON ta.user_id = u.id
           LEFT JOIN (
@@ -147,13 +187,14 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
               MAX(o.created_at) AS last_order_at,
               SUM(CASE WHEN o.status IN ('refunded', 'refund_requested') THEN 1 ELSE 0 END) AS refund_count
             FROM orders o
+            JOIN stores os_store ON os_store.id = o.store_id AND os_store.tenant_id = :tenantId
             GROUP BY o.user_id
           ) os ON os.user_id = u.id
           WHERE u.deleted_at IS NULL
           ORDER BY u.created_at DESC, u.id DESC
           LIMIT :limit
         `,
-        { limit }
+        { limit, tenantId: request.adminAuth.tenantId }
       );
 
       return {
@@ -171,6 +212,7 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
 
     try {
       await connection.beginTransaction();
+      await requireAdminActionConfirmation(connection, request.adminAuth.adminUserId, payload.confirmation_password);
 
       const [userInsert] = await connection.execute<ResultSetHeader>(
         `
@@ -186,6 +228,11 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
       const userId = userInsert.insertId;
       const displayName = payload.displayName || 'C2 Member';
       const email = payload.email ? payload.email : null;
+
+      await connection.execute(
+        `INSERT INTO customer_tenant_memberships (tenant_id, user_id) VALUES (:tenantId, :userId)`,
+        { tenantId: request.adminAuth.tenantId, userId }
+      );
 
       await connection.execute(
         `
@@ -299,6 +346,8 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
 
     try {
       await connection.beginTransaction();
+      await requireAdminActionConfirmation(connection, request.adminAuth.adminUserId, payload.confirmation_password);
+      await assertCustomerMembership(connection, request.adminAuth.tenantId, userId);
 
       const updates: string[] = [];
       const values: { userId: number; phone?: string; status?: string } = { userId };
@@ -442,17 +491,24 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
   app.delete('/v1/admin/customers/:userId', { preHandler: [authenticateAdminRequest] }, async (request) => {
     requireAdminRole(request, 'super_admin');
     const userId = z.coerce.number().int().positive().parse((request.params as { userId?: string }).userId);
+    const payload = deleteCustomerSchema.parse(request.body);
 
-    await mysqlPool.execute(
-      `
-        UPDATE users
-        SET status = 'deleted',
-            deleted_at = UTC_TIMESTAMP(),
-            closed_at = COALESCE(closed_at, UTC_TIMESTAMP())
-        WHERE id = :userId
-      `,
-      { userId }
-    );
+    const connection = await mysqlPool.getConnection();
+    try {
+      await connection.beginTransaction();
+      await requireAdminActionConfirmation(connection, request.adminAuth.adminUserId, payload.confirmation_password);
+      await assertCustomerMembership(connection, request.adminAuth.tenantId, userId);
+      await connection.execute(
+        `DELETE FROM customer_tenant_memberships WHERE tenant_id = :tenantId AND user_id = :userId`,
+        { tenantId: request.adminAuth.tenantId, userId }
+      );
+      await connection.commit();
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
 
     return { ok: true };
   });

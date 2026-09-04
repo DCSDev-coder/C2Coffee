@@ -1,914 +1,120 @@
-import React, { useState, forwardRef, useEffect } from "react";
-import {
-  Search, ChevronDown, X, Clock, ClipboardList,
-  ShieldCheck, FileX, Receipt, Eye, MoreVertical,
-  ArrowLeft, CheckCircle2, RotateCcw, MessageSquare, AlertCircle
-} from "lucide-react";
+import React, { useEffect, useState } from 'react';
+import { ArrowLeft, Check, Eye, Mail, Search, X } from 'lucide-react';
 import Pagination from './Pagination';
-import DatePicker from "react-datepicker";
-import "react-datepicker/dist/react-datepicker.css";
-import { adminRequest } from '../lib/adminApi';
-import ViewProfile from "./ViewProfile";
+import { createAdminRefund, loadAdminRefunds, reviewAdminRefund } from '../lib/adminApi';
+import ViewProfile from './ViewProfile';
 
-// Custom Icons for Timeline 
-
-const ClockTimelineIcon = ({ size = 16, className = "" }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <circle cx="12" cy="12" r="10" />
-    <polyline points="12 6 12 12 16 14" />
-  </svg>
-);
-
-const DocTimelineIcon = ({ size = 16, className = "" }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-    <polyline points="14 2 14 8 20 8" />
-    <line x1="16" y1="13" x2="8" y2="13" />
-    <line x1="16" y1="17" x2="8" y2="17" />
-  </svg>
-);
-
-const CheckTimelineIcon = ({ size = 16, className = "" }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className}>
-    <circle cx="12" cy="12" r="10" />
-    <path d="m8 12 2.5 2.5 5.5-5.5" stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-  </svg>
-);
-
-// Mock Refund Data 
-
-const initialRefundsData = [
-  {
-    id: "REF-0510-001",
-    orderId: "ORD-0510-001",
-    customer: "miraelys",
-    email: "mira@gmail.com",
-    phone: "+6011-63793812",
-    tier: "Legend",
-    memberId: "C2-001",
-    amount: 15.90,
-    reason: "Wrong Item",
-    paymentMethod: "Touch 'n Go eWallet",
-    status: "Approved",
-    requestedAt: "Aug 19, 2026 10:15 AM",
-    orderDate: "Aug 19, 2026 – 10:18 AM",
-    customerNotes: "I received Flat White instead of Latte",
-    attachment: "/FLAT WHITE.png",
-    timeline: [
-      { label: "Refund Requested", date: "Aug 19, 2026 10:21 AM", done: true },
-      { label: "Under Review", date: "Aug 19, 2026 10:21 AM", done: true },
-      { label: "Refund Completed", date: "Aug 19, 2026 10:21 AM", done: true }
-    ]
-  },
-  {
-    id: "REF-0510-002",
-    orderId: "ORD-0510-002",
-    customer: "alex_chong",
-    email: "alex.c@yahoo.com",
-    phone: "+6012-3456789",
-    tier: "Legend",
-    memberId: "C2-002",
-    amount: 15.90,
-    reason: "Quality Issued",
-    paymentMethod: "Touch 'n Go eWallet",
-    status: "Pending",
-    requestedAt: "Aug 19, 2026 10:15 AM",
-    orderDate: "Aug 19, 2026 – 10:18 AM",
-    customerNotes: "Drink spilled upon delivery and was cold",
-    attachment: "/BOIJITO.png",
-    timeline: [
-      { label: "Refund Requested", date: "Aug 19, 2026 10:21 AM", done: true },
-      { label: "Under Review", date: "Aug 19, 2026 10:21 AM", done: false },
-      { label: "Refund Completed", date: "Aug 19, 2026 10:21 AM", done: false }
-    ]
-  },
-  {
-    id: "REF-0510-003",
-    orderId: "ORD-0510-003",
-    customer: "sarah_lee",
-    email: "sarah.lee88@gmail.com",
-    phone: "+6017-9876543",
-    tier: "Dilamun",
-    memberId: "C2-003",
-    amount: 15.90,
-    reason: "Delayed Order",
-    paymentMethod: "Touch 'n Go eWallet",
-    status: "Under Review",
-    requestedAt: "Aug 19, 2026 10:15 AM",
-    orderDate: "Aug 19, 2026 – 10:18 AM",
-    customerNotes: "Took over 45 minutes to prepare and was late",
-    attachment: "/LATTE.png",
-    timeline: [
-      { label: "Refund Requested", date: "Aug 19, 2026 10:21 AM", done: true },
-      { label: "Under Review", date: "Aug 19, 2026 10:21 AM", done: true },
-      { label: "Refund Completed", date: "Aug 19, 2026 10:21 AM", done: false }
-    ]
-  },
-  {
-    id: "REF-0510-004",
-    orderId: "ORD-0510-004",
-    customer: "khai_rul",
-    email: "khairul.dev@gmail.com",
-    phone: "+6019-1122334",
-    tier: "Ketagih",
-    memberId: "C2-004",
-    amount: 15.90,
-    reason: "Wrong Item",
-    paymentMethod: "Touch 'n Go eWallet",
-    status: "Rejected",
-    requestedAt: "Aug 19, 2026 10:15 AM",
-    orderDate: "Aug 19, 2026 – 10:18 AM",
-    customerNotes: "Items matched customized selection",
-    attachment: "/BOIJITO.png",
-    timeline: [
-      { label: "Refund Requested", date: "Aug 19, 2026 10:21 AM", done: true },
-      { label: "Under Review", date: "Aug 19, 2026 10:21 AM", done: true },
-      { label: "Refund Rejected", date: "Aug 19, 2026 10:21 AM", done: true }
-    ]
-  },
-  {
-    id: "REF-0510-005",
-    orderId: "ORD-0510-005",
-    customer: "jane_doe",
-    email: "janedoe99@outlook.com",
-    phone: "+6013-5557777",
-    tier: "Kawan",
-    memberId: "C2-005",
-    amount: 15.90,
-    reason: "Other",
-    paymentMethod: "Touch 'n Go eWallet",
-    status: "Approved",
-    requestedAt: "Aug 19, 2026 10:15 AM",
-    orderDate: "Aug 19, 2026 – 10:18 AM",
-    customerNotes: "Duplicate order placed accidentally",
-    attachment: "/FLAT WHITE.png",
-    timeline: [
-      { label: "Refund Requested", date: "Aug 19, 2026 10:21 AM", done: true },
-      { label: "Under Review", date: "Aug 19, 2026 10:21 AM", done: true },
-      { label: "Refund Completed", date: "Aug 19, 2026 10:21 AM", done: true }
-    ]
-  },
-  {
-    id: "REF-0510-006",
-    orderId: "ORD-0510-006",
-    customer: "ahmad_z",
-    email: "ahmad.z@gmail.com",
-    phone: "+6014-2223333",
-    tier: "Dilamun",
-    memberId: "C2-006",
-    amount: 15.90,
-    reason: "Missing Item",
-    paymentMethod: "Touch 'n Go eWallet",
-    status: "Approved",
-    requestedAt: "Aug 19, 2026 10:15 AM",
-    orderDate: "Aug 19, 2026 – 10:18 AM",
-    customerNotes: "Missing 1 pastry item",
-    attachment: "/BOIJITO.png",
-    timeline: [
-      { label: "Refund Requested", date: "Aug 19, 2026 10:21 AM", done: true },
-      { label: "Under Review", date: "Aug 19, 2026 10:21 AM", done: true },
-      { label: "Refund Completed", date: "Aug 19, 2026 10:21 AM", done: true }
-    ]
-  },
-  {
-    id: "REF-0510-007",
-    orderId: "ORD-0510-007",
-    customer: "lily_tan",
-    email: "lily.tan@company.com",
-    phone: "+6016-8889999",
-    tier: "Ketagih",
-    memberId: "C2-007",
-    amount: 15.90,
-    reason: "Missing Item",
-    paymentMethod: "Touch 'n Go eWallet",
-    status: "Approved",
-    requestedAt: "Aug 19, 2026 10:15 AM",
-    orderDate: "Aug 19, 2026 – 10:18 AM",
-    customerNotes: "Received wrong size cup",
-    attachment: "/FLAT WHITE.png",
-    timeline: [
-      { label: "Refund Requested", date: "Aug 19, 2026 10:21 AM", done: true },
-      { label: "Under Review", date: "Aug 19, 2026 10:21 AM", done: true },
-      { label: "Refund Completed", date: "Aug 19, 2026 10:21 AM", done: true }
-    ]
-  },
-  {
-    id: "REF-0510-008",
-    orderId: "ORD-0510-008",
-    customer: "ravi_s",
-    email: "ravi.shankar@gmail.com",
-    phone: "+6011-1234123",
-    tier: "Dilamun",
-    memberId: "C2-008",
-    amount: 15.90,
-    reason: "Missing Item",
-    paymentMethod: "Touch 'n Go eWallet",
-    status: "Approved",
-    requestedAt: "Aug 19, 2026 10:15 AM",
-    orderDate: "Aug 19, 2026 – 10:18 AM",
-    customerNotes: "Order cancelled by store",
-    attachment: "/BOIJITO.png",
-    timeline: [
-      { label: "Refund Requested", date: "Aug 19, 2026 10:21 AM", done: true },
-      { label: "Under Review", date: "Aug 19, 2026 10:21 AM", done: true },
-      { label: "Refund Completed", date: "Aug 19, 2026 10:21 AM", done: true }
-    ]
-  },
-  {
-    id: "REF-0510-009",
-    orderId: "ORD-0510-009",
-    customer: "fatimah_n",
-    email: "fatimah.n@yahoo.com",
-    phone: "+6012-4445555",
-    tier: "Legend",
-    memberId: "C2-009",
-    amount: 15.90,
-    reason: "Missing Item",
-    paymentMethod: "Touch 'n Go eWallet",
-    status: "Approved",
-    requestedAt: "Aug 19, 2026 10:15 AM",
-    orderDate: "Aug 19, 2026 – 10:18 AM",
-    customerNotes: "Missing extra shot addition",
-    attachment: "/FLAT WHITE.png",
-    timeline: [
-      { label: "Refund Requested", date: "Aug 19, 2026 10:21 AM", done: true },
-      { label: "Under Review", date: "Aug 19, 2026 10:21 AM", done: true },
-      { label: "Refund Completed", date: "Aug 19, 2026 10:21 AM", done: true }
-    ]
-  },
-  {
-    id: "REF-0510-010",
-    orderId: "ORD-0510-010",
-    customer: "wei_jie",
-    email: "weijie_w@gmail.com",
-    phone: "+6017-6667777",
-    tier: "Kawan",
-    memberId: "C2-010",
-    amount: 15.90,
-    reason: "Missing Item",
-    paymentMethod: "Touch 'n Go eWallet",
-    status: "Approved",
-    requestedAt: "Aug 19, 2026 10:15 AM",
-    orderDate: "Aug 19, 2026 – 10:18 AM",
-    customerNotes: "Payment charged twice",
-    attachment: "/BOIJITO.png",
-    timeline: [
-      { label: "Refund Requested", date: "Aug 19, 2026 10:21 AM", done: true },
-      { label: "Under Review", date: "Aug 19, 2026 10:21 AM", done: true },
-      { label: "Refund Completed", date: "Aug 19, 2026 10:21 AM", done: true }
-    ]
-  },
-  {
-    id: "REF-0510-011",
-    orderId: "ORD-0510-011",
-    customer: "nur_aini",
-    email: "nur.aini@outlook.com",
-    phone: "+6019-8887777",
-    tier: "Ketagih",
-    memberId: "C2-011",
-    amount: 15.90,
-    reason: "Missing Item",
-    paymentMethod: "Touch 'n Go eWallet",
-    status: "Approved",
-    requestedAt: "Aug 19, 2026 10:15 AM",
-    orderDate: "Aug 19, 2026 – 10:18 AM",
-    customerNotes: "Wrong milk type used",
-    attachment: "/FLAT WHITE.png",
-    timeline: [
-      { label: "Refund Requested", date: "Aug 19, 2026 10:21 AM", done: true },
-      { label: "Under Review", date: "Aug 19, 2026 10:21 AM", done: true },
-      { label: "Refund Completed", date: "Aug 19, 2026 10:21 AM", done: true }
-    ]
-  },
-  {
-    id: "REF-0510-012",
-    orderId: "ORD-0510-012",
-    customer: "danial_h",
-    email: "danial.hakim@gmail.com",
-    phone: "+6013-9990000",
-    tier: "Legend",
-    memberId: "C2-012",
-    amount: 15.90,
-    reason: "Missing Item",
-    paymentMethod: "Touch 'n Go eWallet",
-    status: "Approved",
-    requestedAt: "Aug 19, 2026 10:15 AM",
-    orderDate: "Aug 19, 2026 – 10:18 AM",
-    customerNotes: "Order not fulfilled by outlet",
-    attachment: "/BOIJITO.png",
-    timeline: [
-      { label: "Refund Requested", date: "Aug 19, 2026 10:21 AM", done: true },
-      { label: "Under Review", date: "Aug 19, 2026 10:21 AM", done: true },
-      { label: "Refund Completed", date: "Aug 19, 2026 10:21 AM", done: true }
-    ]
-  },
-  {
-    id: "REF-0510-013",
-    orderId: "ORD-0510-013",
-    customer: "mei_ling",
-    email: "mei.l@yahoo.com",
-    phone: "+6014-7778888",
-    tier: "Dilamun",
-    memberId: "C2-013",
-    amount: 15.90,
-    reason: "Missing Item",
-    paymentMethod: "Touch 'n Go eWallet",
-    status: "Approved",
-    requestedAt: "Aug 19, 2026 10:15 AM",
-    orderDate: "Aug 19, 2026 – 10:18 AM",
-    customerNotes: "Refund requested per store manager approval",
-    attachment: "/FLAT WHITE.png",
-    timeline: [
-      { label: "Refund Requested", date: "Aug 19, 2026 10:21 AM", done: true },
-      { label: "Under Review", date: "Aug 19, 2026 10:21 AM", done: true },
-      { label: "Refund Completed", date: "Aug 19, 2026 10:21 AM", done: true }
-    ]
-  }
-];
-
-// Status Badge Helper 
-
-const getRefundStatusBadge = (status) => {
-  switch (status) {
-    case "Approved":
-      return (
-        <span className="px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md bg-green-100 text-green-600">
-          Approved
-        </span>
-      );
-    case "Pending":
-      return (
-        <span className="px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md bg-[#FFEADB] text-[#F37021]">
-          Pending
-        </span>
-      );
-    case "Under Review":
-      return (
-        <span className="px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md bg-[#E4F2FF] text-[#2995F7]">
-          Under Review
-        </span>
-      );
-    case "Rejected":
-      return (
-        <span className="px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md bg-red-100 text-red-600">
-          Rejected
-        </span>
-      );
-    default:
-      return (
-        <span className="px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md bg-gray-100 text-gray-600">
-          {status}
-        </span>
-      );
-  }
-};
-
-const fmtPrice = (n, payment) => {
-  return `${n.toFixed(2)}`;
-};
 const ITEMS_PER_PAGE = 10;
-const STATUSES = ["All Status", "Pending", "Under Review", "Approved", "Rejected"];
+const STATUSES = ['All Status', 'Pending', 'Approved', 'Rejected'];
 
-// KPI Card Component
-
-const KPICard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-white" }) => (
-  <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center space-x-4 min-w-0">
-    <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 ${iconBg} ${iconColor} shadow-sm`}>
-      <Icon size={26} strokeWidth={2.2} />
-    </div>
-    <div className="flex-1 min-w-0">
-      <h3 className="text-gray-500 text-[11px] sm:text-xs xl:text-sm font-medium leading-tight mt-0.5 whitespace-normal">
-        {title}
-      </h3>
-      <p className="text-2xl font-bold text-gray-900 mt-1 leading-tight">{value}</p>
-      {change && (
-        <div className="flex items-center gap-1 mt-1">
-          <p className="text-[11px] text-gray-500 font-medium leading-tight whitespace-normal">
-            {change.includes('%') && !change.includes('of total') && !change.includes('↑') && !change.includes('↓') && change.includes('vs') ? `↑ ${change}` : change}
-          </p>
-        </div>
-      )}
-    </div>
-  </div>
-);
-
-// Date Picker Input 
-
-const CustomDateInput = forwardRef(({ value, onClick, onClear }, ref) => (
-  <div className="relative">
-    <button
-      ref={ref}
-      onClick={(e) => { e.preventDefault(); onClick(e); }}
-      className="peer flex items-center pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 whitespace-nowrap cursor-pointer"
-    >
-      {value || 'Select Date'}
-    </button>
-    <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-      <ChevronDown size={16} className="text-gray-500 transition-transform duration-200 peer-focus:-rotate-180" />
-    </div>
-    {value && (
-      <button
-        onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClear(); }}
-        className="absolute right-7 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 rounded-full bg-gray-100 p-0.5 cursor-pointer"
-      >
-        <X size={12} strokeWidth={2.5} />
-      </button>
-    )}
-  </div>
-));
-
-// Refund Detail Panel Component
-
-const RefundDetailPanel = ({ refund, onClose, onUpdateStatus, onPreviewAttachment, onViewProfile }) => {
-  return (
-    <div className="w-[360px] lg:w-[380px] bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col shrink-0 overflow-y-auto p-5 space-y-4">
-      {/* Header */}
-      <div className="border-b border-gray-100 pb-3">
-        <div className="flex justify-between items-start">
-          <h2 className="text-base font-bold text-gray-900">Refund Details</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-900 cursor-pointer">
-            <X size={18} strokeWidth={2.5} />
-          </button>
-        </div>
-        <div className="flex items-center justify-between mt-2">
-          <p className="text-base font-bold text-gray-900">{refund.id}</p>
-          {getRefundStatusBadge(refund.status)}
-        </div>
-        <p className="text-xs text-gray-500 mt-1">Requested on {refund.requestedAt}</p>
-      </div>
-
-      {/* Order Information Section */}
-      <div>
-        <h3 className="text-xs font-bold text-gray-900 mb-2">Order Information</h3>
-        <div className="grid grid-cols-2 gap-2 text-xs">
-          <div>
-            <p className="text-gray-500 text-[11px]">Order ID</p>
-            <p className="font-bold text-gray-900 mt-0.5">{refund.orderId}</p>
-          </div>
-          <div>
-            <p className="text-gray-500 text-[11px]">Payment Method</p>
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <div className="w-5 h-5 rounded-md bg-[#0055A5] flex flex-col items-center justify-center text-white shrink-0 p-0.5 shadow-2xs">
-                <span className="text-[5px] font-extrabold leading-none tracking-tighter">Touch</span>
-                <span className="text-[4px] font-bold leading-none text-yellow-300">'n Go</span>
-              </div>
-              <span className="font-bold text-gray-900 text-xs">{refund.paymentMethod}</span>
-            </div>
-          </div>
-          <div className="col-span-2 mt-1">
-            <p className="text-gray-500 text-[11px]">Order Date</p>
-            <p className="font-bold text-gray-900 mt-0.5">{refund.orderDate}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Customer Section */}
-      <div className="pt-1 border-t border-gray-100">
-        <h3 className="text-xs font-bold text-gray-900 mb-2">Customer</h3>
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-12 h-12 rounded-full bg-[#2E5E58] shrink-0 shadow-sm"></div>
-            <div className="min-w-0">
-              <p className="text-sm font-bold text-gray-900 truncate">{refund.customer}</p>
-              <p className="text-xs text-gray-500 truncate">{refund.email}</p>
-              <p className="text-xs text-gray-500">{refund.phone}</p>
-              <p className="text-xs text-gray-700 font-medium mt-0.5">Member ID : {refund.memberId}</p>
-            </div>
-          </div>
-          <button
-            onClick={() => {
-              const cups = refund.tier === 'Legend' ? '35' : refund.tier === 'Ketagih' ? '25' : refund.tier === 'Dilamun' ? '15' : '5';
-              onViewProfile({
-                username: refund.customer,
-                email: refund.email,
-                phone: refund.phone,
-                orders: cups,
-              });
-            }}
-            className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap cursor-pointer"
-          >
-            View Profile
-          </button>
-        </div>
-      </div>
-
-      {/* Issue Details Section */}
-      <div className="pt-1 border-t border-gray-100">
-        <h3 className="text-xs font-bold text-gray-900 mb-2">Issue Details</h3>
-        <div className="grid grid-cols-2 gap-2 text-xs mb-3">
-          <div>
-            <p className="text-gray-500 text-[11px]">Issue Category</p>
-            <p className="font-bold text-gray-900 mt-0.5">{refund.category || 'General'}</p>
-          </div>
-          <div>
-            <p className="text-gray-500 text-[11px]">Order ID</p>
-            <p className="font-bold text-gray-900 mt-0.5">{refund.orderId || 'N/A'}</p>
-          </div>
-        </div>
-
-        <div className="mb-3">
-          <p className="text-gray-500 text-[11px]">Subject</p>
-          <p className="text-xs font-bold text-gray-900 mt-0.5 leading-snug">{refund.subject || refund.reason}</p>
-        </div>
-
-        <div className="mb-3">
-          <p className="text-gray-500 text-[11px]">Message Details</p>
-          <p className="text-xs font-bold text-gray-900 mt-0.5 leading-snug whitespace-pre-wrap">{refund.message || refund.customerNotes}</p>
-        </div>
-      </div>
-
-      {/* Timeline Section */}
-      <div className="pt-1 border-t border-gray-100">
-        <h3 className="text-xs font-bold text-gray-900 mb-2.5">Timeline</h3>
-        <div className="space-y-2.5">
-          <div className="flex items-center justify-between text-xs">
-            <div className="flex items-center gap-2">
-              <ClockTimelineIcon size={14} className="text-gray-700" />
-              <span className="font-medium text-gray-800">Refund Requested</span>
-            </div>
-            <span className="text-gray-500 text-[11px]">Aug 19, 2026 10:21 AM</span>
-          </div>
-          <div className="flex items-center justify-between text-xs">
-            <div className="flex items-center gap-2">
-              <DocTimelineIcon size={14} className="text-gray-700" />
-              <span className="font-medium text-gray-800">Under Review</span>
-            </div>
-            <span className="text-gray-500 text-[11px]">Aug 19, 2026 10:21 AM</span>
-          </div>
-          <div className="flex items-center justify-between text-xs">
-            <div className="flex items-center gap-2">
-              <CheckTimelineIcon size={14} className="text-black" />
-              <span className="font-bold text-gray-900">Refund Completed</span>
-            </div>
-            <span className="text-gray-500 text-[11px]">Aug 19, 2026 10:21 AM</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Footer Action Buttons (Reject, Request More Info, Approve Refund) */}
-      <div className="pt-3 border-t border-gray-100 mt-auto grid grid-cols-3 gap-2">
-        <button
-          onClick={() => onUpdateStatus(refund.id, "Rejected")}
-          className="py-2 px-2 border border-gray-300 rounded-lg text-xs font-bold text-gray-700 hover:bg-red-50 hover:text-red-600 hover:border-red-300 transition-colors text-center cursor-pointer"
-        >
-          Reject
-        </button>
-        <button
-          onClick={() => {
-            const subject = encodeURIComponent(`Action Required: More Info Needed for Refund ${refund.id}`);
-            const body = encodeURIComponent(`Hi ${refund.customer},\n\nRegarding your refund request (${refund.id}) for order ${refund.orderId}, we need some additional information from you before we can proceed.\n\nPlease reply to this email with the requested details.\n\nThank you,\nC2 Coffee & Candle`);
-            window.location.href = `mailto:${refund.email}?subject=${subject}&body=${body}`;
-          }}
-          className="py-2 px-1 border border-gray-300 rounded-lg text-[11px] font-bold text-gray-700 hover:bg-gray-50 transition-colors text-center cursor-pointer leading-tight"
-        >
-          Request More Info
-        </button>
-        <button
-          onClick={() => onUpdateStatus(refund.id, "Approved")}
-          className="py-2 px-1 border border-gray-400 rounded-lg text-[11px] font-bold text-gray-900 hover:bg-green-50 hover:text-green-700 hover:border-green-400 transition-colors text-center cursor-pointer leading-tight"
-        >
-          Approve Refund
-        </button>
-      </div>
-    </div>
-  );
+const statusClass = {
+  Pending: 'bg-amber-50 text-amber-700',
+  Approved: 'bg-emerald-50 text-emerald-700',
+  Rejected: 'bg-red-50 text-red-700'
 };
 
-// Main RefundDetails Component 
+const StatusBadge = ({ status }) => (
+  <span className={`inline-flex rounded-md px-2.5 py-1 text-xs font-bold ${statusClass[status] || 'bg-slate-100 text-slate-700'}`}>
+    {status}
+  </span>
+);
+
+const formatAmount = (refund) => {
+  const isTokenRefund = String(refund.paymentMethod || '').toLowerCase() === 'token';
+  if (isTokenRefund) {
+    return `${Number(refund.tokenAmount || 0)} tokens`;
+  }
+  return `RM ${Number(refund.amountRm || 0).toFixed(2)}`;
+};
 
 const RefundDetails = ({ onBack }) => {
   const [refunds, setRefunds] = useState([]);
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All Status");
-  const [selectedDate, setSelectedDate] = useState(null);
   const [selectedRefund, setSelectedRefund] = useState(null);
-  const [viewingProfileFor, setViewingProfileFor] = useState(null);
-  const [previewImage, setPreviewImage] = useState(null);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('All Status');
   const [currentPage, setCurrentPage] = useState(1);
-  const [statusOpen, setStatusOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [actionId, setActionId] = useState('');
+  const [error, setError] = useState('');
+  const [viewingProfileFor, setViewingProfileFor] = useState(null);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [orderReference, setOrderReference] = useState('');
+  const [refundReason, setRefundReason] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
 
-  useEffect(() => {
-    const fetchTickets = async () => {
-      try {
-        setIsLoading(true);
-        const data = await adminRequest('/v1/admin/refunds');
-        if (data && data.refunds) {
-          setRefunds(data.refunds);
-        }
-      } catch (err) {
-        console.error('Failed to fetch refunds', err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchTickets();
-  }, []);
-
-  const resetPage = () => setCurrentPage(1);
-
-  const handleUpdateStatus = (refundId, newStatus) => {
-    setRefunds((prev) =>
-      prev.map((r) => (r.id === refundId ? { ...r, status: newStatus } : r))
-    );
-    if (selectedRefund && selectedRefund.id === refundId) {
-      setSelectedRefund((prev) => ({ ...prev, status: newStatus }));
+  const loadRefunds = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const response = await loadAdminRefunds();
+      setRefunds(Array.isArray(response?.refunds) ? response.refunds : []);
+    } catch (requestError) {
+      setError(requestError.message || 'Unable to load refund requests.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const filtered = refunds.filter((r) => {
-    const q = search.toLowerCase();
-    const matchSearch =
-      r.id.toLowerCase().includes(q) ||
-      r.orderId.toLowerCase().includes(q) ||
-      r.customer.toLowerCase().includes(q) ||
-      r.reason.toLowerCase().includes(q);
-    const matchStatus = statusFilter === "All Status" || r.status === statusFilter;
-    return matchSearch && matchStatus;
+  useEffect(() => {
+    void loadRefunds();
+  }, []);
+
+  const reviewRefund = async (refund, decision) => {
+    if (refund.status !== 'Pending') return;
+    setActionId(refund.id);
+    setError('');
+    try {
+      await reviewAdminRefund(refund.id, decision);
+      await loadRefunds();
+      setSelectedRefund(null);
+    } catch (requestError) {
+      setError(requestError.message || 'Unable to record this refund decision.');
+    } finally {
+      setActionId('');
+    }
+  };
+
+  const createRefund = async (event) => {
+    event.preventDefault();
+    if (isCreating) return;
+    setIsCreating(true);
+    setError('');
+    try {
+      await createAdminRefund(orderReference.trim(), refundReason.trim());
+      setOrderReference('');
+      setRefundReason('');
+      setIsCreateOpen(false);
+      await loadRefunds();
+    } catch (requestError) {
+      setError(requestError.message || 'Unable to create this refund request.');
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const filtered = refunds.filter((refund) => {
+    const query = search.trim().toLowerCase();
+    const matchesSearch = !query || [refund.id, refund.orderId, refund.customer, refund.reason]
+      .some((value) => String(value || '').toLowerCase().includes(query));
+    return matchesSearch && (statusFilter === 'All Status' || refund.status === statusFilter);
   });
-
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
-  const paginated = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+  const pageItems = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+  const counts = Object.fromEntries(STATUSES.slice(1).map((status) => [status, refunds.filter((refund) => refund.status === status).length]));
 
-  // KPI Calculations
-  const pendingCount = refunds.filter((r) => r.status === "Pending").length || 10;
-  const underReviewCount = refunds.filter((r) => r.status === "Under Review").length || 4;
-  const approvedCount = refunds.filter((r) => r.status === "Approved").length || 6;
-  const rejectedCount = refunds.filter((r) => r.status === "Rejected").length || 3;
-  const totalRefundedAmount = 74.50;
-
-  if (viewingProfileFor) {
-    return (
-      <ViewProfile 
-        customer={viewingProfileFor} 
-        onBack={() => setViewingProfileFor(null)} 
-      />
-    );
-  }
+  if (viewingProfileFor) return <ViewProfile customer={viewingProfileFor} onBack={() => setViewingProfileFor(null)} />;
 
   return (
-    <div className="px-8 pb-8 pt-2 h-full flex flex-col">
-      {/* Header with Back Arrow and Title */}
-      <div className="mb-6 shrink-0 flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <button
-              onClick={onBack}
-              className="p-1 -ml-1 text-gray-700 hover:text-black rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
-              title="Back to Orders"
-            >
-              <ArrowLeft size={22} strokeWidth={2.5} />
-            </button>
-            <h1 className="text-2xl font-bold text-gray-900">Refund Details</h1>
-          </div>
-          <p className="text-gray-500 text-sm mt-0.5 ml-8">Review and manage customer refund requests.</p>
-        </div>
+    <div className="flex h-full flex-col px-8 pb-8 pt-2">
+      <div className="mb-6 flex items-start justify-between gap-4"><div><div className="flex items-center gap-2.5"><button onClick={onBack} className="rounded-lg p-1 text-gray-700 hover:bg-gray-100" title="Back to Orders"><ArrowLeft size={22} /></button><h1 className="text-2xl font-bold text-gray-900">Refund Reviews</h1></div><p className="ml-8 mt-0.5 text-sm text-gray-500">Approve a request to return its tokens to the customer's wallet.</p></div><button onClick={() => setIsCreateOpen(true)} className="rounded-lg bg-[#1F3A34] px-4 py-2 text-sm font-bold text-white hover:bg-[#2E5E58]">Create refund request</button></div>
+      {error && <div className="mb-5 flex items-center justify-between gap-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"><span>{error}</span><button onClick={() => void loadRefunds()} className="font-bold underline">Retry</button></div>}
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">{STATUSES.slice(1).map((status) => <div key={status} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"><p className="text-xs font-medium text-gray-500">{status}</p><p className="mt-1 text-2xl font-bold text-gray-900">{counts[status]}</p></div>)}</div>
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div className="relative w-full sm:max-w-md"><Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input value={search} onChange={(event) => { setSearch(event.target.value); setCurrentPage(1); }} placeholder="Search refund, order, customer or reason" className="w-full rounded-lg border border-gray-300 py-2 pl-10 pr-3 text-sm" /></div><select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setCurrentPage(1); }} className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700">{STATUSES.map((status) => <option key={status}>{status}</option>)}</select></div>
+      <div className="flex min-h-0 flex-1 flex-col gap-6 xl:flex-row">
+        <div className="min-w-0 flex-1 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm"><div className="overflow-x-auto"><table className="min-w-full divide-y divide-gray-200"><thead><tr className="text-left text-xs font-bold text-gray-900">{['Refund ID', 'Order ID', 'Customer', 'Amount', 'Reason', 'Status', 'Requested', ''].map((heading) => <th key={heading} className="px-5 py-4 whitespace-nowrap">{heading}</th>)}</tr></thead><tbody className="divide-y divide-gray-100">{loading ? <tr><td colSpan="8" className="px-6 py-10 text-center text-sm text-gray-500">Loading refund requests...</td></tr> : pageItems.length ? pageItems.map((refund) => <tr key={refund.id} className={selectedRefund?.id === refund.id ? 'bg-[#F3F7F5]' : 'hover:bg-gray-50'}><td className="px-5 py-3 text-sm font-semibold text-gray-900">{refund.id}</td><td className="px-5 py-3 text-sm text-gray-700">{refund.orderId}</td><td className="px-5 py-3 text-sm font-medium text-gray-900">{refund.customer}</td><td className="px-5 py-3 text-sm font-semibold text-gray-900">{formatAmount(refund)}</td><td className="px-5 py-3 text-sm text-gray-700">{refund.reason}</td><td className="px-5 py-3"><StatusBadge status={refund.status} /></td><td className="px-5 py-3 text-sm text-gray-600">{refund.requestedAt}</td><td className="px-5 py-3"><button onClick={() => setSelectedRefund(selectedRefund?.id === refund.id ? null : refund)} className="rounded-lg bg-[#1F3A34] p-2 text-white hover:bg-[#2E5E58]" title="View refund"><Eye size={15} /></button></td></tr>) : <tr><td colSpan="8" className="px-6 py-10 text-center text-sm text-gray-500">No refund requests match these filters.</td></tr>}</tbody></table></div><div className="border-t border-gray-200 px-6 py-4"><Pagination currentPage={currentPage} totalPages={totalPages} setCurrentPage={setCurrentPage} itemsPerPage={ITEMS_PER_PAGE} totalItems={filtered.length} itemName="refund requests" /></div></div>
+        {selectedRefund && <aside className="w-full shrink-0 rounded-xl border border-gray-200 bg-white p-5 shadow-sm xl:w-[360px]"><div className="flex items-start justify-between gap-3"><div><h2 className="text-base font-bold text-gray-900">Refund Details</h2><p className="mt-1 text-sm text-gray-500">{selectedRefund.id}</p></div><button onClick={() => setSelectedRefund(null)} className="text-gray-400 hover:text-gray-700"><X size={18} /></button></div><div className="mt-5 space-y-4 border-y border-gray-100 py-4 text-sm"><div><p className="text-xs text-gray-500">Customer</p><p className="font-bold text-gray-900">{selectedRefund.customer}</p><p className="text-gray-600">{selectedRefund.email}</p></div><div><p className="text-xs text-gray-500">Order and amount</p><p className="font-semibold text-gray-900">{selectedRefund.orderId} · {formatAmount(selectedRefund)}</p></div><div><p className="text-xs text-gray-500">Customer reason</p><p className="font-semibold text-gray-900">{selectedRefund.customerNotes || selectedRefund.reason}</p></div><div><p className="text-xs text-gray-500">Decision status</p><div className="mt-1"><StatusBadge status={selectedRefund.status} /></div></div></div><button onClick={() => setViewingProfileFor({ username: selectedRefund.customer, email: selectedRefund.email, phone: selectedRefund.phone })} className="mt-4 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50">View Customer</button>{selectedRefund.email && <a href={`mailto:${selectedRefund.email}?subject=${encodeURIComponent(`Refund request ${selectedRefund.id}`)}`} className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50"><Mail size={15} /> Email Customer</a>}{selectedRefund.status === 'Pending' && <div className="mt-4 grid grid-cols-2 gap-2"><button disabled={actionId === selectedRefund.id} onClick={() => void reviewRefund(selectedRefund, 'rejected')} className="rounded-lg border border-red-300 px-3 py-2 text-sm font-bold text-red-700 hover:bg-red-50 disabled:opacity-50">Reject</button><button disabled={actionId === selectedRefund.id} onClick={() => void reviewRefund(selectedRefund, 'approved')} className="flex items-center justify-center gap-2 rounded-lg bg-[#1F3A34] px-3 py-2 text-sm font-bold text-white hover:bg-[#2E5E58] disabled:opacity-50"><Check size={16} />{actionId === selectedRefund.id ? 'Saving...' : 'Approve'}</button></div>}</aside>}
       </div>
-
-      {/* Top 5 KPI Summary Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3.5 mb-6 shrink-0">
-        <KPICard
-          title="Pending"
-          value={pendingCount}
-          change="12.6% vs yesterday"
-          icon={Clock}
-          iconBg="bg-[#1F3A34]"
-          iconColor="text-white"
-        />
-        <KPICard
-          title="Under Review"
-          value={underReviewCount}
-          change="8.2% vs yesterday"
-          icon={ClipboardList}
-          iconBg="bg-[#2E5E58]"
-          iconColor="text-white"
-        />
-        <KPICard
-          title="Approved"
-          value={approvedCount}
-          change="17.1% vs yesterday"
-          icon={ShieldCheck}
-          iconBg="bg-[#6F9F96]"
-          iconColor="text-white"
-        />
-        <KPICard
-          title="Rejected"
-          value={rejectedCount}
-          change="8.7% vs yesterday"
-          icon={FileX}
-          iconBg="bg-[#E07A5F]"
-          iconColor="text-white"
-        />
-        <KPICard
-          title="Total Refunded"
-          value={fmtPrice(totalRefundedAmount, "RM")}
-          change="9.3% vs yesterday"
-          icon={Receipt}
-          iconBg="bg-[#D9C4A9]"
-          iconColor="text-white"
-        />
-      </div>
-
-      {/* Search and Filters Bar */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-6 gap-4 shrink-0">
-        {/* Search */}
-        <div className="relative w-full max-w-[440px]">
-          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-            <Search size={18} className="text-gray-400" />
-          </div>
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); resetPage(); }}
-            placeholder="Search Refund ID, Order ID, customer..."
-            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-[#2E5E58] focus:border-[#2E5E58] text-sm"
-          />
-        </div>
-
-        {/* Filters */}
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Status Dropdown */}
-          <div className="relative">
-            <select
-              value={statusFilter}
-              onChange={(e) => { setStatusFilter(e.target.value); resetPage(); }}
-              onFocus={() => setStatusOpen(true)}
-              onBlur={() => setStatusOpen(false)}
-              className="peer pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer"
-            >
-              {STATUSES.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-            <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-              <ChevronDown size={16} className={`text-gray-500 transition-transform duration-200 ${statusOpen ? 'rotate-180' : ''}`} />
-            </div>
-          </div>
-
-          {/* Date Picker */}
-          <div className="relative transition-transform duration-200 peer-focus:-rotate-180">
-            <DatePicker portalId="root-portal" popperPlacement="bottom-end"
-              selected={selectedDate}
-              onChange={(d) => { setSelectedDate(d); resetPage(); }}
-              customInput={<CustomDateInput onClear={() => { setSelectedDate(null); resetPage(); }} />}
-              dateFormat="MMM d, yyyy"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Main Content: Table + Detail Panel */}
-      <div className="flex flex-col xl:flex-row gap-6 flex-1 min-h-0">
-        {/* Refunds Table */}
-        <div className="flex-1 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col min-w-0">
-          <div className="overflow-x-auto flex-1">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-white">
-                <tr>
-                  {["Refund ID", "Order ID", "Customer", "Amount (Token)", "Reason", "Payment Method", "Status", "Requested At", "Action"].map((h) => (
-                    <th key={h} className="px-5 py-4 text-left text-xs font-bold text-gray-900 whitespace-nowrap">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-100">
-                {paginated.length > 0 ? (
-                  paginated.map((refund) => {
-                    const isSelected = selectedRefund?.id === refund.id;
-                    return (
-                      <tr
-                        key={refund.id}
-                        className={`hover:bg-gray-50 transition-colors ${isSelected ? "bg-gray-50" : ""
-                          }`}
-                      >
-                        <td className="px-5 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {refund.id}
-                        </td>
-                        <td className="px-5 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {refund.orderId}
-                        </td>
-                        <td className="px-5 py-3 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <div className="h-9 w-9 rounded-full bg-[#2E5E58] shrink-0 shadow-sm"></div>
-                            <div className="ml-3">
-                              <div className="text-sm font-bold text-gray-900">{refund.customer}</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-5 py-3 whitespace-nowrap text-sm font-bold text-gray-900">
-                          {fmtPrice(refund.amount, refund.paymentMethod)}
-                        </td>
-                        <td className="px-5 py-3 whitespace-nowrap text-sm text-gray-700 font-medium">
-                          {refund.reason}
-                        </td>
-                        <td className="px-5 py-3 whitespace-nowrap text-sm text-gray-700 font-medium">
-                          <div className="flex items-center gap-1.5">
-                            <div className="w-5 h-5 rounded-md bg-[#0055A5] flex flex-col items-center justify-center text-white shrink-0 p-0.5 shadow-2xs">
-                              <span className="text-[5px] font-extrabold leading-none tracking-tighter">Touch</span>
-                              <span className="text-[4px] font-bold leading-none text-yellow-300">'n Go</span>
-                            </div>
-                            <span>{refund.paymentMethod}</span>
-                          </div>
-                        </td>
-                        <td className="px-5 py-3 whitespace-nowrap">
-                          {getRefundStatusBadge(refund.status)}
-                        </td>
-                        <td className="px-5 py-3 whitespace-nowrap text-sm text-gray-600 font-medium">
-                          {refund.requestedAt}
-                        </td>
-                        <td className="px-5 py-3 whitespace-nowrap text-sm font-medium">
-                          <button
-                            onClick={() => setSelectedRefund(isSelected ? null : refund)}
-                            className="bg-[#1E293B] hover:bg-[#0F172A] text-white px-2.5 py-1.5 rounded-lg inline-flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
-                            title="View Refund Details"
-                          >
-                            <Eye size={15} />
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })
-                ) : (
-                  <tr>
-                    <td colSpan="9" className="px-6 py-8 text-center text-gray-500 text-sm">
-                      No refund requests found matching your criteria.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination */}
-          <div className="px-6 py-4 border-t border-gray-200 flex shrink-0 bg-white">
-            <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              setCurrentPage={setCurrentPage}
-              itemsPerPage={ITEMS_PER_PAGE}
-              totalItems={filtered.length}
-              itemName="refund requests"
-            />
-          </div>
-        </div>
-
-        {/* Right Side: Refund Detail Panel */}
-        {selectedRefund && (
-          <RefundDetailPanel
-            refund={selectedRefund}
-            onClose={() => setSelectedRefund(null)}
-            onUpdateStatus={handleUpdateStatus}
-            onPreviewAttachment={setPreviewImage}
-            onViewProfile={setViewingProfileFor}
-            onRequestMoreInfo={(email) => window.location.href = `mailto:${email}`}
-          />
-        )}
-      </div>
-
-      {/* Attachment Image Lightbox Preview Modal */}
-      {previewImage && (
-        <div
-          className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in duration-200"
-          onClick={() => setPreviewImage(null)}
-        >
-          <div
-            className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 relative"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex justify-between items-start mb-4 border-b border-gray-100 pb-3">
-              <div>
-                <h3 className="text-base font-bold text-gray-900">{previewImage.title || "Attachment Preview"}</h3>
-                {previewImage.subtitle && (
-                  <p className="text-xs text-gray-500 mt-0.5">{previewImage.subtitle}</p>
-                )}
-              </div>
-              <button
-                onClick={() => setPreviewImage(null)}
-                className="p-1.5 rounded-lg text-gray-400 hover:text-gray-900 hover:bg-gray-100 transition-colors cursor-pointer"
-                title="Close Preview"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className="w-full h-80 sm:h-96 bg-gray-50 rounded-xl border border-gray-200 flex items-center justify-center p-4 overflow-hidden mb-4 shadow-inner">
-              <img
-                src={previewImage.img}
-                alt="Attachment Preview"
-                className="max-h-full max-w-full object-contain transition-transform duration-200 hover:scale-105"
-              />
-            </div>
-
-            {previewImage.notes && (
-              <div className="bg-gray-50 rounded-xl p-3.5 border border-gray-200">
-                <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Customer Note</p>
-                <p className="text-xs font-semibold text-gray-800 italic">"{previewImage.notes}"</p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      {isCreateOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"><form onSubmit={createRefund} className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl"><div className="flex items-start justify-between gap-4"><div><h2 className="text-lg font-bold text-gray-900">Create refund request</h2><p className="mt-1 text-sm text-gray-500">Use this when support receives a request outside the app.</p></div><button type="button" onClick={() => setIsCreateOpen(false)} className="text-gray-400 hover:text-gray-700"><X size={20} /></button></div><label className="mt-5 block text-sm font-bold text-gray-700">Order reference<input required value={orderReference} onChange={(event) => setOrderReference(event.target.value)} placeholder="C2-260904-JUQTQL" className="mt-1.5 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal" /></label><label className="mt-4 block text-sm font-bold text-gray-700">Reason<textarea required minLength="10" maxLength="500" value={refundReason} onChange={(event) => setRefundReason(event.target.value)} placeholder="Reason provided by the customer" className="mt-1.5 min-h-28 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal" /></label><div className="mt-6 flex justify-end gap-3"><button type="button" onClick={() => setIsCreateOpen(false)} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-bold text-gray-700">Cancel</button><button disabled={isCreating} type="submit" className="rounded-lg bg-[#1F3A34] px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{isCreating ? 'Creating...' : 'Create request'}</button></div></form></div>}
     </div>
   );
 };

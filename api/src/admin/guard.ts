@@ -168,3 +168,9 @@ export function requireAdminRole(request: FastifyRequest, roleCode: string): voi
     throw new ApiError(403, 'admin_forbidden', 'You do not have permission to perform this action.');
   }
 }
+
+export function requireAnyAdminRole(request: FastifyRequest, roleCodes: string[]): void {
+  if (!request.adminAuth?.roles.some((role) => roleCodes.includes(role))) {
+    throw new ApiError(403, 'admin_forbidden', 'You do not have permission to perform this action.');
+  }
+}

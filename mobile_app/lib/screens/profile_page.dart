@@ -20,6 +20,7 @@ import 'rewards_page.dart';
 import 'my_rewards_page.dart';
 import 'referral_page.dart';
 import '../widgets/order_status_banner.dart';
+import '../widgets/catalog_product_image.dart';
 import '../utils/app_colors.dart';
 import '../widgets/app_page_shell.dart';
 
@@ -282,6 +283,29 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Widget _buildAvatar() {
+    final serverAvatar = _session.user;
+    if (serverAvatar?.avatarType == 'uploaded' &&
+        serverAvatar?.avatarValue?.isNotEmpty == true) {
+      final source = resolveCatalogImageSource(serverAvatar!.avatarValue)!;
+      return CircleAvatar(
+        radius: 28,
+        backgroundColor: orangeColor,
+        child: ClipOval(
+          child: Image.network(
+            source,
+            width: 56,
+            height: 56,
+            fit: BoxFit.cover,
+            loadingBuilder: (_, child, loadingProgress) => loadingProgress == null
+                ? child
+                : const C2ImageSkeleton(),
+            errorBuilder: (_, __, ___) =>
+                const Icon(Icons.person, size: 36, color: Colors.white),
+          ),
+        ),
+      );
+    }
+
     if (_persistedPickedImage != null) {
       return CircleAvatar(
         radius: 28,
@@ -290,20 +314,17 @@ class _ProfilePageState extends State<ProfilePage> {
             : FileImage(_persistedPickedImage!) as ImageProvider,
         backgroundColor: Colors.transparent,
       );
-    } else if (_persistedPresetPath != null) {
-      return CircleAvatar(
-        radius: 28,
-        backgroundImage: AssetImage(_persistedPresetPath!),
-        backgroundColor:
-            AppColors.deepTeal, // Add the dark green background back
-      );
-    } else {
-      return CircleAvatar(
-        radius: 28,
-        backgroundColor: orangeColor,
-        child: const Icon(Icons.person, size: 36, color: Colors.white),
-      );
     }
+
+    final presetPath = serverAvatar?.avatarType == 'preset' &&
+            (serverAvatar?.avatarValue?.startsWith('assets/') ?? false)
+        ? serverAvatar!.avatarValue!
+        : (_persistedPresetPath ?? 'assets/images/dato.png');
+    return CircleAvatar(
+      radius: 28,
+      backgroundImage: AssetImage(presetPath),
+      backgroundColor: orangeColor,
+    );
   }
 
   @override
@@ -311,6 +332,7 @@ class _ProfilePageState extends State<ProfilePage> {
     return AppPageShell(
       title: 'PROFILE',
       onBack: () => InteractiveFillingLoader.showPop(context),
+      showBackButton: false,
       backgroundColor: bgColor,
       extendBody: true,
       scrollController: _scrollController,
@@ -337,18 +359,6 @@ class _ProfilePageState extends State<ProfilePage> {
               children: [
                 const Icon(Icons.notifications_outlined,
                     color: Colors.white, size: 26),
-                Positioned(
-                  top: 1,
-                  right: 1,
-                  child: Container(
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: AppColors.accent,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
               ],
             ),
           ),
@@ -694,18 +704,6 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
                 const SizedBox(height: 24),
 
-                // Our Promise Section
-                Text('Our Promise',
-                    style: TextStyle(
-                        fontFamily: 'Recoleta',
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.deepTeal)),
-                const SizedBox(height: 12),
-                const SizedBox(
-                  height: 140, // Increased from 100
-                  child: OurPromiseCarousel(),
-                ),
               ],
       ),
     );
@@ -1326,69 +1324,5 @@ class _CustomCalendarWidgetState extends State<CustomCalendarWidget> {
     }
 
     return order.orderRef.isNotEmpty ? order.orderRef : 'Order ${order.id}';
-  }
-}
-
-class OurPromiseCarousel extends StatefulWidget {
-  const OurPromiseCarousel({super.key});
-
-  @override
-  State<OurPromiseCarousel> createState() => _OurPromiseCarouselState();
-}
-
-class _OurPromiseCarouselState extends State<OurPromiseCarousel> {
-  final PageController _pageController =
-      PageController(initialPage: 1, viewportFraction: 0.85);
-
-  final List<String> _promises = [
-    '100% certified muslim-made',
-    'made with love',
-    'playful sips, handcrafted joy',
-  ];
-
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return PageView.builder(
-      controller: _pageController,
-      itemCount: _promises.length,
-      itemBuilder: (context, index) {
-        return Container(
-          margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: AppColors.border,
-              width: 1,
-            ),
-            boxShadow: [
-              BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.03),
-                  blurRadius: 6,
-                  offset: const Offset(0, 2))
-            ],
-          ),
-          child: Center(
-            child: Text(
-              _promises[index],
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontFamily: 'Recoleta',
-                fontSize: 22, // increased from 16
-                fontWeight: FontWeight.bold,
-                color: AppColors.deepTeal,
-              ),
-            ),
-          ),
-        );
-      },
-    );
   }
 }

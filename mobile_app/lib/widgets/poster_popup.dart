@@ -1,8 +1,10 @@
 import 'dart:ui' as dart_ui;
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/catalog_api_service.dart';
 import '../utils/app_colors.dart';
+import 'catalog_product_image.dart';
 
 class PosterPopup extends StatefulWidget {
   final HomeBanner? banner;
@@ -277,12 +279,15 @@ class _PosterPopupState extends State<PosterPopup>
 
     if (resolvedSource.startsWith('http://') ||
         resolvedSource.startsWith('https://')) {
-      return Image.network(
-        resolvedSource,
+      return CachedNetworkImage(
+        imageUrl: resolvedSource,
         width: double.infinity,
         fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) =>
-            _buildPosterFallback(),
+        maxWidthDiskCache: 1600,
+        memCacheWidth: 1200,
+        fadeInDuration: const Duration(milliseconds: 120),
+        placeholder: (_, __) => const C2ImageSkeleton(),
+        errorWidget: (_, __, ___) => _buildPosterFallback(),
       );
     }
 

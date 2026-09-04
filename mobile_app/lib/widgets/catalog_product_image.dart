@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 class CatalogProductImage extends StatelessWidget {
@@ -29,26 +30,23 @@ class CatalogProductImage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (_hasRemoteImage) {
-      final imageProvider = ResizeImage(
-        NetworkImage(imageUrl!),
-        width: _cacheDimension,
-        height: _cacheDimension,
-      );
-
-      return Image(
-        image: imageProvider,
+      return CachedNetworkImage(
+        imageUrl: imageUrl!,
         width: width,
         height: height,
         fit: fit,
-        gaplessPlayback: true,
+        memCacheWidth: _cacheDimension,
+        memCacheHeight: _cacheDimension,
+        maxWidthDiskCache: 1200,
+        maxHeightDiskCache: 1200,
+        fadeInDuration: const Duration(milliseconds: 120),
         filterQuality: FilterQuality.low,
-        frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-          if (wasSynchronouslyLoaded || frame != null) {
-            return child;
-          }
-          return _placeholder();
-        },
-        errorBuilder: (_, __, ___) => _placeholder(),
+        placeholder: (_, __) => C2ImageSkeleton(
+          width: width,
+          height: height,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        errorWidget: (_, __, ___) => _placeholder(),
       );
     }
 
@@ -84,6 +82,67 @@ class CatalogProductImage extends StatelessWidget {
   }
 }
 
+class C2ImageSkeleton extends StatefulWidget {
+  final double? width;
+  final double? height;
+  final BorderRadius? borderRadius;
+
+  const C2ImageSkeleton({
+    super.key,
+    this.width,
+    this.height,
+    this.borderRadius,
+  });
+
+  @override
+  State<C2ImageSkeleton> createState() => _C2ImageSkeletonState();
+}
+
+class _C2ImageSkeletonState extends State<C2ImageSkeleton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1100),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: widget.width,
+      height: widget.height,
+      child: ClipRRect(
+        borderRadius: widget.borderRadius ?? BorderRadius.circular(14),
+        child: AnimatedBuilder(
+          animation: _controller,
+          builder: (context, _) {
+            final position = -1.5 + (_controller.value * 3);
+            return DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment(position - 1, 0),
+                  end: Alignment(position + 1, 0),
+                  colors: const [
+                    Color(0xFFEAF1EF),
+                    Color(0xFFF8FBFA),
+                    Color(0xFFEAF1EF),
+                  ],
+                ),
+              ),
+              child: const SizedBox.expand(),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
 Future<void> precacheCatalogProductImages(
   BuildContext context,
   Iterable<String?> imageUrls,
@@ -101,10 +160,10 @@ Future<void> precacheCatalogProductImages(
   await Future.wait(
     uniqueUrls.map(
       (url) => precacheImage(
-        ResizeImage(
-          NetworkImage(url),
-          width: CatalogProductImage._cacheDimension,
-          height: CatalogProductImage._cacheDimension,
+        CachedNetworkImageProvider(
+          url,
+          maxWidth: CatalogProductImage._cacheDimension,
+          maxHeight: CatalogProductImage._cacheDimension,
         ),
         context,
       ),

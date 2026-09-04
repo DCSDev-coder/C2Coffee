@@ -3,11 +3,12 @@ import path from 'node:path';
 
 import type { FastifyInstance } from 'fastify';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
+import sharp from 'sharp';
 import { z } from 'zod';
 import { mysqlPool } from '../../db/mysql.js';
 import { ApiError } from '../errors.js';
-import { authenticateAdminRequest } from '../../admin/guard.js';
-import { mimeTypeForAssetPath, saveMediaAsset } from '../../lib/media-assets.js';
+import { authenticateAdminRequest, requireAnyAdminRole } from '../../admin/guard.js';
+import { saveMediaAsset } from '../../lib/media-assets.js';
 
 const tierCodes = ['kawan', 'dilamun', 'ketagih', 'legend'] as const;
 
@@ -307,7 +308,8 @@ function resolveProductKind(productKindCode: string | null | undefined, category
 }
 
 export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<void> {
-  app.get('/v1/admin/menu', { preHandler: authenticateAdminRequest }, async () => {
+  app.get('/v1/admin/menu', { preHandler: authenticateAdminRequest }, async (request) => {
+    requireAnyAdminRole(request, ['super_admin', 'marketing_admin', 'operations_admin']);
     const [rows] = await mysqlPool.query<Array<AdminMenuRow>>(
       `
         SELECT
@@ -404,6 +406,7 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
   });
 
   app.get('/v1/admin/reports/products', { preHandler: authenticateAdminRequest }, async (request) => {
+    requireAnyAdminRole(request, ['super_admin', 'marketing_admin', 'operations_admin']);
     const selectedDateRaw = typeof request.query === 'object' && request.query !== null
       ? (request.query as { selected_date?: string }).selected_date
       : undefined;
@@ -506,6 +509,7 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
   });
 
   app.post('/v1/admin/menu/items', { preHandler: authenticateAdminRequest }, async (request) => {
+    requireAnyAdminRole(request, ['super_admin', 'marketing_admin']);
     const payload = adminMenuUpsertSchema.parse(request.body);
     const connection = await mysqlPool.getConnection();
     await connection.query("SET time_zone = '+00:00'");
@@ -622,9 +626,6 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
     },
     async (request) => {
       const payload = adminMenuImageUploadSchema.parse(request.body);
-      const fileExtension = extensionForMimeType(payload.mime_type);
-      const uploadName = `${Date.now()}-${randomUUID()}-${slugifyFileName(payload.file_name)}${fileExtension}`;
-      const assetPath = `/assets/menu/uploads/${uploadName}`;
       const base64Payload = payload.data_url.includes('base64,')
         ? payload.data_url.split('base64,').pop() || ''
         : payload.data_url;
@@ -634,11 +635,25 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
         throw new ApiError(400, 'invalid_upload', 'Uploaded image data was empty.');
       }
 
+      let optimizedContent: Buffer;
+      try {
+        optimizedContent = await sharp(fileBuffer, { limitInputPixels: 32_000_000 })
+          .rotate()
+          .resize({ width: 1200, height: 1200, fit: 'inside', withoutEnlargement: true })
+          .webp({ quality: 82, effort: 4 })
+          .toBuffer();
+      } catch {
+        throw new ApiError(400, 'invalid_upload', 'Please upload a valid PNG, JPEG, or WebP image.');
+      }
+
+      const uploadName = `${Date.now()}-${randomUUID()}-${slugifyFileName(payload.file_name)}.webp`;
+      const assetPath = `/assets/menu/uploads/${uploadName}`;
+
       await saveMediaAsset({
         assetPath,
-        fileName: payload.file_name,
-        mimeType: payload.mime_type || mimeTypeForAssetPath(payload.file_name),
-        content: fileBuffer
+        fileName: `${slugifyFileName(payload.file_name)}.webp`,
+        mimeType: 'image/webp',
+        content: optimizedContent
       });
 
       return {
@@ -648,6 +663,7 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
   );
 
   app.patch('/v1/admin/menu/items/:menuItemId', { preHandler: authenticateAdminRequest }, async (request) => {
+    requireAnyAdminRole(request, ['super_admin', 'marketing_admin']);
     const menuItemId = z.coerce.number().int().positive().parse((request.params as { menuItemId: string }).menuItemId);
     const payload = adminMenuPatchSchema.parse(request.body);
     const connection = await mysqlPool.getConnection();
@@ -807,6 +823,7 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
   });
 
   app.delete('/v1/admin/menu/items/:menuItemId', { preHandler: authenticateAdminRequest }, async (request) => {
+    requireAnyAdminRole(request, ['super_admin', 'marketing_admin']);
     const menuItemId = z.coerce.number().int().positive().parse((request.params as { menuItemId: string }).menuItemId);
 
     const [result] = await mysqlPool.execute<ResultSetHeader>(
@@ -827,6 +844,7 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
   });
 
   app.post('/v1/admin/menu/subcategories', { preHandler: authenticateAdminRequest }, async (request) => {
+    requireAnyAdminRole(request, ['super_admin', 'marketing_admin']);
     const payload = adminMenuSubcategoryUpsertSchema.parse(request.body);
     const categoryId = await resolveCategoryId(mysqlPool, payload.category_code);
     const code = await resolveUniqueMenuCode('menu_subcategories', payload.code);
@@ -872,6 +890,7 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
   });
 
   app.post('/v1/admin/menu/categories', { preHandler: authenticateAdminRequest }, async (request) => {
+    requireAnyAdminRole(request, ['super_admin', 'marketing_admin']);
     const payload = adminMenuCategoryUpsertSchema.parse(request.body);
     const code = await resolveUniqueMenuCode('menu_categories', payload.code);
 
@@ -902,6 +921,7 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
   });
 
   app.patch('/v1/admin/menu/categories/:categoryId', { preHandler: authenticateAdminRequest }, async (request) => {
+    requireAnyAdminRole(request, ['super_admin', 'marketing_admin']);
     const categoryId = z.coerce.number().int().positive().parse((request.params as { categoryId: string }).categoryId);
     const payload = adminMenuCategoryUpsertSchema.partial().parse(request.body);
     const updates: string[] = [];
@@ -962,6 +982,7 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
   });
 
   app.delete('/v1/admin/menu/categories/:categoryId', { preHandler: authenticateAdminRequest }, async (request) => {
+    requireAnyAdminRole(request, ['super_admin', 'marketing_admin']);
     const categoryId = z.coerce.number().int().positive().parse((request.params as { categoryId: string }).categoryId);
 
     const [rows] = await mysqlPool.query<Array<RowDataPacket & {
@@ -1017,6 +1038,7 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
   });
 
   app.patch('/v1/admin/menu/subcategories/:subcategoryId', { preHandler: authenticateAdminRequest }, async (request) => {
+    requireAnyAdminRole(request, ['super_admin', 'marketing_admin']);
     const subcategoryId = z.coerce.number().int().positive().parse((request.params as { subcategoryId: string }).subcategoryId);
     const payload = adminMenuSubcategoryUpsertSchema.partial().parse(request.body);
     const updates: string[] = [];
@@ -1068,6 +1090,7 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
   });
 
   app.delete('/v1/admin/menu/subcategories/:subcategoryId', { preHandler: authenticateAdminRequest }, async (request) => {
+    requireAnyAdminRole(request, ['super_admin', 'marketing_admin']);
     const subcategoryId = z.coerce.number().int().positive().parse((request.params as { subcategoryId: string }).subcategoryId);
 
     const [rows] = await mysqlPool.query<Array<RowDataPacket & { item_count: number }>>(
@@ -1768,19 +1791,6 @@ function nullableString(value: string | undefined | null): string | null {
 
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
-}
-
-function extensionForMimeType(mimeType: string): string {
-  switch (mimeType) {
-    case 'image/png':
-      return '.png';
-    case 'image/jpeg':
-      return '.jpg';
-    case 'image/webp':
-      return '.webp';
-    default:
-      return '.bin';
-  }
 }
 
 function slugifyFileName(fileName: string): string {

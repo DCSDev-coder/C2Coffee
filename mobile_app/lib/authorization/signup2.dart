@@ -41,10 +41,7 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
   final TextEditingController _postcodeController = TextEditingController();
   final TextEditingController _cityController = TextEditingController();
   final TextEditingController _stateController = TextEditingController();
-  late final AnimationController _shakeController = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 420),
-  );
+  late final AnimationController _shakeController;
 
   String? _selectedGender;
   bool _agreedToTerms = false;
@@ -63,6 +60,10 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+    _shakeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 420),
+    );
     _houseController.addListener(_onFieldChanged);
     _streetController.addListener(_onFieldChanged);
     _postcodeController.addListener(_onFieldChanged);

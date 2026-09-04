@@ -15,7 +15,7 @@ class PrivacyPolicyPage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildLastUpdated('August 6, 2026'),
+          _buildLastUpdated('September 4, 2026'),
           const SizedBox(height: 16),
           _buildSection(
             number: '1',
@@ -29,7 +29,7 @@ class PrivacyPolicyPage extends StatelessWidget {
             body:
                 'We collect personal data necessary to provide seamless coffee ordering, closed-loop token balances, and member rewards:\n\n'
                 '• Identity & Profile Data: Full name, username, preferred name, and date of birth (optional, used for annual birthday reward vouchers).\n\n'
-                '• Contact & Authentication Data: Email address, Malaysian mobile telephone number, and email One-Time Password (OTP) verification records.\n\n'
+                '• Contact & Authentication Data: Email address, Malaysian mobile telephone number, and email One-Time Password (OTP) verification records. A new email address is applied only after its verification code is confirmed.\n\n'
                 '• Financial & Transaction Ledger: Transaction timestamps, payment intent references, store pickup orders, C2 Token top-up ledger entries, token debit history, applied voucher redemptions, and referral associations.\n\n'
                 '• Payment Card Notice: We do NOT collect, process, or store credit/debit card numbers (PAN), CVV codes, or banking credentials in the App.\n\n'
                 '• Device & App Telemetry: Device identifier, operating system version, push notification tokens, IP address, and app usage logs.',
@@ -100,8 +100,8 @@ class PrivacyPolicyPage extends StatelessWidget {
             title: 'Contact Us & Data Inquiries',
             body:
                 'If you have any questions, concerns, or requests regarding this Privacy Policy or how your personal data is handled, please contact our Data Protection and Support team:\n\n'
-                '• Email: support@c2coffee.com\n'
-                '• In-App Support: Available under Profile > Settings > Contact Support\n'
+                '• Email: support@c2coffeeandcandle.com\n'
+                '• In-App Support: Available under Profile > Settings > Contact Support. Submitted requests receive a ticket reference and are forwarded to C2 Support.\n'
                 '• Operating Location: C2 Coffee + Candle (Broga, Kajang, Semenyih, Selangor, Malaysia)',
           ),
           const SizedBox(height: 24),

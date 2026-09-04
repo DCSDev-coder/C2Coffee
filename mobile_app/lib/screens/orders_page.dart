@@ -637,7 +637,7 @@ class _OrdersPageState extends State<OrdersPage>
                   ),
                 ),
                 child: const Text(
-                  'View Status',
+                  'Manage Order',
                   style: TextStyle(
                     fontFamily: 'Recoleta',
                     fontWeight: FontWeight.bold,

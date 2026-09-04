@@ -102,6 +102,44 @@ class SessionTokens {
   });
 }
 
+class EmailChangeRequest {
+  final String requestId;
+  final int expiresInSeconds;
+
+  const EmailChangeRequest({
+    required this.requestId,
+    required this.expiresInSeconds,
+  });
+}
+
+class SupportTicketResult {
+  final String ticketNumber;
+  final String message;
+
+  const SupportTicketResult({
+    required this.ticketNumber,
+    required this.message,
+  });
+}
+
+class SupportTicketAttachment {
+  final String fileName;
+  final String mimeType;
+  final List<int> bytes;
+
+  const SupportTicketAttachment({
+    required this.fileName,
+    required this.mimeType,
+    required this.bytes,
+  });
+
+  Map<String, String> toApi() => {
+        'file_name': fileName,
+        'mime_type': mimeType,
+        'data_url': 'data:$mimeType;base64,${base64Encode(bytes)}',
+      };
+}
+
 class CurrentUserProfile {
   final int id;
   final String phone;
@@ -112,6 +150,8 @@ class CurrentUserProfile {
   final String? gender;
   final String? address;
   final String? state;
+  final String? avatarType;
+  final String? avatarValue;
 
   const CurrentUserProfile({
     required this.id,
@@ -123,6 +163,8 @@ class CurrentUserProfile {
     required this.gender,
     required this.address,
     required this.state,
+    required this.avatarType,
+    required this.avatarValue,
   });
 
   factory CurrentUserProfile.fromApi(Map<String, dynamic> user) {
@@ -136,7 +178,9 @@ class CurrentUserProfile {
       birthday: _formatBirthdayForDisplay(user['birthday'] as String?),
       gender: user['gender'] as String?,
       address: address,
-      state: _extractState(address),
+      state: user['state'] as String?,
+      avatarType: user['avatar_type'] as String?,
+      avatarValue: user['avatar_value'] as String?,
     );
   }
 
@@ -159,15 +203,6 @@ class CurrentUserProfile {
     } catch (_) {
       return raw;
     }
-  }
-
-  static String? _extractState(String? address) {
-    if (address == null || address.trim().isEmpty) return null;
-    final parts = address.split(', ').map((part) => part.trim()).toList();
-    if (parts.length >= 4 && parts[3].isNotEmpty) {
-      return parts[3];
-    }
-    return null;
   }
 }
 
@@ -306,11 +341,104 @@ class AuthApiService {
         'street_line': profile['street_line'] ?? '',
         'postcode': profile['postcode'] ?? '',
         'city': profile['city'] ?? '',
+        'state': profile['state'] ?? '',
+        'avatar_type': profile['avatar_type'] ?? 'preset',
+        'avatar_value': profile['avatar_value'] ?? '',
       },
     );
 
     final user = Map<String, dynamic>.from(response['user'] as Map);
     return CurrentUserProfile.fromApi(user);
+  }
+
+  Future<CurrentUserProfile> uploadAvatar({
+    required String accessToken,
+    required String fileName,
+    required String mimeType,
+    required List<int> bytes,
+  }) async {
+    final response = await _post(
+      '/me/avatar',
+      accessToken: accessToken,
+      body: {
+        'file_name': fileName,
+        'mime_type': mimeType,
+        'data_url': 'data:$mimeType;base64,${base64Encode(bytes)}',
+      },
+    );
+    return CurrentUserProfile.fromApi(
+      Map<String, dynamic>.from(response['user'] as Map),
+    );
+  }
+
+  Future<SupportTicketResult> submitSupportTicket({
+    required String accessToken,
+    required String category,
+    required String subject,
+    required String message,
+    String? orderReference,
+    List<SupportTicketAttachment> attachments = const [],
+  }) async {
+    final response = await _post(
+      '/me/support-tickets',
+      accessToken: accessToken,
+      body: {
+        'category': category,
+        'subject': subject,
+        'message': message,
+        if (orderReference != null && orderReference.trim().isNotEmpty)
+          'order_reference': orderReference.trim(),
+        if (attachments.isNotEmpty)
+          'attachments':
+              attachments.map((attachment) => attachment.toApi()).toList(),
+      },
+    );
+    return SupportTicketResult(
+      ticketNumber: response['ticket_number'] as String,
+      message:
+          response['message'] as String? ?? 'Your request has been received.',
+    );
+  }
+
+  Future<EmailChangeRequest> requestEmailChange({
+    required String accessToken,
+    required String email,
+  }) async {
+    final response = await _post(
+      '/me/email-change/request',
+      accessToken: accessToken,
+      body: {'email': email.trim()},
+    );
+    return EmailChangeRequest(
+      requestId: response['request_id'] as String,
+      expiresInSeconds: (response['expires_in_seconds'] as num).toInt(),
+    );
+  }
+
+  Future<CurrentUserProfile> confirmEmailChange({
+    required String accessToken,
+    required String requestId,
+    required String otpCode,
+  }) async {
+    final response = await _post(
+      '/me/email-change/confirm',
+      accessToken: accessToken,
+      body: {'request_id': requestId, 'otp_code': otpCode.trim()},
+    );
+    return CurrentUserProfile.fromApi(
+      Map<String, dynamic>.from(response['user'] as Map),
+    );
+  }
+
+  Future<void> requestAccountClosure({
+    required String accessToken,
+    required String reason,
+  }) async {
+    await _post(
+      '/me/account-closure',
+      accessToken: accessToken,
+      body: {'reason': reason.trim(), 'confirm': true},
+    );
   }
 
   Future<void> logout({

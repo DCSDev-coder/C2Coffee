@@ -39,7 +39,8 @@ const envSchema = z.object({
   EMAIL_SMTP_USER: z.string().optional().default(''),
   EMAIL_SMTP_PASSWORD: z.string().optional().default(''),
   EMAIL_FROM_ADDRESS: z.string().email().optional().default(''),
-  EMAIL_FROM_NAME: z.string().optional().default('C2 Coffee & Candle')
+  EMAIL_FROM_NAME: z.string().optional().default('C2 Coffee & Candle'),
+  SUPPORT_EMAIL_ADDRESS: z.string().email().default('support@c2coffeeandcandle.com')
 });
 
 const parsedEnv = envSchema.safeParse(process.env);

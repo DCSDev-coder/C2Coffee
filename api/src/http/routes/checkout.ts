@@ -712,6 +712,17 @@ export async function registerCheckoutRoutes(
 
       const orderId = orderResult.insertId;
 
+      // A customer becomes visible to the store tenant as soon as an order is placed.
+      await connection.execute(
+        `
+          INSERT IGNORE INTO customer_tenant_memberships (tenant_id, user_id)
+          SELECT tenant_id, :userId
+          FROM stores
+          WHERE id = :storeId
+        `,
+        { userId: request.auth.userId, storeId: payload.store_id }
+      );
+
       for (const item of normalizedItems) {
         const lineSubtotalRm = (item.basePriceRm + item.modifierRm) * item.payload.quantity;
         const lineTokenAmount = isTokenCheckout

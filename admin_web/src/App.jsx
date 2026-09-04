@@ -4,8 +4,6 @@ import Login from './components/Login';
 import DashboardHome from './components/DashboardHome';
 import Customers from './components/Customers';
 import Orders from './components/Orders';
-import RecentActivities from './components/RecentActivities';
-import Notifications from './components/Notifications';
 import Profile from './components/Profile';
 import Vouchers from './components/Vouchers';
 import LoyaltyTokens from './components/LoyaltyTokens';
@@ -15,9 +13,6 @@ import Finance from './components/Finance';
 import RevenueReport from './components/RevenueReport';
 import AllTransactions from './components/AllTransactions';
 import ExpenseBreakdownFull from './components/ExpenseBreakdownFull';
-import AllCampaigns from './components/AllCampaigns';
-import AllPushNotifications from './components/AllPushNotifications';
-import AllContentPerformance from './components/AllContentPerformance';
 import AdminManagement from './components/AdminManagement';
 import BaristaManagement from './components/BaristaManagement';
 import TierManagement from './components/TierManagement';
@@ -30,6 +25,7 @@ import {
   loadAdminTokens,
   saveAdminTokens
 } from './lib/adminApi';
+import { canAccessAdminPage, firstAccessibleAdminPage } from './lib/adminPermissions';
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -93,13 +89,22 @@ function App() {
   }, []);
 
   const handleNavigate = (newPage) => {
+    if (newPage !== 'Profile' && !canAccessAdminPage(currentUser?.roles, newPage)) {
+      return;
+    }
     if (currentPage !== newPage) {
-      if (currentPage !== 'Notifications' && currentPage !== 'Profile') {
+      if (currentPage !== 'Profile') {
         setPrevPage(currentPage);
       }
       setCurrentPage(newPage);
     }
   };
+
+  useEffect(() => {
+    if (isLoggedIn && currentPage !== 'Profile' && !canAccessAdminPage(currentUser?.roles, currentPage)) {
+      setCurrentPage(firstAccessibleAdminPage(currentUser?.roles));
+    }
+  }, [currentPage, currentUser?.roles, isLoggedIn]);
 
   const handleUpdateUser = (updates) => {
     setCurrentUser(prev => ({ ...prev, ...updates }));
@@ -107,8 +112,7 @@ function App() {
 
   const layoutCurrentPage = ['Refunds'].includes(currentPage) ? 'Orders'
     : ['RevenueReport', 'AllTransactions', 'ExpenseBreakdownFull'].includes(currentPage) ? 'Finance'
-      : ['AllCampaigns', 'AllPushNotifications', 'AllContentPerformance'].includes(currentPage) ? 'Marketing'
-        : currentPage;
+      : currentPage;
 
   const handleLogout = async () => {
     const tokens = loadAdminTokens();
@@ -166,7 +170,7 @@ function App() {
       currentUser={currentUser}
     >
       {currentPage === 'Dashboard' && <DashboardHome setCurrentPage={handleNavigate} />}
-      {currentPage === 'Customers' && <Customers />}
+      {currentPage === 'Customers' && <Customers currentUser={currentUser} />}
       {currentPage === 'Orders' && <Orders initialShowRefunds={false} />}
       {currentPage === 'Refunds' && (
         <Orders
@@ -174,17 +178,12 @@ function App() {
           onBackToOrders={() => handleNavigate('Orders')}
         />
       )}
-      {currentPage === 'Recent Activities' && <RecentActivities onBack={() => handleNavigate('Dashboard')} />}
-      {currentPage === 'Notifications' && <Notifications onBack={() => handleNavigate(prevPage || 'Orders')} />}
       {currentPage === 'Profile' && <Profile onBack={() => handleNavigate(prevPage || 'Dashboard')} currentUser={currentUser} onUpdateUser={handleUpdateUser} />}
       {currentPage === 'Voucher' && <Vouchers onBack={() => handleNavigate(prevPage || 'Dashboard')} />}
       {currentPage === 'Loyalty & Tokens' && <LoyaltyTokens onBack={() => handleNavigate(prevPage || 'Dashboard')} onNavigate={handleNavigate} />}
       {currentPage === 'Tier Management' && <TierManagement onBack={() => handleNavigate('Loyalty & Tokens')} />}
       {currentPage === 'Menu' && <Menu />}
       {currentPage === 'Marketing' && <Marketing setCurrentPage={handleNavigate} />}
-      {currentPage === 'AllCampaigns' && <AllCampaigns onBack={() => handleNavigate('Marketing')} />}
-      {currentPage === 'AllPushNotifications' && <AllPushNotifications onBack={() => handleNavigate('Marketing')} />}
-      {currentPage === 'AllContentPerformance' && <AllContentPerformance onBack={() => handleNavigate('Marketing')} />}
       {currentPage === 'Finance' && <Finance setCurrentPage={handleNavigate} />}
       {currentPage === 'RevenueReport' && <RevenueReport onBack={() => handleNavigate('Finance')} />}
       {currentPage === 'AllTransactions' && <AllTransactions onBack={() => handleNavigate('Finance')} />}

@@ -4,7 +4,7 @@ React + Vite admin panel.
 
 ## API base URL
 
-`admin_web/src/lib/adminApi.js` is locked to `https://api.c2coffeeandcandle.com`.
+Copy `.env.example` to `.env` and set `VITE_API_BASE_URL` for the API environment you intend to use. Production defaults to `https://api.c2coffeeandcandle.com` when the variable is not supplied.
 
 Notes:
 

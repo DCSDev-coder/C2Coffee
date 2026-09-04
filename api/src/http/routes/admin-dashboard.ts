@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { RowDataPacket } from 'mysql2/promise';
 import { z } from 'zod';
-import { authenticateAdminRequest } from '../../admin/guard.js';
+import { authenticateAdminRequest, requireAnyAdminRole } from '../../admin/guard.js';
 import { mysqlPool } from '../../db/mysql.js';
 
 const dashboardQuerySchema = z.object({
@@ -101,6 +101,7 @@ function getSafeTimeZone(value: string | null | undefined): string {
 
 export async function registerAdminDashboardRoutes(app: FastifyInstance): Promise<void> {
   app.get('/v1/admin/dashboard', { preHandler: authenticateAdminRequest }, async (request) => {
+    requireAnyAdminRole(request, ['super_admin', 'operations_admin', 'marketing_admin', 'support_admin']);
     const { date } = dashboardQuerySchema.parse(request.query);
     const tenantCode = request.adminAuth.tenantCode;
 

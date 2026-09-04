@@ -387,9 +387,7 @@ class RewardVoucherTemplate {
     final productKinds =
         _scopeValues(scope, ['product_kind_codes', 'product_kinds']);
     const allMenuProductKinds = {'drink', 'food', 'merchandise', 'candle'};
-    final normalizedKinds = productKinds
-        .map(_normalizeScopeValue)
-        .toSet();
+    final normalizedKinds = productKinds.map(_normalizeScopeValue).toSet();
     if (allMenuProductKinds.every(normalizedKinds.contains)) {
       return 'All menu items';
     }
@@ -966,6 +964,17 @@ class CustomerDataService {
           ? CustomerOrder.fromApi(activeOrderMap)
           : null,
       orders: orders,
+    );
+  }
+
+  Future<Map<String, dynamic>> cancelOrder({
+    required String accessToken,
+    required int orderId,
+  }) {
+    return _post(
+      '/orders/$orderId/cancel',
+      accessToken: accessToken,
+      body: const {},
     );
   }
 

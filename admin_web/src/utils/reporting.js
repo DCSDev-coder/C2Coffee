@@ -196,7 +196,7 @@ export function buildFinanceOverview(orders = [], refunds = []) {
 
   for (const refund of normalizedRefunds) {
     const refundDate = parseReportDateTime(refund.requestedAt);
-    const refundAmountRm = toReportNumber(refund.amount);
+    const refundAmountRm = toReportNumber(refund.amountRm ?? refund.amount);
     const refundTokens = toReportNumber(refund.tokenAmount ?? refund.refundTokenAmount);
 
     if (isRefundCompleted(refund.status)) {

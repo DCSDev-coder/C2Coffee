@@ -16,10 +16,22 @@ export function errorHandler(
   request: FastifyRequest,
   reply: FastifyReply
 ): void {
-  let statusCode = error instanceof ApiError ? error.statusCode : 500;
-  let code = error instanceof ApiError ? error.code : 'internal_server_error';
+  // Fastify can surface errors from hooks through a different module context,
+  // where instanceof no longer recognizes our ApiError subclass.
+  const apiError = error as FastifyError & {
+    statusCode?: unknown;
+    code?: unknown;
+  };
+  const isApiError = error instanceof ApiError || (
+    Number.isInteger(apiError.statusCode)
+    && Number(apiError.statusCode) >= 400
+    && Number(apiError.statusCode) <= 599
+    && typeof apiError.code === 'string'
+  );
+  let statusCode = isApiError ? Number(apiError.statusCode) : 500;
+  let code = isApiError ? String(apiError.code) : 'internal_server_error';
   let message =
-    error instanceof ApiError
+    isApiError
       ? error.message
       : 'Unexpected server error. Please try again later.';
 

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../services/app_session_service.dart';
@@ -64,6 +65,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    _session.addListener(_handleSessionChanged);
     _loadAvatarState();
     Future.microtask(() async {
       try {
@@ -78,10 +80,15 @@ class _HomePageState extends State<HomePage> {
 
   @override
   void dispose() {
+    _session.removeListener(_handleSessionChanged);
     _carouselTimer?.cancel();
     _pageController.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _handleSessionChanged() {
+    if (mounted) setState(() {});
   }
 
   void _restartCarouselTimer() {
@@ -115,6 +122,38 @@ class _HomePageState extends State<HomePage> {
           : null;
       _persistedPresetPath = avatarData['presetPath'];
     });
+  }
+
+  Widget _buildAccountAvatar() {
+    final serverAvatar = _session.user;
+    if (serverAvatar?.avatarType == 'uploaded' &&
+        serverAvatar?.avatarValue?.isNotEmpty == true) {
+      final source = resolveCatalogImageSource(serverAvatar!.avatarValue)!;
+      return Image.network(
+        source,
+        width: 45,
+        height: 45,
+        fit: BoxFit.cover,
+        loadingBuilder: (_, child, loadingProgress) => loadingProgress == null
+            ? child
+            : const C2ImageSkeleton(width: 45, height: 45),
+        errorBuilder: (_, __, ___) =>
+            const Icon(Icons.person, color: Colors.white, size: 30),
+      );
+    }
+
+    final presetPath = serverAvatar?.avatarType == 'preset' &&
+            (serverAvatar?.avatarValue?.startsWith('assets/') ?? false)
+        ? serverAvatar!.avatarValue!
+        : (_persistedPresetPath ?? 'assets/images/dato.png');
+    if (_persistedPickedImage != null) {
+      return kIsWeb
+          ? Image.network(_persistedPickedImage!.path,
+              width: 45, height: 45, fit: BoxFit.cover)
+          : Image.file(_persistedPickedImage!,
+              width: 45, height: 45, fit: BoxFit.cover);
+    }
+    return Image.asset(presetPath, width: 45, height: 45, fit: BoxFit.cover);
   }
 
   void _showPosterIfNeeded() {
@@ -296,12 +335,7 @@ class _HomePageState extends State<HomePage> {
                         const SizedBox(height: 20),
                         if (_session.isBootstrapLoading &&
                             _session.user == null)
-                          const Center(
-                            child: Padding(
-                              padding: EdgeInsets.symmetric(vertical: 32),
-                              child: CircularProgressIndicator(),
-                            ),
-                          )
+                          _buildHomeLoadingState()
                         else if (_session.bootstrapError != null)
                           _buildErrorCard(
                             _session.bootstrapError!,
@@ -380,32 +414,7 @@ class _HomePageState extends State<HomePage> {
                         ),
                         alignment: Alignment.center,
                         child: ClipOval(
-                          child: _persistedPickedImage != null
-                              ? (kIsWeb
-                                  ? Image.network(
-                                      _persistedPickedImage!.path,
-                                      width: 45,
-                                      height: 45,
-                                      fit: BoxFit.cover,
-                                    )
-                                  : Image.file(
-                                      _persistedPickedImage!,
-                                      width: 45,
-                                      height: 45,
-                                      fit: BoxFit.cover,
-                                    ))
-                              : (_persistedPresetPath != null
-                                  ? Image.asset(
-                                      _persistedPresetPath!,
-                                      width: 45,
-                                      height: 45,
-                                      fit: BoxFit.cover,
-                                    )
-                                  : const Icon(
-                                      Icons.person,
-                                      color: Colors.white,
-                                      size: 30,
-                                    )),
+                          child: _buildAccountAvatar(),
                         ),
                       ),
                     ),
@@ -626,11 +635,15 @@ class _HomePageState extends State<HomePage> {
 
     if (resolvedSource.startsWith('http://') ||
         resolvedSource.startsWith('https://')) {
-      return Image.network(
-        resolvedSource,
+      return CachedNetworkImage(
+        imageUrl: resolvedSource,
         width: double.infinity,
         fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => _buildBannerFallback(),
+        maxWidthDiskCache: 1600,
+        memCacheWidth: 1200,
+        fadeInDuration: const Duration(milliseconds: 120),
+        placeholder: (_, __) => const C2ImageSkeleton(),
+        errorWidget: (_, __, ___) => _buildBannerFallback(),
       );
     }
 
@@ -961,12 +974,7 @@ class _HomePageState extends State<HomePage> {
         ),
         const SizedBox(height: 12),
         if (_session.isMenuLoading && items.isEmpty)
-          const Center(
-            child: Padding(
-              padding: EdgeInsets.symmetric(vertical: 32),
-              child: CircularProgressIndicator(),
-            ),
-          )
+          _buildProductCardsSkeleton()
         else if (_session.menuError != null && items.isEmpty)
           _buildErrorCard(
             _session.menuError!,
@@ -1081,6 +1089,64 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
       ],
+    );
+  }
+
+  Widget _buildHomeLoadingState() {
+    return Column(
+      children: [
+        _buildProductCardsSkeleton(),
+        const SizedBox(height: 24),
+        _buildProductCardsSkeleton(),
+      ],
+    );
+  }
+
+  Widget _buildProductCardsSkeleton() {
+    return SizedBox(
+      height: 240,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        physics: const NeverScrollableScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: 3,
+        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        itemBuilder: (_, __) => Container(
+          width: 155,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: const Column(
+            children: [
+              Expanded(
+                flex: 7,
+                child: C2ImageSkeleton(
+                  width: double.infinity,
+                  borderRadius: BorderRadius.all(Radius.circular(14)),
+                ),
+              ),
+              SizedBox(height: 14),
+              C2ImageSkeleton(
+                width: double.infinity,
+                height: 16,
+                borderRadius: BorderRadius.all(Radius.circular(8)),
+              ),
+              SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: C2ImageSkeleton(
+                  width: 56,
+                  height: 12,
+                  borderRadius: BorderRadius.all(Radius.circular(6)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

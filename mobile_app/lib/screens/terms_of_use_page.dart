@@ -15,7 +15,7 @@ class TermsOfUsePage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildLastUpdated('August 6, 2026'),
+          _buildLastUpdated('September 4, 2026'),
           const SizedBox(height: 16),
           _buildSection(
             number: '1',
@@ -29,7 +29,7 @@ class TermsOfUsePage extends StatelessWidget {
             body:
                 '2.1 Account creation requires a valid email address and Malaysian mobile phone number. Authentication is conducted using an email One-Time Password (OTP) sent to the email address registered to your account.\n\n'
                 '2.2 You are solely responsible for maintaining the confidentiality of your account access and credentials. You agree that all activities and transactions performed under your authenticated phone number are binding.\n\n'
-                '2.3 You agree to provide true, accurate, and current information during registration (including full name, contact details, and optional birthday for reward verification).',
+                '2.3 You agree to provide true, accurate, and current information during registration (including full name, contact details, and optional birthday for reward verification). Any change to the email address on your profile requires verification of a code sent to the proposed new address before it takes effect.',
           ),
           _buildSection(
             number: '3',
@@ -75,9 +75,9 @@ class TermsOfUsePage extends StatelessWidget {
             number: '8',
             title: 'Cancellations, Refunds & Billing Queries',
             body:
-                '8.1 Customers may freely edit the cart before checkout. Once an order is submitted and sent to the store queue, customer self-cancellation is not available in the App.\n\n'
+                '8.1 Customers may freely edit the cart before checkout. After checkout, an order may be cancelled in the App only while it remains unprepared. Once the store starts preparation, customer self-cancellation is not available.\n\n'
                 '8.2 In the event of store unavailability, equipment breakdown, out-of-stock items, duplicate billing, or a verified technical issue, C2 Coffee store management or authorized administrators may cancel, refund, or return tokens through official administrative channels.\n\n'
-                '8.3 Billing or payment discrepancy claims must be submitted to C2 Support (accessible under Profile > Settings > Contact Support or support@c2coffeeandcandle.com) with relevant transaction references within fourteen (14) days of the transaction date.',
+                '8.3 Billing or payment discrepancy claims must be submitted to C2 Support (accessible under Profile > Settings > Contact Support or support@c2coffeeandcandle.com) with the order reference and any relevant evidence within fourteen (14) days of the transaction date.',
           ),
           _buildSection(
             number: '9',

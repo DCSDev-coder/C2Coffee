@@ -34,10 +34,7 @@ class _Signup1State extends State<Signup1> with SingleTickerProviderStateMixin {
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _birthdayController = TextEditingController();
   final FocusNode _phoneFocusNode = FocusNode();
-  late final AnimationController _shakeController = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 420),
-  );
+  late final AnimationController _shakeController;
 
   File? _pickedImage;
   String? _presetAvatarPath;
@@ -55,6 +52,10 @@ class _Signup1State extends State<Signup1> with SingleTickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+    _shakeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 420),
+    );
     _usernameController.addListener(_onFieldChanged);
     _emailController.addListener(_onFieldChanged);
     _phoneController.addListener(_onFieldChanged);

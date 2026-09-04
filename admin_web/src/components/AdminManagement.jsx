@@ -98,6 +98,8 @@ const AdminManagement = ({ currentUser, initialRole = 'All Admin' }) => {
   const [formPassword, setFormPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
+  const [confirmation, setConfirmation] = useState(null);
+  const [confirmationPassword, setConfirmationPassword] = useState('');
 
   const itemsPerPage = 10;
   
@@ -133,13 +135,19 @@ const AdminManagement = ({ currentUser, initialRole = 'All Admin' }) => {
     setCurrentPage(1);
   }, [initialRole]);
 
+  // The signed-in administrator is not a managed account in this view.
+  const managedAdmins = useMemo(
+    () => admins.filter((admin) => admin.id !== currentUser?.id),
+    [admins, currentUser?.id]
+  );
+
   // Derived filtered data
   const filteredAdmins = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
     const selectedDateIsValid =
       selectedDate instanceof Date && !Number.isNaN(selectedDate.getTime());
 
-    return admins.filter(admin => {
+    return managedAdmins.filter(admin => {
       const matchesSearch = !normalizedSearch ||
         admin.username.toLowerCase().includes(normalizedSearch) ||
         admin.fullName.toLowerCase().includes(normalizedSearch) ||
@@ -165,16 +173,16 @@ const AdminManagement = ({ currentUser, initialRole = 'All Admin' }) => {
 
       return matchesSearch && matchesRole && matchesStatus && matchesDate;
     });
-  }, [admins, searchTerm, selectedRole, selectedStatus, selectedDate]);
+  }, [managedAdmins, searchTerm, selectedRole, selectedStatus, selectedDate]);
 
   const totalPages = Math.ceil(filteredAdmins.length / itemsPerPage) || 1;
   const paginatedAdmins = filteredAdmins.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   // Stats
-  const totalAdmins = admins.length;
-  const activeAdmins = admins.filter(a => a.status === 'Active').length;
-  const inactiveAdmins = admins.filter(a => a.status === 'Inactive').length;
-  const rolesCount = new Set(admins.map(a => a.role)).size;
+  const totalAdmins = managedAdmins.length;
+  const activeAdmins = managedAdmins.filter(a => a.status === 'Active').length;
+  const inactiveAdmins = managedAdmins.filter(a => a.status === 'Inactive').length;
+  const rolesCount = new Set(managedAdmins.map(a => a.role)).size;
 
   const handleExport = () => {
     const rows = [
@@ -199,28 +207,72 @@ const AdminManagement = ({ currentUser, initialRole = 'All Admin' }) => {
     setFormStatus(admin ? (admin.status === 'Active' ? 'active' : 'inactive') : 'active');
     setFormPassword('');
     setFormError('');
+    setConfirmationPassword('');
     setIsModalOpen(true);
   };
   
-  const handleDeleteAdmin = async (id, username) => {
-    if (!window.confirm(`Are you sure you want to delete admin ${username}?`)) return;
-    
+  const handleDeleteAdmin = async () => {
+    if (!confirmation?.admin) return;
+    if (!confirmationPassword) {
+      setConfirmation((currentConfirmation) => ({
+        ...currentConfirmation,
+        error: 'Enter your current password to confirm this action.'
+      }));
+      return;
+    }
+
+    setIsSubmitting(true);
     try {
-      await adminRequest(`/v1/admin/users/${id}`, { method: 'DELETE' });
-      setAdmins(admins.filter(a => a.id !== id));
+      await adminRequest(`/v1/admin/users/${confirmation.admin.id}`, {
+        method: 'DELETE',
+        body: JSON.stringify({ confirmation_password: confirmationPassword })
+      });
+      setAdmins((currentAdmins) => currentAdmins.map((admin) => (
+        admin.id === confirmation.admin.id ? { ...admin, status: 'Inactive' } : admin
+      )));
+      setConfirmation(null);
+      setConfirmationPassword('');
     } catch (err) {
-      alert(err.message || "Failed to delete admin");
+      setConfirmation((currentConfirmation) => ({
+        ...currentConfirmation,
+        error: err.message || 'Failed to deactivate the account.'
+      }));
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleSaveAdmin = async (e) => {
     e.preventDefault();
+    setFormError('');
+
+    if (!editingAdmin && !formPassword) {
+      setFormError('Password is required for a new account.');
+      return;
+    }
+
+    setConfirmation({
+      type: editingAdmin ? 'edit' : 'create',
+      admin: editingAdmin,
+      label: formUsername
+    });
+    setConfirmationPassword('');
+  };
+
+  const confirmSaveAdmin = async () => {
+    if (!confirmationPassword) {
+      setConfirmation((currentConfirmation) => ({
+        ...currentConfirmation,
+        error: 'Enter your current password to confirm this action.'
+      }));
+      return;
+    }
+
     setIsSubmitting(true);
     setFormError('');
-    
+
     try {
       if (editingAdmin) {
-        // Edit
         await adminRequest(`/v1/admin/users/${editingAdmin.id}`, {
           method: 'PUT',
           body: JSON.stringify({
@@ -229,14 +281,11 @@ const AdminManagement = ({ currentUser, initialRole = 'All Admin' }) => {
             email: formRole === 'barista' ? '' : formEmail,
             role_codes: [formRole],
             status: formStatus,
+            confirmation_password: confirmationPassword,
             ...(formPassword ? { password: formPassword } : {})
           })
         });
       } else {
-        // Create
-        if (!formPassword) {
-          throw new Error('Password is required for a new account');
-        }
         await adminRequest('/v1/admin/users', {
           method: 'POST',
           body: JSON.stringify({
@@ -244,15 +293,22 @@ const AdminManagement = ({ currentUser, initialRole = 'All Admin' }) => {
             full_name: formRole === 'barista' ? '' : formFullName,
             email: formRole === 'barista' ? '' : formEmail,
             role_codes: [formRole],
-            password: formPassword
+            status: formStatus,
+            password: formPassword,
+            confirmation_password: confirmationPassword
           })
         });
       }
-      
+
+      setConfirmation(null);
+      setConfirmationPassword('');
       setIsModalOpen(false);
       fetchAdmins();
     } catch (err) {
-      setFormError(err.message || 'An error occurred while saving the admin.');
+      setConfirmation((currentConfirmation) => ({
+        ...currentConfirmation,
+        error: err.message || 'The account could not be saved.'
+      }));
     } finally {
       setIsSubmitting(false);
     }
@@ -487,12 +543,13 @@ const AdminManagement = ({ currentUser, initialRole = 'All Admin' }) => {
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    handleDeleteAdmin(admin.id, admin.username);
+                                    setConfirmation({ type: 'delete', admin });
+                                    setConfirmationPassword('');
                                     setOpenActionMenuId(null);
                                   }}
                                   className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 font-medium transition-colors"
                                 >
-                                  <Trash2 size={14} className="text-red-400" /> Delete Admin
+                                  <Trash2 size={14} className="text-red-400" /> Deactivate Account
                                 </button>
                               )}
                             </div>
@@ -635,6 +692,71 @@ const AdminManagement = ({ currentUser, initialRole = 'All Admin' }) => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {confirmation && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-2xl border border-gray-100 bg-white p-6 shadow-2xl">
+            <h2 className="text-xl font-bold text-gray-900">
+              {confirmation.type === 'delete'
+                ? 'Deactivate account?'
+                : confirmation.type === 'edit'
+                  ? 'Save account changes?'
+                  : 'Create account?'}
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-gray-600">
+              {confirmation.type === 'delete'
+                ? `Deactivate ${confirmation.admin.username}? They will be signed out and will no longer be able to sign in. You can reactivate the account later.`
+                : confirmation.type === 'edit'
+                  ? `Apply the changes to ${confirmation.label}?`
+                  : `Create the account ${confirmation.label}?`}
+            </p>
+            {confirmation.error && (
+              <div className="mt-4 rounded-lg border border-red-100 bg-red-50 p-3 text-sm text-red-600">
+                {confirmation.error}
+              </div>
+            )}
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="admin-action-confirmation-password">
+                Confirm with your current password
+              </label>
+              <input
+                id="admin-action-confirmation-password"
+                type="password"
+                autoComplete="current-password"
+                value={confirmationPassword}
+                onChange={(event) => setConfirmationPassword(event.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
+              />
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                disabled={isSubmitting}
+                onClick={() => {
+                  setConfirmation(null);
+                  setConfirmationPassword('');
+                }}
+                className="rounded-lg border border-gray-300 px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                Go Back
+              </button>
+              <button
+                type="button"
+                disabled={isSubmitting || !confirmationPassword}
+                onClick={confirmation.type === 'delete' ? handleDeleteAdmin : confirmSaveAdmin}
+                className={`rounded-lg px-5 py-2.5 text-sm font-medium text-white transition-colors disabled:opacity-50 ${confirmation.type === 'delete' ? 'bg-red-600 hover:bg-red-700' : 'bg-[#1F3A34] hover:bg-[#2E5E58]'}`}
+              >
+                {isSubmitting
+                  ? 'Confirming...'
+                  : confirmation.type === 'delete'
+                    ? 'Deactivate Account'
+                    : confirmation.type === 'edit'
+                      ? 'Save Changes'
+                      : 'Create Account'}
+              </button>
+            </div>
           </div>
         </div>
       )}

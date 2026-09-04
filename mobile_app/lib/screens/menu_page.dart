@@ -533,7 +533,7 @@ class _MenuPageState extends State<MenuPage> {
 
   Widget _buildBody(List<_MenuSection> sections) {
     if (_session.isBootstrapLoading && _session.user == null) {
-      return const Center(child: CircularProgressIndicator());
+      return _buildMenuLoadingState();
     }
 
     if (_session.bootstrapError != null) {
@@ -545,7 +545,7 @@ class _MenuPageState extends State<MenuPage> {
     }
 
     if (_session.isMenuLoading && sections.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return _buildMenuLoadingState();
     }
 
     if (_session.menuError != null && sections.isEmpty) {
@@ -629,6 +629,76 @@ class _MenuPageState extends State<MenuPage> {
                 for (var index = 0; index < sections.length; index++)
                   _buildSection(sections[index], index),
               ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMenuLoadingState() {
+    return Row(
+      children: [
+        Container(
+          width: 80,
+          color: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 18),
+          child: const Column(
+            children: [
+              C2ImageSkeleton(height: 14, borderRadius: BorderRadius.all(Radius.circular(7))),
+              SizedBox(height: 26),
+              C2ImageSkeleton(height: 14, borderRadius: BorderRadius.all(Radius.circular(7))),
+              SizedBox(height: 26),
+              C2ImageSkeleton(height: 14, borderRadius: BorderRadius.all(Radius.circular(7))),
+              SizedBox(height: 26),
+              C2ImageSkeleton(height: 14, borderRadius: BorderRadius.all(Radius.circular(7))),
+            ],
+          ),
+        ),
+        Container(width: 1, color: AppColors.border),
+        Expanded(
+          child: GridView.builder(
+            padding: const EdgeInsets.all(12),
+            itemCount: 6,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              childAspectRatio: 0.65,
+            ),
+            itemBuilder: (_, __) => Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: const Column(
+                children: [
+                  Expanded(
+                    flex: 6,
+                    child: C2ImageSkeleton(
+                      width: double.infinity,
+                      borderRadius: BorderRadius.all(Radius.circular(14)),
+                    ),
+                  ),
+                  SizedBox(height: 14),
+                  C2ImageSkeleton(
+                    width: double.infinity,
+                    height: 15,
+                    borderRadius: BorderRadius.all(Radius.circular(8)),
+                  ),
+                  SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: C2ImageSkeleton(
+                      width: 50,
+                      height: 12,
+                      borderRadius: BorderRadius.all(Radius.circular(6)),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

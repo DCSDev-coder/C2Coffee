@@ -1,10 +1,12 @@
 import type { FastifyInstance } from 'fastify';
-import type { RowDataPacket } from 'mysql2/promise';
+import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
+import crypto from 'node:crypto';
 import { authenticateAdminRequest } from '../../admin/guard.js';
 import { mysqlPool } from '../../db/mysql.js';
 import { processOrderLoyalty } from '../../services/loyalty.js';
 import { awardReferralForCollectedOrder } from '../../services/referrals.js';
 import { ApiError } from '../errors.js';
+import { createUserNotification } from '../notifications.js';
 import { z } from 'zod';
 
 function formatDisplayDate(dateObj: Date): string {
@@ -38,9 +40,133 @@ function requireOrderAccess(request: { adminAuth?: { roles?: string[] } }): void
   }
 }
 
+function requireRefundReviewAccess(request: { adminAuth?: { roles?: string[] } }): void {
+  const roles = request.adminAuth?.roles ?? [];
+  if (!roles.some((role) => ['super_admin', 'operations_admin'].includes(role))) {
+    throw new ApiError(403, 'admin_forbidden', 'You do not have permission to review refunds.');
+  }
+}
+
+function requireFinanceAccess(request: { adminAuth?: { roles?: string[] } }): void {
+  const roles = request.adminAuth?.roles ?? [];
+  if (!roles.includes('super_admin')) {
+    throw new ApiError(403, 'admin_forbidden', 'You do not have permission to view finance data.');
+  }
+}
+
+const createRefundSchema = z.object({
+  order_id: z.string().trim().min(1).max(80),
+  reason: z.string().trim().min(10).max(500)
+});
+
+const adminListQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(10000).optional().default(50)
+});
+
 export async function registerAdminOrdersRoutes(app: FastifyInstance) {
+  app.post('/v1/admin/refunds', { preHandler: authenticateAdminRequest }, async (request, reply) => {
+    requireRefundReviewAccess(request);
+    const payload = createRefundSchema.parse(request.body);
+    const connection = await mysqlPool.getConnection();
+    let committed = false;
+
+    try {
+      await connection.beginTransaction();
+      const [orders] = await connection.execute<Array<RowDataPacket & {
+        id: number;
+        order_ref: string;
+        user_id: number;
+        payment_mode: 'token' | 'direct';
+        final_total_rm: string;
+        token_amount_charged: number;
+        status: string;
+      }>>(
+        `
+          SELECT o.id, o.order_ref, o.user_id, o.payment_mode, o.final_total_rm,
+                 o.token_amount_charged, o.status
+          FROM orders o
+          JOIN stores s ON s.id = o.store_id
+          JOIN admin_tenants t ON t.id = s.tenant_id
+          WHERE o.order_ref = :orderRef AND t.code = :tenantCode
+          LIMIT 1
+          FOR UPDATE
+        `,
+        { orderRef: payload.order_id, tenantCode: request.adminAuth.tenantCode }
+      );
+      const order = orders[0];
+      if (!order) {
+        throw new ApiError(404, 'order_not_found', 'Order not found for this tenant.');
+      }
+      if (order.payment_mode !== 'token' || order.token_amount_charged <= 0) {
+        throw new ApiError(409, 'refund_not_supported', 'Only token-paid orders can be refunded in this workflow.');
+      }
+      if (['draft', 'pending_payment', 'payment_failed'].includes(order.status)) {
+        throw new ApiError(409, 'refund_not_eligible', 'This order is not eligible for a refund request.');
+      }
+      const [existing] = await connection.execute<Array<RowDataPacket & { id: number }>>(
+        `SELECT id FROM refunds WHERE order_id = :orderId AND status IN ('pending', 'approved', 'completed') LIMIT 1 FOR UPDATE`,
+        { orderId: order.id }
+      );
+      if (existing[0]) {
+        throw new ApiError(409, 'refund_already_requested', 'A refund request already exists for this order.');
+      }
+      const [payments] = await connection.execute<Array<RowDataPacket & { id: number }>>(
+        `SELECT id FROM payments WHERE order_id = :orderId ORDER BY id DESC LIMIT 1`,
+        { orderId: order.id }
+      );
+      const refundRef = `RFD-${new Date().toISOString().slice(0, 10).replaceAll('-', '')}-${crypto.randomUUID().slice(0, 6).toUpperCase()}`;
+      const [refundInsert] = await connection.execute<ResultSetHeader>(
+        `
+          INSERT INTO refunds (
+            order_id, payment_id, payment_mode, refund_ref, refund_amount_rm,
+            refund_token_amount, status, reason, created_by_admin_id, created_at
+          ) VALUES (
+            :orderId, :paymentId, 'token', :refundRef, :amountRm,
+            :tokenAmount, 'pending', :reason, :adminUserId, UTC_TIMESTAMP()
+          )
+        `,
+        {
+          orderId: order.id,
+          paymentId: payments[0]?.id ?? null,
+          refundRef,
+          amountRm: order.final_total_rm,
+          tokenAmount: order.token_amount_charged,
+          reason: payload.reason,
+          adminUserId: request.adminAuth.adminUserId
+        }
+      );
+      await connection.execute(
+        `
+          INSERT INTO admin_audit_logs (
+            admin_user_id, effective_roles_json, action_code, target_type, target_id,
+            ip_address, user_agent, created_at
+          ) VALUES (
+            :adminUserId, :roles, 'refund_requested_by_admin', 'refund', :refundId,
+            :ipAddress, :userAgent, UTC_TIMESTAMP()
+          )
+        `,
+        {
+          adminUserId: request.adminAuth.adminUserId,
+          roles: JSON.stringify(request.adminAuth.roles),
+          refundId: refundInsert.insertId,
+          ipAddress: request.ip,
+          userAgent: request.headers['user-agent'] ?? null
+        }
+      );
+      await connection.commit();
+      committed = true;
+      return reply.code(201).send({ refund_ref: refundRef, status: 'pending' });
+    } catch (error) {
+      if (!committed) await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  });
+
   app.get('/v1/admin/orders', { preHandler: authenticateAdminRequest }, async (request, reply) => {
     requireOrderAccess(request);
+    const { limit } = adminListQuerySchema.parse(request.query);
 
     const connection = await mysqlPool.getConnection();
     try {
@@ -81,8 +207,8 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
         LEFT JOIN baristas ready_barista ON ready_barista.id = o.ready_by_barista_id
         WHERE t.code = :tenantCode
         ORDER BY o.created_at DESC
-        LIMIT 50
-      `, { tenantCode: request.adminAuth.tenantCode });
+        LIMIT :limit
+      `, { tenantCode: request.adminAuth.tenantCode, limit });
 
       if (orderRows.length === 0) {
         return reply.send({ orders: [] });
@@ -200,7 +326,248 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
     }
   });
 
+  app.get('/v1/admin/finance/overview', { preHandler: authenticateAdminRequest }, async (request) => {
+    requireFinanceAccess(request);
+
+    const tenantCode = request.adminAuth.tenantCode;
+    const revenueStatusClause = "o.status NOT IN ('draft', 'pending_payment', 'payment_failed', 'cancelled')";
+    const completedRefundStatusClause = "r.status NOT IN ('pending', 'failed', 'cancelled', 'rejected', 'under_review', 'reviewing')";
+    const connection = await mysqlPool.getConnection();
+
+    try {
+      const [orderSummaryRows] = await connection.query<Array<RowDataPacket & {
+        total_orders: number;
+        active_orders: number;
+        completed_orders: number;
+        total_revenue_rm: string | number;
+        total_tokens_charged: string | number;
+      }>>(
+        `SELECT
+           COUNT(*) AS total_orders,
+           COALESCE(SUM(o.status IN ('paid', 'accepted', 'preparing', 'ready_for_pickup')), 0) AS active_orders,
+           COALESCE(SUM(o.status = 'collected'), 0) AS completed_orders,
+           COALESCE(SUM(CASE WHEN ${revenueStatusClause} THEN o.final_total_rm ELSE 0 END), 0) AS total_revenue_rm,
+           COALESCE(SUM(CASE WHEN ${revenueStatusClause} THEN o.token_amount_charged ELSE 0 END), 0) AS total_tokens_charged
+         FROM orders o
+         JOIN stores s ON s.id = o.store_id
+         JOIN admin_tenants t ON t.id = s.tenant_id
+         WHERE t.code = :tenantCode`,
+        { tenantCode }
+      );
+      const [refundSummaryRows] = await connection.query<Array<RowDataPacket & {
+        refunded_orders: number;
+        total_refund_rm: string | number;
+        total_refund_tokens: string | number;
+      }>>(
+        `SELECT
+           COALESCE(SUM(${completedRefundStatusClause}), 0) AS refunded_orders,
+           COALESCE(SUM(CASE WHEN ${completedRefundStatusClause} THEN r.refund_amount_rm ELSE 0 END), 0) AS total_refund_rm,
+           COALESCE(SUM(CASE WHEN ${completedRefundStatusClause} THEN r.refund_token_amount ELSE 0 END), 0) AS total_refund_tokens
+         FROM refunds r
+         JOIN orders o ON o.id = r.order_id
+         JOIN stores s ON s.id = o.store_id
+         JOIN admin_tenants t ON t.id = s.tenant_id
+         WHERE t.code = :tenantCode`,
+        { tenantCode }
+      );
+      const [monthlyOrderRows] = await connection.query<Array<RowDataPacket & {
+        month_key: string;
+        revenue_rm: string | number;
+        tokens_charged: string | number;
+        orders: number;
+      }>>(
+        `SELECT
+           DATE_FORMAT(CONVERT_TZ(o.created_at, '+00:00', '+08:00'), '%Y-%m') AS month_key,
+           COALESCE(SUM(CASE WHEN ${revenueStatusClause} THEN o.final_total_rm ELSE 0 END), 0) AS revenue_rm,
+           COALESCE(SUM(CASE WHEN ${revenueStatusClause} THEN o.token_amount_charged ELSE 0 END), 0) AS tokens_charged,
+           COALESCE(SUM(${revenueStatusClause}), 0) AS orders
+         FROM orders o
+         JOIN stores s ON s.id = o.store_id
+         JOIN admin_tenants t ON t.id = s.tenant_id
+         WHERE t.code = :tenantCode
+         GROUP BY month_key`,
+        { tenantCode }
+      );
+      const [monthlyRefundRows] = await connection.query<Array<RowDataPacket & {
+        month_key: string;
+        refund_rm: string | number;
+        refund_tokens: string | number;
+      }>>(
+        `SELECT
+           DATE_FORMAT(CONVERT_TZ(r.created_at, '+00:00', '+08:00'), '%Y-%m') AS month_key,
+           COALESCE(SUM(CASE WHEN ${completedRefundStatusClause} THEN r.refund_amount_rm ELSE 0 END), 0) AS refund_rm,
+           COALESCE(SUM(CASE WHEN ${completedRefundStatusClause} THEN r.refund_token_amount ELSE 0 END), 0) AS refund_tokens
+         FROM refunds r
+         JOIN orders o ON o.id = r.order_id
+         JOIN stores s ON s.id = o.store_id
+         JOIN admin_tenants t ON t.id = s.tenant_id
+         WHERE t.code = :tenantCode
+         GROUP BY month_key`,
+        { tenantCode }
+      );
+      const [statusRows] = await connection.query<Array<RowDataPacket & {
+        status: string;
+        value: number;
+        amount_rm: string | number;
+      }>>(
+        `SELECT o.status, COUNT(*) AS value, COALESCE(SUM(o.final_total_rm), 0) AS amount_rm
+         FROM orders o
+         JOIN stores s ON s.id = o.store_id
+         JOIN admin_tenants t ON t.id = s.tenant_id
+         WHERE t.code = :tenantCode
+         GROUP BY o.status
+         ORDER BY value DESC, o.status ASC`,
+        { tenantCode }
+      );
+      const [transactionRows] = await connection.query<Array<RowDataPacket & {
+        id: string;
+        created_at: Date;
+        type: 'Order' | 'Refund';
+        description: string;
+        amount_rm: string | number;
+        amount_tokens: string | number;
+        status: string;
+        payment_status: string;
+        payment_mode: string | null;
+        reference_id: string;
+      }>>(
+        `SELECT * FROM (
+           SELECT
+             CONCAT('ORDER-', o.order_ref) AS id,
+             o.created_at,
+             'Order' AS type,
+             CONCAT('Order ', o.order_ref, CASE WHEN up.display_name IS NULL OR up.display_name = '' THEN '' ELSE CONCAT(' · ', up.display_name) END) AS description,
+             o.final_total_rm AS amount_rm,
+             o.token_amount_charged AS amount_tokens,
+             o.status,
+             COALESCE(p.status, '') AS payment_status,
+             o.payment_mode,
+             COALESCE(p.provider_payment_ref, o.order_ref) AS reference_id
+           FROM orders o
+           JOIN users u ON u.id = o.user_id
+           JOIN user_profiles up ON up.user_id = u.id
+           JOIN stores s ON s.id = o.store_id
+           JOIN admin_tenants t ON t.id = s.tenant_id
+           LEFT JOIN payments p ON p.order_id = o.id
+           WHERE t.code = :tenantCode
+           UNION ALL
+           SELECT
+             CONCAT('REFUND-', r.refund_ref) AS id,
+             r.created_at,
+             'Refund' AS type,
+             CONCAT('Refund ', o.order_ref, CASE WHEN r.reason IS NULL OR r.reason = '' THEN '' ELSE CONCAT(' · ', r.reason) END) AS description,
+             -r.refund_amount_rm AS amount_rm,
+             -r.refund_token_amount AS amount_tokens,
+             r.status,
+             r.status AS payment_status,
+             r.payment_mode,
+             r.refund_ref AS reference_id
+           FROM refunds r
+           JOIN orders o ON o.id = r.order_id
+           JOIN stores s ON s.id = o.store_id
+           JOIN admin_tenants t ON t.id = s.tenant_id
+           WHERE t.code = :tenantCode
+         ) AS transactions
+         ORDER BY created_at DESC
+         LIMIT 50`,
+        { tenantCode }
+      );
+
+      const monthMap = new Map<string, {
+        month: string;
+        revenueRm: number;
+        refundRm: number;
+        tokensCharged: number;
+        refundTokens: number;
+        orders: number;
+      }>();
+      const monthLabel = (monthKey: string) => new Intl.DateTimeFormat('en-US', {
+        month: 'short', year: 'numeric', timeZone: 'Asia/Kuala_Lumpur'
+      }).format(new Date(`${monthKey}-01T00:00:00+08:00`));
+      for (const row of monthlyOrderRows) {
+        monthMap.set(row.month_key, {
+          month: monthLabel(row.month_key),
+          revenueRm: Number(row.revenue_rm || 0),
+          refundRm: 0,
+          tokensCharged: Number(row.tokens_charged || 0),
+          refundTokens: 0,
+          orders: Number(row.orders || 0)
+        });
+      }
+      for (const row of monthlyRefundRows) {
+        const current = monthMap.get(row.month_key) ?? {
+          month: monthLabel(row.month_key), revenueRm: 0, refundRm: 0, tokensCharged: 0, refundTokens: 0, orders: 0
+        };
+        current.refundRm += Number(row.refund_rm || 0);
+        current.refundTokens += Number(row.refund_tokens || 0);
+        monthMap.set(row.month_key, current);
+      }
+
+      const orders = orderSummaryRows[0] ?? {
+        total_orders: 0, active_orders: 0, completed_orders: 0, total_revenue_rm: 0, total_tokens_charged: 0
+      };
+      const refunds = refundSummaryRows[0] ?? {
+        refunded_orders: 0, total_refund_rm: 0, total_refund_tokens: 0
+      };
+      const totalRevenueRm = Number(orders.total_revenue_rm || 0);
+      const totalTokensCharged = Number(orders.total_tokens_charged || 0);
+      const totalRefundAmountRm = Number(refunds.total_refund_rm || 0);
+      const totalRefundTokens = Number(refunds.total_refund_tokens || 0);
+
+      return {
+        summary: {
+          totalRevenueRm,
+          totalTokensCharged,
+          totalRefundAmountRm,
+          totalRefundTokens,
+          netTokens: totalTokensCharged - totalRefundTokens,
+          netRevenueRm: totalRevenueRm - totalRefundAmountRm,
+          totalOrders: Number(orders.total_orders || 0),
+          activeOrders: Number(orders.active_orders || 0),
+          completedOrders: Number(orders.completed_orders || 0),
+          refundedOrders: Number(refunds.refunded_orders || 0),
+          averageOrderValueRm: Number(orders.total_orders || 0) > 0 ? totalRevenueRm / Number(orders.total_orders) : 0
+        },
+        monthlyRevenue: Array.from(monthMap.entries())
+          .sort(([left], [right]) => left.localeCompare(right))
+          .map(([, entry]) => ({
+            month: entry.month,
+            revenueRm: entry.revenueRm,
+            refundRm: entry.refundRm,
+            netRm: entry.revenueRm - entry.refundRm,
+            tokensCharged: entry.tokensCharged,
+            refundTokens: entry.refundTokens,
+            netTokens: entry.tokensCharged - entry.refundTokens,
+            orders: entry.orders
+          })),
+        statusBreakdown: statusRows.map((row, index) => ({
+          name: capitalizeWords(row.status || 'other'),
+          value: Number(row.value || 0),
+          amountRm: Number(row.amount_rm || 0),
+          color: ['#1F3A34', '#2E5E58', '#6F9F96', '#8AACA5', '#E07A5F', '#D4AF7A'][index % 6]
+        })),
+        recentTransactions: transactionRows.map((row) => ({
+          id: row.id,
+          date: formatDisplayDate(new Date(row.created_at)),
+          time: formatDisplayTime(new Date(row.created_at)),
+          type: row.type,
+          description: row.description,
+          amountRm: Number(row.amount_rm || 0),
+          amountTokens: Number(row.amount_tokens || 0),
+          status: capitalizeWords(row.status || ''),
+          paymentStatus: capitalizeWords(row.payment_status || ''),
+          paymentMode: row.payment_mode || '',
+          reference: row.reference_id
+        }))
+      };
+    } finally {
+      connection.release();
+    }
+  });
+
   app.get('/v1/admin/refunds', { preHandler: authenticateAdminRequest }, async (request, reply) => {
+    requireRefundReviewAccess(request);
+    const { limit } = adminListQuerySchema.parse(request.query);
     const connection = await mysqlPool.getConnection();
     try {
       const [refundRows] = await connection.query<RowDataPacket[]>(`
@@ -211,11 +578,13 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           up.email,
           u.phone_e164 as phone,
           u.id as user_id,
-          r.refund_amount_rm as amount,
+          r.refund_amount_rm as amount_rm,
+          r.refund_token_amount as token_amount,
           r.reason as reason,
           r.payment_mode as paymentMethod,
           r.status as status,
           r.created_at as requestedAt,
+          r.reviewed_at as reviewedAt,
           o.created_at as orderDate,
           COALESCE((
             SELECT lts.tier_code
@@ -229,9 +598,12 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
         JOIN orders o ON r.order_id = o.id
         JOIN users u ON o.user_id = u.id
         JOIN user_profiles up ON u.id = up.user_id
+        JOIN stores s ON s.id = o.store_id
+        JOIN admin_tenants t ON t.id = s.tenant_id
+        WHERE t.code = :tenantCode
         ORDER BY r.created_at DESC
-        LIMIT 50
-      `);
+        LIMIT :limit
+      `, { tenantCode: request.adminAuth.tenantCode, limit });
 
       if (refundRows.length === 0) {
         return reply.send({ refunds: [] });
@@ -249,23 +621,175 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           phone: r.phone || '',
           tier: capitalizeWords(String(r.tier_code || 'kawan')),
           memberId: 'C2-' + String(r.user_id).padStart(3, '0'),
-          amount: Number(r.amount || 0),
+          amountRm: Number(r.amount_rm || 0),
+          tokenAmount: Number(r.token_amount || 0),
           reason: r.reason || 'Other',
           paymentMethod: r.paymentMethod || '',
           status: capitalizeWords(r.status),
           requestedAt: `${formatDisplayDate(reqDate)} ${formatDisplayTime(reqDate)}`,
           orderDate: `${formatDisplayDate(ordDate)} – ${formatDisplayTime(ordDate)}`,
           customerNotes: r.customerNotes || '',
-          attachment: '/FLAT WHITE.png', // Fallback
           timeline: [
             { label: "Refund Requested", date: `${formatDisplayDate(reqDate)} ${formatDisplayTime(reqDate)}`, done: true },
-            { label: "Under Review", date: `${formatDisplayDate(reqDate)} ${formatDisplayTime(reqDate)}`, done: r.status !== 'pending' },
-            { label: r.status === 'completed' ? "Refund Completed" : "Refund Rejected", date: `${formatDisplayDate(reqDate)} ${formatDisplayTime(reqDate)}`, done: r.status === 'completed' || r.status === 'failed' }
+            { label: "Refund Review", date: r.reviewedAt ? `${formatDisplayDate(new Date(r.reviewedAt))} ${formatDisplayTime(new Date(r.reviewedAt))}` : '', done: r.status !== 'pending' },
+            { label: r.status === 'approved' ? "Refund Approved" : "Refund Rejected", date: r.reviewedAt ? `${formatDisplayDate(new Date(r.reviewedAt))} ${formatDisplayTime(new Date(r.reviewedAt))}` : '', done: ['approved', 'rejected'].includes(r.status) }
           ]
         };
       });
 
       return reply.send({ refunds: formattedRefunds });
+    } finally {
+      connection.release();
+    }
+  });
+
+  app.patch('/v1/admin/refunds/:refundRef/review', { preHandler: authenticateAdminRequest }, async (request, reply) => {
+    requireRefundReviewAccess(request);
+
+    const { refundRef } = request.params as { refundRef: string };
+    const { decision } = z.object({
+      decision: z.enum(['approved', 'rejected'])
+    }).parse(request.body);
+
+    const connection = await mysqlPool.getConnection();
+    let committed = false;
+    try {
+      await connection.beginTransaction();
+      const [rows] = await connection.execute<Array<RowDataPacket & {
+        id: number;
+        status: string;
+        order_id: number;
+        payment_mode: 'token' | 'direct';
+        refund_token_amount: number | null;
+        user_id: number;
+        order_status: string;
+        order_ref: string;
+      }>>(
+        `
+          SELECT r.id, r.status, r.order_id, r.payment_mode, r.refund_token_amount,
+                 o.user_id, o.status AS order_status, o.order_ref
+          FROM refunds r
+          JOIN orders o ON o.id = r.order_id
+          JOIN stores s ON s.id = o.store_id
+          JOIN admin_tenants t ON t.id = s.tenant_id
+          WHERE r.refund_ref = :refundRef
+            AND t.code = :tenantCode
+          LIMIT 1
+          FOR UPDATE
+        `,
+        { refundRef, tenantCode: request.adminAuth.tenantCode }
+      );
+      const refund = rows[0];
+      if (!refund) {
+        throw new ApiError(404, 'refund_not_found', 'Refund request not found.');
+      }
+      if (refund.status !== 'pending') {
+        throw new ApiError(409, 'refund_already_reviewed', 'This refund request has already been reviewed.');
+      }
+
+      if (decision === 'approved' && refund.payment_mode === 'token') {
+        const tokenAmount = Number(refund.refund_token_amount ?? 0);
+        if (tokenAmount <= 0) {
+          throw new ApiError(409, 'refund_amount_invalid', 'This refund does not have a token amount to return.');
+        }
+        const [accounts] = await connection.execute<Array<RowDataPacket & { balance_available: number }>>(
+          `SELECT balance_available FROM token_accounts WHERE user_id = :userId LIMIT 1 FOR UPDATE`,
+          { userId: refund.user_id }
+        );
+        const account = accounts[0];
+        if (!account) {
+          throw new ApiError(409, 'token_account_not_found', 'The customer token account was not found.');
+        }
+        const balanceAfter = Number(account.balance_available) + tokenAmount;
+        await connection.execute(
+          `UPDATE token_accounts SET balance_available = :balanceAfter, updated_at = UTC_TIMESTAMP() WHERE user_id = :userId`,
+          { balanceAfter, userId: refund.user_id }
+        );
+        await connection.execute(
+          `
+            INSERT INTO token_ledger (
+              user_id, token_lot_id, direction, source_type, source_id, amount,
+              balance_after, remarks, created_by_admin_id, created_at
+            ) VALUES (
+              :userId, NULL, 'credit', 'refund_return', :refundId, :amount,
+              :balanceAfter, :remarks, :adminUserId, UTC_TIMESTAMP()
+            )
+          `,
+          {
+            userId: refund.user_id,
+            refundId: refund.id,
+            amount: tokenAmount,
+            balanceAfter,
+            remarks: `Approved refund for ${refundRef}`,
+            adminUserId: request.adminAuth.adminUserId
+          }
+        );
+        await connection.execute(
+          `UPDATE orders SET status = 'refunded', updated_at = UTC_TIMESTAMP() WHERE id = :orderId`,
+          { orderId: refund.order_id }
+        );
+        await connection.execute(
+          `
+            INSERT INTO order_status_history (
+              order_id, from_status, to_status, changed_by_type, changed_by_id, reason, created_at
+            )
+            VALUES (
+              :orderId, :fromStatus, 'refunded', 'admin', :adminUserId, :reason, UTC_TIMESTAMP()
+            )
+          `,
+          {
+            orderId: refund.order_id,
+            fromStatus: refund.order_status,
+            adminUserId: request.adminAuth.adminUserId,
+            reason: `Approved refund ${refundRef}`
+          }
+        );
+        await createUserNotification(connection, {
+          userId: refund.user_id,
+          type: 'refund_completed',
+          title: 'Refund approved',
+          body: `${tokenAmount} tokens have been returned for order ${refund.order_ref}.`,
+          data: { order_ref: refund.order_ref, refund_ref: refundRef }
+        });
+      }
+
+      await connection.execute(
+        `
+          UPDATE refunds
+          SET status = :decision,
+              reviewed_by_admin_id = :adminUserId,
+              reviewed_at = UTC_TIMESTAMP(),
+              completed_at = CASE WHEN :decision = 'approved' THEN UTC_TIMESTAMP() ELSE completed_at END
+          WHERE id = :refundId
+        `,
+        { decision, adminUserId: request.adminAuth.adminUserId, refundId: refund.id }
+      );
+      await connection.execute(
+        `
+          INSERT INTO admin_audit_logs (
+            admin_user_id, effective_roles_json, action_code, target_type, target_id,
+            ip_address, user_agent, created_at
+          ) VALUES (
+            :adminUserId, :roles, :actionCode, 'refund', :refundId,
+            :ipAddress, :userAgent, UTC_TIMESTAMP()
+          )
+        `,
+        {
+          adminUserId: request.adminAuth.adminUserId,
+          roles: JSON.stringify(request.adminAuth.roles),
+          actionCode: `refund_${decision}`,
+          refundId: refund.id,
+          ipAddress: request.ip,
+          userAgent: request.headers['user-agent'] ?? null
+        }
+      );
+      await connection.commit();
+      committed = true;
+
+      return reply.send({ refund_ref: refundRef, status: decision });
+    } catch (error) {
+      if (!committed) await connection.rollback();
+      throw error;
     } finally {
       connection.release();
     }

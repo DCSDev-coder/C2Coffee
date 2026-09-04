@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { z } from 'zod';
-import { authenticateAdminRequest } from '../../admin/guard.js';
+import { authenticateAdminRequest, requireAnyAdminRole } from '../../admin/guard.js';
 import { mysqlPool } from '../../db/mysql.js';
 
 const baristaSchema = z.object({
@@ -11,6 +11,7 @@ const baristaSchema = z.object({
 
 export async function registerAdminBaristasRoutes(app: FastifyInstance) {
   app.get('/v1/admin/baristas', { preHandler: authenticateAdminRequest }, async (request, reply) => {
+    requireAnyAdminRole(request, ['super_admin', 'operations_admin', 'barista']);
     const admin = request.adminAuth;
 
     const [rows] = await mysqlPool.query<RowDataPacket[]>(
@@ -30,6 +31,7 @@ export async function registerAdminBaristasRoutes(app: FastifyInstance) {
   });
 
   app.post('/v1/admin/baristas', { preHandler: authenticateAdminRequest }, async (request, reply) => {
+    requireAnyAdminRole(request, ['super_admin', 'operations_admin']);
     const admin = request.adminAuth;
     const body = baristaSchema.parse(request.body);
 
@@ -49,6 +51,7 @@ export async function registerAdminBaristasRoutes(app: FastifyInstance) {
   });
 
   app.put('/v1/admin/baristas/:id', { preHandler: authenticateAdminRequest }, async (request, reply) => {
+    requireAnyAdminRole(request, ['super_admin', 'operations_admin']);
     const admin = request.adminAuth;
     const { id } = request.params as { id: string };
     const body = baristaSchema.partial().parse(request.body);
@@ -81,6 +84,7 @@ export async function registerAdminBaristasRoutes(app: FastifyInstance) {
   });
 
   app.delete('/v1/admin/baristas/:id', { preHandler: authenticateAdminRequest }, async (request, reply) => {
+    requireAnyAdminRole(request, ['super_admin', 'operations_admin']);
     const admin = request.adminAuth;
     const { id } = request.params as { id: string };
 
@@ -97,6 +101,7 @@ export async function registerAdminBaristasRoutes(app: FastifyInstance) {
   });
 
   app.put('/v1/admin/baristas/set-active-by-name', { preHandler: authenticateAdminRequest }, async (request, reply) => {
+    requireAnyAdminRole(request, ['super_admin', 'operations_admin']);
     const admin = request.adminAuth;
     const body = z.object({ name: z.string() }).parse(request.body);
 
@@ -114,6 +119,7 @@ export async function registerAdminBaristasRoutes(app: FastifyInstance) {
   });
 
   app.put('/v1/admin/baristas/set-all-inactive', { preHandler: authenticateAdminRequest }, async (request, reply) => {
+    requireAnyAdminRole(request, ['super_admin', 'operations_admin']);
     const admin = request.adminAuth;
 
     await mysqlPool.query(
@@ -124,4 +130,3 @@ export async function registerAdminBaristasRoutes(app: FastifyInstance) {
     return reply.send({ success: true });
   });
 }
-

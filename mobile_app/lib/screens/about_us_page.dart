@@ -41,7 +41,7 @@ class AboutUsPage extends StatelessWidget {
           ),
           const SizedBox(height: 24),
           const Text(
-            'version:v1.4.35_1471',
+            'C2 Coffee mobile app',
             style: TextStyle(
               fontFamily: 'Afacad',
               fontSize: 14,
@@ -53,7 +53,7 @@ class AboutUsPage extends StatelessWidget {
           const Padding(
             padding: EdgeInsets.only(bottom: 40),
             child: Text(
-              'Copyright © 2023 c2coffee.com',
+              'Copyright © C2 Coffee & Candle',
               style: TextStyle(
                 fontFamily: 'Afacad',
                 fontSize: 12,

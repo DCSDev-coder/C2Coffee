@@ -1,10 +1,12 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'loading_order_page.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import '../services/app_session_service.dart';
 import '../services/auth_api_service.dart';
+import '../services/api_config.dart';
 import '../services/secure_session_service.dart';
 import '../services/session_lifecycle_service.dart';
 import '../services/user_service.dart';
@@ -17,6 +19,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import '../utils/app_colors.dart';
 import '../utils/app_notification.dart';
 import '../widgets/app_page_shell.dart';
+import '../widgets/catalog_product_image.dart';
 
 class SettingsPage extends StatefulWidget {
   final VoidCallback? onProfileUpdated;
@@ -34,6 +37,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   File? _pickedImage;
   String? _presetAvatarPath;
+  String? _remoteAvatarPath;
 
   Map<String, String?> userProfile = {
     'username': '',
@@ -45,8 +49,6 @@ class _SettingsPageState extends State<SettingsPage> {
     'state': '',
   };
 
-  bool pushNotifications = true;
-
   final List<Map<String, dynamic>> _avatarOptions = [
     {'path': 'assets/images/dato.png', 'name': 'Dato'},
     {'path': 'assets/images/datin.png', 'name': 'Datin'},
@@ -55,7 +57,18 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   void initState() {
     super.initState();
+    _session.addListener(_handleSessionChanged);
     _loadUserData();
+  }
+
+  void _handleSessionChanged() {
+    _loadUserData();
+  }
+
+  @override
+  void dispose() {
+    _session.removeListener(_handleSessionChanged);
+    super.dispose();
   }
 
   Future<void> _loadUserData() async {
@@ -69,7 +82,15 @@ class _SettingsPageState extends State<SettingsPage> {
       if (avatarData['pickedImagePath'] != null) {
         _pickedImage = File(avatarData['pickedImagePath']!);
       }
-      _presetAvatarPath = avatarData['presetPath'] ?? 'assets/images/dato.png';
+      final sessionAvatar = _session.user;
+      final isUploadedAvatar = sessionAvatar?.avatarType == 'uploaded';
+      final isPresetAvatar = sessionAvatar?.avatarType == 'preset' &&
+          (sessionAvatar?.avatarValue?.startsWith('assets/') ?? false);
+
+      _presetAvatarPath = isPresetAvatar
+          ? sessionAvatar!.avatarValue
+          : (avatarData['presetPath'] ?? 'assets/images/dato.png');
+      _remoteAvatarPath = isUploadedAvatar ? sessionAvatar?.avatarValue : null;
 
       userProfile = {
         'username': sessionProfile['username']?.trim().isNotEmpty == true
@@ -104,7 +125,8 @@ class _SettingsPageState extends State<SettingsPage> {
     await UserService.saveUserProfile({key: value});
     userProfile = nextProfile;
 
-    final accessToken = await SecureSessionService.instance.getValidAccessToken();
+    final accessToken =
+        await SecureSessionService.instance.getValidAccessToken();
     if (accessToken != null && accessToken.isNotEmpty && key != 'phone') {
       try {
         final updatedUser = await AuthApiService.instance.updateProfile(
@@ -145,10 +167,10 @@ class _SettingsPageState extends State<SettingsPage> {
       'postcode': addressParts.postcode,
       'city': [
         addressParts.city,
-        profile['state']?.trim().isNotEmpty == true
-            ? profile['state']!.trim()
-            : null,
       ].whereType<String>().join(', '),
+      'state': profile['state']?.trim() ?? '',
+      'avatar_type': _session.user?.avatarType ?? 'preset',
+      'avatar_value': _session.user?.avatarValue ?? '',
     };
   }
 
@@ -225,12 +247,86 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _pickImageFromGallery() async {
     final picker = ImagePicker();
     final XFile? image = await picker.pickImage(source: ImageSource.gallery);
-    if (image != null) {
-      setState(() {
-        _pickedImage = File(image.path);
-        _presetAvatarPath = null;
-      });
+    if (image == null) return;
+
+    final bytes = await image.readAsBytes();
+    if (bytes.length > 5 * 1024 * 1024) {
+      if (mounted) _showSnackBar('Please choose an image smaller than 5 MB.');
+      return;
+    }
+
+    final accessToken =
+        await SecureSessionService.instance.getValidAccessToken();
+    if (accessToken == null || accessToken.isEmpty) {
+      if (mounted) {
+        _showSnackBar('Please sign in again before changing your avatar.');
+      }
+      return;
+    }
+
+    try {
+      final updatedUser = await AuthApiService.instance.uploadAvatar(
+        accessToken: accessToken,
+        fileName: image.name,
+        mimeType: _avatarMimeType(image.name),
+        bytes: bytes,
+      );
       await UserService.saveAvatar(pickedImagePath: image.path);
+      await UserService.overwriteUserProfile(updatedUser.toLocalProfileMap());
+      await AppSessionService.instance.loadAuthenticatedState(force: true);
+      if (!mounted) return;
+      setState(() {
+        _pickedImage = null;
+        _presetAvatarPath = null;
+        _remoteAvatarPath = updatedUser.avatarValue;
+      });
+      widget.onProfileUpdated?.call();
+    } on ApiException catch (error) {
+      if (mounted) _showSnackBar(error.message);
+    } catch (_) {
+      if (mounted) _showSnackBar('Unable to upload your avatar right now.');
+    }
+  }
+
+  String _avatarMimeType(String fileName) {
+    final lower = fileName.toLowerCase();
+    if (lower.endsWith('.png')) return 'image/png';
+    if (lower.endsWith('.webp')) return 'image/webp';
+    return 'image/jpeg';
+  }
+
+  Future<void> _savePresetAvatar(String path) async {
+    final accessToken =
+        await SecureSessionService.instance.getValidAccessToken();
+    if (accessToken == null || accessToken.isEmpty) {
+      if (mounted) {
+        _showSnackBar('Please sign in again before changing your avatar.');
+      }
+      return;
+    }
+
+    try {
+      final payload = _buildApiProfilePayload(userProfile)
+        ..['avatar_type'] = 'preset'
+        ..['avatar_value'] = path;
+      final updatedUser = await AuthApiService.instance.updateProfile(
+        accessToken: accessToken,
+        profile: payload,
+      );
+      await UserService.saveAvatar(presetPath: path);
+      await UserService.overwriteUserProfile(updatedUser.toLocalProfileMap());
+      await AppSessionService.instance.loadAuthenticatedState(force: true);
+      if (!mounted) return;
+      setState(() {
+        _presetAvatarPath = path;
+        _pickedImage = null;
+        _remoteAvatarPath = null;
+      });
+      widget.onProfileUpdated?.call();
+    } on ApiException catch (error) {
+      if (mounted) _showSnackBar(error.message);
+    } catch (_) {
+      if (mounted) _showSnackBar('Unable to save your avatar right now.');
     }
   }
 
@@ -265,13 +361,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     final option = _avatarOptions[index];
                     return GestureDetector(
                       onTap: () async {
-                        setState(() {
-                          _presetAvatarPath = option['path'];
-                          _pickedImage = null;
-                        });
-                        await UserService.saveAvatar(
-                            presetPath: option['path']);
-                        widget.onProfileUpdated?.call();
+                        await _savePresetAvatar(option['path']);
                         if (context.mounted) Navigator.pop(context);
                       },
                       child: Column(
@@ -325,7 +415,15 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Widget _buildAvatar() {
     ImageProvider imageProvider;
-    if (_pickedImage != null) {
+    if (_remoteAvatarPath != null && _remoteAvatarPath!.isNotEmpty) {
+      final apiOrigin = ApiConfig.baseUrl.replaceFirst(RegExp(r'/v1/?$'), '');
+      final remotePath = _remoteAvatarPath!;
+      imageProvider = NetworkImage(
+        remotePath.startsWith('/')
+            ? '$apiOrigin$remotePath'
+            : '$apiOrigin/$remotePath',
+      );
+    } else if (_pickedImage != null) {
       imageProvider = kIsWeb
           ? NetworkImage(_pickedImage!.path)
           : FileImage(_pickedImage!) as ImageProvider;
@@ -345,13 +443,22 @@ class _SettingsPageState extends State<SettingsPage> {
           color: orangeColor,
           border: Border.all(color: bgColor, width: 4),
         ),
-        child: ClipOval(child: Image(image: imageProvider, fit: BoxFit.cover)),
+        child: ClipOval(
+          child: Image(
+            image: imageProvider,
+            fit: BoxFit.cover,
+            loadingBuilder: (_, child, loadingProgress) =>
+                loadingProgress == null ? child : const C2ImageSkeleton(),
+            errorBuilder: (_, __, ___) =>
+                const Icon(Icons.person, size: 48, color: Colors.white),
+          ),
+        ),
       ),
     );
   }
 
   Widget _buildRowItem(String label, String value,
-      {bool isAddress = false, VoidCallback? onTap, String? helperText}) {
+      {VoidCallback? onTap, String? helperText}) {
     final isEditable = onTap != null;
 
     return GestureDetector(
@@ -363,9 +470,7 @@ class _SettingsPageState extends State<SettingsPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              crossAxisAlignment: isAddress
-                  ? CrossAxisAlignment.start
-                  : CrossAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 SizedBox(
                   width: 110,
@@ -382,6 +487,8 @@ class _SettingsPageState extends State<SettingsPage> {
                   child: Text(
                     value.isEmpty ? 'Not set' : value,
                     textAlign: TextAlign.right,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontFamily: 'Afacad',
                       fontSize: 16,
@@ -418,6 +525,11 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   void _showEditDialog(String label, String key, String currentValue) async {
+    if (key == 'email') {
+      await _showEmailChangeFlow();
+      return;
+    }
+
     if (key == 'gender') {
       String selectedGender = currentValue.isEmpty ? 'Female' : currentValue;
       await showDialog(
@@ -483,12 +595,11 @@ class _SettingsPageState extends State<SettingsPage> {
       final parsedAddress = _parseAddress(currentValue);
       String house = parsedAddress.houseLine;
       String street = '';
-      String city =
-          parsedAddress.city.isEmpty ? 'Semenyih' : parsedAddress.city;
+      String city = parsedAddress.city;
       String postcode = parsedAddress.postcode;
       String stateVal = userProfile['state']?.trim().isNotEmpty == true
           ? userProfile['state']!.trim()
-          : 'Selangor';
+          : '';
       street = parsedAddress.streetLine;
 
       TextEditingController houseController =
@@ -691,319 +802,605 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  Future<void> _showEmailChangeFlow() async {
+    final email = await showDialog<String>(
+      context: context,
+      builder: (_) => _EmailChangeRequestDialog(
+        initialEmail: userProfile['email'] ?? '',
+      ),
+    );
+    if (email == null || email.isEmpty || !email.contains('@')) return;
+
+    try {
+      final accessToken =
+          await SecureSessionService.instance.getValidAccessToken();
+      if (accessToken == null || accessToken.isEmpty) {
+        throw ApiException('Please sign in again before changing your email.');
+      }
+      final request = await AuthApiService.instance.requestEmailChange(
+        accessToken: accessToken,
+        email: email,
+      );
+      if (!mounted) return;
+
+      final code = await showDialog<String>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => _EmailChangeOtpDialog(
+          email: email,
+          expiresInSeconds: request.expiresInSeconds,
+        ),
+      );
+      if (code == null || code.length != 6) return;
+
+      final updatedUser = await AuthApiService.instance.confirmEmailChange(
+        accessToken: accessToken,
+        requestId: request.requestId,
+        otpCode: code,
+      );
+      await UserService.overwriteUserProfile(updatedUser.toLocalProfileMap());
+      await _session.loadAuthenticatedState(force: true);
+      await _loadUserData();
+      if (mounted) {
+        _showSnackBar('Your email address has been verified and updated.');
+      }
+    } on ApiException catch (error) {
+      if (mounted) _showSnackBar(error.message);
+    } catch (_) {
+      if (mounted) _showSnackBar('Unable to update your email right now.');
+    }
+  }
+
+  Future<void> _showAccountClosureDialog() async {
+    final reasonController = TextEditingController();
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Close Account',
+            style:
+                TextStyle(fontFamily: 'Recoleta', color: AppColors.terracotta)),
+        content: TextField(
+          controller: reasonController,
+          minLines: 2,
+          maxLines: 4,
+          decoration: const InputDecoration(
+            labelText: 'Reason for closure',
+            helperText:
+                'This immediately signs you out. Required financial records are retained securely.',
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel')),
+          TextButton(
+            onPressed: () =>
+                Navigator.pop(context, reasonController.text.trim()),
+            child: Text('Close Account',
+                style: TextStyle(color: AppColors.terracotta)),
+          ),
+        ],
+      ),
+    );
+    if (reason == null || reason.length < 5) {
+      if (mounted && reason != null) {
+        _showSnackBar(
+            'Please provide at least 5 characters for the closure reason.');
+      }
+      return;
+    }
+
+    try {
+      final accessToken =
+          await SecureSessionService.instance.getValidAccessToken();
+      if (accessToken == null || accessToken.isEmpty) {
+        throw ApiException('Please sign in again before closing your account.');
+      }
+      await AuthApiService.instance.requestAccountClosure(
+        accessToken: accessToken,
+        reason: reason,
+      );
+      await SessionLifecycleService.instance.logout();
+      if (!mounted) return;
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const SplashScreen()),
+        (route) => false,
+      );
+    } on ApiException catch (error) {
+      if (mounted) _showSnackBar(error.message);
+    } catch (_) {
+      if (mounted) _showSnackBar('Unable to close your account right now.');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
       canPop: true,
       child: AppPageShell(
-          title: 'SETTINGS',
-          onBack: () => InteractiveFillingLoader.showPop(context),
-          backgroundColor: bgColor,
-          bodyPadding: EdgeInsets.only(
-            top: 20,
-            bottom: MediaQuery.paddingOf(context).bottom + 20,
-          ),
-                    child: Stack(
-                      clipBehavior: Clip.none,
-                      alignment: Alignment.topCenter,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const SizedBox(
-                                height: 50), // Space for top half of avatar
+        title: 'SETTINGS',
+        onBack: () => InteractiveFillingLoader.showPop(context),
+        backgroundColor: bgColor,
+        bodyPadding: EdgeInsets.only(
+          top: 20,
+          bottom: MediaQuery.paddingOf(context).bottom + 20,
+        ),
+        child: Stack(
+          clipBehavior: Clip.none,
+          alignment: Alignment.topCenter,
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 50), // Space for top half of avatar
 
-                            // Details Card
-                            Container(
-                              margin:
-                                  const EdgeInsets.symmetric(horizontal: 20),
-                              padding: const EdgeInsets.only(
-                                  top: 60, bottom: 10, left: 20, right: 20),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: AppColors.border,
-                                  width: 1,
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                      color:
-                                          Colors.black.withValues(alpha: 0.03),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 2))
-                                ],
-                              ),
-                              child: Column(
-                                children: [
-                                  _buildRowItem(
-                                      'Username', userProfile['username'] ?? '',
-                                      onTap: () => _showEditDialog(
-                                          'Username',
-                                          'username',
-                                          userProfile['username'] ?? '')),
-                                  _buildRowItem(
-                                      'Email', userProfile['email'] ?? '',
-                                      onTap: () => _showEditDialog('Email',
-                                          'email', userProfile['email'] ?? '')),
-                                  _buildRowItem('Phone Number',
-                                      userProfile['phone'] ?? '',
-                                      helperText:
-                                          'Phone number is your login identity and cannot be edited here.'),
-                                  _buildRowItem(
-                                      'Birthday', userProfile['birthday'] ?? '',
-                                      onTap: () => _showEditDialog(
-                                          'Birthday',
-                                          'birthday',
-                                          userProfile['birthday'] ?? '')),
-                                  _buildRowItem(
-                                      'Gender', userProfile['gender'] ?? '',
-                                      onTap: () => _showEditDialog(
-                                          'Gender',
-                                          'gender',
-                                          userProfile['gender'] ?? '')),
-                                  _buildRowItem(
-                                      'Address', userProfile['address'] ?? '',
-                                      isAddress: true,
-                                      onTap: () => _showEditDialog(
-                                          'Address',
-                                          'address',
-                                          userProfile['address'] ?? '')),
-                                  _buildRowItem(
-                                      'State', userProfile['state'] ?? '',
-                                      onTap: () => _showEditDialog(
-                                          'Address',
-                                          'address',
-                                          userProfile['address'] ?? '')),
-                                ],
-                              ),
+                // Details Card
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 20),
+                  padding: const EdgeInsets.only(
+                      top: 60, bottom: 10, left: 20, right: 20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: AppColors.border,
+                      width: 1,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.03),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2))
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      _buildRowItem('Username', userProfile['username'] ?? '',
+                          onTap: () => _showEditDialog('Username', 'username',
+                              userProfile['username'] ?? '')),
+                      _buildRowItem('Email', userProfile['email'] ?? '',
+                          onTap: () => _showEditDialog(
+                              'Email', 'email', userProfile['email'] ?? '')),
+                      _buildRowItem(
+                        'Phone Number',
+                        userProfile['phone'] ?? '',
+                      ),
+                      _buildRowItem('Birthday', userProfile['birthday'] ?? '',
+                          onTap: () => _showEditDialog('Birthday', 'birthday',
+                              userProfile['birthday'] ?? '')),
+                      _buildRowItem('Gender', userProfile['gender'] ?? '',
+                          onTap: () => _showEditDialog(
+                              'Gender', 'gender', userProfile['gender'] ?? '')),
+                      _buildRowItem('Address', userProfile['address'] ?? '',
+                          onTap: () => _showEditDialog('Address', 'address',
+                              userProfile['address'] ?? '')),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                // Settings Text
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Text('Settings',
+                      style: TextStyle(
+                          fontFamily: 'Recoleta',
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.deepTeal)),
+                ),
+
+                const SizedBox(height: 12),
+
+                // Info Links Card
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 20),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: AppColors.border,
+                      width: 1,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.03),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2))
+                    ],
+                  ),
+                  child: Material(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    clipBehavior: Clip.antiAlias,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Column(
+                        children: [
+                          ListTile(
+                            title: const Text('Contact Support',
+                                style: TextStyle(
+                                    fontFamily: 'Afacad',
+                                    fontSize: 16,
+                                    color: Colors.black87)),
+                            trailing: const Icon(Icons.arrow_forward_ios,
+                                size: 16, color: Colors.grey),
+                            onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) =>
+                                        const ContactSupportPage())),
+                          ),
+                          const Divider(height: 1, indent: 16, endIndent: 16),
+                          ListTile(
+                            title: const Text('Privacy Policy',
+                                style: TextStyle(
+                                    fontFamily: 'Afacad',
+                                    fontSize: 16,
+                                    color: Colors.black87)),
+                            trailing: const Icon(Icons.arrow_forward_ios,
+                                size: 16, color: Colors.grey),
+                            onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) => const PrivacyPolicyPage())),
+                          ),
+                          const Divider(height: 1, indent: 16, endIndent: 16),
+                          ListTile(
+                            title: const Text('Terms & Conditions',
+                                style: TextStyle(
+                                    fontFamily: 'Afacad',
+                                    fontSize: 16,
+                                    color: Colors.black87)),
+                            trailing: const Icon(Icons.arrow_forward_ios,
+                                size: 16, color: Colors.grey),
+                            onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) => const TermsOfUsePage())),
+                          ),
+                          const Divider(height: 1, indent: 16, endIndent: 16),
+                          ListTile(
+                            title: const Text('About Us',
+                                style: TextStyle(
+                                    fontFamily: 'Afacad',
+                                    fontSize: 16,
+                                    color: Colors.black87)),
+                            trailing: const Icon(Icons.arrow_forward_ios,
+                                size: 16, color: Colors.grey),
+                            onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) => const AboutUsPage())),
+                          ),
+                          const Divider(height: 1, indent: 16, endIndent: 16),
+                          ListTile(
+                            title: Text('Close Account',
+                                style: TextStyle(
+                                    fontFamily: 'Afacad',
+                                    fontSize: 16,
+                                    color: AppColors.terracotta)),
+                            subtitle: const Text(
+                              'Request closure and sign out from all devices',
+                              style:
+                                  TextStyle(fontFamily: 'Afacad', fontSize: 13),
                             ),
+                            trailing: Icon(Icons.arrow_forward_ios,
+                                size: 16, color: AppColors.terracotta),
+                            onTap: _showAccountClosureDialog,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
 
-                            const SizedBox(height: 24),
+                const SizedBox(height: 14),
 
-                            // Settings Text
-                            Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 20),
-                              child: Text('Settings',
-                                  style: TextStyle(
-                                      fontFamily: 'Recoleta',
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                      color: AppColors.deepTeal)),
-                            ),
-
-                            const SizedBox(height: 12),
-
-                            // Push Notifications Card
-                            Container(
-                              margin:
-                                  const EdgeInsets.symmetric(horizontal: 20),
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 20, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: AppColors.border,
-                                  width: 1,
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                      color:
-                                          Colors.black.withValues(alpha: 0.03),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 2))
-                                ],
-                              ),
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  const Text('Push Notifications',
-                                      style: TextStyle(
-                                          fontFamily: 'Afacad',
-                                          fontSize: 16,
-                                          color: Colors.black87)),
-                                  Switch(
-                                    value: pushNotifications,
-                                    onChanged: (val) {
-                                      setState(() {
-                                        pushNotifications = val;
-                                      });
-                                    },
-                                    activeThumbColor: orangeColor,
-                                  ),
-                                ],
-                              ),
-                            ),
-
-                            const SizedBox(height: 12),
-
-                            // Info Links Card
-                            Container(
-                              margin:
-                                  const EdgeInsets.symmetric(horizontal: 20),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: AppColors.border,
-                                  width: 1,
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                      color:
-                                          Colors.black.withValues(alpha: 0.03),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 2))
-                                ],
-                              ),
-                              child: Material(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(20),
-                                clipBehavior: Clip.antiAlias,
-                                child: Padding(
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 8),
-                                  child: Column(
-                                    children: [
-                                      ListTile(
-                                        title: const Text('Contact Support',
-                                            style: TextStyle(
-                                                fontFamily: 'Afacad',
-                                                fontSize: 16,
-                                                color: Colors.black87)),
-                                        trailing: const Icon(
-                                            Icons.arrow_forward_ios,
-                                            size: 16,
-                                            color: Colors.grey),
-                                        onTap: () => Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                                builder: (_) =>
-                                                    const ContactSupportPage())),
-                                      ),
-                                      const Divider(
-                                          height: 1, indent: 16, endIndent: 16),
-                                      ListTile(
-                                        title: const Text('Privacy Policy',
-                                            style: TextStyle(
-                                                fontFamily: 'Afacad',
-                                                fontSize: 16,
-                                                color: Colors.black87)),
-                                        trailing: const Icon(
-                                            Icons.arrow_forward_ios,
-                                            size: 16,
-                                            color: Colors.grey),
-                                        onTap: () => Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                                builder: (_) =>
-                                                    const PrivacyPolicyPage())),
-                                      ),
-                                      const Divider(
-                                          height: 1, indent: 16, endIndent: 16),
-                                      ListTile(
-                                        title: const Text('Terms & Conditions',
-                                            style: TextStyle(
-                                                fontFamily: 'Afacad',
-                                                fontSize: 16,
-                                                color: Colors.black87)),
-                                        trailing: const Icon(
-                                            Icons.arrow_forward_ios,
-                                            size: 16,
-                                            color: Colors.grey),
-                                        onTap: () => Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                                builder: (_) =>
-                                                    const TermsOfUsePage())),
-                                      ),
-                                      const Divider(
-                                          height: 1, indent: 16, endIndent: 16),
-                                      ListTile(
-                                        title: const Text('About Us',
-                                            style: TextStyle(
-                                                fontFamily: 'Afacad',
-                                                fontSize: 16,
-                                                color: Colors.black87)),
-                                        trailing: const Icon(
-                                            Icons.arrow_forward_ios,
-                                            size: 16,
-                                            color: Colors.grey),
-                                        onTap: () => Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                                builder: (_) =>
-                                                    const AboutUsPage())),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-
-                            const SizedBox(height: 14),
-
-                            // Log Out Button
-                            GestureDetector(
-                              onTap: () async {
-                                await SessionLifecycleService.instance.logout();
-                                if (!context.mounted) return;
-                                Navigator.pushAndRemoveUntil(
-                                  context,
-                                  MaterialPageRoute(
-                                      builder: (context) =>
-                                          const SplashScreen()),
-                                  (Route<dynamic> route) => false,
-                                );
-                              },
-                              child: Container(
-                                margin:
-                                    const EdgeInsets.symmetric(horizontal: 20),
-                                padding: const EdgeInsets.symmetric(
-                                    vertical: 12, horizontal: 20),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(
-                                    color: AppColors.border,
-                                    width: 1,
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                        color: Colors.black
-                                            .withValues(alpha: 0.03),
-                                        blurRadius: 8,
-                                        offset: const Offset(0, 2))
-                                  ],
-                                ),
-                                child: Row(
-                                  children: [
-                                    Icon(Icons.logout,
-                                        size: 28, color: AppColors.terracotta),
-                                    const SizedBox(width: 16),
-                                    Text('Log Out',
-                                        style: TextStyle(
-                                            fontFamily: 'Recoleta',
-                                            fontSize: 20,
-                                            fontWeight: FontWeight.bold,
-                                            color: AppColors.terracotta)),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 20),
-                          ],
-                        ),
-                        // Overlapping Avatar (now scrolls with content)
-                        Positioned(
-                          top: 0,
-                          child: _buildAvatar(),
-                        ),
+                // Log Out Button
+                GestureDetector(
+                  onTap: () async {
+                    await SessionLifecycleService.instance.logout();
+                    if (!context.mounted) return;
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => const SplashScreen()),
+                      (Route<dynamic> route) => false,
+                    );
+                  },
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 20),
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 12, horizontal: 20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: AppColors.border,
+                        width: 1,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.03),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2))
                       ],
                     ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.logout,
+                            size: 28, color: AppColors.terracotta),
+                        const SizedBox(width: 16),
+                        Text('Log Out',
+                            style: TextStyle(
+                                fontFamily: 'Recoleta',
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.terracotta)),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ],
+            ),
+            // Overlapping Avatar (now scrolls with content)
+            Positioned(
+              top: 0,
+              child: _buildAvatar(),
+            ),
+          ],
         ),
+      ),
+    );
+  }
+}
+
+class _EmailChangeRequestDialog extends StatefulWidget {
+  const _EmailChangeRequestDialog({required this.initialEmail});
+
+  final String initialEmail;
+
+  @override
+  State<_EmailChangeRequestDialog> createState() =>
+      _EmailChangeRequestDialogState();
+}
+
+class _EmailChangeRequestDialogState extends State<_EmailChangeRequestDialog> {
+  late final TextEditingController _emailController;
+
+  @override
+  void initState() {
+    super.initState();
+    _emailController = TextEditingController(text: widget.initialEmail);
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title:
+          const Text('Change Email', style: TextStyle(fontFamily: 'Recoleta')),
+      content: TextField(
+        controller: _emailController,
+        keyboardType: TextInputType.emailAddress,
+        autofillHints: const [AutofillHints.email],
+        decoration: const InputDecoration(
+          labelText: 'New email address',
+          helperText: 'We will send a verification code to this address.',
+        ),
+      ),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel')),
+        TextButton(
+          onPressed: () => Navigator.pop(context, _emailController.text.trim()),
+          child: Text('Send Code', style: TextStyle(color: AppColors.deepTeal)),
+        ),
+      ],
+    );
+  }
+}
+
+class _EmailChangeOtpDialog extends StatefulWidget {
+  const _EmailChangeOtpDialog({
+    required this.email,
+    required this.expiresInSeconds,
+  });
+
+  final String email;
+  final int expiresInSeconds;
+
+  @override
+  State<_EmailChangeOtpDialog> createState() => _EmailChangeOtpDialogState();
+}
+
+class _EmailChangeOtpDialogState extends State<_EmailChangeOtpDialog> {
+  final _codeController = TextEditingController();
+  final _focusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode.addListener(_handleFocusChange);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _focusNode.requestFocus();
+    });
+  }
+
+  void _handleFocusChange() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _focusNode.removeListener(_handleFocusChange);
+    _codeController.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  String get _maskedEmail {
+    final atIndex = widget.email.indexOf('@');
+    if (atIndex <= 2) return widget.email;
+    return '${widget.email.substring(0, 2)}${'...'}${widget.email.substring(atIndex)}';
+  }
+
+  void _onChanged(String value) {
+    final digits = value.replaceAll(RegExp(r'[^0-9]'), '');
+    final nextValue = digits.length > 6 ? digits.substring(0, 6) : digits;
+    if (nextValue != value) {
+      _codeController.value = TextEditingValue(
+        text: nextValue,
+        selection: TextSelection.collapsed(offset: nextValue.length),
+      );
+      return;
+    }
+    if (nextValue.length == 6) _focusNode.unfocus();
+    setState(() {});
+  }
+
+  void _submit() {
+    final code = _codeController.text;
+    if (code.length != 6) return;
+    Navigator.pop(context, code);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final code = _codeController.text;
+    final minutes = (widget.expiresInSeconds / 60).ceil();
+
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 28),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(28, 30, 28, 22),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Verify New Email',
+              style: TextStyle(
+                fontFamily: 'Recoleta',
+                fontSize: 30,
+                fontWeight: FontWeight.bold,
+                color: AppColors.deepTeal,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Enter the 6-digit code sent to $_maskedEmail. It expires in $minutes minutes.',
+              style: const TextStyle(
+                fontFamily: 'Afacad',
+                fontSize: 17,
+                height: 1.25,
+                color: Colors.black54,
+              ),
+            ),
+            const SizedBox(height: 28),
+            GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: _focusNode.requestFocus,
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: Opacity(
+                      opacity: 0,
+                      child: TextField(
+                        controller: _codeController,
+                        focusNode: _focusNode,
+                        keyboardType: TextInputType.number,
+                        textInputAction: TextInputAction.done,
+                        autofillHints: const [AutofillHints.oneTimeCode],
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                          LengthLimitingTextInputFormatter(6),
+                        ],
+                        onChanged: _onChanged,
+                        onSubmitted: (_) => _submit(),
+                        decoration: const InputDecoration(
+                          border: InputBorder.none,
+                          counterText: '',
+                          contentPadding: EdgeInsets.zero,
+                          isCollapsed: true,
+                        ),
+                      ),
+                    ),
+                  ),
+                  ValueListenableBuilder<TextEditingValue>(
+                    valueListenable: _codeController,
+                    builder: (context, value, _) {
+                      final digits = value.text;
+                      return Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: List.generate(6, (index) {
+                          final hasValue = index < digits.length;
+                          final isActive = _focusNode.hasFocus &&
+                              index == digits.length.clamp(0, 5);
+                          return AnimatedContainer(
+                            duration: const Duration(milliseconds: 120),
+                            width: 40,
+                            height: 52,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isActive
+                                    ? const Color(0xFFD4AF37)
+                                    : AppColors.deepTeal,
+                                width: isActive ? 2.4 : 1.5,
+                              ),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              hasValue ? digits[index] : '',
+                              style: const TextStyle(
+                                fontFamily: 'Afacad',
+                                fontSize: 26,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          );
+                        }),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 26),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                const SizedBox(width: 8),
+                FilledButton(
+                  onPressed: code.length == 6 ? _submit : null,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.deepTeal,
+                    disabledBackgroundColor:
+                        AppColors.deepTeal.withValues(alpha: 0.25),
+                  ),
+                  child: const Text('Verify'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

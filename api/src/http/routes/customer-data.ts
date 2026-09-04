@@ -618,6 +618,108 @@ export async function registerCustomerDataRoutes(
     };
   });
 
+  app.post('/v1/orders/:orderId/cancel', { preHandler: authenticateRequest }, async (request) => {
+    const { orderId } = request.params as { orderId: string };
+    const connection = await getUtcConnection();
+    let committed = false;
+
+    try {
+      await connection.beginTransaction();
+      const [orders] = await connection.execute<Array<RowDataPacket & {
+        id: number;
+        order_ref: string;
+        user_id: number;
+        payment_mode: 'token' | 'direct';
+        token_amount_charged: number;
+        status: string;
+      }>>(
+        `
+          SELECT id, order_ref, user_id, payment_mode, token_amount_charged, status
+          FROM orders
+          WHERE id = :orderId AND user_id = :userId
+          LIMIT 1
+          FOR UPDATE
+        `,
+        { orderId, userId: request.auth.userId }
+      );
+      const order = orders[0];
+      if (!order) {
+        throw new ApiError(404, 'order_not_found', 'Order not found.');
+      }
+      if (order.status !== 'paid') {
+        throw new ApiError(
+          409,
+          'order_cannot_be_cancelled',
+          'This order can no longer be cancelled because preparation may have started. Please contact support if you need help.'
+        );
+      }
+      if (order.payment_mode !== 'token' || order.token_amount_charged <= 0) {
+        throw new ApiError(409, 'order_cannot_be_cancelled', 'This order cannot be cancelled in the app. Please contact support.');
+      }
+
+      const [accounts] = await connection.execute<Array<RowDataPacket & { balance_available: number }>>(
+        `SELECT balance_available FROM token_accounts WHERE user_id = :userId LIMIT 1 FOR UPDATE`,
+        { userId: request.auth.userId }
+      );
+      const account = accounts[0];
+      if (!account) {
+        throw new ApiError(409, 'token_account_not_found', 'Your token account was not found. Please contact support.');
+      }
+
+      const tokenAmount = Number(order.token_amount_charged);
+      const balanceAfter = Number(account.balance_available) + tokenAmount;
+      await connection.execute(
+        `UPDATE token_accounts SET balance_available = :balanceAfter, updated_at = UTC_TIMESTAMP() WHERE user_id = :userId`,
+        { balanceAfter, userId: request.auth.userId }
+      );
+      await connection.execute(
+        `
+          INSERT INTO token_ledger (
+            user_id, token_lot_id, direction, source_type, source_id, amount,
+            balance_after, remarks, created_at
+          ) VALUES (
+            :userId, NULL, 'credit', 'refund_return', :orderId, :amount,
+            :balanceAfter, :remarks, UTC_TIMESTAMP()
+          )
+        `,
+        {
+          userId: request.auth.userId,
+          orderId: order.id,
+          amount: tokenAmount,
+          balanceAfter,
+          remarks: `Customer cancellation for order ${order.order_ref}`
+        }
+      );
+      await connection.execute(
+        `UPDATE orders SET status = 'cancelled', updated_at = UTC_TIMESTAMP() WHERE id = :orderId`,
+        { orderId: order.id }
+      );
+      await connection.execute(
+        `
+          INSERT INTO order_status_history (order_id, from_status, to_status, changed_by_type, changed_by_id, reason, created_at)
+          VALUES (:orderId, 'paid', 'cancelled', 'customer', :userId, 'Cancelled by customer before preparation', UTC_TIMESTAMP())
+        `,
+        { orderId: order.id, userId: request.auth.userId }
+      );
+      await createUserNotification(connection, {
+        userId: request.auth.userId,
+        type: 'order_cancelled',
+        title: 'Order cancelled',
+        body: `${tokenAmount} tokens were returned for order ${order.order_ref}.`,
+        data: { order_ref: order.order_ref }
+      });
+      await connection.commit();
+      committed = true;
+
+      return { status: 'cancelled', returned_tokens: tokenAmount };
+    } catch (error) {
+      if (!committed) await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  });
+
   app.get('/v1/orders', { preHandler: authenticateRequest }, async (request) => {
     const { limit } = listQuerySchema.parse(request.query);
 

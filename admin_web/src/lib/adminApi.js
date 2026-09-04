@@ -1,9 +1,8 @@
-import { buildFinanceOverview } from '../utils/reporting';
-
 const ACCESS_TOKEN_KEY = 'c2_admin_access_token';
 const REFRESH_TOKEN_KEY = 'c2_admin_refresh_token';
 const ADMIN_REFRESH_PATH = '/v1/admin/auth/refresh';
-const ADMIN_API_BASE_URL = 'https://api.c2coffeeandcandle.com';
+const ADMIN_API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'https://api.c2coffeeandcandle.com')
+  .replace(/\/$/, '');
 
 let refreshSessionPromise = null;
 
@@ -130,6 +129,20 @@ export async function loadAdminTenants() {
   return response.tenants || [];
 }
 
+export function requestAdminPasswordChange(payload) {
+  return adminRequest('/v1/admin/auth/password-change/request', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function confirmAdminPasswordChange(payload) {
+  return adminRequest('/v1/admin/auth/password-change/confirm', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
 export async function loadAdminMenu() {
   return adminRequest('/v1/admin/menu');
 }
@@ -154,8 +167,9 @@ export async function loadAdminCustomers() {
   return adminRequest('/v1/admin/customers');
 }
 
-export async function loadAdminOrders() {
-  return adminRequest('/v1/admin/orders');
+export async function loadAdminOrders(params = {}) {
+  const query = params.limit ? `?limit=${encodeURIComponent(params.limit)}` : '';
+  return adminRequest(`/v1/admin/orders${query}`);
 }
 
 export async function loadAdminDashboard(date = null) {
@@ -163,8 +177,23 @@ export async function loadAdminDashboard(date = null) {
   return adminRequest(`/v1/admin/dashboard${query}`);
 }
 
-export async function loadAdminRefunds() {
-  return adminRequest('/v1/admin/refunds');
+export async function loadAdminRefunds(params = {}) {
+  const query = params.limit ? `?limit=${encodeURIComponent(params.limit)}` : '';
+  return adminRequest(`/v1/admin/refunds${query}`);
+}
+
+export async function createAdminRefund(orderId, reason) {
+  return adminRequest('/v1/admin/refunds', {
+    method: 'POST',
+    body: JSON.stringify({ order_id: orderId, reason })
+  });
+}
+
+export async function reviewAdminRefund(refundRef, decision) {
+  return adminRequest(`/v1/admin/refunds/${encodeURIComponent(refundRef)}/review`, {
+    method: 'PATCH',
+    body: JSON.stringify({ decision })
+  });
 }
 
 export async function loadAdminVouchers() {
@@ -246,15 +275,7 @@ export async function adjustAdminCustomerTokens(customerId, payload) {
 }
 
 export async function loadAdminFinanceOverview() {
-  const [ordersResponse, refundsResponse] = await Promise.all([
-    loadAdminOrders(),
-    loadAdminRefunds()
-  ]);
-
-  return buildFinanceOverview(
-    Array.isArray(ordersResponse?.orders) ? ordersResponse.orders : [],
-    Array.isArray(refundsResponse?.refunds) ? refundsResponse.refunds : []
-  );
+  return adminRequest('/v1/admin/finance/overview');
 }
 
 export async function loadAdminTierConfigs() {
@@ -295,9 +316,10 @@ export async function updateAdminCustomer(customerId, payload) {
   });
 }
 
-export async function deleteAdminCustomer(customerId) {
+export async function deleteAdminCustomer(customerId, payload) {
   return adminRequest(`/v1/admin/customers/${customerId}`, {
-    method: 'DELETE'
+    method: 'DELETE',
+    body: JSON.stringify(payload)
   });
 }
 

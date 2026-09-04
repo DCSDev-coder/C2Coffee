@@ -5,7 +5,9 @@ import {
   Coffee, Megaphone, LineChart, UserCog, ClipboardList, Settings, LogOut, UserCheck
 } from 'lucide-react';
 
-const Sidebar = ({ currentPage, setCurrentPage, onLogout, currentTenant }) => {
+import { canAccessAdminPage } from '../lib/adminPermissions';
+
+const Sidebar = ({ currentPage, setCurrentPage, onLogout, currentTenant, currentUser }) => {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const menuItems = [
     { name: 'Dashboard', icon: LayoutDashboard },
@@ -24,6 +26,8 @@ const Sidebar = ({ currentPage, setCurrentPage, onLogout, currentTenant }) => {
     { name: 'Settings', icon: Settings }
   ];
 
+  const visibleMenuItems = menuItems.filter((item) => canAccessAdminPage(currentUser?.roles, item.name));
+
   return (
     <div className="w-56 bg-[#2E5E58] text-white h-[calc(100vh-2rem)] fixed left-4 top-4 bottom-4 flex flex-col p-4 rounded-3xl z-10 shadow-xl overflow-y-auto" style={{ fontFamily: 'Afacad, sans-serif' }}>
       <div
@@ -40,7 +44,7 @@ const Sidebar = ({ currentPage, setCurrentPage, onLogout, currentTenant }) => {
       </div>
 
       <nav className="flex-1 space-y-1">
-        {menuItems.map((item, index) => {
+        {visibleMenuItems.map((item, index) => {
           const Icon = item.icon;
           const isActive = currentPage ? currentPage === item.name : index === 0;
           return (

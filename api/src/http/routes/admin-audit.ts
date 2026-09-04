@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { RowDataPacket } from 'mysql2/promise';
-import { authenticateAdminRequest } from '../../admin/guard.js';
+import { authenticateAdminRequest, requireAdminRole } from '../../admin/guard.js';
 import { mysqlPool } from '../../db/mysql.js';
 
 type AuditLogRow = RowDataPacket & {
@@ -92,6 +92,7 @@ function formatDisplayTime(dateObj: Date): string {
 
 export async function registerAdminAuditRoutes(app: FastifyInstance): Promise<void> {
   app.get('/v1/admin/audit-logs', { preHandler: authenticateAdminRequest }, async (request) => {
+    requireAdminRole(request, 'super_admin');
     const query = typeof request.query === 'object' && request.query !== null
       ? (request.query as {
           search?: string;

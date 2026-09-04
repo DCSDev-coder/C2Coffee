@@ -53,7 +53,7 @@ class SettingsPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Manage the staff identity assigned to orders from this device.',
+                    'Choose the staff member for the current shift on this device.',
                     style: TextStyle(
                       color: ink.withValues(alpha: 0.65),
                       fontSize: 16,
@@ -73,9 +73,9 @@ class SettingsPage extends StatelessWidget {
                   const SizedBox(height: 14),
                   _SettingsActionTile(
                     icon: Icons.manage_accounts_outlined,
-                    title: 'Change barista',
+                    title: 'Change current shift',
                     subtitle:
-                        'Select the staff member starting the next shift.',
+                        'Choose who will be recorded on orders prepared during this shift.',
                     onTap: () {
                       Navigator.pushReplacement(
                         context,
@@ -125,7 +125,7 @@ class SettingsPage extends StatelessWidget {
                               ),
                               const SizedBox(height: 3),
                               Text(
-                                'Staff identity is selected separately for order records.',
+                                'The selected staff member applies until this app is closed or changed.',
                                 style: TextStyle(
                                   color: ink.withValues(alpha: 0.60),
                                   fontSize: 13,
