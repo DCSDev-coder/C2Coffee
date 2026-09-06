@@ -91,15 +91,24 @@ const EmptyState = ({ children }) => (
 );
 
 const DashboardHome = ({ setCurrentPage }) => {
-  const [selectedDate, setSelectedDate] = useState(null);
+  const [selectedRange, setSelectedRange] = useState([null, null]);
+  const [selectedPeriod, setSelectedPeriod] = useState('this_month');
   const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [rangeStart, rangeEnd] = selectedRange;
+  const rangeStartDate = toDateKey(rangeStart);
+  const rangeEndDate = toDateKey(rangeEnd);
 
   const fetchDashboard = async ({ showLoading = false } = {}) => {
+    if (selectedPeriod === 'custom' && !rangeStartDate) return;
     if (showLoading) setLoading(true);
     try {
-      const response = await loadAdminDashboard(toDateKey(selectedDate));
+      const response = await loadAdminDashboard({
+        startDate: selectedPeriod === 'custom' ? rangeStartDate : null,
+        endDate: selectedPeriod === 'custom' ? (rangeEndDate || rangeStartDate) : null,
+        period: selectedPeriod
+      });
       setDashboard(response);
       setError('');
     } catch (requestError) {
@@ -113,7 +122,41 @@ const DashboardHome = ({ setCurrentPage }) => {
     fetchDashboard({ showLoading: true });
     const interval = window.setInterval(() => fetchDashboard(), REFRESH_INTERVAL_MS);
     return () => window.clearInterval(interval);
-  }, [selectedDate]);
+  }, [rangeStartDate, rangeEndDate, selectedPeriod]);
+
+  const periodLabel = selectedPeriod === 'this_month'
+    ? 'This month'
+    : selectedPeriod === 'last_month'
+      ? 'Last month'
+    : selectedPeriod === '3m'
+      ? 'Last 3 months'
+    : selectedPeriod === '6m'
+      ? 'Last 6 months'
+      : selectedPeriod === '1y'
+        ? 'Last 1 year'
+        : rangeStartDate === rangeEndDate
+          ? 'Selected day'
+          : rangeStartDate && rangeEndDate
+            ? `${rangeStartDate} to ${rangeEndDate}`
+            : 'Select custom dates';
+  const chartTimeLabel = dashboard?.isSingleDay ? 'Time' : 'Date';
+  const chartSubtitle = dashboard?.isSingleDay ? 'Selected business day' : periodLabel;
+
+  const handlePeriodChange = (event) => {
+    const nextPeriod = event.target.value;
+    setSelectedPeriod(nextPeriod);
+    if (nextPeriod !== 'custom') {
+      setSelectedRange([null, null]);
+    }
+  };
+
+  const handleRangeChange = (dates) => {
+    const [start, end] = dates;
+    setSelectedRange([start, end]);
+    if (start) {
+      setSelectedPeriod('custom');
+    }
+  };
 
   const CustomDateInput = forwardRef(({ value, onClick }, ref) => (
     <button
@@ -142,17 +185,32 @@ const DashboardHome = ({ setCurrentPage }) => {
 
   return (
     <div className="px-8 pb-8 mt-0" style={{ fontFamily: '"DM Sans", sans-serif' }}>
-      <div className="flex justify-between items-center gap-4 mb-6">
+      <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Store Overview</h1>
           <p className="text-sm text-gray-500 mt-1">Live tenant data{dashboard?.timeZone ? ` in ${dashboard.timeZone}` : ''}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <select
+            value={selectedPeriod}
+            onChange={handlePeriodChange}
+            className="border border-gray-200 px-3 py-2 rounded-lg bg-white shadow-sm text-xs font-semibold text-gray-700 cursor-pointer hover:bg-gray-50 transition-colors"
+            aria-label="Dashboard period"
+          >
+            <option value="this_month">This month</option>
+            <option value="last_month">Last month</option>
+            <option value="3m">Last 3 months</option>
+            <option value="6m">Last 6 months</option>
+            <option value="1y">Last 1 year</option>
+            <option value="custom">Custom date range</option>
+          </select>
           <DatePicker
             portalId="root-portal"
             popperPlacement="bottom-end"
-            selected={selectedDate}
-            onChange={setSelectedDate}
+            selectsRange
+            startDate={rangeStart}
+            endDate={rangeEnd}
+            onChange={handleRangeChange}
             customInput={<CustomDateInput />}
             dateFormat="MMM d, yyyy"
             maxDate={new Date()}
@@ -176,20 +234,20 @@ const DashboardHome = ({ setCurrentPage }) => {
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6 gap-4 mb-6">
-        <StatCard title="Sales Today" value={formatRm(summary.salesToday)} detail="Paid, active and collected orders" icon={Wallet} iconColor="bg-[#1F3A34]" />
-        <StatCard title="Orders Today" value={formatNumber(summary.ordersToday)} detail="Orders currently counted as sales" icon={ShoppingBag} iconColor="bg-[#2E5E58]" />
-        <StatCard title="Awaiting Preparation" value={formatNumber(summary.awaitingPreparation)} detail="Paid orders waiting for a barista" icon={Clock3} iconColor="bg-[#D4AF7A]" />
-        <StatCard title="In Preparation" value={formatNumber(summary.preparing)} detail="Orders being prepared now" icon={ChefHat} iconColor="bg-[#E07A5F]" />
-        <StatCard title="Refunds Awaiting Review" value={formatNumber(summary.pendingRefunds)} detail="Pending customer-service decisions" icon={CircleDollarSign} iconColor="bg-[#B45309]" />
-        <StatCard title="Customers Served" value={formatNumber(summary.customersServed)} detail="Unique customers with eligible orders" icon={Users} iconColor="bg-[#6F9F96]" />
+        <StatCard title="Sales" value={formatRm(summary.salesToday)} detail={`${periodLabel}: paid, active and collected orders`} icon={Wallet} iconColor="bg-[#1F3A34]" />
+        <StatCard title="Orders" value={formatNumber(summary.ordersToday)} detail={`${periodLabel}: orders currently counted as sales`} icon={ShoppingBag} iconColor="bg-[#2E5E58]" />
+        <StatCard title="Awaiting Preparation" value={formatNumber(summary.awaitingPreparation)} detail={`${periodLabel}: orders waiting for a barista`} icon={Clock3} iconColor="bg-[#D4AF7A]" />
+        <StatCard title="In Preparation" value={formatNumber(summary.preparing)} detail={`${periodLabel}: orders marked in preparation`} icon={ChefHat} iconColor="bg-[#E07A5F]" />
+        <StatCard title="Refunds Awaiting Review" value={formatNumber(summary.pendingRefunds)} detail={`${periodLabel}: pending customer-service decisions`} icon={CircleDollarSign} iconColor="bg-[#B45309]" />
+        <StatCard title="Customers Served" value={formatNumber(summary.customersServed)} detail={`${periodLabel}: unique customers with eligible orders`} icon={Users} iconColor="bg-[#6F9F96]" />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 mb-6">
         <div className="xl:col-span-6">
-          <ChartCard title="Sales By Time" value={formatRm(summary.salesToday)} subtitle="Selected business day" data={trends} dataKey="revenue" color="#2E5E58" gradientId="dashboardRevenue" formatter={formatRm} />
+          <ChartCard title={`Sales By ${chartTimeLabel}`} value={formatRm(summary.salesToday)} subtitle={chartSubtitle} data={trends} dataKey="revenue" color="#2E5E58" gradientId="dashboardRevenue" formatter={formatRm} />
         </div>
         <div className="xl:col-span-6">
-          <ChartCard title="Orders By Time" value={formatNumber(summary.ordersToday)} subtitle="Selected business day" data={trends} dataKey="orders" color="#D4AF7A" gradientId="dashboardOrders" formatter={formatNumber} />
+          <ChartCard title={`Orders By ${chartTimeLabel}`} value={formatNumber(summary.ordersToday)} subtitle={chartSubtitle} data={trends} dataKey="orders" color="#D4AF7A" gradientId="dashboardOrders" formatter={formatNumber} />
         </div>
       </div>
 
@@ -201,7 +259,7 @@ const DashboardHome = ({ setCurrentPage }) => {
               View all <ArrowRight size={14} />
             </button>
           </div>
-          {loading && !dashboard ? <EmptyState>Loading live orders...</EmptyState> : recentOrders.length === 0 ? <EmptyState>No orders for this day yet.</EmptyState> : (
+          {loading && !dashboard ? <EmptyState>Loading live orders...</EmptyState> : recentOrders.length === 0 ? <EmptyState>No orders for this period yet.</EmptyState> : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs min-w-[680px]">
                 <thead>
@@ -233,7 +291,7 @@ const DashboardHome = ({ setCurrentPage }) => {
 
         <section className="xl:col-span-4 bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
           <h2 className="text-lg font-bold text-gray-900 mb-4">Order Activity</h2>
-          {loading && !dashboard ? <EmptyState>Loading activity...</EmptyState> : recentActivity.length === 0 ? <EmptyState>No order activity for this day yet.</EmptyState> : (
+          {loading && !dashboard ? <EmptyState>Loading activity...</EmptyState> : recentActivity.length === 0 ? <EmptyState>No order activity for this period yet.</EmptyState> : (
             <div className="space-y-4">
               {recentActivity.map((activity, index) => (
                 <div key={`${activity.title}-${index}`} className="flex items-start gap-3">
@@ -254,13 +312,13 @@ const DashboardHome = ({ setCurrentPage }) => {
         <div className="flex justify-between items-center mb-5">
           <div>
             <h2 className="text-lg font-bold text-gray-900">Best-Selling Items</h2>
-            <p className="text-xs text-gray-500 mt-1">Based on paid and active orders for the selected day.</p>
+            <p className="text-xs text-gray-500 mt-1">Based on paid and active orders for {periodLabel.toLowerCase()}.</p>
           </div>
           <button onClick={() => setCurrentPage?.('Menu')} className="text-xs font-semibold text-gray-600 hover:text-gray-900 hover:underline cursor-pointer inline-flex items-center gap-1">
             Manage menu <ArrowRight size={14} />
           </button>
         </div>
-        {loading && !dashboard ? <EmptyState>Loading sales data...</EmptyState> : topItems.length === 0 ? <EmptyState>No item sales for this day yet.</EmptyState> : (
+        {loading && !dashboard ? <EmptyState>Loading sales data...</EmptyState> : topItems.length === 0 ? <EmptyState>No item sales for this period yet.</EmptyState> : (
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
             {topItems.map((item, index) => (
               <div key={item.name} className="border border-gray-100 rounded-xl p-4 bg-[#FCFDFD]">

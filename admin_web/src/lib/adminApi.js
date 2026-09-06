@@ -172,8 +172,15 @@ export async function loadAdminOrders(params = {}) {
   return adminRequest(`/v1/admin/orders${query}`);
 }
 
-export async function loadAdminDashboard(date = null) {
-  const query = date ? `?date=${encodeURIComponent(date)}` : '';
+export async function loadAdminDashboard({ startDate = null, endDate = null, period = 'this_month' } = {}) {
+  const searchParams = new URLSearchParams({ period });
+  if (startDate) {
+    searchParams.set('start_date', startDate);
+  }
+  if (endDate) {
+    searchParams.set('end_date', endDate);
+  }
+  const query = searchParams.toString() ? `?${searchParams.toString()}` : '';
   return adminRequest(`/v1/admin/dashboard${query}`);
 }
 
@@ -182,17 +189,17 @@ export async function loadAdminRefunds(params = {}) {
   return adminRequest(`/v1/admin/refunds${query}`);
 }
 
-export async function createAdminRefund(orderId, reason) {
+export async function createAdminRefund(orderId, reason, confirmationPassword) {
   return adminRequest('/v1/admin/refunds', {
     method: 'POST',
-    body: JSON.stringify({ order_id: orderId, reason })
+    body: JSON.stringify({ order_id: orderId, reason, confirmation_password: confirmationPassword })
   });
 }
 
-export async function reviewAdminRefund(refundRef, decision) {
+export async function reviewAdminRefund(refundRef, decision, confirmationPassword) {
   return adminRequest(`/v1/admin/refunds/${encodeURIComponent(refundRef)}/review`, {
     method: 'PATCH',
-    body: JSON.stringify({ decision })
+    body: JSON.stringify({ decision, confirmation_password: confirmationPassword })
   });
 }
 

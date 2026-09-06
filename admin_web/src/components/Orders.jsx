@@ -492,9 +492,10 @@ const OrderDetailPanel = ({ order, onClose, onViewProfile }) => {
 
 // Main Component 
 
-const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
+const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => {
   const [ordersList, setOrdersList] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All Status");
   const [paymentFilter, setPaymentFilter] = useState("All Payment Status");
@@ -515,6 +516,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
 
     const fetchOrders = async ({ keepSelection = false, silent = false } = {}) => {
       try {
+        setLoadError('');
         if (!silent) {
           setIsLoading(true);
         }
@@ -532,6 +534,9 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
         }
       } catch (err) {
         console.error('Failed to fetch orders', err);
+        if (isMounted) {
+          setLoadError(err?.message || 'Unable to load orders. Check the connection and try again.');
+        }
       } finally {
         if (isMounted) {
           setIsLoading(false);
@@ -573,6 +578,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
   if (showRefundsView) {
     return (
       <RefundDetails
+        currentUser={currentUser}
         onBack={() => {
           if (onBackToOrders) {
             onBackToOrders();
@@ -641,6 +647,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders }) => {
         <h1 className="text-2xl font-bold text-gray-900">Orders</h1>
         <p className="text-gray-500">Manage customer orders and track their status.</p>
       </div>
+      {loadError && <div role="alert" className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{loadError}</div>}
 
       {/* Operational totals only. Workflow stages remain available in the status filter. */}
       <div className="grid grid-cols-1 gap-3.5 mb-6 shrink-0 sm:grid-cols-2 xl:grid-cols-4">

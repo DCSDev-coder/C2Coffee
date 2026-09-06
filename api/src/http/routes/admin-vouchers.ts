@@ -852,7 +852,7 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
       selectColumns.push('vt.limit_per_user');
     }
 
-    const whereClauses = ['1 = 1'];
+    const whereClauses = ['vt.tenant_id = :tenantId'];
     if (hasColumn(voucherColumns, 'deleted_at')) {
       whereClauses.push('vt.deleted_at IS NULL');
     }
@@ -866,7 +866,8 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
         FROM voucher_templates vt
         WHERE ${whereClauses.join(' AND ')}
         ORDER BY vt.created_at DESC
-      `
+      `,
+      { tenantId: request.adminAuth.tenantId }
     );
 
     const vouchers = rows.map((row) => {
@@ -1123,18 +1124,21 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
     );
 
     if (payload.isReferralReward && hasColumn(voucherColumns, 'is_referral_reward')) {
-      await mysqlPool.execute('UPDATE voucher_templates SET is_referral_reward = 0 WHERE is_referral_reward = 1');
+      await mysqlPool.execute(
+        'UPDATE voucher_templates SET is_referral_reward = 0 WHERE is_referral_reward = 1 AND tenant_id = :tenantId',
+        { tenantId: request.adminAuth.tenantId }
+      );
     }
 
     const [result] = await mysqlPool.query<ResultSetHeader>(
       `
         INSERT INTO voucher_templates (
-          ${writeBindings.columns.join(', ')}
+          tenant_id, ${writeBindings.columns.join(', ')}
         ) VALUES (
-          ${writeBindings.placeholders.join(', ')}
+          :tenantId, ${writeBindings.placeholders.join(', ')}
         )
       `,
-      writeBindings.values as never
+      { ...(writeBindings.values as Record<string, unknown>), tenantId: request.adminAuth.tenantId } as never
     );
 
     return { id: payload.code, db_id: result.insertId };
@@ -1240,17 +1244,21 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
     }
 
     if (payload.isReferralReward && hasColumn(voucherColumns, 'is_referral_reward')) {
-      await mysqlPool.execute('UPDATE voucher_templates SET is_referral_reward = 0 WHERE is_referral_reward = 1 AND code != :code', { code });
+      await mysqlPool.execute(
+        'UPDATE voucher_templates SET is_referral_reward = 0 WHERE is_referral_reward = 1 AND code != :code AND tenant_id = :tenantId',
+        { code, tenantId: request.adminAuth.tenantId }
+      );
     }
 
     await mysqlPool.query(
       `
         UPDATE voucher_templates
         SET ${updateAssignments.join(', ')}
-        WHERE code = :code
+        WHERE code = :code AND tenant_id = :tenantId
       `,
       {
         code,
+        tenantId: request.adminAuth.tenantId,
         name: payload.name,
         voucherType,
         discountMode,
@@ -1283,9 +1291,9 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
       `
         UPDATE voucher_templates
         SET ${updates.join(', ')}
-        WHERE code = :code
+        WHERE code = :code AND tenant_id = :tenantId
       `,
-      { code }
+      { code, tenantId: request.adminAuth.tenantId }
     );
 
     return { success: true };

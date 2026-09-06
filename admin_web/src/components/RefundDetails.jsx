@@ -27,7 +27,7 @@ const formatAmount = (refund) => {
   return `RM ${Number(refund.amountRm || 0).toFixed(2)}`;
 };
 
-const RefundDetails = ({ onBack }) => {
+const RefundDetails = ({ onBack, currentUser }) => {
   const [refunds, setRefunds] = useState([]);
   const [selectedRefund, setSelectedRefund] = useState(null);
   const [search, setSearch] = useState('');
@@ -41,6 +41,9 @@ const RefundDetails = ({ onBack }) => {
   const [orderReference, setOrderReference] = useState('');
   const [refundReason, setRefundReason] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [pendingConfirmation, setPendingConfirmation] = useState(null);
+  const [confirmationPassword, setConfirmationPassword] = useState('');
+  const canReviewRefunds = Array.isArray(currentUser?.roles) && currentUser.roles.includes('super_admin');
 
   const loadRefunds = async () => {
     setLoading(true);
@@ -59,12 +62,12 @@ const RefundDetails = ({ onBack }) => {
     void loadRefunds();
   }, []);
 
-  const reviewRefund = async (refund, decision) => {
+  const reviewRefund = async (refund, decision, password) => {
     if (refund.status !== 'Pending') return;
     setActionId(refund.id);
     setError('');
     try {
-      await reviewAdminRefund(refund.id, decision);
+      await reviewAdminRefund(refund.id, decision, password);
       await loadRefunds();
       setSelectedRefund(null);
     } catch (requestError) {
@@ -74,13 +77,12 @@ const RefundDetails = ({ onBack }) => {
     }
   };
 
-  const createRefund = async (event) => {
-    event.preventDefault();
+  const createRefund = async (password) => {
     if (isCreating) return;
     setIsCreating(true);
     setError('');
     try {
-      await createAdminRefund(orderReference.trim(), refundReason.trim());
+      await createAdminRefund(orderReference.trim(), refundReason.trim(), password);
       setOrderReference('');
       setRefundReason('');
       setIsCreateOpen(false);
@@ -89,6 +91,23 @@ const RefundDetails = ({ onBack }) => {
       setError(requestError.message || 'Unable to create this refund request.');
     } finally {
       setIsCreating(false);
+    }
+  };
+
+  const confirmAction = async (event) => {
+    event.preventDefault();
+    if (!pendingConfirmation || !confirmationPassword) return;
+    const action = pendingConfirmation;
+    try {
+      if (action.type === 'create') {
+        await createRefund(confirmationPassword);
+      } else {
+        await reviewRefund(action.refund, action.decision, confirmationPassword);
+      }
+      setConfirmationPassword('');
+      setPendingConfirmation(null);
+    } catch {
+      // The request error is displayed in the existing page alert.
     }
   };
 
@@ -112,9 +131,10 @@ const RefundDetails = ({ onBack }) => {
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div className="relative w-full sm:max-w-md"><Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input value={search} onChange={(event) => { setSearch(event.target.value); setCurrentPage(1); }} placeholder="Search refund, order, customer or reason" className="w-full rounded-lg border border-gray-300 py-2 pl-10 pr-3 text-sm" /></div><select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setCurrentPage(1); }} className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700">{STATUSES.map((status) => <option key={status}>{status}</option>)}</select></div>
       <div className="flex min-h-0 flex-1 flex-col gap-6 xl:flex-row">
         <div className="min-w-0 flex-1 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm"><div className="overflow-x-auto"><table className="min-w-full divide-y divide-gray-200"><thead><tr className="text-left text-xs font-bold text-gray-900">{['Refund ID', 'Order ID', 'Customer', 'Amount', 'Reason', 'Status', 'Requested', ''].map((heading) => <th key={heading} className="px-5 py-4 whitespace-nowrap">{heading}</th>)}</tr></thead><tbody className="divide-y divide-gray-100">{loading ? <tr><td colSpan="8" className="px-6 py-10 text-center text-sm text-gray-500">Loading refund requests...</td></tr> : pageItems.length ? pageItems.map((refund) => <tr key={refund.id} className={selectedRefund?.id === refund.id ? 'bg-[#F3F7F5]' : 'hover:bg-gray-50'}><td className="px-5 py-3 text-sm font-semibold text-gray-900">{refund.id}</td><td className="px-5 py-3 text-sm text-gray-700">{refund.orderId}</td><td className="px-5 py-3 text-sm font-medium text-gray-900">{refund.customer}</td><td className="px-5 py-3 text-sm font-semibold text-gray-900">{formatAmount(refund)}</td><td className="px-5 py-3 text-sm text-gray-700">{refund.reason}</td><td className="px-5 py-3"><StatusBadge status={refund.status} /></td><td className="px-5 py-3 text-sm text-gray-600">{refund.requestedAt}</td><td className="px-5 py-3"><button onClick={() => setSelectedRefund(selectedRefund?.id === refund.id ? null : refund)} className="rounded-lg bg-[#1F3A34] p-2 text-white hover:bg-[#2E5E58]" title="View refund"><Eye size={15} /></button></td></tr>) : <tr><td colSpan="8" className="px-6 py-10 text-center text-sm text-gray-500">No refund requests match these filters.</td></tr>}</tbody></table></div><div className="border-t border-gray-200 px-6 py-4"><Pagination currentPage={currentPage} totalPages={totalPages} setCurrentPage={setCurrentPage} itemsPerPage={ITEMS_PER_PAGE} totalItems={filtered.length} itemName="refund requests" /></div></div>
-        {selectedRefund && <aside className="w-full shrink-0 rounded-xl border border-gray-200 bg-white p-5 shadow-sm xl:w-[360px]"><div className="flex items-start justify-between gap-3"><div><h2 className="text-base font-bold text-gray-900">Refund Details</h2><p className="mt-1 text-sm text-gray-500">{selectedRefund.id}</p></div><button onClick={() => setSelectedRefund(null)} className="text-gray-400 hover:text-gray-700"><X size={18} /></button></div><div className="mt-5 space-y-4 border-y border-gray-100 py-4 text-sm"><div><p className="text-xs text-gray-500">Customer</p><p className="font-bold text-gray-900">{selectedRefund.customer}</p><p className="text-gray-600">{selectedRefund.email}</p></div><div><p className="text-xs text-gray-500">Order and amount</p><p className="font-semibold text-gray-900">{selectedRefund.orderId} · {formatAmount(selectedRefund)}</p></div><div><p className="text-xs text-gray-500">Customer reason</p><p className="font-semibold text-gray-900">{selectedRefund.customerNotes || selectedRefund.reason}</p></div><div><p className="text-xs text-gray-500">Decision status</p><div className="mt-1"><StatusBadge status={selectedRefund.status} /></div></div></div><button onClick={() => setViewingProfileFor({ username: selectedRefund.customer, email: selectedRefund.email, phone: selectedRefund.phone })} className="mt-4 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50">View Customer</button>{selectedRefund.email && <a href={`mailto:${selectedRefund.email}?subject=${encodeURIComponent(`Refund request ${selectedRefund.id}`)}`} className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50"><Mail size={15} /> Email Customer</a>}{selectedRefund.status === 'Pending' && <div className="mt-4 grid grid-cols-2 gap-2"><button disabled={actionId === selectedRefund.id} onClick={() => void reviewRefund(selectedRefund, 'rejected')} className="rounded-lg border border-red-300 px-3 py-2 text-sm font-bold text-red-700 hover:bg-red-50 disabled:opacity-50">Reject</button><button disabled={actionId === selectedRefund.id} onClick={() => void reviewRefund(selectedRefund, 'approved')} className="flex items-center justify-center gap-2 rounded-lg bg-[#1F3A34] px-3 py-2 text-sm font-bold text-white hover:bg-[#2E5E58] disabled:opacity-50"><Check size={16} />{actionId === selectedRefund.id ? 'Saving...' : 'Approve'}</button></div>}</aside>}
+        {selectedRefund && <aside className="w-full shrink-0 rounded-xl border border-gray-200 bg-white p-5 shadow-sm xl:w-[360px]"><div className="flex items-start justify-between gap-3"><div><h2 className="text-base font-bold text-gray-900">Refund Details</h2><p className="mt-1 text-sm text-gray-500">{selectedRefund.id}</p></div><button onClick={() => setSelectedRefund(null)} className="text-gray-400 hover:text-gray-700"><X size={18} /></button></div><div className="mt-5 space-y-4 border-y border-gray-100 py-4 text-sm"><div><p className="text-xs text-gray-500">Customer</p><p className="font-bold text-gray-900">{selectedRefund.customer}</p><p className="text-gray-600">{selectedRefund.email}</p></div><div><p className="text-xs text-gray-500">Order and amount</p><p className="font-semibold text-gray-900">{selectedRefund.orderId} · {formatAmount(selectedRefund)}</p></div><div><p className="text-xs text-gray-500">Customer reason</p><p className="font-semibold text-gray-900">{selectedRefund.customerNotes || selectedRefund.reason}</p></div><div><p className="text-xs text-gray-500">Decision status</p><div className="mt-1"><StatusBadge status={selectedRefund.status} /></div></div></div><button onClick={() => setViewingProfileFor({ username: selectedRefund.customer, email: selectedRefund.email, phone: selectedRefund.phone })} className="mt-4 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50">View Customer</button>{selectedRefund.email && <a href={`mailto:${selectedRefund.email}?subject=${encodeURIComponent(`Refund request ${selectedRefund.id}`)}`} className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50"><Mail size={15} /> Email Customer</a>}{selectedRefund.status === 'Pending' && canReviewRefunds && <div className="mt-4 grid grid-cols-2 gap-2"><button disabled={actionId === selectedRefund.id} onClick={() => setPendingConfirmation({ type: 'review', refund: selectedRefund, decision: 'rejected' })} className="rounded-lg border border-red-300 px-3 py-2 text-sm font-bold text-red-700 hover:bg-red-50 disabled:opacity-50">Reject</button><button disabled={actionId === selectedRefund.id} onClick={() => setPendingConfirmation({ type: 'review', refund: selectedRefund, decision: 'approved' })} className="flex items-center justify-center gap-2 rounded-lg bg-[#1F3A34] px-3 py-2 text-sm font-bold text-white hover:bg-[#2E5E58] disabled:opacity-50"><Check size={16} />{actionId === selectedRefund.id ? 'Saving...' : 'Approve'}</button></div>}{selectedRefund.status === 'Pending' && !canReviewRefunds && <p className="mt-4 text-sm text-gray-500">A Super Admin must review this request.</p>}</aside>}
       </div>
-      {isCreateOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"><form onSubmit={createRefund} className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl"><div className="flex items-start justify-between gap-4"><div><h2 className="text-lg font-bold text-gray-900">Create refund request</h2><p className="mt-1 text-sm text-gray-500">Use this when support receives a request outside the app.</p></div><button type="button" onClick={() => setIsCreateOpen(false)} className="text-gray-400 hover:text-gray-700"><X size={20} /></button></div><label className="mt-5 block text-sm font-bold text-gray-700">Order reference<input required value={orderReference} onChange={(event) => setOrderReference(event.target.value)} placeholder="C2-260904-JUQTQL" className="mt-1.5 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal" /></label><label className="mt-4 block text-sm font-bold text-gray-700">Reason<textarea required minLength="10" maxLength="500" value={refundReason} onChange={(event) => setRefundReason(event.target.value)} placeholder="Reason provided by the customer" className="mt-1.5 min-h-28 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal" /></label><div className="mt-6 flex justify-end gap-3"><button type="button" onClick={() => setIsCreateOpen(false)} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-bold text-gray-700">Cancel</button><button disabled={isCreating} type="submit" className="rounded-lg bg-[#1F3A34] px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{isCreating ? 'Creating...' : 'Create request'}</button></div></form></div>}
+      {isCreateOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"><form onSubmit={(event) => { event.preventDefault(); setPendingConfirmation({ type: 'create' }); }} className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl"><div className="flex items-start justify-between gap-4"><div><h2 className="text-lg font-bold text-gray-900">Create refund request</h2><p className="mt-1 text-sm text-gray-500">Use this when support receives a request outside the app.</p></div><button type="button" onClick={() => setIsCreateOpen(false)} className="text-gray-400 hover:text-gray-700"><X size={20} /></button></div><label className="mt-5 block text-sm font-bold text-gray-700">Order reference<input required value={orderReference} onChange={(event) => setOrderReference(event.target.value)} placeholder="C2-260904-JUQTQL" className="mt-1.5 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal" /></label><label className="mt-4 block text-sm font-bold text-gray-700">Reason<textarea required minLength="10" maxLength="500" value={refundReason} onChange={(event) => setRefundReason(event.target.value)} placeholder="Reason provided by the customer" className="mt-1.5 min-h-28 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal" /></label><div className="mt-6 flex justify-end gap-3"><button type="button" onClick={() => setIsCreateOpen(false)} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-bold text-gray-700">Cancel</button><button disabled={isCreating} type="submit" className="rounded-lg bg-[#1F3A34] px-4 py-2 text-sm font-bold text-white disabled:opacity-50">Create request</button></div></form></div>}
+      {pendingConfirmation && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"><form onSubmit={confirmAction} className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl"><h2 className="text-lg font-bold text-gray-900">{pendingConfirmation.type === 'create' ? 'Create refund request?' : `${pendingConfirmation.decision === 'approved' ? 'Approve' : 'Reject'} refund?`}</h2><p className="mt-2 text-sm text-gray-600">Confirm this action with your current administrator password. This decision is recorded in the refund history.</p><label className="mt-5 block text-sm font-bold text-gray-700">Current password<input autoFocus required type="password" value={confirmationPassword} onChange={(event) => setConfirmationPassword(event.target.value)} className="mt-1.5 w-full rounded-lg border border-gray-300 px-3 py-2 font-normal" /></label><div className="mt-6 flex justify-end gap-3"><button type="button" onClick={() => { setPendingConfirmation(null); setConfirmationPassword(''); }} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-bold text-gray-700">Go back</button><button type="submit" className="rounded-lg bg-[#1F3A34] px-4 py-2 text-sm font-bold text-white">Confirm</button></div></form></div>}
     </div>
   );
 };

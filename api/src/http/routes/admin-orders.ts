@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import crypto from 'node:crypto';
 import { authenticateAdminRequest } from '../../admin/guard.js';
+import { requireAdminActionConfirmation } from '../../admin/action-confirmation.js';
 import { mysqlPool } from '../../db/mysql.js';
 import { processOrderLoyalty } from '../../services/loyalty.js';
 import { awardReferralForCollectedOrder } from '../../services/referrals.js';
@@ -40,10 +41,16 @@ function requireOrderAccess(request: { adminAuth?: { roles?: string[] } }): void
   }
 }
 
-function requireRefundReviewAccess(request: { adminAuth?: { roles?: string[] } }): void {
+function requireRefundRequestAccess(request: { adminAuth?: { roles?: string[] } }): void {
   const roles = request.adminAuth?.roles ?? [];
-  if (!roles.some((role) => ['super_admin', 'operations_admin'].includes(role))) {
-    throw new ApiError(403, 'admin_forbidden', 'You do not have permission to review refunds.');
+  if (!roles.some((role) => ['super_admin', 'operations_admin', 'support_admin'].includes(role))) {
+    throw new ApiError(403, 'admin_forbidden', 'You do not have permission to manage refund requests.');
+  }
+}
+
+function requireRefundApprovalAccess(request: { adminAuth?: { roles?: string[] } }): void {
+  if (!(request.adminAuth?.roles ?? []).includes('super_admin')) {
+    throw new ApiError(403, 'admin_forbidden', 'Only a Super Admin can approve or reject refunds.');
   }
 }
 
@@ -56,7 +63,8 @@ function requireFinanceAccess(request: { adminAuth?: { roles?: string[] } }): vo
 
 const createRefundSchema = z.object({
   order_id: z.string().trim().min(1).max(80),
-  reason: z.string().trim().min(10).max(500)
+  reason: z.string().trim().min(10).max(500),
+  confirmation_password: z.string().trim().min(8).max(200)
 });
 
 const adminListQuerySchema = z.object({
@@ -65,13 +73,14 @@ const adminListQuerySchema = z.object({
 
 export async function registerAdminOrdersRoutes(app: FastifyInstance) {
   app.post('/v1/admin/refunds', { preHandler: authenticateAdminRequest }, async (request, reply) => {
-    requireRefundReviewAccess(request);
+    requireRefundRequestAccess(request);
     const payload = createRefundSchema.parse(request.body);
     const connection = await mysqlPool.getConnection();
     let committed = false;
 
     try {
       await connection.beginTransaction();
+      await requireAdminActionConfirmation(connection, request.adminAuth.adminUserId, payload.confirmation_password);
       const [orders] = await connection.execute<Array<RowDataPacket & {
         id: number;
         order_ref: string;
@@ -566,7 +575,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
   });
 
   app.get('/v1/admin/refunds', { preHandler: authenticateAdminRequest }, async (request, reply) => {
-    requireRefundReviewAccess(request);
+    requireRefundRequestAccess(request);
     const { limit } = adminListQuerySchema.parse(request.query);
     const connection = await mysqlPool.getConnection();
     try {
@@ -644,17 +653,19 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
   });
 
   app.patch('/v1/admin/refunds/:refundRef/review', { preHandler: authenticateAdminRequest }, async (request, reply) => {
-    requireRefundReviewAccess(request);
+    requireRefundApprovalAccess(request);
 
     const { refundRef } = request.params as { refundRef: string };
-    const { decision } = z.object({
-      decision: z.enum(['approved', 'rejected'])
+    const { decision, confirmation_password: confirmationPassword } = z.object({
+      decision: z.enum(['approved', 'rejected']),
+      confirmation_password: z.string().trim().min(8).max(200)
     }).parse(request.body);
 
     const connection = await mysqlPool.getConnection();
     let committed = false;
     try {
       await connection.beginTransaction();
+      await requireAdminActionConfirmation(connection, request.adminAuth.adminUserId, confirmationPassword);
       const [rows] = await connection.execute<Array<RowDataPacket & {
         id: number;
         status: string;
@@ -664,9 +675,10 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
         user_id: number;
         order_status: string;
         order_ref: string;
+        created_by_admin_id: number | null;
       }>>(
         `
-          SELECT r.id, r.status, r.order_id, r.payment_mode, r.refund_token_amount,
+          SELECT r.id, r.status, r.order_id, r.payment_mode, r.refund_token_amount, r.created_by_admin_id,
                  o.user_id, o.status AS order_status, o.order_ref
           FROM refunds r
           JOIN orders o ON o.id = r.order_id
@@ -685,6 +697,9 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
       }
       if (refund.status !== 'pending') {
         throw new ApiError(409, 'refund_already_reviewed', 'This refund request has already been reviewed.');
+      }
+      if (refund.created_by_admin_id === request.adminAuth.adminUserId) {
+        throw new ApiError(403, 'refund_self_approval_forbidden', 'The admin who requested this refund cannot review it.');
       }
 
       if (decision === 'approved' && refund.payment_mode === 'token') {

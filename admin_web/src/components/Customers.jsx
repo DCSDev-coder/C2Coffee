@@ -462,12 +462,9 @@ const Customers = ({ currentUser }) => {
                 ) : paginatedData.length > 0 ? paginatedData.map((customer) => (
                   <tr key={customer.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-3.5 whitespace-nowrap">
-                      <div className="flex items-center space-x-3">
-                        <div className="h-10 w-10 rounded-full bg-[#2E5E58] flex-shrink-0 shadow-sm"></div>
-                        <div>
-                          <div className="text-sm font-bold text-gray-900">{customer.username}</div>
-                          <div className="text-xs text-gray-500">{customer.email}</div>
-                        </div>
+                      <div>
+                        <div className="text-sm font-bold text-gray-900">{customer.username}</div>
+                        <div className="text-xs text-gray-500">{customer.email}</div>
                       </div>
                     </td>
                     <td className="px-6 py-3 whitespace-nowrap">
@@ -573,9 +570,7 @@ const Customers = ({ currentUser }) => {
               </button>
             </div>
 
-            <div className="flex items-center space-x-4 mb-8">
-              <div className="h-20 w-20 rounded-full bg-[#2E5E58] flex-shrink-0 shadow-sm">
-              </div>
+            <div className="mb-8">
               <div>
                 <div className="flex items-center space-x-2">
                   <h3 className="text-lg font-bold text-gray-900">{selectedCustomer.username}</h3>

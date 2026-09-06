@@ -149,8 +149,8 @@ function buildHomeBannerSelectClause(columns: Set<string>): string {
 }
 
 function buildHomeBannerInsertParts(columns: Set<string>): { columns: string[]; values: string[] } {
-  const insertColumns = ['code', 'title', 'subtitle', 'image_source'];
-  const insertValues = [':code', ':title', ':subtitle', ':imageSource'];
+  const insertColumns = ['tenant_id', 'code', 'title', 'subtitle', 'image_source'];
+  const insertValues = [':tenantId', ':code', ':title', ':subtitle', ':imageSource'];
 
   if (supportsHomeBannerTargeting(columns)) {
     insertColumns.push(
@@ -208,12 +208,14 @@ function buildHomeBannerUpdateFields(columns: Set<string>): string[] {
   return fields;
 }
 
-async function getNextHomeBannerSortOrder(): Promise<number> {
+async function getNextHomeBannerSortOrder(tenantId: number): Promise<number> {
   const [rows] = await mysqlPool.query<Array<RowDataPacket & { max_sort_order: number | null }>>(
     `
       SELECT COALESCE(MAX(sort_order), 0) + 10 AS max_sort_order
       FROM home_banners
+      WHERE tenant_id = :tenantId
     `
+    , { tenantId }
   );
 
   return Number(rows[0]?.max_sort_order ?? 10) || 10;
@@ -362,10 +364,12 @@ export async function registerAdminMarketingRoutes(app: FastifyInstance): Promis
           SET is_active = 0,
               updated_at = UTC_TIMESTAMP()
           WHERE banner_type = 'event'
+            AND tenant_id = :tenantId
             AND is_active = 1
             AND ends_at IS NOT NULL
             AND ends_at <= UTC_TIMESTAMP()
-        `
+        `,
+        { tenantId: request.adminAuth.tenantId }
       );
     }
 
@@ -392,8 +396,10 @@ export async function registerAdminMarketingRoutes(app: FastifyInstance): Promis
           ${selectClause}
         FROM home_banners hb
         ${joinClause}
+        WHERE hb.tenant_id = :tenantId
         ORDER BY hb.floating_priority DESC, hb.sort_order ASC, hb.id ASC
-      `
+      `,
+      { tenantId: request.adminAuth.tenantId }
     );
 
     const banners = rows.map((row) => ({
@@ -487,7 +493,7 @@ export async function registerAdminMarketingRoutes(app: FastifyInstance): Promis
     }
 
     const code = buildBannerCode(payload.title);
-    const sortOrder = normalized.sortOrder ?? await getNextHomeBannerSortOrder();
+    const sortOrder = normalized.sortOrder ?? await getNextHomeBannerSortOrder(request.adminAuth.tenantId);
 
     const insertParts = buildHomeBannerInsertParts(columns);
     const [result] = await mysqlPool.execute<ResultSetHeader>(
@@ -501,6 +507,7 @@ export async function registerAdminMarketingRoutes(app: FastifyInstance): Promis
       `,
       {
         code,
+        tenantId: request.adminAuth.tenantId,
         title: payload.title,
         subtitle: payload.subtitle,
         imageSource: payload.imageSource,
@@ -523,10 +530,10 @@ export async function registerAdminMarketingRoutes(app: FastifyInstance): Promis
           ${selectClause}
         FROM home_banners hb
         ${joinClause}
-        WHERE hb.id = :id
+        WHERE hb.id = :id AND hb.tenant_id = :tenantId
         LIMIT 1
       `,
-      { id: result.insertId }
+      { id: result.insertId, tenantId: request.adminAuth.tenantId }
     );
 
     const created = rows[0];
@@ -585,17 +592,17 @@ export async function registerAdminMarketingRoutes(app: FastifyInstance): Promis
       `
         SELECT id, banner_type
         FROM home_banners
-        WHERE id = :bannerId
+        WHERE id = :bannerId AND tenant_id = :tenantId
         LIMIT 1
       `,
-      { bannerId }
+      { bannerId, tenantId: request.adminAuth.tenantId }
     );
     if (!existingRows[0]) {
       throw new ApiError(404, 'banner_not_found', 'Poster was not found.');
     }
 
     const updateFields: string[] = [];
-    const params: Record<string, unknown> = { bannerId };
+    const params: Record<string, unknown> = { bannerId, tenantId: request.adminAuth.tenantId };
 
     if (payload.title !== undefined) {
       updateFields.push('title = :title');
@@ -674,7 +681,7 @@ export async function registerAdminMarketingRoutes(app: FastifyInstance): Promis
       `
         UPDATE home_banners
         SET ${updateFields.join(', ')}
-        WHERE id = :bannerId
+        WHERE id = :bannerId AND tenant_id = :tenantId
       `,
       params as any
     );
@@ -689,9 +696,9 @@ export async function registerAdminMarketingRoutes(app: FastifyInstance): Promis
     const [result] = await mysqlPool.execute<ResultSetHeader>(
       `
         DELETE FROM home_banners
-        WHERE id = :bannerId
+        WHERE id = :bannerId AND tenant_id = :tenantId
       `,
-      { bannerId }
+      { bannerId, tenantId: request.adminAuth.tenantId }
     );
 
     if (result.affectedRows === 0) {

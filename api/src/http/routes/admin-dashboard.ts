@@ -5,7 +5,18 @@ import { authenticateAdminRequest, requireAnyAdminRole } from '../../admin/guard
 import { mysqlPool } from '../../db/mysql.js';
 
 const dashboardQuerySchema = z.object({
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  period: z.enum(['today', 'this_month', 'last_month', '3m', '6m', '1y', 'custom']).optional().default('this_month')
+}).superRefine((value, context) => {
+  if (value.start_date && value.end_date && value.start_date > value.end_date) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'start_date must be on or before end_date',
+      path: ['end_date']
+    });
+  }
 });
 
 const revenueStatuses = new Set(['paid', 'accepted', 'preparing', 'ready_for_pickup', 'collected']);
@@ -68,6 +79,39 @@ function businessDayBounds(dateKey: string, timeZone: string): { start: Date; en
   };
 }
 
+function shiftDateKey(dateKey: string, months: number): string {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  const targetMonthIndex = month - 1 + months;
+  const targetYear = year + Math.floor(targetMonthIndex / 12);
+  const targetMonth = ((targetMonthIndex % 12) + 12) % 12;
+  const lastDayOfTargetMonth = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate();
+  const targetDay = Math.min(day, lastDayOfTargetMonth);
+  return new Date(Date.UTC(targetYear, targetMonth, targetDay)).toISOString().slice(0, 10);
+}
+
+function nextDateKey(dateKey: string): string {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day + 1)).toISOString().slice(0, 10);
+}
+
+function startOfMonthDateKey(dateKey: string): string {
+  return `${dateKey.slice(0, 7)}-01`;
+}
+
+function previousDateKey(dateKey: string): string {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day - 1)).toISOString().slice(0, 10);
+}
+
+function formatTrendDateKey(dateKey: string, timeZone: string, includeYear: boolean): string {
+  return new Intl.DateTimeFormat('en-MY', {
+    timeZone,
+    month: 'short',
+    day: 'numeric',
+    ...(includeYear ? { year: 'numeric' } : {})
+  }).format(new Date(`${dateKey}T12:00:00.000Z`));
+}
+
 function toMysqlDateTime(date: Date): string {
   return date.toISOString().slice(0, 19).replace('T', ' ');
 }
@@ -102,7 +146,7 @@ function getSafeTimeZone(value: string | null | undefined): string {
 export async function registerAdminDashboardRoutes(app: FastifyInstance): Promise<void> {
   app.get('/v1/admin/dashboard', { preHandler: authenticateAdminRequest }, async (request) => {
     requireAnyAdminRole(request, ['super_admin', 'operations_admin', 'marketing_admin', 'support_admin']);
-    const { date } = dashboardQuerySchema.parse(request.query);
+    const { date, start_date: startDate, end_date: endDate, period } = dashboardQuerySchema.parse(request.query);
     const tenantCode = request.adminAuth.tenantCode;
 
     const [storeRows] = await mysqlPool.query<Array<RowDataPacket & { timezone: string | null }>>(
@@ -116,15 +160,23 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance): Promis
     );
 
     const timeZone = getSafeTimeZone(storeRows[0]?.timezone);
-    const businessDate = date || formatDateInTimeZone(new Date(), timeZone);
-    const { start, end } = businessDayBounds(businessDate, timeZone);
+    const businessDate = endDate || startDate || date || formatDateInTimeZone(new Date(), timeZone);
+    const currentMonthStart = startOfMonthDateKey(businessDate);
+    const periodMonths = period === '3m' ? 3 : period === '6m' ? 6 : period === '1y' ? 12 : 0;
+    const rangeStartDate = startDate
+      || (period === 'last_month' ? shiftDateKey(currentMonthStart, -1) : period === 'this_month' ? currentMonthStart : period === 'today' ? businessDate : shiftDateKey(businessDate, -periodMonths));
+    const rangeEndDate = endDate || startDate || (period === 'last_month' ? previousDateKey(currentMonthStart) : businessDate);
+    const { start } = businessDayBounds(rangeStartDate, timeZone);
+    const { end } = businessDayBounds(rangeEndDate, timeZone);
+    const isSingleDay = rangeStartDate === rangeEndDate;
+    const trendIncludesYear = rangeStartDate.slice(0, 4) !== rangeEndDate.slice(0, 4);
     const queryParams = {
       tenantCode,
       start: toMysqlDateTime(start),
       end: toMysqlDateTime(end)
     };
 
-    const [dayOrders] = await mysqlPool.query<DashboardOrderRow[]>(
+    const [rangeOrders] = await mysqlPool.query<DashboardOrderRow[]>(
       `
         SELECT
           o.id,
@@ -157,8 +209,10 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance): Promis
         JOIN admin_tenants t ON t.id = s.tenant_id
         WHERE t.code = :tenantCode
           AND o.status IN ('paid', 'accepted', 'preparing', 'ready_for_pickup', 'collected')
+          AND o.created_at >= :start
+          AND o.created_at < :end
       `,
-      { tenantCode }
+      queryParams
     );
 
     const [refundRows] = await mysqlPool.query<Array<RowDataPacket & { pending_refunds: number }>>(
@@ -170,8 +224,10 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance): Promis
         JOIN admin_tenants t ON t.id = s.tenant_id
         WHERE t.code = :tenantCode
           AND r.status = 'pending'
+          AND r.created_at >= :start
+          AND r.created_at < :end
       `,
-      { tenantCode }
+      queryParams
     );
 
     const [activityRows] = await mysqlPool.query<Array<RowDataPacket & {
@@ -235,21 +291,44 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance): Promis
     let ordersToday = 0;
     let awaitingPreparation = 0;
     let preparing = 0;
+    const daily = new Map<string, { label: string; revenue: number; orders: number }>();
+    if (!isSingleDay) {
+      for (let dateKey = rangeStartDate; dateKey <= rangeEndDate; dateKey = nextDateKey(dateKey)) {
+        daily.set(dateKey, {
+          label: formatTrendDateKey(dateKey, timeZone, trendIncludesYear),
+          revenue: 0,
+          orders: 0
+        });
+      }
+    }
 
-    for (const order of dayOrders) {
+    for (const order of rangeOrders) {
       const status = String(order.status || '').toLowerCase();
       const isRevenueOrder = revenueStatuses.has(status);
       if (isRevenueOrder) {
         salesToday += Number(order.final_total_rm || 0);
         ordersToday += 1;
-        const localHour = Number(new Intl.DateTimeFormat('en-US', {
-          timeZone,
-          hour: '2-digit',
-          hourCycle: 'h23'
-        }).format(new Date(order.created_at)));
-        const bucket = hourly[Math.min(Math.floor(localHour / 2), hourly.length - 1)];
-        bucket.revenue += Number(order.final_total_rm || 0);
-        bucket.orders += 1;
+        if (isSingleDay) {
+          const localHour = Number(new Intl.DateTimeFormat('en-US', {
+            timeZone,
+            hour: '2-digit',
+            hourCycle: 'h23'
+          }).format(new Date(order.created_at)));
+          const bucket = hourly[Math.min(Math.floor(localHour / 2), hourly.length - 1)];
+          bucket.revenue += Number(order.final_total_rm || 0);
+          bucket.orders += 1;
+        } else {
+          const orderDate = new Date(order.created_at);
+          const key = formatDateInTimeZone(orderDate, timeZone);
+          const bucket = daily.get(key) ?? {
+            label: formatTrendDateKey(key, timeZone, trendIncludesYear),
+            revenue: 0,
+            orders: 0
+          };
+          bucket.revenue += Number(order.final_total_rm || 0);
+          bucket.orders += 1;
+          daily.set(key, bucket);
+        }
       }
       if (status === 'paid' || status === 'accepted') awaitingPreparation += 1;
       if (status === 'preparing') preparing += 1;
@@ -257,6 +336,10 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance): Promis
 
     return {
       businessDate,
+      period,
+      rangeStartDate,
+      rangeEndDate,
+      isSingleDay,
       timeZone,
       generatedAt: new Date().toISOString(),
       summary: {
@@ -267,12 +350,14 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance): Promis
         customersServed: Number(customerRows[0]?.customer_count || 0),
         pendingRefunds: Number(refundRows[0]?.pending_refunds || 0)
       },
-      trends: hourly.map((bucket) => ({
+      trends: (isSingleDay ? hourly : Array.from(daily.entries())
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([, bucket]) => bucket)).map((bucket) => ({
         time: bucket.label,
         revenue: Number(bucket.revenue.toFixed(2)),
         orders: bucket.orders
       })),
-      recentOrders: dayOrders.slice(0, 5).map((order) => ({
+      recentOrders: rangeOrders.slice(0, 5).map((order) => ({
         id: order.order_ref,
         customer: order.customer_name || 'Customer',
         city: order.city || '-',

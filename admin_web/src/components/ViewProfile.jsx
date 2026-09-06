@@ -25,9 +25,6 @@ const ViewProfile = ({ customer, onBack }) => {
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 flex-1">
         <div className="col-span-1 bg-white border border-gray-200 rounded-2xl p-6 flex flex-col items-center shadow-sm h-fit">
-          <div className="w-24 h-24 bg-[#2E5E58] rounded-full text-white flex items-center justify-center text-3xl font-bold mb-4 shadow-md">
-            {customer.username.charAt(0).toUpperCase()}
-          </div>
           <h2 className="text-xl font-bold text-gray-900">{customer.username}</h2>
           <p className="text-sm text-gray-500 mb-6">{customer.email}</p>
           <div className="w-full bg-gray-50 rounded-xl p-4 border border-gray-100">

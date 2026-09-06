@@ -1,24 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useState } from 'react';
 import Layout from './components/Layout';
 import Login from './components/Login';
-import DashboardHome from './components/DashboardHome';
-import Customers from './components/Customers';
-import Orders from './components/Orders';
-import Profile from './components/Profile';
-import Vouchers from './components/Vouchers';
-import LoyaltyTokens from './components/LoyaltyTokens';
-import Menu from './components/Menu';
-import Marketing from './components/Marketing';
-import Finance from './components/Finance';
-import RevenueReport from './components/RevenueReport';
-import AllTransactions from './components/AllTransactions';
-import ExpenseBreakdownFull from './components/ExpenseBreakdownFull';
-import AdminManagement from './components/AdminManagement';
-import BaristaManagement from './components/BaristaManagement';
-import TierManagement from './components/TierManagement';
-import ReportByProduct from './components/ReportByProduct';
-import AuditLogs from './components/AuditLogs';
-import Settings from './components/Settings';
 import {
   adminRequest,
   clearAdminTokens,
@@ -26,6 +8,25 @@ import {
   saveAdminTokens
 } from './lib/adminApi';
 import { canAccessAdminPage, firstAccessibleAdminPage } from './lib/adminPermissions';
+
+const DashboardHome = lazy(() => import('./components/DashboardHome'));
+const Customers = lazy(() => import('./components/Customers'));
+const Orders = lazy(() => import('./components/Orders'));
+const Profile = lazy(() => import('./components/Profile'));
+const Vouchers = lazy(() => import('./components/Vouchers'));
+const LoyaltyTokens = lazy(() => import('./components/LoyaltyTokens'));
+const Menu = lazy(() => import('./components/Menu'));
+const Marketing = lazy(() => import('./components/Marketing'));
+const Finance = lazy(() => import('./components/Finance'));
+const RevenueReport = lazy(() => import('./components/RevenueReport'));
+const AllTransactions = lazy(() => import('./components/AllTransactions'));
+const ExpenseBreakdownFull = lazy(() => import('./components/ExpenseBreakdownFull'));
+const AdminManagement = lazy(() => import('./components/AdminManagement'));
+const BaristaManagement = lazy(() => import('./components/BaristaManagement'));
+const TierManagement = lazy(() => import('./components/TierManagement'));
+const ReportByProduct = lazy(() => import('./components/ReportByProduct'));
+const AuditLogs = lazy(() => import('./components/AuditLogs'));
+const Settings = lazy(() => import('./components/Settings'));
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -168,13 +169,14 @@ function App() {
       onLogout={handleLogout}
       currentTenant={currentTenant}
       currentUser={currentUser}
-    >
+    ><Suspense fallback={<div className="flex min-h-[320px] items-center justify-center text-sm font-semibold text-[#2E5E58]">Loading page...</div>}>
       {currentPage === 'Dashboard' && <DashboardHome setCurrentPage={handleNavigate} />}
       {currentPage === 'Customers' && <Customers currentUser={currentUser} />}
-      {currentPage === 'Orders' && <Orders initialShowRefunds={false} />}
+      {currentPage === 'Orders' && <Orders initialShowRefunds={false} currentUser={currentUser} />}
       {currentPage === 'Refunds' && (
         <Orders
           initialShowRefunds={true}
+          currentUser={currentUser}
           onBackToOrders={() => handleNavigate('Orders')}
         />
       )}
@@ -193,6 +195,7 @@ function App() {
       {currentPage === 'Barista Management' && <BaristaManagement />}
       {currentPage === 'Audit Logs' && <AuditLogs onNavigate={handleNavigate} currentUser={currentUser} />}
       {currentPage === 'Settings' && <Settings setCurrentPage={handleNavigate} currentUser={currentUser} />}
+    </Suspense>
     </Layout>
   );
 }
