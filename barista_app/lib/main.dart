@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'screens/main_layout.dart';
 import 'widgets/order_card.dart';
@@ -22,7 +23,13 @@ final ValueNotifier<List<CurrentOrder>> globalHistoryOrders =
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
+  if (!kIsWeb) {
+    try {
+      await Firebase.initializeApp();
+    } catch (e) {
+      debugPrint('Firebase initialization failed: $e');
+    }
+  }
   await ApiService.restoreSession();
   runApp(const BaristaApp());
 }
