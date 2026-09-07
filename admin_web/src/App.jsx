@@ -27,6 +27,7 @@ const TierManagement = lazy(() => import('./components/TierManagement'));
 const ReportByProduct = lazy(() => import('./components/ReportByProduct'));
 const AuditLogs = lazy(() => import('./components/AuditLogs'));
 const Settings = lazy(() => import('./components/Settings'));
+const Operations = lazy(() => import('./components/Operations'));
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -193,6 +194,7 @@ function App() {
       {currentPage === 'Product Report' && <ReportByProduct onBack={() => handleNavigate('Finance')} />}
       {currentPage === 'Admin Management' && <AdminManagement currentUser={currentUser} />}
       {currentPage === 'Barista Management' && <BaristaManagement />}
+      {currentPage === 'Operations' && <Operations />}
       {currentPage === 'Audit Logs' && <AuditLogs onNavigate={handleNavigate} currentUser={currentUser} />}
       {currentPage === 'Settings' && <Settings setCurrentPage={handleNavigate} currentUser={currentUser} />}
     </Suspense>

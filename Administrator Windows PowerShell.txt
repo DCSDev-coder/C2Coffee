@@ -1,6 +1,6 @@
 PS D:\C2Coffee\api> docker compose down
 [+] down 2/2
- ✔ Container c2coffee-api Removed                                                                        16.1s
+ ✔ Container c2coffee-api Removed                                                                        15.8s
  ✔ Network api_default    Removed                                                                         0.3s
 PS D:\C2Coffee\api> docker compose build --no-cache
 #1 [internal] load local bake definitions
@@ -9,154 +9,151 @@ PS D:\C2Coffee\api> docker compose build --no-cache
 
 #2 [internal] load build definition from Dockerfile
 #2 transferring dockerfile: 746B 0.0s done
-#2 DONE 0.0s
+#2 DONE 0.1s
 
 #3 [internal] load metadata for docker.io/library/node:22-alpine
-#3 DONE 1.2s
+#3 ...
 
-#4 [internal] load .dockerignore
-#4 transferring context: 146B 0.0s done
+#4 [auth] library/node:pull token for registry-1.docker.io
 #4 DONE 0.0s
 
-#5 [internal] load build context
+#3 [internal] load metadata for docker.io/library/node:22-alpine
+#3 DONE 2.1s
+
+#5 [internal] load .dockerignore
+#5 transferring context: 146B 0.0s done
 #5 DONE 0.0s
 
-#6 [deps 1/4] FROM docker.io/library/node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32
-#6 resolve docker.io/library/node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 0.1s done
+#6 [internal] load build context
+#6 DONE 0.0s
+
+#7 [deps 1/4] FROM docker.io/library/node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32
+#7 resolve docker.io/library/node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 0.1s done
+#7 DONE 0.1s
+
+#8 [deps 2/4] WORKDIR /app
+#8 CACHED
+
+#6 [internal] load build context
+#6 transferring context: 25.14kB 0.1s done
 #6 DONE 0.1s
 
-#7 [deps 2/4] WORKDIR /app
-#7 CACHED
+#9 [deps 3/4] COPY package.json package-lock.json* ./
+#9 DONE 0.1s
 
-#5 [internal] load build context
-#5 transferring context: 128.14kB 0.1s done
-#5 DONE 0.1s
-
-#8 [deps 3/4] COPY package.json package-lock.json* ./
-#8 DONE 0.1s
-
-#9 [deps 4/4] RUN npm ci
-#9 ...
-
-#10 [runtime 4/6] RUN npm ci --omit=dev && npm cache clean --force
+#10 [deps 4/4] RUN npm ci
 #10 ...
 
-#9 [deps 4/4] RUN npm ci
-#9 28.89
-#9 28.89 added 98 packages, and audited 99 packages in 27s
-#9 28.89
-#9 28.89 31 packages are looking for funding
-#9 28.89   run `npm fund` for details
-#9 28.95
-#9 28.95 3 vulnerabilities (1 moderate, 2 high)
-#9 28.95
-#9 28.95 To address issues that do not require attention, run:
-#9 28.95   npm audit fix
-#9 28.95
-#9 28.95 To address all issues (including breaking changes), run:
-#9 28.95   npm audit fix --force
-#9 28.95
-#9 28.95 Run `npm audit` for details.
-#9 28.97 npm notice
-#9 28.97 npm notice New major version of npm available! 10.9.8 -> 12.0.2
-#9 28.97 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
-#9 28.97 npm notice To update run: npm install -g npm@12.0.2
-#9 28.97 npm notice
-#9 DONE 29.6s
+#11 [runtime 4/6] RUN npm ci --omit=dev && npm cache clean --force
+#11 14.56
+#11 14.56 added 91 packages, and audited 92 packages in 13s
+#11 14.56
+#11 14.56 31 packages are looking for funding
+#11 14.56   run `npm fund` for details
+#11 14.60
+#11 14.60 3 vulnerabilities (1 moderate, 2 high)
+#11 14.60
+#11 14.60 To address issues that do not require attention, run:
+#11 14.60   npm audit fix
+#11 14.60
+#11 14.60 To address all issues (including breaking changes), run:
+#11 14.60   npm audit fix --force
+#11 14.60
+#11 14.60 Run `npm audit` for details.
+#11 14.61 npm notice
+#11 14.61 npm notice New major version of npm available! 10.9.8 -> 12.0.2
+#11 14.61 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
+#11 14.61 npm notice To update run: npm install -g npm@12.0.2
+#11 14.61 npm notice
+#11 15.34 npm warn using --force Recommended protections disabled.
+#11 ...
 
-#10 [runtime 4/6] RUN npm ci --omit=dev && npm cache clean --force
-#10 ...
+#10 [deps 4/4] RUN npm ci
+#10 15.97
+#10 15.97 added 98 packages, and audited 99 packages in 14s
+#10 15.97
+#10 15.97 31 packages are looking for funding
+#10 15.97   run `npm fund` for details
+#10 16.01
+#10 16.01 3 vulnerabilities (1 moderate, 2 high)
+#10 16.01
+#10 16.01 To address issues that do not require attention, run:
+#10 16.01   npm audit fix
+#10 16.01
+#10 16.01 To address all issues (including breaking changes), run:
+#10 16.01   npm audit fix --force
+#10 16.01
+#10 16.01 Run `npm audit` for details.
+#10 16.02 npm notice
+#10 16.02 npm notice New major version of npm available! 10.9.8 -> 12.0.2
+#10 16.02 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
+#10 16.02 npm notice To update run: npm install -g npm@12.0.2
+#10 16.02 npm notice
+#10 DONE 16.6s
 
-#11 [build 3/5] COPY --from=deps /app/node_modules ./node_modules
-#11 DONE 3.2s
+#11 [runtime 4/6] RUN npm ci --omit=dev && npm cache clean --force
+#11 DONE 16.6s
 
-#10 [runtime 4/6] RUN npm ci --omit=dev && npm cache clean --force
-#10 ...
+#12 [build 3/5] COPY --from=deps /app/node_modules ./node_modules
+#12 DONE 3.1s
 
-#12 [build 4/5] COPY . .
-#12 DONE 2.2s
+#13 [build 4/5] COPY . .
+#13 DONE 2.4s
 
-#10 [runtime 4/6] RUN npm ci --omit=dev && npm cache clean --force
-#10 ...
+#14 [build 5/5] RUN npm run build
+#14 3.240
+#14 3.240 > @c2coffee/api@0.1.0 build
+#14 3.240 > tsc -p tsconfig.json && node scripts/copy-sql.mjs
+#14 3.240
+#14 27.80 npm notice
+#14 27.80 npm notice New major version of npm available! 10.9.8 -> 12.0.2
+#14 27.80 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
+#14 27.80 npm notice To update run: npm install -g npm@12.0.2
+#14 27.80 npm notice
+#14 DONE 29.2s
 
-#13 [build 5/5] RUN npm run build
-#13 3.497
-#13 3.497 > @c2coffee/api@0.1.0 build
-#13 3.497 > tsc -p tsconfig.json && node scripts/copy-sql.mjs
-#13 3.497
-#13 26.25 npm notice
-#13 26.25 npm notice New major version of npm available! 10.9.8 -> 12.0.2
-#13 26.25 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
-#13 26.25 npm notice To update run: npm install -g npm@12.0.2
-#13 26.25 npm notice
-#13 DONE 27.8s
+#15 [runtime 5/6] COPY --from=build /app/dist ./dist
+#15 DONE 0.9s
 
-#10 [runtime 4/6] RUN npm ci --omit=dev && npm cache clean --force
-#10 262.7
-#10 262.7 added 91 packages, and audited 92 packages in 4m
-#10 262.7
-#10 262.7 31 packages are looking for funding
-#10 262.7   run `npm fund` for details
-#10 262.8
-#10 262.8 3 vulnerabilities (1 moderate, 2 high)
-#10 262.8
-#10 262.8 To address issues that do not require attention, run:
-#10 262.8   npm audit fix
-#10 262.8
-#10 262.8 To address all issues (including breaking changes), run:
-#10 262.8   npm audit fix --force
-#10 262.8
-#10 262.8 Run `npm audit` for details.
-#10 262.8 npm notice
-#10 262.8 npm notice New major version of npm available! 10.9.8 -> 12.0.2
-#10 262.8 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
-#10 262.8 npm notice To update run: npm install -g npm@12.0.2
-#10 262.8 npm notice
-#10 263.7 npm warn using --force Recommended protections disabled.
-#10 DONE 264.9s
+#16 [runtime 6/6] RUN chown -R node:node /app
+#16 DONE 14.5s
 
-#14 [runtime 5/6] COPY --from=build /app/dist ./dist
-#14 DONE 0.7s
+#17 exporting to image
+#17 exporting layers
+#17 exporting layers 28.3s done
+#17 exporting manifest sha256:c8ffbab17937ccb5e0c61dedefac12e0fa491451d44eb6acaf1f2b9fe690b205 0.1s done
+#17 exporting config sha256:68cc5a65c198e0c59dc7b0f8870ce8eb400afa758919dad94b718efc4fe60037
+#17 exporting config sha256:68cc5a65c198e0c59dc7b0f8870ce8eb400afa758919dad94b718efc4fe60037 0.0s done
+#17 exporting attestation manifest sha256:68ea9eba8c0205e63d2a18ce9deacdc9907f6f298d7ff04e47f4ad1369a87c99
+#17 exporting attestation manifest sha256:68ea9eba8c0205e63d2a18ce9deacdc9907f6f298d7ff04e47f4ad1369a87c99 0.3s done
+#17 exporting manifest list sha256:513282865de31986ef0145f2e1a8154e6feed1fe12836cd5529eaef2738e1b06
+#17 exporting manifest list sha256:513282865de31986ef0145f2e1a8154e6feed1fe12836cd5529eaef2738e1b06 0.2s done
+#17 naming to docker.io/library/api-c2-api:latest
+#17 naming to docker.io/library/api-c2-api:latest done
+#17 unpacking to docker.io/library/api-c2-api:latest
+#17 unpacking to docker.io/library/api-c2-api:latest 18.0s done
+#17 DONE 47.1s
 
-#15 [runtime 6/6] RUN chown -R node:node /app
-#15 DONE 14.4s
-
-#16 exporting to image
-#16 exporting layers
-#16 exporting layers 28.7s done
-#16 exporting manifest sha256:0254786582e46980466634cb61ffd3c9dc5619213f2f2416d15c40c0c2e3d116
-#16 exporting manifest sha256:0254786582e46980466634cb61ffd3c9dc5619213f2f2416d15c40c0c2e3d116 0.3s done
-#16 exporting config sha256:a5e4de45cdf7efe7ca22be5bbdc88a20b18c412ac7d3140e5bfad07d6522a4a2
-#16 exporting config sha256:a5e4de45cdf7efe7ca22be5bbdc88a20b18c412ac7d3140e5bfad07d6522a4a2 0.1s done
-#16 exporting attestation manifest sha256:4bec1f3917e1fa0b04aacacaaf8fd7e879044f6bb7f1b061854ff91aff7b7930
-#16 exporting attestation manifest sha256:4bec1f3917e1fa0b04aacacaaf8fd7e879044f6bb7f1b061854ff91aff7b7930 0.2s done
-#16 exporting manifest list sha256:b2aefb36a63ccbcee28e3bd0a99e680a218d3a59d5ec02ebfc81511ec44e78ec 0.1s done
-#16 naming to docker.io/library/api-c2-api:latest
-#16 naming to docker.io/library/api-c2-api:latest done
-#16 unpacking to docker.io/library/api-c2-api:latest
-#16 unpacking to docker.io/library/api-c2-api:latest 18.2s done
-#16 DONE 47.7s
-
-#17 resolving provenance for metadata file
-#17 DONE 0.1s
+#18 resolving provenance for metadata file
+#18 DONE 0.1s
 [+] build 1/1
- ✔ Image api-c2-api Built                                                                               330.8s
+ ✔ Image api-c2-api Built                                                                               125.9s
 PS D:\C2Coffee\api> docker compose up -d
 [+] up 2/2
  ✔ Network api_default    Created                                                                         0.2s
- ✔ Container c2coffee-api Started                                                                         4.7s
+ ✔ Container c2coffee-api Started                                                                         3.4s
 
 What's next:
     Filter, search, and stream logs from all your Compose services
     in one place with Docker Desktop's Logs view. docker-desktop://dashboard/logs?appId=api
 PS D:\C2Coffee\api> docker compose run --rm --no-deps c2-api npm run migrate:prod
-Container api-c2-api-run-b927fd7e085b Creating
-Container api-c2-api-run-b927fd7e085b Created
+Container api-c2-api-run-943244f7a831 Creating
+Container api-c2-api-run-943244f7a831 Created
 
 > @c2coffee/api@0.1.0 migrate:prod
 > node dist/db/migrate.js
 
-Applied migration: 033_scope_campaigns_to_tenants.sql
+Applied migration: 035_add_android_direct_printer_mode.sql
 npm notice
 npm notice New major version of npm available! 10.9.8 -> 12.0.2
 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2

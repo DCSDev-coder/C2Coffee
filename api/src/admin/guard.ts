@@ -150,11 +150,22 @@ function enforceBaristaRouteAccess(request: FastifyRequest): void {
   const canUpdateOrderStatus =
     request.method === 'PATCH' &&
     /^\/v1\/admin\/orders\/[^/]+\/status$/.test(path);
+  const canReadOperationalContext =
+    request.method === 'GET' && path === '/v1/barista/operations/context';
+  const canQueuePrintJob =
+    request.method === 'POST' && path === '/v1/barista/print-jobs';
   const canUseOwnSession =
     (request.method === 'GET' && path === '/v1/admin/auth/me') ||
     (request.method === 'POST' && path === '/v1/admin/auth/logout');
 
-  if (!canReadOrders && !canReadBaristaRoster && !canUpdateOrderStatus && !canUseOwnSession) {
+  if (
+    !canReadOrders &&
+    !canReadBaristaRoster &&
+    !canUpdateOrderStatus &&
+    !canReadOperationalContext &&
+    !canQueuePrintJob &&
+    !canUseOwnSession
+  ) {
     throw new ApiError(
       403,
       'barista_route_forbidden',

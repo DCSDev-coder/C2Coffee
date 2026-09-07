@@ -12,6 +12,7 @@ const PAGE_ROLES = {
   ProductReport: ['super_admin', 'marketing_admin'],
   'Product Report': ['super_admin', 'marketing_admin'],
   'Barista Management': ['super_admin', 'operations_admin'],
+  Operations: ['super_admin', 'operations_admin'],
   'Admin Management': ['super_admin'],
   'Audit Logs': ['super_admin'],
   Settings: ['super_admin', 'operations_admin', 'marketing_admin', 'support_admin']

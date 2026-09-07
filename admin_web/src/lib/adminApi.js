@@ -390,6 +390,31 @@ export async function deleteAdminMenuItem(menuItemId) {
   });
 }
 
+export async function loadAdminOperationalSetup() {
+  return adminRequest('/v1/admin/operational-integrations');
+}
+
+export async function saveAdminWeeklySchedule(entries) {
+  return adminRequest('/v1/admin/weekly-schedule', {
+    method: 'PUT',
+    body: JSON.stringify({ entries })
+  });
+}
+
+export async function createAdminOperationalIntegration(payload) {
+  return adminRequest('/v1/admin/operational-integrations', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function createAdminPrinterTarget(payload) {
+  return adminRequest('/v1/admin/printer-targets', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
 export async function uploadAdminMenuImage(file) {
   const dataUrl = await readFileAsDataUrl(file);
   return adminRequest('/v1/admin/menu/uploads', {

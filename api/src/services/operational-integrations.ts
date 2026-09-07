@@ -13,6 +13,14 @@ export type IntegrationCapability = (typeof integrationCapabilities)[number];
 
 export type IntegrationStatus = 'not_configured' | 'pending' | 'connected' | 'disabled';
 
+export const printerDeliveryModes = [
+  'android_direct',
+  'pos_adapter',
+  'local_print_bridge',
+  'network_printer'
+] as const;
+export type PrinterDeliveryMode = (typeof printerDeliveryModes)[number];
+
 export const defaultCapabilities: Record<IntegrationProvider, IntegrationCapability[]> = {
   manual: [],
   storehub: [],
