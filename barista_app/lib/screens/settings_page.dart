@@ -4,13 +4,21 @@ import '../main.dart';
 import '../services/api_service.dart';
 import '../widgets/blinking_online_indicator.dart';
 
-class SettingsPage extends StatelessWidget {
+class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
 
   static const Color ink = Color(0xFF203E32);
   static const Color green = Color(0xFF304A3A);
   static const Color gold = Color(0xFFD3B17D);
   static const Color canvas = Color(0xFFF7F6F1);
+
+  @override
+  State<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends State<SettingsPage> {
+  late final Future<OperationsContext> _operationsContext =
+      ApiService.fetchOperationsContext();
 
   Future<void> _signOut(BuildContext context) async {
     final shouldSignOut = await showModalBottomSheet<bool>(
@@ -34,7 +42,7 @@ class SettingsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: canvas,
+      backgroundColor: SettingsPage.canvas,
       body: Stack(
         children: [
           Center(
@@ -46,7 +54,7 @@ class SettingsPage extends StatelessWidget {
                   const Text(
                     'Workstation',
                     style: TextStyle(
-                      color: ink,
+                      color: SettingsPage.ink,
                       fontSize: 34,
                       height: 1.05,
                       fontWeight: FontWeight.w800,
@@ -54,9 +62,9 @@ class SettingsPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Choose the staff member for the current shift on this device.',
+                    'View the active operator, weekly coverage, and receipt delivery readiness.',
                     style: TextStyle(
-                      color: ink.withValues(alpha: 0.65),
+                      color: SettingsPage.ink.withValues(alpha: 0.65),
                       fontSize: 16,
                       height: 1.4,
                       fontWeight: FontWeight.w500,
@@ -72,18 +80,20 @@ class SettingsPage extends StatelessWidget {
                     },
                   ),
                   const SizedBox(height: 14),
-                  _SettingsActionTile(
-                    icon: Icons.manage_accounts_outlined,
-                    title: 'Change current shift',
-                    subtitle:
-                        'Choose who will be recorded on orders prepared during this shift.',
-                    onTap: () {
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const BaristaSelectionPage(),
-                        ),
-                      );
+                  const _HandoverNotice(),
+                  const SizedBox(height: 32),
+                  const _SectionLabel(label: 'OPERATIONS'),
+                  const SizedBox(height: 12),
+                  FutureBuilder<OperationsContext>(
+                    future: _operationsContext,
+                    builder: (context, snapshot) {
+                      if (snapshot.hasError) {
+                        return const _OperationsUnavailableCard();
+                      }
+                      if (!snapshot.hasData) {
+                        return const _OperationsLoadingCard();
+                      }
+                      return _OperationsStatusCard(context: snapshot.data!);
                     },
                   ),
                   const SizedBox(height: 32),
@@ -94,7 +104,9 @@ class SettingsPage extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: ink.withValues(alpha: 0.10)),
+                      border: Border.all(
+                        color: SettingsPage.ink.withValues(alpha: 0.10),
+                      ),
                     ),
                     child: Row(
                       children: [
@@ -102,12 +114,12 @@ class SettingsPage extends StatelessWidget {
                           width: 40,
                           height: 40,
                           decoration: BoxDecoration(
-                            color: gold.withValues(alpha: 0.18),
+                            color: SettingsPage.gold.withValues(alpha: 0.18),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: const Icon(
                             Icons.lock_outline_rounded,
-                            color: ink,
+                            color: SettingsPage.ink,
                             size: 21,
                           ),
                         ),
@@ -119,16 +131,18 @@ class SettingsPage extends StatelessWidget {
                               const Text(
                                 'Shared Barista App account',
                                 style: TextStyle(
-                                  color: ink,
+                                  color: SettingsPage.ink,
                                   fontSize: 15,
                                   fontWeight: FontWeight.w700,
                                 ),
                               ),
                               const SizedBox(height: 3),
                               Text(
-                                'The selected staff member applies until this app is closed or changed.',
+                                'Operator changes will move to a verified handover after attendance sync is connected.',
                                 style: TextStyle(
-                                  color: ink.withValues(alpha: 0.60),
+                                  color: SettingsPage.ink.withValues(
+                                    alpha: 0.60,
+                                  ),
                                   fontSize: 13,
                                   height: 1.35,
                                 ),
@@ -329,77 +343,255 @@ class _ActiveBaristaCard extends StatelessWidget {
   }
 }
 
-class _SettingsActionTile extends StatelessWidget {
+class _HandoverNotice extends StatelessWidget {
+  const _HandoverNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(17),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7E8),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: SettingsPage.gold.withValues(alpha: 0.55)),
+      ),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.schedule_rounded, color: SettingsPage.ink, size: 22),
+          SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Shift handover is controlled',
+                  style: TextStyle(
+                    color: SettingsPage.ink,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'When StoreHub attendance sync is connected, the next scheduled barista will confirm their own PIN. Do not pass this device to another operator without a handover.',
+                  style: TextStyle(
+                    color: SettingsPage.ink,
+                    fontSize: 13,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OperationsLoadingCard extends StatelessWidget {
+  const _OperationsLoadingCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return const _OperationsCard(
+      icon: Icons.sync_rounded,
+      title: 'Checking operational connections',
+      subtitle: 'Loading POS, printer, and weekly coverage status.',
+    );
+  }
+}
+
+class _OperationsUnavailableCard extends StatelessWidget {
+  const _OperationsUnavailableCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return const _OperationsCard(
+      icon: Icons.cloud_off_rounded,
+      title: 'Operational setup is not available yet',
+      subtitle:
+          'POS and printer connections are configured by an operations administrator. Order preparation remains available.',
+    );
+  }
+}
+
+class _OperationsStatusCard extends StatelessWidget {
+  final OperationsContext context;
+
+  const _OperationsStatusCard({required this.context});
+
+  @override
+  Widget build(BuildContext buildContext) {
+    final defaultPrinter = context.printers
+        .where((printer) => printer.isDefault)
+        .firstOrNull;
+    final connectedIntegrations = context.integrations
+        .where((integration) => integration.status == 'connected')
+        .toList();
+    // Database weekday values follow Dart's Monday=1 through Sunday=7 convention.
+    final today = DateTime.now().weekday;
+    final todaySchedule = context.weeklySchedule
+        .where((entry) => entry.weekday == today)
+        .toList();
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: SettingsPage.ink.withValues(alpha: 0.10)),
+      ),
+      child: Column(
+        children: [
+          _OperationalRow(
+            icon: Icons.point_of_sale_outlined,
+            title: 'POS connection',
+            value: connectedIntegrations.isEmpty
+                ? 'Not connected'
+                : connectedIntegrations
+                      .map((item) => item.displayName)
+                      .join(', '),
+            connected: connectedIntegrations.isNotEmpty,
+          ),
+          const Divider(height: 28),
+          _OperationalRow(
+            icon: Icons.receipt_long_outlined,
+            title: 'Receipt printer',
+            value: defaultPrinter == null
+                ? 'No default printer'
+                : '${defaultPrinter.name} (${_printerStatus(defaultPrinter.status)})',
+            connected: defaultPrinter?.status == 'connected',
+          ),
+          const Divider(height: 28),
+          _OperationalRow(
+            icon: Icons.calendar_month_outlined,
+            title: 'Today\'s coverage',
+            value: todaySchedule.isEmpty
+                ? 'No weekly schedule published'
+                : todaySchedule.map(_scheduleLabel).join(' · '),
+            connected: todaySchedule.isNotEmpty,
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _printerStatus(String status) => switch (status) {
+    'connected' => 'ready',
+    'pending' => 'awaiting setup',
+    'disabled' => 'disabled',
+    _ => 'not configured',
+  };
+
+  static String _scheduleLabel(WeeklyScheduleEntry entry) =>
+      '${entry.baristaName} ${entry.startsAt}-${entry.endsAt}';
+}
+
+class _OperationalRow extends StatelessWidget {
   final IconData icon;
   final String title;
-  final String subtitle;
-  final VoidCallback onTap;
+  final String value;
+  final bool connected;
 
-  const _SettingsActionTile({
+  const _OperationalRow({
     required this.icon,
     required this.title,
-    required this.subtitle,
-    required this.onTap,
+    required this.value,
+    required this.connected,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(18),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
-        child: Container(
-          padding: const EdgeInsets.all(17),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: SettingsPage.ink.withValues(alpha: 0.10)),
-          ),
-          child: Row(
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, color: SettingsPage.ink, size: 22),
+        const SizedBox(width: 13),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: SettingsPage.gold.withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(icon, color: SettingsPage.ink, size: 22),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        color: SettingsPage.ink,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        color: SettingsPage.ink.withValues(alpha: 0.58),
-                        fontSize: 13,
-                        height: 1.3,
-                      ),
-                    ),
-                  ],
+              Text(
+                title,
+                style: const TextStyle(
+                  color: SettingsPage.ink,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
-              Icon(
-                Icons.chevron_right_rounded,
-                color: SettingsPage.ink.withValues(alpha: 0.45),
-                size: 24,
+              const SizedBox(height: 3),
+              Text(
+                value,
+                style: TextStyle(
+                  color: SettingsPage.ink.withValues(alpha: 0.62),
+                  fontSize: 13,
+                  height: 1.3,
+                ),
               ),
             ],
           ),
         ),
+        Icon(
+          connected ? Icons.check_circle_rounded : Icons.info_outline_rounded,
+          color: connected ? const Color(0xFF3B7C61) : SettingsPage.gold,
+          size: 20,
+        ),
+      ],
+    );
+  }
+}
+
+class _OperationsCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  const _OperationsCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: SettingsPage.ink.withValues(alpha: 0.10)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: SettingsPage.ink, size: 24),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: SettingsPage.ink,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    color: SettingsPage.ink.withValues(alpha: 0.62),
+                    fontSize: 13,
+                    height: 1.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -22,7 +22,8 @@ class ApiService {
   static List<String> get currentRoles => List.unmodifiable(_currentRoles);
   static int? get activeBaristaId => _activeBaristaId;
   static String get activeBaristaName => _activeBaristaName;
-  static bool get isSignedIn => _accessToken != null && _accessToken!.isNotEmpty;
+  static bool get isSignedIn =>
+      _accessToken != null && _accessToken!.isNotEmpty;
 
   static bool get canWorkOrders {
     return _currentRoles.any(
@@ -88,10 +89,8 @@ class ApiService {
   static Future<List<BaristaStaff>> fetchActiveBaristas() async {
     try {
       final response = await _authenticatedRequest(
-        (headers) => http.get(
-          Uri.parse('$baseUrl/admin/baristas'),
-          headers: headers,
-        ),
+        (headers) =>
+            http.get(Uri.parse('$baseUrl/admin/baristas'), headers: headers),
       );
       if (response.statusCode != 200) return const [];
       final data = json.decode(response.body) as Map<String, dynamic>;
@@ -109,6 +108,21 @@ class ApiService {
     }
   }
 
+  static Future<OperationsContext> fetchOperationsContext() async {
+    final response = await _authenticatedRequest(
+      (headers) => http.get(
+        Uri.parse('$baseUrl/barista/operations/context'),
+        headers: headers,
+      ),
+    );
+    if (response.statusCode != 200) {
+      throw StateError(_responseMessage(response));
+    }
+    return OperationsContext.fromJson(
+      json.decode(response.body) as Map<String, dynamic>,
+    );
+  }
+
   static void selectBarista(BaristaStaff staff) {
     _activeBaristaId = staff.id;
     _activeBaristaName = staff.name;
@@ -119,10 +133,8 @@ class ApiService {
   static Future<OrdersFetchResult> fetchOrders() async {
     try {
       final response = await _authenticatedRequest(
-        (headers) => http.get(
-          Uri.parse('$baseUrl/admin/orders'),
-          headers: headers,
-        ),
+        (headers) =>
+            http.get(Uri.parse('$baseUrl/admin/orders'), headers: headers),
       );
 
       if (response.statusCode == 200) {
@@ -262,9 +274,9 @@ class ApiService {
   }
 
   static Map<String, String> _authorizedHeaders() => {
-        'Content-Type': 'application/json',
-        if (_accessToken != null) 'Authorization': 'Bearer $_accessToken',
-      };
+    'Content-Type': 'application/json',
+    if (_accessToken != null) 'Authorization': 'Bearer $_accessToken',
+  };
 
   static Future<bool> _refreshAccessToken() async {
     final refreshToken = _refreshToken;
@@ -289,8 +301,13 @@ class ApiService {
   static Future<void> _applySession(Map<String, dynamic> data) async {
     final accessToken = data['access_token']?.toString();
     final refreshToken = data['refresh_token']?.toString();
-    if (accessToken == null || accessToken.isEmpty || refreshToken == null || refreshToken.isEmpty) {
-      throw const FormatException('The sign-in response did not contain a valid session.');
+    if (accessToken == null ||
+        accessToken.isEmpty ||
+        refreshToken == null ||
+        refreshToken.isEmpty) {
+      throw const FormatException(
+        'The sign-in response did not contain a valid session.',
+      );
     }
 
     _accessToken = accessToken;
@@ -386,4 +403,98 @@ class BaristaStaff {
         DateTime.tryParse(json['created_at']?.toString() ?? '') ??
         DateTime.fromMillisecondsSinceEpoch(0),
   );
+}
+
+class OperationsContext {
+  final List<OperationalIntegration> integrations;
+  final List<PrinterTarget> printers;
+  final List<WeeklyScheduleEntry> weeklySchedule;
+
+  const OperationsContext({
+    required this.integrations,
+    required this.printers,
+    required this.weeklySchedule,
+  });
+
+  factory OperationsContext.fromJson(
+    Map<String, dynamic> json,
+  ) => OperationsContext(
+    integrations: (json['integrations'] as List? ?? const [])
+        .map(
+          (entry) =>
+              OperationalIntegration.fromJson(entry as Map<String, dynamic>),
+        )
+        .toList(),
+    printers: (json['printers'] as List? ?? const [])
+        .map((entry) => PrinterTarget.fromJson(entry as Map<String, dynamic>))
+        .toList(),
+    weeklySchedule: (json['weekly_schedule'] as List? ?? const [])
+        .map(
+          (entry) =>
+              WeeklyScheduleEntry.fromJson(entry as Map<String, dynamic>),
+        )
+        .toList(),
+  );
+}
+
+class OperationalIntegration {
+  final String providerCode;
+  final String displayName;
+  final String status;
+
+  const OperationalIntegration({
+    required this.providerCode,
+    required this.displayName,
+    required this.status,
+  });
+
+  factory OperationalIntegration.fromJson(Map<String, dynamic> json) =>
+      OperationalIntegration(
+        providerCode: json['provider_code']?.toString() ?? '',
+        displayName: json['display_name']?.toString() ?? 'POS integration',
+        status: json['status']?.toString() ?? 'not_configured',
+      );
+}
+
+class PrinterTarget {
+  final String name;
+  final String deliveryMode;
+  final String status;
+  final bool isDefault;
+
+  const PrinterTarget({
+    required this.name,
+    required this.deliveryMode,
+    required this.status,
+    required this.isDefault,
+  });
+
+  factory PrinterTarget.fromJson(Map<String, dynamic> json) => PrinterTarget(
+    name: json['name']?.toString() ?? 'Receipt printer',
+    deliveryMode: json['delivery_mode']?.toString() ?? '',
+    status: json['status']?.toString() ?? 'not_configured',
+    isDefault: json['is_default'] == true,
+  );
+}
+
+class WeeklyScheduleEntry {
+  final int weekday;
+  final String startsAt;
+  final String endsAt;
+  final String baristaName;
+
+  const WeeklyScheduleEntry({
+    required this.weekday,
+    required this.startsAt,
+    required this.endsAt,
+    required this.baristaName,
+  });
+
+  factory WeeklyScheduleEntry.fromJson(Map<String, dynamic> json) =>
+      WeeklyScheduleEntry(
+        weekday: (json['weekday'] as num?)?.toInt() ?? 0,
+        startsAt: json['starts_at']?.toString() ?? '',
+        endsAt: json['ends_at']?.toString() ?? '',
+        baristaName: json['barista_name']?.toString() ?? 'Unassigned',
+      );
 }
