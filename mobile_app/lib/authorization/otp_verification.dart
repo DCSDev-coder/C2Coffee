@@ -10,6 +10,7 @@ import 'auth_transition.dart';
 import '../services/app_session_service.dart';
 import '../services/auth_api_service.dart';
 import '../services/secure_session_service.dart';
+import '../services/push_notification_service.dart';
 import '../services/user_service.dart';
 
 class OtpVerificationPage extends StatefulWidget {
@@ -514,6 +515,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage>
         accessToken: result.accessToken,
         refreshToken: result.refreshToken,
       );
+      await PushNotificationService.instance.syncAfterSignIn();
 
       await UserService.saveUserProfile({
         'phone': result.user.phone,

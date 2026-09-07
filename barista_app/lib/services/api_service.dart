@@ -4,10 +4,13 @@ import 'package:http/http.dart' as http;
 import '../main.dart';
 import '../widgets/order_card.dart';
 import 'api_config.dart';
+import 'secure_session_service.dart';
 
 class ApiService {
   static String get baseUrl => ApiConfig.baseUrl;
   static String? _accessToken;
+  static String? _refreshToken;
+  static String _tenantCode = ApiConfig.tenantCode;
   static String _currentUserName = '';
   static String _currentUsername = '';
   static List<String> _currentRoles = const [];
@@ -19,6 +22,7 @@ class ApiService {
   static List<String> get currentRoles => List.unmodifiable(_currentRoles);
   static int? get activeBaristaId => _activeBaristaId;
   static String get activeBaristaName => _activeBaristaName;
+  static bool get isSignedIn => _accessToken != null && _accessToken!.isNotEmpty;
 
   static bool get canWorkOrders {
     return _currentRoles.any(
@@ -31,16 +35,15 @@ class ApiService {
     String status,
   ) async {
     try {
-      final response = await http.patch(
-        Uri.parse('$baseUrl/admin/orders/$orderId/status'),
-        headers: {
-          'Content-Type': 'application/json',
-          if (_accessToken != null) 'Authorization': 'Bearer $_accessToken',
-        },
-        body: json.encode({
-          'status': status,
-          if (_activeBaristaId != null) 'barista_id': _activeBaristaId,
-        }),
+      final response = await _authenticatedRequest(
+        (headers) => http.patch(
+          Uri.parse('$baseUrl/admin/orders/$orderId/status'),
+          headers: headers,
+          body: json.encode({
+            'status': status,
+            if (_activeBaristaId != null) 'barista_id': _activeBaristaId,
+          }),
+        ),
       );
       if (response.statusCode == 200) {
         return const ApiRequestResult.success();
@@ -60,24 +63,17 @@ class ApiService {
         Uri.parse('$baseUrl/admin/auth/login'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
-          'tenant_code': 'c2coffee',
+          'tenant_code': _tenantCode,
           'identifier': identifier,
           'password': password,
         }),
       );
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        _accessToken = data['access_token'];
-        final user = data['user'] as Map<String, dynamic>? ?? const {};
-        final fullName = (user['full_name'] as String?)?.trim() ?? '';
-        _currentUsername = ((user['username'] as String?) ?? '').trim();
-        _currentUserName = fullName.isNotEmpty ? fullName : _currentUsername;
-        _currentRoles = (user['roles'] as List? ?? const [])
-            .map((role) => role.toString())
-            .toList();
+        await _applySession(data);
 
         if (!canWorkOrders) {
-          logout();
+          await logout();
           return false;
         }
 
@@ -91,11 +87,11 @@ class ApiService {
 
   static Future<List<BaristaStaff>> fetchActiveBaristas() async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/admin/baristas'),
-        headers: _accessToken != null
-            ? {'Authorization': 'Bearer $_accessToken'}
-            : {},
+      final response = await _authenticatedRequest(
+        (headers) => http.get(
+          Uri.parse('$baseUrl/admin/baristas'),
+          headers: headers,
+        ),
       );
       if (response.statusCode != 200) return const [];
       final data = json.decode(response.body) as Map<String, dynamic>;
@@ -122,11 +118,11 @@ class ApiService {
 
   static Future<OrdersFetchResult> fetchOrders() async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/admin/orders'),
-        headers: _accessToken != null
-            ? {'Authorization': 'Bearer $_accessToken'}
-            : {},
+      final response = await _authenticatedRequest(
+        (headers) => http.get(
+          Uri.parse('$baseUrl/admin/orders'),
+          headers: headers,
+        ),
       );
 
       if (response.statusCode == 200) {
@@ -241,8 +237,104 @@ class ApiService {
     return 'Request could not be completed. Please try again.';
   }
 
-  static void logout() {
+  static Future<void> restoreSession() async {
+    final session = await SecureSessionService.instance.read();
+    if (session == null) return;
+
+    _accessToken = session.accessToken;
+    _refreshToken = session.refreshToken;
+    _tenantCode = session.tenantCode ?? ApiConfig.tenantCode;
+
+    if (!await _refreshAccessToken()) {
+      await _clearSession();
+    }
+  }
+
+  static Future<http.Response> _authenticatedRequest(
+    Future<http.Response> Function(Map<String, String> headers) send,
+  ) async {
+    var response = await send(_authorizedHeaders());
+    if (response.statusCode != 401 || !await _refreshAccessToken()) {
+      return response;
+    }
+    response = await send(_authorizedHeaders());
+    return response;
+  }
+
+  static Map<String, String> _authorizedHeaders() => {
+        'Content-Type': 'application/json',
+        if (_accessToken != null) 'Authorization': 'Bearer $_accessToken',
+      };
+
+  static Future<bool> _refreshAccessToken() async {
+    final refreshToken = _refreshToken;
+    if (refreshToken == null || refreshToken.isEmpty) return false;
+
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/admin/auth/refresh'),
+        headers: const {'Content-Type': 'application/json'},
+        body: json.encode({'refresh_token': refreshToken}),
+      );
+      if (response.statusCode != 200) return false;
+
+      await _applySession(json.decode(response.body) as Map<String, dynamic>);
+      return canWorkOrders;
+    } catch (error) {
+      debugPrint('Session refresh error: $error');
+      return false;
+    }
+  }
+
+  static Future<void> _applySession(Map<String, dynamic> data) async {
+    final accessToken = data['access_token']?.toString();
+    final refreshToken = data['refresh_token']?.toString();
+    if (accessToken == null || accessToken.isEmpty || refreshToken == null || refreshToken.isEmpty) {
+      throw const FormatException('The sign-in response did not contain a valid session.');
+    }
+
+    _accessToken = accessToken;
+    _refreshToken = refreshToken;
+    final tenant = data['tenant'];
+    if (tenant is Map<String, dynamic>) {
+      final tenantCode = tenant['code']?.toString().trim();
+      if (tenantCode != null && tenantCode.isNotEmpty) _tenantCode = tenantCode;
+    }
+
+    final user = data['user'] as Map<String, dynamic>? ?? const {};
+    final fullName = (user['full_name'] as String?)?.trim() ?? '';
+    _currentUsername = ((user['username'] as String?) ?? '').trim();
+    _currentUserName = fullName.isNotEmpty ? fullName : _currentUsername;
+    _currentRoles = (user['roles'] as List? ?? const [])
+        .map((role) => role.toString())
+        .toList();
+
+    await SecureSessionService.instance.save(
+      accessToken: accessToken,
+      refreshToken: refreshToken,
+      tenantCode: _tenantCode,
+    );
+  }
+
+  static Future<void> logout() async {
+    final accessToken = _accessToken;
+    if (accessToken != null && accessToken.isNotEmpty) {
+      try {
+        await http.post(
+          Uri.parse('$baseUrl/admin/auth/logout'),
+          headers: {'Authorization': 'Bearer $accessToken'},
+        );
+      } catch (error) {
+        debugPrint('Sign-out request error: $error');
+      }
+    }
+    await _clearSession();
+  }
+
+  static Future<void> _clearSession() async {
     _accessToken = null;
+    _refreshToken = null;
+    _tenantCode = ApiConfig.tenantCode;
     _currentUserName = '';
     _currentUsername = '';
     _currentRoles = const [];
@@ -250,6 +342,7 @@ class ApiService {
     _activeBaristaName = '';
     globalActiveBaristaId.value = null;
     globalActiveBarista.value = '';
+    await SecureSessionService.instance.clear();
   }
 }
 

@@ -451,6 +451,34 @@ class AuthApiService {
     );
   }
 
+  Future<void> registerPushToken({
+    required String accessToken,
+    required String deviceFingerprint,
+    required String platform,
+    required String pushToken,
+  }) async {
+    await _post(
+      '/devices/push-token',
+      accessToken: accessToken,
+      body: {
+        'device_fingerprint': deviceFingerprint,
+        'platform': platform,
+        'push_token': pushToken,
+      },
+    );
+  }
+
+  Future<void> deactivatePushToken({
+    required String accessToken,
+    required String pushToken,
+  }) async {
+    await _post(
+      '/devices/push-token/deactivate',
+      accessToken: accessToken,
+      body: {'push_token': pushToken},
+    );
+  }
+
   Future<Map<String, dynamic>> _post(
     String path, {
     required Map<String, dynamic> body,

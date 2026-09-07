@@ -19,6 +19,17 @@ const listQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional().default(20)
 });
 
+const pushTokenSchema = z.object({
+  device_fingerprint: z.string().trim().min(8).max(255),
+  platform: z.enum(['android', 'ios']),
+  push_token: z.string().trim().min(20).max(512),
+  app_version: z.string().trim().min(1).max(50).optional()
+});
+
+const deactivatePushTokenSchema = z.object({
+  push_token: z.string().trim().min(20).max(512)
+});
+
 type WalletTransactionRow = RowDataPacket & {
   id: number;
   direction: 'credit' | 'debit';
@@ -401,6 +412,108 @@ async function syncAutoVisibleVoucherTemplates(
 export async function registerCustomerDataRoutes(
   app: FastifyInstance
 ): Promise<void> {
+  app.post('/v1/devices/push-token', { preHandler: authenticateRequest }, async (request) => {
+    const payload = pushTokenSchema.parse(request.body ?? {});
+
+    const [deviceRows] = await mysqlPool.query<Array<RowDataPacket & { device_id: number }>>(
+      `
+        SELECT d.id AS device_id
+        FROM sessions s
+        JOIN devices d ON d.id = s.device_id
+        WHERE s.id = :sessionId
+          AND s.user_id = :userId
+          AND s.revoked_at IS NULL
+          AND d.user_id = :userId
+          AND d.device_fingerprint = :deviceFingerprint
+        LIMIT 1
+      `,
+      {
+        sessionId: request.auth.sessionId,
+        userId: request.auth.userId,
+        deviceFingerprint: payload.device_fingerprint
+      }
+    );
+
+    const device = deviceRows[0];
+    if (!device) {
+      throw new ApiError(409, 'device_session_mismatch', 'Register notifications from the device used to sign in.');
+    }
+
+    await mysqlPool.execute(
+      `
+        UPDATE devices
+        SET platform = :platform,
+            app_version = :appVersion,
+            last_seen_at = UTC_TIMESTAMP()
+        WHERE id = :deviceId
+      `,
+      {
+        deviceId: device.device_id,
+        platform: payload.platform,
+        appVersion: payload.app_version ?? null
+      }
+    );
+
+    // A token can move to a different signed-in account on the same device.
+    // The unique token key makes the registration safe to repeat after refresh.
+    await mysqlPool.execute(
+      `
+        INSERT INTO push_tokens (
+          user_id,
+          device_id,
+          platform,
+          push_token,
+          status,
+          created_at,
+          last_seen_at
+        )
+        VALUES (
+          :userId,
+          :deviceId,
+          :platform,
+          :pushToken,
+          'active',
+          UTC_TIMESTAMP(),
+          UTC_TIMESTAMP()
+        )
+        ON DUPLICATE KEY UPDATE
+          user_id = VALUES(user_id),
+          device_id = VALUES(device_id),
+          platform = VALUES(platform),
+          status = 'active',
+          last_seen_at = UTC_TIMESTAMP()
+      `,
+      {
+        userId: request.auth.userId,
+        deviceId: device.device_id,
+        platform: payload.platform,
+        pushToken: payload.push_token
+      }
+    );
+
+    return { registered: true };
+  });
+
+  app.post('/v1/devices/push-token/deactivate', { preHandler: authenticateRequest }, async (request) => {
+    const payload = deactivatePushTokenSchema.parse(request.body ?? {});
+
+    await mysqlPool.execute(
+      `
+        UPDATE push_tokens
+        SET status = 'inactive',
+            last_seen_at = UTC_TIMESTAMP()
+        WHERE user_id = :userId
+          AND push_token = :pushToken
+      `,
+      {
+        userId: request.auth.userId,
+        pushToken: payload.push_token
+      }
+    );
+
+    return { deactivated: true };
+  });
+
   app.get('/v1/notifications', { preHandler: authenticateRequest }, async (request) => {
     const { limit } = notificationListQuerySchema.parse(request.query);
 
@@ -933,227 +1046,6 @@ export async function registerCustomerDataRoutes(
       active_order: activeOrder,
       orders
     };
-  });
-
-  const topupSchema = z.object({
-    token_amount: z.coerce.number().int().min(1).max(500),
-    provider: z.literal('touch_n_go_sandbox').default('touch_n_go_sandbox')
-  });
-
-  app.post('/v1/wallet/topup', { preHandler: authenticateRequest }, async (request) => {
-    const payload = topupSchema.parse(request.body ?? {});
-    const connection = await getUtcConnection();
-    let committed = false;
-
-    try {
-      await connection.beginTransaction();
-
-      const [accountRows] = await connection.query<
-        Array<RowDataPacket & {
-          balance_available: number;
-          balance_reserved: number;
-          balance_cap: number;
-        }>
-      >(
-        `
-          SELECT balance_available, balance_reserved, balance_cap
-          FROM token_accounts
-          WHERE user_id = :userId
-          LIMIT 1
-          FOR UPDATE
-        `,
-        { userId: request.auth.userId }
-      );
-
-      const account = accountRows[0];
-      if (!account) {
-        throw new ApiError(404, 'token_account_missing', 'Wallet account was not found.');
-      }
-
-      const newBalance = account.balance_available + payload.token_amount;
-      if (newBalance > account.balance_cap) {
-        throw new ApiError(
-          400,
-          'token_cap_exceeded',
-          `Top-up would exceed maximum wallet balance cap of ${account.balance_cap} tokens.`
-        );
-      }
-
-      const topupRef = `TOP-${Date.now().toString(36).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
-      const rmAmount = (payload.token_amount * 1.0).toFixed(2);
-
-      const [topupResult] = await connection.execute<ResultSetHeader>(
-        `
-          INSERT INTO token_topups (
-            user_id,
-            topup_ref,
-            token_amount,
-            rm_amount,
-            status,
-            created_at,
-            paid_at
-          )
-          VALUES (
-            :userId,
-            :topupRef,
-            :tokenAmount,
-            :rmAmount,
-            'paid',
-            UTC_TIMESTAMP(),
-            UTC_TIMESTAMP()
-          )
-        `,
-        {
-          userId: request.auth.userId,
-          topupRef,
-          tokenAmount: payload.token_amount,
-          rmAmount
-        }
-      );
-
-      const topupId = topupResult.insertId;
-
-      const [lotResult] = await connection.execute<ResultSetHeader>(
-        `
-          INSERT INTO token_lots (
-            user_id,
-            source_topup_id,
-            original_amount,
-            remaining_amount,
-            expires_at,
-            status,
-            created_at
-          )
-          VALUES (
-            :userId,
-            :topupId,
-            :tokenAmount,
-            :tokenAmount,
-            DATE_ADD(UTC_TIMESTAMP(), INTERVAL 180 DAY),
-            'active',
-            UTC_TIMESTAMP()
-          )
-        `,
-        {
-          userId: request.auth.userId,
-          topupId,
-          tokenAmount: payload.token_amount
-        }
-      );
-
-      const lotId = lotResult.insertId;
-
-      await connection.execute(
-        `
-          INSERT INTO token_ledger (
-            user_id,
-            token_lot_id,
-            direction,
-            source_type,
-            source_id,
-            amount,
-            balance_after,
-            remarks,
-            created_at
-          )
-          VALUES (
-            :userId,
-            :lotId,
-            'credit',
-            'topup_paid',
-            :topupId,
-            :tokenAmount,
-            :balanceAfter,
-            :remarks,
-            UTC_TIMESTAMP()
-          )
-        `,
-        {
-          userId: request.auth.userId,
-          lotId,
-          topupId,
-          tokenAmount: payload.token_amount,
-          balanceAfter: newBalance,
-          remarks: `Top up ${payload.token_amount} tokens via Touch 'n Go sandbox payment`
-        }
-      );
-
-      await connection.execute(
-        `
-          UPDATE token_accounts
-          SET balance_available = :newBalance,
-              updated_at = UTC_TIMESTAMP()
-          WHERE user_id = :userId
-        `,
-        {
-          newBalance,
-          userId: request.auth.userId
-        }
-      );
-
-      const paymentRef = `PAY-${topupRef}`;
-      await connection.execute(
-        `
-          INSERT INTO payments (
-            order_id,
-            topup_id,
-            provider,
-            provider_payment_ref,
-            provider_bill_id,
-            amount_rm,
-            status,
-            paid_at,
-            created_at
-          )
-          VALUES (
-            NULL,
-            :topupId,
-            :provider,
-            :paymentRef,
-            NULL,
-            :amountRm,
-            'paid',
-            UTC_TIMESTAMP(),
-            UTC_TIMESTAMP()
-          )
-        `,
-        {
-          topupId,
-          provider: payload.provider,
-          paymentRef,
-          amountRm: rmAmount
-        }
-      );
-
-      await createUserNotification(connection, {
-        userId: request.auth.userId,
-        type: 'topup_paid',
-        title: 'Token top-up successful',
-        body: `Your C2 Token balance has been topped up with ${payload.token_amount} tokens.`,
-        data: {
-          topup_ref: topupRef,
-          token_amount: payload.token_amount,
-          balance_after: newBalance
-        }
-      });
-
-      await connection.commit();
-      committed = true;
-
-      return {
-        success: true,
-        topup_ref: topupRef,
-        token_amount_added: payload.token_amount,
-        token_balance: newBalance,
-        token_reserved: account.balance_reserved,
-        token_cap: account.balance_cap
-      };
-    } finally {
-      if (!committed) {
-        await connection.rollback();
-      }
-      connection.release();
-    }
   });
 
   app.get('/v1/referrals', { preHandler: authenticateRequest }, async (request) => {

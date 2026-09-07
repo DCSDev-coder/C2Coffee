@@ -978,21 +978,6 @@ class CustomerDataService {
     );
   }
 
-  Future<Map<String, dynamic>> topUpWallet({
-    required String accessToken,
-    required int tokenAmount,
-    String provider = 'touch_n_go',
-  }) async {
-    return _post(
-      '/wallet/topup',
-      accessToken: accessToken,
-      body: {
-        'token_amount': tokenAmount,
-        'provider': provider,
-      },
-    );
-  }
-
   Future<ReferralSnapshot> getReferralInfo({
     required String accessToken,
   }) async {

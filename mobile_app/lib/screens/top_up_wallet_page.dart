@@ -7,7 +7,6 @@ import '../services/customer_data_service.dart';
 import '../services/secure_session_service.dart';
 
 import '../utils/app_colors.dart';
-import '../utils/app_notification.dart';
 import 'loading_order_page.dart';
 import '../widgets/app_page_shell.dart';
 
@@ -352,63 +351,6 @@ class _TopUpWalletPageState extends State<TopUpWalletPage> {
     );
   }
 
-  bool _isProcessingTopUp = false;
-
-  Future<void> _handleTopUp() async {
-    if (_selectedAmount == null || _isProcessingTopUp) return;
-    final tokenAmount = _presetAmounts[_selectedAmount!];
-
-    setState(() {
-      _isProcessingTopUp = true;
-    });
-
-    try {
-      final accessToken =
-          await SecureSessionService.instance.getValidAccessToken();
-      if (accessToken == null || accessToken.isEmpty) {
-        throw Exception('Missing access token. Please log in again.');
-      }
-
-      if (!_topUpGatewayEnabled) {
-        throw Exception(
-          'Touch \'n Go top-up is not available yet. Please top up at the counter for now.',
-        );
-      }
-
-      final result = await CustomerDataService.instance.topUpWallet(
-        accessToken: accessToken,
-        tokenAmount: tokenAmount,
-        provider: 'touch_n_go',
-      );
-
-      await _session.loadAuthenticatedState(force: true);
-      await _loadWalletData(forceSessionReload: true);
-
-      if (!mounted) return;
-
-      AppNotification.showSuccess(
-        context,
-        'Successfully topped up $tokenAmount tokens (Ref: ${result['topup_ref'] ?? ''})',
-      );
-    } catch (e) {
-      if (!mounted) return;
-      final msg = e
-          .toString()
-          .replaceFirst('Exception: ', '')
-          .replaceFirst('ApiException: ', '');
-      AppNotification.showError(
-        context,
-        msg,
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isProcessingTopUp = false;
-        });
-      }
-    }
-  }
-
   Widget _buildTopUpCard() {
     final tokenAmount =
         _selectedAmount == null ? null : _presetAmounts[_selectedAmount!];
@@ -464,11 +406,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: !_topUpGatewayEnabled ||
-                      _selectedAmount == null ||
-                      _isProcessingTopUp
-                  ? null
-                  : _handleTopUp,
+              onPressed: null,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.deepTeal,
                 disabledBackgroundColor: AppColors.border,
@@ -478,28 +416,15 @@ class _TopUpWalletPageState extends State<TopUpWalletPage> {
                 ),
                 elevation: 0,
               ),
-              child: _isProcessingTopUp
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.5,
-                        color: Colors.white,
-                      ),
-                    )
-                  : Text(
-                      !_topUpGatewayEnabled
-                          ? 'ONLINE TOP-UP COMING SOON'
-                          : _selectedAmount == null
-                              ? 'SELECT AN AMOUNT'
-                              : 'CONTINUE WITH TOUCH \'N GO',
-                      style: const TextStyle(
-                        fontFamily: 'Recoleta',
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
+              child: const Text(
+                'ONLINE TOP-UP COMING SOON',
+                style: TextStyle(
+                  fontFamily: 'Recoleta',
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
             ),
           ),
         ],

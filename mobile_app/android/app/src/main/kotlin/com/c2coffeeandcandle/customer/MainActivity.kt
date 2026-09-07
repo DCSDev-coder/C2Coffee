@@ -1,4 +1,4 @@
-package com.example.c2_coffee
+package com.c2coffeeandcandle.customer
 
 import io.flutter.embedding.android.FlutterActivity
 

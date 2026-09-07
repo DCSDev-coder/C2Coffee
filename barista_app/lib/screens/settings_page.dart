@@ -23,7 +23,8 @@ class SettingsPage extends StatelessWidget {
     );
 
     if (shouldSignOut != true || !context.mounted) return;
-    ApiService.logout();
+    await ApiService.logout();
+    if (!context.mounted) return;
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (context) => const LoginPage()),

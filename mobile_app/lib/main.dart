@@ -1,9 +1,12 @@
 import 'dart:async';
 
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:c2_coffee/authorization/login.dart';
 import 'package:c2_coffee/services/app_session_service.dart';
 import 'package:c2_coffee/services/secure_session_service.dart';
+import 'package:c2_coffee/services/push_notification_service.dart';
 import 'package:c2_coffee/screens/home_page.dart';
 import 'package:c2_coffee/screens/splash_screen.dart';
 import 'package:c2_coffee/utils/app_colors.dart';
@@ -11,6 +14,9 @@ import 'package:c2_coffee/utils/app_notification.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  await PushNotificationService.instance.initialize();
   await AppColors.loadTier();
   runApp(const C2CoffeeApp());
 }

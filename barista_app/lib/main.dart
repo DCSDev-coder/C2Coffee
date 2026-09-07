@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'screens/main_layout.dart';
 import 'widgets/order_card.dart';
@@ -19,7 +20,10 @@ final ValueNotifier<List<CurrentOrder>> globalCurrentOrders =
 final ValueNotifier<List<CurrentOrder>> globalHistoryOrders =
     ValueNotifier<List<CurrentOrder>>([]);
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
+  await ApiService.restoreSession();
   runApp(const BaristaApp());
 }
 
@@ -39,7 +43,7 @@ class BaristaApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      home: const LoginPage(),
+      home: ApiService.isSignedIn ? const MainLayout() : const LoginPage(),
     );
   }
 }
@@ -389,8 +393,9 @@ class _BaristaSelectionPageState extends State<BaristaSelectionPage> {
         title: const Text('Select Barista'),
         actions: [
           TextButton(
-            onPressed: () {
-              ApiService.logout();
+            onPressed: () async {
+              await ApiService.logout();
+              if (!context.mounted) return;
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(builder: (_) => const LoginPage()),

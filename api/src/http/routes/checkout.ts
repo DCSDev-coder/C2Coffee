@@ -9,7 +9,6 @@ import type {
 import { z } from 'zod';
 
 import { authenticateRequest } from '../../auth/guard.js';
-import { env } from '../../config/env.js';
 import { getUtcConnection, mysqlPool } from '../../db/mysql.js';
 import { createUserNotification } from '../notifications.js';
 import { processOrderLoyalty } from '../../services/loyalty.js';
@@ -1047,65 +1046,6 @@ export async function registerCheckoutRoutes(
       if (!committed) {
         await connection.rollback();
       }
-      throw error;
-    } finally {
-      connection.release();
-    }
-  });
-
-  app.post('/v1/orders/:orderId/direct-payment/confirm', { preHandler: authenticateRequest }, async (request) => {
-    const params = z.object({
-      orderId: z.coerce.number().int().positive()
-    }).parse(request.params);
-
-    if (!env.LEGACY_DIRECT_PAYMENT_BYPASS) {
-      throw new ApiError(
-        410,
-        'legacy_route_disabled',
-        'Legacy direct payment is disabled. Drink checkout is token-only.'
-      );
-    }
-
-    const connection = await getUtcConnection();
-
-    try {
-      const [orderRows] = await connection.query<Array<RowDataPacket & OrderResponseRow & { user_id: number }>>(
-        `
-          SELECT
-            id,
-            user_id,
-            order_ref,
-            daily_order_number,
-            status,
-            payment_mode,
-            CAST(final_total_rm AS CHAR) AS final_total_rm,
-            token_amount_charged
-          FROM orders
-          WHERE id = :orderId
-          LIMIT 1
-        `,
-        { orderId: params.orderId }
-      );
-
-      const order = orderRows[0];
-      if (!order || order.user_id !== request.auth.userId) {
-        throw new ApiError(404, 'order_not_found', 'Order was not found.');
-      }
-
-      return {
-        bypass: true,
-        message: 'Legacy direct payment bypassed during testing.',
-        order: {
-          id: order.id,
-          order_ref: order.order_ref,
-          daily_order_number: order.daily_order_number,
-          status: order.status,
-          payment_mode: order.payment_mode,
-          final_total_rm: order.final_total_rm,
-          token_amount_charged: order.token_amount_charged
-        }
-      };
-    } catch (error) {
       throw error;
     } finally {
       connection.release();

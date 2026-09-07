@@ -38,6 +38,9 @@ dependencies:
   flutter_launcher_icons: ^0.14.4
   image: ^4.9.2
   http: ^1.6.0
+  flutter_secure_storage: ^9.2.4
+  firebase_core: ^4.3.0
+  firebase_messaging: ^16.1.0
 
 dev_dependencies:
   flutter_test:
@@ -93,4 +96,3 @@ flutter_launcher_icons:
   web:
     generate: true
     image_path: "assets/images/app_icon_square.png"
-

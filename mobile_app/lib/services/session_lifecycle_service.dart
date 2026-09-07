@@ -1,6 +1,7 @@
 import 'app_session_service.dart';
 import 'auth_api_service.dart';
 import 'secure_session_service.dart';
+import 'push_notification_service.dart';
 import 'user_service.dart';
 
 class SessionLifecycleService {
@@ -36,6 +37,7 @@ class SessionLifecycleService {
     final refreshToken = await SecureSessionService.instance.getRefreshToken();
 
     try {
+      await PushNotificationService.instance.deactivateForCurrentSession();
       var tokenToUse = accessToken;
       if ((tokenToUse == null || tokenToUse.isEmpty) &&
           refreshToken != null &&
