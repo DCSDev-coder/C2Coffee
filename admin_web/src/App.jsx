@@ -177,8 +177,8 @@ function App() {
       )}
       {currentPage === 'Profile' && <Profile onBack={() => handleNavigate(prevPage || 'Dashboard')} currentUser={currentUser} onUpdateUser={handleUpdateUser} />}
       {currentPage === 'Voucher' && <Vouchers onBack={() => handleNavigate(prevPage || 'Dashboard')} />}
-      {currentPage === 'Loyalty & Tokens' && <LoyaltyTokens onBack={() => handleNavigate(prevPage || 'Dashboard')} onNavigate={handleNavigate} />}
-      {currentPage === 'Tier Management' && <TierManagement onBack={() => handleNavigate('Loyalty & Tokens')} />}
+      {currentPage === 'Token Ledger' && <LoyaltyTokens onBack={() => handleNavigate(prevPage || 'Dashboard')} onNavigate={handleNavigate} />}
+      {currentPage === 'Tier Management' && <TierManagement onBack={() => handleNavigate('Token Ledger')} />}
       {currentPage === 'Menu' && <Menu />}
       {currentPage === 'Marketing' && <Marketing setCurrentPage={handleNavigate} />}
       {currentPage === 'Finance' && <Finance setCurrentPage={handleNavigate} />}

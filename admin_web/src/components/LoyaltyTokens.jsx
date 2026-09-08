@@ -4,7 +4,7 @@ import "react-datepicker/dist/react-datepicker.css";
 import {
   Search, ChevronDown, Download, Users, Coins, ArrowUp,
   CreditCard, ShoppingBag, MoreVertical, X, Eye,
-  Crown, Edit3, BarChart3, ChevronRight, CheckCircle2, Ticket, Percent, ArrowRight
+  Edit3, BarChart3, ChevronRight, CheckCircle2, Ticket, Percent, ArrowRight
 } from "lucide-react";
 import Pagination from './Pagination';
 import TokenTransaction from './TokenTransaction';
@@ -62,19 +62,6 @@ const getTypeColor = (type) => {
 
 const formatMemberId = (userId) => `C2-${String(Number(userId) || 0).padStart(3, '0')}`;
 
-const calculateTierTarget = (tier) => {
-  switch (String(tier || '').toLowerCase()) {
-    case 'kawan':
-      return 10;
-    case 'dilamun':
-      return 30;
-    case 'ketagih':
-      return 50;
-    default:
-      return 50;
-  }
-};
-
 //KPI Card Component
 const KPICard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-white" }) => (
   <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center space-x-4 min-w-0">
@@ -113,7 +100,7 @@ const LoyaltyTokens = ({ onBack, onNavigate }) => {
   const [isEditTokensOpen, setIsEditTokensOpen] = useState(false);
   const [editTokenAmount, setEditTokenAmount] = useState("");
   const [editTokenAction, setEditTokenAction] = useState("Add");
-  const [editTokenReason, setEditTokenReason] = useState("Local cross-app order test");
+  const [editTokenReason, setEditTokenReason] = useState("");
   const [editTokenError, setEditTokenError] = useState("");
   const [isSavingTokenAdjustment, setIsSavingTokenAdjustment] = useState(false);
   const [menuOpenId, setMenuOpenId] = useState(null);
@@ -243,8 +230,8 @@ const LoyaltyTokens = ({ onBack, onNavigate }) => {
       <div className="shrink-0 space-y-6">
         {/* Header */}
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Loyalty & Tokens</h1>
-          <p className="text-gray-500 text-sm mt-0.5">Token balances, tier progress, and token transactions.</p>
+          <h1 className="text-2xl font-bold text-gray-900">Token Ledger</h1>
+          <p className="text-gray-500 text-sm mt-0.5">Review wallet balances, token movements, and approved corrections. Customer profiles and order activity stay on Customers.</p>
         </div>
 
         {loadError && (
@@ -256,9 +243,9 @@ const LoyaltyTokens = ({ onBack, onNavigate }) => {
         {/* KPI Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <KPICard
-            title="Total Members"
+            title="Wallet Members"
             value={isLoading ? '—' : (overview?.summary?.totalMembers ?? 0).toLocaleString('en-US')}
-            change="Member count"
+            change="Customer wallets"
             icon={Users}
             iconBg="bg-[#1F3A34]"
           />
@@ -279,7 +266,7 @@ const LoyaltyTokens = ({ onBack, onNavigate }) => {
             </div>
             <input
               type="text"
-              placeholder="Search members by name, phone or member ID..."
+              placeholder="Search wallets by name, phone, or member ID..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm bg-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1F3A34] focus:border-[#1F3A34]"
@@ -287,7 +274,7 @@ const LoyaltyTokens = ({ onBack, onNavigate }) => {
           </div>
 
           <div className="text-xs text-gray-500 lg:ml-2">
-            Showing {groupedMembers.length.toLocaleString('en-US')} members and {filteredTransactions.length.toLocaleString('en-US')} token events
+            Showing {groupedMembers.length.toLocaleString('en-US')} wallet members and {filteredTransactions.length.toLocaleString('en-US')} token events
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
@@ -321,27 +308,6 @@ const LoyaltyTokens = ({ onBack, onNavigate }) => {
             >
               Analytics
             </button>
-            <button
-              onClick={() => {
-                const rows = [
-                  ["Transaction ID", "Member Name", "Tokens", "Balance", "Type", "Source", "Date"],
-                  ...filteredTransactions.map(t => [
-                    `"${t.id}"`,
-                    `"${t.member.name}"`,
-                    `"${t.tokens}"`,
-                    `"${t.balance}"`,
-                    `"${t.type}"`,
-                    `"${t.description}"`,
-                    `"${t.date} ${t.time}"`
-                  ])
-                ];
-                exportToCSV(rows, "loyalty_tokens.csv");
-              }}
-              className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer shadow-sm whitespace-nowrap"
-            >
-              <Download size={16} className="mr-1.5" />
-              Export
-            </button>
           </div>
         </div>
       </div>
@@ -355,7 +321,7 @@ const LoyaltyTokens = ({ onBack, onNavigate }) => {
                 <thead className="sticky top-0 bg-white border-b border-gray-200 z-10">
                   <tr className="text-left text-xs font-bold text-gray-900">
                     <th className="px-6 py-4 font-extrabold">Date & Time</th>
-                    <th className="px-6 py-4 font-extrabold">Username</th>
+                    <th className="px-6 py-4 font-extrabold">Wallet Owner</th>
                     <th className="px-6 py-4 font-extrabold">Member Tier</th>
                     <th className="px-6 py-4 font-extrabold">Latest Activity</th>
                     <th className="px-6 py-4 font-extrabold text-right">Tokens</th>
@@ -442,7 +408,7 @@ const LoyaltyTokens = ({ onBack, onNavigate }) => {
             </div>
 
             {/* Pagination */}
-            <div className="mt-auto px-6 py-4 border-t border-gray-100 flex shrink-0 bg-white">
+            <div className="mt-auto px-6 py-4 border-t border-gray-100 flex items-center justify-between gap-4 shrink-0 bg-white">
               <Pagination
                 currentPage={currentPage}
                 totalPages={totalPages}
@@ -451,16 +417,36 @@ const LoyaltyTokens = ({ onBack, onNavigate }) => {
                 totalItems={groupedMembers.length}
                 itemName="members"
               />
+              <button
+                onClick={() => {
+                  const rows = [
+                    ["Transaction ID", "Member Name", "Tokens", "Balance", "Type", "Source", "Date"],
+                    ...filteredTransactions.map((transaction) => [
+                      `"${transaction.id}"`,
+                      `"${transaction.member.name}"`,
+                      `"${transaction.tokens}"`,
+                      `"${transaction.balance}"`,
+                      `"${transaction.type}"`,
+                      `"${transaction.description}"`,
+                      `"${transaction.date} ${transaction.time}"`
+                    ])
+                  ];
+                  exportToCSV(rows, "loyalty_tokens.csv");
+                }}
+                className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer shadow-sm whitespace-nowrap"
+              >
+                <Download size={16} className="mr-1.5" /> Export
+              </button>
             </div>
           </div>
         </div>
 
-        {/* Right side: Customer Overview Panel */}
+        {/* Right side: wallet details panel */}
         {selectedCustomer && (
           <div className="w-[35%] bg-white rounded-2xl border border-gray-200 shadow-lg flex flex-col h-full animate-in slide-in-from-right-8 duration-300 shrink-0">
             {/* Header */}
             <div className="p-5 border-b border-gray-100 flex items-center justify-between bg-white rounded-t-2xl shrink-0">
-              <h2 className="text-xl font-bold text-gray-900">Customer Overview</h2>
+              <h2 className="text-xl font-bold text-gray-900">Wallet Details</h2>
               <button
                 onClick={() => setSelectedCustomer(null)}
                 className="p-1.5 text-gray-400 hover:text-gray-900 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
@@ -488,6 +474,7 @@ const LoyaltyTokens = ({ onBack, onNavigate }) => {
                     </span>
                   </div>
                 </div>
+                <p className="-mt-3 text-xs text-gray-500">Account details and order activity are available on Customers.</p>
 
                 {/* Stats Row */}
                 <div className="flex items-center justify-between pt-2">
@@ -513,40 +500,10 @@ const LoyaltyTokens = ({ onBack, onNavigate }) => {
                   </div>
                 </div>
 
-                {/* Tier Progress Card */}
-                <div className="bg-[#1a1a1a] rounded-xl p-4 text-white relative overflow-hidden">
-                  {/* Background decorative elements */}
-                  <div className="absolute right-0 top-0 w-32 h-32 bg-white/5 rounded-full blur-2xl translate-x-1/3 -translate-y-1/3"></div>
-
-                  <div className="flex justify-between items-end mb-4 relative z-10">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
-                        <Crown size={20} className="text-yellow-500" fill="currentColor" />
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-sm">{selectedCustomer.tier}</h4>
-                        <p className="text-[10px] text-gray-400">{selectedCustomer.tierProgress?.label || 'Rolling progress window'}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-[10px] text-gray-400">Next tier:</p>
-                      <p className="font-bold text-xs">{selectedCustomer.tierProgress.current}/{selectedCustomer.tierProgress.target} cups</p>
-                    </div>
-                  </div>
-
-                  {/* Progress Bar */}
-                  <div className="w-full bg-white/20 rounded-full h-1.5 relative z-10">
-                    <div
-                      className="bg-white h-1.5 rounded-full"
-                      style={{ width: `${(selectedCustomer.tierProgress.current / selectedCustomer.tierProgress.target) * 100}%` }}
-                    ></div>
-                  </div>
-                </div>
-
                 {/* Token History */}
                 <div className="pt-2">
                   <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-bold text-gray-900 text-sm">Token History</h3>
+                    <h3 className="font-bold text-gray-900 text-sm">Recent Wallet Activity</h3>
                     <button
                       onClick={() => setActiveView('tokens')}
                       className="text-xs font-bold text-gray-900 hover:underline inline-flex items-center gap-1 cursor-pointer"
@@ -591,24 +548,24 @@ const LoyaltyTokens = ({ onBack, onNavigate }) => {
               <button
                 onClick={() => {
                   setEditTokenError("");
-                  setEditTokenReason("Local cross-app order test");
+                  setEditTokenReason("");
                   setIsEditTokensOpen(true);
                 }}
                 className="w-full py-2.5 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-sm"
               >
-                <Edit3 size={16} /> Edit Tokens
+                <Edit3 size={16} /> Adjust Wallet
               </button>
             </div>
           </div>
         )}
       </div>
 
-      {/* Edit Tokens Modal */}
+      {/* Wallet adjustment modal */}
       {isEditTokensOpen && selectedCustomer && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl w-[400px] shadow-xl overflow-hidden">
             <div className="flex justify-between items-center p-5 border-b border-gray-100">
-              <h2 className="text-lg font-bold text-gray-900">Edit Tokens</h2>
+              <h2 className="text-lg font-bold text-gray-900">Adjust Wallet Tokens</h2>
               <button onClick={() => setIsEditTokensOpen(false)} className="text-gray-400 hover:text-gray-900 transition-colors">
                 <X size={20} />
               </button>
@@ -652,14 +609,14 @@ const LoyaltyTokens = ({ onBack, onNavigate }) => {
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1.5">Reason</label>
+                <label className="block text-sm font-bold text-gray-700 mb-1.5">Adjustment reason <span className="text-red-500">*</span></label>
                 <input
                   type="text"
                   value={editTokenReason}
                   onChange={(e) => setEditTokenReason(e.target.value)}
                   maxLength={500}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-[#1F3A34] focus:border-[#1F3A34] sm:text-sm outline-none"
-                  placeholder="e.g. Local cross-app order test"
+                  placeholder="e.g. Correct a duplicate top-up"
                 />
                 <p className="mt-1.5 text-xs text-gray-500">This is recorded in the token ledger and audit log.</p>
               </div>
@@ -717,7 +674,7 @@ const LoyaltyTokens = ({ onBack, onNavigate }) => {
                 disabled={isSavingTokenAdjustment}
                 className="px-4 py-2 bg-[#2E5E58] text-white rounded-lg text-sm font-bold hover:bg-[#1F3A34] disabled:cursor-not-allowed disabled:opacity-60 transition-colors shadow-sm cursor-pointer"
               >
-                {isSavingTokenAdjustment ? 'Updating...' : 'Confirm'}
+                {isSavingTokenAdjustment ? 'Updating...' : 'Record Adjustment'}
               </button>
             </div>
           </div>

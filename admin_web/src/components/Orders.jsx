@@ -749,35 +749,6 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
             />
           </div>
 
-          {/* Export & Action Buttons */}
-          <button
-            onClick={() => {
-              const rows = [
-                ["Order ID", "Username", "Email", "Barista", "Status", "Payment Status", "Date", "Time", "Total (Tokens)", "Total (RM)"],
-                ...filtered.map(o => {
-                  const subtotal = o.items.reduce((s, i) => s + i.unitPrice * i.qty, 0);
-                  const rmTotal = Number(o.total ?? (subtotal - Number(o.discount || 0)));
-                  const tokenTotal = o.tokenAmountCharged ?? rmTotal;
-                  return [
-                    `"${o.id}"`,
-                    `"${o.customer}"`,
-                    `"${o.email}"`,
-                    `"${o.baristaName || ''}"`,
-                    `"${o.status}"`,
-                    `"${o.paymentStatus}"`,
-                    `"${o.date}"`,
-                    `"${o.time}"`,
-                    `"${formatTokens(tokenTotal)}"`,
-                    `"${formatRm(rmTotal)}"`
-                  ];
-                })
-              ];
-              exportToCSV(rows, "orders.csv");
-            }}
-            className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer lg:ml-2"
-          >
-            <Download size={16} className="mr-2" /> Export
-          </button>
           <button
             onClick={() => setShowRefundsView(true)}
             className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer"
@@ -874,7 +845,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
           </div>
 
           {/* Table Bottom: Pagination */}
-          <div className="px-6 py-4 border-t border-gray-200 flex shrink-0 bg-white">
+          <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between gap-4 shrink-0 bg-white">
             <Pagination
               currentPage={currentPage}
               totalPages={totalPages}
@@ -883,6 +854,23 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
               totalItems={filtered.length}
               itemName="orders"
             />
+            <button
+              onClick={() => {
+                const rows = [
+                  ["Order ID", "Username", "Email", "Barista", "Status", "Payment Status", "Date", "Time", "Total (Tokens)", "Total (RM)"],
+                  ...filtered.map(o => {
+                    const subtotal = o.items.reduce((s, i) => s + i.unitPrice * i.qty, 0);
+                    const rmTotal = Number(o.total ?? (subtotal - Number(o.discount || 0)));
+                    const tokenTotal = o.tokenAmountCharged ?? rmTotal;
+                    return [`"${o.id}"`, `"${o.customer}"`, `"${o.email}"`, `"${o.baristaName || ''}"`, `"${o.status}"`, `"${o.paymentStatus}"`, `"${o.date}"`, `"${o.time}"`, `"${formatTokens(tokenTotal)}"`, `"${formatRm(rmTotal)}"`];
+                  })
+                ];
+                exportToCSV(rows, "orders.csv");
+              }}
+              className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer"
+            >
+              <Download size={16} className="mr-2" /> Export
+            </button>
           </div>
         </div>
 

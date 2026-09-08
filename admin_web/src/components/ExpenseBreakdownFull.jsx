@@ -101,13 +101,6 @@ const ExpenseBreakdownFull = ({ onBack }) => {
           >
             <RefreshCw size={16} /> Refresh
           </button>
-          <button
-            type="button"
-            onClick={() => exportToCSV(exportRows, 'transaction_breakdown.csv')}
-            className="flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-bold rounded-lg hover:bg-gray-50 transition-colors cursor-pointer shadow-sm"
-          >
-            <Download size={16} /> Export Data
-          </button>
         </div>
       </div>
 
@@ -172,6 +165,15 @@ const ExpenseBreakdownFull = ({ onBack }) => {
             )}
           </div>
         </div>
+      </div>
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={() => exportToCSV(exportRows, 'transaction_breakdown.csv')}
+          className="flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-bold rounded-lg hover:bg-gray-50 transition-colors cursor-pointer shadow-sm"
+        >
+          <Download size={16} /> Export Data
+        </button>
       </div>
     </div>
   );

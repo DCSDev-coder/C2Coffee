@@ -51,7 +51,7 @@ const LoyaltyAnalytics = ({ overview, onBack, onViewSummary }) => {
                 <ArrowLeft size={22} strokeWidth={2.5} />
               </button>
             )}
-          <h1 className="text-2xl font-bold text-gray-900">Loyalty & Tokens</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Token Ledger</h1>
         </div>
         <p className={`text-gray-500 text-sm mt-0.5 ${onBack ? "ml-8" : ""}`}>
           Loyalty overview, rewards, and activity.

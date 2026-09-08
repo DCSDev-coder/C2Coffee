@@ -72,8 +72,8 @@ const formatTokens = (value) => {
 
 const getStatusColor = (status) => {
   switch (status) {
-    case 'Paid': return 'bg-green-100 text-green-600';
-    case 'Refund': return 'bg-red-100 text-red-600';
+    case 'Active': return 'bg-green-100 text-green-600';
+    case 'Inactive': return 'bg-gray-100 text-gray-600';
     default: return 'bg-gray-100 text-gray-600';
   }
 };
@@ -343,7 +343,7 @@ const Customers = ({ currentUser }) => {
       {/* Header section */}
       <div className="mb-6 flex-shrink-0">
         <h1 className="text-2xl font-bold text-gray-900">Customers</h1>
-        <p className="text-gray-500">Manage and view all your customers.</p>
+        <p className="text-gray-500">Customer accounts, profiles, and order activity.</p>
       </div>
 
       {loadError && (
@@ -404,8 +404,8 @@ const Customers = ({ currentUser }) => {
               className="peer pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer w-full"
             >
               <option value="All Status">All Status</option>
-              <option value="Paid">Paid</option>
-              <option value="Refund">Refund</option>
+              <option value="Active">Active</option>
+              <option value="Inactive">Inactive</option>
             </select>
             <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
               <ChevronDown size={16} className={`text-gray-500 transition-transform duration-200 ${statusOpen ? 'rotate-180' : ''}`} />
@@ -420,10 +420,6 @@ const Customers = ({ currentUser }) => {
               dateFormat="MMM d, yyyy"
             />
           </div>
-
-          <button onClick={handleExport} className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 lg:ml-4 cursor-pointer">
-            <Download size={16} className="mr-2" /> Export
-          </button>
 
           {canManageCustomers && (
             <button onClick={() => setIsAddModalOpen(true)} className="flex items-center px-4 py-2 bg-[#1F3A34] text-white border-transparent text-sm font-bold rounded-lg hover:bg-[#2E5E58] transition-colors shadow-sm cursor-pointer">
@@ -548,7 +544,7 @@ const Customers = ({ currentUser }) => {
               </tbody>
             </table>
           </div>
-          <div className="px-6 py-4 border-t border-gray-200 flex shrink-0 bg-white">
+          <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between gap-4 shrink-0 bg-white">
             <Pagination
               currentPage={currentPage}
               totalPages={totalPages}
@@ -557,6 +553,9 @@ const Customers = ({ currentUser }) => {
               totalItems={filteredData.length}
               itemName="customers"
             />
+            <button onClick={handleExport} className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer">
+              <Download size={16} className="mr-2" /> Export
+            </button>
           </div>
         </div>
 

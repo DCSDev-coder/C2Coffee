@@ -196,6 +196,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
           phone_e164,
           device_id,
           channel,
+          recipient_email,
           otp_hash,
           provider_message_ref,
           expires_at,
@@ -206,6 +207,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
           :phone,
           :deviceId,
           'email',
+          :recipientEmail,
           :otpHash,
           :providerMessageRef,
           DATE_ADD(UTC_TIMESTAMP(), INTERVAL :expirySeconds SECOND),
@@ -216,6 +218,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
       {
         phone,
         deviceId: device.id,
+        recipientEmail: resolvedEmail,
         otpHash: hashSha256(otpCode),
         providerMessageRef: null,
         expirySeconds: env.OTP_EXPIRY_SECONDS,
@@ -345,6 +348,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
             id: number;
             phone_e164: string;
             device_id: number | null;
+            recipient_email: string | null;
             otp_hash: string;
             expires_at: Date;
             attempts_used: number;
@@ -431,7 +435,12 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
         { id: otpRow.id }
       );
 
-      const user = await findOrCreateUserForPhone(phone, device.id, connection);
+      const user = await findOrCreateUserForPhone(
+        phone,
+        device.id,
+        otpRow.recipient_email,
+        connection
+      );
 
       if (user.status !== 'active') {
         throw new ApiError(403, 'user_not_active', 'User account is not active.');
@@ -648,6 +657,7 @@ async function findOrCreateDevice(
 async function findOrCreateUserForPhone(
   phone: string,
   deviceId: number,
+  verifiedEmail: string | null,
   connection: PoolConnection
 ): Promise<UserProfileSummary> {
   const [existingRows] = await connection.query<
@@ -729,6 +739,7 @@ async function findOrCreateUserForPhone(
       INSERT INTO user_profiles (
         user_id,
         display_name,
+        email,
         avatar_type,
         created_at,
         updated_at
@@ -736,12 +747,16 @@ async function findOrCreateUserForPhone(
       VALUES (
         :userId,
         'C2 Member',
+        :email,
         'preset',
         UTC_TIMESTAMP(),
         UTC_TIMESTAMP()
       )
     `,
-    { userId: userInsert.insertId }
+    {
+      userId: userInsert.insertId,
+      email: verifiedEmail?.trim().toLowerCase() || null
+    }
   );
 
   await connection.execute(
@@ -762,6 +777,19 @@ async function findOrCreateUserForPhone(
         UTC_TIMESTAMP(),
         UTC_TIMESTAMP()
       )
+    `,
+    { userId: userInsert.insertId }
+  );
+
+  // The customer app currently serves the C2 Coffee tenant. Associate a new
+  // account immediately so it is visible to customer operations before a first order.
+  await connection.execute(
+    `
+      INSERT IGNORE INTO customer_tenant_memberships (tenant_id, user_id)
+      SELECT id, :userId
+      FROM admin_tenants
+      WHERE code = 'c2coffee'
+      LIMIT 1
     `,
     { userId: userInsert.insertId }
   );
@@ -822,10 +850,6 @@ async function resolveOtpEmail({
   providedEmail: string | null;
   connection: PoolConnection | typeof mysqlPool;
 }): Promise<string> {
-  if (providedEmail) {
-    return providedEmail.trim().toLowerCase();
-  }
-
   const [rows] = await connection.query<Array<RowDataPacket & { email: string | null }>>(
     `
       SELECT up.email
@@ -837,8 +861,27 @@ async function resolveOtpEmail({
     { phone }
   );
 
-  const email = rows[0]?.email?.trim().toLowerCase();
-  if (!email) {
+  const registeredEmail = rows[0]?.email?.trim().toLowerCase();
+  if (registeredEmail) {
+    if (providedEmail && providedEmail.trim().toLowerCase() !== registeredEmail) {
+      throw new ApiError(
+        400,
+        'otp_email_mismatch',
+        'Use the email address already registered to this account.'
+      );
+    }
+    return registeredEmail;
+  }
+
+  if (rows[0]) {
+    throw new ApiError(
+      400,
+      'otp_email_required',
+      'This account has no verified email address. Please contact support to complete account setup.'
+    );
+  }
+
+  if (!providedEmail) {
     throw new ApiError(
       400,
       'otp_email_required',
@@ -846,7 +889,7 @@ async function resolveOtpEmail({
     );
   }
 
-  return email;
+  return providedEmail.trim().toLowerCase();
 }
 
 export async function getBootstrapForUser(

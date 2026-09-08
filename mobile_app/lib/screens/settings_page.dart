@@ -641,6 +641,14 @@ class _SettingsPageState extends State<SettingsPage> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        const Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'All address fields are optional.',
+                            style: TextStyle(color: Colors.black54),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
                         TextFormField(
                           controller: houseController,
                           decoration: InputDecoration(
@@ -649,12 +657,6 @@ class _SettingsPageState extends State<SettingsPage> {
                               borderSide: BorderSide(color: AppColors.deepTeal),
                             ),
                           ),
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return 'Please enter house or unit';
-                            }
-                            return null;
-                          },
                         ),
                         TextFormField(
                           controller: streetController,
@@ -664,12 +666,6 @@ class _SettingsPageState extends State<SettingsPage> {
                                 borderSide:
                                     BorderSide(color: AppColors.deepTeal)),
                           ),
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return 'Please enter street address';
-                            }
-                            return null;
-                          },
                         ),
                         TextFormField(
                           controller: cityController,
@@ -679,12 +675,6 @@ class _SettingsPageState extends State<SettingsPage> {
                                 borderSide:
                                     BorderSide(color: AppColors.deepTeal)),
                           ),
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return 'Please enter city';
-                            }
-                            return null;
-                          },
                         ),
                         TextFormField(
                           controller: postcodeController,
@@ -695,12 +685,6 @@ class _SettingsPageState extends State<SettingsPage> {
                                 borderSide:
                                     BorderSide(color: AppColors.deepTeal)),
                           ),
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return 'Please enter postcode';
-                            }
-                            return null;
-                          },
                         ),
                         TextFormField(
                           controller: stateController,
@@ -710,12 +694,6 @@ class _SettingsPageState extends State<SettingsPage> {
                                 borderSide:
                                     BorderSide(color: AppColors.deepTeal)),
                           ),
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return 'Please enter state';
-                            }
-                            return null;
-                          },
                         ),
                       ],
                     ),
@@ -730,8 +708,14 @@ class _SettingsPageState extends State<SettingsPage> {
                   TextButton(
                     onPressed: () async {
                       if (formKey.currentState!.validate()) {
-                        String fullAddress =
-                            '${houseController.text.trim()}, ${streetController.text.trim()}, ${postcodeController.text.trim()} ${cityController.text.trim()}';
+                        final fullAddress = [
+                          houseController.text.trim(),
+                          streetController.text.trim(),
+                          [
+                            postcodeController.text.trim(),
+                            cityController.text.trim(),
+                          ].where((part) => part.isNotEmpty).join(' '),
+                        ].where((part) => part.isNotEmpty).join(', ');
                         await UserService.saveUserProfile(
                           {'state': stateController.text.trim()},
                         );

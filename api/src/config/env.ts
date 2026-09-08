@@ -54,6 +54,7 @@ const envSchema = z.object({
   SUPPORT_EMAIL_ADDRESS: z.string().email().default('support@c2coffeeandcandle.com'),
   ADMIN_COOKIE_DOMAIN: z.string().trim().optional().default(''),
   ADMIN_COOKIE_SECURE: envBoolean(false),
+  ADMIN_COOKIE_SAME_SITE: z.enum(['lax', 'strict', 'none']).default('lax'),
   FCM_DELIVERY_ENABLED: envBoolean(false),
   FCM_SERVICE_ACCOUNT_JSON: z.string().optional().default(''),
   PRINT_CONNECTOR_SHARED_SECRET: z.string().optional().default('')
@@ -82,6 +83,10 @@ if (parsed.NODE_ENV === 'production') {
   if (parsed.FCM_DELIVERY_ENABLED && !parsed.FCM_SERVICE_ACCOUNT_JSON) {
     throw new Error('FCM_SERVICE_ACCOUNT_JSON is required when FCM_DELIVERY_ENABLED=true.');
   }
+}
+
+if (parsed.ADMIN_COOKIE_SAME_SITE === 'none' && !(parsed.NODE_ENV === 'production' || parsed.ADMIN_COOKIE_SECURE)) {
+  throw new Error('ADMIN_COOKIE_SAME_SITE=none requires HTTPS via production mode or ADMIN_COOKIE_SECURE=true.');
 }
 
 export const env = {

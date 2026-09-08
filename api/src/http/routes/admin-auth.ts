@@ -148,7 +148,7 @@ function setAdminRefreshCookie(
   reply.setCookie(adminRefreshCookieName, refreshToken, {
     httpOnly: true,
     secure: env.NODE_ENV === 'production' || env.ADMIN_COOKIE_SECURE,
-    sameSite: 'lax',
+    sameSite: env.ADMIN_COOKIE_SAME_SITE,
     path: '/v1/admin/auth',
     domain: env.ADMIN_COOKIE_DOMAIN || undefined,
     maxAge: env.REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60

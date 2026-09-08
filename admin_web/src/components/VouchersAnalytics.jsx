@@ -119,32 +119,6 @@ const VouchersAnalytics = ({ onBack, vouchers }) => {
           </p>
         </div>
 
-        <button
-          onClick={() => {
-            const rows = [
-              ["Voucher Code", "Name", "Type", "Status", "Issued", "Redeemed", "Redemption Rate"],
-              ...topVouchers.map((voucher) => {
-                const issued = Number(voucher.issued || 0);
-                const redeemed = Number(voucher.redeemed || 0);
-                const rate = issued > 0 ? `${((redeemed / issued) * 100).toFixed(1)}%` : "0.0%";
-
-                return [
-                  `"${voucher.id}"`,
-                  `"${voucher.name}"`,
-                  `"${voucher.type || ""}"`,
-                  `"${voucher.status || ""}"`,
-                  issued,
-                  redeemed,
-                  `"${rate}"`
-                ];
-              })
-            ];
-            exportToCSV(rows, "vouchers_analytics.csv");
-          }}
-          className="flex items-center gap-1.5 px-4 py-2 border border-gray-300 rounded-lg text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 transition-colors cursor-pointer shadow-xs"
-        >
-          <Download size={15} /> Export
-        </button>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -235,6 +209,21 @@ const VouchersAnalytics = ({ onBack, vouchers }) => {
               )}
             </tbody>
           </table>
+        </div>
+        <div className="flex justify-end border-t border-gray-100 pt-4">
+          <button
+            onClick={() => {
+              const rows = [["Voucher Code", "Name", "Type", "Status", "Issued", "Redeemed", "Redemption Rate"], ...topVouchers.map((voucher) => {
+                const issued = Number(voucher.issued || 0);
+                const redeemed = Number(voucher.redeemed || 0);
+                return [`"${voucher.id}"`, `"${voucher.name}"`, `"${voucher.type || ""}"`, `"${voucher.status || ""}"`, issued, redeemed, `"${issued > 0 ? `${((redeemed / issued) * 100).toFixed(1)}%` : "0.0%"}"`];
+              })];
+              exportToCSV(rows, "vouchers_analytics.csv");
+            }}
+            className="flex items-center gap-1.5 px-4 py-2 border border-gray-300 rounded-lg text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 transition-colors cursor-pointer shadow-xs"
+          >
+            <Download size={15} /> Export
+          </button>
         </div>
 
         <div className="border-t border-gray-100 pt-4">

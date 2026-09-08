@@ -195,26 +195,39 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
       const [summaryRows] = await connection.query<SummaryRow[]>(
         `
           SELECT
-            COALESCE((SELECT COUNT(*) FROM users u WHERE u.deleted_at IS NULL), 0) AS total_members,
+            COALESCE((
+              SELECT COUNT(*)
+              FROM users u
+              JOIN customer_tenant_memberships ctm
+                ON ctm.user_id = u.id AND ctm.tenant_id = :tenantId
+              WHERE u.deleted_at IS NULL
+            ), 0) AS total_members,
             COALESCE((
               SELECT SUM(ta.balance_available)
               FROM token_accounts ta
               JOIN users u ON u.id = ta.user_id
+              JOIN customer_tenant_memberships ctm
+                ON ctm.user_id = u.id AND ctm.tenant_id = :tenantId
               WHERE u.deleted_at IS NULL
             ), 0) AS tokens_in_circulation,
             COALESCE((
               SELECT SUM(CASE WHEN tl.direction = 'credit' THEN tl.amount ELSE 0 END)
               FROM token_ledger tl
               JOIN users u ON u.id = tl.user_id
+              JOIN customer_tenant_memberships ctm
+                ON ctm.user_id = u.id AND ctm.tenant_id = :tenantId
               WHERE u.deleted_at IS NULL
             ), 0) AS tokens_issued,
             COALESCE((
               SELECT SUM(CASE WHEN tl.direction = 'debit' THEN tl.amount ELSE 0 END)
               FROM token_ledger tl
               JOIN users u ON u.id = tl.user_id
+              JOIN customer_tenant_memberships ctm
+                ON ctm.user_id = u.id AND ctm.tenant_id = :tenantId
               WHERE u.deleted_at IS NULL
             ), 0) AS tokens_redeemed
-        `
+        `,
+        { tenantId: request.adminAuth.tenantId }
       );
 
       const [tierRows] = await connection.query<TierRow[]>(
@@ -236,13 +249,16 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
               ), 'kawan') AS tier_code,
               COALESCE(ta.balance_available, 0) AS token_balance
             FROM users u
+            JOIN customer_tenant_memberships ctm
+              ON ctm.user_id = u.id AND ctm.tenant_id = :tenantId
             LEFT JOIN token_accounts ta ON ta.user_id = u.id
             WHERE u.deleted_at IS NULL
           ) user_tiers ON user_tiers.tier_code = lt.code
           WHERE lt.is_active = 1
           GROUP BY lt.id, lt.code, lt.name, lt.min_cups, lt.sort_order
           ORDER BY lt.min_cups ASC, lt.sort_order ASC, lt.id ASC
-        `
+        `,
+        { tenantId: request.adminAuth.tenantId }
       );
 
       const [dailyRows] = await connection.query<DailyRow[]>(
@@ -253,11 +269,14 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
             SUM(CASE WHEN tl.direction = 'debit' THEN tl.amount ELSE 0 END) AS redeemed
           FROM token_ledger tl
           JOIN users u ON u.id = tl.user_id
+          JOIN customer_tenant_memberships ctm
+            ON ctm.user_id = u.id AND ctm.tenant_id = :tenantId
           WHERE u.deleted_at IS NULL
             AND tl.created_at >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 30 DAY)
           GROUP BY DATE(tl.created_at)
           ORDER BY day ASC
-        `
+        `,
+        { tenantId: request.adminAuth.tenantId }
       );
 
       const [sourceRows] = await connection.query<RowDataPacket[]>(
@@ -268,11 +287,14 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
             COUNT(*) AS txn_count
           FROM token_ledger tl
           JOIN users u ON u.id = tl.user_id
+          JOIN customer_tenant_memberships ctm
+            ON ctm.user_id = u.id AND ctm.tenant_id = :tenantId
           WHERE u.deleted_at IS NULL
             AND tl.direction = 'credit'
           GROUP BY tl.source_type
           ORDER BY total_amount DESC, txn_count DESC
-        `
+        `,
+        { tenantId: request.adminAuth.tenantId }
       );
 
       const [rewardRows] = await connection.query<RewardRow[]>(
@@ -285,11 +307,14 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
           JOIN user_vouchers uv ON uv.id = vr.user_voucher_id
           JOIN voucher_templates vt ON vt.id = uv.voucher_template_id
           JOIN users u ON u.id = uv.user_id
+          JOIN customer_tenant_memberships ctm
+            ON ctm.user_id = u.id AND ctm.tenant_id = :tenantId
           WHERE u.deleted_at IS NULL
           GROUP BY vt.id, vt.code, vt.name
           ORDER BY redemption_count DESC, vt.name ASC
           LIMIT 5
-        `
+        `,
+        { tenantId: request.adminAuth.tenantId }
       );
 
       const [activityRows] = await connection.query<TransactionRow[]>(
@@ -327,6 +352,8 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
             o.order_ref
           FROM token_ledger tl
           JOIN users u ON u.id = tl.user_id
+          JOIN customer_tenant_memberships ctm
+            ON ctm.user_id = u.id AND ctm.tenant_id = :tenantId
           LEFT JOIN user_profiles up ON up.user_id = u.id
           LEFT JOIN (
             SELECT
@@ -344,7 +371,7 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
           ORDER BY tl.created_at DESC, tl.id DESC
           LIMIT :limit
         `,
-        { limit }
+        { limit, tenantId: request.adminAuth.tenantId }
       );
 
       const [walletMemberRows] = await connection.query<WalletMemberRow[]>(
@@ -372,6 +399,8 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
             COALESCE(ledger_stats.lifetime_earned, 0) AS lifetime_earned,
             COALESCE(ledger_stats.lifetime_redeemed, 0) AS lifetime_redeemed
           FROM users u
+          JOIN customer_tenant_memberships ctm
+            ON ctm.user_id = u.id AND ctm.tenant_id = :tenantId
           JOIN token_accounts ta ON ta.user_id = u.id
           LEFT JOIN user_profiles up ON up.user_id = u.id
           LEFT JOIN (
@@ -384,7 +413,8 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
           ) ledger_stats ON ledger_stats.user_id = u.id
           WHERE u.deleted_at IS NULL
           ORDER BY COALESCE(up.display_name, up.email, u.phone_e164) ASC, u.id ASC
-        `
+        `,
+        { tenantId: request.adminAuth.tenantId }
       );
 
       const summaryRow = summaryRows[0] ?? {

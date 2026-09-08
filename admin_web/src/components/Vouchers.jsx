@@ -1298,22 +1298,33 @@ const Vouchers = () => {
                 Analytics
               </button>
 
+            </div>
+
+            <div className="flex items-center gap-4">
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                setCurrentPage={setCurrentPage}
+                itemsPerPage={ITEMS_PER_PAGE}
+                totalItems={filtered.length}
+                itemName="vouchers"
+              />
               <button
                 onClick={() => {
                   const rows = [
                     ["Voucher Code", "Name", "Type", "Benefit", "Tier", "Status", "Issued", "Redeemed", "Limit", "Availability", "Audience"],
-                    ...filtered.map(v => [
-                      `"${v.id}"`,
-                      `"${v.name}"`,
-                      `"${v.type}"`,
-                      `"${v.benefitType || ''}"`,
-                      `"${v.tier}"`,
-                      `"${v.status}"`,
-                      v.issued,
-                      v.redeemed,
-                      v.limitPerUser,
-                      `"${v.availabilityLabel || ''}"`,
-                      `"${audienceLabel(v.audience)}"`
+                    ...filtered.map((voucher) => [
+                      `"${voucher.id}"`,
+                      `"${voucher.name}"`,
+                      `"${voucher.type}"`,
+                      `"${voucher.benefitType || ''}"`,
+                      `"${voucher.tier}"`,
+                      `"${voucher.status}"`,
+                      voucher.issued,
+                      voucher.redeemed,
+                      voucher.limitPerUser,
+                      `"${voucher.availabilityLabel || ''}"`,
+                      `"${audienceLabel(voucher.audience)}"`
                     ])
                   ];
                   exportToCSV(rows, "vouchers.csv");
@@ -1323,15 +1334,6 @@ const Vouchers = () => {
                 <Download size={16} className="mr-2" /> Export
               </button>
             </div>
-
-            <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              setCurrentPage={setCurrentPage}
-              itemsPerPage={ITEMS_PER_PAGE}
-              totalItems={filtered.length}
-              itemName="vouchers"
-            />
           </div>
         </div>
 

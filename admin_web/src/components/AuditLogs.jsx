@@ -201,13 +201,6 @@ const AuditLogs = () => {
             >
               <RefreshCw size={16} /> Refresh
             </button>
-            <button
-              type="button"
-              onClick={handleExport}
-              className="flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-colors cursor-pointer shadow-sm"
-            >
-              <Download size={16} /> Export
-            </button>
           </div>
         </div>
 
@@ -368,7 +361,7 @@ const AuditLogs = () => {
             </table>
           </div>
 
-          <div className="px-6 py-4 border-t border-gray-100 flex shrink-0">
+          <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between gap-4 shrink-0">
             <Pagination
               currentPage={currentPage}
               totalPages={totalPages}
@@ -377,6 +370,13 @@ const AuditLogs = () => {
               totalItems={filteredLogs.length}
               itemName="audit logs"
             />
+            <button
+              type="button"
+              onClick={handleExport}
+              className="flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-colors cursor-pointer shadow-sm"
+            >
+              <Download size={16} /> Export
+            </button>
           </div>
         </div>
       </div>

@@ -29,7 +29,9 @@ String friendlyAuthErrorMessage(
     case 'signup_phone_email_conflict':
       return 'That phone number and email are already in use. Please choose different details.';
     case 'otp_email_required':
-      return 'Please add an email address before requesting the verification code.';
+      return 'Enter the email address associated with this account to receive a verification code.';
+    case 'otp_email_mismatch':
+      return 'Use the email address already registered to this account.';
     case 'otp_delivery_failed':
       return 'We could not send the verification code right now. Please try again shortly.';
     case 'otp_cooldown_active':

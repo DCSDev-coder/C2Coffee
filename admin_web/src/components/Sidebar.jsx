@@ -16,7 +16,7 @@ const Sidebar = ({ currentPage, setCurrentPage, onLogout, currentTenant, current
     { name: 'Customers', icon: Users },
     { name: 'Marketing', icon: Megaphone },
     { name: 'Voucher', icon: Ticket },
-    { name: 'Loyalty & Tokens', icon: Coins },
+    { name: 'Token Ledger', icon: Coins },
     { name: 'Tier Management', icon: Crown },
     { name: 'Finance', icon: LineChart },
     { name: 'Product Report', icon: Package },

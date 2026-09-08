@@ -123,21 +123,6 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
   Set<_Signup2ErrorField> _collectSignup2ValidationErrors() {
     final errors = <_Signup2ErrorField>{};
 
-    if (_houseController.text.trim().isEmpty) {
-      errors.add(_Signup2ErrorField.house);
-    }
-    if (_streetController.text.trim().isEmpty) {
-      errors.add(_Signup2ErrorField.street);
-    }
-    if (_postcodeController.text.trim().isEmpty) {
-      errors.add(_Signup2ErrorField.postcode);
-    }
-    if (_cityController.text.trim().isEmpty) {
-      errors.add(_Signup2ErrorField.city);
-    }
-    if (_stateController.text.trim().isEmpty) {
-      errors.add(_Signup2ErrorField.state);
-    }
     if (_selectedGender == null) {
       errors.add(_Signup2ErrorField.gender);
     }
@@ -146,6 +131,20 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
     }
 
     return errors;
+  }
+
+  String _addressValue() {
+    final parts = [
+      _houseController.text.trim(),
+      _streetController.text.trim(),
+      [
+        _postcodeController.text.trim(),
+        _cityController.text.trim(),
+      ].where((part) => part.isNotEmpty).join(' '),
+      _stateController.text.trim(),
+    ].where((part) => part.isNotEmpty);
+
+    return parts.join(', ');
   }
 
   @override
@@ -611,9 +610,9 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    // Address Header
+                                    // Optional address details are retained for profile use.
                                     const Text(
-                                      'Address',
+                                      'Address (Optional)',
                                       style: TextStyle(
                                           fontFamily: 'Recoleta',
                                           fontSize: 16,
@@ -700,7 +699,7 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                                             CrossAxisAlignment.start,
                                         children: [
                                           const Text(
-                                            'Gender',
+                                            'Gender *',
                                             style: TextStyle(
                                                 fontFamily: 'Recoleta',
                                                 fontSize: 16,
@@ -832,8 +831,7 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                                             return;
                                           }
 
-                                          final fullAddress =
-                                              '${_houseController.text.trim()}, ${_streetController.text.trim()}, ${_postcodeController.text.trim()} ${_cityController.text.trim()}, ${_stateController.text.trim()}';
+                                          final fullAddress = _addressValue();
                                           final profile = await UserService
                                               .getUserProfile();
 
@@ -848,9 +846,13 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                                           try {
                                             await UserService.saveUserProfile({
                                               'gender': _selectedGender ?? '',
-                                              'address': fullAddress,
-                                              'state':
-                                                  _stateController.text.trim(),
+                                              if (fullAddress.isNotEmpty)
+                                                'address': fullAddress,
+                                              if (_stateController.text
+                                                  .trim()
+                                                  .isNotEmpty)
+                                                'state': _stateController.text
+                                                    .trim(),
                                             });
 
                                             final deviceFingerprint =
@@ -1312,6 +1314,14 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                     ),
                     recognizer: TapGestureRecognizer()
                       ..onTap = _showTermsAndConditionsDialog,
+                  ),
+                  const TextSpan(
+                    text: ' *',
+                    style: TextStyle(
+                      fontFamily: 'Afacad',
+                      fontSize: 13.5,
+                      color: brandColor,
+                    ),
                   ),
                 ],
               ),

@@ -838,7 +838,7 @@ class _Signup1State extends State<Signup1> with SingleTickerProviderStateMixin {
                                     _buildFieldShake(
                                       field: _Signup1ErrorField.username,
                                       child: _buildTextField(
-                                        label: 'Username',
+                                        label: 'Username *',
                                         hintText: 'Username',
                                         controller: _usernameController,
                                         hasError: _errorFields.contains(
@@ -850,7 +850,7 @@ class _Signup1State extends State<Signup1> with SingleTickerProviderStateMixin {
                                     _buildFieldShake(
                                       field: _Signup1ErrorField.email,
                                       child: _buildTextField(
-                                        label: 'Email',
+                                        label: 'Email *',
                                         hintText: 'e.g. name@example.com',
                                         controller: _emailController,
                                         keyboardType:
@@ -1126,7 +1126,7 @@ class _Signup1State extends State<Signup1> with SingleTickerProviderStateMixin {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'Birthday',
+          'Birthday *',
           style: TextStyle(
               fontFamily: 'Recoleta',
               fontSize: 16,
@@ -1208,7 +1208,7 @@ class _Signup1State extends State<Signup1> with SingleTickerProviderStateMixin {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'Phone Number',
+          'Phone Number *',
           style: TextStyle(
               fontFamily: 'Recoleta',
               fontSize: 16,

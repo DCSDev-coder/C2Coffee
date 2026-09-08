@@ -246,13 +246,6 @@ const BaristaManagement = () => {
             </div>
 
             <button
-              onClick={handleExport}
-              className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 font-medium hover:bg-gray-50 h-10"
-            >
-              <Download size={16} />
-              <span>Export</span>
-            </button>
-            <button
               onClick={() => openModal()}
               className="flex items-center space-x-2 px-4 py-2 border border-transparent rounded-lg bg-[#1F3A34] text-white font-medium hover:bg-[#2E5E58] transition-colors h-10"
             >
@@ -345,7 +338,7 @@ const BaristaManagement = () => {
             </table>
           </div>
 
-          <div className="p-4 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between shrink-0 bg-white w-full">
+          <div className="p-4 border-t border-gray-200 flex items-center justify-between gap-4 shrink-0 bg-white w-full">
             <Pagination
               currentPage={currentPage}
               totalPages={totalPages}
@@ -354,6 +347,13 @@ const BaristaManagement = () => {
               totalItems={filteredBaristas.length}
               itemName="barista"
             />
+            <button
+              onClick={handleExport}
+              className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 font-medium hover:bg-gray-50 h-10"
+            >
+              <Download size={16} />
+              <span>Export</span>
+            </button>
           </div>
         </div>
       </div>

@@ -6,7 +6,7 @@ const PAGE_ROLES = {
   Menu: ['super_admin', 'marketing_admin'],
   Marketing: ['super_admin', 'marketing_admin'],
   Voucher: ['super_admin', 'marketing_admin'],
-  'Loyalty & Tokens': ['super_admin'],
+  'Token Ledger': ['super_admin'],
   'Tier Management': ['super_admin'],
   Finance: ['super_admin'],
   ProductReport: ['super_admin', 'marketing_admin'],

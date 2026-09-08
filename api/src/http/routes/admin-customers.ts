@@ -96,7 +96,7 @@ function mapCustomerRow(row: CustomerListRow, tiers: Awaited<ReturnType<typeof l
     cupsLast180d,
     lastOrder: formatDisplayDate(lastOrderAt),
     joinedAt: formatDisplayDate(joinedAt),
-    status: refundCount > 0 ? 'Refund' : 'Paid',
+    status: row.user_status === 'active' ? 'Active' : 'Inactive',
     avatar: row.avatar_value || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
     userStatus: row.user_status,
     refundCount

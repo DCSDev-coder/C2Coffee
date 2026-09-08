@@ -1,36 +1,136 @@
-PS D:\C2Coffee\api> $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
-PS D:\C2Coffee\api> $bytes = New-Object byte[] 48
-PS D:\C2Coffee\api> $rng.GetBytes($bytes)
-PS D:\C2Coffee\api> $accessSecret = [Convert]::ToBase64String($bytes)
-PS D:\C2Coffee\api> $rng.GetBytes($bytes)
-PS D:\C2Coffee\api> $refreshSecret = [Convert]::ToBase64String($bytes)
-PS D:\C2Coffee\api> $rng.Dispose()
-PS D:\C2Coffee\api> $content = Get-Content .env
-PS D:\C2Coffee\api> $content = $content -replace '^ACCESS_TOKEN_SECRET=.*$', "ACCESS_TOKEN_SECRET=$accessSecret"
-PS D:\C2Coffee\api> $content = $content -replace '^REFRESH_TOKEN_SECRET=.*$', "REFRESH_TOKEN_SECRET=$refreshSecret"
-PS D:\C2Coffee\api> $content | Set-Content .env
-PS D:\C2Coffee\api> docker compose up -d --force-recreate
+PS D:\C2Coffee\api> docker compose build --no-cache
+#1 [internal] load local bake definitions
+#1 reading from stdin 503B 0.1s done
+#1 DONE 0.1s
+
+#2 [internal] load build definition from Dockerfile
+#2 transferring dockerfile: 746B 0.0s done
+#2 DONE 0.1s
+
+#3 [internal] load metadata for docker.io/library/node:22-alpine
+#3 ...
+
+#4 [auth] library/node:pull token for registry-1.docker.io
+#4 DONE 0.0s
+
+#3 [internal] load metadata for docker.io/library/node:22-alpine
+#3 DONE 2.0s
+
+#5 [internal] load .dockerignore
+#5 transferring context: 146B 0.0s done
+#5 DONE 0.0s
+
+#6 [internal] load build context
+#6 DONE 0.0s
+
+#7 [deps 1/4] FROM docker.io/library/node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32
+#7 resolve docker.io/library/node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 0.1s done
+#7 DONE 0.1s
+
+#8 [deps 2/4] WORKDIR /app
+#8 CACHED
+
+#6 [internal] load build context
+#6 transferring context: 78.05kB 0.1s done
+#6 DONE 0.1s
+
+#9 [deps 3/4] COPY package.json package-lock.json* ./
+#9 DONE 0.1s
+
+#10 [runtime 4/6] RUN npm ci --omit=dev && npm cache clean --force
+#10 ...
+
+#11 [deps 4/4] RUN npm ci
+#11 ...
+
+#10 [runtime 4/6] RUN npm ci --omit=dev && npm cache clean --force
+#10 12.24 npm warn deprecated node-domexception@1.0.0: Use your platform's native DOMException instead
+#10 15.31
+#10 15.31 added 114 packages, and audited 115 packages in 14s
+#10 15.31
+#10 15.31 38 packages are looking for funding
+#10 15.31   run `npm fund` for details
+#10 15.31
+#10 15.31 found 0 vulnerabilities
+#10 15.31 npm notice
+#10 15.31 npm notice New major version of npm available! 10.9.8 -> 12.0.2
+#10 15.31 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
+#10 15.31 npm notice To update run: npm install -g npm@12.0.2
+#10 15.31 npm notice
+#10 15.88 npm warn using --force Recommended protections disabled.
+#10 ...
+
+#11 [deps 4/4] RUN npm ci
+#11 12.68 npm warn deprecated node-domexception@1.0.0: Use your platform's native DOMException instead
+#11 16.37
+#11 16.37 added 121 packages, and audited 122 packages in 15s
+#11 16.37
+#11 16.37 38 packages are looking for funding
+#11 16.37   run `npm fund` for details
+#11 16.38
+#11 16.38 found 0 vulnerabilities
+#11 16.38 npm notice
+#11 16.38 npm notice New major version of npm available! 10.9.8 -> 12.0.2
+#11 16.38 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
+#11 16.38 npm notice To update run: npm install -g npm@12.0.2
+#11 16.38 npm notice
+#11 DONE 17.0s
+
+#10 [runtime 4/6] RUN npm ci --omit=dev && npm cache clean --force
+#10 DONE 17.1s
+
+#12 [build 3/5] COPY --from=deps /app/node_modules ./node_modules
+#12 DONE 4.5s
+
+#13 [build 4/5] COPY . .
+#13 DONE 2.4s
+
+#14 [build 5/5] RUN npm run build
+#14 3.022
+#14 3.022 > @c2coffee/api@0.1.0 build
+#14 3.022 > tsc -p tsconfig.json && node scripts/copy-sql.mjs
+#14 3.022
+#14 27.93 npm notice
+#14 27.93 npm notice New major version of npm available! 10.9.8 -> 12.0.2
+#14 27.93 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
+#14 27.93 npm notice To update run: npm install -g npm@12.0.2
+#14 27.93 npm notice
+#14 DONE 28.2s
+
+#15 [runtime 5/6] COPY --from=build /app/dist ./dist
+#15 DONE 0.9s
+
+#16 [runtime 6/6] RUN chown -R node:node /app
+#16 DONE 16.8s
+
+#17 exporting to image
+#17 exporting layers
+#17 exporting layers 32.6s done
+#17 exporting manifest sha256:1aba6ff3020e557505cecbc342d014658ec431a83725b325c59504221daa50b1
+#17 exporting manifest sha256:1aba6ff3020e557505cecbc342d014658ec431a83725b325c59504221daa50b1 0.2s done
+#17 exporting config sha256:b015fc2bb145ab011bc9ebf9bd777ef4fff68f8cc023dc2465a1e49d30060b0b
+#17 exporting config sha256:b015fc2bb145ab011bc9ebf9bd777ef4fff68f8cc023dc2465a1e49d30060b0b 0.2s done
+#17 exporting attestation manifest sha256:3c34d0b239798d460f5b06b619f6303293c0bcc6cc09f740d1756c72b459688e
+#17 exporting attestation manifest sha256:3c34d0b239798d460f5b06b619f6303293c0bcc6cc09f740d1756c72b459688e 0.2s done
+#17 exporting manifest list sha256:6252c4318886a7383a9c89526288f0d3a329deb28d63013028bf7e129d5fdc86 0.1s done
+#17 naming to docker.io/library/api-c2-api:latest
+#17 naming to docker.io/library/api-c2-api:latest done
+#17 unpacking to docker.io/library/api-c2-api:latest
+#17 unpacking to docker.io/library/api-c2-api:latest 21.2s done
+#17 DONE 54.6s
+
+#18 resolving provenance for metadata file
+#18 DONE 0.1s
+[+] build 1/1
+ ✔ Image api-c2-api Built                                                                               137.1s
+PS D:\C2Coffee\api> docker compose up -d
 [+] up 1/1
- ✔ Container c2coffee-api Started                                                                        17.0s
+ ✔ Container c2coffee-api Started                                                                        22.4s
 
 What's next:
     Filter, search, and stream logs from all your Compose services
     in one place with Docker Desktop's Logs view. docker-desktop://dashboard/logs?appId=api
-PS D:\C2Coffee\api> docker compose exec c2-api npm run production-readiness:prod
-
-> @c2coffee/api@0.1.0 production-readiness:prod
-> node dist/scripts/production-readiness.js
-
-PASS  Production environment - Production mode, secure OTP configuration, and non-placeholder session secretsare required.
-PASS  Public HTTPS endpoint - https://api.c2coffeeandcandle.com/health and https://api.c2coffeeandcandle.com/v1/health must be reachable through IIS.
-PASS  Local API and database - The container health endpoint must confirm database connectivity.
-PASS  SMTP transport - The live OTP mail transport must authenticate successfully; no message is sent.
-PASS  Admin browser origin - At least one HTTPS CORS origin is required for the admin session cookie flow.
-PASS  FCM configuration - FCM stays disabled until its service-account secret is installed; a physical devicetest remains required.
-MANUAL  Verify one OTP email, Admin Web login/refresh/logout, a real device notification, and a physical printer receipt.
-npm notice
-npm notice New major version of npm available! 10.9.8 -> 12.0.2
-npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
-npm notice To update run: npm install -g npm@12.0.2
-npm notice
+PS D:\C2Coffee\api> docker compose ps
+NAME           IMAGE        COMMAND                  SERVICE   CREATED         STATUS                   PORTS
+c2coffee-api   api-c2-api   "docker-entrypoint.s…"   c2-api    2 minutes ago   Up 2 minutes (healthy)   127.0.0.1:8080->8080/tcp
 PS D:\C2Coffee\api>

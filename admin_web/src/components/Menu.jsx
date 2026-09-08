@@ -517,7 +517,7 @@ const Menu = () => {
       await saveAdminHomeFeatured('lifestyle_picks', homePickIds.lifestyle_picks);
       setIsHomePicksOpen(false);
     } catch (error) {
-      setErrorMessage(error.message || 'Unable to save Home Picks.');
+      setErrorMessage(error.message || 'Unable to save Top Picks.');
     } finally {
       setIsSavingHomePicks(false);
     }
@@ -533,11 +533,11 @@ const Menu = () => {
   ) || null;
   const subcategoryOptions = selectedSubcategoryRecord && !selectedSubcategoryRecord.is_active
     ? [
-        ...activeSubcategoryOptions,
-        selectedSubcategoryRecord
-      ].filter((subcategory, index, list) =>
-        list.findIndex((entry) => entry.code === subcategory.code) === index
-      )
+      ...activeSubcategoryOptions,
+      selectedSubcategoryRecord
+    ].filter((subcategory, index, list) =>
+      list.findIndex((entry) => entry.code === subcategory.code) === index
+    )
     : activeSubcategoryOptions;
 
   const filteredMenuItems = allMenuItems.filter((item) => {
@@ -1048,17 +1048,10 @@ const Menu = () => {
             </div>
 
             <button
-              onClick={() => exportToCSV(exportRows, 'menu.csv')}
-              className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 whitespace-nowrap cursor-pointer transition-transform duration-200"
-            >
-              <Download size={16} className="mr-1.5" /> Export
-            </button>
-
-            <button
               onClick={() => setIsHomePicksOpen(true)}
               className="flex items-center px-4 py-2 border border-[#1F3A34] rounded-lg text-sm font-medium text-[#1F3A34] bg-white hover:bg-[#F3F7F5] whitespace-nowrap"
             >
-              Home Picks
+              Top Picks
             </button>
             <button
               onClick={openCreateModal}
@@ -1126,9 +1119,8 @@ const Menu = () => {
                       <td className="px-6 py-3 font-medium text-gray-900">{formatToken(item.base_price_token)}</td>
                       <td className="px-6 py-3">
                         <span
-                          className={`px-2 py-1 rounded-md text-[10px] font-bold ${
-                            item.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
-                          }`}
+                          className={`px-2 py-1 rounded-md text-[10px] font-bold ${item.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                            }`}
                         >
                           {item.is_active ? 'Active' : 'Archived'}
                         </span>
@@ -1152,7 +1144,7 @@ const Menu = () => {
             </table>
           </div>
 
-          <div className="border-t border-gray-200 px-6 py-4 flex shrink-0 bg-white">
+          <div className="border-t border-gray-200 px-6 py-4 flex items-center justify-between gap-4 shrink-0 bg-white">
             <Pagination
               currentPage={currentPage}
               totalPages={totalPages}
@@ -1161,6 +1153,12 @@ const Menu = () => {
               totalItems={filteredMenuItems.length}
               itemName="menu items"
             />
+            <button
+              onClick={() => exportToCSV(exportRows, 'menu.csv')}
+              className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 whitespace-nowrap cursor-pointer"
+            >
+              <Download size={16} className="mr-1.5" /> Export
+            </button>
           </div>
         </div>
 
@@ -1363,7 +1361,7 @@ const Menu = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-2xl rounded-2xl bg-white shadow-xl">
             <div className="flex items-start justify-between border-b border-gray-100 px-6 py-5">
-              <div><h2 className="text-lg font-bold text-gray-900">Home Picks</h2><p className="mt-1 text-sm text-gray-500">Select up to six items per section. Empty slots use 30-day best sellers for the selected store.</p></div>
+              <div><h2 className="text-lg font-bold text-gray-900">Top Picks</h2><p className="mt-1 text-sm text-gray-500">Select up to six items per section. Empty slots use 30-day best sellers for the selected store.</p></div>
               <button onClick={() => setIsHomePicksOpen(false)} className="text-gray-400 hover:text-gray-700"><X size={20} /></button>
             </div>
             <div className="max-h-[60vh] space-y-6 overflow-y-auto px-6 py-5">
@@ -1373,7 +1371,7 @@ const Menu = () => {
                 </div>
               ))}
             </div>
-            <div className="flex justify-end gap-3 border-t border-gray-100 px-6 py-4"><button onClick={() => setIsHomePicksOpen(false)} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium">Cancel</button><button disabled={isSavingHomePicks} onClick={saveHomePicks} className="rounded-lg bg-[#1F3A34] px-4 py-2 text-sm font-bold text-white disabled:opacity-60">{isSavingHomePicks ? 'Saving...' : 'Save Home Picks'}</button></div>
+            <div className="flex justify-end gap-3 border-t border-gray-100 px-6 py-4"><button onClick={() => setIsHomePicksOpen(false)} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium">Cancel</button><button disabled={isSavingHomePicks} onClick={saveHomePicks} className="rounded-lg bg-[#1F3A34] px-4 py-2 text-sm font-bold text-white disabled:opacity-60">{isSavingHomePicks ? 'Saving...' : 'Save Top Picks'}</button></div>
           </div>
         </div>
       )}
@@ -1445,11 +1443,10 @@ const Menu = () => {
                           key={key}
                           type="button"
                           onClick={() => applyMenuTemplate(key)}
-                          className={`rounded-xl border px-3 py-3 text-left transition-colors ${
-                            selectedMenuTemplate === key
-                              ? 'border-[#1F3A34] bg-white shadow-sm'
-                              : 'border-gray-200 bg-white hover:bg-gray-100'
-                          }`}
+                          className={`rounded-xl border px-3 py-3 text-left transition-colors ${selectedMenuTemplate === key
+                            ? 'border-[#1F3A34] bg-white shadow-sm'
+                            : 'border-gray-200 bg-white hover:bg-gray-100'
+                            }`}
                         >
                           <p className="text-sm font-bold text-gray-900">{template.label}</p>
                           <p className="mt-0.5 text-[11px] text-gray-500">{template.description}</p>
