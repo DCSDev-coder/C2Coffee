@@ -6,7 +6,9 @@ services:
     env_file:
       - .env
     ports:
-      - "8080:8080"
+      # IIS is the only public entry point. Keep Fastify unreachable directly
+      # from the network so TLS, request filtering, and proxy logging apply.
+      - "127.0.0.1:8080:8080"
     volumes:
       - ./public/menu/uploads:/app/dist/public/menu/uploads
     healthcheck:

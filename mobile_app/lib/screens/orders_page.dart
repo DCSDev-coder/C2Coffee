@@ -198,7 +198,10 @@ class _OrdersPageState extends State<OrdersPage>
       case 'user_not_active':
         return 'Your session has expired. Please log in again.';
       default:
-        return error.message;
+        return friendlyCustomerErrorMessage(
+          error,
+          fallback: 'Unable to load your orders right now.',
+        );
     }
   }
 

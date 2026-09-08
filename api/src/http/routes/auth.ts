@@ -128,7 +128,9 @@ function tierRewardBenefitLabel(scope: Record<string, unknown>): string {
 }
 
 export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
-  app.post('/v1/auth/check-signup-identity', async (request) => {
+  app.post('/v1/auth/check-signup-identity', {
+    config: { rateLimit: { max: 20, timeWindow: '15 minutes' } }
+  }, async (request) => {
     const payload = signupIdentitySchema.parse(request.body);
 
     await ensureSignupIdentityAvailable({
@@ -141,7 +143,9 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
     };
   });
 
-  app.post('/v1/auth/request-otp', async (request) => {
+  app.post('/v1/auth/request-otp', {
+    config: { rateLimit: { max: 5, timeWindow: '15 minutes' } }
+  }, async (request) => {
     const payload = requestOtpSchema.parse(request.body);
     const phone = normalizePhoneE164(payload.phone);
     const device = await findOrCreateDevice(payload.device_fingerprint);
@@ -316,7 +320,9 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
     return response;
   });
 
-  app.post('/v1/auth/verify-otp', async (request) => {
+  app.post('/v1/auth/verify-otp', {
+    config: { rateLimit: { max: 10, timeWindow: '15 minutes' } }
+  }, async (request) => {
     const payload = verifyOtpSchema.parse(request.body);
     const requestId = Number(payload.request_id);
     const phone = normalizePhoneE164(payload.phone);

@@ -13,7 +13,6 @@ class InAppNotification {
   final String body;
   final bool isRead;
   final DateTime createdAt;
-  final Map<String, dynamic>? data;
 
   const InAppNotification({
     required this.id,
@@ -22,7 +21,6 @@ class InAppNotification {
     required this.body,
     required this.isRead,
     required this.createdAt,
-    required this.data,
   });
 
   factory InAppNotification.fromApi(Map<String, dynamic> json) {
@@ -33,9 +31,6 @@ class InAppNotification {
       body: json['body'] as String? ?? '',
       isRead: json['is_read'] as bool? ?? false,
       createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
-      data: json['data'] is Map
-          ? Map<String, dynamic>.from(json['data'] as Map)
-          : null,
     );
   }
 }

@@ -6,8 +6,6 @@ import 'screens/main_layout.dart';
 import 'widgets/order_card.dart';
 import 'services/api_service.dart';
 
-final ValueNotifier<String> globalActiveBarista = ValueNotifier<String>('');
-final ValueNotifier<int?> globalActiveBaristaId = ValueNotifier<int?>(null);
 final ValueNotifier<String?> globalOrderSyncError = ValueNotifier<String?>(
   null,
 );
@@ -293,7 +291,7 @@ class _LoginPageState extends State<LoginPage> {
                                               context,
                                               animation,
                                               secondaryAnimation,
-                                            ) => const BaristaSelectionPage(),
+                                            ) => const MainLayout(),
                                         transitionsBuilder:
                                             (
                                               context,
@@ -360,107 +358,6 @@ class _LoginPageState extends State<LoginPage> {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class BaristaSelectionPage extends StatefulWidget {
-  const BaristaSelectionPage({super.key});
-
-  @override
-  State<BaristaSelectionPage> createState() => _BaristaSelectionPageState();
-}
-
-class _BaristaSelectionPageState extends State<BaristaSelectionPage> {
-  late final Future<List<BaristaStaff>> _staffFuture;
-
-  @override
-  void initState() {
-    super.initState();
-    _staffFuture = ApiService.fetchActiveBaristas();
-  }
-
-  void _startShift(BaristaStaff staff) {
-    ApiService.selectBarista(staff);
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => const MainLayout()),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    const green = Color(0xFF304A3A);
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8F5EF),
-      appBar: AppBar(
-        backgroundColor: green,
-        foregroundColor: Colors.white,
-        title: const Text('Select Barista'),
-        actions: [
-          TextButton(
-            onPressed: () async {
-              await ApiService.logout();
-              if (!context.mounted) return;
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (_) => const LoginPage()),
-              );
-            },
-            child: const Text('Log out', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-      body: FutureBuilder<List<BaristaStaff>>(
-        future: _staffFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          final staff = snapshot.data ?? const <BaristaStaff>[];
-          if (staff.isEmpty) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(32),
-                child: Text(
-                  'No active baristas are available. Ask an administrator to add or activate a staff name.',
-                ),
-              ),
-            );
-          }
-
-          return ListView.separated(
-            padding: const EdgeInsets.all(24),
-            itemCount: staff.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 12),
-            itemBuilder: (context, index) {
-              final member = staff[index];
-              return FilledButton.tonalIcon(
-                onPressed: () => _startShift(member),
-                icon: CircleAvatar(
-                  backgroundColor: green,
-                  foregroundColor: Colors.white,
-                  child: Text(member.name.substring(0, 1).toUpperCase()),
-                ),
-                label: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      member.name,
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            },
-          );
-        },
       ),
     );
   }

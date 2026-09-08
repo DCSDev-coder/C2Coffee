@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import '../main.dart';
 import '../widgets/order_card.dart';
 import 'api_config.dart';
 import 'secure_session_service.dart';
@@ -14,14 +13,10 @@ class ApiService {
   static String _currentUserName = '';
   static String _currentUsername = '';
   static List<String> _currentRoles = const [];
-  static int? _activeBaristaId;
-  static String _activeBaristaName = '';
 
   static String get currentUserName => _currentUserName;
   static String get currentUsername => _currentUsername;
   static List<String> get currentRoles => List.unmodifiable(_currentRoles);
-  static int? get activeBaristaId => _activeBaristaId;
-  static String get activeBaristaName => _activeBaristaName;
   static bool get isSignedIn =>
       _accessToken != null && _accessToken!.isNotEmpty;
 
@@ -40,10 +35,7 @@ class ApiService {
         (headers) => http.patch(
           Uri.parse('$baseUrl/admin/orders/$orderId/status'),
           headers: headers,
-          body: json.encode({
-            'status': status,
-            if (_activeBaristaId != null) 'barista_id': _activeBaristaId,
-          }),
+          body: json.encode({'status': status}),
         ),
       );
       if (response.statusCode == 200) {
@@ -86,28 +78,6 @@ class ApiService {
     return false;
   }
 
-  static Future<List<BaristaStaff>> fetchActiveBaristas() async {
-    try {
-      final response = await _authenticatedRequest(
-        (headers) =>
-            http.get(Uri.parse('$baseUrl/admin/baristas'), headers: headers),
-      );
-      if (response.statusCode != 200) return const [];
-      final data = json.decode(response.body) as Map<String, dynamic>;
-      final staff = (data['baristas'] as List? ?? const [])
-          .map((row) => BaristaStaff.fromJson(row as Map<String, dynamic>))
-          .where((staff) => staff.isActive)
-          .toList();
-      staff.sort(
-        (first, second) => first.createdAt.compareTo(second.createdAt),
-      );
-      return staff;
-    } catch (e) {
-      debugPrint('Barista roster error: $e');
-      return const [];
-    }
-  }
-
   static Future<OperationsContext> fetchOperationsContext() async {
     final response = await _authenticatedRequest(
       (headers) => http.get(
@@ -121,13 +91,6 @@ class ApiService {
     return OperationsContext.fromJson(
       json.decode(response.body) as Map<String, dynamic>,
     );
-  }
-
-  static void selectBarista(BaristaStaff staff) {
-    _activeBaristaId = staff.id;
-    _activeBaristaName = staff.name;
-    globalActiveBaristaId.value = staff.id;
-    globalActiveBarista.value = staff.name;
   }
 
   static Future<OrdersFetchResult> fetchOrders() async {
@@ -214,7 +177,6 @@ class ApiService {
                 orderDate: createdAt,
                 customerDetails:
                     '${json['customer'] ?? 'guest'} - ${parsedItems.length} items',
-                baristaName: (json['baristaName'] as String?)?.trim() ?? '',
                 items: parsedItems,
               );
             })
@@ -240,8 +202,19 @@ class ApiService {
       final body = json.decode(response.body) as Map<String, dynamic>;
       final error = body['error'];
       if (error is Map<String, dynamic>) {
-        final message = error['message']?.toString().trim() ?? '';
-        if (message.isNotEmpty) return message;
+        switch (error['code']?.toString()) {
+          case 'invalid_access_token':
+          case 'missing_bearer_token':
+          case 'session_not_found':
+          case 'session_version_mismatch':
+            return 'Your session has expired. Please sign in again.';
+          case 'invalid_order_transition':
+            return 'This order has already been updated. Please refresh the order list.';
+          case 'printer_not_ready':
+            return 'The receipt printer is not ready. Please contact an operations administrator.';
+          case 'forbidden':
+            return 'Your account does not have permission for this action.';
+        }
       }
     } catch (_) {
       // Fall through to a safe user-facing fallback.
@@ -355,10 +328,6 @@ class ApiService {
     _currentUserName = '';
     _currentUsername = '';
     _currentRoles = const [];
-    _activeBaristaId = null;
-    _activeBaristaName = '';
-    globalActiveBaristaId.value = null;
-    globalActiveBarista.value = '';
     await SecureSessionService.instance.clear();
   }
 }
@@ -380,29 +349,6 @@ class OrdersFetchResult {
   const OrdersFetchResult.failure(this.errorMessage) : orders = const [];
 
   bool get isSuccess => errorMessage == null;
-}
-
-class BaristaStaff {
-  final int id;
-  final String name;
-  final bool isActive;
-  final DateTime createdAt;
-
-  const BaristaStaff({
-    required this.id,
-    required this.name,
-    required this.isActive,
-    required this.createdAt,
-  });
-
-  factory BaristaStaff.fromJson(Map<String, dynamic> json) => BaristaStaff(
-    id: (json['id'] as num).toInt(),
-    name: (json['name'] as String? ?? '').trim(),
-    isActive: json['is_active'] == true,
-    createdAt:
-        DateTime.tryParse(json['created_at']?.toString() ?? '') ??
-        DateTime.fromMillisecondsSinceEpoch(0),
-  );
 }
 
 class OperationsContext {
@@ -478,12 +424,14 @@ class PrinterTarget {
 }
 
 class WeeklyScheduleEntry {
+  final int baristaId;
   final int weekday;
   final String startsAt;
   final String endsAt;
   final String baristaName;
 
   const WeeklyScheduleEntry({
+    required this.baristaId,
     required this.weekday,
     required this.startsAt,
     required this.endsAt,
@@ -492,6 +440,7 @@ class WeeklyScheduleEntry {
 
   factory WeeklyScheduleEntry.fromJson(Map<String, dynamic> json) =>
       WeeklyScheduleEntry(
+        baristaId: (json['barista_id'] as num?)?.toInt() ?? 0,
         weekday: (json['weekday'] as num?)?.toInt() ?? 0,
         startsAt: json['starts_at']?.toString() ?? '',
         endsAt: json['ends_at']?.toString() ?? '',

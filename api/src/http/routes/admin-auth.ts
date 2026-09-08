@@ -13,7 +13,10 @@ import { sendOtpEmail } from '../../services/otp-email.js';
 const adminLoginSchema = z.object({
   tenant_code: z.string().trim().min(1).max(80),
   identifier: z.string().trim().min(1).max(255),
-  password: z.string().trim().min(8).max(200)
+  password: z.string().trim().min(8).max(200),
+  // Browser sessions keep the refresh token in an HttpOnly cookie. Native
+  // clients continue to use their platform-secure token storage.
+  session_transport: z.enum(['token', 'cookie']).default('token')
 });
 
 const adminSetupSchema = z.object({
@@ -133,8 +136,31 @@ async function writeAdminLifecycleAudit(
 }
 
 const adminRefreshSchema = z.object({
-  refresh_token: z.string().trim().min(32)
+  refresh_token: z.string().trim().min(32).optional()
 });
+
+const adminRefreshCookieName = 'c2_admin_refresh';
+
+function setAdminRefreshCookie(
+  reply: { setCookie: (name: string, value: string, options: Record<string, unknown>) => unknown },
+  refreshToken: string
+): void {
+  reply.setCookie(adminRefreshCookieName, refreshToken, {
+    httpOnly: true,
+    secure: env.NODE_ENV === 'production' || env.ADMIN_COOKIE_SECURE,
+    sameSite: 'lax',
+    path: '/v1/admin/auth',
+    domain: env.ADMIN_COOKIE_DOMAIN || undefined,
+    maxAge: env.REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60
+  });
+}
+
+function clearAdminRefreshCookie(reply: { clearCookie: (name: string, options: Record<string, unknown>) => unknown }): void {
+  reply.clearCookie(adminRefreshCookieName, {
+    path: '/v1/admin/auth',
+    domain: env.ADMIN_COOKIE_DOMAIN || undefined
+  });
+}
 
 const requestPasswordChangeSchema = z.object({
   current_password: z.string().min(8).max(200),
@@ -187,7 +213,9 @@ export async function registerAdminAuthRoutes(app: FastifyInstance): Promise<voi
     };
   });
 
-  app.post('/v1/admin/auth/login', async (request) => {
+  app.post('/v1/admin/auth/login', {
+    config: { rateLimit: { max: 8, timeWindow: '15 minutes' } }
+  }, async (request, reply) => {
     const payload = adminLoginSchema.parse(request.body);
 
     const [rows] = await mysqlPool.query<
@@ -264,9 +292,14 @@ export async function registerAdminAuthRoutes(app: FastifyInstance): Promise<voi
     const isBaristaAccount =
       user.roles.length === 1 && user.roles[0] === 'barista';
 
+    const usesCookieSession = payload.session_transport === 'cookie';
+    if (usesCookieSession) {
+      setAdminRefreshCookie(reply, session.refreshToken);
+    }
+
     return {
       access_token: session.accessToken,
-      refresh_token: session.refreshToken,
+      ...(usesCookieSession ? {} : { refresh_token: session.refreshToken }),
       setup_required:
         !isBaristaAccount &&
         (admin.must_change_password === 1 ||
@@ -282,9 +315,17 @@ export async function registerAdminAuthRoutes(app: FastifyInstance): Promise<voi
     };
   });
 
-  app.post('/v1/admin/auth/refresh', async (request) => {
-    const payload = adminRefreshSchema.parse(request.body);
-    const refreshTokenHash = hashSha256(payload.refresh_token);
+  app.post('/v1/admin/auth/refresh', {
+    config: { rateLimit: { max: 20, timeWindow: '15 minutes' } }
+  }, async (request, reply) => {
+    const payload = adminRefreshSchema.parse(request.body ?? {});
+    const cookieRefreshToken = request.cookies[adminRefreshCookieName];
+    const refreshToken = payload.refresh_token ?? cookieRefreshToken;
+    if (!refreshToken) {
+      throw new ApiError(401, 'invalid_refresh_token', 'Your sign-in session has expired. Please sign in again.');
+    }
+    const usesCookieSession = !payload.refresh_token && Boolean(cookieRefreshToken);
+    const refreshTokenHash = hashSha256(refreshToken);
 
     const [rows] = await mysqlPool.query<
       Array<
@@ -343,9 +384,13 @@ export async function registerAdminAuthRoutes(app: FastifyInstance): Promise<voi
       accessTokenVersion: session.access_token_version
     });
 
+    if (usesCookieSession) {
+      setAdminRefreshCookie(reply, nextRefreshToken);
+    }
+
     return {
       access_token: accessToken,
-      refresh_token: nextRefreshToken,
+      ...(usesCookieSession ? {} : { refresh_token: nextRefreshToken }),
       user: await getAdminUserResponse(session.admin_user_id)
     };
   });
@@ -396,6 +441,7 @@ export async function registerAdminAuthRoutes(app: FastifyInstance): Promise<voi
       { sessionId: request.adminAuth.sessionId }
     );
 
+    clearAdminRefreshCookie(reply);
     return reply.status(204).send();
   });
 

@@ -21,8 +21,6 @@ String friendlyAuthErrorMessage(
   ApiException error, {
   required String fallback,
 }) {
-  final message = error.message.trim();
-
   switch (error.code) {
     case 'signup_phone_taken':
       return 'That phone number is already in use. Please choose another one.';
@@ -37,12 +35,34 @@ String friendlyAuthErrorMessage(
     case 'otp_cooldown_active':
       return error.message;
     case 'validation_error':
-      return message.isNotEmpty ? message : fallback;
+      return 'Please review the information and try again.';
     default:
-      if (RegExp(r'^Request failed with status \d+\.?$').hasMatch(message)) {
-        return fallback;
-      }
-      return message.isNotEmpty ? message : fallback;
+      return fallback;
+  }
+}
+
+String friendlyCustomerErrorMessage(
+  Object error, {
+  required String fallback,
+}) {
+  if (error is! ApiException) return fallback;
+
+  switch (error.code) {
+    case 'invalid_access_token':
+    case 'missing_bearer_token':
+    case 'session_not_found':
+    case 'session_version_mismatch':
+      return 'Your session has expired. Please sign in again.';
+    case 'network_error':
+      return 'We could not reach C2 Coffee right now. Please check your connection and try again.';
+    case 'order_item_unavailable':
+      return 'One or more items are no longer available. Please review your order.';
+    case 'insufficient_tokens':
+      return 'Your token balance is not enough to complete this order.';
+    case 'invalid_order_transition':
+      return 'This order has already been updated. Please refresh and try again.';
+    default:
+      return fallback;
   }
 }
 

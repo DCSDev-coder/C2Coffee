@@ -19,19 +19,22 @@
     "reset:qa": "tsx src/db/reset-qa.ts",
     "reset:qa:prod": "node dist/db/reset-qa.js",
     "seed:demo": "tsx src/db/migrate.ts --seed-demo",
-    "seed:demo:prod": "node dist/db/migrate.js --seed-demo"
+    "seed:demo:prod": "node dist/db/migrate.js --seed-demo",
+    "production-readiness:prod": "node dist/scripts/production-readiness.js"
   },
   "dependencies": {
+    "@fastify/cookie": "^11.1.2",
     "@fastify/cors": "^10.0.1",
     "@fastify/helmet": "^12.0.1",
     "@fastify/rate-limit": "^10.1.1",
     "dotenv": "^16.4.7",
     "fastify": "^5.2.1",
+    "google-auth-library": "^11.0.2",
     "jsonwebtoken": "^9.0.2",
     "mysql2": "^3.12.0",
     "nodemailer": "^9.0.6",
     "pino": "^9.6.0",
-    "sharp": "^0.34.5",
+    "sharp": "^0.35.4",
     "zod": "^3.24.1"
   },
   "devDependencies": {

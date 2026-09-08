@@ -15,6 +15,21 @@ if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
+val requiredKeystoreProperties = listOf("keyAlias", "keyPassword", "storeFile", "storePassword")
+fun verifyReleaseKeystore() {
+    if (requiredKeystoreProperties.any { key ->
+        (keystoreProperties[key] as? String).isNullOrBlank()
+    }) {
+        throw GradleException("android/key.properties is required and must be complete for a Play release build.")
+    }
+}
+
+tasks.configureEach {
+    if (name.contains("release", ignoreCase = true)) {
+        doFirst { verifyReleaseKeystore() }
+    }
+}
+
 android {
     namespace = "com.c2coffeeandcandle.barista"
     compileSdk = flutter.compileSdkVersion

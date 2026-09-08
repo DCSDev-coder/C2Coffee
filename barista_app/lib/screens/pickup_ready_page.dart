@@ -7,7 +7,6 @@ import '../widgets/blinking_online_indicator.dart';
 class PickupReadyPage extends StatelessWidget {
   final String orderId;
   final String customerDetails;
-  final String baristaName;
   final String? timeDate;
   final List<OrderItem> items;
   final VoidCallback? onSettingsTap;
@@ -16,7 +15,6 @@ class PickupReadyPage extends StatelessWidget {
     super.key,
     required this.orderId,
     required this.customerDetails,
-    this.baristaName = '',
     this.timeDate,
     required this.items,
     this.onSettingsTap,
@@ -177,18 +175,6 @@ class PickupReadyPage extends StatelessWidget {
                               color: beigeColor,
                             ),
                           ),
-                          if (baristaName.trim().isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 6.0),
-                              child: Text(
-                                'Prepared by $baristaName',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
-                                  color: darkGreen,
-                                ),
-                              ),
-                            ),
                           Padding(
                             padding: const EdgeInsets.only(top: 8.0),
                             child: Text(

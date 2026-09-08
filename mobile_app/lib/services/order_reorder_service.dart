@@ -128,7 +128,13 @@ class OrderReorderService {
       );
     } on ApiException catch (error) {
       if (!context.mounted) return;
-      AppNotification.showError(context, error.message);
+      AppNotification.showError(
+        context,
+        friendlyCustomerErrorMessage(
+          error,
+          fallback: 'Unable to reorder this order right now.',
+        ),
+      );
     } catch (_) {
       if (!context.mounted) return;
       AppNotification.showError(

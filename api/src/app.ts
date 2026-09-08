@@ -1,4 +1,5 @@
 import cors from '@fastify/cors';
+import cookie from '@fastify/cookie';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import Fastify from 'fastify';
@@ -23,6 +24,7 @@ import { registerAdminBaristasRoutes } from './http/routes/admin-baristas.js';
 import { registerAdminDashboardRoutes } from './http/routes/admin-dashboard.js';
 import { registerHomeFeaturedRoutes } from './http/routes/home-featured.js';
 import { registerOperationalIntegrationRoutes } from './http/routes/operational-integrations.js';
+import { registerPrintConnectorRoutes } from './http/routes/print-connectors.js';
 
 function isAllowedCorsOrigin(origin: string, allowedOrigins: string[]): boolean {
   let requestUrl: URL;
@@ -79,6 +81,7 @@ export async function buildApp() {
   app.setErrorHandler(errorHandler);
 
   await app.register(helmet);
+  await app.register(cookie);
   await app.register(cors, {
     origin: (origin, callback) => {
       if (!origin) {
@@ -88,7 +91,7 @@ export async function buildApp() {
 
       callback(null, isAllowedCorsOrigin(origin, env.CORS_ALLOWED_ORIGINS));
     },
-    credentials: false
+    credentials: true
   });
   await app.register(rateLimit, {
     max: 120,
@@ -109,6 +112,7 @@ export async function buildApp() {
   await registerAdminMarketingRoutes(app);
   await registerAdminBaristasRoutes(app);
   await registerOperationalIntegrationRoutes(app);
+  await registerPrintConnectorRoutes(app);
   await registerHomeFeaturedRoutes(app);
   await registerMeRoutes(app);
   await registerCatalogRoutes(app);

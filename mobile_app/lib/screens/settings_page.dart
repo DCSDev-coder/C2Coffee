@@ -139,7 +139,10 @@ class _SettingsPageState extends State<SettingsPage> {
         } catch (_) {}
       } on ApiException catch (error) {
         if (mounted) {
-          _showSnackBar(error.message);
+          _showSnackBar(friendlyCustomerErrorMessage(
+            error,
+            fallback: 'Unable to sync profile changes right now.',
+          ));
         }
       } catch (_) {
         if (mounted) {
@@ -282,7 +285,12 @@ class _SettingsPageState extends State<SettingsPage> {
       });
       widget.onProfileUpdated?.call();
     } on ApiException catch (error) {
-      if (mounted) _showSnackBar(error.message);
+      if (mounted) {
+        _showSnackBar(friendlyCustomerErrorMessage(
+          error,
+          fallback: 'Unable to upload your avatar right now.',
+        ));
+      }
     } catch (_) {
       if (mounted) _showSnackBar('Unable to upload your avatar right now.');
     }
@@ -324,7 +332,12 @@ class _SettingsPageState extends State<SettingsPage> {
       });
       widget.onProfileUpdated?.call();
     } on ApiException catch (error) {
-      if (mounted) _showSnackBar(error.message);
+      if (mounted) {
+        _showSnackBar(friendlyCustomerErrorMessage(
+          error,
+          fallback: 'Unable to save your avatar right now.',
+        ));
+      }
     } catch (_) {
       if (mounted) _showSnackBar('Unable to save your avatar right now.');
     }
@@ -845,7 +858,12 @@ class _SettingsPageState extends State<SettingsPage> {
         _showSnackBar('Your email address has been verified and updated.');
       }
     } on ApiException catch (error) {
-      if (mounted) _showSnackBar(error.message);
+      if (mounted) {
+        _showSnackBar(friendlyCustomerErrorMessage(
+          error,
+          fallback: 'Unable to update your email right now.',
+        ));
+      }
     } catch (_) {
       if (mounted) _showSnackBar('Unable to update your email right now.');
     }
@@ -908,7 +926,12 @@ class _SettingsPageState extends State<SettingsPage> {
         (route) => false,
       );
     } on ApiException catch (error) {
-      if (mounted) _showSnackBar(error.message);
+      if (mounted) {
+        _showSnackBar(friendlyCustomerErrorMessage(
+          error,
+          fallback: 'Unable to close your account right now.',
+        ));
+      }
     } catch (_) {
       if (mounted) _showSnackBar('Unable to close your account right now.');
     }

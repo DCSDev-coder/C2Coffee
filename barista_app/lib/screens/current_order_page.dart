@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../main.dart';
 import '../widgets/order_card.dart';
-import '../widgets/active_barista_profile.dart';
 import 'order_details_page.dart';
 import '../services/api_service.dart';
 import '../widgets/blinking_online_indicator.dart';
@@ -61,7 +60,6 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
     }
 
     order.status = OrderStatus.preparing;
-    order.baristaName = ApiService.activeBaristaName;
     globalCurrentOrders.value = List<CurrentOrder>.from(
       globalCurrentOrders.value,
     );
@@ -75,7 +73,6 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
             OrderDetailsPage(
               orderId: order.orderId,
               customerDetails: order.customerDetails,
-              baristaName: order.baristaName,
               items: order.items,
               onSettingsTap: widget.onSettingsTap,
             ),
@@ -127,7 +124,7 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              // Title & Active Barista Profile
+                              // Queue summary for the shared workstation.
                               Row(
                                 crossAxisAlignment: CrossAxisAlignment.center,
                                 mainAxisAlignment:
@@ -184,9 +181,6 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
                                         ),
                                       ],
                                     ),
-                                  ),
-                                  ActiveBaristaProfile(
-                                    onTap: widget.onSettingsTap,
                                   ),
                                 ],
                               ),
@@ -258,7 +252,6 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
                                     status: order.status,
                                     orderId: order.orderId,
                                     customerDetails: order.customerDetails,
-                                    baristaName: order.baristaName,
                                     items: order.items,
                                     isActionLoading: _updatingOrderIds.contains(
                                       order.orderId,

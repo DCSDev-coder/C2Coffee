@@ -260,7 +260,13 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
       );
     } on ApiException catch (error) {
       if (mounted) {
-        AppNotification.showError(context, error.message);
+        AppNotification.showError(
+          context,
+          friendlyCustomerErrorMessage(
+            error,
+            fallback: 'Unable to submit your request right now. Please try again shortly.',
+          ),
+        );
       }
     } catch (_) {
       if (mounted) {

@@ -997,7 +997,7 @@ export async function registerCheckoutRoutes(
         userId: request.auth.userId,
         type: 'order_created',
         title: 'Order placed',
-        body: `Your order ${orderRef} has been placed successfully. We will notify you when it is ready for pickup.`,
+        body: 'Your order has been received. We will notify you as soon as it is ready for collection.',
         data: {
           order_id: orderId,
           order_ref: orderRef,
@@ -1168,7 +1168,7 @@ export async function registerCheckoutRoutes(
         userId: request.auth.userId,
         type: 'order_collected',
         title: 'Order collected',
-        body: `Your order ${order.order_ref} has been marked as collected.`,
+        body: 'Your order has been marked as collected. Thank you for choosing C2 Coffee.',
         data: {
           order_id: order.id,
           order_ref: order.order_ref

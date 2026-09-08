@@ -45,14 +45,15 @@ const Login = ({ onLoginSuccess }) => {
         body: JSON.stringify({
           tenant_code: tenantCode,
           identifier,
-          password
+          password,
+          session_transport: 'cookie'
         })
       });
 
       if (response.setup_required) {
         setPendingSession({
           accessToken: response.access_token,
-          refreshToken: response.refresh_token
+          refreshToken: null
         });
         setIdentifier('');
         setPassword('');
@@ -65,7 +66,6 @@ const Login = ({ onLoginSuccess }) => {
       setPassword('');
       onLoginSuccess({
         accessToken: response.access_token,
-        refreshToken: response.refresh_token,
         tenant: response.tenant,
         user: response.user
       });

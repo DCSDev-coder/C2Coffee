@@ -39,21 +39,15 @@ function App() {
 
   useEffect(() => {
     const restoreAdminSession = async () => {
-      const tokens = loadAdminTokens();
-      if (!tokens.refreshToken) {
-        setIsBootstrapping(false);
-        return;
-      }
-
       try {
         const response = await adminRequest('/v1/admin/auth/refresh', {
           method: 'POST',
-          body: JSON.stringify({ refresh_token: tokens.refreshToken })
+          body: JSON.stringify({})
         });
 
         saveAdminTokens({
           accessToken: response.access_token,
-          refreshToken: response.refresh_token
+          refreshToken: null
         });
         setCurrentTenant(response.user?.tenant_code ? {
           code: response.user.tenant_code,
@@ -139,8 +133,8 @@ function App() {
     setPrevPage('Dashboard');
   };
 
-  const handleLoginSuccess = ({ accessToken, refreshToken, tenant, user }) => {
-    saveAdminTokens({ accessToken, refreshToken });
+  const handleLoginSuccess = ({ accessToken, tenant, user }) => {
+    saveAdminTokens({ accessToken, refreshToken: null });
     if (tenant) {
       setCurrentTenant(tenant);
     }

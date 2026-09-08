@@ -153,7 +153,6 @@ type NotificationRow = RowDataPacket & {
   type: string;
   title: string;
   body: string;
-  data_json: string | null;
   sent_at: Date | null;
   read_at: Date | null;
   created_at: Date;
@@ -162,6 +161,30 @@ type NotificationRow = RowDataPacket & {
 const notificationListQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional().default(50)
 });
+
+function publicNotificationText(
+  value: unknown,
+  fallback: string,
+  maximumLength: number
+): string {
+  const text = String(value ?? '')
+    .replace(/[\u0000-\u001F\u007F]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  // Notification copy must never expose serialized payloads, credentials,
+  // transport details, or internal failure text to a customer device.
+  if (
+    !text ||
+    text.startsWith('{') ||
+    text.startsWith('[') ||
+    /\b(sql|stack trace|exception|error code|bearer|authorization|token=|https?:\/\/)/i.test(text)
+  ) {
+    return fallback;
+  }
+
+  return text.slice(0, maximumLength);
+}
 
 function parseVoucherScope(
   value: unknown
@@ -526,7 +549,6 @@ export async function registerCustomerDataRoutes(
             type,
             title,
             body,
-            data_json,
             sent_at,
             read_at,
             created_at
@@ -555,14 +577,12 @@ export async function registerCustomerDataRoutes(
       notifications: rows.map((row) => ({
         id: row.id,
         type: row.type,
-        title: row.title,
-        body: row.body,
-        data:
-          row.data_json == null
-            ? null
-            : typeof row.data_json === 'string'
-              ? JSON.parse(row.data_json)
-              : row.data_json,
+        title: publicNotificationText(row.title, 'Account update', 120),
+        body: publicNotificationText(
+          row.body,
+          'There is an update to your C2 Coffee account.',
+          420
+        ),
         is_read: row.read_at !== null,
         created_at: row.created_at.toISOString()
       }))
@@ -818,8 +838,7 @@ export async function registerCustomerDataRoutes(
         userId: request.auth.userId,
         type: 'order_cancelled',
         title: 'Order cancelled',
-        body: `${tokenAmount} tokens were returned for order ${order.order_ref}.`,
-        data: { order_ref: order.order_ref }
+        body: 'The applicable tokens have been returned to your C2 Coffee account.'
       });
       await connection.commit();
       committed = true;

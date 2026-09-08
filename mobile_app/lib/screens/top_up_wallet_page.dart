@@ -119,7 +119,10 @@ class _TopUpWalletPageState extends State<TopUpWalletPage> {
       case 'user_not_active':
         return 'Your session has expired. Please log in again.';
       default:
-        return error.message;
+        return friendlyCustomerErrorMessage(
+          error,
+          fallback: 'Unable to load token activity right now.',
+        );
     }
   }
 

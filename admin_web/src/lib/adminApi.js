@@ -1,10 +1,9 @@
-const ACCESS_TOKEN_KEY = 'c2_admin_access_token';
-const REFRESH_TOKEN_KEY = 'c2_admin_refresh_token';
 const ADMIN_REFRESH_PATH = '/v1/admin/auth/refresh';
 const ADMIN_API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'https://api.c2coffeeandcandle.com')
   .replace(/\/$/, '');
 
 let refreshSessionPromise = null;
+let accessToken = null;
 
 export function getAdminApiBaseUrl() {
   return ADMIN_API_BASE_URL;
@@ -16,18 +15,19 @@ export function loadAdminTokens() {
   }
 
   return {
-    accessToken: window.localStorage.getItem(ACCESS_TOKEN_KEY),
-    refreshToken: window.localStorage.getItem(REFRESH_TOKEN_KEY)
+    accessToken,
+    // The refresh token is intentionally inaccessible to JavaScript. It lives
+    // in an HttpOnly API cookie and is rotated by the refresh endpoint.
+    refreshToken: null
   };
 }
 
-export function saveAdminTokens({ accessToken, refreshToken }) {
+export function saveAdminTokens({ accessToken: nextAccessToken }) {
   if (typeof window === 'undefined') {
     return;
   }
 
-  window.localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
-  window.localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+  accessToken = nextAccessToken || null;
 }
 
 export function clearAdminTokens() {
@@ -35,8 +35,10 @@ export function clearAdminTokens() {
     return;
   }
 
-  window.localStorage.removeItem(ACCESS_TOKEN_KEY);
-  window.localStorage.removeItem(REFRESH_TOKEN_KEY);
+  accessToken = null;
+  // Clear tokens created by the previous browser-storage implementation.
+  window.localStorage.removeItem('c2_admin_access_token');
+  window.localStorage.removeItem('c2_admin_refresh_token');
 }
 
 function buildAdminError(message, code = 'unexpected_error', status = 500) {
@@ -59,11 +61,6 @@ async function refreshAdminSession() {
     return null;
   }
 
-  const { refreshToken } = loadAdminTokens();
-  if (!refreshToken) {
-    return null;
-  }
-
   if (!refreshSessionPromise) {
     refreshSessionPromise = (async () => {
       let response;
@@ -74,7 +71,8 @@ async function refreshAdminSession() {
             Accept: 'application/json',
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({ refresh_token: refreshToken })
+          credentials: 'include',
+          body: JSON.stringify({})
         });
       } catch {
         throw buildAdminError('We could not refresh your admin session. Please try again.', 'network_error', 503);
@@ -87,7 +85,7 @@ async function refreshAdminSession() {
         const code = body?.error?.code || 'invalid_refresh_token';
         const message = code === 'invalid_refresh_token'
           ? 'Your admin session has expired. Please sign in again.'
-          : body?.error?.message || 'We could not refresh your admin session. Please sign in again.';
+          : 'We could not refresh your admin session. Please sign in again.';
 
         clearAdminTokens();
         broadcastAdminSessionExpired();
@@ -97,7 +95,7 @@ async function refreshAdminSession() {
 
       saveAdminTokens({
         accessToken: body?.access_token || '',
-        refreshToken: body?.refresh_token || refreshToken
+        refreshToken: null
       });
 
       return body;
@@ -111,7 +109,6 @@ async function refreshAdminSession() {
 
 function formatAdminErrorMessage(body, response) {
   const code = body?.error?.code || 'unexpected_error';
-  const message = body?.error?.message || '';
 
   if (response.status === 401 || ['invalid_access_token', 'missing_bearer_token', 'session_not_found', 'session_version_mismatch'].includes(code)) {
     return 'Your admin session has expired. Please sign in again.';
@@ -121,7 +118,20 @@ function formatAdminErrorMessage(body, response) {
     return 'We could not complete this request. Please try again.';
   }
 
-  return message || 'We could not complete this request. Please try again.';
+  switch (code) {
+    case 'invalid_admin_credentials':
+      return 'The admin username or password is incorrect.';
+    case 'admin_not_active':
+      return 'This admin account is not active.';
+    case 'forbidden':
+      return 'Your account does not have permission for this action.';
+    case 'printer_not_ready':
+      return 'The receipt printer is not ready. Please check its connector.';
+    case 'validation_error':
+      return 'Please review the information and try again.';
+    default:
+      return 'We could not complete this request. Please try again.';
+  }
 }
 
 export async function loadAdminTenants() {
@@ -450,7 +460,8 @@ export async function adminRequest(path, options = {}, retryOnUnauthorized = tru
   try {
     response = await fetch(`${getAdminApiBaseUrl()}${path}`, {
       ...requestOptions,
-      headers
+      headers,
+      credentials: 'include'
     });
   } catch {
     throw buildAdminError('We could not reach the admin service. Please check your connection and try again.', 'network_error', 503);

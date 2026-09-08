@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../services/auth_api_service.dart';
 import '../services/customer_data_service.dart';
 import '../services/secure_session_service.dart';
 import '../utils/app_colors.dart';
@@ -60,14 +61,13 @@ class _ReferralPageState extends State<ReferralPage> {
           _isLoading = false;
         });
       }
-    } catch (e) {
+    } catch (error) {
       if (mounted) {
-        final msg = e
-            .toString()
-            .replaceFirst('Exception: ', '')
-            .replaceFirst('ApiException: ', '');
         setState(() {
-          _error = msg.isNotEmpty ? msg : 'Unable to load referral info.';
+          _error = friendlyCustomerErrorMessage(
+            error,
+            fallback: 'Unable to load referral information right now.',
+          );
           _isLoading = false;
         });
       }
@@ -102,12 +102,12 @@ class _ReferralPageState extends State<ReferralPage> {
         context,
         'Referral code claimed successfully!',
       );
-    } catch (e) {
+    } catch (error) {
       if (!mounted) return;
-      final msg = e
-          .toString()
-          .replaceFirst('Exception: ', '')
-          .replaceFirst('ApiException: ', '');
+      final msg = friendlyCustomerErrorMessage(
+        error,
+        fallback: 'We could not claim this referral code right now. Please try again.',
+      );
       setState(() {
         _claimError = msg;
       });

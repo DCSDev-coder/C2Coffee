@@ -62,7 +62,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'View the active operator, weekly coverage, and receipt delivery readiness.',
+                    'View the weekly timetable and receipt delivery readiness.',
                     style: TextStyle(
                       color: SettingsPage.ink.withValues(alpha: 0.65),
                       fontSize: 16,
@@ -71,17 +71,6 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                   ),
                   const SizedBox(height: 36),
-                  const _SectionLabel(label: 'CURRENT SHIFT'),
-                  const SizedBox(height: 12),
-                  ValueListenableBuilder<String>(
-                    valueListenable: globalActiveBarista,
-                    builder: (context, activeBarista, _) {
-                      return _ActiveBaristaCard(name: activeBarista);
-                    },
-                  ),
-                  const SizedBox(height: 14),
-                  const _HandoverNotice(),
-                  const SizedBox(height: 32),
                   const _SectionLabel(label: 'OPERATIONS'),
                   const SizedBox(height: 12),
                   FutureBuilder<OperationsContext>(
@@ -97,77 +86,24 @@ class _SettingsPageState extends State<SettingsPage> {
                     },
                   ),
                   const SizedBox(height: 32),
-                  const _SectionLabel(label: 'SESSION'),
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.all(18),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(
-                        color: SettingsPage.ink.withValues(alpha: 0.10),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: SettingsPage.gold.withValues(alpha: 0.18),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Icon(
-                            Icons.lock_outline_rounded,
-                            color: SettingsPage.ink,
-                            size: 21,
-                          ),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: OutlinedButton.icon(
+                      onPressed: () => _signOut(context),
+                      icon: const Icon(Icons.logout_rounded, size: 19),
+                      label: const Text('Sign out from this device'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFFB54E3D),
+                        side: const BorderSide(color: Color(0xFFB54E3D)),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 13,
                         ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Shared Barista App account',
-                                style: TextStyle(
-                                  color: SettingsPage.ink,
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              const SizedBox(height: 3),
-                              Text(
-                                'Operator changes will move to a verified handover after attendance sync is connected.',
-                                style: TextStyle(
-                                  color: SettingsPage.ink.withValues(
-                                    alpha: 0.60,
-                                  ),
-                                  fontSize: 13,
-                                  height: 1.35,
-                                ),
-                              ),
-                            ],
-                          ),
+                        shape: const StadiumBorder(),
+                        textStyle: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
                         ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 28),
-                  TextButton.icon(
-                    onPressed: () => _signOut(context),
-                    icon: const Icon(Icons.logout_rounded, size: 19),
-                    label: const Text('Sign out from this device'),
-                    style: TextButton.styleFrom(
-                      foregroundColor: const Color(0xFFB54E3D),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 14,
-                      ),
-                      alignment: Alignment.centerLeft,
-                      textStyle: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),
@@ -233,158 +169,6 @@ class _SectionLabel extends StatelessWidget {
         fontSize: 11,
         letterSpacing: 1.6,
         fontWeight: FontWeight.w800,
-      ),
-    );
-  }
-}
-
-class _ActiveBaristaCard extends StatelessWidget {
-  final String name;
-
-  const _ActiveBaristaCard({required this.name});
-
-  @override
-  Widget build(BuildContext context) {
-    final displayName = name.trim().isEmpty
-        ? 'No barista selected'
-        : name.trim();
-    final initial = displayName.substring(0, 1).toUpperCase();
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: SettingsPage.green,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: SettingsPage.green.withValues(alpha: 0.20),
-            blurRadius: 22,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 52,
-            height: 52,
-            decoration: const BoxDecoration(
-              color: SettingsPage.gold,
-              shape: BoxShape.circle,
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              initial,
-              style: const TextStyle(
-                color: SettingsPage.ink,
-                fontSize: 21,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Preparing orders as',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  displayName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 23,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
-            ),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.verified_rounded,
-                  color: Color(0xFFD3B17D),
-                  size: 15,
-                ),
-                SizedBox(width: 5),
-                Text(
-                  'ACTIVE',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 10,
-                    letterSpacing: 0.8,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _HandoverNotice extends StatelessWidget {
-  const _HandoverNotice();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(17),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFF7E8),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: SettingsPage.gold.withValues(alpha: 0.55)),
-      ),
-      child: const Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(Icons.schedule_rounded, color: SettingsPage.ink, size: 22),
-          SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Shift handover is controlled',
-                  style: TextStyle(
-                    color: SettingsPage.ink,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  'When StoreHub attendance sync is connected, the next scheduled barista will confirm their own PIN. Do not pass this device to another operator without a handover.',
-                  style: TextStyle(
-                    color: SettingsPage.ink,
-                    fontSize: 13,
-                    height: 1.35,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -473,6 +257,15 @@ class _OperationsStatusCard extends StatelessWidget {
                 : todaySchedule.map(_scheduleLabel).join(' · '),
             connected: todaySchedule.isNotEmpty,
           ),
+          const Divider(height: 28),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: () => _showWeeklyTimetable(buildContext, context),
+              icon: const Icon(Icons.calendar_view_week_outlined),
+              label: const Text('View weekly timetable'),
+            ),
+          ),
         ],
       ),
     );
@@ -487,6 +280,88 @@ class _OperationsStatusCard extends StatelessWidget {
 
   static String _scheduleLabel(WeeklyScheduleEntry entry) =>
       '${entry.baristaName} ${entry.startsAt}-${entry.endsAt}';
+
+  static Future<void> _showWeeklyTimetable(
+    BuildContext context,
+    OperationsContext operations,
+  ) {
+    const dayNames = [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday',
+    ];
+
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) => SafeArea(
+        child: SizedBox(
+          height: MediaQuery.sizeOf(sheetContext).height * 0.78,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Weekly timetable',
+                  style: TextStyle(
+                    color: SettingsPage.ink,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Published by operations. This timetable is for team planning only.',
+                ),
+                const SizedBox(height: 16),
+                Expanded(
+                  child: ListView.separated(
+                    itemCount: dayNames.length,
+                    separatorBuilder: (_, _) => const Divider(height: 20),
+                    itemBuilder: (_, index) {
+                      final weekday = index + 1;
+                      final shifts =
+                          operations.weeklySchedule
+                              .where((entry) => entry.weekday == weekday)
+                              .toList()
+                            ..sort(
+                              (left, right) =>
+                                  left.startsAt.compareTo(right.startsAt),
+                            );
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            dayNames[index],
+                            style: const TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                          const SizedBox(height: 6),
+                          if (shifts.isEmpty)
+                            const Text('No shift published')
+                          else
+                            ...shifts.map(
+                              (entry) => Padding(
+                                padding: const EdgeInsets.only(bottom: 4),
+                                child: Text(_scheduleLabel(entry)),
+                              ),
+                            ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _OperationalRow extends StatelessWidget {

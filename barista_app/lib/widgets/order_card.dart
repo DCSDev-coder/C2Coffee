@@ -15,7 +15,6 @@ class CurrentOrder {
   String timeDate;
   final DateTime orderDate;
   final String customerDetails;
-  String baristaName;
   final List<OrderItem> items;
 
   CurrentOrder({
@@ -24,7 +23,6 @@ class CurrentOrder {
     required this.timeDate,
     required this.orderDate,
     required this.customerDetails,
-    this.baristaName = '',
     required this.items,
   });
 }
@@ -34,7 +32,6 @@ class OrderCard extends StatelessWidget {
   final OrderStatus status;
   final String orderId;
   final String customerDetails;
-  final String baristaName;
   final List<OrderItem> items;
   final VoidCallback? onActionPressed;
   final VoidCallback? onTap;
@@ -46,7 +43,6 @@ class OrderCard extends StatelessWidget {
     required this.status,
     required this.orderId,
     required this.customerDetails,
-    this.baristaName = '',
     required this.items,
     this.onActionPressed,
     this.onTap,
@@ -169,18 +165,6 @@ class OrderCard extends StatelessWidget {
                   ),
                 ),
               ),
-
-              if (baristaName.trim().isNotEmpty) ...[
-                const SizedBox(height: 6.0),
-                Text(
-                  'Barista: $baristaName',
-                  style: const TextStyle(
-                    color: darkGreen,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
 
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 12.0),

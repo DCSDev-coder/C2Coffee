@@ -6,6 +6,7 @@ import { requireAdminActionConfirmation } from '../../admin/action-confirmation.
 import { mysqlPool } from '../../db/mysql.js';
 import { processOrderLoyalty } from '../../services/loyalty.js';
 import { awardReferralForCollectedOrder } from '../../services/referrals.js';
+import { deliverPushToUser } from '../../services/push-delivery.js';
 import { ApiError } from '../errors.js';
 import { createUserNotification } from '../notifications.js';
 import { z } from 'zod';
@@ -763,8 +764,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           userId: refund.user_id,
           type: 'refund_completed',
           title: 'Refund approved',
-          body: `${tokenAmount} tokens have been returned for order ${refund.order_ref}.`,
-          data: { order_ref: refund.order_ref, refund_ref: refundRef }
+        body: 'The applicable tokens have been returned to your C2 Coffee account.'
         });
       }
 
@@ -814,9 +814,8 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
     requireOrderAccess(request);
 
     const { orderId } = request.params as { orderId: string };
-    const { status, barista_id: baristaId } = z.object({
-      status: z.string().trim(),
-      barista_id: z.coerce.number().int().positive().optional()
+    const { status } = z.object({
+      status: z.string().trim()
     }).parse(request.body);
 
     if (!['preparing', 'ready_for_pickup', 'collected', 'completed'].includes(status)) {
@@ -824,10 +823,6 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
     }
 
     const effectiveStatus = status === 'completed' ? 'collected' : status;
-
-    if (['preparing', 'ready_for_pickup'].includes(effectiveStatus) && !baristaId) {
-      throw new ApiError(400, 'barista_required', 'Select the Barista preparing this order.');
-    }
 
     const connection = await mysqlPool.getConnection();
     let committed = false;
@@ -877,42 +872,16 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
       }
 
       const timestampUpdates: string[] = [];
-      let baristaName = '';
-
-      if (baristaId) {
-        const [baristaRows] = await connection.execute<RowDataPacket[]>(
-          `SELECT id, name
-           FROM baristas
-           WHERE id = :baristaId
-             AND tenant_code = :tenantCode
-             AND is_active = true
-           LIMIT 1`,
-          { baristaId, tenantCode: request.adminAuth.tenantCode }
-        );
-
-        if (baristaRows.length === 0) {
-          throw new ApiError(400, 'barista_unavailable', 'The selected Barista is no longer active.');
-        }
-
-        baristaName = baristaRows[0].name;
-      }
-
       if (effectiveStatus === 'preparing') {
         timestampUpdates.push(
-          'accepted_at = COALESCE(accepted_at, UTC_TIMESTAMP())',
-          'preparing_by_admin_user_id = :adminUserId',
-          'preparing_by_barista_id = :baristaId'
+          'accepted_at = COALESCE(accepted_at, UTC_TIMESTAMP())'
         );
       }
 
       if (effectiveStatus === 'ready_for_pickup') {
         timestampUpdates.push(
           'accepted_at = COALESCE(accepted_at, UTC_TIMESTAMP())',
-          'preparing_by_admin_user_id = COALESCE(preparing_by_admin_user_id, :adminUserId)',
-          'preparing_by_barista_id = COALESCE(preparing_by_barista_id, :baristaId)',
-          'ready_at = COALESCE(ready_at, UTC_TIMESTAMP())',
-          'ready_by_admin_user_id = :adminUserId',
-          'ready_by_barista_id = :baristaId'
+          'ready_at = COALESCE(ready_at, UTC_TIMESTAMP())'
         );
       }
 
@@ -931,7 +900,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
               ${timestampUpdates.length > 0 ? `, ${timestampUpdates.join(', ')}` : ''}
           WHERE id = :internalId
         `,
-        { status: effectiveStatus, internalId, adminUserId: request.adminAuth.adminUserId, baristaId: baristaId ?? null }
+        { status: effectiveStatus, internalId, adminUserId: request.adminAuth.adminUserId }
       );
 
       // Insert into order_status_history
@@ -961,9 +930,18 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           fromStatus,
           status: effectiveStatus,
           adminUserId: request.adminAuth.adminUserId,
-          reason: `Updated by ${baristaName || request.adminAuth.fullName || request.adminAuth.username}`
+          reason: `Updated by ${request.adminAuth.fullName || request.adminAuth.username}`
         }
       );
+
+      if (effectiveStatus === 'ready_for_pickup') {
+        await createUserNotification(connection, {
+          userId: Number(rows[0].user_id),
+          type: 'order_ready',
+          title: 'Your order is ready',
+          body: 'Your order is ready for collection. Please collect it at the counter when convenient.'
+        });
+      }
 
       // Super admins may record collection on behalf of a customer. Keep the
       // reward outcome identical to customer-confirmed collection.
@@ -974,14 +952,26 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
 
       await connection.commit();
       committed = true;
+
+      if (effectiveStatus === 'ready_for_pickup') {
+        try {
+          await deliverPushToUser({
+            userId: Number(rows[0].user_id),
+            title: 'Your order is ready',
+            body: 'Your order is ready for collection. Please collect it at the counter when convenient.',
+            data: { type: 'order_ready', order_ref: orderId }
+          });
+        } catch (error) {
+          // The in-app record is already committed. Log only safe metadata so
+          // a provider outage cannot affect the order lifecycle.
+          request.log.warn({ err: error, orderRef: orderId }, 'Push delivery failed after order update.');
+        }
+      }
+
       return reply.send({
         success: true,
         status: effectiveStatus,
-        barista: {
-          id: baristaId ?? null,
-          name: baristaName,
-          username: ''
-        }
+        barista: null
       });
     } catch (error) {
       if (!committed) {

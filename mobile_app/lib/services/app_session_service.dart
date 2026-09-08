@@ -363,7 +363,7 @@ class AppSessionService extends ChangeNotifier {
       return 'Your session has expired. Please log in again.';
     }
 
-    return error.message;
+    return friendlyCustomerErrorMessage(error, fallback: fallback);
   }
 
   bool _isSessionErrorCode(String? code) {

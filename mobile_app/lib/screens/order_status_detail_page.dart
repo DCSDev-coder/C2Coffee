@@ -307,7 +307,10 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
       case 'order_not_ready_for_collection':
         return 'This order is not ready for pickup yet.';
       default:
-        return error.message;
+        return friendlyCustomerErrorMessage(
+          error,
+          fallback: 'We could not update this order right now. Please try again.',
+        );
     }
   }
 

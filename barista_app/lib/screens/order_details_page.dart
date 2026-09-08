@@ -8,7 +8,6 @@ import '../widgets/blinking_online_indicator.dart';
 class OrderDetailsPage extends StatelessWidget {
   final String orderId;
   final String customerDetails;
-  final String baristaName;
   final List<OrderItem> items;
   final bool isHistory;
   final VoidCallback? onSettingsTap;
@@ -17,7 +16,6 @@ class OrderDetailsPage extends StatelessWidget {
     super.key,
     required this.orderId,
     required this.customerDetails,
-    this.baristaName = '',
     required this.items,
     this.isHistory = false,
     this.onSettingsTap,
@@ -182,39 +180,6 @@ class OrderDetailsPage extends StatelessWidget {
                   ),
 
                   const SizedBox(height: 24.0),
-
-                  if ((order?.baristaName ?? baristaName)
-                      .trim()
-                      .isNotEmpty) ...[
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: darkGreen.withValues(alpha: 0.06),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: darkGreen.withValues(alpha: 0.14),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.person, color: darkGreen, size: 20),
-                          const SizedBox(width: 10),
-                          Text(
-                            'Barista: ${(order?.baristaName ?? baristaName).trim()}',
-                            style: TextStyle(
-                              color: darkGreen,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 24.0),
-                  ],
 
                   // Status Tracker
                   Hero(
@@ -397,8 +362,6 @@ class OrderDetailsPage extends StatelessWidget {
                                         return;
                                       }
                                       order.status = OrderStatus.preparing;
-                                      order.baristaName =
-                                          ApiService.activeBaristaName;
                                       globalCurrentOrders.value = List.from(
                                         globalCurrentOrders.value,
                                       );
@@ -440,8 +403,6 @@ class OrderDetailsPage extends StatelessWidget {
                                                   orderId: orderId,
                                                   customerDetails:
                                                       customerDetails,
-                                                  baristaName:
-                                                      order.baristaName,
                                                   timeDate: order.timeDate,
                                                   items: items,
                                                   onSettingsTap: onSettingsTap,

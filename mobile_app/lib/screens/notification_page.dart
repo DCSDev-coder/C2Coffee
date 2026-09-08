@@ -67,7 +67,8 @@ class _NotificationPageState extends State<NotificationPage> {
             if (snapshot.hasError) {
               return _buildStateCard(
                 title: 'Unable to load notifications',
-                message: snapshot.error.toString(),
+                message:
+                    'We could not load your notifications right now. Please try again shortly.',
                 actionLabel: 'Try Again',
                 onAction: _retry,
               );

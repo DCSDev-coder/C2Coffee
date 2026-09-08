@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 import '../services/app_session_service.dart';
+import '../services/auth_api_service.dart';
 import '../services/cart_service.dart';
 import '../services/checkout_api_service.dart';
 import '../services/customer_data_service.dart';
@@ -706,7 +707,10 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _checkoutError = error.toString().replaceFirst('Exception: ', '');
+        _checkoutError = friendlyCustomerErrorMessage(
+          error,
+          fallback: 'We could not place your order right now. Please try again.',
+        );
       });
     } finally {
       if (mounted) {
