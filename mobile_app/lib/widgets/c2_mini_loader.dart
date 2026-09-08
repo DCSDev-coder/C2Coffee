@@ -104,22 +104,11 @@ class _C2MiniLoaderState extends State<C2MiniLoader>
                       ),
                     ),
 
-                    // Elegant C² Brand Stamp (ALWAYS WHITE)
-                    Text(
-                      "C²",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: width * 0.30,
-                        fontWeight: FontWeight.w900,
-                        fontFamily: 'Recoleta',
-                        shadows: [
-                          Shadow(
-                            color: Colors.black.withValues(alpha: 0.4),
-                            blurRadius: 4,
-                            offset: const Offset(0, 1),
-                          ),
-                        ],
-                      ),
+                    // Actual C2 Logo
+                    Image.asset(
+                      'assets/images/c2_logo.png',
+                      width: width * 0.45,
+                      fit: BoxFit.contain,
                     ),
 
                     // User's C2 Cup Glass Image Outline (Clean Transparent PNG)
