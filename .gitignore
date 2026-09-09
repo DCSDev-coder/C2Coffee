@@ -1,54 +1,186 @@
-# Environment variables and secrets
+# ==============================================================================
+# Environment Variables & Secrets
+# ==============================================================================
 .env
 .env.*
-backend/.env
-backend/.env.*
-mobile_app/.env
-mobile_app/.env.*
-edge_server/.env
-edge_server/.env.*
-api/.env
-api/.env.*
+*.env
+*.env.local
+*.local
+!.env.example
+!.env*.example
+!*.example
+!.env.sample
 
-# macOS
-.DS_Store
+# API keys, service accounts & credentials
+*credentials*.json
+*service-account*.json
+*service_account*.json
+serviceAccountKey.json
+client_secret*.json
+firebase-adminsdk*.json
+amplifyconfiguration.dart
+amplifyconfiguration.json
 
-# Mobile app (Flutter)
-mobile_app/.dart_tool/
-mobile_app/build/
-mobile_app/.flutter-plugins
-mobile_app/.flutter-plugins-dependencies
+# Mobile Firebase configuration files (contain project API keys/IDs)
+**/google-services.json
+**/GoogleService-Info.plist
 
-# Backend (PHP / Laravel-style)
+# Signing keys, keystores & certificates
+*.jks
+*.keystore
+*.p12
+*.p8
+*.pem
+*.key
+*.cer
+*.crt
+*.der
+*.mobileprovision
+AuthKey_*.p8
+auth_key_*.p8
+id_rsa*
+id_ed25519*
+**/key.properties
+**/local.properties
+**/signing.properties
+
+# ==============================================================================
+# Database Backups & Dumps (Excluding migration & seed scripts)
+# ==============================================================================
+*.dump
+*.sql.gz
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.bak
+*.backup
+dumps/
+backups/
+database/*.sqlite
+
+# ==============================================================================
+# Logs & Diagnostic Files
+# ==============================================================================
+*.log
+*.log.*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+flutter_*.log
+*.stackdump
+.buildlog/
+
+# ==============================================================================
+# Flutter / Dart / Mobile (mobile_app, barista_app)
+# ==============================================================================
+**/.dart_tool/
+**/build/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.pub-cache/
+**/.pub/
+**/coverage/
+**/doc/api/
+**/.last_build_id
+app.*.symbols
+app.*.map.json
+
+# iOS / macOS build files
+**/ios/Pods/
+**/ios/.symlinks/
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/flutter_export_environment.sh
+**/ios/Flutter/ephemeral/
+**/ios/Flutter/Flutter.podspec
+**/ios/Runner/GeneratedPluginRegistrant.h
+**/ios/Runner/GeneratedPluginRegistrant.m
+**/ios/Runner.xcodeproj/xcuserdata/
+**/ios/Runner.xcworkspace/xcuserdata/
+**/macos/Flutter/ephemeral/
+**/linux/flutter/ephemeral/
+**/windows/flutter/ephemeral/
+
+# Android build files
+**/android/.gradle/
+**/android/build/
+**/android/app/debug/
+**/android/app/profile/
+**/android/app/release/
+**/android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
+**/android/gradle/wrapper/gradle-wrapper.jar
+**/android/gradlew
+**/android/gradlew.bat
+
+# ==============================================================================
+# Node.js / TypeScript / Web Apps (admin_web, api, edge_server)
+# ==============================================================================
+**/node_modules/
+**/dist/
+**/dist-ssr/
+**/.vite/
+**/.next/
+**/.turbo/
+**/.eslintcache
+.npm/
+
+# ==============================================================================
+# Backend (PHP / Laravel / Edge Server)
+# ==============================================================================
 backend/vendor/
-backend/node_modules/
 backend/public/storage/
+backend/storage/*.key
+backend/storage/oauth-*.key
+backend/storage/framework/cache/*
+backend/storage/framework/sessions/*
+backend/storage/framework/views/*
+backend/storage/logs/*
+!backend/storage/framework/cache/.gitignore
+!backend/storage/framework/sessions/.gitignore
+!backend/storage/framework/views/.gitignore
+!backend/storage/logs/.gitignore
 
-# API (Node.js / TypeScript)
-api/node_modules/
-api/dist/
-
-# Admin web (Vite / React)
-admin_web/.env
-admin_web/.env.*
-admin_web/node_modules/
-admin_web/node_modules/.vite/
-admin_web/dist/
-
-# Edge server (Node.js)
-edge_server/node_modules/
-edge_server/dist/
-
-# General dependency/build output
-node_modules/
-dist/
-coverage/
-
-# Build artifacts and binaries
+# ==============================================================================
+# Build Artifacts & Binaries
+# ==============================================================================
 *.apk
 *.aab
 *.ipa
 *.xcarchive
+*.app
+*.dSYM.zip
+*.dSYM
 
-# Documentation directory
+# ==============================================================================
+# Operating System & IDE Files
+# ==============================================================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDEs
+**/.idea/
+**/*.iml
+**/*.ipr
+**/*.iws
+**/.vscode/*
+!**/.vscode/launch.json
+!**/.vscode/tasks.json
+!**/.vscode/extensions.json
+*.swp
+*.swo
+*~
+.history
+.atom/
+.svn/
+.swiftpm/
+migrate_working_dir/
 .md/
