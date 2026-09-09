@@ -36,6 +36,7 @@ type MenuRow = RowDataPacket & {
   item_description: string | null;
   base_price_rm: string;
   base_price_token: number;
+  base_calories_kcal: number;
   image_url: string | null;
   is_available: number;
   is_handcrafted_drink: number;
@@ -73,6 +74,10 @@ type MenuModifierOption = {
   name: string;
   price_delta_rm: string;
   token_price_delta: number;
+  calorie_delta_kcal: number;
+  image_url: string | null;
+  color_hex: string | null;
+  gradient_end_hex: string | null;
 };
 
 type MenuModifierGroup = {
@@ -83,6 +88,7 @@ type MenuModifierGroup = {
   min_select: number;
   max_select: number;
   is_required: boolean;
+  source: 'item' | 'library';
   options: Array<MenuModifierOption>;
 };
 
@@ -93,6 +99,7 @@ type MenuItemResponse = {
   description: string | null;
   base_price_rm: string;
   base_price_token: number;
+  base_calories_kcal: number;
   image_url: string | null;
   is_available: boolean;
   is_handcrafted_drink: boolean;
@@ -113,6 +120,25 @@ type MenuItemResponse = {
   product_kind_name: string;
   token_prices: Record<string, number>;
   modifier_groups: Array<MenuModifierGroup>;
+};
+
+type LibraryModifierRow = RowDataPacket & {
+  group_id: number;
+  group_name: string;
+  selection_type: 'single' | 'multi';
+  min_select: number;
+  max_select: number;
+  is_required: number;
+  applies_to: 'all_drinks' | 'selected_items';
+  menu_item_id: number | null;
+  option_id: number;
+  option_name: string;
+  option_image_url: string | null;
+  option_color_hex: string | null;
+  option_gradient_end_hex: string | null;
+  option_price_delta_rm: string;
+  option_token_price_delta: number;
+  option_calorie_delta_kcal: number;
 };
 
 type MenuCategoryResponse = {
@@ -305,6 +331,7 @@ export async function registerCatalogRoutes(app: FastifyInstance): Promise<void>
           i.description AS item_description,
           CAST(i.base_price_rm AS CHAR) AS base_price_rm,
           i.base_price_token,
+          i.base_calories_kcal,
           i.image_url,
           COALESCE(a.is_available, 1) AS is_available,
           i.is_handcrafted_drink,
@@ -403,6 +430,7 @@ export async function registerCatalogRoutes(app: FastifyInstance): Promise<void>
           description: row.item_description,
           base_price_rm: row.base_price_rm,
           base_price_token: row.base_price_token,
+          base_calories_kcal: row.base_calories_kcal,
           image_url: _resolveImageUrl(row.image_url),
           is_available: row.is_available === 1,
           is_handcrafted_drink: row.is_handcrafted_drink === 1,
@@ -448,6 +476,7 @@ export async function registerCatalogRoutes(app: FastifyInstance): Promise<void>
             min_select: row.modifier_min_select ?? 0,
             max_select: row.modifier_max_select ?? 1,
             is_required: row.modifier_is_required === 1,
+            source: 'item',
             options: [],
           };
           item.modifier_groups.push(modifierGroup);
@@ -464,8 +493,45 @@ export async function registerCatalogRoutes(app: FastifyInstance): Promise<void>
               name: row.modifier_option_name ?? '',
               price_delta_rm: row.modifier_option_price_delta_rm ?? '0.00',
               token_price_delta: row.modifier_option_token_price_delta ?? 0,
+              calorie_delta_kcal: 0,
+              image_url: null,
+              color_hex: null,
+              gradient_end_hex: null,
             });
           }
+        }
+      }
+    }
+
+    const itemsById = new Map<number, MenuItemResponse>();
+    for (const category of categories.values()) {
+      for (const item of category.items) itemsById.set(item.id, item);
+    }
+    const [libraryRows] = await mysqlPool.query<Array<LibraryModifierRow>>(
+      `SELECT g.id AS group_id, g.name AS group_name, g.selection_type, g.min_select, g.max_select, g.is_required, g.applies_to,
+              a.menu_item_id, o.id AS option_id, o.name AS option_name, o.image_url AS option_image_url, o.color_hex AS option_color_hex, o.gradient_end_hex AS option_gradient_end_hex,
+              CAST(o.price_delta_rm AS CHAR) AS option_price_delta_rm, o.token_price_delta AS option_token_price_delta,
+              o.calorie_delta_kcal AS option_calorie_delta_kcal
+       FROM stores s
+       JOIN menu_option_groups g ON g.tenant_id = s.tenant_id AND g.is_active = 1
+       JOIN menu_option_group_options o ON o.option_group_id = g.id AND o.is_active = 1
+       LEFT JOIN menu_option_group_items a ON a.option_group_id = g.id
+       WHERE s.id = :storeId
+       ORDER BY g.sort_order, g.id, o.sort_order, o.id`,
+      { storeId }
+    );
+    for (const row of libraryRows) {
+      const targets = row.applies_to === 'all_drinks'
+        ? [...itemsById.values()].filter((item) => item.product_kind_code === 'drink')
+        : row.menu_item_id ? [itemsById.get(row.menu_item_id)].filter(Boolean) as MenuItemResponse[] : [];
+      for (const item of targets) {
+        let group = item.modifier_groups.find((candidate) => candidate.source === 'library' && candidate.id === row.group_id);
+        if (!group) {
+          group = { id: row.group_id, code: `library-${row.group_id}`, name: row.group_name, selection_type: row.selection_type, min_select: row.min_select, max_select: row.max_select, is_required: row.is_required === 1, source: 'library', options: [] };
+          item.modifier_groups.push(group);
+        }
+        if (!group.options.some((option) => option.id === row.option_id)) {
+          group.options.push({ id: row.option_id, code: `library-${row.option_id}`, name: row.option_name, image_url: _resolveImageUrl(row.option_image_url), color_hex: row.option_color_hex, gradient_end_hex: row.option_gradient_end_hex, price_delta_rm: row.option_price_delta_rm, token_price_delta: row.option_token_price_delta, calorie_delta_kcal: row.option_calorie_delta_kcal });
         }
       }
     }
@@ -512,7 +578,7 @@ async function listActiveStores(): Promise<
         supports_pickup,
         pickup_lead_minutes
       FROM stores
-      WHERE status = 'active'
+      WHERE status = 'active' AND is_customer_facing = 1
       ORDER BY name ASC, id ASC
     `
   );

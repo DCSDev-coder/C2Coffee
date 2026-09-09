@@ -296,7 +296,6 @@ class _HomePageState extends State<HomePage> {
       builder: (context, _) {
         final userName = _session.user?.displayName ?? 'C2 Member';
         final tokenCount = _session.tokenBalance;
-        final selectedStore = _session.selectedStore;
         final featuredDrinks = _featuredDrinkItems();
         final featuredLifestyle = _featuredLifestyleItems();
 
@@ -331,8 +330,6 @@ class _HomePageState extends State<HomePage> {
                         const SizedBox(height: 16),
                         _buildActionButtons(),
                         const SizedBox(height: 16),
-                        _buildStoreSection(selectedStore),
-                        const SizedBox(height: 20),
                         if (_session.isBootstrapLoading &&
                             _session.user == null)
                           _buildHomeLoadingState()
@@ -815,116 +812,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildStoreSection(StoreSummary? selectedStore) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: GestureDetector(
-        onTap: _session.stores.isEmpty ? null : _showStorePicker,
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.surfaceLight,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: AppColors.border),
-          ),
-          child: Row(
-            children: [
-              Icon(Icons.storefront_outlined, color: AppColors.deepTeal),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Selected Store',
-                      style: TextStyle(
-                        fontFamily: 'Afacad',
-                        fontSize: 12,
-                        color: Colors.grey.shade700,
-                      ),
-                    ),
-                    Text(
-                      selectedStore?.name ?? 'No store available yet',
-                      style: TextStyle(
-                        fontFamily: 'Recoleta',
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.deepTeal,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Text(
-                _session.isMenuLoading ? 'Loading...' : 'Change',
-                style: TextStyle(
-                  fontFamily: 'Afacad',
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.deepTeal,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _showStorePicker() async {
-    await showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (context) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Choose Store',
-                  style: TextStyle(
-                    fontFamily: 'Recoleta',
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.deepTeal,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                for (final store in _session.stores)
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(
-                      store.name,
-                      style: const TextStyle(
-                        fontFamily: 'Afacad',
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    subtitle: Text(
-                      '${store.pickupLeadMinutes} min pickup lead',
-                      style: const TextStyle(fontFamily: 'Afacad'),
-                    ),
-                    trailing: _session.selectedStore?.id == store.id
-                        ? Icon(Icons.check_circle, color: AppColors.deepTeal)
-                        : null,
-                    onTap: () async {
-                      Navigator.of(context).pop();
-                      await _session.selectStore(store);
-                    },
-                  ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
   Widget _buildProductSection({
     required String title,
     required List<Map<String, dynamic>> items,
@@ -993,100 +880,104 @@ class _HomePageState extends State<HomePage> {
             ),
           )
         else
-          SizedBox(
-            height: 240,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: items.length,
-              itemBuilder: (context, index) {
-                final item = items[index];
-                return GestureDetector(
-                  onTap: () {
-                    InteractiveFillingLoader.show(
-                      context,
-                      targetPage: (item['isDrink'] as bool? ?? false)
-                          ? MontBrogaPage(item: item)
-                          : SimpleProductDetailPage(item: item),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              // Keep home cards readable on phones while retaining the horizontal browse pattern.
+              final cardWidth =
+                  (constraints.maxWidth * 0.46).clamp(168.0, 220.0);
+              final cardHeight = cardWidth * 1.58;
+              final detailsHeight = cardHeight * 0.39;
+
+              return SizedBox(
+                height: cardHeight,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: items.length,
+                  itemBuilder: (context, index) {
+                    final item = items[index];
+                    return GestureDetector(
+                      onTap: () {
+                        InteractiveFillingLoader.show(
+                          context,
+                          targetPage: (item['isDrink'] as bool? ?? false)
+                              ? MontBrogaPage(item: item)
+                              : SimpleProductDetailPage(item: item),
+                        );
+                      },
+                      child: Container(
+                        width: cardWidth,
+                        margin: const EdgeInsets.symmetric(horizontal: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppColors.border, width: 1),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.03),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Expanded(
+                              child: Padding(
+                                padding:
+                                    const EdgeInsets.fromLTRB(12, 14, 12, 8),
+                                child: CatalogProductImage(
+                                  assetPath: item['image'] as String?,
+                                  imageUrl: item['image_url'] as String?,
+                                  fit: BoxFit.contain,
+                                ),
+                              ),
+                            ),
+                            SizedBox(
+                              height: detailsHeight,
+                              child: Padding(
+                                padding:
+                                    const EdgeInsets.fromLTRB(14, 0, 14, 12),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        item['name']?.toString() ?? 'Item',
+                                        maxLines: 3,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontFamily: 'Recoleta',
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      _formatPrice(item),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontFamily: 'Afacad',
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.deepTeal,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     );
                   },
-                  child: Container(
-                    width: 155,
-                    margin: const EdgeInsets.symmetric(horizontal: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.border, width: 1),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.03),
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Expanded(
-                          flex: 7,
-                          child: Padding(
-                            padding: const EdgeInsets.only(
-                              top: 14,
-                              bottom: 8,
-                              left: 10,
-                              right: 10,
-                            ),
-                            child: CatalogProductImage(
-                              assetPath: item['image'] as String?,
-                              imageUrl: item['image_url'] as String?,
-                              fit: BoxFit.contain,
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          flex: 4,
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    item['name']?.toString() ?? 'Item',
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      fontFamily: 'Recoleta',
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 4),
-                                  child: Text(
-                                    _formatPrice(item),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontFamily: 'Afacad',
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.bold,
-                                      color: AppColors.deepTeal,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
+                ),
+              );
+            },
           ),
       ],
     );

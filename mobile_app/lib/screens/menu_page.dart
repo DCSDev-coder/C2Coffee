@@ -432,35 +432,6 @@ class _MenuPageState extends State<MenuPage> {
                   ],
                 ),
               ),
-              PopupMenuButton<int>(
-                tooltip: 'Switch store',
-                onSelected: (storeId) async {
-                  final store =
-                      _session.stores.firstWhere((s) => s.id == storeId);
-                  await _session.selectStore(store);
-                },
-                itemBuilder: (context) => [
-                  for (final store in _session.stores)
-                    PopupMenuItem<int>(
-                      value: store.id,
-                      child: Text(store.name),
-                    ),
-                ],
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Change',
-                      style: TextStyle(
-                        fontFamily: 'Afacad',
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.deepTeal,
-                      ),
-                    ),
-                    Icon(Icons.keyboard_arrow_down, color: AppColors.deepTeal),
-                  ],
-                ),
-              ),
             ],
           ),
         ],
@@ -645,13 +616,21 @@ class _MenuPageState extends State<MenuPage> {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 18),
           child: const Column(
             children: [
-              C2ImageSkeleton(height: 14, borderRadius: BorderRadius.all(Radius.circular(7))),
+              C2ImageSkeleton(
+                  height: 14,
+                  borderRadius: BorderRadius.all(Radius.circular(7))),
               SizedBox(height: 26),
-              C2ImageSkeleton(height: 14, borderRadius: BorderRadius.all(Radius.circular(7))),
+              C2ImageSkeleton(
+                  height: 14,
+                  borderRadius: BorderRadius.all(Radius.circular(7))),
               SizedBox(height: 26),
-              C2ImageSkeleton(height: 14, borderRadius: BorderRadius.all(Radius.circular(7))),
+              C2ImageSkeleton(
+                  height: 14,
+                  borderRadius: BorderRadius.all(Radius.circular(7))),
               SizedBox(height: 26),
-              C2ImageSkeleton(height: 14, borderRadius: BorderRadius.all(Radius.circular(7))),
+              C2ImageSkeleton(
+                  height: 14,
+                  borderRadius: BorderRadius.all(Radius.circular(7))),
             ],
           ),
         ),

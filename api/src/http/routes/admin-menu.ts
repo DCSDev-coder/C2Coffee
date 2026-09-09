@@ -152,6 +152,7 @@ type AdminMenuRow = RowDataPacket & {
   item_description: string | null;
   base_price_rm: string;
   base_price_token: number;
+  base_calories_kcal: number;
   image_url: string | null;
   is_available: number;
   is_handcrafted_drink: number;
@@ -219,6 +220,7 @@ type AdminMenuItem = {
   description: string | null;
   base_price_rm: string;
   base_price_token: number;
+  base_calories_kcal: number;
   image_url: string | null;
   is_available: boolean;
   is_active: boolean;
@@ -336,6 +338,7 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
           i.description AS item_description,
           CAST(i.base_price_rm AS CHAR) AS base_price_rm,
           i.base_price_token,
+          i.base_calories_kcal,
           i.image_url,
           i.is_active AS is_available,
           i.is_handcrafted_drink,
@@ -439,6 +442,7 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
           i.description AS item_description,
           CAST(i.base_price_rm AS CHAR) AS base_price_rm,
           i.base_price_token,
+          i.base_calories_kcal,
           i.image_url,
           i.is_active AS is_available,
           i.is_handcrafted_drink,
@@ -1185,6 +1189,7 @@ function buildMenuResponse(rows: Array<AdminMenuRow>): AdminMenuResponse {
         description: row.item_description,
         base_price_rm: row.base_price_rm,
         base_price_token: row.base_price_token,
+        base_calories_kcal: row.base_calories_kcal,
         image_url: row.image_url,
         is_available: row.is_available === 1,
         is_active: row.is_available === 1,

@@ -14,7 +14,8 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
-  static const _minimumDisplayDuration = Duration(seconds: 3);
+  static const _loadingDuration = Duration(milliseconds: 3200);
+  static const _postCompleteDelay = Duration(milliseconds: 700);
   late AnimationController _progressController;
 
   @override
@@ -22,8 +23,8 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     super.initState();
     _progressController = AnimationController(
       vsync: this,
-      duration: _minimumDisplayDuration,
-    )..forward();
+      duration: _loadingDuration,
+    );
     _bootstrap();
   }
 
@@ -35,23 +36,35 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 
   Future<void> _bootstrap() async {
     bool hasSession = false;
-    
-    await Future.wait([
-      Future<void>.delayed(_minimumDisplayDuration),
-      () async {
-        try {
-          hasSession = await SessionLifecycleService.instance.restoreSession();
-        } catch (e) {
-          hasSession = false;
-        }
-      }()
-    ]);
+
+    // Start background session restore concurrently
+    final sessionRestoreFuture = () async {
+      try {
+        return await SessionLifecycleService.instance.restoreSession();
+      } catch (e) {
+        return false;
+      }
+    }();
+
+    // Run loading progress all the way to 100%
+    await _progressController.forward().orCancel.catchError((_) {});
+
+    // Ensure session restore is resolved
+    hasSession = await sessionRestoreFuture;
+
+    // Brief delay at 100% full state so the user sees completion
+    await Future<void>.delayed(_postCompleteDelay);
 
     if (!mounted) return;
 
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (_) => hasSession ? const HomePage() : const LoginPage(),
+      PageRouteBuilder(
+        pageBuilder: (_, __, ___) =>
+            hasSession ? const HomePage() : const LoginPage(),
+        transitionsBuilder: (_, animation, __, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+        transitionDuration: const Duration(milliseconds: 400),
       ),
     );
   }
@@ -109,7 +122,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                       children: [
                         C2MiniLoader(
                           size: 160.0,
-                          duration: _minimumDisplayDuration,
+                          duration: _loadingDuration,
                           onComplete: () {}, // Stops at 100%
                         ),
                         const SizedBox(height: 48),

@@ -39,6 +39,10 @@ class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
   bool get _isFood => widget.item['isFood'] == true;
   bool get _isMerchandise => widget.item['isMerchandise'] == true;
   bool get _isCandle => widget.item['isCandle'] == true;
+  int get _baseCalories =>
+      (widget.item['baseCaloriesKcal'] as num?)?.toInt() ??
+      int.tryParse(widget.item['baseCaloriesKcal']?.toString() ?? '0') ??
+      0;
 
   String get _rawBasePriceText =>
       widget.item['basePriceRm']?.toString() ??
@@ -231,7 +235,16 @@ class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
                                       ),
                                     ),
                             ),
-                            _buildExchangeButton(),
+                            Row(children: [
+                              Text('$_baseCalories kcal',
+                                  style: const TextStyle(
+                                      fontFamily: 'Afacad',
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.black54)),
+                              const SizedBox(width: 12),
+                              _buildExchangeButton()
+                            ]),
                           ],
                         ),
                       ),
@@ -270,26 +283,33 @@ class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
                         fontSize: 16,
                         fontWeight: FontWeight.bold),
                   ),
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 200),
-                    child: _showTokenPrice
-                        ? TokenPricePair(
-                            key: const ValueKey('totalTokenPrice'),
-                            tokenValue: _tokenPrice * quantity,
-                            tokenFontSize: 12,
-                            tokenColor: Colors.black87,
-                          )
-                        : Text(
-                            _displayTotalText,
-                            key: const ValueKey('totalRmPrice'),
-                            style: const TextStyle(
-                              fontFamily: 'Afacad',
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black87,
+                  Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 200),
+                      child: _showTokenPrice
+                          ? TokenPricePair(
+                              key: const ValueKey('totalTokenPrice'),
+                              tokenValue: _tokenPrice * quantity,
+                              tokenFontSize: 12,
+                              tokenColor: Colors.black87,
+                            )
+                          : Text(
+                              _displayTotalText,
+                              key: const ValueKey('totalRmPrice'),
+                              style: const TextStyle(
+                                fontFamily: 'Afacad',
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
+                              ),
                             ),
-                          ),
-                  ),
+                    ),
+                    Text('${_baseCalories * quantity} kcal',
+                        style: const TextStyle(
+                            fontFamily: 'Afacad',
+                            fontSize: 11,
+                            color: Colors.black54))
+                  ]),
                 ],
               ),
               const SizedBox(height: 10),

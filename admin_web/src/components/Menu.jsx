@@ -28,6 +28,8 @@ import {
   updateAdminMenuCategory,
   updateAdminMenuSubcategory,
   updateAdminMenuItem,
+  loadAdminOptionLibrary,
+  updateAdminOptionGroup,
   loadAdminHomeFeatured,
   saveAdminHomeFeatured
 } from '../lib/adminApi';
@@ -134,14 +136,6 @@ const MENU_ITEM_TEMPLATES = {
     defaults: {
       is_handcrafted_drink: true,
       is_qualifying_cup: true,
-      allow_choice_of_beans: true,
-      allow_espresso_shot: true,
-      allow_choice_of_milk: true,
-      allow_choice_of_sweetness: true,
-      allow_ice_level: true,
-      allow_temperature: true,
-      allow_sparkling_mixer: false,
-      allow_order_type: true,
       allow_remarks: true
     }
   },
@@ -153,14 +147,6 @@ const MENU_ITEM_TEMPLATES = {
     defaults: {
       is_handcrafted_drink: true,
       is_qualifying_cup: true,
-      allow_choice_of_beans: false,
-      allow_espresso_shot: false,
-      allow_choice_of_milk: true,
-      allow_choice_of_sweetness: true,
-      allow_ice_level: true,
-      allow_temperature: true,
-      allow_sparkling_mixer: true,
-      allow_order_type: true,
       allow_remarks: true
     }
   },
@@ -172,14 +158,6 @@ const MENU_ITEM_TEMPLATES = {
     defaults: {
       is_handcrafted_drink: false,
       is_qualifying_cup: false,
-      allow_choice_of_beans: false,
-      allow_espresso_shot: false,
-      allow_choice_of_milk: false,
-      allow_choice_of_sweetness: false,
-      allow_ice_level: false,
-      allow_temperature: false,
-      allow_sparkling_mixer: false,
-      allow_order_type: false,
       allow_remarks: false
     }
   },
@@ -191,14 +169,6 @@ const MENU_ITEM_TEMPLATES = {
     defaults: {
       is_handcrafted_drink: false,
       is_qualifying_cup: false,
-      allow_choice_of_beans: false,
-      allow_espresso_shot: false,
-      allow_choice_of_milk: false,
-      allow_choice_of_sweetness: false,
-      allow_ice_level: false,
-      allow_temperature: false,
-      allow_sparkling_mixer: false,
-      allow_order_type: false,
       allow_remarks: false
     }
   }
@@ -284,60 +254,6 @@ const createTempId = (prefix) => {
   return `${prefix}-${suffix}`;
 };
 
-const CUSTOMIZATION_FLAGS = [
-  {
-    key: 'allow_choice_of_beans',
-    label: 'Choice of beans',
-    description: 'Enable bean selection for espresso-based drinks.'
-  },
-  {
-    key: 'allow_espresso_shot',
-    label: 'Espresso shots',
-    description: 'Allow extra espresso shots for the drink.'
-  },
-  {
-    key: 'allow_choice_of_milk',
-    label: 'Choice of milk',
-    description: 'Show milk selection such as fresh milk or oat milk.'
-  },
-  {
-    key: 'allow_choice_of_sweetness',
-    label: 'Choice of sweetness',
-    description: 'Show sweetness presets on the product page.'
-  },
-  {
-    key: 'allow_ice_level',
-    label: 'Ice level',
-    description: 'Show ice level selection on the product page.'
-  },
-  {
-    key: 'allow_temperature',
-    label: 'Temperature',
-    description: 'Show hot and cold options when the drink supports both.'
-  },
-  {
-    key: 'allow_sparkling_mixer',
-    label: 'Sparkling mixer',
-    description: 'Enable sparkling mixer selection for drinks like Espresso Bomb.'
-  },
-  {
-    key: 'allow_order_type',
-    label: 'Order type',
-    description: 'Show the take-away or dine-in order type choice.'
-  },
-  {
-    key: 'allow_remarks',
-    label: 'Remarks',
-    description: 'Allow customers to leave a remark on the drink.'
-  }
-];
-
-const emptyCustomizationFlags = () =>
-  CUSTOMIZATION_FLAGS.reduce((acc, flag) => {
-    acc[flag.key] = false;
-    return acc;
-  }, {});
-
 const buildEmptyForm = (categoryCode) => ({
   id: null,
   category_code: categoryCode || '',
@@ -350,10 +266,11 @@ const buildEmptyForm = (categoryCode) => ({
   is_active: true,
   is_handcrafted_drink: false,
   is_qualifying_cup: false,
-  ...emptyCustomizationFlags()
+  allow_remarks: false,
+  option_group_ids: []
 });
 
-const buildFormFromItem = (item) => ({
+const buildFormFromItem = (item, optionGroups = []) => ({
   id: item.id,
   category_code: item.category_code,
   subcategory_code: item.subcategory_code || '',
@@ -367,10 +284,10 @@ const buildFormFromItem = (item) => ({
   is_active: item.is_active,
   is_handcrafted_drink: item.is_handcrafted_drink,
   is_qualifying_cup: item.is_qualifying_cup,
-  ...CUSTOMIZATION_FLAGS.reduce((acc, flag) => {
-    acc[flag.key] = Boolean(item[flag.key]);
-    return acc;
-  }, {})
+  allow_remarks: Boolean(item.allow_remarks),
+  option_group_ids: optionGroups
+    .filter((group) => group.applies_to === 'selected_items' && group.menu_item_ids.includes(item.id))
+    .map((group) => group.id)
 });
 
 const flattenMenuData = (categories) =>
@@ -384,9 +301,10 @@ const flattenMenuData = (categories) =>
     }))
   );
 
-const Menu = () => {
+const Menu = ({ onNavigate }) => {
   const [menuCategories, setMenuCategories] = useState([]);
   const [menuSubcategories, setMenuSubcategories] = useState([]);
+  const [optionGroups, setOptionGroups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -444,12 +362,16 @@ const Menu = () => {
     setErrorMessage('');
 
     try {
-      const response = await loadAdminMenu();
+      const [response, homePicks, library] = await Promise.all([
+        loadAdminMenu(),
+        loadAdminHomeFeatured(),
+        loadAdminOptionLibrary()
+      ]);
       const categories = response.categories || [];
       const subcategories = response.subcategories || [];
       setMenuCategories(categories);
       setMenuSubcategories(subcategories);
-      const homePicks = await loadAdminHomeFeatured();
+      setOptionGroups(library.groups || []);
       const placements = homePicks.placements || [];
       setHomePickIds({
         featured_drinks: placements.filter((entry) => entry.section === 'featured_drinks').sort((a, b) => a.sortOrder - b.sortOrder).map((entry) => entry.itemId),
@@ -495,6 +417,26 @@ const Menu = () => {
   ];
 
   const allMenuItems = flattenMenuData(menuCategories);
+  const optionGroupsForItem = (itemId) => optionGroups.filter((group) =>
+    group.applies_to === 'all_drinks' || group.menu_item_ids.includes(itemId)
+  );
+
+  const syncOptionGroupAssignments = async (itemId, selectedGroupIds) => {
+    const selected = new Set(selectedGroupIds);
+    const affectedGroups = optionGroups.filter((group) =>
+      group.applies_to === 'selected_items' &&
+      (group.menu_item_ids.includes(itemId) || selected.has(group.id))
+    );
+
+    await Promise.all(affectedGroups.map(async (group) => {
+      const currentlyAssigned = group.menu_item_ids.includes(itemId);
+      const shouldAssign = selected.has(group.id);
+      if (currentlyAssigned === shouldAssign) return;
+      const menuItemIds = group.menu_item_ids.filter((id) => id !== itemId);
+      if (shouldAssign) menuItemIds.push(itemId);
+      await updateAdminOptionGroup(group.id, { ...group, menu_item_ids: menuItemIds });
+    }));
+  };
   const homePickItems = (section) => allMenuItems.filter((item) => {
     const kind = String(item.product_kind_code || '').toLowerCase();
     return item.is_active && (section === 'featured_drinks'
@@ -643,7 +585,7 @@ const Menu = () => {
 
   const openEditModal = (item) => {
     setEditMode('edit');
-    setEditFormData(buildFormFromItem(item));
+    setEditFormData(buildFormFromItem(item, optionGroups));
     setSelectedMenuTemplate(getTemplateKeyForCategory(
       menuCategories.find((category) => category.code === item.category_code)
     ));
@@ -655,7 +597,7 @@ const Menu = () => {
   const handleDuplicate = (item) => {
     setEditMode('create');
     setEditFormData({
-      ...buildFormFromItem(item),
+      ...buildFormFromItem(item, optionGroups),
       id: null,
       name: `${item.name} (Copy)`
     });
@@ -719,14 +661,6 @@ const Menu = () => {
       is_active: Boolean(editFormData.is_active),
       is_handcrafted_drink: Boolean(editFormData.is_handcrafted_drink),
       is_qualifying_cup: Boolean(editFormData.is_qualifying_cup),
-      allow_choice_of_beans: Boolean(editFormData.allow_choice_of_beans),
-      allow_espresso_shot: Boolean(editFormData.allow_espresso_shot),
-      allow_choice_of_milk: Boolean(editFormData.allow_choice_of_milk),
-      allow_choice_of_sweetness: Boolean(editFormData.allow_choice_of_sweetness),
-      allow_ice_level: Boolean(editFormData.allow_ice_level),
-      allow_temperature: Boolean(editFormData.allow_temperature),
-      allow_sparkling_mixer: Boolean(editFormData.allow_sparkling_mixer),
-      allow_order_type: Boolean(editFormData.allow_order_type),
       allow_remarks: Boolean(editFormData.allow_remarks)
     };
 
@@ -737,6 +671,8 @@ const Menu = () => {
       } else {
         response = await updateAdminMenuItem(editFormData.id, payload);
       }
+
+      await syncOptionGroupAssignments(response.item?.id ?? editFormData.id, editFormData.option_group_ids);
 
       closeEditModal();
       await refreshAndSelect(response.item?.id ?? editFormData.id);
@@ -956,14 +892,6 @@ const Menu = () => {
       subcategory_code: nextSubcategoryCode || '',
       is_handcrafted_drink: Boolean(template.defaults.is_handcrafted_drink),
       is_qualifying_cup: Boolean(template.defaults.is_qualifying_cup),
-      allow_choice_of_beans: Boolean(template.defaults.allow_choice_of_beans),
-      allow_espresso_shot: Boolean(template.defaults.allow_espresso_shot),
-      allow_choice_of_milk: Boolean(template.defaults.allow_choice_of_milk),
-      allow_choice_of_sweetness: Boolean(template.defaults.allow_choice_of_sweetness),
-      allow_ice_level: Boolean(template.defaults.allow_ice_level),
-      allow_temperature: Boolean(template.defaults.allow_temperature),
-      allow_sparkling_mixer: Boolean(template.defaults.allow_sparkling_mixer),
-      allow_order_type: Boolean(template.defaults.allow_order_type),
       allow_remarks: Boolean(template.defaults.allow_remarks)
     }));
   };
@@ -1254,13 +1182,13 @@ const Menu = () => {
                         <p className="text-gray-500 font-medium">Customizations</p>
                         <div className="text-gray-900 font-medium">
                           <div className="flex flex-wrap gap-2">
-                            {CUSTOMIZATION_FLAGS.filter((flag) => selectedItem[flag.key]).length > 0 ? (
-                              CUSTOMIZATION_FLAGS.filter((flag) => selectedItem[flag.key]).map((flag) => (
+                            {optionGroupsForItem(selectedItem.id).length > 0 ? (
+                              optionGroupsForItem(selectedItem.id).map((group) => (
                                 <span
-                                  key={flag.key}
+                                  key={group.id}
                                   className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700"
                                 >
-                                  {flag.label}
+                                  {group.name}
                                 </span>
                               ))
                             ) : (
@@ -1471,6 +1399,9 @@ const Menu = () => {
                           ...editFormData,
                           category_code: nextCategoryCode,
                           subcategory_code: nextSubcategories[0]?.code || '',
+                          option_group_ids: nextCategory?.product_kind_code === 'drink'
+                            ? editFormData.option_group_ids
+                            : [],
                           ...(nextTemplateKey === 'custom'
                             ? {}
                             : {
@@ -1653,25 +1584,40 @@ const Menu = () => {
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
-                        {CUSTOMIZATION_FLAGS.map((flag) => (
-                          <label
-                            key={flag.key}
-                            className="flex items-start gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={Boolean(editFormData[flag.key])}
-                              onChange={(event) =>
-                                setEditFormData({ ...editFormData, [flag.key]: event.target.checked })
-                              }
-                              className="mt-1 w-4 h-4 text-[#1F3A34] rounded border-gray-300 accent-[#1F3A34]"
-                            />
-                            <span>
-                              <span className="block text-sm font-semibold text-gray-900">{flag.label}</span>
-                              <span className="block text-[11px] text-gray-500 mt-0.5">{flag.description}</span>
-                            </span>
-                          </label>
-                        ))}
+                        <label className="flex items-start gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(editFormData.allow_remarks)}
+                            onChange={(event) => setEditFormData({ ...editFormData, allow_remarks: event.target.checked })}
+                            className="mt-1 w-4 h-4 text-[#1F3A34] rounded border-gray-300 accent-[#1F3A34]"
+                          />
+                          <span>
+                            <span className="block text-sm font-semibold text-gray-900">Customer remarks</span>
+                            <span className="block text-[11px] text-gray-500 mt-0.5">Let customers add a note to this drink.</span>
+                          </span>
+                        </label>
+                      </div>
+
+                      <div className="mt-4 rounded-xl border border-[#D7E7E2] bg-[#F6FBF9] p-4">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div>
+                            <p className="text-sm font-bold text-[#1F3A34]">Customer choices</p>
+                            <p className="mt-1 text-[11px] text-[#31584F]">Choices, prices, tokens, calories, and bean images are managed centrally in Options &amp; Nutrition.</p>
+                          </div>
+                          <button type="button" onClick={() => onNavigate?.('Options & Nutrition')} className="shrink-0 rounded-lg border border-[#1F3A34] px-3 py-2 text-xs font-bold text-[#1F3A34] hover:bg-white">Manage groups</button>
+                        </div>
+                        <div className="mt-3 space-y-2">
+                          {optionGroups.filter((group) => group.applies_to === 'all_drinks').map((group) => (
+                            <div key={group.id} className="rounded-lg bg-white px-3 py-2 text-sm text-gray-700"><span className="font-semibold">{group.name}</span><span className="ml-2 text-xs text-gray-500">Applied to all drinks</span></div>
+                          ))}
+                          {optionGroups.filter((group) => group.applies_to === 'selected_items').map((group) => (
+                            <label key={group.id} className="flex cursor-pointer items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm text-gray-700">
+                              <input type="checkbox" checked={editFormData.option_group_ids.includes(group.id)} onChange={(event) => setEditFormData({ ...editFormData, option_group_ids: event.target.checked ? [...editFormData.option_group_ids, group.id] : editFormData.option_group_ids.filter((id) => id !== group.id) })} />
+                              <span className="font-semibold">{group.name}</span>
+                            </label>
+                          ))}
+                          {optionGroups.length === 0 && <p className="rounded-lg bg-white px-3 py-2 text-sm text-gray-600">No choice groups have been created yet. Create one in Options &amp; Nutrition before assigning it to this drink.</p>}
+                        </div>
                       </div>
                     </>
                   ) : (

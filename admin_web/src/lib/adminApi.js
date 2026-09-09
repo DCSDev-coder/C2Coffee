@@ -157,6 +157,37 @@ export async function loadAdminMenu() {
   return adminRequest('/v1/admin/menu');
 }
 
+export async function loadAdminOptionLibrary() {
+  return adminRequest('/v1/admin/menu/options-library');
+}
+
+export async function createAdminOptionGroup(payload) {
+  return adminRequest('/v1/admin/menu/options-library/groups', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function updateAdminOptionGroup(groupId, payload) {
+  return adminRequest(`/v1/admin/menu/options-library/groups/${encodeURIComponent(groupId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function deleteAdminOptionGroup(groupId) {
+  return adminRequest(`/v1/admin/menu/options-library/groups/${encodeURIComponent(groupId)}`, {
+    method: 'DELETE'
+  });
+}
+
+export async function updateAdminMenuNutrition(itemId, baseCaloriesKcal) {
+  return adminRequest(`/v1/admin/menu/items/${encodeURIComponent(itemId)}/nutrition`, {
+    method: 'PATCH',
+    body: JSON.stringify({ base_calories_kcal: baseCaloriesKcal })
+  });
+}
+
 export async function loadAdminHomeFeatured() {
   return adminRequest('/v1/admin/home-featured');
 }
@@ -404,6 +435,17 @@ export async function loadAdminOperationalSetup() {
   return adminRequest('/v1/admin/operational-integrations');
 }
 
+export async function loadAdminStore() {
+  return adminRequest('/v1/admin/store');
+}
+
+export async function updateAdminStoreName(name) {
+  return adminRequest('/v1/admin/store', {
+    method: 'PATCH',
+    body: JSON.stringify({ name })
+  });
+}
+
 export async function saveAdminWeeklySchedule(entries) {
   return adminRequest('/v1/admin/weekly-schedule', {
     method: 'PUT',
@@ -428,6 +470,18 @@ export async function createAdminPrinterTarget(payload) {
 export async function uploadAdminMenuImage(file) {
   const dataUrl = await readFileAsDataUrl(file);
   return adminRequest('/v1/admin/menu/uploads', {
+    method: 'POST',
+    body: JSON.stringify({
+      file_name: file.name,
+      mime_type: file.type || 'image/png',
+      data_url: dataUrl
+    })
+  });
+}
+
+export async function uploadAdminOptionImage(file) {
+  const dataUrl = await readFileAsDataUrl(file);
+  return adminRequest('/v1/admin/menu/options-library/uploads', {
     method: 'POST',
     body: JSON.stringify({
       file_name: file.name,

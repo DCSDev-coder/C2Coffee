@@ -36,7 +36,8 @@ const createOrderSchema = z.object({
               price_delta_rm: z
                 .union([z.string(), z.number()])
                 .transform((value) => Number(value)),
-              token_price_delta: z.coerce.number().int().min(0).default(0)
+              token_price_delta: z.coerce.number().int().min(-999).max(999).default(0),
+              calorie_delta_kcal: z.coerce.number().int().min(-5000).max(5000).default(0)
             })
           )
           .max(20)
@@ -49,10 +50,24 @@ const createOrderSchema = z.object({
 
 type StoreRow = RowDataPacket & {
   id: number;
+  tenant_id: number;
   name: string;
   pickup_lead_minutes: number;
   supports_pickup: number;
   status: 'active' | 'inactive';
+};
+
+type LibraryOptionRow = RowDataPacket & {
+  group_id: number;
+  group_name: string;
+  selection_type: 'single' | 'multi';
+  min_select: number;
+  max_select: number;
+  is_required: number;
+  option_name: string;
+  price_delta_rm: string;
+  token_price_delta: number;
+  calorie_delta_kcal: number;
 };
 
 type MenuItemRow = RowDataPacket & {
@@ -60,6 +75,7 @@ type MenuItemRow = RowDataPacket & {
   code: string;
   name: string;
   base_price_rm: string;
+  base_calories_kcal: number;
   is_available: number;
   token_price: number | null;
   is_qualifying_cup: number;
@@ -420,7 +436,17 @@ export async function registerCheckoutRoutes(
       let modifierTotalRm = 0;
       let tokenAmountCharged = 0;
 
-      const normalizedItems = payload.items.map((item) => {
+      const normalizedItems = [] as Array<{
+        payload: z.infer<typeof createOrderSchema>['items'][number];
+        menuItem: MenuItemRow;
+        basePriceRm: number;
+        tokenPrice: number;
+        modifierRm: number;
+        modifierTokens: number;
+        baseCalories: number;
+        modifierCalories: number;
+      }>;
+      for (const item of payload.items) {
         const menuItem = itemsById.get(item.menu_item_id);
         if (!menuItem || menuItem.is_available !== 1) {
           throw new ApiError(
@@ -440,12 +466,18 @@ export async function registerCheckoutRoutes(
           );
         }
 
-        const modifierRm = item.modifiers.reduce(
+        const verifiedModifiers = await _verifyLibraryModifiers(connection, store.tenant_id, menuItem.id, item.modifiers);
+        const normalizedPayload = { ...item, modifiers: verifiedModifiers };
+        const modifierRm = verifiedModifiers.reduce(
           (sum, modifier) => sum + _normalizeMoney(modifier.price_delta_rm),
           0
         );
-        const modifierTokens = item.modifiers.reduce(
+        const modifierTokens = verifiedModifiers.reduce(
           (sum, modifier) => sum + modifier.token_price_delta,
+          0
+        );
+        const modifierCalories = verifiedModifiers.reduce(
+          (sum, modifier) => sum + modifier.calorie_delta_kcal,
           0
         );
 
@@ -455,15 +487,17 @@ export async function registerCheckoutRoutes(
           tokenAmountCharged += (tokenPrice + modifierTokens) * item.quantity;
         }
 
-        return {
-          payload: item,
+        normalizedItems.push({
+          payload: normalizedPayload,
           menuItem,
           basePriceRm,
           tokenPrice,
           modifierRm,
-          modifierTokens
-        };
-      });
+          modifierTokens,
+          baseCalories: menuItem.base_calories_kcal,
+          modifierCalories
+        });
+      }
 
       let appliedVoucher: AppliedVoucherRow | null = null;
       let discountRm = 0;
@@ -736,6 +770,7 @@ export async function registerCheckoutRoutes(
               item_name_snapshot,
               base_price_rm_snapshot,
               token_price_snapshot,
+              base_calories_kcal_snapshot,
               quantity,
               line_subtotal_rm,
               line_token_amount,
@@ -747,6 +782,7 @@ export async function registerCheckoutRoutes(
               :itemNameSnapshot,
               :basePriceSnapshot,
               :tokenPriceSnapshot,
+              :baseCaloriesSnapshot,
               :quantity,
               :lineSubtotalRm,
               :lineTokenAmount,
@@ -759,6 +795,7 @@ export async function registerCheckoutRoutes(
             itemNameSnapshot: item.menuItem.name,
             basePriceSnapshot: item.basePriceRm.toFixed(2),
             tokenPriceSnapshot: item.tokenPrice,
+            baseCaloriesSnapshot: item.baseCalories,
             quantity: item.payload.quantity,
             lineSubtotalRm: lineSubtotalRm.toFixed(2),
             lineTokenAmount,
@@ -775,6 +812,7 @@ export async function registerCheckoutRoutes(
                 modifier_option_name_snapshot,
                 price_delta_rm_snapshot,
                 token_price_delta_snapshot
+                ,calorie_delta_kcal_snapshot
               )
               VALUES (
                 :orderItemId,
@@ -782,6 +820,7 @@ export async function registerCheckoutRoutes(
                 :optionName,
                 :priceDeltaRm,
                 :tokenPriceDelta
+                ,:calorieDeltaKcal
               )
             `,
             {
@@ -790,6 +829,7 @@ export async function registerCheckoutRoutes(
               optionName: modifier.option_name,
               priceDeltaRm: _normalizeMoney(modifier.price_delta_rm).toFixed(2),
               tokenPriceDelta: modifier.token_price_delta
+              ,calorieDeltaKcal: modifier.calorie_delta_kcal
             }
           );
         }
@@ -1212,12 +1252,15 @@ async function _loadStore(
     `
       SELECT
         id,
+        tenant_id,
         name,
         pickup_lead_minutes,
         supports_pickup,
         status
       FROM stores
       WHERE id = :storeId
+        AND status = 'active'
+        AND is_customer_facing = 1
       LIMIT 1
     `,
     { storeId }
@@ -1239,6 +1282,7 @@ async function _loadMenuItems(
         i.code,
         i.name,
         CAST(i.base_price_rm AS CHAR) AS base_price_rm,
+        i.base_calories_kcal,
         COALESCE(a.is_available, 1) AS is_available,
         tp.token_price,
         i.is_qualifying_cup,
@@ -1276,6 +1320,52 @@ async function _loadMenuItems(
   );
 
   return rows;
+}
+
+async function _verifyLibraryModifiers(
+  connection: PoolConnection,
+  tenantId: number,
+  menuItemId: number,
+  modifiers: z.infer<typeof createOrderSchema>['items'][number]['modifiers']
+) {
+  const [rows] = await connection.query<Array<LibraryOptionRow>>(
+    `SELECT g.id AS group_id, g.name AS group_name, g.selection_type, g.min_select, g.max_select, g.is_required,
+            o.name AS option_name, CAST(o.price_delta_rm AS CHAR) AS price_delta_rm, o.token_price_delta, o.calorie_delta_kcal
+     FROM menu_option_groups g
+     JOIN menu_option_group_options o ON o.option_group_id = g.id AND o.is_active = 1
+     LEFT JOIN menu_option_group_items a ON a.option_group_id = g.id
+     WHERE g.tenant_id = :tenantId AND g.is_active = 1
+       AND (g.applies_to = 'all_drinks' OR a.menu_item_id = :menuItemId)
+     ORDER BY g.sort_order, g.id, o.sort_order, o.id`,
+    { tenantId, menuItemId }
+  );
+  if (rows.length === 0) return modifiers;
+
+  const groups = new Map<number, { name: string; selectionType: string; min: number; max: number; required: boolean; options: Map<string, LibraryOptionRow> }>();
+  for (const row of rows) {
+    const group = groups.get(row.group_id) ?? { name: row.group_name, selectionType: row.selection_type, min: row.min_select, max: row.max_select, required: row.is_required === 1, options: new Map() };
+    group.options.set(row.option_name, row);
+    groups.set(row.group_id, group);
+  }
+
+  const canonical: typeof modifiers = [];
+  for (const group of groups.values()) {
+    const selected = modifiers.filter((modifier) => modifier.group_name === group.name);
+    const minimum = group.required ? Math.max(1, group.min) : group.min;
+    if (selected.length < minimum || selected.length > group.max || (group.selectionType === 'single' && selected.length > 1)) {
+      throw new ApiError(400, 'invalid_option_selection', `Please choose valid options for ${group.name}.`);
+    }
+    for (const selection of selected) {
+      const option = group.options.get(selection.option_name);
+      if (!option) throw new ApiError(400, 'invalid_option_selection', `The selected option for ${group.name} is unavailable.`);
+      canonical.push({ group_name: group.name, option_name: option.option_name, price_delta_rm: Number(option.price_delta_rm), token_price_delta: option.token_price_delta, calorie_delta_kcal: option.calorie_delta_kcal });
+    }
+  }
+  const knownNames = new Set([...groups.values()].map((group) => group.name));
+  if (modifiers.some((modifier) => !knownNames.has(modifier.group_name))) {
+    throw new ApiError(400, 'invalid_option_selection', 'One or more selected options are unavailable.');
+  }
+  return canonical;
 }
 
 function _generateOrderRef(): string {

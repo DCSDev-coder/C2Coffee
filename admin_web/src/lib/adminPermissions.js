@@ -4,6 +4,7 @@ const PAGE_ROLES = {
   Refunds: ['super_admin', 'operations_admin'],
   Customers: ['super_admin', 'support_admin'],
   Menu: ['super_admin', 'marketing_admin'],
+  'Options & Nutrition': ['super_admin', 'marketing_admin'],
   Marketing: ['super_admin', 'marketing_admin'],
   Voucher: ['super_admin', 'marketing_admin'],
   'Token Ledger': ['super_admin'],

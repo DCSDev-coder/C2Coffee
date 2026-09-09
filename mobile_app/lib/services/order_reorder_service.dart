@@ -5,7 +5,6 @@ import '../screens/order_confirmation_page.dart';
 import '../services/app_session_service.dart';
 import '../services/auth_api_service.dart';
 import '../services/cart_service.dart';
-import '../services/catalog_api_service.dart';
 import '../services/customer_data_service.dart';
 import '../utils/app_notification.dart';
 
@@ -21,16 +20,10 @@ class OrderReorderService {
     try {
       final session = AppSessionService.instance;
       final selectedStore = session.selectedStore;
-      if (selectedStore?.id != order.store.id) {
-        await session.selectStore(
-          StoreSummary(
-            id: order.store.id,
-            code: 'reorder',
-            name: order.store.name,
-            supportsPickup: true,
-            pickupLeadMinutes: 0,
-            status: 'active',
-          ),
+      if (selectedStore == null || selectedStore.id != order.store.id) {
+        throw ApiException(
+          'This previous order belongs to an outlet that is not currently available for pickup.',
+          code: 'store_not_available',
         );
       }
 
@@ -61,16 +54,43 @@ class OrderReorderService {
           );
         }
 
-        final modifiers = orderItem.modifiers
-            .map(
-              (modifier) => CartModifier(
-                groupName: modifier.groupName,
-                optionName: modifier.optionName,
-                priceDeltaRm: double.tryParse(modifier.priceDeltaRm) ?? 0.0,
-                tokenPriceDelta: modifier.tokenPriceDelta,
-              ),
-            )
-            .toList();
+        final currentGroups = {
+          for (final group in currentMenuItem.modifierGroups
+              .where((group) => group.source == 'library'))
+            group.name: group,
+        };
+        final selectedNamesByGroup = <String, Set<String>>{};
+        final modifiers = <CartModifier>[];
+        for (final modifier in orderItem.modifiers
+            .where((modifier) => modifier.groupName != 'Remarks')) {
+          final group = currentGroups[modifier.groupName];
+          final option = group?.options
+              .where((option) => option.name == modifier.optionName)
+              .firstOrNull;
+          if (group == null || option == null) {
+            throw ApiException(
+                'This item has updated customizations. Please add it from Menu and choose the current options.',
+                code: 'customizations_changed');
+          }
+          selectedNamesByGroup
+              .putIfAbsent(group.name, () => <String>{})
+              .add(option.name);
+          modifiers.add(CartModifier(
+              groupName: group.name,
+              optionName: option.name,
+              priceDeltaRm: double.tryParse(option.priceDeltaRm) ?? 0.0,
+              tokenPriceDelta: option.tokenPriceDelta));
+        }
+        for (final group in currentGroups.values) {
+          final minimum = group.isRequired
+              ? (group.minSelect < 1 ? 1 : group.minSelect)
+              : group.minSelect;
+          if ((selectedNamesByGroup[group.name]?.length ?? 0) < minimum) {
+            throw ApiException(
+                'This item has updated customizations. Please add it from Menu and choose the current options.',
+                code: 'customizations_changed');
+          }
+        }
 
         final currentTokenPrice = currentMenuItem.tokenPrices[session.tier] ??
             (currentMenuItem.basePriceToken > 0

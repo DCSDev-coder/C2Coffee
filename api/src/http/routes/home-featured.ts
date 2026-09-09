@@ -68,7 +68,7 @@ export async function registerHomeFeaturedRoutes(app: FastifyInstance): Promise<
   app.get('/v1/home/featured', { preHandler: authenticateRequest }, async (request) => {
     const { store_id: storeId } = storeSchema.parse(request.query);
     const [stores] = await mysqlPool.query<Array<RowDataPacket & { id: number }>>(
-      'SELECT id FROM stores WHERE id = :storeId AND status = \'active\' LIMIT 1', { storeId }
+      'SELECT id FROM stores WHERE id = :storeId AND status = \'active\' AND is_customer_facing = 1 LIMIT 1', { storeId }
     );
     if (!stores[0]) throw new ApiError(404, 'store_not_found', 'Store was not found.');
     return {

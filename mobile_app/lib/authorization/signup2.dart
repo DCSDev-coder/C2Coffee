@@ -895,6 +895,15 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                                                             '',
                                                     'gender':
                                                         _selectedGender ?? '',
+                                                    'avatar_type': 'preset',
+                                                    'avatar_value': _pickedImage ==
+                                                            null
+                                                        ? (_selectedGender
+                                                                    ?.toLowerCase() ==
+                                                                'female'
+                                                            ? 'assets/images/datin.png'
+                                                            : 'assets/images/dato.png')
+                                                        : '',
                                                     'house_line':
                                                         _houseController.text
                                                             .trim(),
@@ -1071,6 +1080,14 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
       onTap: () {
         setState(() {
           _selectedGender = gender;
+          // A gallery image remains the member's explicit choice. Otherwise
+          // the required gender selection determines the first preset avatar.
+          if (_pickedImage == null) {
+            final isFemale = gender.toLowerCase() == 'female';
+            _presetAvatarPath =
+                isFemale ? 'assets/images/datin.png' : 'assets/images/dato.png';
+            _selectedAvatarIndex = isFemale ? 1 : 0;
+          }
         });
         if (_errorFields.contains(_Signup2ErrorField.gender)) {
           _clearSignup2Errors();

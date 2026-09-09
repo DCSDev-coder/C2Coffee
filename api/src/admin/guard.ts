@@ -17,6 +17,7 @@ export interface AdminAuthContext {
   fullName: string;
   status: string;
   roles: string[];
+  isBaristaOnly: boolean;
   mustChangePassword: boolean;
   mustSetEmail: boolean;
 }
@@ -117,6 +118,8 @@ export async function authenticateAdminRequest(
     { adminUserId: payload.adminUserId }
   );
 
+  const roles = roleRows.map((role) => role.code);
+
   request.adminAuth = {
     adminUserId: payload.adminUserId,
     tenantId: session.tenant_id,
@@ -129,7 +132,8 @@ export async function authenticateAdminRequest(
     email: session.email,
     fullName: session.full_name,
     status: session.status,
-    roles: roleRows.map((role) => role.code),
+    roles,
+    isBaristaOnly: roles.includes('barista') && roles.every((role) => role === 'barista'),
     mustChangePassword: session.must_change_password === 1,
     mustSetEmail: session.must_set_email === 1 || !session.email
   };

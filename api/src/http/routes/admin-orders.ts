@@ -216,9 +216,22 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
         LEFT JOIN baristas preparing_barista ON preparing_barista.id = o.preparing_by_barista_id
         LEFT JOIN baristas ready_barista ON ready_barista.id = o.ready_by_barista_id
         WHERE t.code = :tenantCode
+          AND (
+            :isBaristaOnly = 0
+            OR EXISTS (
+              SELECT 1
+              FROM admin_user_store_assignments aus
+              WHERE aus.admin_user_id = :adminUserId AND aus.store_id = o.store_id
+            )
+          )
         ORDER BY o.created_at DESC
         LIMIT :limit
-      `, { tenantCode: request.adminAuth.tenantCode, limit });
+      `, {
+        tenantCode: request.adminAuth.tenantCode,
+        adminUserId: request.adminAuth.adminUserId,
+        isBaristaOnly: request.adminAuth.isBaristaOnly ? 1 : 0,
+        limit
+      });
 
       if (orderRows.length === 0) {
         return reply.send({ orders: [] });
@@ -835,9 +848,22 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
          JOIN admin_tenants t ON t.id = s.tenant_id
          WHERE o.order_ref = :orderId
            AND t.code = :tenantCode
+           AND (
+             :isBaristaOnly = 0
+             OR EXISTS (
+               SELECT 1
+               FROM admin_user_store_assignments aus
+               WHERE aus.admin_user_id = :adminUserId AND aus.store_id = o.store_id
+             )
+           )
          LIMIT 1
          FOR UPDATE`,
-        { orderId, tenantCode: request.adminAuth.tenantCode }
+        {
+          orderId,
+          tenantCode: request.adminAuth.tenantCode,
+          adminUserId: request.adminAuth.adminUserId,
+          isBaristaOnly: request.adminAuth.isBaristaOnly ? 1 : 0
+        }
       );
 
       if (rows.length === 0) {

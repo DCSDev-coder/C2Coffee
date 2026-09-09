@@ -24,9 +24,7 @@ String? resolveCatalogImageSource(String? source) {
   }
 
   final baseOrigin = ApiConfig.baseUrl.replaceFirst(RegExp(r'/v1/?$'), '');
-  return value.startsWith('/')
-      ? '$baseOrigin$value'
-      : '$baseOrigin/$value';
+  return value.startsWith('/') ? '$baseOrigin$value' : '$baseOrigin/$value';
 }
 
 class StoreSummary {
@@ -65,7 +63,10 @@ class CatalogMenuItem {
   final String? description;
   final String basePriceRm;
   final int basePriceToken;
+  final int baseCaloriesKcal;
   final String? imageUrl;
+  final String? colorHex;
+  final String? gradientEndHex;
   final bool isAvailable;
   final bool isHandcraftedDrink;
   final bool isQualifyingCup;
@@ -93,7 +94,10 @@ class CatalogMenuItem {
     required this.description,
     required this.basePriceRm,
     required this.basePriceToken,
+    required this.baseCaloriesKcal,
     required this.imageUrl,
+    required this.colorHex,
+    required this.gradientEndHex,
     required this.isAvailable,
     required this.isHandcraftedDrink,
     required this.isQualifyingCup,
@@ -131,7 +135,10 @@ class CatalogMenuItem {
       description: json['description'] as String?,
       basePriceRm: json['base_price_rm'] as String? ?? '0.00',
       basePriceToken: (json['base_price_token'] as num?)?.toInt() ?? 0,
+      baseCaloriesKcal: (json['base_calories_kcal'] as num?)?.toInt() ?? 0,
       imageUrl: json['image_url'] as String?,
+      colorHex: json['color_hex'] as String?,
+      gradientEndHex: json['gradient_end_hex'] as String?,
       isAvailable: json['is_available'] as bool? ?? true,
       isHandcraftedDrink: json['is_handcrafted_drink'] as bool? ?? false,
       isQualifyingCup: json['is_qualifying_cup'] as bool? ?? false,
@@ -164,6 +171,10 @@ class CatalogModifierOption {
   final String name;
   final String priceDeltaRm;
   final int tokenPriceDelta;
+  final int calorieDeltaKcal;
+  final String? imageUrl;
+  final String? colorHex;
+  final String? gradientEndHex;
   final bool isActive;
   final int sortOrder;
 
@@ -173,6 +184,10 @@ class CatalogModifierOption {
     required this.name,
     required this.priceDeltaRm,
     required this.tokenPriceDelta,
+    required this.calorieDeltaKcal,
+    required this.imageUrl,
+    required this.colorHex,
+    required this.gradientEndHex,
     required this.isActive,
     required this.sortOrder,
   });
@@ -184,6 +199,10 @@ class CatalogModifierOption {
       name: json['name'] as String? ?? '',
       priceDeltaRm: json['price_delta_rm'] as String? ?? '0.00',
       tokenPriceDelta: (json['token_price_delta'] as num?)?.toInt() ?? 0,
+      calorieDeltaKcal: (json['calorie_delta_kcal'] as num?)?.toInt() ?? 0,
+      imageUrl: resolveCatalogImageSource(json['image_url'] as String?),
+      colorHex: json['color_hex'] as String?,
+      gradientEndHex: json['gradient_end_hex'] as String?,
       isActive: json['is_active'] as bool? ?? true,
       sortOrder: (json['sort_order'] as num?)?.toInt() ?? 0,
     );
@@ -199,6 +218,7 @@ class CatalogModifierGroup {
   final int maxSelect;
   final bool isRequired;
   final int sortOrder;
+  final String source;
   final List<CatalogModifierOption> options;
 
   const CatalogModifierGroup({
@@ -210,6 +230,7 @@ class CatalogModifierGroup {
     required this.maxSelect,
     required this.isRequired,
     required this.sortOrder,
+    required this.source,
     required this.options,
   });
 
@@ -229,6 +250,7 @@ class CatalogModifierGroup {
       maxSelect: (json['max_select'] as num?)?.toInt() ?? 1,
       isRequired: json['is_required'] as bool? ?? false,
       sortOrder: (json['sort_order'] as num?)?.toInt() ?? 0,
+      source: json['source'] as String? ?? 'item',
       options: options,
     );
   }
@@ -315,9 +337,7 @@ class HomeBanner {
   String get routeLabel {
     switch (bannerType) {
       case 'voucher':
-        return destinationType == 'reward_section'
-            ? 'Rewards'
-            : 'Menu';
+        return destinationType == 'reward_section' ? 'Rewards' : 'Menu';
       case 'event':
         return isEventLive ? 'Menu during event' : 'Calendar before start';
       case 'new_item':
@@ -341,8 +361,7 @@ class HomeBanner {
       imageSource: json['image_source'] as String? ?? '',
       bannerType: json['banner_type'] as String? ?? 'general',
       destinationType: json['destination_type'] as String? ?? 'menu',
-      secondaryDestinationType:
-          json['secondary_destination_type'] as String?,
+      secondaryDestinationType: json['secondary_destination_type'] as String?,
       targetValue: json['target_value'] as String?,
       startsAt: DateTime.tryParse(json['starts_at'] as String? ?? ''),
       endsAt: DateTime.tryParse(json['ends_at'] as String? ?? ''),
@@ -463,7 +482,8 @@ class CatalogApiService {
     required String accessToken,
     required int storeId,
   }) async {
-    final response = await _get('/home/featured?store_id=$storeId', accessToken: accessToken);
+    final response = await _get('/home/featured?store_id=$storeId',
+        accessToken: accessToken);
     List<int> readIds(String key) => (response[key] as List? ?? const [])
         .whereType<num>()
         .map((value) => value.toInt())
@@ -512,7 +532,8 @@ class CatalogApiService {
     // bootstrap response is temporarily served during a rolling API release.
     if (loyaltyTiers.isEmpty) {
       try {
-        final tierResponse = await _get('/loyalty/tiers', accessToken: accessToken);
+        final tierResponse =
+            await _get('/loyalty/tiers', accessToken: accessToken);
         loyaltyTiers = (tierResponse['tiers'] as List? ?? const [])
             .map((tier) => LoyaltyTier.fromApi(
                   Map<String, dynamic>.from(tier as Map),

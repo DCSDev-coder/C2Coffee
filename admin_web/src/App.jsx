@@ -16,6 +16,7 @@ const Profile = lazy(() => import('./components/Profile'));
 const Vouchers = lazy(() => import('./components/Vouchers'));
 const LoyaltyTokens = lazy(() => import('./components/LoyaltyTokens'));
 const Menu = lazy(() => import('./components/Menu'));
+const OptionsNutrition = lazy(() => import('./components/OptionsNutrition'));
 const Marketing = lazy(() => import('./components/Marketing'));
 const Finance = lazy(() => import('./components/Finance'));
 const RevenueReport = lazy(() => import('./components/RevenueReport'));
@@ -179,7 +180,8 @@ function App() {
       {currentPage === 'Voucher' && <Vouchers onBack={() => handleNavigate(prevPage || 'Dashboard')} />}
       {currentPage === 'Token Ledger' && <LoyaltyTokens onBack={() => handleNavigate(prevPage || 'Dashboard')} onNavigate={handleNavigate} />}
       {currentPage === 'Tier Management' && <TierManagement onBack={() => handleNavigate('Token Ledger')} />}
-      {currentPage === 'Menu' && <Menu />}
+      {currentPage === 'Menu' && <Menu onNavigate={handleNavigate} />}
+      {currentPage === 'Options & Nutrition' && <OptionsNutrition />}
       {currentPage === 'Marketing' && <Marketing setCurrentPage={handleNavigate} />}
       {currentPage === 'Finance' && <Finance setCurrentPage={handleNavigate} />}
       {currentPage === 'RevenueReport' && <RevenueReport onBack={() => handleNavigate('Finance')} />}

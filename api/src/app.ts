@@ -9,6 +9,7 @@ import { registerAuthRoutes } from './http/routes/auth.js';
 import { registerAssetRoutes } from './http/routes/assets.js';
 import { registerAdminAuthRoutes } from './http/routes/admin-auth.js';
 import { registerAdminMenuRoutes } from './http/routes/admin-menu.js';
+import { registerAdminOptionLibraryRoutes } from './http/routes/admin-option-library.js';
 import { registerCatalogRoutes } from './http/routes/catalog.js';
 import { registerCheckoutRoutes } from './http/routes/checkout.js';
 import { registerCustomerDataRoutes } from './http/routes/customer-data.js';
@@ -25,6 +26,7 @@ import { registerAdminDashboardRoutes } from './http/routes/admin-dashboard.js';
 import { registerHomeFeaturedRoutes } from './http/routes/home-featured.js';
 import { registerOperationalIntegrationRoutes } from './http/routes/operational-integrations.js';
 import { registerPrintConnectorRoutes } from './http/routes/print-connectors.js';
+import { registerAdminStoreRoutes } from './http/routes/admin-store.js';
 
 function isAllowedCorsOrigin(origin: string, allowedOrigins: string[]): boolean {
   let requestUrl: URL;
@@ -108,9 +110,11 @@ export async function buildApp() {
   await registerAdminCustomersRoutes(app);
   await registerAdminLoyaltyRoutes(app);
   await registerAdminMenuRoutes(app);
+  await registerAdminOptionLibraryRoutes(app);
   await registerAdminAuditRoutes(app);
   await registerAdminMarketingRoutes(app);
   await registerAdminBaristasRoutes(app);
+  await registerAdminStoreRoutes(app);
   await registerOperationalIntegrationRoutes(app);
   await registerPrintConnectorRoutes(app);
   await registerHomeFeaturedRoutes(app);

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_notification.dart';
 import '../services/auth_api_service.dart';
@@ -48,13 +48,14 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
     super.dispose();
   }
 
-  void _copyToClipboard(String text, String label) {
-    Clipboard.setData(ClipboardData(text: text));
-    AppNotification.showSuccess(
-      context,
-      '$label copied to clipboard',
-      icon: Icons.copy_rounded,
-    );
+  Future<void> _openSupportLink(Uri uri, String label) async {
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!opened && mounted) {
+      AppNotification.showError(
+        context,
+        'Unable to open $label. Please try again.',
+      );
+    }
   }
 
   String _attachmentMimeType(String name) {
@@ -264,7 +265,8 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
           context,
           friendlyCustomerErrorMessage(
             error,
-            fallback: 'Unable to submit your request right now. Please try again shortly.',
+            fallback:
+                'Unable to submit your request right now. Please try again shortly.',
           ),
         );
       }
@@ -406,10 +408,13 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
           iconBg: const Color(0xFFE8F5E9),
           iconColor: const Color(0xFF2E7D32),
           title: 'WhatsApp Support',
-          subtitle: '+60 11-6379 3812',
+          subtitle: '+60 12-610 6907',
           badgeText: '8:00 AM – 10:00 PM',
-          onTap: () => _copyToClipboard('+60 11-6379 3812', 'WhatsApp Number'),
-          actionText: 'Copy',
+          onTap: () => _openSupportLink(
+            Uri.parse('https://wa.me/60126106907'),
+            'WhatsApp',
+          ),
+          actionText: 'Chat',
         ),
 
         const SizedBox(height: 12),
@@ -422,9 +427,15 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
           title: 'Official Email Support',
           subtitle: 'support@c2coffeeandcandle.com',
           badgeText: 'Response < 24h',
-          onTap: () => _copyToClipboard(
-              'support@c2coffeeandcandle.com', 'Support Email'),
-          actionText: 'Copy',
+          onTap: () => _openSupportLink(
+            Uri(
+              scheme: 'mailto',
+              path: 'support@c2coffeeandcandle.com',
+              queryParameters: {'subject': 'C2 Coffee Support Request'},
+            ),
+            'your email app',
+          ),
+          actionText: 'Email',
         ),
 
         const SizedBox(height: 12),
@@ -434,11 +445,30 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
           icon: Icons.storefront_outlined,
           iconBg: const Color(0xFFFFF3E0),
           iconColor: AppColors.accent,
-          title: 'Participating Outlets',
-          subtitle: 'Broga, Kajang, Semenyih',
+          title: 'C2 Coffee Broga',
+          subtitle: 'Open the outlet location in Google Maps',
           badgeText: 'Self-Pickup Only',
-          onTap: null,
-          actionText: null,
+          onTap: () => _openSupportLink(
+            Uri.parse('https://share.google/V7PquHQI2Uj1Mps1g'),
+            'Google Maps',
+          ),
+          actionText: 'Maps',
+        ),
+
+        const SizedBox(height: 12),
+
+        _buildChannelCard(
+          icon: Icons.navigation_outlined,
+          iconBg: const Color(0xFFFFF3E0),
+          iconColor: AppColors.accent,
+          title: 'Navigate with Waze',
+          subtitle: 'Search for C2 Coffee Broga in Waze',
+          badgeText: 'Navigation',
+          onTap: () => _openSupportLink(
+            Uri.parse('https://waze.com/ul?q=C2%20Coffee%20Broga'),
+            'Waze',
+          ),
+          actionText: 'Waze',
         ),
       ],
     );

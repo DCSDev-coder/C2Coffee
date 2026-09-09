@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import '../utils/app_colors.dart';
 
 class CustomBottomNav extends StatefulWidget {
@@ -6,6 +7,9 @@ class CustomBottomNav extends StatefulWidget {
   final Function(int) onItemTapped;
   final Color? orangeColor;
   final ScrollController? scrollController;
+
+  static final ValueNotifier<bool> isMinimizedNotifier =
+      ValueNotifier<bool>(false);
 
   const CustomBottomNav({
     super.key,
@@ -33,11 +37,76 @@ class CustomBottomNav extends StatefulWidget {
 class _CustomBottomNavState extends State<CustomBottomNav> {
   late int _localSelectedIndex;
   bool _isNavigating = false;
+  double _lastOffset = 0.0;
 
   @override
   void initState() {
     super.initState();
     _localSelectedIndex = widget.selectedIndex;
+    _attachScrollListener();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (widget.scrollController != null &&
+          widget.scrollController!.hasClients) {
+        _lastOffset = widget.scrollController!.offset;
+        if (widget.scrollController!.offset <= 15) {
+          CustomBottomNav.isMinimizedNotifier.value = false;
+        }
+      } else {
+        CustomBottomNav.isMinimizedNotifier.value = false;
+      }
+    });
+  }
+
+  @override
+  void didUpdateWidget(CustomBottomNav oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selectedIndex != widget.selectedIndex) {
+      _localSelectedIndex = widget.selectedIndex;
+    }
+    if (oldWidget.scrollController != widget.scrollController) {
+      oldWidget.scrollController?.removeListener(_onScroll);
+      _attachScrollListener();
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.scrollController?.removeListener(_onScroll);
+    super.dispose();
+  }
+
+  void _attachScrollListener() {
+    widget.scrollController?.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    final controller = widget.scrollController;
+    if (controller == null || !controller.hasClients) return;
+
+    final currentOffset = controller.offset;
+    final delta = currentOffset - _lastOffset;
+    final direction = controller.position.userScrollDirection;
+
+    // Expand back to 1.0 when at the top of the scroll view
+    if (currentOffset <= 15) {
+      if (CustomBottomNav.isMinimizedNotifier.value) {
+        CustomBottomNav.isMinimizedNotifier.value = false;
+      }
+    } else if (direction == ScrollDirection.reverse && delta > 4) {
+      // User is scrolling down -> minimize
+      if (!CustomBottomNav.isMinimizedNotifier.value) {
+        CustomBottomNav.isMinimizedNotifier.value = true;
+      }
+    } else if (direction == ScrollDirection.forward && delta < -4) {
+      // User is scrolling up (anywhere on page) -> expand back to normal size
+      if (CustomBottomNav.isMinimizedNotifier.value) {
+        CustomBottomNav.isMinimizedNotifier.value = false;
+      }
+    }
+
+    _lastOffset = currentOffset;
   }
 
   void _handleItemTapped(int index) {
@@ -57,26 +126,21 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.scrollController == null) {
-      return _buildContent(context, 1.0);
-    }
-    return AnimatedBuilder(
-      animation: widget.scrollController!,
-      builder: (context, child) {
-        double offset = 0.0;
-        if (widget.scrollController!.hasClients) {
-          offset = widget.scrollController!.offset;
-        }
-        // Normalize offset between 0.0 (top) and 150.0 (scrolled)
-        double progress = (offset / 150.0).clamp(0.0, 1.0);
-        // Scale from 1.0 down to 0.9
-        double scale = 1.0 - (0.10 * progress);
-        return _buildContent(context, scale);
+    return ValueListenableBuilder<bool>(
+      valueListenable: CustomBottomNav.isMinimizedNotifier,
+      builder: (context, isMinimized, child) {
+        return AnimatedScale(
+          scale: isMinimized ? 0.90 : 1.0,
+          duration: const Duration(milliseconds: 260),
+          curve: Curves.easeOutCubic,
+          alignment: Alignment.bottomCenter,
+          child: _buildContent(context),
+        );
       },
     );
   }
 
-  Widget _buildContent(BuildContext context, double scale) {
+  Widget _buildContent(BuildContext context) {
     final bool isDarkNav = AppColors.isTier3Or4;
 
     final Color barColor = isDarkNav ? AppColors.t2DeepForest : Colors.white;
@@ -89,10 +153,7 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
     final Color inactiveTextColor =
         isDarkNav ? AppColors.t2NavInactive : Colors.grey.shade600;
 
-    return Transform.scale(
-      scale: scale,
-      alignment: Alignment.bottomCenter,
-      child: RepaintBoundary(
+    return RepaintBoundary(
         child: SafeArea(
           child: Padding(
             padding: const EdgeInsets.only(left: 20, right: 20),
@@ -187,8 +248,7 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
             ),
           ),
         ),
-      ),
-    );
+      );
   }
 
   Widget _buildNavItem(

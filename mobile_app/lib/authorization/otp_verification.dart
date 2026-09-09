@@ -509,6 +509,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage>
           accessToken: result.accessToken,
           profile: widget.signupProfile!,
         );
+        await _uploadSignupAvatarIfSelected(result.accessToken);
       }
 
       await SecureSessionService.instance.saveSession(
@@ -564,6 +565,29 @@ class _OtpVerificationPageState extends State<OtpVerificationPage>
       if (mounted) {
         setState(() => _isSubmitting = false);
       }
+    }
+  }
+
+  Future<void> _uploadSignupAvatarIfSelected(String accessToken) async {
+    final image = _pickedImage;
+    if (image == null) return;
+
+    try {
+      final fileName = image.path.split('/').last;
+      final extension = fileName.split('.').last.toLowerCase();
+      final mimeType = switch (extension) {
+        'png' => 'image/png',
+        'webp' => 'image/webp',
+        _ => 'image/jpeg',
+      };
+      await AuthApiService.instance.uploadAvatar(
+        accessToken: accessToken,
+        fileName: fileName.isEmpty ? 'profile.jpg' : fileName,
+        mimeType: mimeType,
+        bytes: await image.readAsBytes(),
+      );
+    } catch (_) {
+      // The verified account remains usable if a non-essential photo upload fails.
     }
   }
 

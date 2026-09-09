@@ -144,15 +144,16 @@ WHERE NOT EXISTS (
 );
 
 INSERT INTO stores (
-  code, name, status, timezone, address_line_1, city, state, postcode,
+  code, name, status, is_customer_facing, timezone, address_line_1, city, state, postcode,
   supports_pickup, pickup_lead_minutes
 )
 VALUES
-  ('C2-BROGA', 'C2 Coffee Broga', 'active', 'Asia/Kuala_Lumpur', 'Main Street Broga', 'Broga', 'Selangor', '43500', 1, 15),
-  ('C2-KAJANG', 'C2 Coffee Kajang', 'active', 'Asia/Kuala_Lumpur', 'Town Centre Kajang', 'Kajang', 'Selangor', '43000', 1, 15)
+  ('C2-BROGA', 'C2 Coffee Broga', 'active', 1, 'Asia/Kuala_Lumpur', 'Main Street Broga', 'Broga', 'Selangor', '43500', 1, 15),
+  ('C2-KAJANG', 'C2 Coffee Kajang', 'active', 0, 'Asia/Kuala_Lumpur', 'Town Centre Kajang', 'Kajang', 'Selangor', '43000', 1, 15)
 ON DUPLICATE KEY UPDATE
   name = VALUES(name),
   status = VALUES(status),
+  is_customer_facing = VALUES(is_customer_facing),
   timezone = VALUES(timezone),
   address_line_1 = VALUES(address_line_1),
   city = VALUES(city),

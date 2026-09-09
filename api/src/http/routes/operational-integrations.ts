@@ -260,21 +260,37 @@ export async function registerOperationalIntegrationRoutes(app: FastifyInstance)
     const [integrations, printers, schedules] = await Promise.all([
       mysqlPool.execute<RowDataPacket[]>(
         `SELECT provider_code, display_name, status, capabilities_json, last_checked_at, last_error_code
-         FROM outlet_integrations WHERE tenant_code = :tenantCode ORDER BY display_name ASC`,
-        { tenantCode: request.adminAuth.tenantCode }
+         FROM outlet_integrations oi
+         WHERE tenant_code = :tenantCode
+           AND (
+             :isBaristaOnly = 0
+             OR EXISTS (SELECT 1 FROM admin_user_store_assignments aus WHERE aus.admin_user_id = :adminUserId AND aus.store_id = oi.store_id)
+           )
+         ORDER BY display_name ASC`,
+        { tenantCode: request.adminAuth.tenantCode, adminUserId: request.adminAuth.adminUserId, isBaristaOnly: request.adminAuth.isBaristaOnly ? 1 : 0 }
       ),
       mysqlPool.execute<RowDataPacket[]>(
         `SELECT id, name, delivery_mode, status, is_default, last_checked_at, last_error_code
-         FROM printer_targets WHERE tenant_code = :tenantCode ORDER BY is_default DESC, name ASC`,
-        { tenantCode: request.adminAuth.tenantCode }
+         FROM printer_targets pt
+         WHERE tenant_code = :tenantCode
+           AND (
+             :isBaristaOnly = 0
+             OR EXISTS (SELECT 1 FROM admin_user_store_assignments aus WHERE aus.admin_user_id = :adminUserId AND aus.store_id = pt.store_id)
+           )
+         ORDER BY is_default DESC, name ASC`,
+        { tenantCode: request.adminAuth.tenantCode, adminUserId: request.adminAuth.adminUserId, isBaristaOnly: request.adminAuth.isBaristaOnly ? 1 : 0 }
       ),
       mysqlPool.execute<RowDataPacket[]>(
         `SELECT s.weekday, s.starts_at, s.ends_at, b.id AS barista_id, b.name AS barista_name
          FROM barista_weekly_schedules s
          JOIN baristas b ON b.id = s.barista_id
          WHERE s.tenant_code = :tenantCode AND s.is_active = 1
+           AND (
+             :isBaristaOnly = 0
+             OR EXISTS (SELECT 1 FROM admin_user_store_assignments aus WHERE aus.admin_user_id = :adminUserId AND aus.store_id = s.store_id)
+           )
          ORDER BY s.weekday ASC, s.starts_at ASC`,
-        { tenantCode: request.adminAuth.tenantCode }
+        { tenantCode: request.adminAuth.tenantCode, adminUserId: request.adminAuth.adminUserId, isBaristaOnly: request.adminAuth.isBaristaOnly ? 1 : 0 }
       )
     ]);
 
@@ -302,16 +318,22 @@ export async function registerOperationalIntegrationRoutes(app: FastifyInstance)
          JOIN stores s ON s.id = o.store_id
          JOIN admin_tenants t ON t.id = s.tenant_id
          WHERE o.order_ref = :orderRef AND t.code = :tenantCode
+           AND (
+             :isBaristaOnly = 0
+             OR EXISTS (SELECT 1 FROM admin_user_store_assignments aus WHERE aus.admin_user_id = :adminUserId AND aus.store_id = o.store_id)
+           )
          LIMIT 1 FOR UPDATE`,
-        { orderRef: body.order_ref, tenantCode: request.adminAuth.tenantCode }
+        { orderRef: body.order_ref, tenantCode: request.adminAuth.tenantCode, adminUserId: request.adminAuth.adminUserId, isBaristaOnly: request.adminAuth.isBaristaOnly ? 1 : 0 }
       );
       if (!orders[0]) throw new ApiError(404, 'order_not_found', 'Order not found for this tenant.');
 
       const [printers] = await connection.execute<RowDataPacket[]>(
-        `SELECT id FROM printer_targets
-         WHERE id = :printerTargetId AND tenant_code = :tenantCode AND status = 'connected'
+        `SELECT pt.id FROM printer_targets pt
+         JOIN orders o ON o.id = :orderId
+         WHERE pt.id = :printerTargetId AND pt.tenant_code = :tenantCode AND pt.status = 'connected'
+           AND pt.store_id = o.store_id
          LIMIT 1 FOR UPDATE`,
-        { printerTargetId: body.printer_target_id, tenantCode: request.adminAuth.tenantCode }
+        { printerTargetId: body.printer_target_id, tenantCode: request.adminAuth.tenantCode, orderId: orders[0].id }
       );
       if (!printers[0]) {
         throw new ApiError(409, 'printer_not_ready', 'The selected printer is not connected.');

@@ -23,6 +23,7 @@ class CatalogPresentation {
       'basePriceRm': item.basePriceRm,
       'tokenPrice': item.basePriceToken,
       'basePriceToken': item.basePriceToken,
+      'baseCaloriesKcal': item.baseCaloriesKcal,
       'tokenPrices': item.tokenPrices,
       'image': '',
       'image_url': item.imageUrl,
@@ -57,6 +58,7 @@ class CatalogPresentation {
                 'maxSelect': group.maxSelect,
                 'isRequired': group.isRequired,
                 'sortOrder': group.sortOrder,
+                'source': group.source,
                 'options': group.options
                     .map((option) => {
                           'id': option.id,
@@ -64,6 +66,10 @@ class CatalogPresentation {
                           'name': option.name,
                           'priceDeltaRm': option.priceDeltaRm,
                           'tokenPriceDelta': option.tokenPriceDelta,
+                          'calorieDeltaKcal': option.calorieDeltaKcal,
+                          'imageUrl': option.imageUrl,
+                          'colorHex': option.colorHex,
+                          'gradientEndHex': option.gradientEndHex,
                           'isActive': option.isActive,
                           'sortOrder': option.sortOrder,
                         })

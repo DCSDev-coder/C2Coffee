@@ -55,6 +55,16 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
   String sparklingMixer = 'Ginger Ade';
   int quantity = 1;
   final TextEditingController remarksController = TextEditingController();
+  final Map<int, List<Map<String, dynamic>>> _librarySelections = {};
+
+  List<Map<String, dynamic>> get _libraryGroups =>
+      (widget.item['modifierGroups'] as List? ?? const [])
+          .whereType<Map>()
+          .map((group) => Map<String, dynamic>.from(group))
+          .where((group) => group['source'] == 'library')
+          .toList();
+
+  bool get _usesLibraryOptions => _libraryGroups.isNotEmpty;
 
   @override
   void initState() {
@@ -78,6 +88,18 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
       remarksController.text = widget.initialRemarks!;
     }
     if (widget.initialQuantity != null) quantity = widget.initialQuantity!;
+
+    for (final group in _libraryGroups) {
+      final options = (group['options'] as List? ?? const [])
+          .whereType<Map>()
+          .map((option) => Map<String, dynamic>.from(option))
+          .toList();
+      final minimum = (group['minSelect'] as num?)?.toInt() ?? 0;
+      final required = group['isRequired'] == true;
+      if (options.isNotEmpty && (required || minimum > 0)) {
+        _librarySelections[group['id'] as int] = [options.first];
+      }
+    }
 
     if (widget.isReorder) {
       // Reorder customizations restored automatically
@@ -370,6 +392,17 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
   }
 
   double get totalPrice {
+    if (_usesLibraryOptions) {
+      final adjustment = _librarySelections.values
+          .expand((options) => options)
+          .fold<double>(
+              0,
+              (sum, option) =>
+                  sum +
+                  (double.tryParse(option['priceDeltaRm']?.toString() ?? '0') ??
+                      0));
+      return (_itemBasePrice + adjustment) * quantity;
+    }
     double basePrice = _itemBasePrice;
     if (_hasEspressoShot) {
       if (espressoShots == 2) basePrice += 3.00;
@@ -381,7 +414,30 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
     return basePrice * quantity;
   }
 
+  int get estimatedCalories {
+    final rawBaseCalories = widget.item['baseCaloriesKcal'];
+    final baseCalories = rawBaseCalories is num
+        ? rawBaseCalories.toInt()
+        : int.tryParse(rawBaseCalories?.toString() ?? '0') ?? 0;
+    final optionCalories = _usesLibraryOptions
+        ? _librarySelections.values.expand((options) => options).fold<int>(
+            0,
+            (sum, option) =>
+                sum + ((option['calorieDeltaKcal'] as num?)?.toInt() ?? 0))
+        : 0;
+    return (baseCalories + optionCalories).clamp(0, 5000).toInt() * quantity;
+  }
+
   int get totalTokenPrice {
+    if (_usesLibraryOptions) {
+      final adjustment = _librarySelections.values
+          .expand((options) => options)
+          .fold<int>(
+              0,
+              (sum, option) =>
+                  sum + ((option['tokenPriceDelta'] as num?)?.toInt() ?? 0));
+      return (_baseTokenPrice + adjustment) * quantity;
+    }
     final modifierTokens = _cartModifiers.fold<int>(
         0, (sum, modifier) => sum + modifier.tokenPriceDelta);
     return (_baseTokenPrice + modifierTokens) * quantity;
@@ -442,6 +498,20 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
   }
 
   List<CartModifier> get _cartModifiers {
+    if (_usesLibraryOptions) {
+      return _libraryGroups.expand((group) {
+        final selected = _librarySelections[group['id'] as int] ?? const [];
+        return selected.map((option) => CartModifier(
+              groupName: group['name']?.toString() ?? 'Option',
+              optionName: option['name']?.toString() ?? '',
+              priceDeltaRm:
+                  double.tryParse(option['priceDeltaRm']?.toString() ?? '0') ??
+                      0,
+              tokenPriceDelta:
+                  (option['tokenPriceDelta'] as num?)?.toInt() ?? 0,
+            ));
+      }).toList();
+    }
     final modifiers = <CartModifier>[];
 
     if (_hasChoiceOfBeans) {
@@ -530,6 +600,13 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
   }
 
   String get _displayDetails {
+    if (_usesLibraryOptions) {
+      return _libraryGroups
+          .expand((group) => _librarySelections[group['id'] as int] ?? const [])
+          .map((option) => option['name']?.toString() ?? '')
+          .where((name) => name.isNotEmpty)
+          .join(' / ');
+    }
     final values = <String>[];
     if (_hasTemperatureOption || _isColdOnly || _isHotOnly) {
       values.add(temperature);
@@ -697,6 +774,163 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
     return isExpanded ? Expanded(child: clickableContent) : clickableContent;
   }
 
+  Widget _buildLibraryOptions() {
+    return Column(
+      children: _libraryGroups.map((group) {
+        final groupId = group['id'] as int;
+        final options = (group['options'] as List? ?? const [])
+            .whereType<Map>()
+            .map((option) => Map<String, dynamic>.from(option))
+            .toList();
+        final selected = _librarySelections[groupId] ?? const [];
+        final isMulti = group['selectionType'] == 'multi';
+        final isBean = RegExp(r'\bbeans?\b', caseSensitive: false)
+            .hasMatch(group['name']?.toString() ?? '');
+        return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          _buildSectionTitle(group['name']?.toString() ?? 'Options',
+              required: group['isRequired'] == true,
+              subtitle:
+                  isMulti ? 'Choose up to ${group['maxSelect'] ?? 1}' : ''),
+          Center(
+            child: Wrap(
+                alignment: WrapAlignment.center,
+                runAlignment: WrapAlignment.center,
+                spacing: 8,
+                runSpacing: 8,
+                children: options.map((option) {
+                  final isSelected =
+                      selected.any((value) => value['id'] == option['id']);
+                  final imageUrl = option['imageUrl']?.toString();
+                  final price = double.tryParse(
+                          option['priceDeltaRm']?.toString() ?? '0') ??
+                      0;
+                  final colors = _choiceColors(option, options.indexOf(option));
+                  final selectedDecoration = colors.length == 1
+                      ? BoxDecoration(color: colors.first)
+                      : BoxDecoration(gradient: LinearGradient(colors: colors));
+                  final unselectedColor =
+                      Color.lerp(colors.first, Colors.white, .88)!;
+                  return GestureDetector(
+                    onTap: () => setState(() {
+                      if (isMulti) {
+                        final next = [...selected];
+                        if (isSelected) {
+                          next.removeWhere(
+                              (value) => value['id'] == option['id']);
+                        } else if (next.length <
+                            ((group['maxSelect'] as num?)?.toInt() ?? 1)) {
+                          next.add(option);
+                        }
+                        _librarySelections[groupId] = next;
+                      } else if (isSelected &&
+                          group['isRequired'] != true &&
+                          ((group['minSelect'] as num?)?.toInt() ?? 0) == 0) {
+                        _librarySelections[groupId] = [];
+                      } else {
+                        _librarySelections[groupId] = [option];
+                      }
+                    }),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      width: isBean ? 154 : 160,
+                      constraints: const BoxConstraints(minHeight: 92),
+                      padding: const EdgeInsets.all(10),
+                      decoration: (isSelected
+                              ? selectedDecoration
+                              : BoxDecoration(color: unselectedColor))
+                          .copyWith(
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                  color: isSelected
+                                      ? colors.first
+                                      : colors.first.withValues(alpha: .35),
+                                  width: 1.5),
+                              boxShadow: isSelected
+                                  ? [
+                                      BoxShadow(
+                                          color:
+                                              colors.first.withValues(alpha: .2),
+                                          blurRadius: 7,
+                                          offset: const Offset(0, 3))
+                                    ]
+                                  : null),
+                      child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            if (isBean &&
+                                imageUrl != null &&
+                                imageUrl.isNotEmpty) ...[
+                              ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: ColorFiltered(
+                                      colorFilter: isSelected
+                                          ? const ColorFilter.mode(
+                                              Colors.transparent,
+                                              BlendMode.multiply)
+                                          : ColorFilter.mode(
+                                              Colors.black.withValues(alpha: .50),
+                                              BlendMode.darken),
+                                      child: Image.network(imageUrl,
+                                          height: 42,
+                                          width: 70,
+                                          fit: BoxFit.contain,
+                                          errorBuilder: (_, __, ___) =>
+                                              const SizedBox(height: 42)))),
+                              const SizedBox(height: 6),
+                            ],
+                            Text(option['name']?.toString() ?? '',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                    fontFamily: 'Recoleta',
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w900,
+                                    color: isSelected
+                                        ? Colors.white
+                                        : colors.first.withValues(alpha: .9))),
+                            if (price != 0)
+                              Text(
+                                  '${price > 0 ? '+' : ''}${price.toStringAsFixed(2)}',
+                                  style: TextStyle(
+                                      fontFamily: 'Afacad',
+                                      fontWeight: FontWeight.bold,
+                                      color: isSelected
+                                          ? Colors.white
+                                          : colors.first)),
+                          ]),
+                    ),
+                  );
+                }).toList()),
+          ),
+          const Divider(height: 24),
+        ]);
+      }).toList(),
+    );
+  }
+
+  List<Color> _choiceColors(Map<String, dynamic> option, int index) {
+    const fallback = [
+      Color(0xFF2D655D),
+      Color(0xFFC96A25),
+      Color(0xFF5B67B7),
+      Color(0xFFB34E73),
+      Color(0xFF467B3F),
+      Color(0xFF8C5F2E),
+    ];
+    Color parse(String? value, Color fallbackColor) {
+      final hex = value?.trim();
+      if (hex == null || !RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(hex)) {
+        return fallbackColor;
+      }
+      return Color(int.parse(hex.substring(1), radix: 16) | 0xFF000000);
+    }
+
+    final start = parse(
+        option['colorHex']?.toString(), fallback[index % fallback.length]);
+    final endValue = option['gradientEndHex']?.toString();
+    if (endValue == null || endValue.isEmpty) return [start];
+    return [start, parse(endValue, start)];
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -786,12 +1020,22 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                                         ),
                                       ),
                               ),
+                              Text(
+                                '$estimatedCalories kcal',
+                                style: const TextStyle(
+                                  fontFamily: 'Afacad',
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black54,
+                                ),
+                              ),
                               _buildExchangeButton(),
                             ],
                           ),
                         ),
-                        // Options
-                        if (_hasChoiceOfBeans) ...[
+                        // Admin-configured options replace the legacy defaults once available.
+                        if (_usesLibraryOptions) _buildLibraryOptions(),
+                        if (!_usesLibraryOptions && _hasChoiceOfBeans) ...[
                           _buildSectionTitle('Choice of Beans'),
                           Row(
                             children: [
@@ -833,7 +1077,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                           ),
                           const Divider(height: 24),
                         ],
-                        if (_hasEspressoShot) ...[
+                        if (!_usesLibraryOptions && _hasEspressoShot) ...[
                           _buildSectionTitle('Espresso Shot',
                               required: false, subtitle: 'Optional'),
                           SliderTheme(
@@ -931,7 +1175,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                           ),
                           const Divider(height: 24),
                         ],
-                        if (_hasTemperatureOption) ...[
+                        if (!_usesLibraryOptions && _hasTemperatureOption) ...[
                           _buildSectionTitle('Choice of Temperature'),
                           Row(
                             children: [
@@ -959,7 +1203,8 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                           ),
                           const Divider(height: 24),
                         ],
-                        if (_hasSparklingMixerOption) ...[
+                        if (!_usesLibraryOptions &&
+                            _hasSparklingMixerOption) ...[
                           _buildSectionTitle('Choice of Sparkling'),
                           Row(
                             children: [
@@ -987,7 +1232,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                           ),
                           const Divider(height: 24),
                         ],
-                        if (_hasChoiceOfMilk) ...[
+                        if (!_usesLibraryOptions && _hasChoiceOfMilk) ...[
                           _buildSectionTitle('Choice of Milk'),
                           Row(
                             children: [
@@ -1013,7 +1258,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                           ),
                           const Divider(height: 24),
                         ],
-                        if (_hasChoiceOfSweetness) ...[
+                        if (!_usesLibraryOptions && _hasChoiceOfSweetness) ...[
                           _buildSectionTitle('Choice of Sweetness'),
                           Row(
                             children: [
@@ -1059,7 +1304,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                           ),
                           const Divider(height: 24),
                         ],
-                        if (_hasIceOption) ...[
+                        if (!_usesLibraryOptions && _hasIceOption) ...[
                           _buildSectionTitle('Ice Level'),
                           Row(
                             children: [
@@ -1085,7 +1330,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                           ),
                           const Divider(height: 24),
                         ],
-                        if (_hasOrderType) ...[
+                        if (!_usesLibraryOptions && _hasOrderType) ...[
                           _buildSectionTitle('Order Type'),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
@@ -1176,25 +1421,38 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                         fontWeight: FontWeight.bold,
                         color: Colors.black87),
                   ),
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 200),
-                    child: _showTokenPrice
-                        ? TokenPricePair(
-                            key: const ValueKey('totalTokenPrice'),
-                            tokenValue: totalTokenPrice,
-                            tokenFontSize: 12,
-                            tokenColor: Colors.black87,
-                          )
-                        : Text(
-                            _displayTotalText,
-                            key: const ValueKey('totalRmPrice'),
-                            style: const TextStyle(
-                              fontFamily: 'Afacad',
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black87,
-                            ),
-                          ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 200),
+                        child: _showTokenPrice
+                            ? TokenPricePair(
+                                key: const ValueKey('totalTokenPrice'),
+                                tokenValue: totalTokenPrice,
+                                tokenFontSize: 12,
+                                tokenColor: Colors.black87,
+                              )
+                            : Text(
+                                _displayTotalText,
+                                key: const ValueKey('totalRmPrice'),
+                                style: const TextStyle(
+                                  fontFamily: 'Afacad',
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                      ),
+                      Text(
+                        '$estimatedCalories kcal',
+                        style: const TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 11,
+                          color: Colors.black54,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
