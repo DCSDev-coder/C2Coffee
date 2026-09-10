@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { adminRequest } from '../lib/adminApi';
+import { adminRequest, getAdminApiBaseUrl, loadAdminTierConfigs, uploadAdminVoucherImage } from '../lib/adminApi';
 import {
   Search, ChevronDown, Download, Plus,
-  Eye, Edit3, MoreVertical, X, Copy,
+  Edit3, MoreVertical, X, Copy,
   Trash2, ArrowLeft, Percent, Gift,
   Tag
 } from "lucide-react";
@@ -103,6 +103,7 @@ const createEmptyVoucherForm = () => ({
   totalQty: 1000,
   limitPerUser: 1,
   description: "",
+  imageUrl: null,
   audience: "all_customers",
   availabilityMode: "always",
   activeDays: [],
@@ -161,6 +162,79 @@ const benefitTypeLabel = (value) => {
 };
 
 const limitPerUserLabel = "Max Uses Per Customer";
+
+const resolveVoucherArtworkUrl = (imageUrl) => {
+  const value = String(imageUrl ?? '').trim();
+  if (!value || /^https?:\/\//i.test(value) || value.startsWith('data:')) return value;
+  return `${getAdminApiBaseUrl()}${value.startsWith('/') ? value : `/${value}`}`;
+};
+
+const VoucherArtworkField = ({ imageUrl, onChange }) => {
+  const [isUploading, setIsUploading] = useState(false);
+
+  const uploadArtwork = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    try {
+      const response = await uploadAdminVoucherImage(file);
+      onChange(response.image_url || null);
+    } catch (error) {
+      alert(`Unable to upload voucher artwork: ${error.message}`);
+    } finally {
+      setIsUploading(false);
+      event.target.value = '';
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-dashed border-[#BFD3CE] bg-[#F8FBFA] p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <label className="block font-bold text-gray-900">Voucher artwork</label>
+          <p className="mt-0.5 text-[11px] leading-relaxed text-gray-500">Optional. This appears at the top of this voucher in the customer app.</p>
+        </div>
+        {imageUrl && (
+          <button
+            type="button"
+            onClick={() => onChange(null)}
+            className="shrink-0 text-[11px] font-bold text-red-600 hover:text-red-700"
+          >
+            Remove
+          </button>
+        )}
+      </div>
+      <div className="mt-3 grid gap-4 sm:grid-cols-[180px_minmax(0,1fr)] sm:items-center">
+        <div className="aspect-[2/1] overflow-hidden rounded-xl border border-[#D7E4E0] bg-white shadow-sm">
+          {imageUrl ? (
+            <img src={resolveVoucherArtworkUrl(imageUrl)} alt="Voucher artwork preview" className="h-full w-full object-cover" />
+          ) : (
+            <div className="flex h-full flex-col items-center justify-center gap-1 px-3 text-center text-[11px] text-gray-400">
+              <span className="font-bold text-[#5C7770]">2:1 preview</span>
+              <span>Voucher artwork</span>
+            </div>
+          )}
+        </div>
+        <div>
+          <label className="inline-flex cursor-pointer items-center rounded-lg bg-[#1E433A] px-4 py-2.5 text-xs font-bold text-white transition-colors hover:bg-[#16342D] disabled:cursor-not-allowed disabled:opacity-60">
+            {isUploading ? 'Uploading...' : imageUrl ? 'Replace image' : 'Choose image'}
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={uploadArtwork}
+              disabled={isUploading}
+              className="sr-only"
+            />
+          </label>
+          <p className="mt-2 text-[11px] font-medium text-gray-700">Recommended: 1200 × 600 px (2:1 landscape)</p>
+          <p className="mt-1 text-[11px] leading-relaxed text-gray-500">PNG, JPEG, or WebP, up to 8 MB. The upload is optimized for the 2:1 customer-app banner.</p>
+        </div>
+      </div>
+      {isUploading && <p className="mt-2 text-[11px] font-medium text-[#2E5E58]">Uploading and optimizing artwork...</p>}
+    </div>
+  );
+};
 
 const formatAvailabilityMode = (value) =>
   AVAILABILITY_MODE_OPTIONS.find((option) => option.value === value)?.label || "Always Available";
@@ -578,6 +652,7 @@ const ScopeSelectionSection = ({
 
 const Vouchers = () => {
   const [vouchers, setVouchers] = useState([]);
+  const [tiers, setTiers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [voucherIssuances, setVoucherIssuances] = useState([]);
@@ -585,7 +660,7 @@ const Vouchers = () => {
   const [menuTaxonomy, setMenuTaxonomy] = useState(() => deriveMenuTaxonomy({ categories: [], subcategories: [] }));
 
   const [typeFilter, setTypeFilter] = useState("All Type");
-  const [statusFilter, setStatusFilter] = useState("All Status");
+  const [statusFilter, setStatusFilter] = useState("Active");
   const [typeOpen, setTypeOpen] = useState(false);
   const [statusOpen, setStatusOpen] = useState(false);
   const [selectedVoucher, setSelectedVoucher] = useState(null);
@@ -622,6 +697,17 @@ const Vouchers = () => {
   const refreshMenuTaxonomy = async () => {
     const response = await adminRequest('/v1/admin/menu');
     setMenuTaxonomy(deriveMenuTaxonomy(response));
+  };
+
+  const refreshTiers = async () => {
+    try {
+      const res = await loadAdminTierConfigs();
+      if (Array.isArray(res?.tiers)) {
+        setTiers(res.tiers);
+      }
+    } catch (err) {
+      console.error('Failed to load tier configs', err);
+    }
   };
 
   const refreshVouchers = async ({
@@ -667,7 +753,8 @@ const Vouchers = () => {
       try {
         await Promise.all([
           refreshVouchers({ keepSelection: false, silent: false }),
-          refreshMenuTaxonomy()
+          refreshMenuTaxonomy(),
+          refreshTiers()
         ]);
       } catch (err) {
         console.error('Failed to fetch vouchers', err);
@@ -682,7 +769,8 @@ const Vouchers = () => {
     const refreshData = () => {
       void Promise.all([
         refreshVouchers({ keepSelection: true, silent: true }),
-        refreshMenuTaxonomy()
+        refreshMenuTaxonomy(),
+        refreshTiers()
       ]).catch((err) => {
         console.error('Failed to refresh vouchers', err);
       });
@@ -803,6 +891,7 @@ const Vouchers = () => {
       totalQty: newVoucher.totalQty === null || newVoucher.totalQty === "" ? null : Number(newVoucher.totalQty),
       limitPerUser: Number(newVoucher.limitPerUser) || 1,
       description: newVoucher.description || `Redeem ${newVoucher.name}`,
+      imageUrl: newVoucher.imageUrl || null,
       audience: newVoucher.audience,
       availabilityMode: newVoucher.availabilityMode,
       activeDays: newVoucher.activeDays,
@@ -851,6 +940,7 @@ const Vouchers = () => {
         totalQty: editingVoucher.totalQty === null || editingVoucher.totalQty === "" ? null : Number(editingVoucher.totalQty),
         limitPerUser: Number(editingVoucher.limitPerUser) || 1,
         description: editingVoucher.description,
+        imageUrl: editingVoucher.imageUrl || null,
         audience: editingVoucher.audience,
         availabilityMode: editingVoucher.availabilityMode,
         activeDays: editingVoucher.activeDays,
@@ -861,10 +951,13 @@ const Vouchers = () => {
         ,isReferralReward: Boolean(editingVoucher.isReferralReward)
       };
 
-      await adminRequest(`/v1/admin/vouchers/${editingVoucher.id}`, {
+      const updatedVoucher = await adminRequest(`/v1/admin/vouchers/${editingVoucher.id}`, {
         method: 'PUT',
         body: JSON.stringify(payload)
       });
+      if ((updatedVoucher.imageUrl || null) !== payload.imageUrl) {
+        throw new Error('Voucher artwork was not saved. Please try again.');
+      }
       await refreshVouchers(editingVoucher.id);
       setEditingVoucher(null);
     } catch (err) {
@@ -950,6 +1043,9 @@ const Vouchers = () => {
     setIssuePhone("");
     setShowIssueModal(true);
   };
+
+  const isAutomaticDailyEmployeeVoucher = (voucher) =>
+    voucher?.audience === 'employee_only' && voucher?.availabilityMode === 'daily';
 
   const handleIssueVoucher = async (e) => {
     e.preventDefault();
@@ -1193,26 +1289,9 @@ const Vouchers = () => {
                           </div>
                         </td>
 
-                        {/* Action Buttons: Eye, Edit, More */}
+                        {/* Row selection opens details; keep only record-changing actions here. */}
                         <td className="px-6 py-3.5 whitespace-nowrap text-center">
                           <div className="flex items-center justify-center space-x-1.5 relative">
-                            {/* Eye / View Details Button */}
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (isSelected) {
-                                  setSelectedVoucher(null);
-                                  setActionMenuId(null);
-                                  return;
-                                }
-                                selectVoucher(v);
-                              }}
-                              className="bg-[#1E293B] hover:bg-[#0F172A] text-white p-1.5 rounded-lg shadow-sm transition-colors cursor-pointer"
-                              title="View Details"
-                            >
-                              <Eye size={14} />
-                            </button>
-
                             {/* Edit Button */}
                             <button
                               onClick={(e) => {
@@ -1485,12 +1564,19 @@ const Vouchers = () => {
                     {selectedVoucher.rate}
                   </p>
                 </div>
-                <button
-                  onClick={() => openIssueModal(selectedVoucher)}
-                  className="w-full py-2 px-3 bg-[#1F3A34] text-white rounded-lg text-sm font-bold hover:bg-[#2E5E58] transition-colors cursor-pointer"
-                >
-                  Issue Voucher To Customer
-                </button>
+                {isAutomaticDailyEmployeeVoucher(selectedVoucher) ? (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-xs leading-5 text-amber-900">
+                    <span className="block font-bold">Issued automatically to employees</span>
+                    Mark the customer as an Employee in Customers. Their daily voucher is created when they next open or refresh the customer app, with one voucher per Kuala Lumpur calendar day.
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => openIssueModal(selectedVoucher)}
+                    className="w-full py-2 px-3 bg-[#1F3A34] text-white rounded-lg text-sm font-bold hover:bg-[#2E5E58] transition-colors cursor-pointer"
+                  >
+                    Issue Voucher To Customer
+                  </button>
+                )}
               </div>
             )}
 
@@ -1720,6 +1806,11 @@ const Vouchers = () => {
                     />
                   </div>
 
+                  <VoucherArtworkField
+                    imageUrl={newVoucher.imageUrl}
+                    onChange={(imageUrl) => setNewVoucher({ ...newVoucher, imageUrl })}
+                  />
+
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block font-bold text-gray-900 mb-1">Voucher Label</label>
@@ -1855,10 +1946,20 @@ const Vouchers = () => {
                         className="peer w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
                       >
                         <option value="All Tiers">All Tiers</option>
-                        <option value="Legend">Legend</option>
-                        <option value="Kawan">Kawan</option>
-                        <option value="Dilamun">Dilamun</option>
-                        <option value="Ketagih">Ketagih</option>
+                        {tiers.length > 0 ? (
+                          tiers.map((t) => (
+                            <option key={t.id || t.code} value={t.name}>
+                              {t.name}
+                            </option>
+                          ))
+                        ) : (
+                          <>
+                            <option value="Sipper">Sipper</option>
+                            <option value="Brewer">Brewer</option>
+                            <option value="Roaster">Roaster</option>
+                            <option value="Legendary">Legendary</option>
+                          </>
+                        )}
                       </select>
                       <p className="mt-1 text-[11px] text-gray-400">This limits who can receive the voucher. To set a tier reward, choose this voucher in Tier Management.</p>
                     </div>
@@ -2085,6 +2186,11 @@ const Vouchers = () => {
                     />
                   </div>
 
+                  <VoucherArtworkField
+                    imageUrl={editingVoucher.imageUrl}
+                    onChange={(imageUrl) => setEditingVoucher({ ...editingVoucher, imageUrl })}
+                  />
+
                   <label className="flex gap-2 rounded-lg border border-[#D7E4E0] bg-[#F4F8F7] px-3 py-2 text-xs text-gray-700 cursor-pointer">
                     <input type="checkbox" checked={editingVoucher.isReferralReward} onChange={(e) => setEditingVoucher({ ...editingVoucher, isReferralReward: e.target.checked })} />
                     <span><strong>Referral reward</strong><br />Issue this voucher to the referrer after their friend collects a first order. Selecting this replaces the current referral reward.</span>
@@ -2214,10 +2320,20 @@ const Vouchers = () => {
                         className="peer w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
                       >
                         <option value="All Tiers">All Tiers</option>
-                        <option value="Legend">Legend</option>
-                        <option value="Kawan">Kawan</option>
-                        <option value="Dilamun">Dilamun</option>
-                        <option value="Ketagih">Ketagih</option>
+                        {tiers.length > 0 ? (
+                          tiers.map((t) => (
+                            <option key={t.id || t.code} value={t.name}>
+                              {t.name}
+                            </option>
+                          ))
+                        ) : (
+                          <>
+                            <option value="Sipper">Sipper</option>
+                            <option value="Brewer">Brewer</option>
+                            <option value="Roaster">Roaster</option>
+                            <option value="Legendary">Legendary</option>
+                          </>
+                        )}
                       </select>
                       <p className="mt-1 text-[11px] text-gray-400">This limits who can receive the voucher. To set a tier reward, choose this voucher in Tier Management.</p>
                     </div>

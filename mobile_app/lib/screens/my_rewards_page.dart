@@ -4,11 +4,13 @@ import 'package:intl/intl.dart';
 import '../services/app_session_service.dart';
 import '../services/auth_api_service.dart';
 import '../services/customer_data_service.dart';
+import '../services/catalog_api_service.dart';
 import '../services/secure_session_service.dart';
 import '../utils/app_colors.dart';
 import '../widgets/order_status_banner.dart';
 import 'loading_order_page.dart';
 import '../widgets/app_page_shell.dart';
+import '../widgets/catalog_product_image.dart';
 
 class MyRewardsPage extends StatefulWidget {
   const MyRewardsPage({super.key});
@@ -405,6 +407,21 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (voucher.template.imageUrl?.trim().isNotEmpty ?? false) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(13),
+              child: AspectRatio(
+                // Match the menu banner and Admin voucher artwork ratio.
+                aspectRatio: 2 / 1,
+                child: CatalogProductImage(
+                  imageUrl:
+                      resolveCatalogImageSource(voucher.template.imageUrl),
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -486,14 +503,8 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
                           voucher.template.benefitLabel,
                         ),
                         _buildInfoChip(
-                            'Applies to', voucher.template.eligibilityLabel),
-                        _buildInfoChip(
-                          'Checkout',
-                          voucher.checkoutAvailabilityLabel,
-                        ),
-                        _buildInfoChip(
-                          'Audience',
-                          voucher.template.audienceLabel,
+                          'Applies to',
+                          voucher.template.eligibilityLabel,
                         ),
                         if (voucher.template.minSpendRm != null)
                           _buildInfoChip(
@@ -506,57 +517,6 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 14),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.border, width: 1),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Issued for',
-                  style: TextStyle(
-                    fontFamily: 'Afacad',
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black45,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  voucher.issuedReason,
-                  style: const TextStyle(
-                    fontFamily: 'Afacad',
-                    fontSize: 14,
-                    color: Colors.black87,
-                    height: 1.35,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            isActive
-                ? voucher.isTokenCheckoutEligible
-                    ? 'Use this voucher during checkout.'
-                    : voucher.template.isTokenCheckoutCompatible
-                        ? 'This voucher is active, but it is outside its promotion time right now.'
-                        : 'This voucher is active but not usable right now.'
-                : voucher.redeemedAt != null
-                    ? 'This voucher has already been redeemed.'
-                    : 'This voucher is part of your reward history.',
-            style: const TextStyle(
-              fontFamily: 'Afacad',
-              fontSize: 13,
-              color: Colors.black54,
-            ),
           ),
         ],
       ),

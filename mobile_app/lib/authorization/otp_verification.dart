@@ -12,6 +12,7 @@ import '../services/auth_api_service.dart';
 import '../services/secure_session_service.dart';
 import '../services/push_notification_service.dart';
 import '../services/user_service.dart';
+import '../utils/app_colors.dart';
 
 class OtpVerificationPage extends StatefulWidget {
   final String phone;
@@ -254,7 +255,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage>
                     offset: Offset(0, 4)),
               ],
               border: Border.all(
-                  color: const Color(0xFF1F3A34).withValues(alpha: 0.2),
+                  color: AppColors.primary.withValues(alpha: 0.2),
                   width: 1),
             ),
             child: Padding(
@@ -269,26 +270,26 @@ class _OtpVerificationPageState extends State<OtpVerificationPage>
                       child: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF1F3A34).withValues(alpha: 0.1),
+                          color: AppColors.primary.withValues(alpha: 0.1),
                           shape: BoxShape.circle,
                           border: Border.all(
-                              color: const Color(0xFF1F3A34)
+                              color: AppColors.primary
                                   .withValues(alpha: 0.2),
                               width: 1),
                         ),
-                        child: const Icon(Icons.close,
-                            color: Color(0xFF1F3A34), size: 18),
+                        child: Icon(Icons.close,
+                            color: AppColors.primary, size: 18),
                       ),
                     ),
                   ),
                   const SizedBox(height: 8),
-                  const Text(
+                  Text(
                     'Choose Your Icon',
                     style: TextStyle(
                         fontFamily: 'Recoleta',
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFF1F3A34),
+                        color: AppColors.primary,
                         letterSpacing: 0.5),
                   ),
                   const SizedBox(height: 8),
@@ -299,7 +300,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage>
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
-                            color: Colors.grey.withValues(alpha: 0.08),
+                             color: Colors.grey.withValues(alpha: 0.08),
                             blurRadius: 8,
                             offset: const Offset(0, 2))
                       ],
@@ -329,14 +330,14 @@ class _OtpVerificationPageState extends State<OtpVerificationPage>
                                   shape: BoxShape.circle,
                                   border: Border.all(
                                     color: isSelected
-                                        ? const Color(0xFF1F3A34)
+                                        ? AppColors.primary
                                         : Colors.grey.shade300,
                                     width: isSelected ? 3 : 2,
                                   ),
                                   boxShadow: isSelected
                                       ? [
                                           BoxShadow(
-                                              color: const Color(0xFF1F3A34)
+                                              color: AppColors.primary
                                                   .withValues(alpha: 0.3),
                                               blurRadius: 8,
                                               offset: const Offset(0, 2))
@@ -345,7 +346,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage>
                                 ),
                                 child: CircleAvatar(
                                   radius: 40,
-                                  backgroundColor: const Color(0xFF1F3A34),
+                                  backgroundColor: AppColors.primary,
                                   backgroundImage:
                                       AssetImage(_avatarOptions[index]['path']),
                                 ),
@@ -366,7 +367,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage>
                                   style: TextStyle(
                                       fontFamily: 'Afacad',
                                       fontSize: 14,
-                                      color: const Color(0xFF1F3A34),
+                                      color: AppColors.primary,
                                       fontWeight: FontWeight.w600)),
                             ),
                             Expanded(
@@ -383,14 +384,14 @@ class _OtpVerificationPageState extends State<OtpVerificationPage>
                           child: Container(
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             decoration: BoxDecoration(
-                              gradient: const LinearGradient(colors: [
-                                Color(0xFF1F3A34),
-                                Color(0xFF1F3A34)
+                              gradient: LinearGradient(colors: [
+                                AppColors.primary,
+                                AppColors.primary,
                               ]),
                               borderRadius: BorderRadius.circular(12),
                               boxShadow: [
                                 BoxShadow(
-                                    color: const Color(0xFF1F3A34)
+                                    color: AppColors.primary
                                         .withValues(alpha: 0.3),
                                     blurRadius: 8,
                                     offset: const Offset(0, 4))
@@ -465,9 +466,9 @@ class _OtpVerificationPageState extends State<OtpVerificationPage>
     return Container(
       width: 100,
       height: 100,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: Color(0xFF1F3A34),
+        color: AppColors.primary,
       ),
       child: Container(
         decoration: BoxDecoration(
@@ -652,7 +653,9 @@ class _OtpVerificationPageState extends State<OtpVerificationPage>
 
   @override
   Widget build(BuildContext context) {
-    const Color orangeColor = Color(0xFF1F3A34);
+    final primaryColor = AppColors.primary;
+    final secondaryColor = AppColors.secondary;
+    final textColor = AppColors.brandText;
     final mediaQuery = MediaQuery.of(context);
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -665,15 +668,12 @@ class _OtpVerificationPageState extends State<OtpVerificationPage>
       ),
       child: Scaffold(
         resizeToAvoidBottomInset: false,
-        // Keep the dark outer canvas when the keyboard opens so the rounded
-        // OTP panel still reads as a floating card instead of a full white box.
-        backgroundColor: orangeColor,
+        backgroundColor: primaryColor,
         body: GestureDetector(
           behavior: HitTestBehavior.translucent,
           onTap: () => FocusScope.of(context).unfocus(),
           child: Stack(
             children: [
-              // Header Background Picture
               Positioned(
                 top: 0,
                 left: 0,
@@ -693,8 +693,8 @@ class _OtpVerificationPageState extends State<OtpVerificationPage>
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
                           colors: [
-                            const Color(0xFF1F3A34).withValues(alpha: 0.65),
-                            const Color(0xFF1F3A34).withValues(alpha: 0.90),
+                            primaryColor.withValues(alpha: 0.65),
+                            primaryColor.withValues(alpha: 0.90),
                           ],
                         ),
                       ),
@@ -706,7 +706,6 @@ class _OtpVerificationPageState extends State<OtpVerificationPage>
                 bottom: false,
                 child: Column(
                   children: [
-                    // Top Section
                     Padding(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 24, vertical: 12),
@@ -738,7 +737,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage>
                                       color: Colors.white,
                                       shape: BoxShape.circle,
                                       border: Border.all(
-                                          color: const Color(0xFFFAF4EE),
+                                          color: secondaryColor.withValues(alpha: 0.3),
                                           width: 2),
                                       boxShadow: const [
                                         BoxShadow(
@@ -746,15 +745,14 @@ class _OtpVerificationPageState extends State<OtpVerificationPage>
                                             blurRadius: 4)
                                       ],
                                     ),
-                                    child: const Icon(Icons.camera_alt,
-                                        size: 18, color: Color(0xFF1F3A34)),
+                                    child: Icon(Icons.camera_alt,
+                                        size: 18, color: primaryColor),
                                   ),
                                 ),
                               ],
                             ),
                           ),
                           const SizedBox(height: 8),
-                          // Spacer to match the "Step 1 of 2" line height in Signup1 (22px) for exact vertical symmetry
                           const SizedBox(height: 22),
                           const Text(
                             'Verify Your Identity',
@@ -777,7 +775,6 @@ class _OtpVerificationPageState extends State<OtpVerificationPage>
                         ],
                       ),
                     ),
-                    // White Card Section
                     Expanded(
                       child: AuthCardEntrance(
                         child: Container(
@@ -801,13 +798,13 @@ class _OtpVerificationPageState extends State<OtpVerificationPage>
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
-                                const Text(
+                                Text(
                                   'Please fill in the security code.',
                                   style: TextStyle(
                                       fontFamily: 'Recoleta',
                                       fontSize: 18,
                                       fontWeight: FontWeight.normal,
-                                      color: Color(0xFF1F3A34)),
+                                      color: textColor),
                                 ),
                                 const SizedBox(height: 30),
                                 GestureDetector(
@@ -850,9 +847,6 @@ class _OtpVerificationPageState extends State<OtpVerificationPage>
                                                       const InputDecoration(
                                                     border: InputBorder.none,
                                                     counterText: '',
-                                                    contentPadding:
-                                                        EdgeInsets.zero,
-                                                    isCollapsed: true,
                                                   ),
                                                   onChanged: _handleOtpChanged,
                                                 ),
@@ -864,19 +858,16 @@ class _OtpVerificationPageState extends State<OtpVerificationPage>
                                                       .spaceBetween,
                                               children:
                                                   List.generate(6, (index) {
+                                                final hasError =
+                                                    _errorFields.contains(
+                                                        _OtpErrorField.code);
                                                 final digits =
                                                     _otpInputController.text;
                                                 final hasValue =
                                                     index < digits.length;
                                                 final isActive =
-                                                    _otpInputFocusNode.hasFocus
-                                                        ? index ==
-                                                            digits.length
-                                                                .clamp(0, 5)
-                                                        : false;
-                                                final hasError =
-                                                    _errorFields.contains(
-                                                        _OtpErrorField.code);
+                                                    _otpInputFocusNode.hasFocus &&
+                                                        (index == digits.length || (index == 5 && digits.length == 6));
 
                                                 return AnimatedContainer(
                                                   duration: const Duration(
@@ -892,9 +883,8 @@ class _OtpVerificationPageState extends State<OtpVerificationPage>
                                                       color: hasError
                                                           ? Colors.redAccent
                                                           : (isActive
-                                                              ? const Color(
-                                                                  0xFFD4AF37)
-                                                              : orangeColor),
+                                                              ? secondaryColor
+                                                              : primaryColor),
                                                       width: hasError
                                                           ? 1.8
                                                           : (isActive
@@ -918,11 +908,10 @@ class _OtpVerificationPageState extends State<OtpVerificationPage>
                                                         : (isActive
                                                             ? [
                                                                 BoxShadow(
-                                                                  color: const Color(
-                                                                          0xFFD4AF37)
+                                                                  color: secondaryColor
                                                                       .withValues(
                                                                           alpha:
-                                                                              0.18),
+                                                                              0.25),
                                                                   blurRadius:
                                                                       10,
                                                                   offset:
@@ -972,12 +961,12 @@ class _OtpVerificationPageState extends State<OtpVerificationPage>
                                             onTap: _isSubmitting
                                                 ? null
                                                 : () => _handleResendOtp(),
-                                            child: const Text(
+                                            child: Text(
                                               'Resend Code',
                                               style: TextStyle(
                                                 fontFamily: 'Recoleta',
                                                 fontWeight: FontWeight.bold,
-                                                color: orangeColor,
+                                                color: primaryColor,
                                               ),
                                             ),
                                           ),
@@ -1014,7 +1003,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage>
                                         ? null
                                         : _verifyOTP,
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: orangeColor,
+                                      backgroundColor: primaryColor,
                                       disabledBackgroundColor:
                                           Colors.grey.shade400,
                                       foregroundColor: Colors.white,

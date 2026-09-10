@@ -78,6 +78,7 @@ type MenuModifierOption = {
   image_url: string | null;
   color_hex: string | null;
   gradient_end_hex: string | null;
+  gradient_direction: string | null;
 };
 
 type MenuModifierGroup = {
@@ -136,6 +137,7 @@ type LibraryModifierRow = RowDataPacket & {
   option_image_url: string | null;
   option_color_hex: string | null;
   option_gradient_end_hex: string | null;
+  option_gradient_direction: string | null;
   option_price_delta_rm: string;
   option_token_price_delta: number;
   option_calorie_delta_kcal: number;
@@ -185,6 +187,8 @@ type HomeBannerRow = RowDataPacket & {
   title: string;
   subtitle: string;
   image_source: string;
+  media_type: 'image' | 'gif';
+  animation_duration_ms: number;
   banner_type: 'voucher' | 'event' | 'new_item' | 'general';
   destination_type: 'reward_section' | 'menu' | 'calendar';
   secondary_destination_type: 'reward_section' | 'menu' | 'calendar' | null;
@@ -194,8 +198,36 @@ type HomeBannerRow = RowDataPacket & {
   placement: 'home' | 'profile' | 'both';
   sort_order: number;
   floating_priority: number;
+  created_at: Date | string;
   is_active: number;
 };
+
+type CustomerAppearanceRow = RowDataPacket & {
+  primary_color: string | null;
+  secondary_color: string | null;
+  text_color: string | null;
+  background_color: string | null;
+  muted_text_color: string | null;
+};
+
+async function getCustomerAppearance(userId: number): Promise<CustomerAppearanceRow> {
+  const [rows] = await mysqlPool.query<CustomerAppearanceRow[]>(
+    `SELECT t.primary_color, t.secondary_color, t.text_color, t.background_color, t.muted_text_color
+     FROM customer_tenant_memberships ctm
+     INNER JOIN admin_tenants t ON t.id = ctm.tenant_id
+     WHERE ctm.user_id = :userId AND t.status = 'active'
+     ORDER BY ctm.tenant_id ASC
+     LIMIT 1`,
+    { userId }
+  );
+  return rows[0] ?? {
+    primary_color: '#2E5E58',
+    secondary_color: '#D4AF7A',
+    text_color: '#2C2C2C',
+    background_color: '#FFFFFF',
+    muted_text_color: '#6B7280'
+  };
+}
 
 let homeBannerColumnsPromise: Promise<Set<string>> | null = null;
 
@@ -225,7 +257,11 @@ function buildHomeBannerSelectClause(columns: Set<string>): string {
     'hb.code',
     'hb.title',
     'hb.subtitle',
-    'hb.image_source'
+    'hb.image_source',
+    columns.has('media_type') ? 'hb.media_type' : "'image' AS media_type",
+    columns.has('animation_duration_ms')
+      ? 'hb.animation_duration_ms'
+      : '0 AS animation_duration_ms'
   ];
 
   if (supportsHomeBannerTargeting(columns)) {
@@ -254,7 +290,8 @@ function buildHomeBannerSelectClause(columns: Set<string>): string {
     columns.has('floating_priority')
       ? 'hb.floating_priority'
       : '0 AS floating_priority',
-    'hb.is_active'
+    'hb.is_active',
+    'hb.created_at'
   );
 
   return selects.join(',\n          ');
@@ -262,9 +299,10 @@ function buildHomeBannerSelectClause(columns: Set<string>): string {
 
 export async function registerCatalogRoutes(app: FastifyInstance): Promise<void> {
   app.get('/v1/bootstrap', { preHandler: authenticateRequest }, async (request) => {
-    const [user, summary] = await Promise.all([
+    const [user, summary, appearance] = await Promise.all([
       getUserResponse(request.auth.userId),
-      getBootstrapForUser(request.auth.userId)
+      getBootstrapForUser(request.auth.userId),
+      getCustomerAppearance(request.auth.userId)
     ]);
 
     return {
@@ -281,6 +319,7 @@ export async function registerCatalogRoutes(app: FastifyInstance): Promise<void>
         tiers: summary.tiers
       },
       active_order: null,
+      appearance,
       home_banners: await listActiveHomeBanners()
     };
   });
@@ -384,7 +423,7 @@ export async function registerCatalogRoutes(app: FastifyInstance): Promise<void>
         ORDER BY
           c.sort_order,
           c.id,
-          i.sort_order,
+          i.name ASC,
           i.id,
           tp.tier_code,
           img.sort_order,
@@ -497,6 +536,7 @@ export async function registerCatalogRoutes(app: FastifyInstance): Promise<void>
               image_url: null,
               color_hex: null,
               gradient_end_hex: null,
+              gradient_direction: 'diagonal',
             });
           }
         }
@@ -509,7 +549,7 @@ export async function registerCatalogRoutes(app: FastifyInstance): Promise<void>
     }
     const [libraryRows] = await mysqlPool.query<Array<LibraryModifierRow>>(
       `SELECT g.id AS group_id, g.name AS group_name, g.selection_type, g.min_select, g.max_select, g.is_required, g.applies_to,
-              a.menu_item_id, o.id AS option_id, o.name AS option_name, o.image_url AS option_image_url, o.color_hex AS option_color_hex, o.gradient_end_hex AS option_gradient_end_hex,
+              a.menu_item_id, o.id AS option_id, o.name AS option_name, o.image_url AS option_image_url, o.color_hex AS option_color_hex, o.gradient_end_hex AS option_gradient_end_hex, o.gradient_direction AS option_gradient_direction,
               CAST(o.price_delta_rm AS CHAR) AS option_price_delta_rm, o.token_price_delta AS option_token_price_delta,
               o.calorie_delta_kcal AS option_calorie_delta_kcal
        FROM stores s
@@ -520,20 +560,46 @@ export async function registerCatalogRoutes(app: FastifyInstance): Promise<void>
        ORDER BY g.sort_order, g.id, o.sort_order, o.id`,
       { storeId }
     );
+    const [exclusionRows] = await mysqlPool.query<Array<RowDataPacket>>(
+      `SELECT e.menu_item_id, e.option_group_option_id
+       FROM menu_item_option_exclusions e
+       JOIN menu_items i ON i.id = e.menu_item_id AND i.is_active = 1
+       WHERE EXISTS (
+         SELECT 1 FROM menu_option_group_options o
+         JOIN menu_option_groups g ON g.id = o.option_group_id
+         JOIN stores s ON s.tenant_id = g.tenant_id AND s.id = :storeId
+         WHERE o.id = e.option_group_option_id
+       )`,
+      { storeId }
+    );
+    const excludedOptionIdsByItem = new Map<number, Set<number>>();
+    for (const row of exclusionRows) {
+      const excludedIds = excludedOptionIdsByItem.get(Number(row.menu_item_id)) ?? new Set<number>();
+      excludedIds.add(Number(row.option_group_option_id));
+      excludedOptionIdsByItem.set(Number(row.menu_item_id), excludedIds);
+    }
     for (const row of libraryRows) {
       const targets = row.applies_to === 'all_drinks'
         ? [...itemsById.values()].filter((item) => item.product_kind_code === 'drink')
         : row.menu_item_id ? [itemsById.get(row.menu_item_id)].filter(Boolean) as MenuItemResponse[] : [];
       for (const item of targets) {
+        if (excludedOptionIdsByItem.get(item.id)?.has(Number(row.option_id))) continue;
         let group = item.modifier_groups.find((candidate) => candidate.source === 'library' && candidate.id === row.group_id);
         if (!group) {
           group = { id: row.group_id, code: `library-${row.group_id}`, name: row.group_name, selection_type: row.selection_type, min_select: row.min_select, max_select: row.max_select, is_required: row.is_required === 1, source: 'library', options: [] };
           item.modifier_groups.push(group);
         }
         if (!group.options.some((option) => option.id === row.option_id)) {
-          group.options.push({ id: row.option_id, code: `library-${row.option_id}`, name: row.option_name, image_url: _resolveImageUrl(row.option_image_url), color_hex: row.option_color_hex, gradient_end_hex: row.option_gradient_end_hex, price_delta_rm: row.option_price_delta_rm, token_price_delta: row.option_token_price_delta, calorie_delta_kcal: row.option_calorie_delta_kcal });
+          group.options.push({ id: row.option_id, code: `library-${row.option_id}`, name: row.option_name, image_url: _resolveImageUrl(row.option_image_url), color_hex: row.option_color_hex, gradient_end_hex: row.option_gradient_end_hex, gradient_direction: row.option_gradient_direction || 'diagonal', price_delta_rm: row.option_price_delta_rm, token_price_delta: row.option_token_price_delta, calorie_delta_kcal: row.option_calorie_delta_kcal });
         }
       }
+    }
+    for (const item of itemsById.values()) {
+      item.modifier_groups = item.modifier_groups.filter((group) => group.options.length > 0);
+    }
+
+    for (const category of categories.values()) {
+      category.items.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
     }
 
     return {
@@ -600,9 +666,12 @@ async function listActiveHomeBanners(): Promise<
     title: string;
     subtitle: string;
     image_source: string;
+    media_type: 'image' | 'gif';
+    animation_duration_ms: number;
     placement: 'home' | 'profile' | 'both';
     sort_order: number;
     floating_priority: number;
+    created_at: string;
   }>
 > {
   const columns = await getHomeBannerColumns();
@@ -631,6 +700,8 @@ async function listActiveHomeBanners(): Promise<
       title: row.title,
       subtitle: row.subtitle,
       image_source: row.image_source,
+      media_type: row.media_type,
+      animation_duration_ms: row.animation_duration_ms,
       banner_type: row.banner_type,
       destination_type: row.destination_type,
       secondary_destination_type: row.secondary_destination_type,
@@ -639,6 +710,7 @@ async function listActiveHomeBanners(): Promise<
       ends_at: row.ends_at ? new Date(row.ends_at).toISOString() : null,
       placement: row.placement,
       sort_order: row.sort_order,
-      floating_priority: row.floating_priority
+      floating_priority: row.floating_priority,
+      created_at: new Date(row.created_at).toISOString()
     }));
 }

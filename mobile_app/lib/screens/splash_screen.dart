@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../authorization/login.dart';
 import '../services/session_lifecycle_service.dart';
+import '../utils/app_colors.dart';
 import '../widgets/c2_mini_loader.dart';
 import 'home_page.dart';
 
@@ -137,7 +138,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                                   value: _progressController.value,
                                   minHeight: 6,
                                   backgroundColor: Colors.white.withValues(alpha: 0.2),
-                                  valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFC89662)), // Soft candle gold
+                                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.secondary),
                                 ),
                               );
                             },

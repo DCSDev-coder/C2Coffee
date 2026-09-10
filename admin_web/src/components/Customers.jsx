@@ -1,7 +1,7 @@
 import React, { useState, forwardRef, useEffect } from 'react';
 import {
-  Wallet, Users, Megaphone, Search, ChevronDown, Download, Plus,
-  Eye, MoreVertical, X, Crown, ChevronRight, User, ClipboardList, Coins, Ticket, BarChart3, Trash2, Pencil
+  Wallet, Users, Megaphone, Search, ChevronDown, Download, Upload, Plus,
+  MoreVertical, X, Crown, ChevronRight, User, ClipboardList, Coins, Ticket, BarChart3, Trash2, Pencil
 } from 'lucide-react';
 import Pagination from './Pagination';
 import DatePicker from "react-datepicker";
@@ -15,19 +15,54 @@ import TiersHistory from './TiersHistory';
 import {
   loadAdminCustomers,
   createAdminCustomer,
+  importAdminCustomers,
   updateAdminCustomer,
-  deleteAdminCustomer
+  deleteAdminCustomer,
+  loadAdminTierConfigs
 } from '../lib/adminApi';
 
-export const calculateTierProgress = (cupsStr) => {
+export const calculateTierProgress = (cupsStr, tiers = []) => {
   const cups = parseInt(cupsStr.toString().replace(/,/g, ''), 10) || 0;
-  if (cups < 10) return { tier: 'Kawan', nextTier: 'Dilamun', target: 10, current: cups, percentage: (cups / 10) * 100, remaining: 10 - cups, isBaseTier: true };
-  if (cups < 30) return { tier: 'Dilamun', nextTier: 'Ketagih', target: 30, current: cups, percentage: (cups / 30) * 100, remaining: 30 - cups, isBaseTier: false };
-  if (cups < 50) return { tier: 'Ketagih', nextTier: 'Legend', target: 50, current: cups, percentage: (cups / 50) * 100, remaining: 50 - cups, isBaseTier: false };
-  return { tier: 'Legend', nextTier: 'Max Tier', target: cups, current: cups, percentage: 100, remaining: 0, isBaseTier: false };
+  const activeTiers = Array.isArray(tiers) && tiers.length > 0
+    ? [...tiers].filter((t) => t.isActive).sort((a, b) => a.minCups - b.minCups)
+    : [];
+
+  if (activeTiers.length === 0) {
+    if (cups < 10) return { tier: 'Sipper', nextTier: 'Brewer', target: 10, current: cups, percentage: (cups / 10) * 100, remaining: 10 - cups, isBaseTier: true };
+    if (cups < 30) return { tier: 'Brewer', nextTier: 'Roaster', target: 30, current: cups, percentage: (cups / 30) * 100, remaining: 30 - cups, isBaseTier: false };
+    if (cups < 50) return { tier: 'Roaster', nextTier: 'Legendary', target: 50, current: cups, percentage: (cups / 50) * 100, remaining: 50 - cups, isBaseTier: false };
+    return { tier: 'Legendary', nextTier: 'Max Tier', target: cups, current: cups, percentage: 100, remaining: 0, isBaseTier: false };
+  }
+
+  let currentTier = activeTiers[0];
+  for (const tier of activeTiers) {
+    if (cups >= tier.minCups) {
+      currentTier = tier;
+    } else {
+      break;
+    }
+  }
+
+  const currentIndex = activeTiers.findIndex((t) => t.code === currentTier.code);
+  const nextTier = currentIndex >= 0 ? activeTiers[currentIndex + 1] ?? null : null;
+  const target = nextTier ? nextTier.minCups : currentTier.minCups;
+  const remaining = nextTier ? Math.max(0, nextTier.minCups - cups) : 0;
+  const range = nextTier ? Math.max(1, nextTier.minCups - currentTier.minCups) : 1;
+  const progressInTier = nextTier ? Math.max(0, cups - currentTier.minCups) : range;
+  const percentage = nextTier ? Math.min(100, Math.round((progressInTier / range) * 100)) : 100;
+
+  return {
+    tier: currentTier.name,
+    nextTier: nextTier ? nextTier.name : 'Max Tier',
+    target,
+    current: cups,
+    percentage,
+    remaining,
+    isBaseTier: currentIndex === 0
+  };
 };
 
-export const resolveTierProgress = (customer) => customer?.tierProgress ?? calculateTierProgress(customer?.cupsLast180d ?? customer?.orders);
+export const resolveTierProgress = (customer, tiers = []) => customer?.tierProgress ?? calculateTierProgress(customer?.cupsLast180d ?? customer?.orders, tiers);
 
 const KPICard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-white" }) => (
   <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center space-x-4 min-w-0">
@@ -50,13 +85,23 @@ const KPICard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-w
   </div>
 );
 
-const getTierColor = (tier) => {
-  switch (tier) {
-    case 'Kawan': return 'bg-blue-100 text-blue-600';
-    case 'Dilamun': return 'bg-[#E07A5F]/15 text-[#E07A5F]';
-    case 'Ketagih': return 'bg-purple-100 text-purple-600';
-    case 'Legend': return 'bg-[#D4AF7A]/20 text-[#A8824A]';
-    default: return 'bg-gray-100 text-gray-600';
+const getTierColor = (tier, tierCode) => {
+  const normalized = String(tierCode || tier || '').trim().toLowerCase();
+  switch (normalized) {
+    case 'sipper':
+    case 'kawan':
+      return 'bg-blue-100 text-blue-600';
+    case 'brewer':
+    case 'dilamun':
+      return 'bg-[#E07A5F]/15 text-[#E07A5F]';
+    case 'roaster':
+    case 'ketagih':
+      return 'bg-purple-100 text-purple-600';
+    case 'legendary':
+    case 'legend':
+      return 'bg-[#D4AF7A]/20 text-[#A8824A]';
+    default:
+      return 'bg-emerald-100 text-emerald-700';
   }
 };
 
@@ -120,13 +165,86 @@ const CustomDateInput = forwardRef(({ value, onClick, onClear }, ref) => (
   </div>
 ));
 
+const parseCsvLine = (line) => {
+  const values = [];
+  let value = '';
+  let quoted = false;
+
+  for (let index = 0; index < line.length; index += 1) {
+    const character = line[index];
+    if (character === '"') {
+      if (quoted && line[index + 1] === '"') {
+        value += '"';
+        index += 1;
+      } else {
+        quoted = !quoted;
+      }
+    } else if (character === ',' && !quoted) {
+      values.push(value.trim());
+      value = '';
+    } else {
+      value += character;
+    }
+  }
+  values.push(value.trim());
+  return values;
+};
+
+const normalizeImportHeader = (value) => value.trim().toLowerCase().replace(/[\s_-]+/g, '');
+
+const parseCustomerImportCsv = (content) => {
+  const lines = content.replace(/^\uFEFF/, '').split(/\r?\n/).filter((line) => line.trim());
+  if (lines.length < 2) {
+    throw new Error('The CSV must contain a header row and at least one customer.');
+  }
+
+  const headers = parseCsvLine(lines[0]).map(normalizeImportHeader);
+  const phoneIndex = headers.findIndex((header) => ['phone', 'phonee164', 'mobile', 'mobilenumber'].includes(header));
+  const nameIndex = headers.findIndex((header) => ['name', 'displayname', 'username', 'customername'].includes(header));
+  const emailIndex = headers.findIndex((header) => header === 'email');
+  const employeeIndex = headers.findIndex((header) => ['employee', 'isemployee'].includes(header));
+
+  if (phoneIndex === -1) {
+    throw new Error('The CSV needs a phone column. Use the downloadable template for the required format.');
+  }
+
+  const rows = lines.slice(1).map((line, index) => {
+    const cells = parseCsvLine(line);
+    const phone = String(cells[phoneIndex] || '').replace(/\s+/g, '');
+    const displayName = nameIndex === -1 ? '' : String(cells[nameIndex] || '').trim();
+    const email = emailIndex === -1 ? '' : String(cells[emailIndex] || '').trim();
+    const employeeValue = employeeIndex === -1 ? '' : String(cells[employeeIndex] || '').trim().toLowerCase();
+
+    if (!phone) {
+      throw new Error(`Row ${index + 2} is missing a phone number.`);
+    }
+    if (email && !/^\S+@\S+\.\S+$/.test(email)) {
+      throw new Error(`Row ${index + 2} has an invalid email address.`);
+    }
+
+    return {
+      phone,
+      displayName: displayName || undefined,
+      email,
+      isEmployee: ['yes', 'true', '1', 'employee'].includes(employeeValue)
+    };
+  });
+
+  if (rows.length > 500) {
+    throw new Error('Import up to 500 customers at one time. Split larger files into smaller CSV files.');
+  }
+  return rows;
+};
+
 const Customers = ({ currentUser }) => {
   const canManageCustomers = Array.isArray(currentUser?.roles) && currentUser.roles.includes('super_admin');
   const [customers, setCustomers] = useState([]);
+  const [tiers, setTiers] = useState([]);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTier, setSelectedTier] = useState('All Tiers');
   const [selectedStatus, setSelectedStatus] = useState('All Status');
+  const [selectedEmployment, setSelectedEmployment] = useState('All Customers');
   const [selectedDate, setSelectedDate] = useState(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState(null);
@@ -140,6 +258,13 @@ const Customers = ({ currentUser }) => {
   const [customerConfirmation, setCustomerConfirmation] = useState(null);
   const [confirmationPassword, setConfirmationPassword] = useState('');
   const [isConfirming, setIsConfirming] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importRows, setImportRows] = useState([]);
+  const [importFileName, setImportFileName] = useState('');
+  const [importPassword, setImportPassword] = useState('');
+  const [importError, setImportError] = useState('');
+  const [importResult, setImportResult] = useState(null);
+  const [isImporting, setIsImporting] = useState(false);
   const itemsPerPage = 10;
 
   useEffect(() => {
@@ -157,11 +282,17 @@ const Customers = ({ currentUser }) => {
           setIsLoading(true);
         }
         setLoadError('');
-        const response = await loadAdminCustomers();
+        const [response, tierRes] = await Promise.all([
+          loadAdminCustomers(),
+          loadAdminTierConfigs().catch(() => ({ tiers: [] }))
+        ]);
         if (!isMounted) return;
 
         const nextCustomers = Array.isArray(response?.customers) ? response.customers : [];
         setCustomers(nextCustomers);
+        if (Array.isArray(tierRes?.tiers)) {
+          setTiers(tierRes.tiers);
+        }
 
         if (keepSelection) {
           setSelectedCustomer((prev) => {
@@ -224,9 +355,13 @@ const Customers = ({ currentUser }) => {
   const filteredData = customers.filter(customer => {
     const matchesSearch = customer.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
       customer.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      customer.phone.toLowerCase().includes(searchQuery.toLowerCase()) ||
       String(customer.tokenBalance ?? customer.tokens ?? '').includes(searchQuery);
-    const matchesTier = selectedTier === 'All Tiers' || customer.tier === selectedTier;
+    const matchesTier = selectedTier === 'All Tiers' || customer.tier === selectedTier || customer.tierCode === selectedTier;
     const matchesStatus = selectedStatus === 'All Status' || customer.status === selectedStatus;
+    const matchesEmployment = selectedEmployment === 'All Customers'
+      || (selectedEmployment === 'Employees' && customer.isEmployee)
+      || (selectedEmployment === 'Customers' && !customer.isEmployee);
 
     let matchesDate = true;
     if (selectedDate) {
@@ -234,7 +369,7 @@ const Customers = ({ currentUser }) => {
       matchesDate = customer.lastOrder === formattedDate || customer.joinedAt === formattedDate;
     }
 
-    return matchesSearch && matchesTier && matchesStatus && matchesDate;
+    return matchesSearch && matchesTier && matchesStatus && matchesEmployment && matchesDate;
   });
 
   // Pagination Logic
@@ -256,13 +391,77 @@ const Customers = ({ currentUser }) => {
     exportToCSV(rows, "customers.csv");
   };
 
+  const downloadImportTemplate = () => {
+    exportToCSV([
+      ['name', 'phone', 'email', 'employee'],
+      ['Example Customer', '+60123456789', 'customer@example.com', 'no']
+    ], 'c2-customer-import-template.csv');
+  };
+
+  const resetImport = () => {
+    setIsImportModalOpen(false);
+    setImportRows([]);
+    setImportFileName('');
+    setImportPassword('');
+    setImportError('');
+    setImportResult(null);
+  };
+
+  const handleImportFile = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    setImportError('');
+    setImportResult(null);
+
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      setImportRows([]);
+      setImportFileName('');
+      setImportError('Please choose a CSV file.');
+      return;
+    }
+
+    try {
+      const rows = parseCustomerImportCsv(await file.text());
+      setImportRows(rows);
+      setImportFileName(file.name);
+    } catch (error) {
+      setImportRows([]);
+      setImportFileName('');
+      setImportError(error?.message || 'This CSV could not be read.');
+    }
+  };
+
+  const submitImport = async (event) => {
+    event.preventDefault();
+    if (!importRows.length || !importPassword || isImporting) return;
+
+    setIsImporting(true);
+    setImportError('');
+    try {
+      const result = await importAdminCustomers({
+        customers: importRows,
+        confirmation_password: importPassword
+      });
+      setImportResult(result);
+      setImportPassword('');
+      const response = await loadAdminCustomers();
+      setCustomers(Array.isArray(response?.customers) ? response.customers : []);
+    } catch (error) {
+      setImportError(error?.message || 'The customer import could not be completed.');
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   const handleAddCustomer = (e) => {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
     const payload = {
       phone: String(form.get('phone') || '').trim(),
       displayName: String(form.get('username') || '').trim(),
-      email: String(form.get('email') || '').trim()
+      email: String(form.get('email') || '').trim(),
+      isEmployee: form.get('isEmployee') === 'on'
     };
 
     setCustomerConfirmation({ type: 'create', payload, label: payload.displayName || 'this customer' });
@@ -275,7 +474,8 @@ const Customers = ({ currentUser }) => {
     const payload = {
       phone: String(form.get('phone') || '').trim(),
       displayName: String(form.get('username') || '').trim(),
-      email: String(form.get('email') || '').trim()
+      email: String(form.get('email') || '').trim(),
+      isEmployee: form.get('isEmployee') === 'on'
     };
 
     setCustomerConfirmation({ type: 'edit', payload, customer: editingCustomer, label: editingCustomer.username });
@@ -332,7 +532,9 @@ const Customers = ({ currentUser }) => {
   };
 
   const totalCustomers = customers.length;
-  const activeTierMembers = customers.filter((customer) => !resolveTierProgress(customer).isBaseTier).length;
+  const activeTiers = tiers.filter((t) => t.isActive);
+  const baseTierName = activeTiers[0]?.name || 'Sipper';
+  const activeTierMembers = customers.filter((customer) => !resolveTierProgress(customer, tiers).isBaseTier).length;
   const totalSpendRm = customers.reduce((sum, customer) => sum + Number(customer.totalSpentRm || 0), 0);
   const totalSpendTokens = customers.reduce((sum, customer) => sum + Number(customer.totalSpentTokens || 0), 0);
   const averageSpendRm = totalCustomers > 0 ? totalSpendRm / totalCustomers : 0;
@@ -355,7 +557,7 @@ const Customers = ({ currentUser }) => {
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6 flex-shrink-0">
         <KPICard title="Total Customers" value={totalCustomers.toLocaleString('en-US')} change="Live from admin API" icon={Wallet} iconBg="bg-[#1F3A34]" iconColor="text-white" />
-        <KPICard title="Active Tier Members" value={activeTierMembers.toLocaleString('en-US')} change="Customers above Kawan tier" icon={Users} iconBg="bg-[#6F9F96]" iconColor="text-white" />
+        <KPICard title="Active Tier Members" value={activeTierMembers.toLocaleString('en-US')} change={`Customers above ${baseTierName} tier`} icon={Users} iconBg="bg-[#6F9F96]" iconColor="text-white" />
         <KPICard title="Order Tokens Spent" value={formatTokens(totalSpendTokens)} change={`RM equivalent: ${formatRm(totalSpendRm)}`} icon={Megaphone} iconBg="bg-[#E07A5F]" iconColor="text-white" />
         <KPICard title="Average Order Tokens Spent" value={formatTokens(averageSpendTokens)} change={`RM equivalent: ${formatRm(averageSpendRm)}`} icon={Users} iconBg="bg-[#D9C4A9]" iconColor="text-white" />
       </div>
@@ -385,10 +587,20 @@ const Customers = ({ currentUser }) => {
               className="peer pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer w-full"
             >
               <option value="All Tiers">All Tiers</option>
-              <option value="Kawan">Kawan</option>
-              <option value="Legend">Legend</option>
-              <option value="Dilamun">Dilamun</option>
-              <option value="Ketagih">Ketagih</option>
+              {tiers.length > 0 ? (
+                tiers.map((tier) => (
+                  <option key={tier.id || tier.code} value={tier.name}>
+                    {tier.name}
+                  </option>
+                ))
+              ) : (
+                <>
+                  <option value="Sipper">Sipper</option>
+                  <option value="Brewer">Brewer</option>
+                  <option value="Roaster">Roaster</option>
+                  <option value="Legendary">Legendary</option>
+                </>
+              )}
             </select>
             <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
               <ChevronDown size={16} className={`text-gray-500 transition-transform duration-200 ${tierOpen ? 'rotate-180' : ''}`} />
@@ -412,6 +624,22 @@ const Customers = ({ currentUser }) => {
             </div>
           </div>
 
+          <div className="relative">
+            <select
+              value={selectedEmployment}
+              onChange={(e) => { setSelectedEmployment(e.target.value); setCurrentPage(1); }}
+              className="pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer w-full"
+              aria-label="Filter by employee status"
+            >
+              <option value="All Customers">All Customers</option>
+              <option value="Employees">Employees</option>
+              <option value="Customers">Non-employees</option>
+            </select>
+            <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+              <ChevronDown size={16} className="text-gray-500" />
+            </div>
+          </div>
+
           <div className="relative transition-transform duration-200 peer-focus:-rotate-180">
             <DatePicker portalId="root-portal" popperPlacement="bottom-end"
               selected={selectedDate}
@@ -422,9 +650,21 @@ const Customers = ({ currentUser }) => {
           </div>
 
           {canManageCustomers && (
-            <button onClick={() => setIsAddModalOpen(true)} className="flex items-center px-4 py-2 bg-[#1F3A34] text-white border-transparent text-sm font-bold rounded-lg hover:bg-[#2E5E58] transition-colors shadow-sm cursor-pointer">
-              <Plus size={16} className="mr-2" /> Add Customer
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => {
+                  setImportError('');
+                  setImportResult(null);
+                  setIsImportModalOpen(true);
+                }}
+                className="flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-bold text-gray-700 rounded-lg hover:bg-gray-50 transition-colors shadow-sm cursor-pointer"
+              >
+                <Upload size={16} className="mr-2" /> Import CSV
+              </button>
+              <button onClick={() => setIsAddModalOpen(true)} className="flex items-center px-4 py-2 bg-[#1F3A34] text-white border-transparent text-sm font-bold rounded-lg hover:bg-[#2E5E58] transition-colors shadow-sm cursor-pointer">
+                <Plus size={16} className="mr-2" /> Add Customer
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -456,10 +696,24 @@ const Customers = ({ currentUser }) => {
                     </td>
                   </tr>
                 ) : paginatedData.length > 0 ? paginatedData.map((customer) => (
-                  <tr key={customer.id} className="hover:bg-gray-50 transition-colors">
+                  <tr
+                    key={customer.id}
+                    className={`cursor-pointer transition-colors hover:bg-gray-50 ${selectedCustomer?.id === customer.id ? 'bg-gray-50' : ''}`}
+                    onClick={() => {
+                      setSelectedCustomer(customer);
+                      setMenuOpenId(null);
+                    }}
+                  >
                     <td className="px-6 py-3.5 whitespace-nowrap">
                       <div>
-                        <div className="text-sm font-bold text-gray-900">{customer.username}</div>
+                        <div className="flex items-center gap-2">
+                          <div className="text-sm font-bold text-gray-900">{customer.username}</div>
+                          {customer.isEmployee && (
+                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800">
+                              Employee
+                            </span>
+                          )}
+                        </div>
                         <div className="text-xs text-gray-500">{customer.email}</div>
                       </div>
                     </td>
@@ -484,15 +738,8 @@ const Customers = ({ currentUser }) => {
                     </td>
                     <td className="px-6 py-3 whitespace-nowrap text-sm font-medium">
                       <div className="relative inline-block text-left">
-                        <div className="bg-[#1E293B] hover:bg-[#0F172A] text-white px-2.5 py-1.5 rounded-lg inline-flex items-center gap-2 shadow-sm transition-colors">
+                        {canManageCustomers && <div className="bg-[#1E293B] hover:bg-[#0F172A] text-white px-2.5 py-1.5 rounded-lg inline-flex items-center shadow-sm transition-colors">
                           <button
-                            className="text-white/90 hover:text-white cursor-pointer transition-colors"
-                            onClick={() => setSelectedCustomer(selectedCustomer?.id === customer.id ? null : customer)}
-                            title="View Details"
-                          >
-                            <Eye size={15} />
-                          </button>
-                          {canManageCustomers && <button
                             onClick={(e) => {
                               e.stopPropagation();
                               setMenuOpenId(menuOpenId === customer.id ? null : customer.id);
@@ -501,8 +748,8 @@ const Customers = ({ currentUser }) => {
                             title="More Options"
                           >
                             <MoreVertical size={15} />
-                          </button>}
-                        </div>
+                          </button>
+                        </div>}
 
                         {canManageCustomers && menuOpenId === customer.id && (
                           <div className="absolute right-0 top-full mt-1.5 w-32 bg-white rounded-xl shadow-lg border border-gray-200 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
@@ -515,7 +762,7 @@ const Customers = ({ currentUser }) => {
                               className="w-full px-3 py-2 text-left text-xs font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2 cursor-pointer transition-colors"
                             >
                               <Pencil size={13} className="text-gray-500" />
-                              Edit
+                              {customer.isEmployee ? 'Edit employee' : 'Set employee'}
                             </button>
                             <button
                               onClick={(e) => {
@@ -574,6 +821,9 @@ const Customers = ({ currentUser }) => {
                 <div className="flex items-center space-x-2">
                   <h3 className="text-lg font-bold text-gray-900">{selectedCustomer.username}</h3>
                   <span className={`px-2 py-0.5 text-[10px] font-bold rounded ${getTierColor(selectedCustomer.tier)}`}>{selectedCustomer.tier}</span>
+                  {selectedCustomer.isEmployee && (
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800">Employee</span>
+                  )}
                 </div>
                 <p className="text-sm text-gray-500">{selectedCustomer.email}</p>
                 <p className="text-sm text-gray-500">{selectedCustomer.phone}</p>
@@ -646,6 +896,90 @@ const Customers = ({ currentUser }) => {
         )}
       </div>
 
+      {isImportModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <form onSubmit={submitImport} className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Import Customers</h2>
+                <p className="mt-1 text-sm text-gray-500">Import up to 500 existing POS customers from a CSV file.</p>
+              </div>
+              <button type="button" onClick={resetImport} className="text-gray-400 hover:text-gray-900" aria-label="Close customer import">
+                <X size={20} />
+              </button>
+            </div>
+
+            {!importResult ? (
+              <>
+                <div className="mt-5 rounded-xl border border-[#B7CFCA] bg-[#F3F7F6] p-4 text-sm text-gray-700">
+                  <p className="font-bold text-gray-900">Use the import template</p>
+                  <p className="mt-1">Required: <span className="font-medium">phone</span> in international format, for example <span className="font-medium">+60123456789</span>. Optional: name, email, employee.</p>
+                  <button type="button" onClick={downloadImportTemplate} className="mt-3 inline-flex items-center gap-2 text-sm font-bold text-[#1F3A34] hover:text-[#2E5E58]">
+                    <Download size={15} /> Download CSV template
+                  </button>
+                </div>
+
+                <label className="mt-5 flex cursor-pointer items-center justify-center rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 px-6 py-8 text-center hover:border-[#2E5E58] hover:bg-[#F3F7F6]">
+                  <input type="file" accept=".csv,text/csv" className="sr-only" onChange={handleImportFile} />
+                  <span>
+                    <Upload size={22} className="mx-auto text-[#2E5E58]" />
+                    <span className="mt-2 block text-sm font-bold text-gray-900">Choose customer CSV</span>
+                    <span className="mt-1 block text-xs text-gray-500">Do not upload passwords, card data, or token balances.</span>
+                  </span>
+                </label>
+
+                {importFileName && (
+                  <div className="mt-4 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm">
+                    <span className="font-bold text-gray-900">{importFileName}</span>
+                    <span className="ml-2 text-gray-500">{importRows.length} customer{importRows.length === 1 ? '' : 's'} ready to import</span>
+                  </div>
+                )}
+                {importRows.length > 0 && (
+                  <div className="mt-4 overflow-hidden rounded-lg border border-gray-200">
+                    <div className="grid grid-cols-3 bg-gray-50 px-4 py-2 text-xs font-bold text-gray-500">
+                      <span>Name</span><span>Phone</span><span>Employee</span>
+                    </div>
+                    {importRows.slice(0, 5).map((customer) => (
+                      <div key={customer.phone} className="grid grid-cols-3 border-t border-gray-100 px-4 py-2 text-sm text-gray-700">
+                        <span>{customer.displayName || 'C2 Member'}</span><span>{customer.phone}</span><span>{customer.isEmployee ? 'Yes' : 'No'}</span>
+                      </div>
+                    ))}
+                    {importRows.length > 5 && <p className="border-t border-gray-100 px-4 py-2 text-xs text-gray-500">Plus {importRows.length - 5} more customers.</p>}
+                  </div>
+                )}
+                {importError && <p className="mt-4 rounded-lg border border-red-100 bg-red-50 p-3 text-sm text-red-600">{importError}</p>}
+
+                <label className="mt-5 block text-sm font-medium text-gray-700">
+                  Confirm with your current password
+                  <input
+                    type="password"
+                    autoComplete="current-password"
+                    value={importPassword}
+                    onChange={(event) => setImportPassword(event.target.value)}
+                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-[#2E5E58] focus:ring-[#2E5E58]"
+                  />
+                </label>
+                <div className="mt-6 flex justify-end gap-3">
+                  <button type="button" onClick={resetImport} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
+                  <button type="submit" disabled={!importRows.length || !importPassword || isImporting} className="rounded-lg bg-[#1F3A34] px-4 py-2 text-sm font-medium text-white hover:bg-[#2E5E58] disabled:cursor-not-allowed disabled:opacity-50">
+                    {isImporting ? 'Importing...' : `Import ${importRows.length || ''} customer${importRows.length === 1 ? '' : 's'}`}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="mt-6">
+                <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-800">
+                  <p className="font-bold">Customer import completed</p>
+                  <p className="mt-1">Created: {importResult.created || 0}. Linked existing account: {importResult.linked_existing || 0}. Already in this outlet: {importResult.skipped_existing || 0}.</p>
+                </div>
+                <p className="mt-4 text-sm text-gray-500">New customers can sign in to the mobile app using their imported phone number.</p>
+                <div className="mt-6 flex justify-end"><button type="button" onClick={resetImport} className="rounded-lg bg-[#1F3A34] px-4 py-2 text-sm font-medium text-white hover:bg-[#2E5E58]">Done</button></div>
+              </div>
+            )}
+          </form>
+        </div>
+      )}
+
       {/* Add/Edit Customer Modal */}
       {(isAddModalOpen || editingCustomer) && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -692,6 +1026,18 @@ const Customers = ({ currentUser }) => {
                   placeholder="+60 11-00000000"
                 />
               </div>
+              <label className="flex items-start gap-3 rounded-lg border border-[#B7CFCA] bg-[#F3F7F6] p-3 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  name="isEmployee"
+                  defaultChecked={Boolean(editingCustomer?.isEmployee)}
+                  className="mt-0.5 rounded text-[#2E5E58] focus:ring-[#2E5E58]"
+                />
+                <span>
+                  <span className="block font-semibold text-gray-900">Employee account</span>
+                  <span className="block text-xs text-gray-500">Eligible for employee-only vouchers, including the automatic daily free drink.</span>
+                </span>
+              </label>
 
               <div className="pt-4 flex justify-end space-x-3">
                 <button

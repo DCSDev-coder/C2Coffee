@@ -11,7 +11,6 @@ import {
   Copy,
   Archive,
   X,
-  Eye
 } from 'lucide-react';
 import Pagination from './Pagination';
 import { exportToCSV } from '../utils/exportToCSV';
@@ -30,6 +29,7 @@ import {
   updateAdminMenuItem,
   loadAdminOptionLibrary,
   updateAdminOptionGroup,
+  updateAdminMenuItemOptionExclusions,
   loadAdminHomeFeatured,
   saveAdminHomeFeatured
 } from '../lib/adminApi';
@@ -267,7 +267,8 @@ const buildEmptyForm = (categoryCode) => ({
   is_handcrafted_drink: false,
   is_qualifying_cup: false,
   allow_remarks: false,
-  option_group_ids: []
+  option_group_ids: [],
+  excluded_option_ids: []
 });
 
 const buildFormFromItem = (item, optionGroups = []) => ({
@@ -287,19 +288,26 @@ const buildFormFromItem = (item, optionGroups = []) => ({
   allow_remarks: Boolean(item.allow_remarks),
   option_group_ids: optionGroups
     .filter((group) => group.applies_to === 'selected_items' && group.menu_item_ids.includes(item.id))
-    .map((group) => group.id)
+    .map((group) => group.id),
+  excluded_option_ids: optionGroups.flatMap((group) =>
+    (group.options || [])
+      .filter((option) => option.excluded_menu_item_ids?.includes(item.id))
+      .map((option) => option.id)
+  )
 });
 
 const flattenMenuData = (categories) =>
-  categories.flatMap((category) =>
-    (category.items || []).map((item) => ({
-      ...item,
-      category_code: category.code,
-      category_name: category.name,
-      category_sort_order: category.sort_order,
-      category_is_active: category.is_active
-    }))
-  );
+  categories
+    .flatMap((category) =>
+      (category.items || []).map((item) => ({
+        ...item,
+        category_code: category.code,
+        category_name: category.name,
+        category_sort_order: category.sort_order,
+        category_is_active: category.is_active
+      }))
+    )
+    .sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }));
 
 const Menu = ({ onNavigate }) => {
   const [menuCategories, setMenuCategories] = useState([]);
@@ -467,20 +475,6 @@ const Menu = ({ onNavigate }) => {
   const selectedCategoryRecord = menuCategories.find((category) => category.code === editFormData.category_code) || null;
   const selectedProductKind = selectedCategoryRecord?.product_kind_code || 'drink';
   const showDrinkControls = selectedProductKind === 'drink';
-  const activeSubcategoryOptions = menuSubcategories.filter(
-    (subcategory) => subcategory.category_code === editFormData.category_code && subcategory.is_active
-  );
-  const selectedSubcategoryRecord = menuSubcategories.find(
-    (subcategory) => subcategory.code === editFormData.subcategory_code
-  ) || null;
-  const subcategoryOptions = selectedSubcategoryRecord && !selectedSubcategoryRecord.is_active
-    ? [
-      ...activeSubcategoryOptions,
-      selectedSubcategoryRecord
-    ].filter((subcategory, index, list) =>
-      list.findIndex((entry) => entry.code === subcategory.code) === index
-    )
-    : activeSubcategoryOptions;
 
   const filteredMenuItems = allMenuItems.filter((item) => {
     const search = searchQuery.trim().toLowerCase();
@@ -673,6 +667,12 @@ const Menu = ({ onNavigate }) => {
       }
 
       await syncOptionGroupAssignments(response.item?.id ?? editFormData.id, editFormData.option_group_ids);
+      if (showDrinkControls) {
+        await updateAdminMenuItemOptionExclusions(
+          response.item?.id ?? editFormData.id,
+          editFormData.excluded_option_ids
+        );
+      }
 
       closeEditModal();
       await refreshAndSelect(response.item?.id ?? editFormData.id);
@@ -741,19 +741,6 @@ const Menu = ({ onNavigate }) => {
     setIsEditModalOpen(false);
     setSelectedImageFile(null);
     setSelectedImagePreview('');
-  };
-
-  const openSubcategoryModal = (categoryCode = '') => {
-    const fallbackCategory = categoryCode || menuCategories[0]?.code || '';
-    setSubcategoryForm({
-      id: null,
-      category_code: fallbackCategory,
-      code: '',
-      name: '',
-      sort_order: nextSortOrder(menuSubcategories),
-      is_active: true
-    });
-    setIsSubcategoryModalOpen(true);
   };
 
   const handleSaveCategory = async (event) => {
@@ -880,16 +867,11 @@ const Menu = ({ onNavigate }) => {
     setSelectedMenuTemplate(templateKey);
 
     const nextCategoryCode = findMatchingCode(menuCategories, template.categoryHints, (item) => `${item.code} ${item.name}`) || editFormData.category_code;
-    const nextSubcategoryCode = findMatchingCode(
-      menuSubcategories.filter((subcategory) => subcategory.category_code === nextCategoryCode && subcategory.is_active),
-      template.subcategoryHints,
-      (item) => `${item.code} ${item.name}`
-    );
-
     setEditFormData((current) => ({
       ...current,
       category_code: nextCategoryCode || current.category_code,
-      subcategory_code: nextSubcategoryCode || '',
+      // Categories are the only grouping staff choose for new items.
+      subcategory_code: '',
       is_handcrafted_drink: Boolean(template.defaults.is_handcrafted_drink),
       is_qualifying_cup: Boolean(template.defaults.is_qualifying_cup),
       allow_remarks: Boolean(template.defaults.allow_remarks)
@@ -1003,7 +985,6 @@ const Menu = ({ onNavigate }) => {
                   <th className="px-6 py-4 whitespace-nowrap">Token Price</th>
                   <th className="px-6 py-4 whitespace-nowrap">Status</th>
                   <th className="px-6 py-4 whitespace-nowrap">Sales</th>
-                  <th className="px-6 py-4 text-center whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -1054,17 +1035,6 @@ const Menu = ({ onNavigate }) => {
                         </span>
                       </td>
                       <td className="px-6 py-3 text-gray-600">{(item.sales_count || 0).toLocaleString()}</td>
-                      <td className="px-6 py-3 text-center">
-                        <button
-                          className="p-1.5 bg-[#1F3A34] text-white rounded hover:bg-[#2E5E58] transition-colors"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            openSelectedItem(item.id);
-                          }}
-                        >
-                          <Eye size={14} />
-                        </button>
-                      </td>
                     </tr>
                   ))
                 )}
@@ -1151,15 +1121,11 @@ const Menu = ({ onNavigate }) => {
                   <>
                     <div className="space-y-3">
                       <div className="grid grid-cols-2 gap-3">
-                        <p className="text-gray-500 font-medium">Main Type</p>
+                        <p className="text-gray-500 font-medium">Menu Category</p>
                         <p className="text-gray-900 font-medium">{selectedItem.category_name}</p>
                       </div>
                       <div className="grid grid-cols-2 gap-3">
-                        <p className="text-gray-500 font-medium">Family</p>
-                        <p className="text-gray-900 font-medium">{selectedItem.subcategory_name || 'General'}</p>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <p className="text-gray-500 font-medium">Main Group</p>
+                        <p className="text-gray-500 font-medium">Menu Type</p>
                         <p className="text-gray-900 font-medium">{selectedItem.product_kind_name || 'Other'}</p>
                       </div>
                       <div className="grid grid-cols-2 gap-3">
@@ -1384,21 +1350,18 @@ const Menu = ({ onNavigate }) => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Main Type</label>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Menu Category</label>
                   <div className="flex gap-2">
                     <select
                       value={editFormData.category_code}
                       onChange={(event) => {
                         const nextCategoryCode = event.target.value;
                         const nextCategory = menuCategories.find((category) => category.code === nextCategoryCode);
-                        const nextSubcategories = menuSubcategories.filter(
-                          (subcategory) => subcategory.category_code === nextCategoryCode && subcategory.is_active
-                        );
                         const nextTemplateKey = getTemplateKeyForCategory(nextCategory);
                         setEditFormData({
                           ...editFormData,
                           category_code: nextCategoryCode,
-                          subcategory_code: nextSubcategories[0]?.code || '',
+                          subcategory_code: '',
                           option_group_ids: nextCategory?.product_kind_code === 'drink'
                             ? editFormData.option_group_ids
                             : [],
@@ -1427,39 +1390,11 @@ const Menu = ({ onNavigate }) => {
                       }}
                       className="shrink-0 inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50"
                     >
-                      <Plus size={14} /> New Main Type
+                      <Plus size={14} /> New Menu Category
                     </button>
                   </div>
                   <p className="mt-1 text-[11px] text-gray-500">
-                    Pick the main bucket first, such as drinks, food, merchandise, or candles.
-                  </p>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Family / Sub Type</label>
-                  <div className="flex gap-2">
-                    <select
-                      value={editFormData.subcategory_code}
-                      onChange={(event) => setEditFormData({ ...editFormData, subcategory_code: event.target.value })}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34]"
-                    >
-                      <option value="">General</option>
-                      {subcategoryOptions.map((subcategory) => (
-                        <option key={subcategory.id} value={subcategory.code}>
-                          {subcategory.name}{subcategory.is_active ? '' : ' (Archived)'}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      onClick={() => openSubcategoryModal(editFormData.category_code)}
-                      className="shrink-0 inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50"
-                    >
-                      <Plus size={14} /> New Family
-                    </button>
-                  </div>
-                  <p className="mt-1 text-[11px] text-gray-500">
-                    Use this for the specific family, such as Coffee, Matcha, Barista Craft, Pastries, or Merchandise types.
+                    Choose the customer-facing category, such as Coffee, Matcha, Chocolate, Pastries, or Merchandise. Its menu type controls whether it is a drink, food, or retail item.
                   </p>
                 </div>
 
@@ -1504,10 +1439,10 @@ const Menu = ({ onNavigate }) => {
 
                 <div className="md:col-span-2 space-y-3">
                   <label className="block text-xs font-medium text-gray-500 mb-1">Product Photo</label>
-                  <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-4">
+                  <div className="rounded-2xl border border-dashed border-[#BFD3CE] bg-[#F8FBFA] p-4">
                     <div className="flex flex-col gap-4 md:flex-row md:items-start">
-                      <div className="w-full md:w-36 shrink-0">
-                        <div className="aspect-square rounded-xl border border-gray-200 bg-white overflow-hidden flex items-center justify-center">
+                      <div className="w-full md:w-44 shrink-0">
+                        <div className="aspect-square rounded-xl border border-[#D7E4E0] bg-white overflow-hidden flex items-center justify-center shadow-sm">
                           <img
                             src={selectedImagePreview || resolveMenuImageUrl(editFormData.image_url)}
                             alt={editFormData.name || 'Menu item preview'}
@@ -1515,16 +1450,22 @@ const Menu = ({ onNavigate }) => {
                           />
                         </div>
                       </div>
-                      <div className="flex-1 space-y-3">
+                      <div className="flex-1 pt-1">
                         <div>
-                          <input
-                            type="file"
-                            accept="image/png,image/jpeg,image/webp"
-                            onChange={handleImageFileChange}
-                            className="block w-full text-sm text-gray-600 file:mr-4 file:rounded-lg file:border-0 file:bg-[#1F3A34] file:px-4 file:py-2 file:text-sm file:font-bold file:text-white hover:file:bg-[#2E5E58]"
-                          />
-                          <p className="mt-2 text-xs text-gray-500">
-                            Upload a photo and we will store it under the public menu assets so the mobile app can display it automatically.
+                          <label className="inline-flex cursor-pointer items-center rounded-lg bg-[#1F3A34] px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#2E5E58]">
+                            {selectedImageFile || editFormData.image_url ? 'Replace image' : 'Choose image'}
+                            <input
+                              type="file"
+                              accept="image/png,image/jpeg,image/webp"
+                              onChange={handleImageFileChange}
+                              className="sr-only"
+                            />
+                          </label>
+                          <p className="mt-3 text-xs font-semibold text-gray-700">
+                            Recommended: 1200 × 1200 px (square)
+                          </p>
+                          <p className="mt-1 text-xs leading-relaxed text-gray-500">
+                            PNG, JPEG, or WebP, up to 8 MB. The image is cropped to a square and optimized so the mobile menu displays it consistently.
                           </p>
                         </div>
                         {(selectedImageFile || editFormData.image_url) && (
@@ -1606,14 +1547,56 @@ const Menu = ({ onNavigate }) => {
                           </div>
                           <button type="button" onClick={() => onNavigate?.('Options & Nutrition')} className="shrink-0 rounded-lg border border-[#1F3A34] px-3 py-2 text-xs font-bold text-[#1F3A34] hover:bg-white">Manage groups</button>
                         </div>
-                        <div className="mt-3 space-y-2">
-                          {optionGroups.filter((group) => group.applies_to === 'all_drinks').map((group) => (
-                            <div key={group.id} className="rounded-lg bg-white px-3 py-2 text-sm text-gray-700"><span className="font-semibold">{group.name}</span><span className="ml-2 text-xs text-gray-500">Applied to all drinks</span></div>
+                        <div className="mt-3 space-y-3">
+                          {optionGroups.filter((group) => group.applies_to === 'all_drinks' || editFormData.option_group_ids.includes(group.id)).map((group) => (
+                            <div key={group.id} className="rounded-lg bg-white px-3 py-3 text-sm text-gray-700">
+                              <div className="flex items-center justify-between gap-3">
+                                <span className="font-semibold">{group.name}</span>
+                                {group.applies_to === 'all_drinks' ? (
+                                  <span className="text-xs text-gray-500">Applied to all drinks</span>
+                                ) : (
+                                  <label className="flex cursor-pointer items-center gap-1.5 text-xs text-gray-600">
+                                    <input
+                                      type="checkbox"
+                                      checked
+                                      onChange={(event) => {
+                                        if (event.target.checked) return;
+                                        setEditFormData((current) => ({
+                                          ...current,
+                                          option_group_ids: current.option_group_ids.filter((id) => id !== group.id),
+                                          excluded_option_ids: current.excluded_option_ids.filter((id) => !(group.options || []).some((option) => option.id === id))
+                                        }));
+                                      }}
+                                    />
+                                    Applied to this drink
+                                  </label>
+                                )}
+                              </div>
+                              <p className="mt-1 text-[11px] text-gray-500">Untick choices this drink cannot offer. Keep at least one choice available.</p>
+                              <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                {(group.options || []).filter((option) => option.is_active).map((option) => (
+                                  <label key={option.id} className="flex cursor-pointer items-center gap-2 rounded-md border border-gray-100 px-2.5 py-2 text-xs hover:border-[#A9C9C0]">
+                                    <input
+                                      type="checkbox"
+                                      checked={!editFormData.excluded_option_ids.includes(option.id)}
+                                      onChange={(event) => setEditFormData((current) => ({
+                                        ...current,
+                                        excluded_option_ids: event.target.checked
+                                          ? current.excluded_option_ids.filter((id) => id !== option.id)
+                                          : [...current.excluded_option_ids, option.id]
+                                      }))}
+                                    />
+                                    <span>{option.name}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
                           ))}
-                          {optionGroups.filter((group) => group.applies_to === 'selected_items').map((group) => (
+                          {optionGroups.filter((group) => group.applies_to === 'selected_items' && !editFormData.option_group_ids.includes(group.id)).map((group) => (
                             <label key={group.id} className="flex cursor-pointer items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm text-gray-700">
-                              <input type="checkbox" checked={editFormData.option_group_ids.includes(group.id)} onChange={(event) => setEditFormData({ ...editFormData, option_group_ids: event.target.checked ? [...editFormData.option_group_ids, group.id] : editFormData.option_group_ids.filter((id) => id !== group.id) })} />
+                              <input type="checkbox" checked={false} onChange={(event) => setEditFormData((current) => ({ ...current, option_group_ids: event.target.checked ? [...current.option_group_ids, group.id] : current.option_group_ids.filter((id) => id !== group.id) }))} />
                               <span className="font-semibold">{group.name}</span>
+                              <span className="text-xs text-gray-500">Add this choice group</span>
                             </label>
                           ))}
                           {optionGroups.length === 0 && <p className="rounded-lg bg-white px-3 py-2 text-sm text-gray-600">No choice groups have been created yet. Create one in Options &amp; Nutrition before assigning it to this drink.</p>}
@@ -1774,7 +1757,7 @@ const Menu = ({ onNavigate }) => {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
-              <h2 className="text-lg font-bold text-gray-900">Manage Main Categories</h2>
+              <h2 className="text-lg font-bold text-gray-900">Manage Menu Categories</h2>
               <button onClick={() => setIsCategoryModalOpen(false)} className="text-gray-400 hover:text-gray-600">
                 <X size={20} />
               </button>
@@ -1808,7 +1791,7 @@ const Menu = ({ onNavigate }) => {
 
               <form onSubmit={handleSaveCategory} className="p-6 space-y-4 overflow-y-auto max-h-[70vh]">
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Type Group</label>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Menu Type</label>
                   <select
                     value={categoryForm.product_kind_code}
                     onChange={(event) => setCategoryForm({ ...categoryForm, product_kind_code: event.target.value })}
@@ -1824,7 +1807,7 @@ const Menu = ({ onNavigate }) => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Type Name</label>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Menu Category Name</label>
                   <input
                     type="text"
                     value={categoryForm.name}
@@ -1866,7 +1849,7 @@ const Menu = ({ onNavigate }) => {
                         disabled={isSubmitting}
                         className="px-4 py-2 text-sm font-bold text-red-600 hover:bg-red-50 rounded-lg border border-red-200 disabled:opacity-60"
                       >
-                        {isSubmitting ? 'Deleting...' : 'Delete Main Type'}
+                        {isSubmitting ? 'Deleting...' : 'Delete Category'}
                       </button>
                     )}
                   </div>
@@ -1882,7 +1865,7 @@ const Menu = ({ onNavigate }) => {
                     disabled={isSubmitting}
                     className="px-4 py-2 text-sm font-bold text-white bg-[#1F3A34] hover:bg-[#2E5E58] rounded-lg disabled:opacity-60"
                   >
-                    {isSubmitting ? 'Saving...' : categoryForm.id ? 'Save Main Category' : 'Create Main Category'}
+                  {isSubmitting ? 'Saving...' : categoryForm.id ? 'Save Category' : 'Create Category'}
                   </button>
                 </div>
               </form>

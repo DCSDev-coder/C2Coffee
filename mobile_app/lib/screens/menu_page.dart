@@ -1,9 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../services/app_session_service.dart';
 import '../services/catalog_presentation.dart';
 import '../services/cart_service.dart';
+import '../services/catalog_api_service.dart';
 import '../utils/app_colors.dart';
+import '../services/customer_data_service.dart';
+import '../services/secure_session_service.dart';
 import '../widgets/catalog_product_image.dart';
 import '../widgets/custom_bottom_nav.dart';
 import '../widgets/app_page_shell.dart';
@@ -33,11 +38,15 @@ class _MenuPageState extends State<MenuPage> {
   final ScrollController _sidebarScrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
   final Map<int, GlobalKey> _sectionKeys = {};
+  final PageController _voucherBannerController = PageController();
 
   bool _isSearching = false;
   bool _showTokenPrice = false;
   bool _isAutoScrolling = false;
   int _selectedCategoryIndex = 0;
+  int _voucherBannerIndex = 0;
+  Timer? _voucherBannerTimer;
+  List<RewardVoucher> _voucherBanners = const [];
 
   @override
   void initState() {
@@ -45,10 +54,13 @@ class _MenuPageState extends State<MenuPage> {
     _selectedCategoryIndex = widget.initialCategoryIndex;
     _scrollController.addListener(_onScroll);
     _searchController.addListener(() => setState(() {}));
+    _session.addListener(_onSessionChanged);
     Future.microtask(() async {
       try {
         await _session.loadAuthenticatedState();
       } catch (_) {}
+      if (!mounted) return;
+      await _loadVoucherBanners();
       if (!mounted) return;
       await _precacheMenuImages();
       if (!mounted) return;
@@ -61,14 +73,57 @@ class _MenuPageState extends State<MenuPage> {
     });
   }
 
+  void _onSessionChanged() {
+    if (!mounted) return;
+    setState(() {});
+  }
+
   @override
   void dispose() {
+    _session.removeListener(_onSessionChanged);
     _scrollController
       ..removeListener(_onScroll)
       ..dispose();
     _sidebarScrollController.dispose();
     _searchController.dispose();
+    _voucherBannerTimer?.cancel();
+    _voucherBannerController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadVoucherBanners() async {
+    try {
+      final accessToken =
+          await SecureSessionService.instance.getValidAccessToken();
+      if (accessToken == null || accessToken.isEmpty) return;
+      final vouchers = await CustomerDataService.instance.getRewardVouchers(
+        accessToken: accessToken,
+      );
+      if (!mounted) return;
+      setState(() {
+        _voucherBanners = vouchers
+            .where((voucher) =>
+                voucher.template.imageUrl?.trim().isNotEmpty ?? false)
+            .toList();
+      });
+      _startVoucherBannerTimer();
+    } catch (_) {
+      // Menu loading must not be blocked if rewards cannot be loaded.
+    }
+  }
+
+  void _startVoucherBannerTimer() {
+    _voucherBannerTimer?.cancel();
+    if (_voucherBanners.length < 2) return;
+    _voucherBannerTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (!mounted || !_voucherBannerController.hasClients) return;
+      final nextIndex = (_voucherBannerIndex + 1) % _voucherBanners.length;
+      _voucherBannerController.animateToPage(
+        nextIndex,
+        duration: const Duration(milliseconds: 360),
+        curve: Curves.easeInOut,
+      );
+    });
   }
 
   List<_MenuSection> get _uiSections {
@@ -235,12 +290,12 @@ class _MenuPageState extends State<MenuPage> {
 
   @override
   Widget build(BuildContext context) {
-    final sections = _uiSections;
-    _ensureSectionKeys(sections.length);
-
     return AnimatedBuilder(
       animation: Listenable.merge([_session, _cart]),
       builder: (context, _) {
+        final sections = _uiSections;
+        _ensureSectionKeys(sections.length);
+
         return AppPageShell(
           title: 'MENU',
           onBack: () {},
@@ -344,32 +399,41 @@ class _MenuPageState extends State<MenuPage> {
                     setState(() => _showTokenPrice = !_showTokenPrice);
                   },
                   child: Container(
-                    width: 50,
-                    height: 50,
+                    width: 56,
+                    height: 56,
                     decoration: BoxDecoration(
                       color: _showTokenPrice
                           ? const Color(0xFFE5A93C)
                           : const Color(0xFFFAF7F2),
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: _showTokenPrice
-                            ? const Color(0xFFE5A93C)
-                            : AppColors.border,
-                        width: 1,
-                      ),
+                          color: _showTokenPrice
+                              ? const Color(0xFFE5A93C)
+                              : AppColors.border,
+                          width: 1.5),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.14),
+                          color: Colors.black.withValues(alpha: 0.16),
                           blurRadius: 10,
                           offset: const Offset(0, 3),
                         ),
                       ],
                     ),
-                    child: Icon(
-                      Icons.swap_horiz_rounded,
-                      color:
-                          _showTokenPrice ? Colors.white : AppColors.deepTeal,
-                      size: 26,
+                    child: Center(
+                      child: Text(
+                        'Press\nMe',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.2,
+                          color: _showTokenPrice
+                              ? Colors.white
+                              : AppColors.deepTeal,
+                          height: 1.05,
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -393,6 +457,59 @@ class _MenuPageState extends State<MenuPage> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildVoucherBanner() {
+    return AspectRatio(
+      // Voucher artwork uses the same 2:1 ratio enforced by Admin uploads.
+      aspectRatio: 2 / 1,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: ColoredBox(
+          color: AppColors.surfaceLight,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              PageView.builder(
+                controller: _voucherBannerController,
+                itemCount: _voucherBanners.length,
+                onPageChanged: (index) =>
+                    setState(() => _voucherBannerIndex = index),
+                itemBuilder: (context, index) => CatalogProductImage(
+                  imageUrl: resolveCatalogImageSource(
+                      _voucherBanners[index].template.imageUrl),
+                  fit: BoxFit.cover,
+                ),
+              ),
+              if (_voucherBanners.length > 1)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 8,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(
+                      _voucherBanners.length,
+                      (index) => AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        width: index == _voucherBannerIndex ? 16 : 6,
+                        height: 6,
+                        margin: const EdgeInsets.symmetric(horizontal: 3),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(
+                            alpha: index == _voucherBannerIndex ? 0.96 : 0.52,
+                          ),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -597,6 +714,10 @@ class _MenuPageState extends State<MenuPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                if (_voucherBanners.isNotEmpty) ...[
+                  _buildVoucherBanner(),
+                  const SizedBox(height: 16),
+                ],
                 for (var index = 0; index < sections.length; index++)
                   _buildSection(sections[index], index),
               ],

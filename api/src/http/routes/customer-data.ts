@@ -61,6 +61,7 @@ type VoucherRow = RowDataPacket & {
   revoked_reason: string | null;
   template_code: string;
   template_name: string;
+  template_image_url: string | null;
   voucher_type:
     | 'welcome'
     | 'tier_reward'
@@ -214,8 +215,9 @@ function normalizeTierLabel(value: unknown): string | null {
   return null;
 }
 
-function isAutoVisibleAudience(scope: Record<string, unknown>): boolean {
-  return String(scope['audience'] ?? '').trim() === 'all_customers';
+function isAutoVisibleAudience(scope: Record<string, unknown>, isEmployee: boolean): boolean {
+  const audience = String(scope['audience'] ?? '').trim();
+  return audience === 'all_customers' || (audience === 'employee_only' && isEmployee);
 }
 
 function resolveAutoIssuedVoucherExpiry(
@@ -285,6 +287,8 @@ function recurringIssueCaseRef(
       return `annual:${currentDate.monthDay}:${currentDate.year}`;
     case 'monthly':
       return `monthly:${currentDate.year}-${currentDate.month}`;
+    case 'daily':
+      return `daily:${currentDate.dateKey}`;
     default:
       return null;
   }
@@ -322,20 +326,25 @@ async function syncAutoVisibleVoucherTemplates(
   const currentTier = tierRows[0]?.tier_code ?? 'kawan';
   const currentDateParts = getKualaLumpurDateParts();
 
-  const [templates] = await mysqlPool.query<Array<AutoSyncVoucherTemplateRow>>(
+  const [templates] = await mysqlPool.query<Array<AutoSyncVoucherTemplateRow & { is_employee: number }>>(
     `
       SELECT
-        id,
-        code,
-        name,
-        is_referral_reward,
-        expires_in_days,
-        valid_until,
-        eligible_scope_json
-      FROM voucher_templates
-      WHERE is_active = 1
-      ORDER BY created_at DESC, id DESC
-    `
+        vt.id,
+        vt.code,
+        vt.name,
+        vt.is_referral_reward,
+        vt.expires_in_days,
+        vt.valid_until,
+        vt.eligible_scope_json,
+        ctm.is_employee
+      FROM voucher_templates vt
+      JOIN customer_tenant_memberships ctm
+        ON ctm.tenant_id = vt.tenant_id AND ctm.user_id = :userId
+      WHERE vt.is_active = 1
+        AND (vt.valid_until IS NULL OR vt.valid_until > UTC_TIMESTAMP())
+      ORDER BY vt.created_at DESC, vt.id DESC
+    `,
+    { userId }
   );
 
   const [existingRows] = await mysqlPool.query<
@@ -372,7 +381,7 @@ async function syncAutoVisibleVoucherTemplates(
       continue;
     }
 
-    if (!isAutoVisibleAudience(scope)) {
+    if (!isAutoVisibleAudience(scope, Number(template.is_employee) === 1)) {
       continue;
     }
 
@@ -382,7 +391,7 @@ async function syncAutoVisibleVoucherTemplates(
     }
 
     const expiresAt =
-      scheduleMode === 'birthday' || scheduleMode === 'annual' || scheduleMode === 'monthly'
+      scheduleMode === 'birthday' || scheduleMode === 'annual' || scheduleMode === 'monthly' || scheduleMode === 'daily'
         ? getKualaLumpurDayEndUtc()
         : resolveAutoIssuedVoucherExpiry(template);
     if (expiresAt.getTime() <= Date.now()) {
@@ -420,9 +429,11 @@ async function syncAutoVisibleVoucherTemplates(
             ? `Birthday voucher: ${template.name}`
             : scheduleMode === 'annual'
               ? `Annual voucher: ${template.name}`
-              : scheduleMode === 'monthly'
+            : scheduleMode === 'monthly'
                 ? `Monthly voucher: ${template.name}`
-                : `Campaign voucher: ${template.name}`,
+                : scheduleMode === 'daily'
+                  ? `Daily employee voucher: ${template.name}`
+                  : `Campaign voucher: ${template.name}`,
         expiresAt,
         issueCaseRef
       }
@@ -640,6 +651,7 @@ export async function registerCustomerDataRoutes(
         FROM voucher_templates vt
         WHERE vt.code = 'WELCOME10'
           AND vt.is_active = 1
+          AND (vt.valid_until IS NULL OR vt.valid_until > UTC_TIMESTAMP())
           AND NOT EXISTS (
             SELECT 1
             FROM user_vouchers uv
@@ -697,6 +709,7 @@ export async function registerCustomerDataRoutes(
           uv.revoked_reason,
           vt.code AS template_code,
           vt.name AS template_name,
+          vt.image_url AS template_image_url,
           vt.voucher_type,
           vt.discount_mode,
           CAST(vt.discount_value AS CHAR) AS discount_value,
@@ -714,6 +727,7 @@ export async function registerCustomerDataRoutes(
           AND uv.revoked_at IS NULL
           AND uv.expires_at > UTC_TIMESTAMP()
           AND vt.is_active = 1
+          AND (vt.valid_until IS NULL OR vt.valid_until > UTC_TIMESTAMP())
         ORDER BY uv.issued_at DESC, uv.id DESC
         LIMIT :limit
       `,
@@ -738,6 +752,7 @@ export async function registerCustomerDataRoutes(
         template: {
           code: row.template_code,
           name: row.template_name,
+          image_url: row.template_image_url,
           voucher_type: row.voucher_type,
           discount_mode: row.discount_mode,
           discount_value: row.discount_value,

@@ -11,6 +11,7 @@ import 'auth_transition.dart';
 import 'otp_verification.dart';
 import '../services/auth_api_service.dart';
 import '../services/user_service.dart';
+import '../utils/app_colors.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -96,7 +97,7 @@ class _LoginPageState extends State<LoginPage>
 
   @override
   Widget build(BuildContext context) {
-    const Color orangeColor = Color(0xFF1F3A34);
+    final primaryColor = AppColors.primary;
     final mediaQuery = MediaQuery.of(context);
     final keyboardInset = mediaQuery.viewInsets.bottom;
     final keyboardTravel = (mediaQuery.size.height * 0.38).clamp(240.0, 340.0);
@@ -125,7 +126,7 @@ class _LoginPageState extends State<LoginPage>
       ),
       child: Scaffold(
         resizeToAvoidBottomInset: false,
-        backgroundColor: orangeColor,
+        backgroundColor: primaryColor,
         body: GestureDetector(
           behavior: HitTestBehavior.translucent,
           onTap: () => FocusScope.of(context).unfocus(),
@@ -146,8 +147,8 @@ class _LoginPageState extends State<LoginPage>
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
                           colors: [
-                            const Color(0xFF1F3A34).withValues(alpha: 0.65),
-                            const Color(0xFF1F3A34).withValues(alpha: 0.90),
+                            primaryColor.withValues(alpha: 0.65),
+                            primaryColor.withValues(alpha: 0.90),
                           ],
                         ),
                       ),
@@ -250,19 +251,19 @@ class _LoginPageState extends State<LoginPage>
                                   );
                                 },
                                 child: RichText(
-                                  text: const TextSpan(
-                                    style: TextStyle(
+                                  text: TextSpan(
+                                    style: const TextStyle(
                                         fontFamily: 'Afacad',
                                         fontSize: 14,
                                         color: Colors.black87),
                                     children: [
-                                      TextSpan(text: 'New member? '),
+                                      const TextSpan(text: 'New member? '),
                                       TextSpan(
                                         text: 'Join now',
                                         style: TextStyle(
                                             fontFamily: 'Recoleta',
                                             fontWeight: FontWeight.bold,
-                                            color: Color(0xFF1F3A34)),
+                                            color: primaryColor),
                                       ),
                                     ],
                                   ),
@@ -333,7 +334,7 @@ class _LoginPageState extends State<LoginPage>
                                   }
                                 },
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: orangeColor,
+                                  backgroundColor: primaryColor,
                                   foregroundColor: Colors.white,
                                   elevation: 0,
                                   shape: RoundedRectangleBorder(
@@ -367,13 +368,13 @@ class _LoginPageState extends State<LoginPage>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Phone Number',
           style: TextStyle(
               fontFamily: 'Recoleta',
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: Color(0xFF2E5E58)),
+              color: AppColors.primary),
         ),
         const SizedBox(height: 4),
         Container(
@@ -417,7 +418,7 @@ class _LoginPageState extends State<LoginPage>
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(20),
                 borderSide: BorderSide(
-                  color: hasError ? Colors.redAccent : const Color(0xFF2E5E58),
+                  color: hasError ? Colors.redAccent : AppColors.primary,
                   width: 1.5,
                 ),
               ),

@@ -88,16 +88,28 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _handleSessionChanged() {
-    if (mounted) setState(() {});
+    if (!mounted) {
+      return;
+    }
+    setState(() {});
+    _restartCarouselTimer();
   }
 
   void _restartCarouselTimer() {
     _carouselTimer?.cancel();
-    _carouselTimer = Timer.periodic(_carouselInterval, (_) {
-      final banners = _sortedHomeBanners;
-      if (!mounted || !_pageController.hasClients || banners.length < 2) return;
-
-      _currentBannerIndex = (_currentBannerIndex + 1) % banners.length;
+    final banners = _sortedHomeBanners;
+    if (!mounted || !_pageController.hasClients || banners.length < 2) return;
+    final currentBanner = banners[_currentBannerIndex % banners.length];
+    final duration = currentBanner.mediaType == 'gif' &&
+            currentBanner.animationDurationMs > 0
+        ? Duration(milliseconds: currentBanner.animationDurationMs)
+        : _carouselInterval;
+    _carouselTimer = Timer(duration, () {
+      final latestBanners = _sortedHomeBanners;
+      if (!mounted || !_pageController.hasClients || latestBanners.length < 2) {
+        return;
+      }
+      _currentBannerIndex = (_currentBannerIndex + 1) % latestBanners.length;
       _pageController.animateToPage(
         _currentBannerIndex,
         duration: const Duration(milliseconds: 350),
@@ -221,9 +233,8 @@ class _HomePageState extends State<HomePage> {
       for (final item in category.items) {
         if (item.isAvailable &&
             CatalogPresentation.isDrinkCategory(category.name, item)) {
-          itemsById[item.id] =
-            CatalogPresentation.toLegacyItem(
-                item, category.code, category.name);
+          itemsById[item.id] = CatalogPresentation.toLegacyItem(
+              item, category.code, category.name);
         }
       }
     }
@@ -240,9 +251,8 @@ class _HomePageState extends State<HomePage> {
       for (final item in category.items) {
         if (item.isAvailable &&
             CatalogPresentation.isLifestyleCategory(category.name, item)) {
-          itemsById[item.id] =
-            CatalogPresentation.toLegacyItem(
-                item, category.code, category.name);
+          itemsById[item.id] = CatalogPresentation.toLegacyItem(
+              item, category.code, category.name);
         }
       }
     }
@@ -300,7 +310,7 @@ class _HomePageState extends State<HomePage> {
         final featuredLifestyle = _featuredLifestyleItems();
 
         return Scaffold(
-          backgroundColor: Colors.white,
+          backgroundColor: AppColors.background,
           extendBody: true,
           bottomNavigationBar: CustomBottomNav(
             selectedIndex: 0,
@@ -324,7 +334,7 @@ class _HomePageState extends State<HomePage> {
                         _buildHeader(userName, tokenCount),
                         const SizedBox(height: 16),
                         AspectRatio(
-                          aspectRatio: 1.0,
+                          aspectRatio: 4 / 5,
                           child: _buildHeroBanner(),
                         ),
                         const SizedBox(height: 16),
@@ -443,7 +453,7 @@ class _HomePageState extends State<HomePage> {
                               fontFamily: 'Recoleta',
                               fontSize: compactHeader ? 16 : 18,
                               fontWeight: FontWeight.bold,
-                              color: AppColors.deepTeal,
+                              color: AppColors.brandText,
                             ),
                           ),
                         ],
@@ -566,8 +576,10 @@ class _HomePageState extends State<HomePage> {
               child: PageView.builder(
                 controller: _pageController,
                 itemCount: banners.length,
-                onPageChanged: (index) =>
-                    setState(() => _currentBannerIndex = index),
+                onPageChanged: (index) {
+                  setState(() => _currentBannerIndex = index);
+                  _restartCarouselTimer();
+                },
                 itemBuilder: (context, index) {
                   final banner = banners[index];
                   return GestureDetector(
@@ -800,7 +812,7 @@ class _HomePageState extends State<HomePage> {
                     fontFamily: 'Recoleta',
                     fontSize: 22,
                     fontWeight: FontWeight.w900,
-                    color: AppColors.deepTeal,
+                    color: AppColors.brandText,
                     height: 0.9,
                   ),
                 ),
@@ -831,7 +843,7 @@ class _HomePageState extends State<HomePage> {
                   fontFamily: 'Recoleta',
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
-                  color: AppColors.deepTeal,
+                  color: AppColors.brandText,
                 ),
               ),
               GestureDetector(
@@ -844,14 +856,14 @@ class _HomePageState extends State<HomePage> {
                         fontFamily: 'Afacad',
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.deepTeal,
+                        color: AppColors.brandText,
                       ),
                     ),
                     const SizedBox(width: 4),
                     Icon(
                       Icons.arrow_forward_rounded,
                       size: 16,
-                      color: AppColors.deepTeal,
+                      color: AppColors.brandText,
                     ),
                   ],
                 ),
@@ -963,7 +975,7 @@ class _HomePageState extends State<HomePage> {
                                         fontFamily: 'Afacad',
                                         fontSize: 14,
                                         fontWeight: FontWeight.bold,
-                                        color: AppColors.deepTeal,
+                                        color: AppColors.brandText,
                                       ),
                                     ),
                                   ],
@@ -1061,7 +1073,7 @@ class _HomePageState extends State<HomePage> {
                 fontFamily: 'Recoleta',
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: AppColors.deepTeal,
+                color: AppColors.brandText,
               ),
             ),
             const SizedBox(height: 8),

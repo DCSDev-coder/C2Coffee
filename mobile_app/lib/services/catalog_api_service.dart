@@ -175,6 +175,7 @@ class CatalogModifierOption {
   final String? imageUrl;
   final String? colorHex;
   final String? gradientEndHex;
+  final String gradientDirection;
   final bool isActive;
   final int sortOrder;
 
@@ -188,6 +189,7 @@ class CatalogModifierOption {
     required this.imageUrl,
     required this.colorHex,
     required this.gradientEndHex,
+    required this.gradientDirection,
     required this.isActive,
     required this.sortOrder,
   });
@@ -203,6 +205,7 @@ class CatalogModifierOption {
       imageUrl: resolveCatalogImageSource(json['image_url'] as String?),
       colorHex: json['color_hex'] as String?,
       gradientEndHex: json['gradient_end_hex'] as String?,
+      gradientDirection: json['gradient_direction'] as String? ?? 'diagonal',
       isActive: json['is_active'] as bool? ?? true,
       sortOrder: (json['sort_order'] as num?)?.toInt() ?? 0,
     );
@@ -296,6 +299,8 @@ class HomeBanner {
   final String title;
   final String subtitle;
   final String imageSource;
+  final String mediaType;
+  final int animationDurationMs;
   final String bannerType;
   final String destinationType;
   final String? secondaryDestinationType;
@@ -305,12 +310,15 @@ class HomeBanner {
   final String placement;
   final int sortOrder;
   final bool floatingPriority;
+  final DateTime? createdAt;
 
   const HomeBanner({
     required this.code,
     required this.title,
     required this.subtitle,
     required this.imageSource,
+    required this.mediaType,
+    required this.animationDurationMs,
     required this.bannerType,
     required this.destinationType,
     required this.secondaryDestinationType,
@@ -320,6 +328,7 @@ class HomeBanner {
     required this.placement,
     required this.sortOrder,
     required this.floatingPriority,
+    required this.createdAt,
   });
 
   bool get appearsOnProfile =>
@@ -359,6 +368,9 @@ class HomeBanner {
       title: json['title'] as String? ?? '',
       subtitle: json['subtitle'] as String? ?? '',
       imageSource: json['image_source'] as String? ?? '',
+      mediaType: json['media_type'] as String? ?? 'image',
+      animationDurationMs:
+          (json['animation_duration_ms'] as num?)?.toInt() ?? 0,
       bannerType: json['banner_type'] as String? ?? 'general',
       destinationType: json['destination_type'] as String? ?? 'menu',
       secondaryDestinationType: json['secondary_destination_type'] as String?,
@@ -368,6 +380,7 @@ class HomeBanner {
       placement: json['placement'] as String? ?? 'both',
       sortOrder: (json['sort_order'] as num?)?.toInt() ?? 0,
       floatingPriority: (json['floating_priority'] as num?)?.toInt() == 1,
+      createdAt: DateTime.tryParse(json['created_at'] as String? ?? ''),
     );
   }
 }
@@ -458,6 +471,11 @@ class BootstrapSnapshot {
   final int cupsLast180d;
   final List<HomeBanner> homeBanners;
   final List<LoyaltyTier> loyaltyTiers;
+  final String primaryColor;
+  final String secondaryColor;
+  final String textColor;
+  final String backgroundColor;
+  final String mutedTextColor;
 
   const BootstrapSnapshot({
     required this.user,
@@ -468,6 +486,11 @@ class BootstrapSnapshot {
     required this.cupsLast180d,
     required this.homeBanners,
     required this.loyaltyTiers,
+    required this.primaryColor,
+    required this.secondaryColor,
+    required this.textColor,
+    required this.backgroundColor,
+    required this.mutedTextColor,
   });
 }
 
@@ -504,6 +527,9 @@ class CatalogApiService {
     );
     final token = Map<String, dynamic>.from(response['token'] as Map);
     final loyalty = Map<String, dynamic>.from(response['loyalty'] as Map);
+    final appearance = Map<String, dynamic>.from(
+      response['appearance'] as Map? ?? const {},
+    );
     final homeBanners = (response['home_banners'] as List? ?? const [])
         .map((banner) => HomeBanner.fromApi(
               Map<String, dynamic>.from(banner as Map),
@@ -558,6 +584,11 @@ class CatalogApiService {
       cupsLast180d: (loyalty['cups_last_180d'] as num?)?.toInt() ?? 0,
       homeBanners: homeBanners,
       loyaltyTiers: loyaltyTiers,
+      primaryColor: appearance['primary_color'] as String? ?? '#2E5E58',
+      secondaryColor: appearance['secondary_color'] as String? ?? '#D4AF7A',
+      textColor: appearance['text_color'] as String? ?? '#2C2C2C',
+      backgroundColor: appearance['background_color'] as String? ?? '#FFFFFF',
+      mutedTextColor: appearance['muted_text_color'] as String? ?? '#6B7280',
     );
   }
 

@@ -13,6 +13,7 @@ import 'login.dart';
 import 'auth_transition.dart';
 import '../services/auth_api_service.dart';
 import '../services/user_service.dart';
+import '../utils/app_colors.dart';
 
 class Signup1 extends StatefulWidget {
   const Signup1({super.key});
@@ -176,6 +177,8 @@ class _Signup1State extends State<Signup1> with SingleTickerProviderStateMixin {
   }
 
   void _showAvatarPicker() {
+    final primaryColor = AppColors.primary;
+
     showDialog(
       context: context,
       barrierDismissible: true,
@@ -205,7 +208,7 @@ class _Signup1State extends State<Signup1> with SingleTickerProviderStateMixin {
                     offset: Offset(0, 4)),
               ],
               border: Border.all(
-                  color: const Color(0xFF1F3A34).withValues(alpha: 0.2),
+                  color: primaryColor.withValues(alpha: 0.2),
                   width: 1),
             ),
             child: Padding(
@@ -220,26 +223,25 @@ class _Signup1State extends State<Signup1> with SingleTickerProviderStateMixin {
                       child: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF1F3A34).withValues(alpha: 0.1),
+                          color: primaryColor.withValues(alpha: 0.1),
                           shape: BoxShape.circle,
                           border: Border.all(
-                              color: const Color(0xFF1F3A34)
-                                  .withValues(alpha: 0.2),
+                              color: primaryColor.withValues(alpha: 0.2),
                               width: 1),
                         ),
-                        child: const Icon(Icons.close,
-                            color: Color(0xFF1F3A34), size: 18),
+                        child: Icon(Icons.close,
+                            color: primaryColor, size: 18),
                       ),
                     ),
                   ),
                   const SizedBox(height: 8),
-                  const Text(
+                  Text(
                     'Choose Your Icon',
                     style: TextStyle(
                         fontFamily: 'Recoleta',
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFF1F3A34),
+                        color: primaryColor,
                         letterSpacing: 0.5),
                   ),
                   const SizedBox(height: 8),
@@ -280,14 +282,14 @@ class _Signup1State extends State<Signup1> with SingleTickerProviderStateMixin {
                                   shape: BoxShape.circle,
                                   border: Border.all(
                                     color: isSelected
-                                        ? const Color(0xFF1F3A34)
+                                        ? primaryColor
                                         : Colors.grey.shade300,
                                     width: isSelected ? 3 : 2,
                                   ),
                                   boxShadow: isSelected
                                       ? [
                                           BoxShadow(
-                                              color: const Color(0xFF1F3A34)
+                                              color: primaryColor
                                                   .withValues(alpha: 0.3),
                                               blurRadius: 8,
                                               offset: const Offset(0, 2))
@@ -296,7 +298,7 @@ class _Signup1State extends State<Signup1> with SingleTickerProviderStateMixin {
                                 ),
                                 child: CircleAvatar(
                                   radius: 40,
-                                  backgroundColor: const Color(0xFF1F3A34),
+                                  backgroundColor: primaryColor,
                                   backgroundImage:
                                       AssetImage(_avatarOptions[index]['path']),
                                 ),
@@ -317,7 +319,7 @@ class _Signup1State extends State<Signup1> with SingleTickerProviderStateMixin {
                                   style: TextStyle(
                                       fontFamily: 'Afacad',
                                       fontSize: 14,
-                                      color: const Color(0xFF1F3A34),
+                                      color: primaryColor,
                                       fontWeight: FontWeight.w600)),
                             ),
                             Expanded(
@@ -334,14 +336,14 @@ class _Signup1State extends State<Signup1> with SingleTickerProviderStateMixin {
                           child: Container(
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             decoration: BoxDecoration(
-                              gradient: const LinearGradient(colors: [
-                                Color(0xFF1F3A34),
-                                Color(0xFF1F3A34)
+                              gradient: LinearGradient(colors: [
+                                primaryColor,
+                                primaryColor,
                               ]),
                               borderRadius: BorderRadius.circular(12),
                               boxShadow: [
                                 BoxShadow(
-                                    color: const Color(0xFF1F3A34)
+                                    color: primaryColor
                                         .withValues(alpha: 0.3),
                                     blurRadius: 8,
                                     offset: const Offset(0, 4))
@@ -450,13 +452,14 @@ class _Signup1State extends State<Signup1> with SingleTickerProviderStateMixin {
               required String Function(int index) labelBuilder,
               required ValueChanged<int> onChanged,
             }) {
+              final primaryColor = AppColors.primary;
               return Expanded(
                 child: Column(
                   children: [
                     Text(
                       label,
-                      style: const TextStyle(
-                        color: Color(0xFF1F3A34),
+                      style: TextStyle(
+                        color: primaryColor,
                         fontWeight: FontWeight.bold,
                         fontSize: 13,
                       ),
@@ -493,7 +496,7 @@ class _Signup1State extends State<Signup1> with SingleTickerProviderStateMixin {
                                       ? FontWeight.w700
                                       : FontWeight.w500,
                                   color: isSelected
-                                      ? const Color(0xFF1F3A34)
+                                      ? primaryColor
                                       : Colors.grey.shade400,
                                 ),
                                 child: Text(itemText),
@@ -508,6 +511,7 @@ class _Signup1State extends State<Signup1> with SingleTickerProviderStateMixin {
               );
             }
 
+            final primaryColor = AppColors.primary;
             return Container(
               height: MediaQuery.of(context).size.height * 0.44,
               padding: const EdgeInsets.fromLTRB(24, 14, 24, 18),
@@ -517,12 +521,12 @@ class _Signup1State extends State<Signup1> with SingleTickerProviderStateMixin {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Select Birthday',
+                      Text('Select Birthday',
                           style: TextStyle(
                               fontFamily: 'Recoleta',
                               fontSize: 24,
                               fontWeight: FontWeight.bold,
-                              color: Color(0xFF1F3A34))),
+                              color: primaryColor)),
                       IconButton(
                         icon: const Icon(Icons.close, color: Colors.grey),
                         onPressed: () => Navigator.pop(context),
@@ -549,7 +553,7 @@ class _Signup1State extends State<Signup1> with SingleTickerProviderStateMixin {
                                 color: const Color(0xFFF0F1F0),
                                 borderRadius: BorderRadius.circular(14),
                                 border: Border.all(
-                                  color: const Color(0xFF1F3A34)
+                                  color: primaryColor
                                       .withValues(alpha: 0.08),
                                 ),
                               ),
@@ -610,7 +614,7 @@ class _Signup1State extends State<Signup1> with SingleTickerProviderStateMixin {
                         Navigator.pop(context);
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF1F3A34),
+                        backgroundColor: primaryColor,
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(25)),
                       ),
@@ -646,9 +650,9 @@ class _Signup1State extends State<Signup1> with SingleTickerProviderStateMixin {
     return Container(
       width: 100,
       height: 100,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: Color(0xFF1F3A34),
+        color: AppColors.primary,
       ),
       child: Container(
         decoration: BoxDecoration(
@@ -662,6 +666,8 @@ class _Signup1State extends State<Signup1> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    final primaryColor = AppColors.primary;
+    final secondaryColor = AppColors.secondary;
     final mediaQuery = MediaQuery.of(context);
     final keyboardInset = mediaQuery.viewInsets.bottom;
     final cardBottomInset = keyboardInset > 0 ? keyboardInset : 0.0;
@@ -679,7 +685,7 @@ class _Signup1State extends State<Signup1> with SingleTickerProviderStateMixin {
       ),
       child: Scaffold(
         resizeToAvoidBottomInset: false,
-        backgroundColor: const Color(0xFF1F3A34),
+        backgroundColor: primaryColor,
         body: GestureDetector(
           behavior: HitTestBehavior.translucent,
           onTap: () => FocusScope.of(context).unfocus(),
@@ -713,8 +719,8 @@ class _Signup1State extends State<Signup1> with SingleTickerProviderStateMixin {
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
                           colors: [
-                            const Color(0xFF1F3A34).withValues(alpha: 0.65),
-                            const Color(0xFF1F3A34).withValues(alpha: 0.90),
+                            primaryColor.withValues(alpha: 0.65),
+                            primaryColor.withValues(alpha: 0.90),
                           ],
                         ),
                       ),
@@ -758,7 +764,7 @@ class _Signup1State extends State<Signup1> with SingleTickerProviderStateMixin {
                                       color: Colors.white,
                                       shape: BoxShape.circle,
                                       border: Border.all(
-                                          color: const Color(0xFFFAF4EE),
+                                          color: secondaryColor.withValues(alpha: 0.3),
                                           width: 2),
                                       boxShadow: const [
                                         BoxShadow(
@@ -766,8 +772,8 @@ class _Signup1State extends State<Signup1> with SingleTickerProviderStateMixin {
                                             blurRadius: 4)
                                       ],
                                     ),
-                                    child: const Icon(Icons.camera_alt,
-                                        size: 18, color: Color(0xFF1F3A34)),
+                                    child: Icon(Icons.camera_alt,
+                                        size: 18, color: primaryColor),
                                   ),
                                 ),
                               ],
@@ -890,20 +896,20 @@ class _Signup1State extends State<Signup1> with SingleTickerProviderStateMixin {
                                           );
                                         },
                                         child: RichText(
-                                          text: const TextSpan(
-                                            style: TextStyle(
+                                          text: TextSpan(
+                                            style: const TextStyle(
                                                 fontFamily: 'Afacad',
                                                 fontSize: 14,
                                                 color: Colors.black87),
                                             children: [
-                                              TextSpan(
+                                              const TextSpan(
                                                   text: 'Already a member? '),
                                               TextSpan(
                                                 text: 'Login',
                                                 style: TextStyle(
                                                     fontFamily: 'Recoleta',
                                                     fontWeight: FontWeight.bold,
-                                                    color: Color(0xFF1F3A34)),
+                                                    color: AppColors.primary),
                                               ),
                                             ],
                                           ),
@@ -989,8 +995,7 @@ class _Signup1State extends State<Signup1> with SingleTickerProviderStateMixin {
                                           );
                                         },
                                         style: ElevatedButton.styleFrom(
-                                          backgroundColor:
-                                              const Color(0xFF1F3A34),
+                                          backgroundColor: AppColors.primary,
                                           disabledBackgroundColor:
                                               Colors.grey.shade400,
                                           foregroundColor: Colors.white,
@@ -1045,16 +1050,17 @@ class _Signup1State extends State<Signup1> with SingleTickerProviderStateMixin {
     Widget? suffixIcon,
     bool hasError = false,
   }) {
+    final primaryColor = AppColors.primary;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
               fontFamily: 'Recoleta',
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: Color(0xFF2E5E58)),
+              color: primaryColor),
         ),
         const SizedBox(height: 4),
         Container(
@@ -1098,7 +1104,7 @@ class _Signup1State extends State<Signup1> with SingleTickerProviderStateMixin {
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(20),
                 borderSide: BorderSide(
-                  color: hasError ? Colors.redAccent : const Color(0xFF2E5E58),
+                  color: hasError ? Colors.redAccent : primaryColor,
                   width: 1.5,
                 ),
               ),
@@ -1122,16 +1128,17 @@ class _Signup1State extends State<Signup1> with SingleTickerProviderStateMixin {
   }
 
   Widget _buildBirthdayField({bool hasError = false}) {
+    final primaryColor = AppColors.primary;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Birthday *',
           style: TextStyle(
               fontFamily: 'Recoleta',
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: Color(0xFF2E5E58)),
+              color: primaryColor),
         ),
         const SizedBox(height: 4),
         GestureDetector(
@@ -1157,8 +1164,8 @@ class _Signup1State extends State<Signup1> with SingleTickerProviderStateMixin {
               decoration: InputDecoration(
                 filled: true,
                 fillColor: Colors.white,
-                suffixIcon: const Icon(Icons.calendar_today_rounded,
-                    color: Color(0xFF2E5E58), size: 20),
+                suffixIcon: Icon(Icons.calendar_today_rounded,
+                    color: primaryColor, size: 20),
                 border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(20),
                     borderSide: BorderSide.none),
@@ -1169,7 +1176,7 @@ class _Signup1State extends State<Signup1> with SingleTickerProviderStateMixin {
                   borderRadius: BorderRadius.circular(20),
                   borderSide: BorderSide(
                     color:
-                        hasError ? Colors.redAccent : const Color(0xFF2E5E58),
+                        hasError ? Colors.redAccent : primaryColor,
                     width: 1.5,
                   ),
                 ),
@@ -1204,16 +1211,17 @@ class _Signup1State extends State<Signup1> with SingleTickerProviderStateMixin {
   }
 
   Widget _buildPhoneField({bool hasError = false}) {
+    final primaryColor = AppColors.primary;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Phone Number *',
           style: TextStyle(
               fontFamily: 'Recoleta',
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: Color(0xFF2E5E58)),
+              color: primaryColor),
         ),
         const SizedBox(height: 4),
         Container(
@@ -1257,7 +1265,7 @@ class _Signup1State extends State<Signup1> with SingleTickerProviderStateMixin {
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(20),
                 borderSide: BorderSide(
-                  color: hasError ? Colors.redAccent : const Color(0xFF2E5E58),
+                  color: hasError ? Colors.redAccent : primaryColor,
                   width: 1.5,
                 ),
               ),

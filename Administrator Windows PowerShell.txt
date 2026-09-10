@@ -1,7 +1,7 @@
 PS D:\C2Coffee\api> docker compose down
 [+] down 2/2
- ✔ Container c2coffee-api Removed                                                                        15.8s
- ✔ Network api_default    Removed                                                                         0.4s
+ ✔ Container c2coffee-api Removed                                                                        15.9s
+ ✔ Network api_default    Removed                                                                         0.3s
 PS D:\C2Coffee\api> docker compose build --no-cache
 #1 [internal] load local bake definitions
 #1 reading from stdin 503B 0.1s done
@@ -9,10 +9,10 @@ PS D:\C2Coffee\api> docker compose build --no-cache
 
 #2 [internal] load build definition from Dockerfile
 #2 transferring dockerfile: 746B 0.0s done
-#2 DONE 0.0s
+#2 DONE 0.1s
 
 #3 [internal] load metadata for docker.io/library/node:22-alpine
-#3 DONE 1.9s
+#3 DONE 2.4s
 
 #4 [internal] load .dockerignore
 #4 transferring context: 146B 0.0s done
@@ -29,166 +29,126 @@ PS D:\C2Coffee\api> docker compose build --no-cache
 #7 CACHED
 
 #5 [internal] load build context
-#5 transferring context: 89.23kB 0.1s done
+#5 transferring context: 10.59kB 0.1s done
 #5 DONE 0.1s
 
 #8 [deps 3/4] COPY package.json package-lock.json* ./
 #8 DONE 0.1s
 
-#9 [runtime 4/6] RUN npm ci --omit=dev && npm cache clean --force
+#9 [deps 4/4] RUN npm ci
 #9 ...
 
-#10 [deps 4/4] RUN npm ci
+#10 [runtime 4/6] RUN npm ci --omit=dev && npm cache clean --force
+#10 12.60 npm warn deprecated node-domexception@1.0.0: Use your platform's native DOMException instead
 #10 ...
 
-#9 [runtime 4/6] RUN npm ci --omit=dev && npm cache clean --force
-#9 12.79 npm warn deprecated node-domexception@1.0.0: Use your platform's native DOMException instead
-#9 16.25
-#9 16.25 added 114 packages, and audited 115 packages in 15s
-#9 16.25
-#9 16.25 38 packages are looking for funding
-#9 16.25   run `npm fund` for details
-#9 16.27
-#9 16.27 1 high severity vulnerability
-#9 16.27
-#9 16.27 To address all issues, run:
-#9 16.27   npm audit fix
-#9 16.27
-#9 16.27 Run `npm audit` for details.
-#9 16.28 npm notice
-#9 16.28 npm notice New major version of npm available! 10.9.8 -> 12.0.2
-#9 16.28 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
-#9 16.28 npm notice To update run: npm install -g npm@12.0.2
-#9 16.28 npm notice
-#9 16.94 npm warn using --force Recommended protections disabled.
+#9 [deps 4/4] RUN npm ci
+#9 13.04 npm warn deprecated node-domexception@1.0.0: Use your platform's native DOMException instead
+#9 16.89
+#9 16.89 added 121 packages, and audited 122 packages in 15s
+#9 16.89
+#9 16.89 38 packages are looking for funding
+#9 16.89   run `npm fund` for details
+#9 16.90
+#9 16.90 found 0 vulnerabilities
+#9 16.90 npm notice
+#9 16.90 npm notice New major version of npm available! 10.9.8 -> 12.0.2
+#9 16.90 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
+#9 16.90 npm notice To update run: npm install -g npm@12.0.2
+#9 16.90 npm notice
 #9 ...
 
-#10 [deps 4/4] RUN npm ci
-#10 13.36 npm warn deprecated node-domexception@1.0.0: Use your platform's native DOMException instead
-#10 17.55
-#10 17.55 added 121 packages, and audited 122 packages in 16s
-#10 17.55
-#10 17.55 38 packages are looking for funding
-#10 17.55   run `npm fund` for details
-#10 17.57
-#10 17.57 1 high severity vulnerability
-#10 17.57
-#10 17.57 To address all issues, run:
-#10 17.57   npm audit fix
-#10 17.57
-#10 17.57 Run `npm audit` for details.
-#10 17.57 npm notice
-#10 17.57 npm notice New major version of npm available! 10.9.8 -> 12.0.2
-#10 17.57 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
-#10 17.57 npm notice To update run: npm install -g npm@12.0.2
-#10 17.57 npm notice
-#10 DONE 18.3s
+#10 [runtime 4/6] RUN npm ci --omit=dev && npm cache clean --force
+#10 15.83
+#10 15.83 added 114 packages, and audited 115 packages in 14s
+#10 15.83
+#10 15.83 38 packages are looking for funding
+#10 15.83   run `npm fund` for details
+#10 15.83
+#10 15.83 found 0 vulnerabilities
+#10 15.84 npm notice
+#10 15.84 npm notice New major version of npm available! 10.9.8 -> 12.0.2
+#10 15.84 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
+#10 15.84 npm notice To update run: npm install -g npm@12.0.2
+#10 15.84 npm notice
+#10 16.39 npm warn using --force Recommended protections disabled.
+#10 DONE 17.4s
 
-#9 [runtime 4/6] RUN npm ci --omit=dev && npm cache clean --force
-#9 DONE 18.3s
+#9 [deps 4/4] RUN npm ci
+#9 DONE 17.4s
 
 #11 [build 3/5] COPY --from=deps /app/node_modules ./node_modules
-#11 DONE 3.7s
+#11 DONE 3.6s
 
 #12 [build 4/5] COPY . .
-#12 DONE 4.2s
+#12 DONE 3.0s
 
 #13 [build 5/5] RUN npm run build
-#13 3.371
-#13 3.371 > @c2coffee/api@0.1.0 build
-#13 3.371 > tsc -p tsconfig.json && node scripts/copy-sql.mjs
-#13 3.371
-#13 29.23 npm notice
-#13 29.23 npm notice New major version of npm available! 10.9.8 -> 12.0.2
-#13 29.23 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
-#13 29.23 npm notice To update run: npm install -g npm@12.0.2
-#13 29.23 npm notice
-#13 DONE 29.6s
+#13 3.850
+#13 3.850 > @c2coffee/api@0.1.0 build
+#13 3.850 > tsc -p tsconfig.json && node scripts/copy-sql.mjs
+#13 3.850
+#13 29.59 npm notice
+#13 29.59 npm notice New major version of npm available! 10.9.8 -> 12.0.2
+#13 29.59 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
+#13 29.59 npm notice To update run: npm install -g npm@12.0.2
+#13 29.59 npm notice
+#13 DONE 32.1s
 
 #14 [runtime 5/6] COPY --from=build /app/dist ./dist
 #14 DONE 0.7s
 
 #15 [runtime 6/6] RUN chown -R node:node /app
-#15 DONE 17.2s
+#15 DONE 18.8s
 
 #16 exporting to image
 #16 exporting layers
-#16 exporting layers 32.0s done
-#16 exporting manifest sha256:c282b2445b24934a177b9dc7dced148e816f8da68ff0a4f06da0be65683017fd
-#16 exporting manifest sha256:c282b2445b24934a177b9dc7dced148e816f8da68ff0a4f06da0be65683017fd 0.3s done
-#16 exporting config sha256:4503248ba379461eb0f79148c62869b01c5595abb0989d87758599a6f91c5b54
-#16 exporting config sha256:4503248ba379461eb0f79148c62869b01c5595abb0989d87758599a6f91c5b54 0.4s done
-#16 exporting attestation manifest sha256:52e134fbd66d1b0fef7f62803853b88c8c75d87ecd3874a26f54915b3eccfbba 0.1s done
-#16 exporting manifest list sha256:c9706eea162daef31b7547720658e4fd34381aeba74a9367644ce33c2bff0302
-#16 exporting manifest list sha256:c9706eea162daef31b7547720658e4fd34381aeba74a9367644ce33c2bff0302 0.2s done
+#16 exporting layers 32.3s done
+#16 exporting manifest sha256:eac02ad3a7df76aadc34c2d8fa7946bf89890e7fad95b273f6f3976b85441959 0.1s done
+#16 exporting config sha256:9cd6d5704a8a12d9efb53955834b8da1c2582888a9e6dcafd0680e57982785a4
+#16 exporting config sha256:9cd6d5704a8a12d9efb53955834b8da1c2582888a9e6dcafd0680e57982785a4 0.7s done
+#16 exporting attestation manifest sha256:e7fb4d9e89920a791d30ba2fbc72c6b78e366f194ca0299523a669bc4a0b2991 0.1s done
+#16 exporting manifest list sha256:4591648946a047bd1b7811bc1b4a837075363b7459c5369a150efbd768bc5fbd
+#16 exporting manifest list sha256:4591648946a047bd1b7811bc1b4a837075363b7459c5369a150efbd768bc5fbd 0.3s done
 #16 naming to docker.io/library/api-c2-api:latest
 #16 naming to docker.io/library/api-c2-api:latest done
 #16 unpacking to docker.io/library/api-c2-api:latest
-#16 unpacking to docker.io/library/api-c2-api:latest 20.4s done
-#16 DONE 53.6s
+#16 unpacking to docker.io/library/api-c2-api:latest 20.9s done
+#16 DONE 54.6s
 
 #17 resolving provenance for metadata file
 #17 DONE 0.1s
 [+] build 1/1
- ✔ Image api-c2-api Built                                                                               139.1s
+ ✔ Image api-c2-api Built                                                                               143.3s
 PS D:\C2Coffee\api> docker compose up -d
 [+] up 2/2
  ✔ Network api_default    Created                                                                         0.2s
- ✔ Container c2coffee-api Started                                                                         4.9s
+ ✔ Container c2coffee-api Started                                                                         4.4s
 
 What's next:
     Filter, search, and stream logs from all your Compose services
     in one place with Docker Desktop's Logs view. docker-desktop://dashboard/logs?appId=api
 PS D:\C2Coffee\api> docker compose run --rm --no-deps c2-api npm run migrate:prod
-Container api-c2-api-run-974659043fac Creating
-Container api-c2-api-run-974659043fac Created
+Container api-c2-api-run-aaa1d8d805fb Creating
+Container api-c2-api-run-aaa1d8d805fb Created
 
 > @c2coffee/api@0.1.0 migrate:prod
 > node dist/db/migrate.js
 
-Applied migration: 041_add_menu_option_choice_colors.sql
-Applied migration: 042_add_order_nutrition_snapshots.sql
 npm notice
 npm notice New major version of npm available! 10.9.8 -> 12.0.2
 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
 npm notice To update run: npm install -g npm@12.0.2
 npm notice
+PS D:\C2Coffee\api>
 PS D:\C2Coffee\api> docker compose ps
-NAME           IMAGE        COMMAND                  SERVICE   CREATED         STATUS                   PORTS
-c2coffee-api   api-c2-api   "docker-entrypoint.s…"   c2-api    7 minutes ago   Up 7 minutes (healthy)   127.0.0.1:8080->8080/tcp
+NAME           IMAGE        COMMAND                  SERVICE   CREATED          STATUS                    PORTS
+c2coffee-api   api-c2-api   "docker-entrypoint.s…"   c2-api    19 seconds ago   Up 15 seconds (healthy)   127.0.0.1:8080->8080/tcp
 PS D:\C2Coffee\api> docker compose logs --tail 100 c2-api
-c2coffee-api  | {"level":30,"time":1788925210361,"pid":1,"hostname":"c8e460f4af64","msg":"Server listening athttp://127.0.0.1:8080"}
-c2coffee-api  | {"level":30,"time":1788925210363,"pid":1,"hostname":"c8e460f4af64","msg":"Server listening athttp://172.19.0.2:8080"}
-c2coffee-api  | {"level":30,"time":1788925212916,"pid":1,"hostname":"c8e460f4af64","reqId":"a2d8a804-eaf0-411c-a03f-adcbefa5c59e","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":43706},"msg":"incoming request"}
-c2coffee-api  | {"level":30,"time":1788925213111,"pid":1,"hostname":"c8e460f4af64","reqId":"a2d8a804-eaf0-411c-a03f-adcbefa5c59e","res":{"statusCode":200},"responseTime":190.900807,"msg":"request completed"}
-c2coffee-api  | {"level":30,"time":1788925244062,"pid":1,"hostname":"c8e460f4af64","reqId":"52ce47cb-cc2c-46a8-bc69-60866cbb5e7f","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":40420},"msg":"incoming request"}
-c2coffee-api  | {"level":30,"time":1788925244096,"pid":1,"hostname":"c8e460f4af64","reqId":"52ce47cb-cc2c-46a8-bc69-60866cbb5e7f","res":{"statusCode":200},"responseTime":33.587688999999955,"msg":"request completed"}
-c2coffee-api  | {"level":30,"time":1788925275106,"pid":1,"hostname":"c8e460f4af64","reqId":"5f87ef9f-bdb7-4457-ada1-a5b864fe939a","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":37674},"msg":"incoming request"}
-c2coffee-api  | {"level":30,"time":1788925275136,"pid":1,"hostname":"c8e460f4af64","reqId":"5f87ef9f-bdb7-4457-ada1-a5b864fe939a","res":{"statusCode":200},"responseTime":30.11678499999107,"msg":"request completed"}
-c2coffee-api  | {"level":30,"time":1788925306071,"pid":1,"hostname":"c8e460f4af64","reqId":"f180bf13-90fe-4d5f-b83d-f14307b512e7","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":44234},"msg":"incoming request"}
-c2coffee-api  | {"level":30,"time":1788925306104,"pid":1,"hostname":"c8e460f4af64","reqId":"f180bf13-90fe-4d5f-b83d-f14307b512e7","res":{"statusCode":200},"responseTime":31.795668000006117,"msg":"request completed"}
-c2coffee-api  | {"level":30,"time":1788925337033,"pid":1,"hostname":"c8e460f4af64","reqId":"ec793d2a-50c7-41e8-a183-01e47e5e6ee3","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":59480},"msg":"incoming request"}
-c2coffee-api  | {"level":30,"time":1788925337064,"pid":1,"hostname":"c8e460f4af64","reqId":"ec793d2a-50c7-41e8-a183-01e47e5e6ee3","res":{"statusCode":200},"responseTime":30.561165999999503,"msg":"request completed"}
-c2coffee-api  | {"level":30,"time":1788925367962,"pid":1,"hostname":"c8e460f4af64","reqId":"aac1a366-513e-4c4c-84a2-7bcbb1a735db","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":54310},"msg":"incoming request"}
-c2coffee-api  | {"level":30,"time":1788925367991,"pid":1,"hostname":"c8e460f4af64","reqId":"aac1a366-513e-4c4c-84a2-7bcbb1a735db","res":{"statusCode":200},"responseTime":28.86221099999966,"msg":"request completed"}
-c2coffee-api  | {"level":30,"time":1788925398893,"pid":1,"hostname":"c8e460f4af64","reqId":"93c62af5-f889-4a79-91d6-98dfaad0f7d3","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":41372},"msg":"incoming request"}
-c2coffee-api  | {"level":30,"time":1788925398922,"pid":1,"hostname":"c8e460f4af64","reqId":"93c62af5-f889-4a79-91d6-98dfaad0f7d3","res":{"statusCode":200},"responseTime":28.08275600001798,"msg":"request completed"}
-c2coffee-api  | {"level":30,"time":1788925429818,"pid":1,"hostname":"c8e460f4af64","reqId":"e610310e-3ef0-4b3d-8b10-15d8bfd14572","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":44446},"msg":"incoming request"}
-c2coffee-api  | {"level":30,"time":1788925429848,"pid":1,"hostname":"c8e460f4af64","reqId":"e610310e-3ef0-4b3d-8b10-15d8bfd14572","res":{"statusCode":200},"responseTime":28.931474000011804,"msg":"request completed"}
-c2coffee-api  | {"level":30,"time":1788925460834,"pid":1,"hostname":"c8e460f4af64","reqId":"f08aef86-0a50-4f0f-a327-1c1e09f291a0","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":44678},"msg":"incoming request"}
-c2coffee-api  | {"level":30,"time":1788925460870,"pid":1,"hostname":"c8e460f4af64","reqId":"f08aef86-0a50-4f0f-a327-1c1e09f291a0","res":{"statusCode":200},"responseTime":35.60949899998377,"msg":"request completed"}
-c2coffee-api  | {"level":30,"time":1788925491784,"pid":1,"hostname":"c8e460f4af64","reqId":"826476da-4661-458b-b971-8080dcce74ab","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":58706},"msg":"incoming request"}
-c2coffee-api  | {"level":30,"time":1788925491815,"pid":1,"hostname":"c8e460f4af64","reqId":"826476da-4661-458b-b971-8080dcce74ab","res":{"statusCode":200},"responseTime":30.670228000031784,"msg":"request completed"}
-c2coffee-api  | {"level":30,"time":1788925522779,"pid":1,"hostname":"c8e460f4af64","reqId":"87c3a21a-a8e8-44ba-9b7d-10ced89832ed","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":33916},"msg":"incoming request"}
-c2coffee-api  | {"level":30,"time":1788925522807,"pid":1,"hostname":"c8e460f4af64","reqId":"87c3a21a-a8e8-44ba-9b7d-10ced89832ed","res":{"statusCode":200},"responseTime":27.824726999970153,"msg":"request completed"}
-c2coffee-api  | {"level":30,"time":1788925553749,"pid":1,"hostname":"c8e460f4af64","reqId":"2ee73a2c-0208-486e-85f0-36b8c8e83e86","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":33336},"msg":"incoming request"}
-c2coffee-api  | {"level":30,"time":1788925553778,"pid":1,"hostname":"c8e460f4af64","reqId":"2ee73a2c-0208-486e-85f0-36b8c8e83e86","res":{"statusCode":200},"responseTime":27.74698900000658,"msg":"request completed"}
-c2coffee-api  | {"level":30,"time":1788925584680,"pid":1,"hostname":"c8e460f4af64","reqId":"afbc5538-7d08-49ac-83ad-4b2bd67c1742","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":37666},"msg":"incoming request"}
-c2coffee-api  | {"level":30,"time":1788925584709,"pid":1,"hostname":"c8e460f4af64","reqId":"afbc5538-7d08-49ac-83ad-4b2bd67c1742","res":{"statusCode":200},"responseTime":28.509933999972418,"msg":"request completed"}
-c2coffee-api  | {"level":30,"time":1788925615651,"pid":1,"hostname":"c8e460f4af64","reqId":"64e1d971-9bdf-429c-9570-a9102e20fc7f","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":46944},"msg":"incoming request"}
-c2coffee-api  | {"level":30,"time":1788925615681,"pid":1,"hostname":"c8e460f4af64","reqId":"64e1d971-9bdf-429c-9570-a9102e20fc7f","res":{"statusCode":200},"responseTime":29.754323999979533,"msg":"request completed"}
-c2coffee-api  | {"level":30,"time":1788925646722,"pid":1,"hostname":"c8e460f4af64","reqId":"a43089ba-7de8-4c4a-84a5-49d3e52e772c","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":44756},"msg":"incoming request"}
-c2coffee-api  | {"level":30,"time":1788925646755,"pid":1,"hostname":"c8e460f4af64","reqId":"a43089ba-7de8-4c4a-84a5-49d3e52e772c","res":{"statusCode":200},"responseTime":30.975456000014674,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789030446191,"pid":1,"hostname":"ebe3a220e8ad","msg":"Server listening athttp://127.0.0.1:8080"}
+c2coffee-api  | {"level":30,"time":1789030446192,"pid":1,"hostname":"ebe3a220e8ad","msg":"Server listening athttp://172.19.0.2:8080"}
+c2coffee-api  | {"level":30,"time":1789030448201,"pid":1,"hostname":"ebe3a220e8ad","reqId":"a783b262-8700-42ee-a93f-bd467bdf6135","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":49256},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789030448409,"pid":1,"hostname":"ebe3a220e8ad","reqId":"a783b262-8700-42ee-a93f-bd467bdf6135","res":{"statusCode":200},"responseTime":203.5510519999998,"msg":"request completed"}
 
 What's next:
     Filter, search, and stream logs from all your Compose services
@@ -211,23 +171,4 @@ npm notice New major version of npm available! 10.9.8 -> 12.0.2
 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
 npm notice To update run: npm install -g npm@12.0.2
 npm notice
-PS D:\C2Coffee\api> docker compose exec c2-api npm audit --omit=dev --audit-level=high
-# npm audit report
-
-nodemailer  <=9.1.0
-Severity: high
-Nodemailer: resolveContent() on a MailMessage bypasses disableFileAccess/disableUrlAccess when called with the legacy signature - https://github.com/advisories/GHSA-8m3c-c648-2xjj
-Nodemailer: IDN/Punycode domain allow-list bypass leads to email delivery to an attacker-controlled domain - https://github.com/advisories/GHSA-wmmp-3585-3rmp
-Nodemailer: Quadratic (O(n²)) time complexity in addressparser allows remote denial of service via a crafted address list - https://github.com/advisories/GHSA-2x7j-588g-ccc2
-Nodemailer: Recipient-domain validation bypass via RFC 5322 comment mis-parsing leads to email delivery to anattacker-controlled domain - https://github.com/advisories/GHSA-cc9r-2j5m-2m83
-fix available via `npm audit fix`
-node_modules/nodemailer
-
-1 high severity vulnerability
-
-To address all issues, run:
-  npm audit fix
-
-What's next:
-    Debug this Compose error with Gordon → docker ai "help me fix this compose error"
 PS D:\C2Coffee\api>

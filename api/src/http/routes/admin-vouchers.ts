@@ -1,9 +1,12 @@
+import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
+import sharp from 'sharp';
 import { z } from 'zod';
 import { authenticateAdminRequest, requireAdminRole } from '../../admin/guard.js';
 import { mysqlPool } from '../../db/mysql.js';
 import { ApiError } from '../errors.js';
+import { saveMediaAsset } from '../../lib/media-assets.js';
 
 const voucherCreateUpdateSchema = z.object({
   code: z.string().trim().min(1).max(50),
@@ -27,6 +30,7 @@ const voucherCreateUpdateSchema = z.object({
   totalQty: z.number().int().nullable().optional(),
   limitPerUser: z.number().int().nullable().optional(),
   description: z.string().optional(),
+  imageUrl: z.string().trim().max(512).nullable().optional(),
   audience: z
     .enum(['all_customers', 'employee_only', 'manual_issue_only'])
     .optional()
@@ -148,12 +152,20 @@ type VoucherTemplateRow = RowDataPacket & {
   updated_at: string | Date;
   issued_count?: number;
   redeemed_count?: number;
+  image_url?: string | null;
 };
+
+const voucherImageUploadSchema = z.object({
+  file_name: z.string().trim().min(1).max(255),
+  mime_type: z.enum(['image/png', 'image/jpeg', 'image/webp']),
+  data_url: z.string().trim().min(1)
+});
 
 type AdminVoucherCustomerRow = RowDataPacket & {
   id: number;
   phone_e164: string;
   status: string;
+  is_employee: number;
   display_name: string | null;
   email: string | null;
   tier_code: string | null;
@@ -765,10 +777,52 @@ function buildVoucherWriteBindings(
     values.isReferralReward = payload.isReferralReward ? 1 : 0;
   }
 
+  if (hasColumn(columns, 'image_url')) {
+    columnsToWrite.push('image_url');
+    placeholders.push(':imageUrl');
+    values.imageUrl = payload.imageUrl || null;
+  }
+
   return { columns: columnsToWrite, placeholders, values };
 }
 
 export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<void> {
+  app.post('/v1/admin/vouchers/uploads', {
+    preHandler: [authenticateAdminRequest],
+    bodyLimit: 12 * 1024 * 1024
+  }, async (request) => {
+    requireAdminRole(request, 'super_admin');
+    const payload = voucherImageUploadSchema.parse(request.body);
+    const base64Payload = payload.data_url.includes('base64,')
+      ? payload.data_url.split('base64,').pop() || ''
+      : payload.data_url;
+    const content = Buffer.from(base64Payload, 'base64');
+    if (content.length === 0 || content.length > 8 * 1024 * 1024) {
+      throw new ApiError(400, 'invalid_voucher_image_upload', 'Voucher images must be between 1 byte and 8 MB.');
+    }
+
+    let optimizedContent: Buffer;
+    try {
+      optimizedContent = await sharp(content, { limitInputPixels: 32_000_000 })
+        .rotate()
+        .resize({ width: 1200, height: 600, fit: 'cover', position: 'attention' })
+        .webp({ quality: 84, effort: 4 })
+        .toBuffer();
+    } catch {
+      throw new ApiError(400, 'invalid_voucher_image_upload', 'Upload a valid PNG, JPEG, or WebP voucher image.');
+    }
+
+    const uploadName = `${Date.now()}-${randomUUID()}.webp`;
+    const assetPath = `/assets/vouchers/uploads/${uploadName}`;
+    await saveMediaAsset({
+      assetPath,
+      fileName: uploadName,
+      mimeType: 'image/webp',
+      content: optimizedContent
+    });
+    return { image_url: assetPath };
+  });
+
   app.get('/v1/admin/customers/search', { preHandler: [authenticateAdminRequest] }, async (request) => {
     requireAdminRole(request, 'super_admin');
     const { q, limit } = customerSearchQuerySchema.parse(request.query);
@@ -840,6 +894,9 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
 
     if (hasColumn(voucherColumns, 'is_referral_reward')) {
       selectColumns.push('vt.is_referral_reward');
+    }
+    if (hasColumn(voucherColumns, 'image_url')) {
+      selectColumns.push('vt.image_url');
     }
 
     if (hasColumn(voucherColumns, 'valid_until')) {
@@ -916,6 +973,7 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
         totalQty: hasColumn(voucherColumns, 'total_quantity') ? (templateRow.total_quantity ?? null) : null,
         limitPerUser: hasColumn(voucherColumns, 'limit_per_user') ? (templateRow.limit_per_user ?? 1) : 1,
         description: String(scope.description || ''),
+        imageUrl: hasColumn(voucherColumns, 'image_url') ? (templateRow.image_url ?? null) : null,
         status: getVoucherStatus(templateRow, expiryDate),
         issued: issuedCount,
         redeemed: redeemedCount,
@@ -1242,6 +1300,9 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
     if (hasColumn(voucherColumns, 'is_referral_reward')) {
       updateAssignments.push('is_referral_reward = :isReferralReward');
     }
+    if (hasColumn(voucherColumns, 'image_url')) {
+      updateAssignments.push('image_url = :imageUrl');
+    }
 
     if (payload.isReferralReward && hasColumn(voucherColumns, 'is_referral_reward')) {
       await mysqlPool.execute(
@@ -1268,12 +1329,27 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
         isActive,
         validUntil: effectiveValidUntil,
         totalQty: payload.totalQty ?? null,
-        limitPerUser: payload.limitPerUser ?? 1
-        ,isReferralReward: payload.isReferralReward ? 1 : 0
+        limitPerUser: payload.limitPerUser ?? 1,
+        isReferralReward: payload.isReferralReward ? 1 : 0,
+        imageUrl: payload.imageUrl || null
       }
     );
 
-    return { success: true };
+    const [updatedRows] = await mysqlPool.query<Array<RowDataPacket & { image_url: string | null }>>(
+      `
+        SELECT image_url
+        FROM voucher_templates
+        WHERE code = :code AND tenant_id = :tenantId
+        LIMIT 1
+      `,
+      { code, tenantId: request.adminAuth.tenantId }
+    );
+
+    if (!updatedRows[0]) {
+      throw new ApiError(404, 'voucher_not_found', 'Voucher was not found.');
+    }
+
+    return { success: true, imageUrl: updatedRows[0].image_url };
   });
 
   // DELETE /v1/admin/vouchers/:id
@@ -1426,6 +1502,7 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
             u.id,
             u.phone_e164,
             u.status,
+            ctm.is_employee,
             up.display_name,
             up.email,
             (
@@ -1436,6 +1513,8 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
               LIMIT 1
             ) AS tier_code
           FROM users u
+          JOIN customer_tenant_memberships ctm
+            ON ctm.user_id = u.id AND ctm.tenant_id = :tenantId
           LEFT JOIN user_profiles up ON up.user_id = u.id
           WHERE (
             (:userId IS NOT NULL AND u.id = :userId)
@@ -1445,13 +1524,18 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
         `,
         {
           userId: payload.userId ?? null,
-          phone: payload.phone ?? null
+          phone: payload.phone ?? null,
+          tenantId: request.adminAuth.tenantId
         }
       );
 
       const customer = customerRows[0];
       if (!customer || customer.status !== 'active') {
         throw new ApiError(404, 'customer_not_found', 'Customer was not found or is not active.');
+      }
+
+      if (normalizeAudience(scope) === 'employee_only' && Number(customer.is_employee) !== 1) {
+        throw new ApiError(400, 'voucher_employee_only', 'This voucher can only be issued to customer accounts marked as employees.');
       }
 
       if (hasColumn(voucherColumns, 'total_quantity') && template.total_quantity !== null && template.total_quantity !== undefined) {

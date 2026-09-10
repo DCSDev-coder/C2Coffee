@@ -144,111 +144,112 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
     final bool isDarkNav = AppColors.isTier3Or4;
 
     final Color barColor = isDarkNav ? AppColors.t2DeepForest : Colors.white;
-    final Color activeColor = isDarkNav ? Colors.white : AppColors.t1DeepTeal;
+    final Color activeColor =
+        isDarkNav ? AppColors.secondary : AppColors.supportingText;
     final Color inactiveColor =
         isDarkNav ? AppColors.t2NavInactive : Colors.grey.shade400;
     final Color activePillColor = isDarkNav
-        ? Colors.white.withValues(alpha: 0.2)
-        : AppColors.t1DeepTeal.withValues(alpha: 0.12);
+        ? AppColors.secondary.withValues(alpha: 0.24)
+        : AppColors.supportingSurface;
     final Color inactiveTextColor =
         isDarkNav ? AppColors.t2NavInactive : Colors.grey.shade600;
 
     return RepaintBoundary(
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.only(left: 20, right: 20),
-            child: Container(
-              decoration: BoxDecoration(
-                color: barColor,
-                borderRadius: BorderRadius.circular(30),
-                border: Border.all(
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.only(left: 20, right: 20),
+          child: Container(
+            decoration: BoxDecoration(
+              color: barColor,
+              borderRadius: BorderRadius.circular(30),
+              border: Border.all(
+                color: isDarkNav
+                    ? Colors.white.withValues(alpha: 0.12)
+                    : Colors.black.withValues(alpha: 0.06),
+                width: 1,
+              ),
+              boxShadow: [
+                BoxShadow(
                   color: isDarkNav
-                      ? Colors.white.withValues(alpha: 0.12)
-                      : Colors.black.withValues(alpha: 0.06),
-                  width: 1,
+                      ? AppColors.t2DeepForest.withValues(alpha: 0.35)
+                      : Colors.black.withValues(alpha: 0.08),
+                  blurRadius: 16,
+                  offset: const Offset(0, 4),
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: isDarkNav
-                        ? AppColors.t2DeepForest.withValues(alpha: 0.35)
-                        : Colors.black.withValues(alpha: 0.08),
-                    blurRadius: 16,
-                    offset: const Offset(0, 4),
+              ],
+            ),
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Stack(
+                children: [
+                  // Sliding pill background
+                  Positioned.fill(
+                    child: AnimatedAlign(
+                      duration: const Duration(milliseconds: 250),
+                      curve: Curves.easeOutCubic,
+                      alignment:
+                          Alignment(-1.0 + (_localSelectedIndex * 0.5), 0),
+                      child: LayoutBuilder(builder: (context, constraints) {
+                        return Container(
+                          width: constraints.maxWidth / 5,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 4, vertical: 0),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: activePillColor,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                          ),
+                        );
+                      }),
+                    ),
+                  ),
+                  // Icons
+                  Row(
+                    children: [
+                      _buildNavItem(Icons.home, Icons.home_outlined, 'Home', 0,
+                          activeColor, inactiveColor, inactiveTextColor),
+                      _buildNavItem(
+                          Icons.local_cafe,
+                          Icons.local_cafe_outlined,
+                          'Menu',
+                          1,
+                          activeColor,
+                          inactiveColor,
+                          inactiveTextColor),
+                      _buildNavItem(
+                          Icons.receipt_long,
+                          Icons.receipt_long_outlined,
+                          'Orders',
+                          2,
+                          activeColor,
+                          inactiveColor,
+                          inactiveTextColor),
+                      _buildNavItem(
+                          Icons.card_giftcard,
+                          Icons.card_giftcard_outlined,
+                          'Rewards',
+                          3,
+                          activeColor,
+                          inactiveColor,
+                          inactiveTextColor),
+                      _buildNavItem(
+                          Icons.person,
+                          Icons.person_outline,
+                          'Account',
+                          4,
+                          activeColor,
+                          inactiveColor,
+                          inactiveTextColor),
+                    ],
                   ),
                 ],
-              ),
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Stack(
-                  children: [
-                    // Sliding pill background
-                    Positioned.fill(
-                      child: AnimatedAlign(
-                        duration: const Duration(milliseconds: 250),
-                        curve: Curves.easeOutCubic,
-                        alignment:
-                            Alignment(-1.0 + (_localSelectedIndex * 0.5), 0),
-                        child: LayoutBuilder(builder: (context, constraints) {
-                          return Container(
-                            width: constraints.maxWidth / 5,
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 4, vertical: 0),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: activePillColor,
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                            ),
-                          );
-                        }),
-                      ),
-                    ),
-                    // Icons
-                    Row(
-                      children: [
-                        _buildNavItem(Icons.home, Icons.home_outlined, 'Home',
-                            0, activeColor, inactiveColor, inactiveTextColor),
-                        _buildNavItem(
-                            Icons.local_cafe,
-                            Icons.local_cafe_outlined,
-                            'Menu',
-                            1,
-                            activeColor,
-                            inactiveColor,
-                            inactiveTextColor),
-                        _buildNavItem(
-                            Icons.receipt_long,
-                            Icons.receipt_long_outlined,
-                            'Orders',
-                            2,
-                            activeColor,
-                            inactiveColor,
-                            inactiveTextColor),
-                        _buildNavItem(
-                            Icons.card_giftcard,
-                            Icons.card_giftcard_outlined,
-                            'Rewards',
-                            3,
-                            activeColor,
-                            inactiveColor,
-                            inactiveTextColor),
-                        _buildNavItem(
-                            Icons.person,
-                            Icons.person_outline,
-                            'Account',
-                            4,
-                            activeColor,
-                            inactiveColor,
-                            inactiveTextColor),
-                      ],
-                    ),
-                  ],
-                ),
               ),
             ),
           ),
         ),
-      );
+      ),
+    );
   }
 
   Widget _buildNavItem(
@@ -281,13 +282,19 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
             ),
             if (isSelected) ...[
               const SizedBox(height: 2),
-              Text(
-                label,
-                style: TextStyle(
-                  fontFamily: 'Afacad',
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  color: textColor,
+              SizedBox(
+                height: 16,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontFamily: 'Afacad',
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: textColor,
+                    ),
+                  ),
                 ),
               ),
             ]

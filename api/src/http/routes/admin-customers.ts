@@ -5,7 +5,7 @@ import { authenticateAdminRequest, requireAdminRole, requireAnyAdminRole } from 
 import { mysqlPool } from '../../db/mysql.js';
 import { ApiError } from '../errors.js';
 import { verifyPassword } from '../../lib/password.js';
-import { formatTierName, getTierProgress, loadLoyaltyTiers } from '../../services/loyalty-tiers.js';
+import { formatTierName, getTierByCode, getTierProgress, loadLoyaltyTiers } from '../../services/loyalty-tiers.js';
 
 const listQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(250).optional().default(100)
@@ -16,6 +16,7 @@ const createCustomerSchema = z.object({
   displayName: z.string().trim().min(1).max(255).optional(),
   email: z.string().trim().email().max(255).optional().or(z.literal('')),
   status: z.enum(['active', 'blocked', 'closed']).optional().default('active'),
+  isEmployee: z.boolean().optional().default(false),
   confirmation_password: z.string().trim().min(8).max(200)
 });
 
@@ -24,6 +25,7 @@ const updateCustomerSchema = z.object({
   displayName: z.string().trim().min(1).max(255).optional(),
   email: z.string().trim().email().max(255).optional().or(z.literal('')),
   status: z.enum(['active', 'blocked', 'closed']).optional(),
+  isEmployee: z.boolean().optional(),
   confirmation_password: z.string().trim().min(8).max(200)
 });
 
@@ -31,10 +33,36 @@ const deleteCustomerSchema = z.object({
   confirmation_password: z.string().trim().min(8).max(200)
 });
 
+const importCustomerRowSchema = z.object({
+  phone: z.string().trim().min(3).max(20),
+  displayName: z.string().trim().min(1).max(255).optional(),
+  email: z.string().trim().email().max(255).optional().or(z.literal('')),
+  isEmployee: z.boolean().optional().default(false)
+});
+
+const importCustomersSchema = z.object({
+  customers: z.array(importCustomerRowSchema).min(1).max(500),
+  confirmation_password: z.string().trim().min(8).max(200)
+}).superRefine((payload, context) => {
+  const seenPhones = new Set<string>();
+  payload.customers.forEach((customer, index) => {
+    const phone = customer.phone.replace(/\s+/g, '');
+    if (seenPhones.has(phone)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['customers', index, 'phone'],
+        message: 'Each phone number may appear only once in an import.'
+      });
+    }
+    seenPhones.add(phone);
+  });
+});
+
 const customerListQueryRowSchema = z.object({
   id: z.number(),
   phone_e164: z.string(),
   user_status: z.string(),
+  is_employee: z.number(),
   joined_at: z.union([z.string(), z.date()]),
   display_name: z.string().nullable(),
   email: z.string().nullable(),
@@ -71,8 +99,11 @@ function mapCustomerRow(row: CustomerListRow, tiers: Awaited<ReturnType<typeof l
   const orderCount = Number(row.order_count ?? 0);
   const refundCount = Number(row.refund_count ?? 0);
   const cupsLast180d = Number(row.cups_last_180d ?? 0);
-  const tierCode = String(row.tier_code ?? 'kawan').trim().toLowerCase();
   const tierProgress = getTierProgress(cupsLast180d, tiers);
+  const rawTierCode = row.tier_code ? String(row.tier_code).trim().toLowerCase() : null;
+  const tierConfig = rawTierCode ? getTierByCode(tiers, rawTierCode) : null;
+  const tierCode = tierConfig ? tierConfig.code : tierProgress.tierCode;
+  const tier = tierConfig ? tierConfig.name : tierProgress.tierName;
   const joinedAt = row.joined_at instanceof Date ? row.joined_at : new Date(row.joined_at);
   const lastOrderAt = row.last_order_at ? (row.last_order_at instanceof Date ? row.last_order_at : new Date(row.last_order_at)) : null;
 
@@ -82,7 +113,7 @@ function mapCustomerRow(row: CustomerListRow, tiers: Awaited<ReturnType<typeof l
     displayName: row.display_name || `Customer #${row.id}`,
     email: row.email || '',
     phone: row.phone_e164,
-    tier: formatTierName(tiers, tierCode),
+    tier,
     tierCode,
     tierProgress,
     tokens: tokenBalance.toLocaleString('en-US'),
@@ -99,6 +130,7 @@ function mapCustomerRow(row: CustomerListRow, tiers: Awaited<ReturnType<typeof l
     status: row.user_status === 'active' ? 'Active' : 'Inactive',
     avatar: row.avatar_value || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
     userStatus: row.user_status,
+    isEmployee: Number(row.is_employee) === 1,
     refundCount
   };
 }
@@ -147,6 +179,7 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
             u.id,
             u.phone_e164,
             u.status AS user_status,
+            ctm.is_employee,
             u.created_at AS joined_at,
             up.display_name,
             up.email,
@@ -230,8 +263,11 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
       const email = payload.email ? payload.email : null;
 
       await connection.execute(
-        `INSERT INTO customer_tenant_memberships (tenant_id, user_id) VALUES (:tenantId, :userId)`,
-        { tenantId: request.adminAuth.tenantId, userId }
+        `
+          INSERT INTO customer_tenant_memberships (tenant_id, user_id, is_employee)
+          VALUES (:tenantId, :userId, :isEmployee)
+        `,
+        { tenantId: request.adminAuth.tenantId, userId, isEmployee: payload.isEmployee ? 1 : 0 }
       );
 
       await connection.execute(
@@ -304,6 +340,7 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
             u.id,
             u.phone_e164,
             u.status AS user_status,
+            ctm.is_employee,
             u.created_at AS joined_at,
             up.display_name,
             up.email,
@@ -319,17 +356,133 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
             'kawan' AS tier_code,
             0 AS cups_last_180d
           FROM users u
+          JOIN customer_tenant_memberships ctm
+            ON ctm.user_id = u.id AND ctm.tenant_id = :tenantId
           LEFT JOIN user_profiles up ON up.user_id = u.id
           LEFT JOIN token_accounts ta ON ta.user_id = u.id
           WHERE u.id = :userId
           LIMIT 1
         `,
-        { userId }
+        { userId, tenantId: request.adminAuth.tenantId }
       );
 
       const tiers = await loadLoyaltyTiers(connection);
 
       return { customer: mapCustomerRow(createdRows[0] as CustomerListRow, tiers) };
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  });
+
+  app.post('/v1/admin/customers/import', { preHandler: [authenticateAdminRequest] }, async (request) => {
+    requireAdminRole(request, 'super_admin');
+    const payload = importCustomersSchema.parse(request.body);
+    const connection = await mysqlPool.getConnection();
+
+    try {
+      await connection.beginTransaction();
+      await requireAdminActionConfirmation(connection, request.adminAuth.adminUserId, payload.confirmation_password);
+
+      let created = 0;
+      let linkedExisting = 0;
+      let skippedExisting = 0;
+
+      for (const customer of payload.customers) {
+        const phone = customer.phone.replace(/\s+/g, '');
+        const [existingUsers] = await connection.execute<Array<RowDataPacket & { id: number }>>(
+          `SELECT id FROM users WHERE phone_e164 = :phone LIMIT 1 FOR UPDATE`,
+          { phone }
+        );
+
+        const existingUser = existingUsers[0];
+        if (existingUser) {
+          const [memberships] = await connection.execute<Array<RowDataPacket & { user_id: number }>>(
+            `
+              SELECT user_id
+              FROM customer_tenant_memberships
+              WHERE tenant_id = :tenantId AND user_id = :userId
+              LIMIT 1
+            `,
+            { tenantId: request.adminAuth.tenantId, userId: existingUser.id }
+          );
+
+          if (memberships[0]) {
+            skippedExisting += 1;
+            continue;
+          }
+
+          await connection.execute(
+            `
+              INSERT INTO customer_tenant_memberships (tenant_id, user_id, is_employee)
+              VALUES (:tenantId, :userId, :isEmployee)
+            `,
+            {
+              tenantId: request.adminAuth.tenantId,
+              userId: existingUser.id,
+              isEmployee: customer.isEmployee ? 1 : 0
+            }
+          );
+          linkedExisting += 1;
+          continue;
+        }
+
+        const [userInsert] = await connection.execute<ResultSetHeader>(
+          `INSERT INTO users (phone_e164, status) VALUES (:phone, 'active')`,
+          { phone }
+        );
+        const userId = userInsert.insertId;
+
+        await connection.execute(
+          `
+            INSERT INTO customer_tenant_memberships (tenant_id, user_id, is_employee)
+            VALUES (:tenantId, :userId, :isEmployee)
+          `,
+          { tenantId: request.adminAuth.tenantId, userId, isEmployee: customer.isEmployee ? 1 : 0 }
+        );
+        await connection.execute(
+          `
+            INSERT INTO user_profiles (user_id, display_name, email, avatar_type, avatar_value)
+            VALUES (:userId, :displayName, :email, 'preset', NULL)
+          `,
+          {
+            userId,
+            displayName: customer.displayName || 'C2 Member',
+            email: customer.email || null
+          }
+        );
+        await connection.execute(
+          `
+            INSERT INTO token_accounts (user_id, balance_available, balance_reserved, balance_cap)
+            VALUES (:userId, 0, 0, 500)
+          `,
+          { userId }
+        );
+        await connection.execute(
+          `
+            INSERT INTO loyalty_tier_snapshots (
+              user_id,
+              tier_code,
+              qualifying_cups_last_180d,
+              effective_at,
+              reason_code
+            )
+            VALUES (:userId, 'kawan', 0, UTC_TIMESTAMP(), 'admin_customer_import')
+          `,
+          { userId }
+        );
+        created += 1;
+      }
+
+      await connection.commit();
+      return {
+        created,
+        linked_existing: linkedExisting,
+        skipped_existing: skippedExisting,
+        total: payload.customers.length
+      };
     } catch (error) {
       await connection.rollback();
       throw error;
@@ -370,6 +523,17 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
             WHERE id = :userId
           `,
           values as any
+        );
+      }
+
+      if (payload.isEmployee !== undefined) {
+        await connection.execute(
+          `
+            UPDATE customer_tenant_memberships
+            SET is_employee = :isEmployee
+            WHERE tenant_id = :tenantId AND user_id = :userId
+          `,
+          { tenantId: request.adminAuth.tenantId, userId, isEmployee: payload.isEmployee ? 1 : 0 }
         );
       }
 
@@ -431,6 +595,7 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
             u.id,
             u.phone_e164,
             u.status AS user_status,
+            ctm.is_employee,
             u.created_at AS joined_at,
             up.display_name,
             up.email,
@@ -458,6 +623,8 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
               LIMIT 1
             ) AS cups_last_180d
           FROM users u
+          JOIN customer_tenant_memberships ctm
+            ON ctm.user_id = u.id AND ctm.tenant_id = :tenantId
           LEFT JOIN user_profiles up ON up.user_id = u.id
           LEFT JOIN token_accounts ta ON ta.user_id = u.id
           LEFT JOIN (
@@ -474,7 +641,7 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
           WHERE u.id = :userId
           LIMIT 1
         `,
-        { userId }
+        { userId, tenantId: request.adminAuth.tenantId }
       );
 
       const tiers = await loadLoyaltyTiers(connection);

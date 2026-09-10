@@ -207,6 +207,13 @@ class AppSessionService extends ChangeNotifier {
       await UserService.overwriteUserProfile(_user!.toLocalProfileMap());
 
       AppColors.setTier(_tierToIndex(_tier));
+      AppColors.setBrandColors(
+        primaryHex: bootstrap.primaryColor,
+        secondaryHex: bootstrap.secondaryColor,
+        textHex: bootstrap.textColor,
+        backgroundHex: bootstrap.backgroundColor,
+        mutedTextHex: bootstrap.mutedTextColor,
+      );
 
       _selectedStore = await _resolveSelectedStore(_stores);
       _isBootstrapLoading = false;
@@ -311,9 +318,9 @@ class AppSessionService extends ChangeNotifier {
       _homeFeaturedLifestyleIds = const [];
     } catch (error) {
       _menuError = 'Unable to load the menu right now.';
-    _menuCategories = const [];
-    _homeFeaturedDrinkIds = const [];
-    _homeFeaturedLifestyleIds = const [];
+      _menuCategories = const [];
+      _homeFeaturedDrinkIds = const [];
+      _homeFeaturedLifestyleIds = const [];
     } finally {
       _isMenuLoading = false;
       notifyListeners();

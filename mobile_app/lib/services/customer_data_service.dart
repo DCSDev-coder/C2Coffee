@@ -47,6 +47,7 @@ class WalletTransaction {
 class RewardVoucherTemplate {
   final String code;
   final String name;
+  final String? imageUrl;
   final String typeLabel;
   final String benefitType;
   final String audience;
@@ -63,6 +64,7 @@ class RewardVoucherTemplate {
   const RewardVoucherTemplate({
     required this.code,
     required this.name,
+    required this.imageUrl,
     required this.typeLabel,
     required this.benefitType,
     required this.audience,
@@ -81,6 +83,7 @@ class RewardVoucherTemplate {
     return RewardVoucherTemplate(
       code: json['code'] as String? ?? '',
       name: json['name'] as String? ?? '',
+      imageUrl: json['image_url'] as String?,
       typeLabel: _parseScopeMap(json['eligible_scope_json'])['type_label']
               as String? ??
           '',
@@ -589,7 +592,11 @@ class RewardVoucher {
     required this.template,
   });
 
-  bool get isActive => status == 'active';
+  bool get isActive =>
+      status == 'active' &&
+      redeemedAt == null &&
+      revokedAt == null &&
+      expiresAt.isAfter(DateTime.now());
 
   bool get isRedeemed =>
       redeemedAt != null || status == 'redeemed' || status == 'used';

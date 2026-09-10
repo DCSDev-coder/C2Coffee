@@ -136,7 +136,7 @@ class _PosterPopupState extends State<PosterPopup>
                         child: Stack(
                           children: [
                             AspectRatio(
-                              aspectRatio: 0.82,
+                              aspectRatio: 4 / 5,
                               child: Stack(
                                 fit: StackFit.expand,
                                 children: [
@@ -227,11 +227,13 @@ class _PosterPopupState extends State<PosterPopup>
                                   width: 36,
                                   height: 36,
                                   decoration: BoxDecoration(
-                                    color: AppColors.deepTeal.withValues(alpha: 0.85),
+                                    color: AppColors.deepTeal
+                                        .withValues(alpha: 0.85),
                                     shape: BoxShape.circle,
                                     boxShadow: [
                                       BoxShadow(
-                                        color: Colors.black.withValues(alpha: 0.25),
+                                        color: Colors.black
+                                            .withValues(alpha: 0.25),
                                         blurRadius: 8,
                                         offset: const Offset(0, 2),
                                       ),

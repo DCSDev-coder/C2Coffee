@@ -688,6 +688,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
     Widget? icon,
     bool isGradient = false,
     List<Color>? gradientColors,
+    String gradientDirection = 'diagonal',
     double? height,
     bool isExpanded = true,
   }) {
@@ -706,8 +707,8 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
         gradient: (isSelected && isGradient && gradientColors != null)
             ? LinearGradient(
                 colors: gradientColors,
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
+                begin: _gradientBegin(gradientDirection),
+                end: _gradientEnd(gradientDirection),
               )
             : null,
         borderRadius: BorderRadius.circular(12),
@@ -805,9 +806,15 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                           option['priceDeltaRm']?.toString() ?? '0') ??
                       0;
                   final colors = _choiceColors(option, options.indexOf(option));
+                  final dir = option['gradientDirection']?.toString() ?? 'diagonal';
                   final selectedDecoration = colors.length == 1
                       ? BoxDecoration(color: colors.first)
-                      : BoxDecoration(gradient: LinearGradient(colors: colors));
+                      : BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: colors,
+                            begin: _gradientBegin(dir),
+                            end: _gradientEnd(dir),
+                          ));
                   final unselectedColor =
                       Color.lerp(colors.first, Colors.white, .88)!;
                   return GestureDetector(
@@ -929,6 +936,22 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
     final endValue = option['gradientEndHex']?.toString();
     if (endValue == null || endValue.isEmpty) return [start];
     return [start, parse(endValue, start)];
+  }
+
+  Alignment _gradientBegin(String direction) {
+    switch (direction) {
+      case 'horizontal': return Alignment.centerLeft;
+      case 'vertical':   return Alignment.topCenter;
+      default:           return Alignment.topLeft;   // diagonal
+    }
+  }
+
+  Alignment _gradientEnd(String direction) {
+    switch (direction) {
+      case 'horizontal': return Alignment.centerRight;
+      case 'vertical':   return Alignment.bottomCenter;
+      default:           return Alignment.bottomRight; // diagonal
+    }
   }
 
   @override

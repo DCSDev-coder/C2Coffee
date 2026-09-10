@@ -8,6 +8,7 @@ import {
   saveAdminTokens
 } from './lib/adminApi';
 import { canAccessAdminPage, firstAccessibleAdminPage } from './lib/adminPermissions';
+import { UnsavedChangesProvider, useUnsavedChanges } from './utils/UnsavedChangesContext';
 
 const DashboardHome = lazy(() => import('./components/DashboardHome'));
 const Customers = lazy(() => import('./components/Customers'));
@@ -29,6 +30,58 @@ const ReportByProduct = lazy(() => import('./components/ReportByProduct'));
 const AuditLogs = lazy(() => import('./components/AuditLogs'));
 const Settings = lazy(() => import('./components/Settings'));
 const Operations = lazy(() => import('./components/Operations'));
+
+function AppContent({
+  layoutCurrentPage,
+  currentPage,
+  handleLogout,
+  currentTenant,
+  currentUser,
+  handleUpdateUser,
+  prevPage,
+}) {
+  const { navigateWithPrompt } = useUnsavedChanges();
+
+  return (
+    <Layout
+      currentPage={layoutCurrentPage}
+      setCurrentPage={navigateWithPrompt}
+      onLogout={handleLogout}
+      currentTenant={currentTenant}
+      currentUser={currentUser}
+    >
+      <Suspense fallback={<div className="flex min-h-[320px] items-center justify-center text-sm font-semibold text-[#2E5E58]">Loading page...</div>}>
+        {currentPage === 'Dashboard' && <DashboardHome setCurrentPage={navigateWithPrompt} />}
+        {currentPage === 'Customers' && <Customers currentUser={currentUser} />}
+        {currentPage === 'Orders' && <Orders initialShowRefunds={false} currentUser={currentUser} />}
+        {currentPage === 'Refunds' && (
+          <Orders
+            initialShowRefunds={true}
+            currentUser={currentUser}
+            onBackToOrders={() => navigateWithPrompt('Orders')}
+          />
+        )}
+        {currentPage === 'Profile' && <Profile onBack={() => navigateWithPrompt(prevPage || 'Dashboard')} currentUser={currentUser} onUpdateUser={handleUpdateUser} />}
+        {currentPage === 'Voucher' && <Vouchers onBack={() => navigateWithPrompt(prevPage || 'Dashboard')} />}
+        {currentPage === 'Token Ledger' && <LoyaltyTokens onBack={() => navigateWithPrompt(prevPage || 'Dashboard')} onNavigate={navigateWithPrompt} />}
+        {currentPage === 'Tier Management' && <TierManagement onBack={() => navigateWithPrompt('Token Ledger')} />}
+        {currentPage === 'Menu' && <Menu onNavigate={navigateWithPrompt} />}
+        {currentPage === 'Options & Nutrition' && <OptionsNutrition />}
+        {currentPage === 'Marketing' && <Marketing setCurrentPage={navigateWithPrompt} />}
+        {currentPage === 'Finance' && <Finance setCurrentPage={navigateWithPrompt} />}
+        {currentPage === 'RevenueReport' && <RevenueReport onBack={() => navigateWithPrompt('Finance')} />}
+        {currentPage === 'AllTransactions' && <AllTransactions onBack={() => navigateWithPrompt('Finance')} />}
+        {currentPage === 'ExpenseBreakdownFull' && <ExpenseBreakdownFull onBack={() => navigateWithPrompt('Finance')} />}
+        {currentPage === 'Product Report' && <ReportByProduct onBack={() => navigateWithPrompt('Finance')} />}
+        {currentPage === 'Admin Management' && <AdminManagement currentUser={currentUser} />}
+        {currentPage === 'Barista Management' && <BaristaManagement />}
+        {currentPage === 'Operations' && <Operations />}
+        {currentPage === 'Audit Logs' && <AuditLogs onNavigate={navigateWithPrompt} currentUser={currentUser} />}
+        {currentPage === 'Settings' && <Settings setCurrentPage={navigateWithPrompt} currentUser={currentUser} />}
+      </Suspense>
+    </Layout>
+  );
+}
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -159,42 +212,17 @@ function App() {
   }
 
   return (
-    <Layout
-      currentPage={layoutCurrentPage}
-      setCurrentPage={handleNavigate}
-      onLogout={handleLogout}
-      currentTenant={currentTenant}
-      currentUser={currentUser}
-    ><Suspense fallback={<div className="flex min-h-[320px] items-center justify-center text-sm font-semibold text-[#2E5E58]">Loading page...</div>}>
-      {currentPage === 'Dashboard' && <DashboardHome setCurrentPage={handleNavigate} />}
-      {currentPage === 'Customers' && <Customers currentUser={currentUser} />}
-      {currentPage === 'Orders' && <Orders initialShowRefunds={false} currentUser={currentUser} />}
-      {currentPage === 'Refunds' && (
-        <Orders
-          initialShowRefunds={true}
-          currentUser={currentUser}
-          onBackToOrders={() => handleNavigate('Orders')}
-        />
-      )}
-      {currentPage === 'Profile' && <Profile onBack={() => handleNavigate(prevPage || 'Dashboard')} currentUser={currentUser} onUpdateUser={handleUpdateUser} />}
-      {currentPage === 'Voucher' && <Vouchers onBack={() => handleNavigate(prevPage || 'Dashboard')} />}
-      {currentPage === 'Token Ledger' && <LoyaltyTokens onBack={() => handleNavigate(prevPage || 'Dashboard')} onNavigate={handleNavigate} />}
-      {currentPage === 'Tier Management' && <TierManagement onBack={() => handleNavigate('Token Ledger')} />}
-      {currentPage === 'Menu' && <Menu onNavigate={handleNavigate} />}
-      {currentPage === 'Options & Nutrition' && <OptionsNutrition />}
-      {currentPage === 'Marketing' && <Marketing setCurrentPage={handleNavigate} />}
-      {currentPage === 'Finance' && <Finance setCurrentPage={handleNavigate} />}
-      {currentPage === 'RevenueReport' && <RevenueReport onBack={() => handleNavigate('Finance')} />}
-      {currentPage === 'AllTransactions' && <AllTransactions onBack={() => handleNavigate('Finance')} />}
-      {currentPage === 'ExpenseBreakdownFull' && <ExpenseBreakdownFull onBack={() => handleNavigate('Finance')} />}
-      {currentPage === 'Product Report' && <ReportByProduct onBack={() => handleNavigate('Finance')} />}
-      {currentPage === 'Admin Management' && <AdminManagement currentUser={currentUser} />}
-      {currentPage === 'Barista Management' && <BaristaManagement />}
-      {currentPage === 'Operations' && <Operations />}
-      {currentPage === 'Audit Logs' && <AuditLogs onNavigate={handleNavigate} currentUser={currentUser} />}
-      {currentPage === 'Settings' && <Settings setCurrentPage={handleNavigate} currentUser={currentUser} />}
-    </Suspense>
-    </Layout>
+    <UnsavedChangesProvider onNavigate={handleNavigate}>
+      <AppContent
+        layoutCurrentPage={layoutCurrentPage}
+        currentPage={currentPage}
+        handleLogout={handleLogout}
+        currentTenant={currentTenant}
+        currentUser={currentUser}
+        handleUpdateUser={handleUpdateUser}
+        prevPage={prevPage}
+      />
+    </UnsavedChangesProvider>
   );
 }
 

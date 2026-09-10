@@ -1,19 +1,29 @@
 import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
+import sharp from 'sharp';
 import { z } from 'zod';
 import { authenticateAdminRequest } from '../../admin/guard.js';
 import { mysqlPool } from '../../db/mysql.js';
 import { ApiError } from '../errors.js';
+import { saveMediaAsset } from '../../lib/media-assets.js';
 
 const bannerTypeSchema = z.enum(['voucher', 'event', 'new_item', 'general']);
 const destinationTypeSchema = z.enum(['reward_section', 'menu', 'calendar']);
 const placementSchema = z.enum(['home', 'profile', 'both']);
+const mediaTypeSchema = z.enum(['image', 'gif']);
+const marketingUploadSchema = z.object({
+  file_name: z.string().trim().min(1).max(255),
+  mime_type: z.enum(['image/png', 'image/jpeg', 'image/webp', 'image/gif']),
+  data_url: z.string().trim().min(1)
+});
 
 const bannerCreateSchema = z.object({
   title: z.string().trim().min(1).max(255),
   subtitle: z.string().trim().min(1).max(512),
   imageSource: z.string().trim().min(1).max(512),
+  mediaType: mediaTypeSchema.optional().default('image'),
+  animationDurationMs: z.coerce.number().int().min(0).max(30_000).optional().default(0),
   bannerType: bannerTypeSchema,
   destinationType: destinationTypeSchema.optional().default('menu'),
   secondaryDestinationType: destinationTypeSchema.nullable().optional().default(null),
@@ -30,6 +40,8 @@ const bannerUpdateSchema = z.object({
   title: z.string().trim().min(1).max(255).optional(),
   subtitle: z.string().trim().min(1).max(512).optional(),
   imageSource: z.string().trim().min(1).max(512).optional(),
+  mediaType: mediaTypeSchema.optional(),
+  animationDurationMs: z.coerce.number().int().min(0).max(30_000).optional(),
   bannerType: bannerTypeSchema.optional(),
   destinationType: destinationTypeSchema.optional(),
   secondaryDestinationType: destinationTypeSchema.nullable().optional(),
@@ -48,6 +60,8 @@ type BannerRow = RowDataPacket & {
   title: string;
   subtitle: string;
   image_source: string;
+  media_type: 'image' | 'gif';
+  animation_duration_ms: number;
   banner_type: string;
   destination_type: string;
   secondary_destination_type: string | null;
@@ -93,13 +107,19 @@ function supportsHomeBannerFloatingPriority(columns: Set<string>): boolean {
   return columns.has('floating_priority');
 }
 
+function supportsHomeBannerMedia(columns: Set<string>): boolean {
+  return columns.has('media_type') && columns.has('animation_duration_ms');
+}
+
 function buildHomeBannerSelectClause(columns: Set<string>): string {
   const selects = [
     'hb.id',
     'hb.code',
     'hb.title',
     'hb.subtitle',
-    'hb.image_source'
+    'hb.image_source',
+    supportsHomeBannerMedia(columns) ? 'hb.media_type' : "'image' AS media_type",
+    supportsHomeBannerMedia(columns) ? 'hb.animation_duration_ms' : '0 AS animation_duration_ms'
   ];
 
   if (supportsHomeBannerTargeting(columns)) {
@@ -152,6 +172,11 @@ function buildHomeBannerInsertParts(columns: Set<string>): { columns: string[]; 
   const insertColumns = ['tenant_id', 'code', 'title', 'subtitle', 'image_source'];
   const insertValues = [':tenantId', ':code', ':title', ':subtitle', ':imageSource'];
 
+  if (supportsHomeBannerMedia(columns)) {
+    insertColumns.push('media_type', 'animation_duration_ms');
+    insertValues.push(':mediaType', ':animationDurationMs');
+  }
+
   if (supportsHomeBannerTargeting(columns)) {
     insertColumns.push(
       'banner_type',
@@ -183,6 +208,62 @@ function buildHomeBannerInsertParts(columns: Set<string>): { columns: string[]; 
     columns: insertColumns,
     values: insertValues
   };
+}
+
+function readGifTimeline(buffer: Buffer): { width: number; height: number; durationMs: number } {
+  if (buffer.length < 13 || (buffer.subarray(0, 6).toString('ascii') !== 'GIF87a' && buffer.subarray(0, 6).toString('ascii') !== 'GIF89a')) {
+    throw new ApiError(400, 'invalid_gif', 'Please upload a valid GIF poster.');
+  }
+
+  const width = buffer.readUInt16LE(6);
+  const height = buffer.readUInt16LE(8);
+  let position = 13;
+  if (buffer[10] & 0x80) {
+    position += 3 * (1 << ((buffer[10] & 0x07) + 1));
+  }
+
+  let pendingDelayMs = 100;
+  let durationMs = 0;
+  let frames = 0;
+  const skipSubBlocks = (): void => {
+    while (position < buffer.length) {
+      const size = buffer[position++];
+      if (size === 0) return;
+      position += size;
+    }
+  };
+
+  while (position < buffer.length) {
+    const marker = buffer[position++];
+    if (marker === 0x3B) break;
+    if (marker === 0x21) {
+      const label = buffer[position++];
+      if (label === 0xF9 && buffer[position] === 0x04 && position + 5 < buffer.length) {
+        position += 2;
+        pendingDelayMs = Math.max(buffer.readUInt16LE(position) * 10, 100);
+        position += 4;
+      } else {
+        skipSubBlocks();
+      }
+      continue;
+    }
+    if (marker !== 0x2C || position + 8 >= buffer.length) {
+      throw new ApiError(400, 'invalid_gif', 'GIF poster data is incomplete.');
+    }
+    position += 8;
+    const packed = buffer[position++];
+    if (packed & 0x80) position += 3 * (1 << ((packed & 0x07) + 1));
+    position += 1;
+    skipSubBlocks();
+    durationMs += pendingDelayMs;
+    pendingDelayMs = 100;
+    frames++;
+  }
+
+  if (frames === 0 || durationMs > 30_000) {
+    throw new ApiError(400, 'invalid_gif_duration', 'GIF posters must contain frames and complete within 30 seconds.');
+  }
+  return { width, height, durationMs };
 }
 
 function buildHomeBannerUpdateFields(columns: Set<string>): string[] {
@@ -338,6 +419,57 @@ function normalizeRequestBody(body: z.infer<typeof bannerCreateSchema> | z.infer
 }
 
 export async function registerAdminMarketingRoutes(app: FastifyInstance): Promise<void> {
+  app.post('/v1/admin/marketing/uploads', {
+    preHandler: authenticateAdminRequest,
+    bodyLimit: 12 * 1024 * 1024
+  }, async (request) => {
+    requireMarketingAccess(request);
+    const payload = marketingUploadSchema.parse(request.body);
+    const base64Payload = payload.data_url.includes('base64,')
+      ? payload.data_url.split('base64,').pop() || ''
+      : payload.data_url;
+    const content = Buffer.from(base64Payload, 'base64');
+    if (content.length === 0 || content.length > 8 * 1024 * 1024) {
+      throw new ApiError(400, 'invalid_poster_upload', 'Poster files must be between 1 byte and 8 MB.');
+    }
+
+    if (payload.mime_type === 'image/gif') {
+      const gif = readGifTimeline(content);
+      if (Math.abs((gif.width / gif.height) - (4 / 5)) > 0.02) {
+        throw new ApiError(400, 'invalid_gif_aspect_ratio', 'GIF posters must use a 4:5 portrait ratio, such as 1080 x 1350 pixels.');
+      }
+      const uploadName = `${Date.now()}-${randomUUID()}.gif`;
+      const assetPath = `/assets/marketing/uploads/${uploadName}`;
+      await saveMediaAsset({
+        assetPath,
+        fileName: uploadName,
+        mimeType: 'image/gif',
+        content
+      });
+      return { image_url: assetPath, media_type: 'gif', animation_duration_ms: gif.durationMs };
+    }
+
+    let optimizedContent: Buffer;
+    try {
+      optimizedContent = await sharp(content, { limitInputPixels: 32_000_000 })
+        .rotate()
+        .resize({ width: 1080, height: 1350, fit: 'cover', position: 'attention' })
+        .webp({ quality: 84, effort: 4 })
+        .toBuffer();
+    } catch {
+      throw new ApiError(400, 'invalid_poster_upload', 'Upload a valid PNG, JPEG, WebP, or GIF poster. Video files are not supported.');
+    }
+    const uploadName = `${Date.now()}-${randomUUID()}.webp`;
+    const assetPath = `/assets/marketing/uploads/${uploadName}`;
+    await saveMediaAsset({
+      assetPath,
+      fileName: uploadName,
+      mimeType: 'image/webp',
+      content: optimizedContent
+    });
+    return { image_url: assetPath, media_type: 'image', animation_duration_ms: 0 };
+  });
+
   app.get('/v1/admin/marketing/banners', { preHandler: authenticateAdminRequest }, async (request) => {
     requireMarketingAccess(request);
 
@@ -408,6 +540,8 @@ export async function registerAdminMarketingRoutes(app: FastifyInstance): Promis
       title: row.title,
       subtitle: row.subtitle,
       imageSource: row.image_source,
+      mediaType: row.media_type,
+      animationDurationMs: row.animation_duration_ms,
       bannerType: row.banner_type,
       destinationType: row.destination_type,
       secondaryDestinationType: row.secondary_destination_type,
@@ -455,6 +589,7 @@ export async function registerAdminMarketingRoutes(app: FastifyInstance): Promis
     const normalized = normalizeRequestBody(payload);
     const columns = await getHomeBannerColumns();
     const supportsTargeting = supportsHomeBannerTargeting(columns);
+    const supportsMedia = supportsHomeBannerMedia(columns);
     const selectClause = buildHomeBannerSelectClause(columns);
     const joinClause = supportsTargeting
       ? `
@@ -478,6 +613,9 @@ export async function registerAdminMarketingRoutes(app: FastifyInstance): Promis
 
     if (payload.floatingPriority === true && !supportsHomeBannerFloatingPriority(columns)) {
       throw new ApiError(412, 'poster_priority_unavailable', 'Poster priority is not installed in the database yet.');
+    }
+    if (!supportsMedia && (payload.mediaType === 'gif' || payload.animationDurationMs > 0)) {
+      throw new ApiError(412, 'poster_media_unavailable', 'GIF poster support is not installed in the database yet.');
     }
 
     if ((payload.bannerType === 'voucher' || payload.bannerType === 'new_item') && !normalized.targetValue) {
@@ -511,6 +649,8 @@ export async function registerAdminMarketingRoutes(app: FastifyInstance): Promis
         title: payload.title,
         subtitle: payload.subtitle,
         imageSource: payload.imageSource,
+        mediaType: payload.mediaType,
+        animationDurationMs: payload.mediaType === 'gif' ? payload.animationDurationMs : 0,
         bannerType: normalized.bannerType,
         destinationType: normalized.destinationType,
         secondaryDestinationType: normalized.secondaryDestinationType,
@@ -548,6 +688,8 @@ export async function registerAdminMarketingRoutes(app: FastifyInstance): Promis
         title: created.title,
         subtitle: created.subtitle,
         imageSource: created.image_source,
+        mediaType: created.media_type,
+        animationDurationMs: created.animation_duration_ms,
         bannerType: created.banner_type,
         destinationType: created.destination_type,
         secondaryDestinationType: created.secondary_destination_type,
@@ -579,6 +721,7 @@ export async function registerAdminMarketingRoutes(app: FastifyInstance): Promis
     const normalized = normalizeRequestBody(payload);
     const columns = await getHomeBannerColumns();
     const supportsTargeting = supportsHomeBannerTargeting(columns);
+    const supportsMedia = supportsHomeBannerMedia(columns);
 
     if (!supportsTargeting && ((payload.bannerType !== undefined && payload.bannerType !== 'general') || payload.destinationType === 'calendar')) {
       throw new ApiError(412, 'poster_targeting_unavailable', 'Poster targeting fields are not installed in the database yet.');
@@ -586,6 +729,9 @@ export async function registerAdminMarketingRoutes(app: FastifyInstance): Promis
 
     if (payload.floatingPriority === true && !supportsHomeBannerFloatingPriority(columns)) {
       throw new ApiError(412, 'poster_priority_unavailable', 'Poster priority is not installed in the database yet.');
+    }
+    if (!supportsMedia && (payload.mediaType === 'gif' || payload.animationDurationMs !== undefined)) {
+      throw new ApiError(412, 'poster_media_unavailable', 'GIF poster support is not installed in the database yet.');
     }
 
     const [existingRows] = await mysqlPool.query<Array<RowDataPacket & { id: number; banner_type: string }>>(
@@ -615,6 +761,14 @@ export async function registerAdminMarketingRoutes(app: FastifyInstance): Promis
     if (payload.imageSource !== undefined) {
       updateFields.push('image_source = :imageSource');
       params.imageSource = payload.imageSource;
+    }
+    if (payload.mediaType !== undefined && supportsMedia) {
+      updateFields.push('media_type = :mediaType');
+      params.mediaType = payload.mediaType;
+    }
+    if (payload.animationDurationMs !== undefined && supportsMedia) {
+      updateFields.push('animation_duration_ms = :animationDurationMs');
+      params.animationDurationMs = payload.mediaType === 'image' ? 0 : payload.animationDurationMs;
     }
     if (payload.bannerType !== undefined || payload.destinationType === 'calendar') {
       if (supportsTargeting) {

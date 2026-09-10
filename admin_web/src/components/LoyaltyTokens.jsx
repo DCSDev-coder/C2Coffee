@@ -42,13 +42,23 @@ const CustomDateInput = forwardRef(({ value, onClick, onClear }, ref) => (
 
 
 //Helpers
-const getTierColor = (tier) => {
-  switch (tier) {
-    case 'Kawan': return 'bg-blue-100 text-blue-600';
-    case 'Dilamun': return 'bg-[#E07A5F]/15 text-[#E07A5F]';
-    case 'Ketagih': return 'bg-purple-100 text-purple-600';
-    case 'Legend': return 'bg-[#D4AF7A]/20 text-[#A8824A]';
-    default: return 'bg-gray-100 text-gray-600';
+const getTierColor = (tier, tierCode) => {
+  const normalized = String(tierCode || tier || '').trim().toLowerCase();
+  switch (normalized) {
+    case 'sipper':
+    case 'kawan':
+      return 'bg-blue-100 text-blue-600';
+    case 'brewer':
+    case 'dilamun':
+      return 'bg-[#E07A5F]/15 text-[#E07A5F]';
+    case 'roaster':
+    case 'ketagih':
+      return 'bg-purple-100 text-purple-600';
+    case 'legendary':
+    case 'legend':
+      return 'bg-[#D4AF7A]/20 text-[#A8824A]';
+    default:
+      return 'bg-emerald-100 text-emerald-700';
   }
 };
 
@@ -355,7 +365,7 @@ const LoyaltyTokens = ({ onBack, onNavigate }) => {
                         </div>
                       </td>
                       <td className="px-6 py-3 whitespace-nowrap">
-                        <span className={`px-2.5 py-1 text-[10px] font-bold rounded-md ${getTierColor(group.member.tier)}`}>
+                        <span className={`px-2.5 py-1 text-[10px] font-bold rounded-md ${getTierColor(group.member.tier, group.member.tierCode)}`}>
                           {group.member.tier}
                         </span>
                       </td>
@@ -469,7 +479,7 @@ const LoyaltyTokens = ({ onBack, onNavigate }) => {
                     </div>
                   </div>
                   <div className="self-start">
-                    <span className={`px-2.5 py-1 text-[10px] font-bold rounded-md ${getTierColor(selectedCustomer.tier)}`}>
+                    <span className={`px-2.5 py-1 text-[10px] font-bold rounded-md ${getTierColor(selectedCustomer.tier, selectedCustomer.tierCode)}`}>
                       {selectedCustomer.tier}
                     </span>
                   </div>

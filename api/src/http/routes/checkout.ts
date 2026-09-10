@@ -1333,9 +1333,12 @@ async function _verifyLibraryModifiers(
             o.name AS option_name, CAST(o.price_delta_rm AS CHAR) AS price_delta_rm, o.token_price_delta, o.calorie_delta_kcal
      FROM menu_option_groups g
      JOIN menu_option_group_options o ON o.option_group_id = g.id AND o.is_active = 1
-     LEFT JOIN menu_option_group_items a ON a.option_group_id = g.id
+     LEFT JOIN menu_option_group_items a ON a.option_group_id = g.id AND a.menu_item_id = :menuItemId
+     LEFT JOIN menu_item_option_exclusions e
+       ON e.menu_item_id = :menuItemId AND e.option_group_option_id = o.id
      WHERE g.tenant_id = :tenantId AND g.is_active = 1
-       AND (g.applies_to = 'all_drinks' OR a.menu_item_id = :menuItemId)
+       AND (g.applies_to = 'all_drinks' OR a.menu_item_id IS NOT NULL)
+       AND e.option_group_option_id IS NULL
      ORDER BY g.sort_order, g.id, o.sort_order, o.id`,
     { tenantId, menuItemId }
   );

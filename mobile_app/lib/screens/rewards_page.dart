@@ -34,8 +34,8 @@ class _RewardsPageState extends State<RewardsPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final AppSessionService _session = AppSessionService.instance;
   final ScrollController _scrollController = ScrollController();
-  Color get orangeColor => AppColors.deepTeal;
-  final Color beigeBg = Colors.white;
+  Color get orangeColor => AppColors.brandText;
+  Color get beigeBg => AppColors.background;
   int _selectedTier = 0;
   String? _selectedTierCode;
   bool _isFaqsOpen = false;
@@ -311,7 +311,7 @@ class _RewardsPageState extends State<RewardsPage> {
                         fontFamily: 'Recoleta',
                         fontSize: 32,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.deepTeal,
+                        color: AppColors.brandText,
                         height: 1.1,
                       ),
                     ),
@@ -431,7 +431,7 @@ class _RewardsPageState extends State<RewardsPage> {
                           fontFamily: 'Recoleta',
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: AppColors.deepTeal,
+                          color: AppColors.brandText,
                         ),
                       ),
                     ),
@@ -492,7 +492,7 @@ class _RewardsPageState extends State<RewardsPage> {
                           fontFamily: 'Recoleta',
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: AppColors.deepTeal,
+                          color: AppColors.brandText,
                         ),
                       ),
                     ),
@@ -554,7 +554,7 @@ class _RewardsPageState extends State<RewardsPage> {
             fontFamily: 'Afacad',
             fontSize: 15,
             fontWeight: FontWeight.bold,
-            color: AppColors.deepTeal,
+            color: AppColors.brandText,
           ),
         ),
       ),
@@ -595,7 +595,7 @@ class _RewardsPageState extends State<RewardsPage> {
                   fontFamily: 'Recoleta',
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
-                  color: AppColors.deepTeal,
+                  color: AppColors.brandText,
                 ),
               ),
               const SizedBox(width: 16),
@@ -649,15 +649,12 @@ class _RewardsPageState extends State<RewardsPage> {
     final isSelected = index == selectedIndex;
     final isCurrentActualTier = index == _currentTierIndex();
 
-    // Darker background for current actual tier, subtle tint/white for others
+    // Tier selection follows the configurable supporting colour.
     final Color bgColor = isCurrentActualTier
-        ? const Color(0xFFD5E6E3)
-        : (isSelected ? AppColors.surfaceLight : Colors.white);
-
-    // Darker rich gold for active/selected tab font
-    const Color darkGold = Color(0xFFAD6D15);
-
-    final Color textColor = isSelected ? darkGold : AppColors.textDark;
+        ? AppColors.supportingSurface
+        : (isSelected ? AppColors.supportingSurface : Colors.white);
+    final Color textColor =
+        isSelected ? AppColors.supportingText : AppColors.textDark;
 
     return GestureDetector(
       onTap: () {
@@ -674,16 +671,16 @@ class _RewardsPageState extends State<RewardsPage> {
           borderRadius: BorderRadius.circular(24),
           border: Border.all(
             color: isSelected
-                ? const Color(0xFFAD6D15)
+                ? AppColors.secondary
                 : (isCurrentActualTier
-                    ? AppColors.sageTeal
-                    : const Color(0xFFE2EBE9)),
+                    ? AppColors.supportingBorder
+                    : AppColors.border),
             width: isSelected ? 1.5 : 1,
           ),
           boxShadow: [
             if (isSelected)
               BoxShadow(
-                color: const Color(0xFFAD6D15).withValues(alpha: 0.12),
+                color: AppColors.secondary.withValues(alpha: 0.18),
                 blurRadius: 6,
                 offset: const Offset(0, 2),
               ),
@@ -697,7 +694,7 @@ class _RewardsPageState extends State<RewardsPage> {
                 width: 6,
                 height: 6,
                 decoration: BoxDecoration(
-                  color: AppColors.deepTeal,
+                  color: AppColors.supportingText,
                   shape: BoxShape.circle,
                 ),
               ),
@@ -758,7 +755,7 @@ class _RewardsPageState extends State<RewardsPage> {
                       fontFamily: 'Recoleta',
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.deepTeal,
+                      color: AppColors.brandText,
                     ),
                   ),
                 ],
@@ -766,7 +763,7 @@ class _RewardsPageState extends State<RewardsPage> {
               if (isCurrent)
                 _buildStateChip(
                   'CURRENT TIER',
-                  AppColors.deepTeal,
+                  AppColors.supportingText,
                   icon: Icons.check_circle_rounded,
                 )
               else if (isUnlocked)
@@ -779,7 +776,7 @@ class _RewardsPageState extends State<RewardsPage> {
                   tier.minCups - _session.cupsLast180d > 0
                       ? '${tier.minCups - _session.cupsLast180d} CUPS TO UNLOCK'
                       : 'LOCKED',
-                  const Color(0xFFAD6D15),
+                  AppColors.supportingText,
                   icon: Icons.lock_outline_rounded,
                 ),
             ],
@@ -818,13 +815,13 @@ class _RewardsPageState extends State<RewardsPage> {
                     margin: const EdgeInsets.only(top: 2),
                     padding: const EdgeInsets.all(3),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFAD6D15).withValues(alpha: 0.12),
+                      color: AppColors.supportingSurface,
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.check_rounded,
                       size: 12,
-                      color: Color(0xFFAD6D15),
+                      color: AppColors.supportingText,
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -924,7 +921,7 @@ class _RewardsPageState extends State<RewardsPage> {
                         fontFamily: 'Recoleta',
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.deepTeal,
+                        color: AppColors.brandText,
                       ),
                     ),
                     const Text(
@@ -952,7 +949,7 @@ class _RewardsPageState extends State<RewardsPage> {
                   turns: _isFaqsOpen ? 0.25 : 0,
                   duration: const Duration(milliseconds: 300),
                   child: Icon(Icons.chevron_right,
-                      color: AppColors.deepTeal, size: 20),
+                      color: AppColors.brandText, size: 20),
                 ),
               ),
             ],
@@ -992,7 +989,7 @@ class _RewardsPageState extends State<RewardsPage> {
                         fontFamily: 'Recoleta',
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.deepTeal,
+                        color: AppColors.brandText,
                       ),
                     ),
                     const Text(

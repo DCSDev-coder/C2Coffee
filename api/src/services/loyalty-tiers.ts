@@ -110,9 +110,17 @@ export function formatTierName(tiers: LoyaltyTierConfig[], tierCode: string | nu
     return tier.name;
   }
 
+  const activeTiers = getActiveLoyaltyTiers(tiers);
+  const normalized = String(tierCode ?? '').trim().toLowerCase();
+
+  // If no tier specified or legacy default 'kawan' that is no longer in active tiers, return active base tier
+  if ((!normalized || normalized === 'kawan') && activeTiers.length > 0) {
+    return activeTiers[0].name;
+  }
+
   const fallback = String(tierCode ?? '').trim();
   if (!fallback) {
-    return 'Kawan';
+    return activeTiers[0]?.name ?? 'Member';
   }
 
   return fallback
@@ -130,8 +138,8 @@ export function getTierProgress(
 
   if (activeTiers.length === 0) {
     return {
-      tierCode: 'kawan',
-      tierName: 'Kawan',
+      tierCode: 'sipper',
+      tierName: 'Sipper',
       current: cups,
       target: cups,
       remaining: 0,
@@ -153,9 +161,11 @@ export function getTierProgress(
 
   const currentIndex = activeTiers.findIndex((tier) => tier.code === currentTier.code);
   const nextTier = currentIndex >= 0 ? activeTiers[currentIndex + 1] ?? null : null;
-  const target = nextTier ? nextTier.minCups : cups;
+  const target = nextTier ? nextTier.minCups : currentTier.minCups;
   const remaining = nextTier ? Math.max(0, nextTier.minCups - cups) : 0;
-  const percentage = target > 0 ? Math.min(100, (cups / target) * 100) : 100;
+  const range = nextTier ? Math.max(1, nextTier.minCups - currentTier.minCups) : 1;
+  const progressInTier = nextTier ? Math.max(0, cups - currentTier.minCups) : range;
+  const percentage = nextTier ? Math.min(100, Math.round((progressInTier / range) * 100)) : 100;
 
   return {
     tierCode: currentTier.code,

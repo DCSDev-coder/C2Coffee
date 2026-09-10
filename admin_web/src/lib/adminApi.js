@@ -1,6 +1,7 @@
-const ADMIN_REFRESH_PATH = '/v1/admin/auth/refresh';
-const ADMIN_API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'https://api.c2coffeeandcandle.com')
-  .replace(/\/$/, '');
+const ADMIN_REFRESH_PATH = "/v1/admin/auth/refresh";
+const ADMIN_API_BASE_URL = (
+  import.meta.env.VITE_API_BASE_URL || "https://api.c2coffeeandcandle.com"
+).replace(/\/$/, "");
 
 let refreshSessionPromise = null;
 let accessToken = null;
@@ -10,7 +11,7 @@ export function getAdminApiBaseUrl() {
 }
 
 export function loadAdminTokens() {
-  if (typeof window === 'undefined') {
+  if (typeof window === "undefined") {
     return { accessToken: null, refreshToken: null };
   }
 
@@ -18,12 +19,12 @@ export function loadAdminTokens() {
     accessToken,
     // The refresh token is intentionally inaccessible to JavaScript. It lives
     // in an HttpOnly API cookie and is rotated by the refresh endpoint.
-    refreshToken: null
+    refreshToken: null,
   };
 }
 
 export function saveAdminTokens({ accessToken: nextAccessToken }) {
-  if (typeof window === 'undefined') {
+  if (typeof window === "undefined") {
     return;
   }
 
@@ -31,17 +32,17 @@ export function saveAdminTokens({ accessToken: nextAccessToken }) {
 }
 
 export function clearAdminTokens() {
-  if (typeof window === 'undefined') {
+  if (typeof window === "undefined") {
     return;
   }
 
   accessToken = null;
   // Clear tokens created by the previous browser-storage implementation.
-  window.localStorage.removeItem('c2_admin_access_token');
-  window.localStorage.removeItem('c2_admin_refresh_token');
+  window.localStorage.removeItem("c2_admin_access_token");
+  window.localStorage.removeItem("c2_admin_refresh_token");
 }
 
-function buildAdminError(message, code = 'unexpected_error', status = 500) {
+function buildAdminError(message, code = "unexpected_error", status = 500) {
   const error = new Error(message);
   error.code = code;
   error.status = status;
@@ -49,15 +50,15 @@ function buildAdminError(message, code = 'unexpected_error', status = 500) {
 }
 
 function broadcastAdminSessionExpired() {
-  if (typeof window === 'undefined') {
+  if (typeof window === "undefined") {
     return;
   }
 
-  window.dispatchEvent(new Event('c2-admin-session-expired'));
+  window.dispatchEvent(new Event("c2-admin-session-expired"));
 }
 
 async function refreshAdminSession() {
-  if (typeof window === 'undefined') {
+  if (typeof window === "undefined") {
     return null;
   }
 
@@ -66,26 +67,33 @@ async function refreshAdminSession() {
       let response;
       try {
         response = await fetch(`${getAdminApiBaseUrl()}${ADMIN_REFRESH_PATH}`, {
-          method: 'POST',
+          method: "POST",
           headers: {
-            Accept: 'application/json',
-            'Content-Type': 'application/json'
+            Accept: "application/json",
+            "Content-Type": "application/json",
           },
-          credentials: 'include',
-          body: JSON.stringify({})
+          credentials: "include",
+          body: JSON.stringify({}),
         });
       } catch {
-        throw buildAdminError('We could not refresh your admin session. Please try again.', 'network_error', 503);
+        throw buildAdminError(
+          "We could not refresh your admin session. Please try again.",
+          "network_error",
+          503,
+        );
       }
 
-      const isJson = response.headers.get('content-type')?.includes('application/json');
+      const isJson = response.headers
+        .get("content-type")
+        ?.includes("application/json");
       const body = isJson ? await response.json().catch(() => null) : null;
 
       if (!response.ok) {
-        const code = body?.error?.code || 'invalid_refresh_token';
-        const message = code === 'invalid_refresh_token'
-          ? 'Your admin session has expired. Please sign in again.'
-          : 'We could not refresh your admin session. Please sign in again.';
+        const code = body?.error?.code || "invalid_refresh_token";
+        const message =
+          code === "invalid_refresh_token"
+            ? "Your admin session has expired. Please sign in again."
+            : "We could not refresh your admin session. Please sign in again.";
 
         clearAdminTokens();
         broadcastAdminSessionExpired();
@@ -94,8 +102,8 @@ async function refreshAdminSession() {
       }
 
       saveAdminTokens({
-        accessToken: body?.access_token || '',
-        refreshToken: null
+        accessToken: body?.access_token || "",
+        refreshToken: null,
       });
 
       return body;
@@ -108,406 +116,520 @@ async function refreshAdminSession() {
 }
 
 function formatAdminErrorMessage(body, response) {
-  const code = body?.error?.code || 'unexpected_error';
+  const code = body?.error?.code || "unexpected_error";
 
-  if (response.status === 401 || ['invalid_access_token', 'missing_bearer_token', 'session_not_found', 'session_version_mismatch'].includes(code)) {
-    return 'Your admin session has expired. Please sign in again.';
+  if (
+    response.status === 401 ||
+    [
+      "invalid_access_token",
+      "missing_bearer_token",
+      "session_not_found",
+      "session_version_mismatch",
+    ].includes(code)
+  ) {
+    return "Your admin session has expired. Please sign in again.";
   }
 
-  if (code === 'unexpected_error') {
-    return 'We could not complete this request. Please try again.';
+  if (code === "unexpected_error") {
+    return "We could not complete this request. Please try again.";
   }
 
   switch (code) {
-    case 'invalid_admin_credentials':
-      return 'The admin username or password is incorrect.';
-    case 'admin_not_active':
-      return 'This admin account is not active.';
-    case 'forbidden':
-      return 'Your account does not have permission for this action.';
-    case 'printer_not_ready':
-      return 'The receipt printer is not ready. Please check its connector.';
-    case 'validation_error':
-      return 'Please review the information and try again.';
+    case "invalid_admin_credentials":
+      return "The admin username or password is incorrect.";
+    case "admin_not_active":
+      return "This admin account is not active.";
+    case "forbidden":
+      return "Your account does not have permission for this action.";
+    case "printer_not_ready":
+      return "The receipt printer is not ready. Please check its connector.";
+    case "validation_error":
+      return "Please review the information and try again.";
+    case "voucher_employee_only":
+      return "This voucher is for employees only. In Customers, choose the customer menu, select Set employee, tick Employee account, then save with your admin password.";
+    case "voucher_limit_per_user_reached":
+      return "This customer has already received the maximum allowed number of this voucher.";
+    case "customer_not_found":
+      return "No active customer account was found for that phone number.";
     default:
-      return 'We could not complete this request. Please try again.';
+      return "We could not complete this request. Please try again.";
   }
 }
 
 export async function loadAdminTenants() {
-  const response = await adminRequest('/v1/admin/tenants');
+  const response = await adminRequest("/v1/admin/tenants");
   return response.tenants || [];
 }
 
 export function requestAdminPasswordChange(payload) {
-  return adminRequest('/v1/admin/auth/password-change/request', {
-    method: 'POST',
-    body: JSON.stringify(payload)
+  return adminRequest("/v1/admin/auth/password-change/request", {
+    method: "POST",
+    body: JSON.stringify(payload),
   });
 }
 
 export function confirmAdminPasswordChange(payload) {
-  return adminRequest('/v1/admin/auth/password-change/confirm', {
-    method: 'POST',
-    body: JSON.stringify(payload)
+  return adminRequest("/v1/admin/auth/password-change/confirm", {
+    method: "POST",
+    body: JSON.stringify(payload),
   });
 }
 
 export async function loadAdminMenu() {
-  return adminRequest('/v1/admin/menu');
+  return adminRequest("/v1/admin/menu");
 }
 
 export async function loadAdminOptionLibrary() {
-  return adminRequest('/v1/admin/menu/options-library');
+  return adminRequest("/v1/admin/menu/options-library");
 }
 
 export async function createAdminOptionGroup(payload) {
-  return adminRequest('/v1/admin/menu/options-library/groups', {
-    method: 'POST',
-    body: JSON.stringify(payload)
+  return adminRequest("/v1/admin/menu/options-library/groups", {
+    method: "POST",
+    body: JSON.stringify(payload),
   });
 }
 
 export async function updateAdminOptionGroup(groupId, payload) {
-  return adminRequest(`/v1/admin/menu/options-library/groups/${encodeURIComponent(groupId)}`, {
-    method: 'PATCH',
-    body: JSON.stringify(payload)
-  });
+  return adminRequest(
+    `/v1/admin/menu/options-library/groups/${encodeURIComponent(groupId)}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function updateAdminMenuItemOptionExclusions(itemId, optionIds) {
+  return adminRequest(
+    `/v1/admin/menu/items/${encodeURIComponent(itemId)}/option-exclusions`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ option_ids: optionIds }),
+    },
+  );
 }
 
 export async function deleteAdminOptionGroup(groupId) {
-  return adminRequest(`/v1/admin/menu/options-library/groups/${encodeURIComponent(groupId)}`, {
-    method: 'DELETE'
-  });
+  return adminRequest(
+    `/v1/admin/menu/options-library/groups/${encodeURIComponent(groupId)}`,
+    {
+      method: "DELETE",
+    },
+  );
 }
 
 export async function updateAdminMenuNutrition(itemId, baseCaloriesKcal) {
-  return adminRequest(`/v1/admin/menu/items/${encodeURIComponent(itemId)}/nutrition`, {
-    method: 'PATCH',
-    body: JSON.stringify({ base_calories_kcal: baseCaloriesKcal })
-  });
+  return adminRequest(
+    `/v1/admin/menu/items/${encodeURIComponent(itemId)}/nutrition`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ base_calories_kcal: baseCaloriesKcal }),
+    },
+  );
 }
 
 export async function loadAdminHomeFeatured() {
-  return adminRequest('/v1/admin/home-featured');
+  return adminRequest("/v1/admin/home-featured");
 }
 
 export async function saveAdminHomeFeatured(section, itemIds) {
-  return adminRequest('/v1/admin/home-featured', {
-    method: 'PUT',
-    body: JSON.stringify({ section, itemIds })
+  return adminRequest("/v1/admin/home-featured", {
+    method: "PUT",
+    body: JSON.stringify({ section, itemIds }),
   });
 }
 
 export async function loadAdminProductReport(selectedDate = null) {
-  const query = selectedDate ? `?selected_date=${encodeURIComponent(selectedDate.toISOString())}` : '';
+  const query = selectedDate
+    ? `?selected_date=${encodeURIComponent(selectedDate.toISOString())}`
+    : "";
   return adminRequest(`/v1/admin/reports/products${query}`);
 }
 
 export async function loadAdminCustomers() {
-  return adminRequest('/v1/admin/customers');
+  return adminRequest("/v1/admin/customers");
 }
 
 export async function loadAdminOrders(params = {}) {
-  const query = params.limit ? `?limit=${encodeURIComponent(params.limit)}` : '';
+  const query = params.limit
+    ? `?limit=${encodeURIComponent(params.limit)}`
+    : "";
   return adminRequest(`/v1/admin/orders${query}`);
 }
 
-export async function loadAdminDashboard({ startDate = null, endDate = null, period = 'this_month' } = {}) {
+export async function loadAdminDashboard({
+  startDate = null,
+  endDate = null,
+  period = "this_month",
+} = {}) {
   const searchParams = new URLSearchParams({ period });
   if (startDate) {
-    searchParams.set('start_date', startDate);
+    searchParams.set("start_date", startDate);
   }
   if (endDate) {
-    searchParams.set('end_date', endDate);
+    searchParams.set("end_date", endDate);
   }
-  const query = searchParams.toString() ? `?${searchParams.toString()}` : '';
+  const query = searchParams.toString() ? `?${searchParams.toString()}` : "";
   return adminRequest(`/v1/admin/dashboard${query}`);
 }
 
 export async function loadAdminRefunds(params = {}) {
-  const query = params.limit ? `?limit=${encodeURIComponent(params.limit)}` : '';
+  const query = params.limit
+    ? `?limit=${encodeURIComponent(params.limit)}`
+    : "";
   return adminRequest(`/v1/admin/refunds${query}`);
 }
 
 export async function createAdminRefund(orderId, reason, confirmationPassword) {
-  return adminRequest('/v1/admin/refunds', {
-    method: 'POST',
-    body: JSON.stringify({ order_id: orderId, reason, confirmation_password: confirmationPassword })
+  return adminRequest("/v1/admin/refunds", {
+    method: "POST",
+    body: JSON.stringify({
+      order_id: orderId,
+      reason,
+      confirmation_password: confirmationPassword,
+    }),
   });
 }
 
-export async function reviewAdminRefund(refundRef, decision, confirmationPassword) {
-  return adminRequest(`/v1/admin/refunds/${encodeURIComponent(refundRef)}/review`, {
-    method: 'PATCH',
-    body: JSON.stringify({ decision, confirmation_password: confirmationPassword })
-  });
+export async function reviewAdminRefund(
+  refundRef,
+  decision,
+  confirmationPassword,
+) {
+  return adminRequest(
+    `/v1/admin/refunds/${encodeURIComponent(refundRef)}/review`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        decision,
+        confirmation_password: confirmationPassword,
+      }),
+    },
+  );
 }
 
 export async function loadAdminVouchers() {
-  return adminRequest('/v1/admin/vouchers');
+  return adminRequest("/v1/admin/vouchers");
 }
 
 export async function loadAdminAuditLogs(params = {}) {
   const searchParams = new URLSearchParams();
 
   if (params.search) {
-    searchParams.set('search', params.search);
+    searchParams.set("search", params.search);
   }
   if (params.targetType) {
-    searchParams.set('target_type', params.targetType);
+    searchParams.set("target_type", params.targetType);
   }
   if (params.actionCode) {
-    searchParams.set('action_code', params.actionCode);
+    searchParams.set("action_code", params.actionCode);
   }
-  if (params.selectedDate instanceof Date && !Number.isNaN(params.selectedDate.getTime())) {
-    searchParams.set('selected_date', params.selectedDate.toISOString());
+  if (
+    params.selectedDate instanceof Date &&
+    !Number.isNaN(params.selectedDate.getTime())
+  ) {
+    searchParams.set("selected_date", params.selectedDate.toISOString());
   }
   if (params.limit) {
-    searchParams.set('limit', String(params.limit));
+    searchParams.set("limit", String(params.limit));
   }
 
   const query = searchParams.toString();
-  return adminRequest(`/v1/admin/audit-logs${query ? `?${query}` : ''}`);
+  return adminRequest(`/v1/admin/audit-logs${query ? `?${query}` : ""}`);
 }
 
 export async function loadAdminMarketingBanners(params = {}) {
   const searchParams = new URLSearchParams();
 
   if (params.search) {
-    searchParams.set('search', params.search);
+    searchParams.set("search", params.search);
   }
   if (params.bannerType) {
-    searchParams.set('banner_type', params.bannerType);
+    searchParams.set("banner_type", params.bannerType);
   }
   if (params.placement) {
-    searchParams.set('placement', params.placement);
+    searchParams.set("placement", params.placement);
   }
-  if (params.isActive !== undefined && params.isActive !== null && params.isActive !== '') {
-    searchParams.set('is_active', params.isActive ? '1' : '0');
+  if (
+    params.isActive !== undefined &&
+    params.isActive !== null &&
+    params.isActive !== ""
+  ) {
+    searchParams.set("is_active", params.isActive ? "1" : "0");
   }
 
   const query = searchParams.toString();
-  return adminRequest(`/v1/admin/marketing/banners${query ? `?${query}` : ''}`);
+  return adminRequest(`/v1/admin/marketing/banners${query ? `?${query}` : ""}`);
 }
 
 export async function createAdminMarketingBanner(payload) {
-  return adminRequest('/v1/admin/marketing/banners', {
-    method: 'POST',
-    body: JSON.stringify(payload)
+  return adminRequest("/v1/admin/marketing/banners", {
+    method: "POST",
+    body: JSON.stringify(payload),
   });
 }
 
 export async function updateAdminMarketingBanner(bannerId, payload) {
   return adminRequest(`/v1/admin/marketing/banners/${bannerId}`, {
-    method: 'PATCH',
-    body: JSON.stringify(payload)
+    method: "PATCH",
+    body: JSON.stringify(payload),
   });
 }
 
 export async function deleteAdminMarketingBanner(bannerId) {
   return adminRequest(`/v1/admin/marketing/banners/${bannerId}`, {
-    method: 'DELETE'
+    method: "DELETE",
   });
 }
 
 export async function loadAdminLoyaltyOverview(limit = 50) {
-  return adminRequest(`/v1/admin/loyalty/overview?limit=${encodeURIComponent(limit)}`);
+  return adminRequest(
+    `/v1/admin/loyalty/overview?limit=${encodeURIComponent(limit)}`,
+  );
 }
 
 export async function adjustAdminCustomerTokens(customerId, payload) {
   return adminRequest(`/v1/admin/loyalty/customers/${customerId}/adjustment`, {
-    method: 'POST',
-    body: JSON.stringify(payload)
+    method: "POST",
+    body: JSON.stringify(payload),
   });
 }
 
 export async function loadAdminFinanceOverview() {
-  return adminRequest('/v1/admin/finance/overview');
+  return adminRequest("/v1/admin/finance/overview");
 }
 
 export async function loadAdminTierConfigs() {
-  return adminRequest('/v1/admin/loyalty/tiers');
+  return adminRequest("/v1/admin/loyalty/tiers");
 }
 
 export async function createAdminTier(payload) {
-  return adminRequest('/v1/admin/loyalty/tiers', {
-    method: 'POST',
-    body: JSON.stringify(payload)
+  return adminRequest("/v1/admin/loyalty/tiers", {
+    method: "POST",
+    body: JSON.stringify(payload),
   });
 }
 
 export async function updateAdminTier(tierId, payload) {
   return adminRequest(`/v1/admin/loyalty/tiers/${tierId}`, {
-    method: 'PATCH',
-    body: JSON.stringify(payload)
+    method: "PATCH",
+    body: JSON.stringify(payload),
   });
 }
 
 export async function deleteAdminTier(tierId) {
   return adminRequest(`/v1/admin/loyalty/tiers/${tierId}`, {
-    method: 'DELETE'
+    method: "DELETE",
   });
 }
 
 export async function createAdminCustomer(payload) {
-  return adminRequest('/v1/admin/customers', {
-    method: 'POST',
-    body: JSON.stringify(payload)
+  return adminRequest("/v1/admin/customers", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function importAdminCustomers(payload) {
+  return adminRequest("/v1/admin/customers/import", {
+    method: "POST",
+    body: JSON.stringify(payload),
   });
 }
 
 export async function updateAdminCustomer(customerId, payload) {
   return adminRequest(`/v1/admin/customers/${customerId}`, {
-    method: 'PATCH',
-    body: JSON.stringify(payload)
+    method: "PATCH",
+    body: JSON.stringify(payload),
   });
 }
 
 export async function deleteAdminCustomer(customerId, payload) {
   return adminRequest(`/v1/admin/customers/${customerId}`, {
-    method: 'DELETE',
-    body: JSON.stringify(payload)
+    method: "DELETE",
+    body: JSON.stringify(payload),
   });
 }
 
 export async function createAdminMenuItem(payload) {
-  return adminRequest('/v1/admin/menu/items', {
-    method: 'POST',
-    body: JSON.stringify(payload)
+  return adminRequest("/v1/admin/menu/items", {
+    method: "POST",
+    body: JSON.stringify(payload),
   });
 }
 
 export async function createAdminMenuSubcategory(payload) {
-  return adminRequest('/v1/admin/menu/subcategories', {
-    method: 'POST',
-    body: JSON.stringify(payload)
+  return adminRequest("/v1/admin/menu/subcategories", {
+    method: "POST",
+    body: JSON.stringify(payload),
   });
 }
 
 export async function createAdminMenuCategory(payload) {
-  return adminRequest('/v1/admin/menu/categories', {
-    method: 'POST',
-    body: JSON.stringify(payload)
+  return adminRequest("/v1/admin/menu/categories", {
+    method: "POST",
+    body: JSON.stringify(payload),
   });
 }
 
 export async function updateAdminMenuCategory(categoryId, payload) {
   return adminRequest(`/v1/admin/menu/categories/${categoryId}`, {
-    method: 'PATCH',
-    body: JSON.stringify(payload)
+    method: "PATCH",
+    body: JSON.stringify(payload),
   });
 }
 
 export async function updateAdminMenuSubcategory(subcategoryId, payload) {
   return adminRequest(`/v1/admin/menu/subcategories/${subcategoryId}`, {
-    method: 'PATCH',
-    body: JSON.stringify(payload)
+    method: "PATCH",
+    body: JSON.stringify(payload),
   });
 }
 
 export async function deleteAdminMenuCategory(categoryId) {
   return adminRequest(`/v1/admin/menu/categories/${categoryId}`, {
-    method: 'DELETE'
+    method: "DELETE",
   });
 }
 
 export async function deleteAdminMenuSubcategory(subcategoryId) {
   return adminRequest(`/v1/admin/menu/subcategories/${subcategoryId}`, {
-    method: 'DELETE'
+    method: "DELETE",
   });
 }
 
 export async function updateAdminMenuItem(menuItemId, payload) {
   return adminRequest(`/v1/admin/menu/items/${menuItemId}`, {
-    method: 'PATCH',
-    body: JSON.stringify(payload)
+    method: "PATCH",
+    body: JSON.stringify(payload),
   });
 }
 
 export async function deleteAdminMenuItem(menuItemId) {
   return adminRequest(`/v1/admin/menu/items/${menuItemId}`, {
-    method: 'DELETE'
+    method: "DELETE",
   });
 }
 
 export async function loadAdminOperationalSetup() {
-  return adminRequest('/v1/admin/operational-integrations');
+  return adminRequest("/v1/admin/operational-integrations");
 }
 
 export async function loadAdminStore() {
-  return adminRequest('/v1/admin/store');
+  return adminRequest("/v1/admin/store");
 }
 
 export async function updateAdminStoreName(name) {
-  return adminRequest('/v1/admin/store', {
-    method: 'PATCH',
-    body: JSON.stringify({ name })
+  return adminRequest("/v1/admin/store", {
+    method: "PATCH",
+    body: JSON.stringify({ name }),
+  });
+}
+
+export async function loadAdminAppearance() {
+  return adminRequest("/v1/admin/appearance");
+}
+
+export async function updateAdminAppearance(appearance) {
+  return adminRequest("/v1/admin/appearance", {
+    method: "PATCH",
+    body: JSON.stringify(appearance),
   });
 }
 
 export async function saveAdminWeeklySchedule(entries) {
-  return adminRequest('/v1/admin/weekly-schedule', {
-    method: 'PUT',
-    body: JSON.stringify({ entries })
+  return adminRequest("/v1/admin/weekly-schedule", {
+    method: "PUT",
+    body: JSON.stringify({ entries }),
   });
 }
 
 export async function createAdminOperationalIntegration(payload) {
-  return adminRequest('/v1/admin/operational-integrations', {
-    method: 'POST',
-    body: JSON.stringify(payload)
+  return adminRequest("/v1/admin/operational-integrations", {
+    method: "POST",
+    body: JSON.stringify(payload),
   });
 }
 
 export async function createAdminPrinterTarget(payload) {
-  return adminRequest('/v1/admin/printer-targets', {
-    method: 'POST',
-    body: JSON.stringify(payload)
+  return adminRequest("/v1/admin/printer-targets", {
+    method: "POST",
+    body: JSON.stringify(payload),
   });
 }
 
 export async function uploadAdminMenuImage(file) {
   const dataUrl = await readFileAsDataUrl(file);
-  return adminRequest('/v1/admin/menu/uploads', {
-    method: 'POST',
+  return adminRequest("/v1/admin/menu/uploads", {
+    method: "POST",
     body: JSON.stringify({
       file_name: file.name,
-      mime_type: file.type || 'image/png',
-      data_url: dataUrl
-    })
+      mime_type: file.type || "image/png",
+      data_url: dataUrl,
+    }),
+  });
+}
+
+export async function uploadAdminMarketingPoster(file) {
+  const dataUrl = await readFileAsDataUrl(file);
+  return adminRequest("/v1/admin/marketing/uploads", {
+    method: "POST",
+    body: JSON.stringify({
+      file_name: file.name,
+      mime_type: file.type || "image/png",
+      data_url: dataUrl,
+    }),
+  });
+}
+
+export async function uploadAdminVoucherImage(file) {
+  const dataUrl = await readFileAsDataUrl(file);
+  return adminRequest("/v1/admin/vouchers/uploads", {
+    method: "POST",
+    body: JSON.stringify({
+      file_name: file.name,
+      mime_type: file.type || "image/png",
+      data_url: dataUrl,
+    }),
   });
 }
 
 export async function uploadAdminOptionImage(file) {
   const dataUrl = await readFileAsDataUrl(file);
-  return adminRequest('/v1/admin/menu/options-library/uploads', {
-    method: 'POST',
+  return adminRequest("/v1/admin/menu/options-library/uploads", {
+    method: "POST",
     body: JSON.stringify({
       file_name: file.name,
-      mime_type: file.type || 'image/png',
-      data_url: dataUrl
-    })
+      mime_type: file.type || "image/png",
+      data_url: dataUrl,
+    }),
   });
 }
 
-export async function adminRequest(path, options = {}, retryOnUnauthorized = true) {
+export async function adminRequest(
+  path,
+  options = {},
+  retryOnUnauthorized = true,
+) {
   const { headers: optionHeaders, ...requestOptions } = options;
   const { accessToken } = loadAdminTokens();
   const headers = {
-    Accept: 'application/json',
-    ...(optionHeaders || {})
+    Accept: "application/json",
+    ...(optionHeaders || {}),
   };
 
-  const hasBody = requestOptions.body !== undefined && requestOptions.body !== null;
-  const isFormData = typeof FormData !== 'undefined' && requestOptions.body instanceof FormData;
+  const hasBody =
+    requestOptions.body !== undefined && requestOptions.body !== null;
+  const isFormData =
+    typeof FormData !== "undefined" && requestOptions.body instanceof FormData;
 
-  if (hasBody && !isFormData && !headers['Content-Type']) {
-    headers['Content-Type'] = 'application/json';
+  if (hasBody && !isFormData && !headers["Content-Type"]) {
+    headers["Content-Type"] = "application/json";
   }
 
-  if (accessToken && !headers['Authorization']) {
-    headers['Authorization'] = `Bearer ${accessToken}`;
+  if (accessToken && !headers["Authorization"]) {
+    headers["Authorization"] = `Bearer ${accessToken}`;
   }
 
   let response;
@@ -515,16 +637,26 @@ export async function adminRequest(path, options = {}, retryOnUnauthorized = tru
     response = await fetch(`${getAdminApiBaseUrl()}${path}`, {
       ...requestOptions,
       headers,
-      credentials: 'include'
+      credentials: "include",
     });
   } catch {
-    throw buildAdminError('We could not reach the admin service. Please check your connection and try again.', 'network_error', 503);
+    throw buildAdminError(
+      "We could not reach the admin service. Please check your connection and try again.",
+      "network_error",
+      503,
+    );
   }
 
-  const isJson = response.headers.get('content-type')?.includes('application/json');
+  const isJson = response.headers
+    .get("content-type")
+    ?.includes("application/json");
   const body = isJson ? await response.json().catch(() => null) : null;
 
-  if (response.status === 401 && retryOnUnauthorized && path !== ADMIN_REFRESH_PATH) {
+  if (
+    response.status === 401 &&
+    retryOnUnauthorized &&
+    path !== ADMIN_REFRESH_PATH
+  ) {
     try {
       await refreshAdminSession();
       return adminRequest(path, options, false);
@@ -533,13 +665,17 @@ export async function adminRequest(path, options = {}, retryOnUnauthorized = tru
         throw refreshError;
       }
 
-      throw buildAdminError('Your admin session has expired. Please sign in again.', 'invalid_refresh_token', 401);
+      throw buildAdminError(
+        "Your admin session has expired. Please sign in again.",
+        "invalid_refresh_token",
+        401,
+      );
     }
   }
 
   if (!response.ok) {
     const message = formatAdminErrorMessage(body, response);
-    const code = body?.error?.code || 'unexpected_error';
+    const code = body?.error?.code || "unexpected_error";
     throw buildAdminError(message, code, response.status);
   }
 
@@ -549,8 +685,8 @@ export async function adminRequest(path, options = {}, retryOnUnauthorized = tru
 function readFileAsDataUrl(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ''));
-    reader.onerror = () => reject(new Error('Unable to read image file.'));
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Unable to read image file."));
     reader.readAsDataURL(file);
   });
 }

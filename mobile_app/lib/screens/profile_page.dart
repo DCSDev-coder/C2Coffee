@@ -18,6 +18,7 @@ import 'notification_page.dart';
 import 'settings_page.dart';
 import 'rewards_page.dart';
 import 'my_rewards_page.dart';
+import 'news_page.dart';
 import 'referral_page.dart';
 import '../widgets/order_status_banner.dart';
 import '../widgets/catalog_product_image.dart';
@@ -55,6 +56,7 @@ class _ProfilePageState extends State<ProfilePage> {
   File? _persistedPickedImage;
   String? _persistedPresetPath;
   String _username = 'C2 Member';
+  bool _showAllOffers = false;
 
   Color get orangeColor => AppColors.deepTeal;
   final Color bgColor = Colors.white;
@@ -216,7 +218,9 @@ class _ProfilePageState extends State<ProfilePage> {
         for (final order in allOrders) {
           final orderDate = _dateOnly(order.createdAt.toLocal());
           orderDates.add(orderDate);
-          ordersByDate.putIfAbsent(orderDate, () => <CustomerOrder>[]).add(order);
+          ordersByDate
+              .putIfAbsent(orderDate, () => <CustomerOrder>[])
+              .add(order);
           for (final title in _orderTitlesForOrder(order)) {
             _addCalendarTitle(orderTitlesByDate, orderDate, title);
           }
@@ -296,9 +300,8 @@ class _ProfilePageState extends State<ProfilePage> {
             width: 56,
             height: 56,
             fit: BoxFit.cover,
-            loadingBuilder: (_, child, loadingProgress) => loadingProgress == null
-                ? child
-                : const C2ImageSkeleton(),
+            loadingBuilder: (_, child, loadingProgress) =>
+                loadingProgress == null ? child : const C2ImageSkeleton(),
             errorBuilder: (_, __, ___) =>
                 const Icon(Icons.person, size: 36, color: Colors.white),
           ),
@@ -348,363 +351,361 @@ class _ProfilePageState extends State<ProfilePage> {
         scrollController: _scrollController,
       ),
       trailing: GestureDetector(
-            onTap: () {
-              InteractiveFillingLoader.show(
-                context,
-                targetPage: const NotificationPage(),
-              );
-            },
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                const Icon(Icons.notifications_outlined,
-                    color: Colors.white, size: 26),
-              ],
-            ),
-          ),
+        onTap: () {
+          InteractiveFillingLoader.show(
+            context,
+            targetPage: const NotificationPage(),
+          );
+        },
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            const Icon(Icons.notifications_outlined,
+                color: Colors.white, size: 26),
+          ],
+        ),
+      ),
       overlay: OrderStatusBanner(
         bottomOffset: 90 + MediaQuery.paddingOf(context).bottom,
       ),
       child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Profile Card
-                GestureDetector(
-                  onTap: () async {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => SettingsPage(
-                          onProfileUpdated: _loadAvatarState,
-                          returnPage: const ProfilePage(),
-                        ),
-                      ),
-                    );
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: AppColors.border,
-                        width: 1,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.03),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        )
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        _buildAvatar(),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Text(
-                            'Hey $_username,',
-                            style: TextStyle(
-                              fontFamily: 'Recoleta',
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.deepTeal,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        Icon(
-                          Icons.arrow_forward_ios,
-                          size: 16,
-                          color: AppColors.deepTeal.withValues(alpha: 0.5),
-                        ),
-                      ],
-                    ),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Profile Card
+          GestureDetector(
+            onTap: () async {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => SettingsPage(
+                    onProfileUpdated: _loadAvatarState,
+                    returnPage: const ProfilePage(),
                   ),
                 ),
-                const SizedBox(height: 24),
-
-                // Dashboard Grid
-                Column(
-                  children: [
-                    // Wallet Box
-                    Container(
-                      width: double.infinity,
-                      clipBehavior: Clip.hardEdge,
-                      decoration: BoxDecoration(
+              );
+            },
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: AppColors.border,
+                  width: 1,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.03),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  )
+                ],
+              ),
+              child: Row(
+                children: [
+                  _buildAvatar(),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Text(
+                      'Hey $_username,',
+                      style: TextStyle(
+                        fontFamily: 'Recoleta',
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
                         color: AppColors.deepTeal,
-                        borderRadius: BorderRadius.circular(24),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.deepTeal.withValues(alpha: 0.4),
-                            blurRadius: 16,
-                            offset: const Offset(0, 8),
-                          )
-                        ],
                       ),
-                      child: Stack(
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Icon(
+                    Icons.arrow_forward_ios,
+                    size: 16,
+                    color: AppColors.deepTeal.withValues(alpha: 0.5),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Dashboard Grid
+          Column(
+            children: [
+              // Wallet Box
+              Container(
+                width: double.infinity,
+                clipBehavior: Clip.hardEdge,
+                decoration: BoxDecoration(
+                  color: AppColors.deepTeal,
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.deepTeal.withValues(alpha: 0.4),
+                      blurRadius: 16,
+                      offset: const Offset(0, 8),
+                    )
+                  ],
+                ),
+                child: Stack(
+                  children: [
+                    // Large background logo partially hidden
+                    Positioned(
+                      right: -10,
+                      top: -10,
+                      bottom: -10,
+                      child: Opacity(
+                        opacity: 0.5,
+                        child: Image.asset(
+                          'assets/images/c2_logo.png',
+                          width: 150,
+                          fit: BoxFit.contain,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    // Content
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 24, vertical: 20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Large background logo partially hidden
-                          Positioned(
-                            right: -10,
-                            top: -10,
-                            bottom: -10,
-                            child: Opacity(
-                              opacity: 0.5,
-                              child: Image.asset(
-                                'assets/images/c2_logo.png',
-                                width: 150,
-                                fit: BoxFit.contain,
-                                color: Colors.white,
-                              ),
+                          Text(
+                            'Total Balance',
+                            style: TextStyle(
+                              fontFamily: 'Afacad',
+                              fontSize: 16,
+                              color: Colors.white.withValues(alpha: 0.8),
                             ),
                           ),
-                          // Content
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Total Balance',
+                          const SizedBox(height: 4),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                _session.tokenBalance.toStringAsFixed(2),
+                                style: const TextStyle(
+                                  fontFamily: 'Afacad',
+                                  fontSize: 36,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              const Padding(
+                                padding: EdgeInsets.only(bottom: 6),
+                                child: Text(
+                                  'tokens',
                                   style: TextStyle(
                                     fontFamily: 'Afacad',
                                     fontSize: 16,
-                                    color: Colors.white.withValues(alpha: 0.8),
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
                                   ),
                                 ),
-                                const SizedBox(height: 4),
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: [
-                                    Text(
-                                      _session.tokenBalance.toStringAsFixed(2),
-                                      style: const TextStyle(
-                                        fontFamily: 'Afacad',
-                                        fontSize: 36,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    const Padding(
-                                      padding: EdgeInsets.only(bottom: 6),
-                                      child: Text(
-                                        'tokens',
-                                        style: TextStyle(
-                                          fontFamily: 'Afacad',
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 16),
-                                GestureDetector(
-                                  onTap: () {
-                                    InteractiveFillingLoader.show(
-                                      context,
-                                      targetPage: const TopUpWalletPage(),
-                                    );
-                                  },
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withValues(alpha: 0.15),
-                                      borderRadius: BorderRadius.circular(20),
-                                    ),
-                                    child: const Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(Icons.add, color: Colors.white, size: 18),
-                                        SizedBox(width: 8),
-                                        Text(
-                                          'Add Balance',
-                                          style: TextStyle(
-                                            fontFamily: 'Afacad',
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.white,
-                                          ),
-                                        ),
-                                      ],
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          GestureDetector(
+                            onTap: () {
+                              InteractiveFillingLoader.show(
+                                context,
+                                targetPage: const TopUpWalletPage(),
+                              );
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.add,
+                                      color: Colors.white, size: 18),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'Add Balance',
+                                    style: TextStyle(
+                                      fontFamily: 'Afacad',
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
                                     ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    // Rewards & Referrals
-                    Row(
-                      children: [
-                        // My Reward
-                        Expanded(
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: AppColors.border,
-                                width: 1,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                    color: Colors.black
-                                        .withValues(alpha: 0.03),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 2))
-                              ],
-                            ),
-                            child: Material(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(20),
-                              child: InkWell(
-                                borderRadius: BorderRadius.circular(20),
-                                onTap: () {
-                                  InteractiveFillingLoader.show(
-                                    context,
-                                    targetPage: const MyRewardsPage(),
-                                  );
-                                },
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                      vertical: 20, horizontal: 16),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.center,
-                                    children: [
-                                      Text('My Reward',
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                              fontFamily: 'Recoleta',
-                                              fontSize: 18,
-                                              fontWeight: FontWeight.bold,
-                                              color: AppColors.deepTeal)),
-                                      const SizedBox(height: 16),
-                                      Image.asset(
-                                          'assets/images/Surprise reward gift box with star popping out.png',
-                                          height: 95),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        // My Referrals
-                        Expanded(
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: AppColors.border,
-                                width: 1,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                    color: Colors.black
-                                        .withValues(alpha: 0.03),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 2))
-                              ],
-                            ),
-                            child: Material(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(20),
-                              child: InkWell(
-                                borderRadius: BorderRadius.circular(20),
-                                onTap: () {
-                                  InteractiveFillingLoader.show(
-                                    context,
-                                    targetPage: const ReferralPage(),
-                                  );
-                                },
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                      vertical: 20, horizontal: 16),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.center,
-                                    children: [
-                                      Text('My Referrals',
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                              fontFamily: 'Recoleta',
-                                              fontSize: 18,
-                                              fontWeight: FontWeight.bold,
-                                              color: AppColors.deepTeal)),
-                                      const SizedBox(height: 16),
-                                      Image.asset(
-                                          'assets/images/Community friends laughing together waving hands and giving thumbs.png',
-                                          height: 95),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
                   ],
                 ),
-                const SizedBox(height: 24),
-
-                // News Section
-                Text(
-                  'News',
-                  style: TextStyle(
-                    fontFamily: 'Recoleta',
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.deepTeal,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                _buildNewsSection(),
-                const SizedBox(height: 24),
-
-                // Calendar Section
-                Container(
-                  key: _calendarSectionKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Calendar',
-                          style: TextStyle(
-                              fontFamily: 'Recoleta',
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.deepTeal)),
-                      const SizedBox(height: 12),
-                      Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 24.0),
-                        child: CustomCalendarWidget(
-                          orderDates: _calendarOrderDates,
-                          eventDates: _calendarEventDates,
-                          ordersByDate: _calendarOrdersByDate,
-                          orderTitlesByDate: _calendarOrderTitlesByDate,
-                          eventTitlesByDate: _calendarEventTitlesByDate,
-                          isLoading: _calendarLoading,
+              ),
+              const SizedBox(height: 16),
+              // Rewards & Referrals
+              Row(
+                children: [
+                  // My Reward
+                  Expanded(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: AppColors.border,
+                          width: 1,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.03),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2))
+                        ],
+                      ),
+                      child: Material(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(20),
+                          onTap: () {
+                            InteractiveFillingLoader.show(
+                              context,
+                              targetPage: const MyRewardsPage(),
+                            );
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 20, horizontal: 16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Text('My Reward',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                        fontFamily: 'Recoleta',
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.deepTeal)),
+                                const SizedBox(height: 16),
+                                Image.asset(
+                                    'assets/images/Surprise reward gift box with star popping out.png',
+                                    height: 95),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
-                    ],
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  // My Referrals
+                  Expanded(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: AppColors.border,
+                          width: 1,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.03),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2))
+                        ],
+                      ),
+                      child: Material(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(20),
+                          onTap: () {
+                            InteractiveFillingLoader.show(
+                              context,
+                              targetPage: const ReferralPage(),
+                            );
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 20, horizontal: 16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Text('My Referrals',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                        fontFamily: 'Recoleta',
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.deepTeal)),
+                                const SizedBox(height: 16),
+                                Image.asset(
+                                    'assets/images/Community friends laughing together waving hands and giving thumbs.png',
+                                    height: 95),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          // News Section
+          Text(
+            'News',
+            style: TextStyle(
+              fontFamily: 'Recoleta',
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: AppColors.deepTeal,
+            ),
+          ),
+          const SizedBox(height: 12),
+          _buildNewsSection(),
+          const SizedBox(height: 24),
+
+          // Calendar Section
+          Container(
+            key: _calendarSectionKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Calendar',
+                    style: TextStyle(
+                        fontFamily: 'Recoleta',
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.deepTeal)),
+                const SizedBox(height: 12),
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 24.0),
+                  child: CustomCalendarWidget(
+                    orderDates: _calendarOrderDates,
+                    eventDates: _calendarEventDates,
+                    ordersByDate: _calendarOrdersByDate,
+                    orderTitlesByDate: _calendarOrderTitlesByDate,
+                    eventTitlesByDate: _calendarEventTitlesByDate,
+                    isLoading: _calendarLoading,
                   ),
                 ),
-                const SizedBox(height: 24),
-
               ],
+            ),
+          ),
+          const SizedBox(height: 24),
+        ],
       ),
     );
   }
@@ -712,7 +713,15 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget _buildNewsSection() {
     final banners = _session.homeBanners
         .where((banner) => banner.appearsOnProfile)
-        .toList();
+        .toList()
+      ..sort((first, second) {
+        final firstCreatedAt = first.createdAt?.millisecondsSinceEpoch ?? 0;
+        final secondCreatedAt = second.createdAt?.millisecondsSinceEpoch ?? 0;
+        final dateOrder = secondCreatedAt.compareTo(firstCreatedAt);
+        return dateOrder != 0
+            ? dateOrder
+            : first.sortOrder.compareTo(second.sortOrder);
+      });
 
     if (banners.isEmpty) {
       return Container(
@@ -744,68 +753,125 @@ class _ProfilePageState extends State<ProfilePage> {
       );
     }
 
+    final visibleBanners = _showAllOffers ? banners : banners.take(3).toList();
+
     return Column(
       children: [
-        for (var i = 0; i < banners.length; i++) ...[
-          _buildNewsCard(banners[i]),
-          if (i < banners.length - 1) const SizedBox(height: 16),
+        for (var i = 0; i < visibleBanners.length; i++) ...[
+          _buildNewsCard(visibleBanners[i], banners),
+          if (i < visibleBanners.length - 1) const SizedBox(height: 16),
+        ],
+        if (banners.length > 3) ...[
+          const SizedBox(height: 8),
+          TextButton.icon(
+            onPressed: () => setState(() => _showAllOffers = !_showAllOffers),
+            icon: Icon(
+              _showAllOffers ? Icons.expand_less : Icons.expand_more,
+            ),
+            label: Text(
+              _showAllOffers
+                  ? 'Show less'
+                  : 'More offers (${banners.length - 3})',
+            ),
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.primary,
+              textStyle: const TextStyle(
+                fontFamily: 'Afacad',
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
         ],
       ],
     );
   }
 
-  Widget _buildNewsCard(dynamic banner) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
+  Widget _buildNewsCard(HomeBanner banner, List<HomeBanner> allBanners) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppColors.border,
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: _buildBannerImage(banner.imageSource),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  banner.title,
-                  style: TextStyle(
-                    fontFamily: 'Recoleta',
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.deepTeal,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  banner.subtitle,
-                  style: TextStyle(
-                    fontFamily: 'Afacad',
-                    fontSize: 16,
-                    color: Colors.grey,
-                    height: 1.35,
-                  ),
-                ),
-              ],
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => NewsPage(
+              banners: allBanners,
+              initialIndex: allBanners.indexOf(banner),
             ),
           ),
-        ],
+        ),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: AppColors.border,
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 100,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: AspectRatio(
+                    aspectRatio: 4 / 5,
+                    child: _buildBannerImage(banner.imageSource),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      banner.title,
+                      style: TextStyle(
+                        fontFamily: 'Recoleta',
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.brandText,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      banner.subtitle,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 16,
+                        color: AppColors.textMuted,
+                        height: 1.35,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      'Read more',
+                      style: TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -818,16 +884,12 @@ class _ProfilePageState extends State<ProfilePage> {
                 resolvedSource.startsWith('https://'))
             ? Image.network(
                 resolvedSource,
-                width: 100,
-                height: 100,
                 fit: BoxFit.cover,
                 errorBuilder: (context, error, stackTrace) =>
                     _buildBannerFallback(),
               )
             : Image.asset(
                 resolvedSource,
-                width: 100,
-                height: 100,
                 fit: BoxFit.cover,
                 errorBuilder: (context, error, stackTrace) =>
                     _buildBannerFallback(),
@@ -838,8 +900,6 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Widget _buildBannerFallback() {
     return Container(
-      width: 100,
-      height: 100,
       color: const Color(0xFFF6F7F8),
       alignment: Alignment.center,
       child: Image.asset(
@@ -890,11 +950,13 @@ class _CustomCalendarWidgetState extends State<CustomCalendarWidget> {
   }
 
   bool _hasOrder(DateTime date) {
-    return widget.orderDates.contains(DateTime(date.year, date.month, date.day));
+    return widget.orderDates
+        .contains(DateTime(date.year, date.month, date.day));
   }
 
   bool _hasEvent(DateTime date) {
-    return widget.eventDates.contains(DateTime(date.year, date.month, date.day));
+    return widget.eventDates
+        .contains(DateTime(date.year, date.month, date.day));
   }
 
   List<CustomerOrder> _ordersForDate(DateTime date) {
@@ -987,7 +1049,8 @@ class _CustomCalendarWidgetState extends State<CustomCalendarWidget> {
                       ),
                     ),
                     IconButton(
-                      icon: Icon(Icons.chevron_right, color: AppColors.deepTeal),
+                      icon:
+                          Icon(Icons.chevron_right, color: AppColors.deepTeal),
                       onPressed: _nextMonth,
                     ),
                   ],
@@ -1081,9 +1144,10 @@ class _CustomCalendarWidgetState extends State<CustomCalendarWidget> {
                                           width: 1.5,
                                         )
                                       : Border.all(
-                                        color: eventColor.withValues(alpha: 0.45),
-                                        width: 1.5,
-                                      ),
+                                          color: eventColor.withValues(
+                                              alpha: 0.45),
+                                          width: 1.5,
+                                        ),
                                 ),
                               ),
                             if (!showOrderMarker)
@@ -1318,7 +1382,8 @@ class _CustomCalendarWidgetState extends State<CustomCalendarWidget> {
       return primaryTitle;
     }
 
-    final itemTitle = order.items.isNotEmpty ? order.items.first.name.trim() : '';
+    final itemTitle =
+        order.items.isNotEmpty ? order.items.first.name.trim() : '';
     if (itemTitle.isNotEmpty) {
       return itemTitle;
     }

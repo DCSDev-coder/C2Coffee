@@ -35,10 +35,10 @@ class CatalogProductImage extends StatelessWidget {
         width: width,
         height: height,
         fit: fit,
+        // Do not force non-square artwork through a square cache decode.
+        // A width cap preserves the source aspect ratio for banners and posters.
         memCacheWidth: _cacheDimension,
-        memCacheHeight: _cacheDimension,
         maxWidthDiskCache: 1200,
-        maxHeightDiskCache: 1200,
         fadeInDuration: const Duration(milliseconds: 120),
         filterQuality: FilterQuality.low,
         placeholder: (_, __) => C2ImageSkeleton(

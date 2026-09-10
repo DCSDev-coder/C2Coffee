@@ -1,12 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import type { PoolConnection, RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 import { z } from 'zod';
-import { authenticateAdminRequest, requireAdminRole } from '../../admin/guard.js';
+import { authenticateAdminRequest, requireAdminRole, requireAnyAdminRole } from '../../admin/guard.js';
 import { mysqlPool } from '../../db/mysql.js';
 import { ApiError } from '../errors.js';
 import {
   formatTierName,
   getActiveLoyaltyTiers,
+  getTierByCode,
   getTierProgress,
   loadLoyaltyTiers
 } from '../../services/loyalty-tiers.js';
@@ -192,6 +193,9 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
     try {
       const tiers = await loadLoyaltyTiers(connection);
 
+      const activeTiers = getActiveLoyaltyTiers(tiers);
+      const defaultBaseTierCode = activeTiers[0]?.code ?? 'sipper';
+
       const [summaryRows] = await connection.query<SummaryRow[]>(
         `
           SELECT
@@ -246,7 +250,7 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
                 WHERE lts.user_id = u.id
                 ORDER BY lts.effective_at DESC, lts.id DESC
                 LIMIT 1
-              ), 'kawan') AS tier_code,
+              ), :defaultBaseTierCode) AS tier_code,
               COALESCE(ta.balance_available, 0) AS token_balance
             FROM users u
             JOIN customer_tenant_memberships ctm
@@ -258,7 +262,7 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
           GROUP BY lt.id, lt.code, lt.name, lt.min_cups, lt.sort_order
           ORDER BY lt.min_cups ASC, lt.sort_order ASC, lt.id ASC
         `,
-        { tenantId: request.adminAuth.tenantId }
+        { tenantId: request.adminAuth.tenantId, defaultBaseTierCode }
       );
 
       const [dailyRows] = await connection.query<DailyRow[]>(
@@ -332,13 +336,13 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
             tl.balance_after,
             tl.remarks,
             tl.created_at,
-            COALESCE((
+            (
               SELECT lts.tier_code
               FROM loyalty_tier_snapshots lts
               WHERE lts.user_id = u.id
               ORDER BY lts.effective_at DESC, lts.id DESC
               LIMIT 1
-            ), 'kawan') AS tier_code,
+            ) AS tier_code,
             COALESCE((
               SELECT lts.qualifying_cups_last_180d
               FROM loyalty_tier_snapshots lts
@@ -382,13 +386,13 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
             up.email,
             u.phone_e164,
             ta.balance_available AS token_balance,
-            COALESCE((
+            (
               SELECT lts.tier_code
               FROM loyalty_tier_snapshots lts
               WHERE lts.user_id = u.id
               ORDER BY lts.effective_at DESC, lts.id DESC
               LIMIT 1
-            ), 'kawan') AS tier_code,
+            ) AS tier_code,
             COALESCE((
               SELECT lts.qualifying_cups_last_180d
               FROM loyalty_tier_snapshots lts
@@ -433,8 +437,9 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
       const tierMap = new Map(tiers.map((tier) => [tier.code, tier]));
 
       const tierBreakdown = tierRows.map((row) => {
-        const tierCode = String(row.tier_code ?? 'kawan').trim().toLowerCase();
-        const tier = tierMap.get(tierCode);
+        const rawTierCode = row.tier_code ? String(row.tier_code).trim().toLowerCase() : defaultBaseTierCode;
+        const tier = tierMap.get(rawTierCode);
+        const tierCode = tier?.code ?? defaultBaseTierCode;
         const memberCount = Number(row.member_count ?? 0);
         const avgTokens = Number(row.avg_tokens ?? 0);
 
@@ -494,10 +499,12 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
         const amount = Number(row.amount ?? 0);
         const direction = row.direction === 'credit' ? 'Earned' : 'Redeemed';
         const tokenAmount = `${row.direction === 'credit' ? '+' : '-'}${amount.toLocaleString('en-US')}`;
-        const tierCode = String(row.tier_code ?? 'kawan').trim().toLowerCase();
-        const tier = tierMap.get(tierCode);
         const cups = Number(row.cups_last_180d ?? 0);
         const tierProgress = getTierProgress(cups, tiers);
+        const rawTierCode = row.tier_code ? String(row.tier_code).trim().toLowerCase() : null;
+        const tierConfig = rawTierCode ? getTierByCode(tiers, rawTierCode) : null;
+        const tierCode = tierConfig ? tierConfig.code : tierProgress.tierCode;
+        const tierName = tierConfig ? tierConfig.name : tierProgress.tierName;
 
         return {
           id: `TL-${row.ledger_id}`,
@@ -508,8 +515,9 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
             email: row.email || '',
             phone: row.phone_e164,
             memberId: `C2-${String(row.user_id).padStart(3, '0')}`,
-            tier: tier?.name ?? formatTierName(tiers, tierCode),
+            tier: tierName,
             tierCode,
+            badgeColor: tierConfig?.badgeColor ?? null,
             tokensBalance: Number(row.balance_after ?? 0).toLocaleString('en-US'),
             lifetimeEarned: Number(row.lifetime_earned ?? 0).toLocaleString('en-US'),
             lifetimeRedeemed: Number(row.lifetime_redeemed ?? 0).toLocaleString('en-US'),
@@ -525,9 +533,12 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
       });
 
       const members = walletMemberRows.map((row) => {
-        const tierCode = String(row.tier_code ?? 'kawan').trim().toLowerCase();
-        const tier = tierMap.get(tierCode);
         const cups = Number(row.cups_last_180d ?? 0);
+        const tierProgress = getTierProgress(cups, tiers);
+        const rawTierCode = row.tier_code ? String(row.tier_code).trim().toLowerCase() : null;
+        const tierConfig = rawTierCode ? getTierByCode(tiers, rawTierCode) : null;
+        const tierCode = tierConfig ? tierConfig.code : tierProgress.tierCode;
+        const tierName = tierConfig ? tierConfig.name : tierProgress.tierName;
 
         return {
           id: row.user_id,
@@ -535,12 +546,13 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
           email: row.email || '',
           phone: row.phone_e164,
           memberId: `C2-${String(row.user_id).padStart(3, '0')}`,
-          tier: tier?.name ?? formatTierName(tiers, tierCode),
+          tier: tierName,
           tierCode,
+          badgeColor: tierConfig?.badgeColor ?? null,
           tokensBalance: Number(row.token_balance ?? 0).toLocaleString('en-US'),
           lifetimeEarned: Number(row.lifetime_earned ?? 0).toLocaleString('en-US'),
           lifetimeRedeemed: Number(row.lifetime_redeemed ?? 0).toLocaleString('en-US'),
-          tierProgress: getTierProgress(cups, tiers)
+          tierProgress
         };
       });
 
@@ -569,7 +581,7 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
   });
 
   app.get('/v1/admin/loyalty/tiers', { preHandler: [authenticateAdminRequest] }, async (request) => {
-    requireAdminRole(request, 'super_admin');
+    requireAnyAdminRole(request, ['super_admin', 'support_admin', 'marketing_admin', 'operations_admin']);
     const connection = await mysqlPool.getConnection();
 
     try {

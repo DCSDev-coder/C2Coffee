@@ -1,7 +1,7 @@
 import React, { useState, forwardRef, useEffect } from "react";
 import {
   Search, Filter, ChevronDown, Download, CheckCircle, Clock, CheckCircle2,
-  MapPin, Phone, MessageSquare, Printer, Receipt, Eye, Share2, CornerUpLeft, MessageCircle,
+  MapPin, Phone, MessageSquare, Printer, Receipt, Share2, CornerUpLeft, MessageCircle,
   X, ShoppingBag, Ban, RotateCcw, XCircle,
   Coins, Wallet, Users, Package, Square,
   FileText, CheckSquare, ArrowUp, Edit3, Navigation, Plus
@@ -63,13 +63,23 @@ const SolidCheckSquareIcon = ({ size = 20, className = "" }) => (
 
 // Helpers matching Customers Page
 
-const getTierColor = (tier) => {
-  switch (tier) {
-    case "Kawan": return "bg-blue-100 text-blue-600";
-    case "Dilamun": return "bg-[#E07A5F]/15 text-[#E07A5F]";
-    case "Ketagih": return "bg-purple-100 text-purple-600";
-    case "Legend": return "bg-[#D4AF7A]/20 text-[#A8824A]";
-    default: return "bg-gray-100 text-gray-600";
+const getTierColor = (tier, tierCode) => {
+  const normalized = String(tierCode || tier || '').trim().toLowerCase();
+  switch (normalized) {
+    case 'sipper':
+    case 'kawan':
+      return 'bg-blue-100 text-blue-600';
+    case 'brewer':
+    case 'dilamun':
+      return 'bg-[#E07A5F]/15 text-[#E07A5F]';
+    case 'roaster':
+    case 'ketagih':
+      return 'bg-purple-100 text-purple-600';
+    case 'legendary':
+    case 'legend':
+      return 'bg-[#D4AF7A]/20 text-[#A8824A]';
+    default:
+      return 'bg-emerald-100 text-emerald-700';
   }
 };
 
@@ -766,7 +776,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-white">
                 <tr>
-                  {["Order ID", "Username", "Items", "Total", "Barista", "Status", "Payment", "Time", "Actions"].map((h) => (
+                  {["Order ID", "Username", "Items", "Total", "Barista", "Status", "Payment", "Time"].map((h) => (
                     <th key={h} className="px-6 py-4 text-left text-xs font-bold text-gray-900">
                       {h}
                     </th>
@@ -786,7 +796,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
                       <tr
                         key={order.id}
                         className={`hover:bg-gray-50 transition-colors cursor-pointer ${isSelected ? "bg-gray-50" : ""}`}
-                        onClick={() => setSelectedOrder(isSelected ? null : order)}
+                        onClick={() => setSelectedOrder(order)}
                       >
                         <td className="px-6 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
                           {order.id}
@@ -817,18 +827,6 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
                         </td>
                         <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-600 font-medium">
                           {order.time}
-                        </td>
-                        <td className="px-6 py-3 whitespace-nowrap text-sm font-medium">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedOrder(isSelected ? null : order);
-                            }}
-                            className="bg-[#1E293B] hover:bg-[#0F172A] text-white px-2.5 py-1.5 rounded-lg inline-flex items-center shadow-sm transition-colors cursor-pointer"
-                            title="View order details"
-                          >
-                            <Eye size={15} />
-                          </button>
                         </td>
                       </tr>
                     );

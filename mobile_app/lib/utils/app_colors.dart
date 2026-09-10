@@ -20,9 +20,20 @@ class AppColors {
 
   // ── Reactive Tier State ───────────────────────────────────────────
   static const String _tierPrefKey = 'selected_user_tier';
+  static const String _primaryColorKey = 'tenant_primary_color';
+  static const String _secondaryColorKey = 'tenant_secondary_color';
+  static const String _textColorKey = 'tenant_text_color';
+  static const String _backgroundColorKey = 'tenant_background_color';
+  static const String _mutedTextColorKey = 'tenant_muted_text_color';
 
   /// 0 = Tier 1 (Novice), 1 = Tier 2 (Explorer), 2 = Tier 3 (Master), 3 = Tier 4 (Legend)
   static final ValueNotifier<int> currentTier = ValueNotifier<int>(1);
+  static final ValueNotifier<int> appearanceVersion = ValueNotifier<int>(0);
+  static Color? _brandPrimary;
+  static Color? _brandSecondary;
+  static Color? _brandText;
+  static Color? _brandBackground;
+  static Color? _brandMutedText;
 
   static bool get isTier3Or4 => currentTier.value >= 2;
 
@@ -31,6 +42,28 @@ class AppColors {
       final prefs = await SharedPreferences.getInstance();
       final savedTier = prefs.getInt(_tierPrefKey) ?? 1;
       currentTier.value = savedTier.clamp(0, 3);
+
+      final primaryHex = prefs.getString(_primaryColorKey);
+      final secondaryHex = prefs.getString(_secondaryColorKey);
+      final textHex = prefs.getString(_textColorKey);
+      final backgroundHex = prefs.getString(_backgroundColorKey);
+      final mutedTextHex = prefs.getString(_mutedTextColorKey);
+
+      if (primaryHex != null ||
+          secondaryHex != null ||
+          textHex != null ||
+          backgroundHex != null ||
+          mutedTextHex != null) {
+        _brandPrimary = primaryHex != null ? _colorFromHex(primaryHex) : null;
+        _brandSecondary =
+            secondaryHex != null ? _colorFromHex(secondaryHex) : null;
+        _brandText = textHex != null ? _colorFromHex(textHex) : null;
+        _brandBackground =
+            backgroundHex != null ? _colorFromHex(backgroundHex) : null;
+        _brandMutedText =
+            mutedTextHex != null ? _colorFromHex(mutedTextHex) : null;
+        appearanceVersion.value++;
+      }
     } catch (_) {}
   }
 
@@ -42,6 +75,47 @@ class AppColors {
         prefs.setInt(_tierPrefKey, clamped);
       }).catchError((_) {});
     }
+  }
+
+  static void setBrandColors({
+    required String primaryHex,
+    required String secondaryHex,
+    required String textHex,
+    required String backgroundHex,
+    required String mutedTextHex,
+  }) {
+    final primary = _colorFromHex(primaryHex);
+    final secondary = _colorFromHex(secondaryHex);
+    final text = _colorFromHex(textHex);
+    final background = _colorFromHex(backgroundHex);
+    final mutedText = _colorFromHex(mutedTextHex);
+    if (primary == _brandPrimary &&
+        secondary == _brandSecondary &&
+        text == _brandText &&
+        background == _brandBackground &&
+        mutedText == _brandMutedText) {
+      return;
+    }
+    _brandPrimary = primary;
+    _brandSecondary = secondary;
+    _brandText = text;
+    _brandBackground = background;
+    _brandMutedText = mutedText;
+    appearanceVersion.value++;
+
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.setString(_primaryColorKey, primaryHex);
+      prefs.setString(_secondaryColorKey, secondaryHex);
+      prefs.setString(_textColorKey, textHex);
+      prefs.setString(_backgroundColorKey, backgroundHex);
+      prefs.setString(_mutedTextColorKey, mutedTextHex);
+    }).catchError((_) {});
+  }
+
+  static Color? _colorFromHex(String value) {
+    final normalized = value.trim().replaceFirst('#', '');
+    if (!RegExp(r'^[0-9a-fA-F]{6}$').hasMatch(normalized)) return null;
+    return Color(int.parse('FF$normalized', radix: 16));
   }
 
   // ── Dynamic Tier Discounts ─────────────────────────────────────────
@@ -141,40 +215,59 @@ class AppColors {
   // ── Shared Neutral Constants ──────────────────────────────────────
   static const Color charcoal = Color(0xFF2C2C2C);
   static const Color white = Color(0xFFFFFFFF);
-  static const Color textMuted = Color(0xFF6B7280);
+  static const Color defaultTextMuted = Color(0xFF6B7280);
 
   // ── Dynamic Dynamic Theme Getters ─────────────────────────────────
 
   /// Primary deep teal brand color (#2E5E58 in Tier 1&2, #1F3A34 in Tier 3&4)
-  static Color get primary => isTier3Or4 ? t2DeepForest : t1DeepTeal;
+  static Color get primary =>
+      _brandPrimary ?? (isTier3Or4 ? t2DeepForest : t1DeepTeal);
   static Color get deepTeal => primary;
 
   /// Secondary sage teal color (#6F9F96 in Tier 1&2, #A8C4A2 in Tier 3&4)
-  static Color get secondary => isTier3Or4 ? t2SageGreen : t1SageTeal;
+  static Color get secondary =>
+      _brandSecondary ?? (isTier3Or4 ? t2SageGreen : t1SageTeal);
   static Color get sageTeal => secondary;
 
+  /// Supporting-colour variants keep selectable controls readable when the
+  /// configured supporting colour is very light, such as a pastel yellow.
+  static Color get supportingSurface => Color.lerp(secondary, white, 0.76)!;
+  static Color get supportingBorder => Color.lerp(secondary, white, 0.34)!;
+  static Color get supportingText => secondary.computeLuminance() > 0.42
+      ? Color.lerp(secondary, brandText, 0.58)!
+      : secondary;
+
   /// Accent CTA color (#E0715F in Tier 1&2, #AD6D15 in Tier 3&4)
-  static Color get accent => isTier3Or4 ? t2AmberGold : t1Terracotta;
+  static Color get accent =>
+      _brandSecondary ?? (isTier3Or4 ? t2AmberGold : t1Terracotta);
   static Color get terracotta => accent;
 
   /// Loyalty / gold badge color (#D4AF7A in Tier 1&2, #AD6D15 in Tier 3&4)
   static Color get gold => isTier3Or4 ? t2AmberGold : t1SoftGold;
   static Color get softGold => gold;
 
-  /// Body & heading text
-  static Color get textDark => charcoal;
+  /// Customer-facing wording is configured independently from the palette.
+  static Color get brandText => _brandText ?? charcoal;
+  static Color get textDark => brandText;
+  static Color get textMuted => _brandMutedText ?? defaultTextMuted;
 
   /// Page / scaffold background
-  static Color get background => white;
+  static Color get background => _brandBackground ?? white;
 
   /// Light tinted card / chip background
-  static Color get surfaceLight => isTier3Or4 ? t2SurfaceLight : t1SurfaceLight;
+  static Color get surfaceLight => _brandPrimary == null
+      ? (isTier3Or4 ? t2SurfaceLight : t1SurfaceLight)
+      : Color.lerp(primary, white, 0.90)!;
 
   /// Slightly richer tint
-  static Color get surfaceMid => isTier3Or4 ? t2SurfaceMid : t1SurfaceMid;
+  static Color get surfaceMid => _brandPrimary == null
+      ? (isTier3Or4 ? t2SurfaceMid : t1SurfaceMid)
+      : Color.lerp(primary, white, 0.82)!;
 
   /// Border / divider colour
-  static Color get border => isTier3Or4 ? t2Border : t1Border;
+  static Color get border => _brandPrimary == null
+      ? (isTier3Or4 ? t2Border : t1Border)
+      : Color.lerp(primary, white, 0.70)!;
 
   /// Inactive nav icon
   static Color get navInactive => isTier3Or4 ? t2NavInactive : t1NavInactive;
@@ -183,9 +276,7 @@ class AppColors {
 
   /// Dynamic Header gradient: deep teal → sage teal
   static LinearGradient get headerGradient => LinearGradient(
-        colors: isTier3Or4
-            ? const [t2DeepForest, t2SageGreen]
-            : const [t1DeepTeal, t1SageTeal],
+        colors: [primary, secondary],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       );

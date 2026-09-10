@@ -11,6 +11,7 @@ import 'auth_transition.dart';
 import 'otp_verification.dart';
 import '../services/auth_api_service.dart';
 import '../services/user_service.dart';
+import '../utils/app_colors.dart';
 
 class Signup2 extends StatefulWidget {
   final File? initialPickedImage;
@@ -180,6 +181,8 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
   }
 
   void _showAvatarPicker() {
+    final primaryColor = AppColors.primary;
+
     showDialog(
       context: context,
       barrierDismissible: true,
@@ -209,7 +212,7 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                     offset: Offset(0, 4)),
               ],
               border: Border.all(
-                  color: const Color(0xFF1F3A34).withValues(alpha: 0.2),
+                  color: primaryColor.withValues(alpha: 0.2),
                   width: 1),
             ),
             child: Padding(
@@ -224,26 +227,26 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                       child: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF1F3A34).withValues(alpha: 0.1),
+                          color: primaryColor.withValues(alpha: 0.1),
                           shape: BoxShape.circle,
                           border: Border.all(
-                              color: const Color(0xFF1F3A34)
+                              color: primaryColor
                                   .withValues(alpha: 0.2),
                               width: 1),
                         ),
-                        child: const Icon(Icons.close,
-                            color: Color(0xFF1F3A34), size: 18),
+                        child: Icon(Icons.close,
+                            color: primaryColor, size: 18),
                       ),
                     ),
                   ),
                   const SizedBox(height: 8),
-                  const Text(
+                  Text(
                     'Choose Your Icon',
                     style: TextStyle(
                         fontFamily: 'Recoleta',
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFF1F3A34),
+                        color: primaryColor,
                         letterSpacing: 0.5),
                   ),
                   const SizedBox(height: 8),
@@ -284,14 +287,14 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                                   shape: BoxShape.circle,
                                   border: Border.all(
                                     color: isSelected
-                                        ? const Color(0xFF1F3A34)
+                                        ? primaryColor
                                         : Colors.grey.shade300,
                                     width: isSelected ? 3 : 2,
                                   ),
                                   boxShadow: isSelected
                                       ? [
                                           BoxShadow(
-                                              color: const Color(0xFF1F3A34)
+                                              color: primaryColor
                                                   .withValues(alpha: 0.3),
                                               blurRadius: 8,
                                               offset: const Offset(0, 2))
@@ -300,7 +303,7 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                                 ),
                                 child: CircleAvatar(
                                   radius: 40,
-                                  backgroundColor: const Color(0xFF1F3A34),
+                                  backgroundColor: primaryColor,
                                   backgroundImage:
                                       AssetImage(_avatarOptions[index]['path']),
                                 ),
@@ -321,7 +324,7 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                                   style: TextStyle(
                                       fontFamily: 'Afacad',
                                       fontSize: 14,
-                                      color: const Color(0xFF1F3A34),
+                                      color: primaryColor,
                                       fontWeight: FontWeight.w600)),
                             ),
                             Expanded(
@@ -338,14 +341,14 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                           child: Container(
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             decoration: BoxDecoration(
-                              gradient: const LinearGradient(colors: [
-                                Color(0xFF1F3A34),
-                                Color(0xFF1F3A34)
+                              gradient: LinearGradient(colors: [
+                                primaryColor,
+                                primaryColor,
                               ]),
                               borderRadius: BorderRadius.circular(12),
                               boxShadow: [
                                 BoxShadow(
-                                    color: const Color(0xFF1F3A34)
+                                    color: primaryColor
                                         .withValues(alpha: 0.3),
                                     blurRadius: 8,
                                     offset: const Offset(0, 4))
@@ -420,9 +423,9 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
     return Container(
       width: 100,
       height: 100,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: Color(0xFF1F3A34),
+        color: AppColors.primary,
       ),
       child: Container(
         decoration: BoxDecoration(
@@ -436,7 +439,9 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    const Color orangeColor = Color(0xFF1F3A34);
+    final primaryColor = AppColors.primary;
+    final secondaryColor = AppColors.secondary;
+    final textColor = AppColors.brandText;
     final mediaQuery = MediaQuery.of(context);
     final keyboardInset = mediaQuery.viewInsets.bottom;
     final cardBottomInset = keyboardInset > 0 ? keyboardInset : 0.0;
@@ -454,7 +459,7 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
       ),
       child: Scaffold(
         resizeToAvoidBottomInset: false,
-        backgroundColor: const Color(0xFF1F3A34),
+        backgroundColor: primaryColor,
         body: GestureDetector(
           behavior: HitTestBehavior.translucent,
           onTap: () => FocusScope.of(context).unfocus(),
@@ -488,8 +493,8 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
                           colors: [
-                            const Color(0xFF1F3A34).withValues(alpha: 0.65),
-                            const Color(0xFF1F3A34).withValues(alpha: 0.90),
+                            primaryColor.withValues(alpha: 0.65),
+                            primaryColor.withValues(alpha: 0.90),
                           ],
                         ),
                       ),
@@ -533,7 +538,7 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                                       color: Colors.white,
                                       shape: BoxShape.circle,
                                       border: Border.all(
-                                          color: const Color(0xFFFAF4EE),
+                                          color: secondaryColor.withValues(alpha: 0.3),
                                           width: 2),
                                       boxShadow: const [
                                         BoxShadow(
@@ -541,8 +546,8 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                                             blurRadius: 4)
                                       ],
                                     ),
-                                    child: const Icon(Icons.camera_alt,
-                                        size: 18, color: Color(0xFF1F3A34)),
+                                    child: Icon(Icons.camera_alt,
+                                        size: 18, color: primaryColor),
                                   ),
                                 ),
                               ],
@@ -611,13 +616,13 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     // Optional address details are retained for profile use.
-                                    const Text(
+                                    Text(
                                       'Address (Optional)',
                                       style: TextStyle(
                                           fontFamily: 'Recoleta',
                                           fontSize: 16,
                                           fontWeight: FontWeight.bold,
-                                          color: Color(0xFF2E5E58)),
+                                          color: textColor),
                                     ),
                                     const SizedBox(height: 6),
                                     _buildFieldShake(
@@ -645,14 +650,14 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                                     ),
                                     const SizedBox(height: 10),
                                     Row(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                         Expanded(
-                                          flex: 4,
                                           child: _buildFieldShake(
                                             field: _Signup2ErrorField.postcode,
                                             child: _buildTextField(
                                               label: 'Postcode',
-                                              hintText: 'e.g. 43000',
+                                              hintText: 'e.g. 50000',
                                               controller: _postcodeController,
                                               keyboardType:
                                                   TextInputType.number,
@@ -664,12 +669,11 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                                         ),
                                         const SizedBox(width: 12),
                                         Expanded(
-                                          flex: 6,
                                           child: _buildFieldShake(
                                             field: _Signup2ErrorField.city,
                                             child: _buildTextField(
                                               label: 'City',
-                                              hintText: 'e.g. Kajang',
+                                              hintText: 'e.g. KL',
                                               controller: _cityController,
                                               hasError: _errorFields.contains(
                                                 _Signup2ErrorField.city,
@@ -684,59 +688,53 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                                       field: _Signup2ErrorField.state,
                                       child: _buildTextField(
                                         label: 'State',
-                                        hintText: 'e.g. Selangor',
+                                        hintText: 'e.g. Wilayah Persekutuan',
                                         controller: _stateController,
                                         hasError: _errorFields.contains(
                                           _Signup2ErrorField.state,
                                         ),
                                       ),
                                     ),
-                                    const SizedBox(height: 10),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      'Gender *',
+                                      style: TextStyle(
+                                          fontFamily: 'Recoleta',
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          color: textColor),
+                                    ),
+                                    const SizedBox(height: 6),
                                     _buildFieldShake(
                                       field: _Signup2ErrorField.gender,
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
+                                      child: Row(
                                         children: [
-                                          const Text(
-                                            'Gender *',
-                                            style: TextStyle(
-                                                fontFamily: 'Recoleta',
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.bold,
-                                                color: orangeColor),
+                                          Expanded(
+                                            child: _buildGenderButton(
+                                              'Male',
+                                              Icons.male,
+                                              hasError:
+                                                  _errorFields.contains(
+                                                _Signup2ErrorField.gender,
+                                              ),
+                                            ),
                                           ),
-                                          const SizedBox(height: 4),
-                                          Row(
-                                            children: [
-                                              Expanded(
-                                                child: _buildGenderButton(
-                                                  'Female',
-                                                  Icons.female,
-                                                  hasError:
-                                                      _errorFields.contains(
-                                                    _Signup2ErrorField.gender,
-                                                  ),
-                                                ),
+                                          const SizedBox(width: 16),
+                                          Expanded(
+                                            child: _buildGenderButton(
+                                              'Female',
+                                              Icons.female,
+                                              hasError:
+                                                  _errorFields.contains(
+                                                _Signup2ErrorField.gender,
                                               ),
-                                              const SizedBox(width: 12),
-                                              Expanded(
-                                                child: _buildGenderButton(
-                                                  'Male',
-                                                  Icons.male,
-                                                  hasError:
-                                                      _errorFields.contains(
-                                                    _Signup2ErrorField.gender,
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
+                                            ),
                                           ),
                                         ],
                                       ),
                                     ),
 
-                                    const SizedBox(height: 16),
+                                    const SizedBox(height: 14),
 
                                     // Terms & Conditions (I agree)
                                     _buildFieldShake(
@@ -760,20 +758,20 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                                           );
                                         },
                                         child: RichText(
-                                          text: const TextSpan(
-                                            style: TextStyle(
+                                          text: TextSpan(
+                                            style: const TextStyle(
                                                 fontFamily: 'Afacad',
                                                 fontSize: 14,
                                                 color: Colors.black87),
                                             children: [
-                                              TextSpan(
+                                              const TextSpan(
                                                   text: 'Already a member? '),
                                               TextSpan(
                                                 text: 'Login',
                                                 style: TextStyle(
                                                     fontFamily: 'Recoleta',
                                                     fontWeight: FontWeight.bold,
-                                                    color: Color(0xFF1F3A34)),
+                                                    color: primaryColor),
                                               ),
                                             ],
                                           ),
@@ -791,7 +789,7 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                                         onPressed: () => Navigator.pop(context),
                                         style: ElevatedButton.styleFrom(
                                           backgroundColor: Colors.white,
-                                          foregroundColor: orangeColor,
+                                          foregroundColor: primaryColor,
                                           elevation: 0,
                                           shadowColor: Colors.transparent,
                                           side: BorderSide(
@@ -843,6 +841,15 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                                             return;
                                           }
 
+                                          if (!context.mounted) return;
+                                          showDialog(
+                                            context: context,
+                                            barrierDismissible: false,
+                                            builder: (_) => const Center(
+                                                child:
+                                                    CircularProgressIndicator()),
+                                          );
+
                                           try {
                                             await UserService.saveUserProfile({
                                               'gender': _selectedGender ?? '',
@@ -868,6 +875,8 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                                             );
 
                                             if (!context.mounted) return;
+                                            Navigator.pop(context);
+
                                             Navigator.push(
                                               context,
                                               buildAuthRoute(
@@ -930,6 +939,7 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                                             );
                                           } on ApiException catch (error) {
                                             if (!context.mounted) return;
+                                            Navigator.pop(context);
                                             _showError(
                                               friendlyAuthErrorMessage(
                                                 error,
@@ -939,12 +949,13 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                                             );
                                           } catch (_) {
                                             if (!context.mounted) return;
+                                            Navigator.pop(context);
                                             _showError(
                                                 'Unable to request OTP right now.');
                                           }
                                         },
                                         style: ElevatedButton.styleFrom(
-                                          backgroundColor: orangeColor,
+                                          backgroundColor: primaryColor,
                                           foregroundColor: Colors.white,
                                           elevation: 0,
                                           shape: RoundedRectangleBorder(
@@ -999,11 +1010,11 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
       children: [
         Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
               fontFamily: 'Recoleta',
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: Color(0xFF2E5E58)),
+              color: AppColors.brandText),
         ),
         const SizedBox(height: 4),
         Container(
@@ -1045,7 +1056,7 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(20),
                 borderSide: BorderSide(
-                  color: hasError ? Colors.redAccent : const Color(0xFF2E5E58),
+                  color: hasError ? Colors.redAccent : AppColors.primary,
                   width: 1.5,
                 ),
               ),
@@ -1074,7 +1085,7 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
     bool hasError = false,
   }) {
     final bool isSelected = _selectedGender == gender;
-    const Color orangeColor = Color(0xFF1F3A34);
+    final primaryColor = AppColors.primary;
 
     return GestureDetector(
       onTap: () {
@@ -1101,13 +1112,13 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
           border: Border.all(
             color: hasError
                 ? Colors.redAccent
-                : (isSelected ? orangeColor : Colors.grey.shade300),
+                : (isSelected ? primaryColor : Colors.grey.shade300),
             width: isSelected ? 2 : 1,
           ),
           boxShadow: isSelected && !hasError
               ? [
                   BoxShadow(
-                    color: orangeColor.withValues(alpha: 0.1),
+                    color: primaryColor.withValues(alpha: 0.1),
                     blurRadius: 6,
                     offset: const Offset(0, 2),
                   ),
@@ -1119,7 +1130,7 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
           children: [
             Icon(icon,
                 size: 18,
-                color: isSelected ? orangeColor : Colors.grey.shade400),
+                color: isSelected ? primaryColor : Colors.grey.shade400),
             const SizedBox(width: 6),
             Text(
               gender,
@@ -1127,7 +1138,7 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                 fontFamily: 'Afacad',
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
-                color: isSelected ? orangeColor : Colors.grey.shade400,
+                color: isSelected ? primaryColor : Colors.grey.shade400,
               ),
             ),
           ],
@@ -1137,7 +1148,7 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
   }
 
   void _showTermsAndConditionsDialog() {
-    const Color brandColor = Color(0xFF1F3A34);
+    final primaryColor = AppColors.primary;
     final List<String> terms = [
       'C2 Token is a closed-loop prepaid balance valid exclusively for orders at participating C2 Coffee stores.',
       'C2 Tokens and top-up balances are non-refundable, non-transferable, and cannot be redeemed for cash.',
@@ -1165,27 +1176,27 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
+                    Text(
                       'Terms & Conditions',
                       style: TextStyle(
                         fontFamily: 'Recoleta',
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
-                        color: brandColor,
+                        color: primaryColor,
                       ),
                     ),
                     GestureDetector(
                       onTap: () => Navigator.pop(context),
                       child: Container(
                         padding: const EdgeInsets.all(4),
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFEDF4F3),
+                        decoration: BoxDecoration(
+                          color: primaryColor.withValues(alpha: 0.1),
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(
+                        child: Icon(
                           Icons.close,
                           size: 18,
-                          color: brandColor,
+                          color: primaryColor,
                         ),
                       ),
                     ),
@@ -1207,12 +1218,12 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             '• ',
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
-                              color: brandColor,
+                              color: primaryColor,
                             ),
                           ),
                           Expanded(
@@ -1244,7 +1255,7 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                       Navigator.pop(context);
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: brandColor,
+                      backgroundColor: primaryColor,
                       foregroundColor: Colors.white,
                       elevation: 0,
                       shape: RoundedRectangleBorder(
@@ -1271,7 +1282,7 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
   }
 
   Widget _buildTermsAndConditions({bool hasError = false}) {
-    const Color brandColor = Color(0xFF1F3A34);
+    final primaryColor = AppColors.primary;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
@@ -1290,10 +1301,10 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
             height: 24,
             child: Checkbox(
               value: _agreedToTerms,
-              activeColor: brandColor,
+              activeColor: primaryColor,
               checkColor: Colors.white,
               side: BorderSide(
-                color: hasError ? Colors.redAccent : const Color(0xFF1F3A34),
+                color: hasError ? Colors.redAccent : primaryColor,
                 width: 1.5,
               ),
               shape: RoundedRectangleBorder(
@@ -1322,22 +1333,22 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                 children: [
                   TextSpan(
                     text: 'Terms & Conditions',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: 'Afacad',
                       fontSize: 13.5,
                       fontWeight: FontWeight.bold,
-                      color: brandColor,
+                      color: primaryColor,
                       decoration: TextDecoration.underline,
                     ),
                     recognizer: TapGestureRecognizer()
                       ..onTap = _showTermsAndConditionsDialog,
                   ),
-                  const TextSpan(
+                  TextSpan(
                     text: ' *',
                     style: TextStyle(
                       fontFamily: 'Afacad',
                       fontSize: 13.5,
-                      color: brandColor,
+                      color: primaryColor,
                     ),
                   ),
                 ],

@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import type { Transporter } from 'nodemailer';
 import { env } from '../config/env.js';
 
 type OtpEmailPayload = {
@@ -24,9 +25,9 @@ type SupportTicketEmailPayload = {
   }>;
 };
 
-let transporter: nodemailer.Transporter | null = null;
+let transporter: Transporter | null = null;
 
-function getTransporter(): nodemailer.Transporter {
+function getTransporter(): Transporter {
   if (transporter) {
     return transporter;
   }

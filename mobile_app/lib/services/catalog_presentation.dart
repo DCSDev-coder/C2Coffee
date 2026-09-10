@@ -70,6 +70,7 @@ class CatalogPresentation {
                           'imageUrl': option.imageUrl,
                           'colorHex': option.colorHex,
                           'gradientEndHex': option.gradientEndHex,
+                          'gradientDirection': option.gradientDirection,
                           'isActive': option.isActive,
                           'sortOrder': option.sortOrder,
                         })

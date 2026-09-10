@@ -53,10 +53,14 @@ class _C2MiniLoaderState extends State<C2MiniLoader>
     // Aspect ratio matching C2 glass cup (1 : 1.32)
     final width = widget.size;
     final height = width * 1.32;
+    // The loader is a brand illustration, not a primary-action control.
+    // Keep it tied to the supporting colour so primary action changes do not
+    // unexpectedly recolour the launch experience.
+    final supportingColor = AppColors.secondary;
 
     return SizedBox(
-      width: width + 24,
-      height: height + 24,
+      width: width,
+      height: height,
       child: AnimatedBuilder(
         animation: _controller,
         builder: (context, child) {
@@ -64,64 +68,38 @@ class _C2MiniLoaderState extends State<C2MiniLoader>
           // Smooth non-linear progress for liquid rising
           double progress = 0.5 - 0.5 * math.cos(value * math.pi);
 
-          return Stack(
-            alignment: Alignment.center,
-            children: [
-              // 1. Soft Ambient Backlight Glow behind the cup
-              Container(
-                width: width * 1.1,
-                height: height * 0.9,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.deepTeal.withValues(alpha: 0.35),
-                      blurRadius: 28,
-                      spreadRadius: 4,
-                    ),
-                    BoxShadow(
-                      color: const Color(0xFFC89662).withValues(alpha: 0.15),
-                      blurRadius: 20,
-                      spreadRadius: 2,
-                    ),
-                  ],
+          return SizedBox(
+            width: width,
+            height: height,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                // Fluid & Wave Fill strictly using supporting color
+                CustomPaint(
+                  size: Size(width, height),
+                  painter: AestheticFluidPainter(
+                    progress: progress,
+                    animValue: value,
+                    supportingColor: supportingColor,
+                  ),
                 ),
-              ),
 
-              // 2. Main Glass Cup & Fluid Fill Container (No Pouring Stream)
-              SizedBox(
-                width: width,
-                height: height,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    // Smooth Dual-Layer Fluid & Crema Fill
-                    CustomPaint(
-                      size: Size(width, height),
-                      painter: AestheticFluidPainter(
-                        progress: progress,
-                        animValue: value,
-                      ),
-                    ),
-
-                    // Actual C2 Logo
-                    Image.asset(
-                      'assets/images/c2_logo.png',
-                      width: width * 0.45,
-                      fit: BoxFit.contain,
-                    ),
-
-                    // User's C2 Cup Glass Image Outline (Clean Transparent PNG)
-                    Image.asset(
-                      'assets/images/c2_cup_outline_transparent.png',
-                      width: width,
-                      height: height,
-                      fit: BoxFit.fill,
-                    ),
-                  ],
+                // C2 Brand Logo
+                Image.asset(
+                  'assets/images/c2_logo.png',
+                  width: width * 0.45,
+                  fit: BoxFit.contain,
                 ),
-              ),
-            ],
+
+                // C2 Cup Glass Image Outline (Clean Transparent PNG)
+                Image.asset(
+                  'assets/images/c2_cup_outline_transparent.png',
+                  width: width,
+                  height: height,
+                  fit: BoxFit.fill,
+                ),
+              ],
+            ),
           );
         },
       ),
@@ -132,10 +110,12 @@ class _C2MiniLoaderState extends State<C2MiniLoader>
 class AestheticFluidPainter extends CustomPainter {
   final double progress;
   final double animValue;
+  final Color supportingColor;
 
   AestheticFluidPainter({
     required this.progress,
     required this.animValue,
+    required this.supportingColor,
   });
 
   @override
@@ -166,59 +146,62 @@ class AestheticFluidPainter extends CustomPainter {
     double fillHeight = maxFillHeight * progress;
     double liquidY = (h * 0.95) - fillHeight;
 
-    // Rich Coffee Gradient Fill
-    Paint coffeePaint = Paint()
+    // Fluid body using the supporting brand colour with natural gradient depth
+    Paint liquidPaint = Paint()
       ..shader = LinearGradient(
         begin: Alignment.bottomCenter,
         end: Alignment.topCenter,
-        colors: const [
-          Color(0xFF23130C), // Dark Espresso
-          Color(0xFF4A2B18), // Medium Roast
-          Color(0xFF6F4326), // Artisan Coffee
-          Color(0xFF9E6538), // Golden Amber
+        colors: [
+          Color.lerp(supportingColor, Colors.black, 0.18)!,
+          supportingColor,
+          Color.lerp(supportingColor, Colors.white, 0.15)!,
         ],
       ).createShader(Rect.fromLTWH(0, liquidY, w, fillHeight + 10));
 
     canvas.drawRect(
       Rect.fromLTWH(0, liquidY, w, fillHeight + 12),
-      coffeePaint,
+      liquidPaint,
     );
 
     // Dynamic Dual-Layer Waves at Top of Liquid
     if (fillHeight > 1.5) {
-      // 1. Back Foam Layer (Golden Amber Crema)
-      Paint backFoamPaint = Paint()..color = const Color(0xFFE9C46A);
+      // 1. Back Wave Layer (Slightly lighter tint of supporting color)
+      Paint backWavePaint = Paint()
+        ..color = Color.lerp(supportingColor, Colors.white, 0.32)!;
       Path backWave = Path();
       backWave.moveTo(0, liquidY);
       for (double x = 0; x <= w; x += 1) {
         backWave.lineTo(
           x,
           liquidY +
-              math.sin((x / w * 2 * math.pi) + (animValue * math.pi * 4)) * 1.8 -
+              math.sin((x / w * 2 * math.pi) + (animValue * math.pi * 4)) *
+                  1.8 -
               0.5,
         );
       }
       backWave.lineTo(w, h);
       backWave.lineTo(0, h);
       backWave.close();
-      canvas.drawPath(backWave, backFoamPaint);
+      canvas.drawPath(backWave, backWavePaint);
 
-      // 2. Front Foam Layer (Silky Velvet Foam)
-      Paint frontFoamPaint = Paint()..color = const Color(0xFFD4A373);
+      // 2. Front Wave Layer (Vibrant supporting color highlight)
+      Paint frontWavePaint = Paint()
+        ..color = Color.lerp(supportingColor, Colors.black, 0.06)!;
       Path frontWave = Path();
       frontWave.moveTo(0, liquidY);
       for (double x = 0; x <= w; x += 1) {
         frontWave.lineTo(
           x,
           liquidY +
-              math.sin((x / w * 2 * math.pi) - (animValue * math.pi * 3) + 1.2) *
+              math.sin(
+                      (x / w * 2 * math.pi) - (animValue * math.pi * 3) + 1.2) *
                   2.2,
         );
       }
       frontWave.lineTo(w, h);
       frontWave.lineTo(0, h);
       frontWave.close();
-      canvas.drawPath(frontWave, frontFoamPaint);
+      canvas.drawPath(frontWave, frontWavePaint);
     }
 
     canvas.restore();
@@ -227,6 +210,7 @@ class AestheticFluidPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant AestheticFluidPainter oldDelegate) {
     return oldDelegate.progress != progress ||
-        oldDelegate.animValue != animValue;
+        oldDelegate.animValue != animValue ||
+        oldDelegate.supportingColor != supportingColor;
   }
 }

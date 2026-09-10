@@ -5,7 +5,7 @@ class AppPageShell extends StatelessWidget {
   final String title;
   final Widget child;
   final VoidCallback onBack;
-  final Color backgroundColor;
+  final Color? backgroundColor;
   final Color? headerColor;
   final EdgeInsetsGeometry? bodyPadding;
   final EdgeInsetsGeometry? headerPadding;
@@ -28,7 +28,7 @@ class AppPageShell extends StatelessWidget {
     required this.title,
     required this.child,
     required this.onBack,
-    this.backgroundColor = Colors.white,
+    this.backgroundColor,
     this.headerColor,
     this.bodyPadding,
     this.headerPadding,
@@ -146,7 +146,7 @@ class AppPageShell extends StatelessWidget {
 
     return Scaffold(
       key: scaffoldKey,
-      backgroundColor: backgroundColor,
+      backgroundColor: backgroundColor ?? AppColors.background,
       extendBody: extendBody,
       bottomNavigationBar: bottomNavigationBar,
       endDrawer: endDrawer,

@@ -16,7 +16,7 @@ import {
   loadAdminMenu,
   loadAdminVouchers,
   updateAdminMarketingBanner,
-  uploadAdminMenuImage
+  uploadAdminMarketingPoster
 } from '../lib/adminApi';
 
 const ITEMS_PER_PAGE = 8;
@@ -25,6 +25,8 @@ const DEFAULT_FORM = {
   title: '',
   subtitle: '',
   imageSource: '',
+  mediaType: 'image',
+  animationDurationMs: 0,
   bannerType: 'general',
   destinationType: 'menu',
   targetValue: '',
@@ -271,6 +273,8 @@ const Marketing = () => {
       title: banner.title || '',
       subtitle: banner.subtitle || '',
       imageSource: banner.imageSource || '',
+      mediaType: banner.mediaType || 'image',
+      animationDurationMs: Number(banner.animationDurationMs || 0),
       bannerType: banner.bannerType === 'event' || banner.destinationType === 'calendar' ? 'event' : (banner.bannerType || 'general'),
       destinationType: banner.destinationType || 'menu',
       targetValue: banner.targetValue || '',
@@ -332,21 +336,31 @@ const Marketing = () => {
       setError('Event posters need both start and end date.');
       return;
     }
+    if (selectedImageFile && !['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(selectedImageFile.type)) {
+      setError('Upload a PNG, JPG, WEBP, or GIF poster. Video files are not supported.');
+      return;
+    }
 
     try {
       setSaving(true);
       setError('');
 
       let imageSource = String(formData.imageSource ?? '').trim();
+      let mediaType = formData.mediaType;
+      let animationDurationMs = formData.animationDurationMs;
       if (selectedImageFile) {
-        const uploadResponse = await uploadAdminMenuImage(selectedImageFile);
+        const uploadResponse = await uploadAdminMarketingPoster(selectedImageFile);
         imageSource = uploadResponse.image_url;
+        mediaType = uploadResponse.media_type;
+        animationDurationMs = Number(uploadResponse.animation_duration_ms || 0);
       }
 
       const payload = {
         title: formData.title.trim(),
         subtitle: formData.subtitle.trim(),
         imageSource,
+        mediaType,
+        animationDurationMs,
         bannerType: resolvedBannerType,
         destinationType: resolvedDestinationType,
         targetValue: needsTarget ? bannerTarget : null,
@@ -389,6 +403,8 @@ const Marketing = () => {
   };
 
   const bannerTypeLabel = (value) => bannerTypeOptions.find((option) => option.value === value)?.label || value;
+  const previewIsGif =
+    selectedImageFile?.type === 'image/gif' || formData.mediaType === 'gif';
 
   return (
     <div className="flex-1 overflow-x-hidden overflow-y-auto bg-[#F9FAFB]">
@@ -613,7 +629,7 @@ const Marketing = () => {
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
               <div>
                 <h2 className="text-lg font-bold text-gray-900">{editingBanner ? 'Edit Poster' : 'Create Poster'}</h2>
-                <p className="text-xs text-gray-500 mt-1">Keep the copy short. The image and route do the heavy lifting.</p>
+            <p className="text-xs text-gray-500 mt-1">Preview uses the same 4:5 portrait framing as the customer app.</p>
               </div>
               <button type="button" onClick={closeModal} className="text-gray-400 hover:text-gray-600">
                 <X size={20} />
@@ -710,15 +726,15 @@ const Marketing = () => {
 
                 <div className="space-y-5">
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Poster Image</label>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Poster Media</label>
                     <div className="border-2 border-dashed border-gray-200 rounded-xl p-4 bg-gray-50">
                       <input
                         type="file"
-                        accept="image/*"
+                        accept="image/png,image/jpeg,image/webp,image/gif"
                         onChange={(event) => setSelectedImageFile(event.target.files?.[0] || null)}
                         className="block w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-[#1F3A34] file:text-white hover:file:bg-[#162A26]"
                       />
-                      <p className="text-[10px] text-gray-500 mt-2">Upload a PNG, JPG, or WEBP poster.</p>
+                      <p className="text-[10px] text-gray-500 mt-2">PNG, JPG, WEBP, or GIF only. Static posters are prepared as 1080 × 1350 (4:5). GIFs must already be 4:5 and no longer than 30 seconds.</p>
                       {(selectedImageFile || formData.imageSource) && (
                         <div className="mt-4 flex items-center gap-3">
                           <img
@@ -735,6 +751,30 @@ const Marketing = () => {
                         </div>
                       )}
                     </div>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 mb-2">Customer app preview · 4:5 portrait</p>
+                    <div className="mx-auto w-full max-w-[280px] overflow-hidden rounded-[24px] border border-gray-200 bg-gray-100 shadow-sm aspect-[4/5]">
+                      {(selectedImagePreview || formData.imageSource) ? (
+                        <img
+                          src={selectedImagePreview || resolveImageUrl(formData.imageSource)}
+                          alt="Customer poster preview"
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-full items-center justify-center px-8 text-center text-sm text-gray-400">
+                          Your 4:5 poster preview appears here.
+                        </div>
+                      )}
+                    </div>
+                    {previewIsGif && (
+                      <p className="mt-2 text-xs font-medium text-[#1F3A34]">
+                        {selectedImageFile
+                          ? 'GIF: its animation duration is detected when the poster is uploaded.'
+                          : `GIF: the customer carousel waits ${Math.max(1, Math.ceil(formData.animationDurationMs / 1000))} seconds for one full animation cycle.`}
+                      </p>
+                    )}
                   </div>
 
                   {formData.bannerType === 'voucher' && (

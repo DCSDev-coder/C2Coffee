@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:c2_coffee/authorization/login.dart';
 import 'package:c2_coffee/services/app_session_service.dart';
 import 'package:c2_coffee/services/secure_session_service.dart';
@@ -14,6 +15,10 @@ import 'package:c2_coffee/utils/app_notification.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]);
   await Firebase.initializeApp();
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   await PushNotificationService.instance.initialize();
@@ -26,16 +31,24 @@ class C2CoffeeApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<int>(
-      valueListenable: AppColors.currentTier,
-      builder: (context, tier, child) {
+    return AnimatedBuilder(
+      animation: Listenable.merge(
+          [AppColors.currentTier, AppColors.appearanceVersion]),
+      builder: (context, child) {
         return MaterialApp(
           navigatorKey: AppNotification.navigatorKey,
           title: 'C² Coffee',
           debugShowCheckedModeBanner: false,
           theme: AppColors.getThemeData(),
-          builder: (context, child) =>
-              AppLifecycleRefreshGate(child: child ?? const SizedBox.shrink()),
+          builder: (context, child) => MediaQuery.withClampedTextScaling(
+            // Keep labels readable by default while protecting compact cards
+            // and controls from large accessibility-scale overflows.
+            minScaleFactor: 1.08,
+            maxScaleFactor: 1.25,
+            child: AppLifecycleRefreshGate(
+              child: child ?? const SizedBox.shrink(),
+            ),
+          ),
           home: const SplashScreen(),
           routes: {
             '/login': (context) => const LoginPage(),

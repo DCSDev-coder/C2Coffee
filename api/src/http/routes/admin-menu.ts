@@ -401,7 +401,7 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
           ON img.menu_item_id = i.id
         LEFT JOIN item_modifier_options imo
           ON imo.modifier_group_id = img.id
-        ORDER BY c.sort_order ASC, c.id ASC, i.sort_order ASC, i.id ASC, tp.tier_code ASC
+        ORDER BY c.sort_order ASC, c.id ASC, i.name ASC, i.id ASC, tp.tier_code ASC
       `
     );
 
@@ -505,7 +505,7 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
           ON img.menu_item_id = i.id
         LEFT JOIN item_modifier_options imo
           ON imo.modifier_group_id = img.id
-        ORDER BY c.sort_order ASC, c.id ASC, i.sort_order ASC, i.id ASC, tp.tier_code ASC
+        ORDER BY c.sort_order ASC, c.id ASC, i.name ASC, i.id ASC, tp.tier_code ASC
       `
     );
 
@@ -635,15 +635,15 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
         : payload.data_url;
 
       const fileBuffer = Buffer.from(base64Payload, 'base64');
-      if (fileBuffer.length === 0) {
-        throw new ApiError(400, 'invalid_upload', 'Uploaded image data was empty.');
+      if (fileBuffer.length === 0 || fileBuffer.length > 8 * 1024 * 1024) {
+        throw new ApiError(400, 'invalid_upload', 'Menu images must be between 1 byte and 8 MB.');
       }
 
       let optimizedContent: Buffer;
       try {
         optimizedContent = await sharp(fileBuffer, { limitInputPixels: 32_000_000 })
           .rotate()
-          .resize({ width: 1200, height: 1200, fit: 'inside', withoutEnlargement: true })
+          .resize({ width: 1200, height: 1200, fit: 'cover', position: 'attention' })
           .webp({ quality: 82, effort: 4 })
           .toBuffer();
       } catch {
@@ -1266,6 +1266,7 @@ function buildMenuResponse(rows: Array<AdminMenuRow>): AdminMenuResponse {
   }
 
   for (const category of categories.values()) {
+    category.items.sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }));
     for (const item of category.items) {
       item.modifier_groups.sort((a, b) => a.sort_order - b.sort_order || a.id - b.id);
       for (const modifierGroup of item.modifier_groups) {
