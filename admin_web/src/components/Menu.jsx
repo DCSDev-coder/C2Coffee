@@ -271,30 +271,43 @@ const buildEmptyForm = (categoryCode) => ({
   excluded_option_ids: []
 });
 
-const buildFormFromItem = (item, optionGroups = []) => ({
-  id: item.id,
-  category_code: item.category_code,
-  subcategory_code: item.subcategory_code || '',
-  name: item.name || '',
-  description: item.description || '',
-  base_price_rm: item.base_price_rm ? String(item.base_price_rm) : '',
-  base_price_token: item.base_price_token !== undefined && item.base_price_token !== null
-    ? String(item.base_price_token)
-    : '',
-  image_url: item.image_url || '',
-  is_active: item.is_active,
-  is_handcrafted_drink: item.is_handcrafted_drink,
-  is_qualifying_cup: item.is_qualifying_cup,
-  allow_remarks: Boolean(item.allow_remarks),
-  option_group_ids: optionGroups
+const buildFormFromItem = (item, optionGroups = []) => {
+  const selectedGroupIds = optionGroups
     .filter((group) => group.applies_to === 'selected_items' && group.menu_item_ids.includes(item.id))
-    .map((group) => group.id),
-  excluded_option_ids: optionGroups.flatMap((group) =>
-    (group.options || [])
-      .filter((option) => option.excluded_menu_item_ids?.includes(item.id))
-      .map((option) => option.id)
-  )
-});
+    .map((group) => group.id);
+  const enabledGroupIds = new Set([
+    ...selectedGroupIds,
+    ...optionGroups
+      .filter((group) => group.applies_to === 'all_drinks')
+      .map((group) => group.id)
+  ]);
+
+  return {
+    id: item.id,
+    category_code: item.category_code,
+    subcategory_code: item.subcategory_code || '',
+    name: item.name || '',
+    description: item.description || '',
+    base_price_rm: item.base_price_rm ? String(item.base_price_rm) : '',
+    base_price_token: item.base_price_token !== undefined && item.base_price_token !== null
+      ? String(item.base_price_token)
+      : '',
+    image_url: item.image_url || '',
+    is_active: item.is_active,
+    is_handcrafted_drink: item.is_handcrafted_drink,
+    is_qualifying_cup: item.is_qualifying_cup,
+    allow_remarks: Boolean(item.allow_remarks),
+    option_group_ids: selectedGroupIds,
+    // Ignore old exclusions for groups that are no longer assigned to this item.
+    excluded_option_ids: [...new Set(optionGroups.flatMap((group) =>
+      enabledGroupIds.has(group.id)
+        ? (group.options || [])
+          .filter((option) => option.excluded_menu_item_ids?.includes(item.id))
+          .map((option) => option.id)
+        : []
+    ))]
+  };
+};
 
 const flattenMenuData = (categories) =>
   categories
@@ -436,14 +449,14 @@ const Menu = ({ onNavigate }) => {
       (group.menu_item_ids.includes(itemId) || selected.has(group.id))
     );
 
-    await Promise.all(affectedGroups.map(async (group) => {
+    for (const group of affectedGroups) {
       const currentlyAssigned = group.menu_item_ids.includes(itemId);
       const shouldAssign = selected.has(group.id);
-      if (currentlyAssigned === shouldAssign) return;
+      if (currentlyAssigned === shouldAssign) continue;
       const menuItemIds = group.menu_item_ids.filter((id) => id !== itemId);
       if (shouldAssign) menuItemIds.push(itemId);
       await updateAdminOptionGroup(group.id, { ...group, menu_item_ids: menuItemIds });
-    }));
+    }
   };
   const homePickItems = (section) => allMenuItems.filter((item) => {
     const kind = String(item.product_kind_code || '').toLowerCase();
@@ -666,16 +679,29 @@ const Menu = ({ onNavigate }) => {
         response = await updateAdminMenuItem(editFormData.id, payload);
       }
 
-      await syncOptionGroupAssignments(response.item?.id ?? editFormData.id, editFormData.option_group_ids);
+      const itemId = response.item?.id ?? editFormData.id;
+      await syncOptionGroupAssignments(itemId, editFormData.option_group_ids);
       if (showDrinkControls) {
+        const enabledGroupIds = new Set([
+          ...editFormData.option_group_ids,
+          ...optionGroups
+            .filter((group) => group.applies_to === 'all_drinks')
+            .map((group) => group.id)
+        ]);
+        const enabledOptionIds = new Set(optionGroups.flatMap((group) =>
+          enabledGroupIds.has(group.id)
+            ? (group.options || []).filter((option) => option.is_active).map((option) => option.id)
+            : []
+        ));
         await updateAdminMenuItemOptionExclusions(
-          response.item?.id ?? editFormData.id,
-          editFormData.excluded_option_ids
+          itemId,
+          [...new Set(editFormData.excluded_option_ids)]
+            .filter((optionId) => enabledOptionIds.has(optionId))
         );
       }
 
       closeEditModal();
-      await refreshAndSelect(response.item?.id ?? editFormData.id);
+      await refreshAndSelect(itemId);
     } catch (error) {
       setErrorMessage(error.message || 'Unable to save menu item.');
     } finally {
@@ -1583,7 +1609,7 @@ const Menu = ({ onNavigate }) => {
                                         ...current,
                                         excluded_option_ids: event.target.checked
                                           ? current.excluded_option_ids.filter((id) => id !== option.id)
-                                          : [...current.excluded_option_ids, option.id]
+                                          : [...new Set([...current.excluded_option_ids, option.id])]
                                       }))}
                                     />
                                     <span>{option.name}</span>

@@ -2,7 +2,7 @@ name: c2_coffee
 description: "A new Flutter project for C2 Coffee."
 publish_to: 'none'
 
-version: 1.0.0+8
+version: 1.0.0+9
 
 environment:
   sdk: ">=3.2.0 <4.0.0"

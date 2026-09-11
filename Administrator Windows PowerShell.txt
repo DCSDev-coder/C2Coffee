@@ -1,7 +1,4 @@
-PS D:\C2Coffee\api> docker compose down
-[+] down 2/2
- ✔ Container c2coffee-api Removed                                                                        15.9s
- ✔ Network api_default    Removed                                                                         0.3s
+PS D:\C2Coffee\api> cd D:\C2Coffee\api
 PS D:\C2Coffee\api> docker compose build --no-cache
 #1 [internal] load local bake definitions
 #1 reading from stdin 503B 0.1s done
@@ -9,10 +6,10 @@ PS D:\C2Coffee\api> docker compose build --no-cache
 
 #2 [internal] load build definition from Dockerfile
 #2 transferring dockerfile: 746B 0.0s done
-#2 DONE 0.1s
+#2 DONE 0.0s
 
 #3 [internal] load metadata for docker.io/library/node:22-alpine
-#3 DONE 2.4s
+#3 DONE 1.9s
 
 #4 [internal] load .dockerignore
 #4 transferring context: 146B 0.0s done
@@ -29,7 +26,7 @@ PS D:\C2Coffee\api> docker compose build --no-cache
 #7 CACHED
 
 #5 [internal] load build context
-#5 transferring context: 10.59kB 0.1s done
+#5 transferring context: 28.49kB 0.1s done
 #5 DONE 0.1s
 
 #8 [deps 3/4] COPY package.json package-lock.json* ./
@@ -39,136 +36,223 @@ PS D:\C2Coffee\api> docker compose build --no-cache
 #9 ...
 
 #10 [runtime 4/6] RUN npm ci --omit=dev && npm cache clean --force
-#10 12.60 npm warn deprecated node-domexception@1.0.0: Use your platform's native DOMException instead
+#10 12.37 npm warn deprecated node-domexception@1.0.0: Use your platform's native DOMException instead
 #10 ...
 
 #9 [deps 4/4] RUN npm ci
-#9 13.04 npm warn deprecated node-domexception@1.0.0: Use your platform's native DOMException instead
-#9 16.89
-#9 16.89 added 121 packages, and audited 122 packages in 15s
-#9 16.89
-#9 16.89 38 packages are looking for funding
-#9 16.89   run `npm fund` for details
-#9 16.90
-#9 16.90 found 0 vulnerabilities
-#9 16.90 npm notice
-#9 16.90 npm notice New major version of npm available! 10.9.8 -> 12.0.2
-#9 16.90 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
-#9 16.90 npm notice To update run: npm install -g npm@12.0.2
-#9 16.90 npm notice
-#9 ...
+#9 12.91 npm warn deprecated node-domexception@1.0.0: Use your platform's native DOMException instead
+#9 16.67
+#9 16.67 added 121 packages, and audited 122 packages in 15s
+#9 16.67
+#9 16.67 38 packages are looking for funding
+#9 16.67   run `npm fund` for details
+#9 16.67
+#9 16.67 found 0 vulnerabilities
+#9 16.67 npm notice
+#9 16.67 npm notice New major version of npm available! 10.9.8 -> 12.0.2
+#9 16.67 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
+#9 16.67 npm notice To update run: npm install -g npm@12.0.2
+#9 16.67 npm notice
+#9 DONE 17.4s
 
 #10 [runtime 4/6] RUN npm ci --omit=dev && npm cache clean --force
-#10 15.83
-#10 15.83 added 114 packages, and audited 115 packages in 14s
-#10 15.83
-#10 15.83 38 packages are looking for funding
-#10 15.83   run `npm fund` for details
-#10 15.83
-#10 15.83 found 0 vulnerabilities
-#10 15.84 npm notice
-#10 15.84 npm notice New major version of npm available! 10.9.8 -> 12.0.2
-#10 15.84 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
-#10 15.84 npm notice To update run: npm install -g npm@12.0.2
-#10 15.84 npm notice
-#10 16.39 npm warn using --force Recommended protections disabled.
+#10 15.66
+#10 15.66 added 114 packages, and audited 115 packages in 14s
+#10 15.66
+#10 15.66 38 packages are looking for funding
+#10 15.66   run `npm fund` for details
+#10 15.66
+#10 15.66 found 0 vulnerabilities
+#10 15.67 npm notice
+#10 15.67 npm notice New major version of npm available! 10.9.8 -> 12.0.2
+#10 15.67 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
+#10 15.67 npm notice To update run: npm install -g npm@12.0.2
+#10 15.67 npm notice
+#10 16.19 npm warn using --force Recommended protections disabled.
 #10 DONE 17.4s
-
-#9 [deps 4/4] RUN npm ci
-#9 DONE 17.4s
 
 #11 [build 3/5] COPY --from=deps /app/node_modules ./node_modules
 #11 DONE 3.6s
 
 #12 [build 4/5] COPY . .
-#12 DONE 3.0s
+#12 DONE 3.3s
 
 #13 [build 5/5] RUN npm run build
-#13 3.850
-#13 3.850 > @c2coffee/api@0.1.0 build
-#13 3.850 > tsc -p tsconfig.json && node scripts/copy-sql.mjs
-#13 3.850
-#13 29.59 npm notice
-#13 29.59 npm notice New major version of npm available! 10.9.8 -> 12.0.2
-#13 29.59 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
-#13 29.59 npm notice To update run: npm install -g npm@12.0.2
-#13 29.59 npm notice
-#13 DONE 32.1s
+#13 4.644
+#13 4.644 > @c2coffee/api@0.1.0 build
+#13 4.644 > tsc -p tsconfig.json && node scripts/copy-sql.mjs
+#13 4.644
+#13 30.34 npm notice
+#13 30.34 npm notice New major version of npm available! 10.9.8 -> 12.0.2
+#13 30.34 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
+#13 30.34 npm notice To update run: npm install -g npm@12.0.2
+#13 30.34 npm notice
+#13 DONE 30.9s
 
 #14 [runtime 5/6] COPY --from=build /app/dist ./dist
-#14 DONE 0.7s
+#14 DONE 1.0s
 
 #15 [runtime 6/6] RUN chown -R node:node /app
-#15 DONE 18.8s
+#15 DONE 18.0s
 
 #16 exporting to image
 #16 exporting layers
-#16 exporting layers 32.3s done
-#16 exporting manifest sha256:eac02ad3a7df76aadc34c2d8fa7946bf89890e7fad95b273f6f3976b85441959 0.1s done
-#16 exporting config sha256:9cd6d5704a8a12d9efb53955834b8da1c2582888a9e6dcafd0680e57982785a4
-#16 exporting config sha256:9cd6d5704a8a12d9efb53955834b8da1c2582888a9e6dcafd0680e57982785a4 0.7s done
-#16 exporting attestation manifest sha256:e7fb4d9e89920a791d30ba2fbc72c6b78e366f194ca0299523a669bc4a0b2991 0.1s done
-#16 exporting manifest list sha256:4591648946a047bd1b7811bc1b4a837075363b7459c5369a150efbd768bc5fbd
-#16 exporting manifest list sha256:4591648946a047bd1b7811bc1b4a837075363b7459c5369a150efbd768bc5fbd 0.3s done
-#16 naming to docker.io/library/api-c2-api:latest
+#16 exporting layers 32.4s done
+#16 exporting manifest sha256:f398d7ee2d5e91029be3bfd6ccb5d50ceaec1d70cfcc8e31349232ae20cad6a0
+#16 exporting manifest sha256:f398d7ee2d5e91029be3bfd6ccb5d50ceaec1d70cfcc8e31349232ae20cad6a0 0.9s done
+#16 exporting config sha256:d6c840e30aa89fa0104a8a5127f6b30bd94ffa2f02c0b9a781697e7a7569844d
+#16 exporting config sha256:d6c840e30aa89fa0104a8a5127f6b30bd94ffa2f02c0b9a781697e7a7569844d 0.0s done
+#16 exporting attestation manifest sha256:b76d12e0f7022b7c12984e6b45e62046d1de751fafddd5ce69dbe616e8a65343 0.1s done
+#16 exporting manifest list sha256:5ec2ad2f573d2eb6091aff78d9f6a03d9780409a85065b7b8bab7a1fdc0ee81a
+#16 exporting manifest list sha256:5ec2ad2f573d2eb6091aff78d9f6a03d9780409a85065b7b8bab7a1fdc0ee81a 0.0s done
 #16 naming to docker.io/library/api-c2-api:latest done
 #16 unpacking to docker.io/library/api-c2-api:latest
-#16 unpacking to docker.io/library/api-c2-api:latest 20.9s done
-#16 DONE 54.6s
+#16 unpacking to docker.io/library/api-c2-api:latest 20.6s done
+#16 DONE 54.2s
 
 #17 resolving provenance for metadata file
 #17 DONE 0.1s
 [+] build 1/1
- ✔ Image api-c2-api Built                                                                               143.3s
-PS D:\C2Coffee\api> docker compose up -d
-[+] up 2/2
- ✔ Network api_default    Created                                                                         0.2s
- ✔ Container c2coffee-api Started                                                                         4.4s
+ ✔ Image api-c2-api Built                                                                               141.1s
+PS D:\C2Coffee\api> docker compose up -d --force-recreate
+[+] up 1/1
+ ✔ Container c2coffee-api Started                                                                        23.3s
 
 What's next:
     Filter, search, and stream logs from all your Compose services
     in one place with Docker Desktop's Logs view. docker-desktop://dashboard/logs?appId=api
-PS D:\C2Coffee\api> docker compose run --rm --no-deps c2-api npm run migrate:prod
-Container api-c2-api-run-aaa1d8d805fb Creating
-Container api-c2-api-run-aaa1d8d805fb Created
-
-> @c2coffee/api@0.1.0 migrate:prod
-> node dist/db/migrate.js
-
-npm notice
-npm notice New major version of npm available! 10.9.8 -> 12.0.2
-npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
-npm notice To update run: npm install -g npm@12.0.2
-npm notice
-PS D:\C2Coffee\api>
-PS D:\C2Coffee\api> docker compose ps
-NAME           IMAGE        COMMAND                  SERVICE   CREATED          STATUS                    PORTS
-c2coffee-api   api-c2-api   "docker-entrypoint.s…"   c2-api    19 seconds ago   Up 15 seconds (healthy)   127.0.0.1:8080->8080/tcp
-PS D:\C2Coffee\api> docker compose logs --tail 100 c2-api
-c2coffee-api  | {"level":30,"time":1789030446191,"pid":1,"hostname":"ebe3a220e8ad","msg":"Server listening athttp://127.0.0.1:8080"}
-c2coffee-api  | {"level":30,"time":1789030446192,"pid":1,"hostname":"ebe3a220e8ad","msg":"Server listening athttp://172.19.0.2:8080"}
-c2coffee-api  | {"level":30,"time":1789030448201,"pid":1,"hostname":"ebe3a220e8ad","reqId":"a783b262-8700-42ee-a93f-bd467bdf6135","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":49256},"msg":"incoming request"}
-c2coffee-api  | {"level":30,"time":1789030448409,"pid":1,"hostname":"ebe3a220e8ad","reqId":"a783b262-8700-42ee-a93f-bd467bdf6135","res":{"statusCode":200},"responseTime":203.5510519999998,"msg":"request completed"}
+PS D:\C2Coffee\api> docker compose logs --tail 120 c2-api
+c2coffee-api  | {"level":30,"time":1789090800790,"pid":1,"hostname":"64d684fbfe25","msg":"Server listening athttp://127.0.0.1:8080"}
+c2coffee-api  | {"level":30,"time":1789090800792,"pid":1,"hostname":"64d684fbfe25","msg":"Server listening athttp://172.19.0.2:8080"}
+c2coffee-api  | {"level":30,"time":1789090803446,"pid":1,"hostname":"64d684fbfe25","reqId":"62983dea-ea1c-463c-9f9a-4e09c5f89014","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":49034},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789090803661,"pid":1,"hostname":"64d684fbfe25","reqId":"62983dea-ea1c-463c-9f9a-4e09c5f89014","res":{"statusCode":200},"responseTime":211.4329600000001,"msg":"request completed"}
 
 What's next:
     Filter, search, and stream logs from all your Compose services
     in one place with Docker Desktop's Logs view. docker-desktop://dashboard/logs?appId=api
-PS D:\C2Coffee\api>
-PS D:\C2Coffee\api> docker compose exec c2-api npm run production-readiness:prod
+PS D:\C2Coffee\api> docker compose logs --tail 120 c2-api
+c2coffee-api  | {"level":30,"time":1789090865809,"pid":1,"hostname":"64d684fbfe25","reqId":"50544f82-f24a-4e7c-a83d-0c7d11e63c44","res":{"statusCode":200},"responseTime":31.64308299998811,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789090896779,"pid":1,"hostname":"64d684fbfe25","reqId":"b04f31bd-6c0e-42b0-b422-3160ff3917fa","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":59526},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789090896809,"pid":1,"hostname":"64d684fbfe25","reqId":"b04f31bd-6c0e-42b0-b422-3160ff3917fa","res":{"statusCode":200},"responseTime":29.179060000009486,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789090927725,"pid":1,"hostname":"64d684fbfe25","reqId":"ae58941a-929e-4605-bd2b-951e7885b051","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":47128},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789090927755,"pid":1,"hostname":"64d684fbfe25","reqId":"ae58941a-929e-4605-bd2b-951e7885b051","res":{"statusCode":200},"responseTime":29.814675000001444,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789090958676,"pid":1,"hostname":"64d684fbfe25","reqId":"e52bf856-729a-438b-afeb-0cabe1d1f8e5","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":42538},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789090958707,"pid":1,"hostname":"64d684fbfe25","reqId":"e52bf856-729a-438b-afeb-0cabe1d1f8e5","res":{"statusCode":200},"responseTime":30.654393000004347,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789090976560,"pid":1,"hostname":"64d684fbfe25","reqId":"fcaf0a22-f76c-40be-8cc1-3ce207e02252","req":{"method":"OPTIONS","url":"/v1/admin/auth/refresh","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45574},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789090976566,"pid":1,"hostname":"64d684fbfe25","reqId":"fcaf0a22-f76c-40be-8cc1-3ce207e02252","res":{"statusCode":204},"responseTime":5.873606999986805,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789090976590,"pid":1,"hostname":"64d684fbfe25","reqId":"40ae46b9-36eb-4b6e-92d8-6abf5cec55da","req":{"method":"POST","url":"/v1/admin/auth/refresh","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45574},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789090976750,"pid":1,"hostname":"64d684fbfe25","reqId":"40ae46b9-36eb-4b6e-92d8-6abf5cec55da","res":{"statusCode":200},"responseTime":159.24236699999892,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789090977091,"pid":1,"hostname":"64d684fbfe25","reqId":"69530305-2cdd-459a-be68-e7e4845abb80","req":{"method":"OPTIONS","url":"/v1/admin/dashboard?period=this_month","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45574},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789090977102,"pid":1,"hostname":"64d684fbfe25","reqId":"69530305-2cdd-459a-be68-e7e4845abb80","res":{"statusCode":204},"responseTime":10.3506210000196,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789090977111,"pid":1,"hostname":"64d684fbfe25","reqId":"4d20e853-e6f7-4350-bbf8-83a8af244d79","req":{"method":"GET","url":"/v1/admin/dashboard?period=this_month","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45574},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789090977367,"pid":1,"hostname":"64d684fbfe25","reqId":"4d20e853-e6f7-4350-bbf8-83a8af244d79","res":{"statusCode":200},"responseTime":254.73247899999842,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789090979841,"pid":1,"hostname":"64d684fbfe25","reqId":"e9affdc1-9ecb-49db-b207-c12cdc73529a","req":{"method":"OPTIONS","url":"/v1/admin/customers","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45574},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789090979843,"pid":1,"hostname":"64d684fbfe25","reqId":"e9affdc1-9ecb-49db-b207-c12cdc73529a","res":{"statusCode":204},"responseTime":1.9110619999992196,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789090979845,"pid":1,"hostname":"64d684fbfe25","reqId":"53080186-11ae-4302-a7df-0dbb5700935c","req":{"method":"OPTIONS","url":"/v1/admin/loyalty/tiers","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45586},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789090979847,"pid":1,"hostname":"64d684fbfe25","reqId":"53080186-11ae-4302-a7df-0dbb5700935c","res":{"statusCode":204},"responseTime":2.084986999980174,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789090979853,"pid":1,"hostname":"64d684fbfe25","reqId":"95512379-d091-48d8-9401-e55b713359ec","req":{"method":"GET","url":"/v1/admin/customers","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45574},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789090979859,"pid":1,"hostname":"64d684fbfe25","reqId":"0e77f9cd-f6bb-433b-b8a7-e6d50bbf087b","req":{"method":"GET","url":"/v1/admin/loyalty/tiers","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45586},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789090979959,"pid":1,"hostname":"64d684fbfe25","reqId":"95512379-d091-48d8-9401-e55b713359ec","res":{"statusCode":200},"responseTime":105.49928699998418,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789090979973,"pid":1,"hostname":"64d684fbfe25","reqId":"0e77f9cd-f6bb-433b-b8a7-e6d50bbf087b","res":{"statusCode":200},"responseTime":114.13037199998507,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789090980680,"pid":1,"hostname":"64d684fbfe25","reqId":"89c06cfc-42e7-4fbe-9103-6d10d720a0e2","req":{"method":"OPTIONS","url":"/v1/admin/menu","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45586},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789090980682,"pid":1,"hostname":"64d684fbfe25","reqId":"89c06cfc-42e7-4fbe-9103-6d10d720a0e2","res":{"statusCode":204},"responseTime":1.4929049999918789,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789090980683,"pid":1,"hostname":"64d684fbfe25","reqId":"760f0268-82d1-4483-9273-b1b36069dbf5","req":{"method":"OPTIONS","url":"/v1/admin/menu/options-library","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45574},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789090980685,"pid":1,"hostname":"64d684fbfe25","reqId":"760f0268-82d1-4483-9273-b1b36069dbf5","res":{"statusCode":204},"responseTime":1.6292240000038873,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789090980693,"pid":1,"hostname":"64d684fbfe25","reqId":"d1d9ad49-8da0-4181-abc4-9396060a2e3f","req":{"method":"GET","url":"/v1/admin/menu","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45586},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789090980698,"pid":1,"hostname":"64d684fbfe25","reqId":"ceb59eb7-d155-45a0-acd1-60cc23d8e6dd","req":{"method":"GET","url":"/v1/admin/menu/options-library","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45574},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789090980814,"pid":1,"hostname":"64d684fbfe25","reqId":"ceb59eb7-d155-45a0-acd1-60cc23d8e6dd","res":{"statusCode":200},"responseTime":115.24172499999986,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789090980876,"pid":1,"hostname":"64d684fbfe25","reqId":"d1d9ad49-8da0-4181-abc4-9396060a2e3f","res":{"statusCode":200},"responseTime":181.1354730000021,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789090983739,"pid":1,"hostname":"64d684fbfe25","reqId":"8db50d94-04e9-423a-902d-e2688b76a780","req":{"method":"GET","url":"/v1/admin/menu","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45574},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789090983750,"pid":1,"hostname":"64d684fbfe25","reqId":"1cef19ae-3b7f-4988-b178-b5623f5942b4","req":{"method":"OPTIONS","url":"/v1/admin/home-featured","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45586},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789090983751,"pid":1,"hostname":"64d684fbfe25","reqId":"1cef19ae-3b7f-4988-b178-b5623f5942b4","res":{"statusCode":204},"responseTime":1.664825000014389,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789090983754,"pid":1,"hostname":"64d684fbfe25","reqId":"2b7e4ff4-de7a-48f7-9482-67bf846f6078","req":{"method":"GET","url":"/v1/admin/menu/options-library","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45598},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789090983762,"pid":1,"hostname":"64d684fbfe25","reqId":"4a3f61cc-9e06-4d0b-8654-7202aaa0b3e1","req":{"method":"GET","url":"/v1/admin/home-featured","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45586},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789090983857,"pid":1,"hostname":"64d684fbfe25","reqId":"2b7e4ff4-de7a-48f7-9482-67bf846f6078","res":{"statusCode":200},"responseTime":103.20953799999552,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789090983898,"pid":1,"hostname":"64d684fbfe25","reqId":"8db50d94-04e9-423a-902d-e2688b76a780","res":{"statusCode":200},"responseTime":158.65192500001285,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789090983911,"pid":1,"hostname":"64d684fbfe25","reqId":"4a3f61cc-9e06-4d0b-8654-7202aaa0b3e1","res":{"statusCode":200},"responseTime":149.1704439999885,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789090989643,"pid":1,"hostname":"64d684fbfe25","reqId":"020c974b-0fc4-4e0b-a1b1-ecd96adeba3c","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":39820},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789090989671,"pid":1,"hostname":"64d684fbfe25","reqId":"020c974b-0fc4-4e0b-a1b1-ecd96adeba3c","res":{"statusCode":200},"responseTime":27.499614000000292,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789090992695,"pid":1,"hostname":"64d684fbfe25","reqId":"09ac948b-d27b-4445-a7b8-39df617f1d21","req":{"method":"OPTIONS","url":"/v1/admin/menu/items/18","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45598},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789090992699,"pid":1,"hostname":"64d684fbfe25","reqId":"09ac948b-d27b-4445-a7b8-39df617f1d21","res":{"statusCode":204},"responseTime":3.111522999999579,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789090992709,"pid":1,"hostname":"64d684fbfe25","reqId":"c6487105-a98a-4539-8a05-87f5b3073b97","req":{"method":"PATCH","url":"/v1/admin/menu/items/18","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45574},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789090992888,"pid":1,"hostname":"64d684fbfe25","reqId":"c6487105-a98a-4539-8a05-87f5b3073b97","res":{"statusCode":200},"responseTime":177.8466619999963,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789090992901,"pid":1,"hostname":"64d684fbfe25","reqId":"d2af5a1e-34b7-4ccb-ab4e-bb16c5ae5d2c","req":{"method":"OPTIONS","url":"/v1/admin/menu/options-library/groups/3","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45586},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789090992903,"pid":1,"hostname":"64d684fbfe25","reqId":"d2af5a1e-34b7-4ccb-ab4e-bb16c5ae5d2c","res":{"statusCode":204},"responseTime":1.9065589999954682,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789090992912,"pid":1,"hostname":"64d684fbfe25","reqId":"7f631279-1b5f-41d5-b3a8-1db8e4dc2572","req":{"method":"PATCH","url":"/v1/admin/menu/options-library/groups/3","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45598},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789090993841,"pid":1,"hostname":"64d684fbfe25","reqId":"7f631279-1b5f-41d5-b3a8-1db8e4dc2572","res":{"statusCode":200},"responseTime":928.1318969999847,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789090993854,"pid":1,"hostname":"64d684fbfe25","reqId":"420a8e9e-cd9b-44aa-9531-970e96bf3c41","req":{"method":"OPTIONS","url":"/v1/admin/menu/items/18/option-exclusions","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45574},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789090993857,"pid":1,"hostname":"64d684fbfe25","reqId":"420a8e9e-cd9b-44aa-9531-970e96bf3c41","res":{"statusCode":204},"responseTime":2.615756000013789,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789090993869,"pid":1,"hostname":"64d684fbfe25","reqId":"de564909-ac39-4867-8e1e-45c1fd26221c","req":{"method":"PATCH","url":"/v1/admin/menu/items/18/option-exclusions","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45586},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789090993979,"pid":1,"hostname":"64d684fbfe25","reqId":"de564909-ac39-4867-8e1e-45c1fd26221c","res":{"statusCode":200},"responseTime":109.67300099998829,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789090993990,"pid":1,"hostname":"64d684fbfe25","reqId":"67a9cd5f-5b0d-4df0-96f8-44216e7d76d9","req":{"method":"OPTIONS","url":"/v1/admin/home-featured","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45574},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789090993991,"pid":1,"hostname":"64d684fbfe25","reqId":"67a9cd5f-5b0d-4df0-96f8-44216e7d76d9","res":{"statusCode":204},"responseTime":1.462299000006169,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789090993992,"pid":1,"hostname":"64d684fbfe25","reqId":"6b03a0fb-3f53-49d2-8083-0c4db411dcb3","req":{"method":"OPTIONS","url":"/v1/admin/menu","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45598},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789090993994,"pid":1,"hostname":"64d684fbfe25","reqId":"6b03a0fb-3f53-49d2-8083-0c4db411dcb3","res":{"statusCode":204},"responseTime":1.4976040000037756,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789090993995,"pid":1,"hostname":"64d684fbfe25","reqId":"08c48806-1c78-4663-88ab-a98266a9d989","req":{"method":"OPTIONS","url":"/v1/admin/menu/options-library","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45586},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789090993996,"pid":1,"hostname":"64d684fbfe25","reqId":"08c48806-1c78-4663-88ab-a98266a9d989","res":{"statusCode":204},"responseTime":1.1187519999803044,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789090993999,"pid":1,"hostname":"64d684fbfe25","reqId":"6fd945c3-11f9-47ab-98d4-c30b5ba4e480","req":{"method":"GET","url":"/v1/admin/home-featured","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45574},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789090994003,"pid":1,"hostname":"64d684fbfe25","reqId":"06e52234-34a6-490e-8f4d-82a54730dac3","req":{"method":"GET","url":"/v1/admin/menu","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45598},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789090994006,"pid":1,"hostname":"64d684fbfe25","reqId":"dcc3f290-de71-436e-9f9c-e61e2ae31c08","req":{"method":"GET","url":"/v1/admin/menu/options-library","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45586},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789090994039,"pid":1,"hostname":"64d684fbfe25","reqId":"6fd945c3-11f9-47ab-98d4-c30b5ba4e480","res":{"statusCode":200},"responseTime":39.292739000025904,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789090994117,"pid":1,"hostname":"64d684fbfe25","reqId":"dcc3f290-de71-436e-9f9c-e61e2ae31c08","res":{"statusCode":200},"responseTime":110.82165600001463,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789090994131,"pid":1,"hostname":"64d684fbfe25","reqId":"06e52234-34a6-490e-8f4d-82a54730dac3","res":{"statusCode":200},"responseTime":127.39440799999284,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789091004688,"pid":1,"hostname":"64d684fbfe25","reqId":"6076ccf8-5ca2-45fc-94e5-f4d1caac152d","req":{"method":"OPTIONS","url":"/v1/admin/home-featured","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45586},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789091004690,"pid":1,"hostname":"64d684fbfe25","reqId":"6076ccf8-5ca2-45fc-94e5-f4d1caac152d","res":{"statusCode":204},"responseTime":2.173298000008799,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789091004691,"pid":1,"hostname":"64d684fbfe25","reqId":"0ee44767-c33e-4c60-b5d5-f131a49f76b5","req":{"method":"OPTIONS","url":"/v1/admin/menu","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45574},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789091004693,"pid":1,"hostname":"64d684fbfe25","reqId":"0ee44767-c33e-4c60-b5d5-f131a49f76b5","res":{"statusCode":204},"responseTime":1.110052000003634,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789091004694,"pid":1,"hostname":"64d684fbfe25","reqId":"54b0d0cd-f118-49c7-9126-22d9a3b989d1","req":{"method":"OPTIONS","url":"/v1/admin/menu/options-library","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45598},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789091004695,"pid":1,"hostname":"64d684fbfe25","reqId":"54b0d0cd-f118-49c7-9126-22d9a3b989d1","res":{"statusCode":204},"responseTime":1.1389560000097845,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789091004747,"pid":1,"hostname":"64d684fbfe25","reqId":"de51366d-122c-47c7-9ffb-25ead360e3b7","req":{"method":"GET","url":"/v1/admin/menu","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45586},"msg":"incoming request"}
+c2coffee-api  | {"level":50,"time":1789091004751,"pid":1,"hostname":"64d684fbfe25","reqId":"de51366d-122c-47c7-9ffb-25ead360e3b7","error":{"statusCode":401,"code":"invalid_access_token"},"statusCode":401,"code":"invalid_access_token","msg":"request failed"}
+c2coffee-api  | {"level":30,"time":1789091004753,"pid":1,"hostname":"64d684fbfe25","reqId":"de51366d-122c-47c7-9ffb-25ead360e3b7","res":{"statusCode":401},"responseTime":5.4774490000272635,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789091004754,"pid":1,"hostname":"64d684fbfe25","reqId":"db33290a-bbec-4b39-bde3-b526ba6f86a6","req":{"method":"GET","url":"/v1/admin/home-featured","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45574},"msg":"incoming request"}
+c2coffee-api  | {"level":50,"time":1789091004756,"pid":1,"hostname":"64d684fbfe25","reqId":"db33290a-bbec-4b39-bde3-b526ba6f86a6","error":{"statusCode":401,"code":"invalid_access_token"},"statusCode":401,"code":"invalid_access_token","msg":"request failed"}
+c2coffee-api  | {"level":30,"time":1789091004757,"pid":1,"hostname":"64d684fbfe25","reqId":"db33290a-bbec-4b39-bde3-b526ba6f86a6","res":{"statusCode":401},"responseTime":2.8310869999986608,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789091004757,"pid":1,"hostname":"64d684fbfe25","reqId":"4ff75d2e-594e-435c-a938-6ad8ec297c4b","req":{"method":"GET","url":"/v1/admin/menu/options-library","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45598},"msg":"incoming request"}
+c2coffee-api  | {"level":50,"time":1789091004759,"pid":1,"hostname":"64d684fbfe25","reqId":"4ff75d2e-594e-435c-a938-6ad8ec297c4b","error":{"statusCode":401,"code":"invalid_access_token"},"statusCode":401,"code":"invalid_access_token","msg":"request failed"}
+c2coffee-api  | {"level":30,"time":1789091004760,"pid":1,"hostname":"64d684fbfe25","reqId":"4ff75d2e-594e-435c-a938-6ad8ec297c4b","res":{"statusCode":401},"responseTime":2.322417999996105,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789091004803,"pid":1,"hostname":"64d684fbfe25","reqId":"a5f75343-e6bd-4201-a687-6a332131502d","req":{"method":"OPTIONS","url":"/v1/admin/auth/refresh","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45586},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789091004805,"pid":1,"hostname":"64d684fbfe25","reqId":"a5f75343-e6bd-4201-a687-6a332131502d","res":{"statusCode":204},"responseTime":1.5594139999884646,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789091004816,"pid":1,"hostname":"64d684fbfe25","reqId":"7a3da84b-20e3-405c-98b2-0ffdae0d271a","req":{"method":"POST","url":"/v1/admin/auth/refresh","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45574},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789091004890,"pid":1,"hostname":"64d684fbfe25","reqId":"7a3da84b-20e3-405c-98b2-0ffdae0d271a","res":{"statusCode":200},"responseTime":73.51545899998746,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789091004904,"pid":1,"hostname":"64d684fbfe25","reqId":"2b5a5115-29e8-474f-aeba-d21a18f1a623","req":{"method":"GET","url":"/v1/admin/home-featured","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45598},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789091004909,"pid":1,"hostname":"64d684fbfe25","reqId":"f430effc-30ac-484f-8c45-9780615cce95","req":{"method":"GET","url":"/v1/admin/menu","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45586},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789091004912,"pid":1,"hostname":"64d684fbfe25","reqId":"7c793ad9-e5bd-42b3-b366-37e43a7633f6","req":{"method":"GET","url":"/v1/admin/menu/options-library","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45574},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789091004942,"pid":1,"hostname":"64d684fbfe25","reqId":"2b5a5115-29e8-474f-aeba-d21a18f1a623","res":{"statusCode":200},"responseTime":36.919152000016766,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789091004994,"pid":1,"hostname":"64d684fbfe25","reqId":"7c793ad9-e5bd-42b3-b366-37e43a7633f6","res":{"statusCode":200},"responseTime":82.20864900000743,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789091005028,"pid":1,"hostname":"64d684fbfe25","reqId":"f430effc-30ac-484f-8c45-9780615cce95","res":{"statusCode":200},"responseTime":118.89356900000712,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789091017411,"pid":1,"hostname":"64d684fbfe25","reqId":"0040e450-df0b-40ac-9fc0-1441f0f2652a","req":{"method":"OPTIONS","url":"/v1/admin/menu/items/18","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45598},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789091017413,"pid":1,"hostname":"64d684fbfe25","reqId":"0040e450-df0b-40ac-9fc0-1441f0f2652a","res":{"statusCode":204},"responseTime":1.7441350000153761,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789091017467,"pid":1,"hostname":"64d684fbfe25","reqId":"92796f39-8048-494b-a342-0aec9f52be3c","req":{"method":"PATCH","url":"/v1/admin/menu/items/18","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45574},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789091017621,"pid":1,"hostname":"64d684fbfe25","reqId":"92796f39-8048-494b-a342-0aec9f52be3c","res":{"statusCode":200},"responseTime":153.61254400000325,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789091017630,"pid":1,"hostname":"64d684fbfe25","reqId":"62af4cbe-02e1-4b7a-8f0f-ffa8072b3cb1","req":{"method":"OPTIONS","url":"/v1/admin/menu/options-library/groups/4","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45586},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789091017632,"pid":1,"hostname":"64d684fbfe25","reqId":"62af4cbe-02e1-4b7a-8f0f-ffa8072b3cb1","res":{"statusCode":204},"responseTime":1.4077899999974761,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789091017633,"pid":1,"hostname":"64d684fbfe25","reqId":"426343cb-cf84-42c2-800f-6181cfb55c4b","req":{"method":"OPTIONS","url":"/v1/admin/menu/options-library/groups/5","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45598},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789091017634,"pid":1,"hostname":"64d684fbfe25","reqId":"426343cb-cf84-42c2-800f-6181cfb55c4b","res":{"statusCode":204},"responseTime":1.0437410000013188,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789091017642,"pid":1,"hostname":"64d684fbfe25","reqId":"d3539ab8-6e64-4925-a403-c85fdb190fac","req":{"method":"PATCH","url":"/v1/admin/menu/options-library/groups/4","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45574},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789091017687,"pid":1,"hostname":"64d684fbfe25","reqId":"99645937-6cae-4203-8154-fd5823ffdc3f","req":{"method":"PATCH","url":"/v1/admin/menu/options-library/groups/5","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45586},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789091018734,"pid":1,"hostname":"64d684fbfe25","reqId":"d3539ab8-6e64-4925-a403-c85fdb190fac","res":{"statusCode":200},"responseTime":1092.105275000009,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789091018749,"pid":1,"hostname":"64d684fbfe25","reqId":"99645937-6cae-4203-8154-fd5823ffdc3f","res":{"statusCode":200},"responseTime":1061.7523760000186,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789091018795,"pid":1,"hostname":"64d684fbfe25","reqId":"045ac830-409d-47ee-8326-055f254504e8","req":{"method":"OPTIONS","url":"/v1/admin/menu/items/18/option-exclusions","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45598},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789091018796,"pid":1,"hostname":"64d684fbfe25","reqId":"045ac830-409d-47ee-8326-055f254504e8","res":{"statusCode":204},"responseTime":1.320077999989735,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789091018807,"pid":1,"hostname":"64d684fbfe25","reqId":"bba851f3-4834-4f65-9451-c7eb86e2d920","req":{"method":"PATCH","url":"/v1/admin/menu/items/18/option-exclusions","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45574},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789091018900,"pid":1,"hostname":"64d684fbfe25","reqId":"bba851f3-4834-4f65-9451-c7eb86e2d920","res":{"statusCode":200},"responseTime":93.30229900000268,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789091018913,"pid":1,"hostname":"64d684fbfe25","reqId":"b9edae1c-0f8a-459a-a21e-2d755870395a","req":{"method":"OPTIONS","url":"/v1/admin/menu","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45586},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789091018915,"pid":1,"hostname":"64d684fbfe25","reqId":"b9edae1c-0f8a-459a-a21e-2d755870395a","res":{"statusCode":204},"responseTime":1.7332340000139084,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789091018917,"pid":1,"hostname":"64d684fbfe25","reqId":"ff0b7338-f957-4043-aea8-1f08e21e4573","req":{"method":"OPTIONS","url":"/v1/admin/home-featured","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45598},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789091018918,"pid":1,"hostname":"64d684fbfe25","reqId":"ff0b7338-f957-4043-aea8-1f08e21e4573","res":{"statusCode":204},"responseTime":1.356783000024734,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789091018919,"pid":1,"hostname":"64d684fbfe25","reqId":"2c0e6bd5-774e-4221-b6df-6e7d81725a00","req":{"method":"OPTIONS","url":"/v1/admin/menu/options-library","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45574},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789091018920,"pid":1,"hostname":"64d684fbfe25","reqId":"2c0e6bd5-774e-4221-b6df-6e7d81725a00","res":{"statusCode":204},"responseTime":1.0623429999977816,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789091018924,"pid":1,"hostname":"64d684fbfe25","reqId":"91ad6941-772f-4c9e-9d48-fbe69deeb792","req":{"method":"GET","url":"/v1/admin/menu","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45586},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789091018979,"pid":1,"hostname":"64d684fbfe25","reqId":"65deab35-8d16-407e-aaf4-228fd412dd35","req":{"method":"GET","url":"/v1/admin/menu/options-library","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45574},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789091018982,"pid":1,"hostname":"64d684fbfe25","reqId":"0c0c749d-4903-418a-a21f-f4d8cf1d9581","req":{"method":"GET","url":"/v1/admin/home-featured","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":45598},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789091019021,"pid":1,"hostname":"64d684fbfe25","reqId":"0c0c749d-4903-418a-a21f-f4d8cf1d9581","res":{"statusCode":200},"responseTime":38.491898000007495,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789091019092,"pid":1,"hostname":"64d684fbfe25","reqId":"65deab35-8d16-407e-aaf4-228fd412dd35","res":{"statusCode":200},"responseTime":112.07203400001163,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789091019178,"pid":1,"hostname":"64d684fbfe25","reqId":"91ad6941-772f-4c9e-9d48-fbe69deeb792","res":{"statusCode":200},"responseTime":253.76376800000435,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1789091020563,"pid":1,"hostname":"64d684fbfe25","reqId":"9f976d36-d544-4e8d-80ad-ab5d55e6544e","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":59192},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1789091020591,"pid":1,"hostname":"64d684fbfe25","reqId":"9f976d36-d544-4e8d-80ad-ab5d55e6544e","res":{"statusCode":200},"responseTime":26.456273000017973,"msg":"request completed"}
 
-> @c2coffee/api@0.1.0 production-readiness:prod
-> node dist/scripts/production-readiness.js
-
-PASS  Production environment - Production mode, secure OTP configuration, and non-placeholder session secretsare required.
-PASS  Public HTTPS endpoint - https://api.c2coffeeandcandle.com/health and https://api.c2coffeeandcandle.com/v1/health must be reachable through IIS.
-PASS  Local API and database - The container health endpoint must confirm database connectivity.
-PASS  SMTP transport - The live OTP mail transport must authenticate successfully; no message is sent.
-PASS  Admin browser origin - At least one HTTPS CORS origin is required for the admin session cookie flow.
-PASS  FCM configuration - FCM stays disabled until its service-account secret is installed; a physical devicetest remains required.
-MANUAL  Verify one OTP email, Admin Web login/refresh/logout, a real device notification, and a physical printer receipt.
-npm notice
-npm notice New major version of npm available! 10.9.8 -> 12.0.2
-npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
-npm notice To update run: npm install -g npm@12.0.2
-npm notice
+What's next:
+    Filter, search, and stream logs from all your Compose services
+    in one place with Docker Desktop's Logs view. docker-desktop://dashboard/logs?appId=api
 PS D:\C2Coffee\api>

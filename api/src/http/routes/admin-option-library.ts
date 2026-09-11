@@ -43,9 +43,6 @@ const groupSchema = z.object({
   if (value.min_select > value.max_select) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ['min_select'], message: 'Minimum selections cannot exceed maximum selections.' });
   }
-  if (value.applies_to === 'selected_items' && value.menu_item_ids.length === 0) {
-    context.addIssue({ code: z.ZodIssueCode.custom, path: ['menu_item_ids'], message: 'Select at least one menu item.' });
-  }
 });
 
 const nutritionSchema = z.object({ base_calories_kcal: z.coerce.number().int().min(0).max(5000) });
@@ -162,11 +159,10 @@ export async function registerAdminOptionLibraryRoutes(app: FastifyInstance): Pr
       `UPDATE menu_items i
        JOIN menu_categories c ON c.id = i.category_id
        SET i.base_calories_kcal = :calories
-       WHERE i.id = :itemId AND c.tenant_id = :tenantId`,
+       WHERE i.id = :itemId`,
       {
         itemId,
-        calories: payload.base_calories_kcal,
-        tenantId: request.adminAuth.tenantId
+        calories: payload.base_calories_kcal
       }
     );
     if (result.affectedRows === 0) throw new ApiError(404, 'menu_item_not_found', 'Menu item was not found.');
@@ -284,10 +280,9 @@ async function saveGroup(tenantId: number, payload: z.infer<typeof groupSchema>,
            FROM menu_items i
            JOIN menu_categories c ON c.id = i.category_id
            WHERE i.id = :menuItemId
-             AND c.tenant_id = :tenantId
              AND LOWER(COALESCE(c.product_kind_code, '')) = 'drink'
            LIMIT 1`,
-          { menuItemId, tenantId }
+          { menuItemId }
         );
         if (!items[0]) throw new ApiError(400, 'invalid_option_item', 'Options can only be assigned to drink items.');
         await connection.execute('INSERT INTO menu_option_group_items (option_group_id,menu_item_id) VALUES (:id,:menuItemId)', { id, menuItemId });
