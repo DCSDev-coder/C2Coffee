@@ -1,10 +1,12 @@
 import 'dart:ui';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'screens/main_layout.dart';
 import 'widgets/order_card.dart';
 import 'services/api_service.dart';
+import 'services/push_notification_service.dart';
 
 final ValueNotifier<String?> globalOrderSyncError = ValueNotifier<String?>(
   null,
@@ -28,7 +30,13 @@ Future<void> main() async {
       debugPrint('Firebase initialization failed: $e');
     }
   }
+  if (!kIsWeb) {
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  }
   await ApiService.restoreSession();
+  if (!kIsWeb && ApiService.isSignedIn) {
+    await PushNotificationService.instance.syncExistingSession();
+  }
   runApp(const BaristaApp());
 }
 
@@ -281,6 +289,9 @@ class _LoginPageState extends State<LoginPage> {
                                       );
                                       return;
                                     }
+
+                                    await PushNotificationService.instance
+                                        .syncAfterSignIn();
 
                                     if (!context.mounted) return;
                                     Navigator.pushReplacement(

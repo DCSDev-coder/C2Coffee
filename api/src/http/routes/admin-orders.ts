@@ -985,7 +985,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
             userId: Number(rows[0].user_id),
             title: 'Your order is ready',
             body: 'Your order is ready for collection. Please collect it at the counter when convenient.',
-            data: { type: 'order_ready', order_ref: orderId }
+            data: { type: 'order_ready' }
           });
         } catch (error) {
           // The in-app record is already committed. Log only safe metadata so

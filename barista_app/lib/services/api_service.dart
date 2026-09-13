@@ -78,6 +78,38 @@ class ApiService {
     return false;
   }
 
+  static Future<void> registerPushToken({
+    required String platform,
+    required String pushToken,
+  }) async {
+    final response = await _authenticatedRequest(
+      (headers) => http.post(
+        Uri.parse('$baseUrl/admin/devices/push-token'),
+        headers: headers,
+        body: json.encode({
+          'platform': platform,
+          'push_token': pushToken,
+        }),
+      ),
+    );
+    if (response.statusCode != 200) {
+      throw StateError(_responseMessage(response));
+    }
+  }
+
+  static Future<void> deactivatePushToken(String pushToken) async {
+    final response = await _authenticatedRequest(
+      (headers) => http.post(
+        Uri.parse('$baseUrl/admin/devices/push-token/deactivate'),
+        headers: headers,
+        body: json.encode({'push_token': pushToken}),
+      ),
+    );
+    if (response.statusCode != 200) {
+      throw StateError(_responseMessage(response));
+    }
+  }
+
   static Future<OperationsContext> fetchOperationsContext() async {
     final response = await _authenticatedRequest(
       (headers) => http.get(
@@ -310,6 +342,8 @@ class ApiService {
     final accessToken = _accessToken;
     if (accessToken != null && accessToken.isNotEmpty) {
       try {
+        // Keep the device from receiving queue alerts after explicit sign-out.
+        // Failure is non-blocking because local credentials still must clear.
         await http.post(
           Uri.parse('$baseUrl/admin/auth/logout'),
           headers: {'Authorization': 'Bearer $accessToken'},

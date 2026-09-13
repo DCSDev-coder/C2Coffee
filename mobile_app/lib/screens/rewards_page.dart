@@ -235,6 +235,7 @@ class _RewardsPageState extends State<RewardsPage> {
   }
 
   Widget _buildPointsCard() {
+    final tierArtworkUrl = _currentTier()?.imageUrl;
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20),
       padding: const EdgeInsets.all(16),
@@ -259,10 +260,22 @@ class _RewardsPageState extends State<RewardsPage> {
           Center(
             child: ClipRRect(
               borderRadius: BorderRadius.circular(16),
-              child: Image.asset(
-                'assets/images/card.png',
-                fit: BoxFit.contain,
+              child: SizedBox(
                 height: 240,
+                child: AspectRatio(
+                  aspectRatio: 3 / 4,
+                  child: tierArtworkUrl == null
+                      ? Image.asset('assets/images/card.png',
+                          fit: BoxFit.contain)
+                      : Image.network(
+                          tierArtworkUrl,
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, __, ___) => Image.asset(
+                            'assets/images/card.png',
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                ),
               ),
             ),
           ),

@@ -3,14 +3,11 @@ import 'dart:io';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
 
-import 'auth_api_service.dart';
-import 'app_session_service.dart';
-import 'secure_session_service.dart';
-import '../utils/app_notification.dart';
+import 'api_service.dart';
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // Notification handling is delegated to the operating system in the background.
+  // The operating system presents the generic alert while the app is backgrounded.
 }
 
 class PushNotificationService {
@@ -21,6 +18,7 @@ class PushNotificationService {
   StreamSubscription<String>? _tokenRefreshSubscription;
   StreamSubscription<RemoteMessage>? _foregroundSubscription;
   StreamSubscription<RemoteMessage>? _openedSubscription;
+  Future<void> Function()? _onNewOrder;
   bool _initialized = false;
 
   Future<void> initialize() async {
@@ -39,9 +37,12 @@ class PushNotificationService {
     _initialized = true;
   }
 
+  void setNewOrderHandler(Future<void> Function()? handler) {
+    _onNewOrder = handler;
+  }
+
   Future<void> syncAfterSignIn() async {
     await initialize();
-
     final permission = await FirebaseMessaging.instance.requestPermission(
       alert: true,
       badge: true,
@@ -51,11 +52,7 @@ class PushNotificationService {
         permission.authorizationStatus != AuthorizationStatus.provisional) {
       return;
     }
-
-    final token = await FirebaseMessaging.instance.getToken();
-    if (token != null && token.isNotEmpty) {
-      await _registerToken(token);
-    }
+    await _registerCurrentToken();
   }
 
   Future<void> syncExistingSession() async {
@@ -65,48 +62,38 @@ class PushNotificationService {
         permission.authorizationStatus != AuthorizationStatus.provisional) {
       return;
     }
+    await _registerCurrentToken();
+  }
+
+  Future<void> deactivateForCurrentSession() async {
+    final pushToken = await FirebaseMessaging.instance.getToken();
+    if (pushToken == null || pushToken.isEmpty || !ApiService.isSignedIn) return;
+    await ApiService.deactivatePushToken(pushToken);
+  }
+
+  Future<void> _registerCurrentToken() async {
     final token = await FirebaseMessaging.instance.getToken();
     if (token != null && token.isNotEmpty) await _registerToken(token);
   }
 
-  Future<void> deactivateForCurrentSession() async {
-    final accessToken =
-        await SecureSessionService.instance.getValidAccessToken();
-    final pushToken = await FirebaseMessaging.instance.getToken();
-    if (accessToken == null || accessToken.isEmpty ||
-        pushToken == null || pushToken.isEmpty) {
-      return;
-    }
-
-    await AuthApiService.instance.deactivatePushToken(
-      accessToken: accessToken,
-      pushToken: pushToken,
-    );
-  }
-
   Future<void> _registerToken(String pushToken) async {
     try {
-      final accessToken =
-          await SecureSessionService.instance.getValidAccessToken();
-      if (accessToken == null || accessToken.isEmpty) return;
-
-      final deviceFingerprint =
-          await AuthApiService.instance.getOrCreateDeviceFingerprint();
-      await AuthApiService.instance.registerPushToken(
-        accessToken: accessToken,
-        deviceFingerprint: deviceFingerprint,
+      if (!ApiService.isSignedIn) return;
+      await ApiService.registerPushToken(
         platform: Platform.isIOS ? 'ios' : 'android',
         pushToken: pushToken,
       );
     } catch (_) {
-      // A delivery registration failure must not interrupt sign-in or app use.
+      // Notification registration must never interrupt barista sign-in.
     }
   }
 
   void _handleMessage(RemoteMessage message) {
-    if (message.data['type'] != 'order_ready') return;
-    AppNotification.showInfo(null, 'Your order is ready for collection.');
-    unawaited(AppSessionService.instance.pollActiveOrder());
+    // Ignore unrecognised payloads. The server never includes order or customer
+    // details in the push; the handler refreshes the authorised queue instead.
+    if (message.data['type'] != 'new_order') return;
+    final handler = _onNewOrder;
+    if (handler != null) unawaited(handler());
   }
 
   void dispose() {
@@ -116,6 +103,7 @@ class PushNotificationService {
     _tokenRefreshSubscription = null;
     _foregroundSubscription = null;
     _openedSubscription = null;
+    _onNewOrder = null;
     _initialized = false;
   }
 }

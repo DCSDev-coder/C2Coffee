@@ -709,7 +709,8 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
         updateParams.subcategoryId = await resolveSubcategoryId(
           connection,
           categoryCodeForSubcategory,
-          payload.subcategory_code
+          payload.subcategory_code,
+          true
         );
       }
       if (payload.name !== undefined) {
@@ -1536,7 +1537,8 @@ async function loadMenuCategoryById(categoryId: number): Promise<AdminMenuCatego
 async function resolveSubcategoryId(
   connection: Pick<Awaited<ReturnType<typeof mysqlPool.getConnection>>, 'query'>,
   categoryCode: string,
-  subcategoryCode: string | null | undefined
+  subcategoryCode: string | null | undefined,
+  clearIfMissing = false
 ): Promise<number | null> {
   const trimmedCode = String(subcategoryCode ?? '').trim();
   if (!trimmedCode) {
@@ -1560,6 +1562,7 @@ async function resolveSubcategoryId(
 
   const subcategory = rows[0];
   if (!subcategory) {
+    if (clearIfMissing) return null;
     throw new ApiError(404, 'menu_subcategory_not_found', 'Menu subcategory was not found.');
   }
 

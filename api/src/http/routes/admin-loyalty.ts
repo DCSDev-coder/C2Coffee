@@ -1,9 +1,12 @@
+import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import type { PoolConnection, RowDataPacket, ResultSetHeader } from 'mysql2/promise';
+import sharp from 'sharp';
 import { z } from 'zod';
 import { authenticateAdminRequest, requireAdminRole, requireAnyAdminRole } from '../../admin/guard.js';
 import { mysqlPool } from '../../db/mysql.js';
 import { ApiError } from '../errors.js';
+import { saveMediaAsset } from '../../lib/media-assets.js';
 import {
   formatTierName,
   getActiveLoyaltyTiers,
@@ -145,11 +148,17 @@ const loyaltyTierUpsertSchema = z.object({
   name: z.string().trim().min(1).max(255),
   minCups: z.coerce.number().int().min(0),
   badgeColor: z.string().trim().max(32).optional().nullable(),
+  imageUrl: z.string().trim().max(512).optional().nullable(),
   sortOrder: z.coerce.number().int().min(0).optional().default(0),
   isActive: z.coerce.boolean().optional().default(true),
   rewardConfig: z.object({
     voucherTemplateId: z.coerce.number().int().positive()
   }).nullable().optional().default(null)
+});
+
+const tierImageUploadSchema = z.object({
+  data_url: z.string().trim().min(1),
+  file_name: z.string().trim().min(1).max(255)
 });
 
 const loyaltyTierPatchSchema = loyaltyTierUpsertSchema.partial().extend({
@@ -185,6 +194,42 @@ async function validateTierRewardVoucher(
 }
 
 export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<void> {
+  app.post('/v1/admin/loyalty/tiers/uploads', {
+    preHandler: [authenticateAdminRequest],
+    bodyLimit: 12 * 1024 * 1024
+  }, async (request) => {
+    requireAdminRole(request, 'super_admin');
+    const payload = tierImageUploadSchema.parse(request.body);
+    const base64Payload = payload.data_url.includes('base64,')
+      ? payload.data_url.split('base64,').pop() || ''
+      : payload.data_url;
+    const content = Buffer.from(base64Payload, 'base64');
+    if (content.length === 0 || content.length > 8 * 1024 * 1024) {
+      throw new ApiError(400, 'invalid_tier_image_upload', 'Tier images must be between 1 byte and 8 MB.');
+    }
+
+    let optimizedContent: Buffer;
+    try {
+      optimizedContent = await sharp(content, { limitInputPixels: 32_000_000 })
+        .rotate()
+        .resize({ width: 1086, height: 1448, fit: 'cover', position: 'attention' })
+        .webp({ quality: 84, effort: 4 })
+        .toBuffer();
+    } catch {
+      throw new ApiError(400, 'invalid_tier_image_upload', 'Upload a valid PNG, JPEG, or WebP tier image.');
+    }
+
+    const uploadName = `${Date.now()}-${randomUUID()}.webp`;
+    const assetPath = `/assets/tiers/uploads/${uploadName}`;
+    await saveMediaAsset({
+      assetPath,
+      fileName: uploadName,
+      mimeType: 'image/webp',
+      content: optimizedContent
+    });
+    return { image_url: assetPath };
+  });
+
   app.get('/v1/admin/loyalty/overview', { preHandler: [authenticateAdminRequest] }, async (request) => {
     requireAdminRole(request, 'super_admin');
     const { limit } = overviewQuerySchema.parse(request.query);
@@ -782,6 +827,7 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
             name,
             min_cups,
             badge_color,
+            image_url,
             sort_order,
             is_active,
             reward_config_json
@@ -791,6 +837,7 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
             :name,
             :minCups,
             :badgeColor,
+            :imageUrl,
             :sortOrder,
             :isActive,
             :rewardConfig
@@ -799,6 +846,7 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
         {
           ...payload,
           code: normalizedCode,
+          imageUrl: payload.imageUrl || null,
           rewardConfig: payload.rewardConfig ? JSON.stringify(payload.rewardConfig) : null
         }
       );
@@ -837,6 +885,8 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
             return 'min_cups = :minCups';
           case 'badgeColor':
             return 'badge_color = :badgeColor';
+          case 'imageUrl':
+            return 'image_url = :imageUrl';
           case 'sortOrder':
             return 'sort_order = :sortOrder';
           case 'isActive':

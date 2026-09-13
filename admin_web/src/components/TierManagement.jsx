@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Award, BarChart3, Edit3, MoreVertical, Plus, Save, Trash2, Users, X } from 'lucide-react';
 import { BarChart, Bar, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import Pagination from './Pagination';
-import { createAdminTier, deleteAdminTier, loadAdminLoyaltyOverview, loadAdminVouchers, updateAdminTier } from '../lib/adminApi';
+import { createAdminTier, deleteAdminTier, getAdminApiBaseUrl, loadAdminLoyaltyOverview, loadAdminVouchers, updateAdminTier, uploadAdminTierImage } from '../lib/adminApi';
 
 const DEFAULT_COLORS = ['#1F3A34', '#2E5E58', '#6F9F96', '#E07A5F', '#D4AF7A', '#9333EA'];
 
@@ -85,6 +85,12 @@ function getTierBadgeStyle(color) {
   };
 }
 
+function resolveTierArtworkUrl(imageUrl) {
+  const value = String(imageUrl ?? '').trim();
+  if (!value || /^https?:\/\//i.test(value) || value.startsWith('data:')) return value;
+  return `${getAdminApiBaseUrl()}${value.startsWith('/') ? value : `/${value}`}`;
+}
+
 function emptyForm() {
   return {
     id: null,
@@ -92,11 +98,68 @@ function emptyForm() {
     name: '',
     minCups: 0,
     badgeColor: '#1F3A34',
+    imageUrl: null,
     sortOrder: 0,
     isActive: true,
     rewardVoucherId: ''
   };
 }
+
+const TierArtworkField = ({ imageUrl, onChange }) => {
+  const [isUploading, setIsUploading] = useState(false);
+
+  const uploadArtwork = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    try {
+      const response = await uploadAdminTierImage(file);
+      onChange(response.image_url || null);
+    } catch (error) {
+      alert(`Unable to upload tier artwork: ${error.message}`);
+    } finally {
+      setIsUploading(false);
+      event.target.value = '';
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-dashed border-[#BFD3CE] bg-[#F8FBFA] p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <label className="block font-bold text-gray-900">Tier artwork</label>
+          <p className="mt-0.5 text-[11px] leading-relaxed text-gray-500">Optional. Members see this card when they are in this tier.</p>
+        </div>
+        {imageUrl && (
+          <button type="button" onClick={() => onChange(null)} className="shrink-0 text-[11px] font-bold text-red-600 hover:text-red-700">
+            Remove
+          </button>
+        )}
+      </div>
+      <div className="mt-3 grid gap-4 sm:grid-cols-[135px_minmax(0,1fr)] sm:items-center">
+        <div className="aspect-[3/4] overflow-hidden rounded-xl border border-[#D7E4E0] bg-white shadow-sm">
+          {imageUrl ? (
+            <img src={resolveTierArtworkUrl(imageUrl)} alt="Tier artwork preview" className="h-full w-full object-contain" />
+          ) : (
+            <div className="flex h-full flex-col items-center justify-center gap-1 px-3 text-center text-[11px] text-gray-400">
+              <span className="font-bold text-[#5C7770]">3:4 preview</span>
+              <span>Tier artwork</span>
+            </div>
+          )}
+        </div>
+        <div>
+          <label className="inline-flex cursor-pointer items-center rounded-lg bg-[#1E433A] px-4 py-2.5 text-xs font-bold text-white transition-colors hover:bg-[#16342D] disabled:cursor-not-allowed disabled:opacity-60">
+            {isUploading ? 'Uploading...' : imageUrl ? 'Replace image' : 'Choose image'}
+            <input type="file" accept="image/png,image/jpeg,image/webp" onChange={uploadArtwork} disabled={isUploading} className="sr-only" />
+          </label>
+          <p className="mt-2 text-[11px] font-medium text-gray-700">Recommended: 1086 × 1448 px (3:4 portrait)</p>
+          <p className="mt-1 text-[11px] leading-relaxed text-gray-500">PNG, JPEG, or WebP, up to 8 MB. The upload is cropped to 3:4 and optimised for the mobile rewards card.</p>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const TierModal = ({ open, title, form, voucherOptions, onChange, onClose, onSave, saving }) => {
   if (!open) return null;
@@ -170,6 +233,8 @@ const TierModal = ({ open, title, form, voucherOptions, onChange, onClose, onSav
               </p>
             </div>
           </div>
+
+          <TierArtworkField imageUrl={form.imageUrl} onChange={(imageUrl) => onChange({ imageUrl })} />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -342,6 +407,7 @@ const TierManagement = () => {
       name: tier.name || '',
       minCups: parseNumber(tier.minCups),
       badgeColor: tier.badgeColor || '#1F3A34',
+      imageUrl: tier.imageUrl || null,
       sortOrder: parseNumber(tier.sortOrder || tier.minCups),
       isActive: Boolean(tier.isActive),
       rewardVoucherId: tier.rewardConfig?.voucherTemplateId ? String(tier.rewardConfig.voucherTemplateId) : ''
@@ -386,6 +452,7 @@ const TierManagement = () => {
       name: String(form.name || '').trim(),
       minCups: Number(form.minCups || 0),
       badgeColor: String(form.badgeColor || '').trim() || null,
+      imageUrl: form.imageUrl || null,
       sortOrder: Number(form.sortOrder || form.minCups || 0),
       isActive: Boolean(form.isActive),
       rewardConfig: form.rewardVoucherId

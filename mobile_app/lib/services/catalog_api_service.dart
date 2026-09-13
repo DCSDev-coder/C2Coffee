@@ -390,6 +390,7 @@ class LoyaltyTier {
   final String name;
   final int minCups;
   final String? badgeColor;
+  final String? imageUrl;
   final int sortOrder;
   final bool isActive;
   final bool hasTierUnlockVoucher;
@@ -401,6 +402,7 @@ class LoyaltyTier {
     required this.name,
     required this.minCups,
     required this.badgeColor,
+    required this.imageUrl,
     required this.sortOrder,
     required this.isActive,
     required this.hasTierUnlockVoucher,
@@ -414,6 +416,7 @@ class LoyaltyTier {
       name: json['name'] as String? ?? '',
       minCups: (json['minCups'] as num?)?.toInt() ?? 0,
       badgeColor: json['badgeColor'] as String?,
+      imageUrl: resolveCatalogImageSource(json['imageUrl'] as String?),
       sortOrder: (json['sortOrder'] as num?)?.toInt() ?? 0,
       isActive: json['isActive'] as bool? ?? true,
       hasTierUnlockVoucher: json['hasTierUnlockVoucher'] as bool? ?? false,

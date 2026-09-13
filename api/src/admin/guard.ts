@@ -158,6 +158,10 @@ function enforceBaristaRouteAccess(request: FastifyRequest): void {
     request.method === 'GET' && path === '/v1/barista/operations/context';
   const canQueuePrintJob =
     request.method === 'POST' && path === '/v1/barista/print-jobs';
+  const canManageOwnPushToken =
+    request.method === 'POST' &&
+    (path === '/v1/admin/devices/push-token' ||
+      path === '/v1/admin/devices/push-token/deactivate');
   const canUseOwnSession =
     (request.method === 'GET' && path === '/v1/admin/auth/me') ||
     (request.method === 'POST' && path === '/v1/admin/auth/logout');
@@ -168,6 +172,7 @@ function enforceBaristaRouteAccess(request: FastifyRequest): void {
     !canUpdateOrderStatus &&
     !canReadOperationalContext &&
     !canQueuePrintJob &&
+    !canManageOwnPushToken &&
     !canUseOwnSession
   ) {
     throw new ApiError(

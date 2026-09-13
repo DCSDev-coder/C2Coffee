@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../main.dart';
 import '../services/api_service.dart';
+import '../services/push_notification_service.dart';
 import '../widgets/blinking_online_indicator.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -31,6 +32,7 @@ class _SettingsPageState extends State<SettingsPage> {
     );
 
     if (shouldSignOut != true || !context.mounted) return;
+    await PushNotificationService.instance.deactivateForCurrentSession();
     await ApiService.logout();
     if (!context.mounted) return;
     Navigator.pushReplacement(

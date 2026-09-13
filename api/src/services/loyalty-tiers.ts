@@ -7,6 +7,7 @@ export type LoyaltyTierConfig = {
   name: string;
   minCups: number;
   badgeColor: string | null;
+  imageUrl: string | null;
   sortOrder: number;
   isActive: boolean;
   rewardConfig: LoyaltyTierRewardConfig | null;
@@ -22,6 +23,7 @@ type LoyaltyTierRow = RowDataPacket & {
   name: string;
   min_cups: number | string;
   badge_color: string | null;
+  image_url: string | null;
   sort_order: number | string;
   is_active: number | string;
   reward_config_json: unknown;
@@ -69,6 +71,7 @@ export async function loadLoyaltyTiers(
         name,
         min_cups,
         badge_color,
+        image_url,
         sort_order,
         is_active,
         reward_config_json
@@ -83,6 +86,7 @@ export async function loadLoyaltyTiers(
     name: String(row.name ?? '').trim(),
     minCups: Number(row.min_cups ?? 0),
     badgeColor: row.badge_color ? String(row.badge_color) : null,
+    imageUrl: row.image_url ? String(row.image_url) : null,
     sortOrder: Number(row.sort_order ?? 0),
     isActive: Number(row.is_active ?? 0) === 1,
     rewardConfig: parseRewardConfig(row.reward_config_json)

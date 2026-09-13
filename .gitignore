@@ -184,3 +184,4 @@ Thumbs.db
 .swiftpm/
 migrate_working_dir/
 .md/
+admin_web/dist.zip

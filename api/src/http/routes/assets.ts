@@ -85,4 +85,21 @@ export async function registerAssetRoutes(
       .type(databaseAsset.mime_type)
       .send(databaseAsset.content);
   });
+
+  app.get('/assets/tiers/*', async (request, reply) => {
+    const params = request.params as { '*': string };
+    const relativePath = decodeURIComponent(params['*'] ?? '').trim();
+    const assetPath = normalizeAssetPath(`/assets/tiers/${relativePath}`);
+    const databaseAsset = assetPath ? await loadMediaAsset(assetPath) : null;
+
+    if (!databaseAsset) {
+      return reply.status(404).send();
+    }
+
+    return reply
+      .header('Cross-Origin-Resource-Policy', 'cross-origin')
+      .header('Cache-Control', 'public, max-age=31536000, immutable')
+      .type(databaseAsset.mime_type)
+      .send(databaseAsset.content);
+  });
 }

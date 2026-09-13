@@ -5,6 +5,7 @@ import '../widgets/floating_bottom_nav.dart';
 
 import 'settings_page.dart';
 import '../services/api_service.dart';
+import '../services/push_notification_service.dart';
 import '../widgets/order_card.dart';
 import '../main.dart';
 
@@ -25,6 +26,7 @@ class _MainLayoutState extends State<MainLayout> {
   void initState() {
     super.initState();
     _pageController = PageController(initialPage: _currentIndex);
+    PushNotificationService.instance.setNewOrderHandler(_handleNewOrderPush);
     _loadInitialOrders();
     // Keep the queue current without relying on a manual refresh.
     _refreshTimer = Timer.periodic(const Duration(seconds: 5), (_) {
@@ -57,9 +59,18 @@ class _MainLayoutState extends State<MainLayout> {
     }
   }
 
+  Future<void> _handleNewOrderPush() async {
+    await _loadInitialOrders();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('A new order is waiting to be prepared.')),
+    );
+  }
+
   @override
   void dispose() {
     _refreshTimer?.cancel();
+    PushNotificationService.instance.setNewOrderHandler(null);
     _pageController.dispose();
     super.dispose();
   }

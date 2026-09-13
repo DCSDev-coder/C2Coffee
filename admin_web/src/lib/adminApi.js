@@ -595,6 +595,18 @@ export async function uploadAdminVoucherImage(file) {
   });
 }
 
+export async function uploadAdminTierImage(file) {
+  const dataUrl = await readFileAsDataUrl(file);
+  return adminRequest("/v1/admin/loyalty/tiers/uploads", {
+    method: "POST",
+    body: JSON.stringify({
+      file_name: file.name,
+      mime_type: file.type || "image/png",
+      data_url: dataUrl,
+    }),
+  });
+}
+
 export async function uploadAdminOptionImage(file) {
   const dataUrl = await readFileAsDataUrl(file);
   return adminRequest("/v1/admin/menu/options-library/uploads", {

@@ -49,7 +49,7 @@ interface UserProfileSummary {
 
 type BootstrapTierConfig = Pick<
   LoyaltyTierConfig,
-  'code' | 'name' | 'minCups' | 'badgeColor' | 'sortOrder' | 'isActive'
+  'code' | 'name' | 'minCups' | 'badgeColor' | 'imageUrl' | 'sortOrder' | 'isActive'
 > & {
   hasTierUnlockVoucher: boolean;
   tierRewards: Array<{
@@ -992,6 +992,7 @@ export async function getBootstrapForUser(
     name: tier.name,
     minCups: tier.minCups,
     badgeColor: tier.badgeColor,
+    imageUrl: tier.imageUrl,
     sortOrder: tier.sortOrder,
     isActive: tier.isActive,
     hasTierUnlockVoucher: Boolean(tier.rewardConfig?.voucherTemplateId),

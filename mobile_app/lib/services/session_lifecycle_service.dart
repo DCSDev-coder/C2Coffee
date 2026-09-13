@@ -25,6 +25,7 @@ class SessionLifecycleService {
         refreshToken: tokens.refreshToken,
       );
       await AppSessionService.instance.loadAuthenticatedState(force: true);
+      await PushNotificationService.instance.syncExistingSession();
       return true;
     } catch (_) {
       await _clearLocalState();

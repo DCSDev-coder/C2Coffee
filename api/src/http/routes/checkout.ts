@@ -17,6 +17,7 @@ import { ApiError } from '../errors.js';
 import { getBootstrapForUser } from './auth.js';
 import { resolveOrderLifecycleStatus } from '../order-lifecycle.js';
 import { getKualaLumpurDateParts } from '../../lib/kuala-lumpur-time.js';
+import { deliverPushToStaff } from '../../services/push-delivery.js';
 
 const createOrderSchema = z.object({
   store_id: z.coerce.number().int().positive(),
@@ -1048,6 +1049,20 @@ export async function registerCheckoutRoutes(
 
       await connection.commit();
       committed = true;
+
+      try {
+        await deliverPushToStaff({
+          tenantId: store.tenant_id,
+          roleCodes: ['barista', 'operations_admin', 'super_admin'],
+          title: 'New order to prepare',
+          body: 'A paid pickup order is waiting in the queue.',
+          data: { type: 'new_order' }
+        });
+      } catch (error) {
+        // Delivery failure never affects a completed checkout. Do not log order
+        // contents or customer data alongside the provider error.
+        request.log.warn({ err: error }, 'Staff push delivery failed after checkout.');
+      }
 
       const [orderRows] = await mysqlPool.query<Array<OrderResponseRow>>(
         `

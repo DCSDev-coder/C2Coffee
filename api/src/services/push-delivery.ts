@@ -16,6 +16,16 @@ type PushDeliveryInput = {
   data?: Record<string, string>;
 };
 
+type StaffPushDeliveryInput = {
+  tenantId: number;
+  roleCodes: string[];
+  title: string;
+  body: string;
+  data?: Record<string, string>;
+};
+
+type FcmMessageInput = Pick<PushDeliveryInput, 'title' | 'body' | 'data'>;
+
 type FcmServiceAccount = {
   project_id: string;
   client_email: string;
@@ -48,7 +58,7 @@ async function sendFcmMessage(
   client: JWT,
   projectId: string,
   token: string,
-  input: PushDeliveryInput
+  input: FcmMessageInput
 ): Promise<{ invalidToken: boolean }> {
   const accessToken = await client.getAccessToken();
   if (!accessToken.token) throw new Error('FCM access token could not be created.');
@@ -115,6 +125,55 @@ export async function deliverPushToUser(input: PushDeliveryInput): Promise<void>
   if (inactiveTokenIds.length > 0) {
     await mysqlPool.query(
       `UPDATE push_tokens
+       SET status = 'inactive', last_seen_at = UTC_TIMESTAMP()
+       WHERE id IN (${inactiveTokenIds.map(() => '?').join(', ')})`,
+      inactiveTokenIds
+    );
+  }
+}
+
+/**
+ * Sends operational alerts to staff in the same tenant. Payload text is
+ * deliberately generic; the app reloads authorised queue data after receipt.
+ */
+export async function deliverPushToStaff(input: StaffPushDeliveryInput): Promise<void> {
+  const configuration = fcmConfiguration();
+  if (!configuration || input.roleCodes.length === 0) return;
+
+  const rolePlaceholders = input.roleCodes.map(() => '?').join(', ');
+  const [tokens] = await mysqlPool.query<PushTokenRow[]>(
+    `SELECT apt.id, apt.push_token
+     FROM admin_push_tokens apt
+     JOIN admin_users au ON au.id = apt.admin_user_id
+     JOIN admin_user_roles aur ON aur.admin_user_id = au.id
+     JOIN admin_roles ar ON ar.id = aur.admin_role_id
+     WHERE apt.tenant_id = ?
+       AND apt.status = 'active'
+       AND au.status = 'active'
+       AND ar.code IN (${rolePlaceholders})
+     GROUP BY apt.id, apt.push_token
+     ORDER BY MAX(apt.last_seen_at) DESC
+     LIMIT 500`,
+    [input.tenantId, ...input.roleCodes]
+  );
+  if (tokens.length === 0) return;
+
+  const inactiveTokenIds: number[] = [];
+  for (let index = 0; index < tokens.length; index += 20) {
+    const batch = tokens.slice(index, index + 20);
+    const outcomes = await Promise.allSettled(
+      batch.map((row) => sendFcmMessage(configuration.client, configuration.projectId, row.push_token, input))
+    );
+    outcomes.forEach((outcome, batchIndex) => {
+      if (outcome.status === 'fulfilled' && outcome.value.invalidToken) {
+        inactiveTokenIds.push(batch[batchIndex].id);
+      }
+    });
+  }
+
+  if (inactiveTokenIds.length > 0) {
+    await mysqlPool.query(
+      `UPDATE admin_push_tokens
        SET status = 'inactive', last_seen_at = UTC_TIMESTAMP()
        WHERE id IN (${inactiveTokenIds.map(() => '?').join(', ')})`,
       inactiveTokenIds
