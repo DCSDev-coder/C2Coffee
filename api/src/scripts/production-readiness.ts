@@ -23,6 +23,9 @@ async function requireHealthy(url: string): Promise<void> {
 
 async function main(): Promise<void> {
   const publicOrigin = env.PUBLIC_API_BASE_URL.replace(/\/v1\/?$/, '');
+  const fcmReadinessDetail = env.FCM_DELIVERY_ENABLED
+    ? 'FCM delivery is enabled and the service-account secret has the required fields; a physical device test remains required.'
+    : 'FCM delivery is disabled. Set FCM_DELIVERY_ENABLED=true and install the service-account secret before testing notifications.';
   const checks: Check[] = [
     {
       name: 'Production environment',
@@ -82,7 +85,7 @@ async function main(): Promise<void> {
     },
     {
       name: 'FCM configuration',
-      detail: 'FCM stays disabled until its service-account secret is installed; a physical device test remains required.',
+      detail: fcmReadinessDetail,
       run: () => {
         if (!env.FCM_DELIVERY_ENABLED) return;
         const serviceAccount = JSON.parse(env.FCM_SERVICE_ACCOUNT_JSON) as Record<string, unknown>;

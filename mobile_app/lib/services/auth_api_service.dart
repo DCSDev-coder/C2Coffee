@@ -61,6 +61,8 @@ String friendlyCustomerErrorMessage(
       return 'One or more items are no longer available. Please review your order.';
     case 'insufficient_tokens':
       return 'Your token balance is not enough to complete this order.';
+    case 'token_price_not_available':
+      return 'This item does not have a token price yet. Please choose another item or contact the store.';
     case 'invalid_order_transition':
       return 'This order has already been updated. Please refresh and try again.';
     default:

@@ -76,6 +76,7 @@ type MenuItemRow = RowDataPacket & {
   code: string;
   name: string;
   base_price_rm: string;
+  base_price_token: number;
   base_calories_kcal: number;
   is_available: number;
   token_price: number | null;
@@ -458,8 +459,10 @@ export async function registerCheckoutRoutes(
         }
 
         const basePriceRm = Number(menuItem.base_price_rm);
-        const tokenPrice = menuItem.token_price;
-        if (tokenPrice === null) {
+        // Tier pricing is an optional override. Keep the base token price as
+        // the safe checkout fallback when a tier was renamed or has no row.
+        const tokenPrice = menuItem.token_price ?? menuItem.base_price_token;
+        if (!Number.isInteger(tokenPrice) || tokenPrice < 0) {
           throw new ApiError(
             400,
             'token_price_not_available',
@@ -1297,6 +1300,7 @@ async function _loadMenuItems(
         i.code,
         i.name,
         CAST(i.base_price_rm AS CHAR) AS base_price_rm,
+        i.base_price_token,
         i.base_calories_kcal,
         COALESCE(a.is_available, 1) AS is_available,
         tp.token_price,
