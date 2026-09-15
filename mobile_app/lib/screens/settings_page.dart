@@ -31,6 +31,8 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
+  static const Color _destructiveActionColor = Color(0xFFD32F2F);
+
   final AppSessionService _session = AppSessionService.instance;
   Color get orangeColor => AppColors.deepTeal;
   final Color bgColor = Colors.white;
@@ -1085,16 +1087,17 @@ class _SettingsPageState extends State<SettingsPage> {
                           ListTile(
                             title: Text('Close Account',
                                 style: TextStyle(
-                                    fontFamily: 'Afacad',
-                                    fontSize: 16,
-                                    color: AppColors.terracotta)),
+                                    fontFamily: 'Recoleta',
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w700,
+                                    color: _destructiveActionColor)),
                             subtitle: const Text(
                               'Request closure and sign out from all devices',
                               style:
                                   TextStyle(fontFamily: 'Afacad', fontSize: 13),
                             ),
                             trailing: Icon(Icons.arrow_forward_ios,
-                                size: 16, color: AppColors.terracotta),
+                                size: 16, color: _destructiveActionColor),
                             onTap: _showAccountClosureDialog,
                           ),
                         ],
@@ -1125,7 +1128,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: AppColors.border,
+                        color: _destructiveActionColor,
                         width: 1,
                       ),
                       boxShadow: [
@@ -1138,14 +1141,14 @@ class _SettingsPageState extends State<SettingsPage> {
                     child: Row(
                       children: [
                         Icon(Icons.logout,
-                            size: 28, color: AppColors.terracotta),
+                            size: 28, color: _destructiveActionColor),
                         const SizedBox(width: 16),
                         Text('Log Out',
                             style: TextStyle(
                                 fontFamily: 'Recoleta',
                                 fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.terracotta)),
+                                fontWeight: FontWeight.w700,
+                                color: _destructiveActionColor)),
                       ],
                     ),
                   ),

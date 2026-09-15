@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { z } from 'zod';
@@ -14,6 +15,7 @@ import {
   getKualaLumpurDateParts,
   getKualaLumpurDayEndUtc
 } from '../../lib/kuala-lumpur-time.js';
+import { getActiveLoyaltyTiers, getTierByCode, loadLoyaltyTiers, type LoyaltyTierConfig } from '../../services/loyalty-tiers.js';
 
 const listQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional().default(20)
@@ -53,7 +55,7 @@ type VoucherRow = RowDataPacket & {
   status: 'active' | 'redeemed' | 'expired' | 'revoked';
   issued_reason: string;
   issue_case_ref: string | null;
-  tier_at_issue: 'kawan' | 'dilamun' | 'ketagih' | 'legend' | null;
+  tier_at_issue: string | null;
   issued_at: Date;
   expires_at: Date;
   redeemed_at: Date | null;
@@ -84,6 +86,8 @@ type AutoSyncVoucherTemplateRow = RowDataPacket & {
   is_referral_reward?: number;
   expires_in_days: number | null;
   valid_until: Date | null;
+  total_quantity: number | null;
+  limit_per_user: number | null;
   eligible_scope_json: string | Record<string, unknown> | null;
 };
 
@@ -206,13 +210,17 @@ function parseVoucherScope(
   return {};
 }
 
-function normalizeTierLabel(value: unknown): string | null {
-  const raw = String(value ?? '').trim().toLowerCase();
-  if (!raw || raw === 'all tiers') return null;
-  if (raw === 'legend' || raw === 'kawan' || raw === 'dilamun' || raw === 'ketagih') {
-    return raw;
-  }
-  return null;
+function normalizeVoucherTierScope(
+  value: unknown,
+  activeTiers: LoyaltyTierConfig[]
+): string | null | undefined {
+  const raw = String(value ?? '').trim().toLowerCase().replaceAll(/[_-]+/g, ' ').replaceAll(/\s+/g, ' ');
+  if (!raw || raw === 'all' || raw === 'all tier' || raw === 'all tiers') return null;
+
+  const tier = getTierByCode(activeTiers, raw) ?? activeTiers.find(
+    (entry) => entry.name.trim().toLowerCase() === raw
+  );
+  return tier?.code;
 }
 
 function isAutoVisibleAudience(scope: Record<string, unknown>, isEmployee: boolean): boolean {
@@ -297,6 +305,7 @@ function recurringIssueCaseRef(
 async function syncAutoVisibleVoucherTemplates(
   userId: number
 ): Promise<void> {
+  const activeTiers = getActiveLoyaltyTiers(await loadLoyaltyTiers());
   const [profileRows] = await mysqlPool.query<
     Array<RowDataPacket & { birthday_month_day: string | null }>
   >(
@@ -323,7 +332,8 @@ async function syncAutoVisibleVoucherTemplates(
   );
 
   const currentBirthdayMonthDay = profileRows[0]?.birthday_month_day ?? null;
-  const currentTier = tierRows[0]?.tier_code ?? 'kawan';
+  const snapshotTier = normalizeVoucherTierScope(tierRows[0]?.tier_code, activeTiers);
+  const currentTier = snapshotTier ?? activeTiers[0]?.code ?? null;
   const currentDateParts = getKualaLumpurDateParts();
 
   const [templates] = await mysqlPool.query<Array<AutoSyncVoucherTemplateRow & { is_employee: number }>>(
@@ -335,6 +345,8 @@ async function syncAutoVisibleVoucherTemplates(
         vt.is_referral_reward,
         vt.expires_in_days,
         vt.valid_until,
+        vt.total_quantity,
+        vt.limit_per_user,
         vt.eligible_scope_json,
         ctm.is_employee
       FROM voucher_templates vt
@@ -385,8 +397,29 @@ async function syncAutoVisibleVoucherTemplates(
       continue;
     }
 
-    const eligibleTier = normalizeTierLabel(scope['tier']);
-    if (eligibleTier != null && eligibleTier !== currentTier) {
+    const eligibleTier = normalizeVoucherTierScope(scope['tier'], activeTiers);
+    // An unknown scope must fail closed. Treating a misspelled or retired tier
+    // as an all-tier campaign would grant an unintended customer benefit.
+    if (eligibleTier === undefined || (eligibleTier !== null && eligibleTier !== currentTier)) {
+      continue;
+    }
+
+    const [issueCountRows] = await mysqlPool.query<Array<RowDataPacket & { total_count: number; user_count: number }>>(
+      `
+        SELECT
+          COUNT(*) AS total_count,
+          SUM(CASE WHEN user_id = :userId THEN 1 ELSE 0 END) AS user_count
+        FROM user_vouchers
+        WHERE voucher_template_id = :templateId
+          AND status <> 'revoked'
+      `,
+      { userId, templateId: template.id }
+    );
+    const issueCounts = issueCountRows[0];
+    if (
+      (template.total_quantity != null && Number(issueCounts?.total_count ?? 0) >= Number(template.total_quantity)) ||
+      (template.limit_per_user != null && Number(issueCounts?.user_count ?? 0) >= Number(template.limit_per_user))
+    ) {
       continue;
     }
 
@@ -407,6 +440,7 @@ async function syncAutoVisibleVoucherTemplates(
           issued_by_type,
           issued_reason,
           issue_case_ref,
+          tier_at_issue,
           issued_at,
           expires_at
         )
@@ -417,6 +451,7 @@ async function syncAutoVisibleVoucherTemplates(
           'system',
           :issuedReason,
           :issueCaseRef,
+          :tierAtIssue,
           UTC_TIMESTAMP(),
           :expiresAt
         )
@@ -435,7 +470,8 @@ async function syncAutoVisibleVoucherTemplates(
                   ? `Daily employee voucher: ${template.name}`
                   : `Campaign voucher: ${template.name}`,
         expiresAt,
-        issueCaseRef
+        issueCaseRef,
+        tierAtIssue: currentTier
       }
     );
 
@@ -778,11 +814,12 @@ export async function registerCustomerDataRoutes(
         order_ref: string;
         user_id: number;
         payment_mode: 'token' | 'direct';
+        final_total_rm: string;
         token_amount_charged: number;
         status: string;
       }>>(
         `
-          SELECT id, order_ref, user_id, payment_mode, token_amount_charged, status
+          SELECT id, order_ref, user_id, payment_mode, final_total_rm, token_amount_charged, status
           FROM orders
           WHERE id = :orderId AND user_id = :userId
           LIMIT 1
@@ -803,6 +840,20 @@ export async function registerCustomerDataRoutes(
       }
       if (order.payment_mode !== 'token' || order.token_amount_charged <= 0) {
         throw new ApiError(409, 'order_cannot_be_cancelled', 'This order cannot be cancelled in the app. Please contact support.');
+      }
+
+      // An order lock serializes self-cancellation and staff refund requests.
+      // A completed cancellation must occupy the same refund ledger as a staff refund.
+      const [existingRefunds] = await connection.execute<Array<RowDataPacket & { id: number }>>(
+        `SELECT id FROM refunds WHERE order_id = :orderId AND status IN ('pending', 'approved', 'completed') LIMIT 1 FOR UPDATE`,
+        { orderId: order.id }
+      );
+      if (existingRefunds[0]) {
+        throw new ApiError(
+          409,
+          'refund_already_in_progress',
+          'A token return is already being processed for this order. Please check your wallet shortly.'
+        );
       }
 
       const [accounts] = await connection.execute<Array<RowDataPacket & { balance_available: number }>>(
@@ -838,8 +889,32 @@ export async function registerCustomerDataRoutes(
           remarks: `Customer cancellation for order ${order.order_ref}`
         }
       );
+      const [payments] = await connection.execute<Array<RowDataPacket & { id: number }>>(
+        `SELECT id FROM payments WHERE order_id = :orderId ORDER BY id DESC LIMIT 1`,
+        { orderId: order.id }
+      );
+      const refundRef = `RFD-${new Date().toISOString().slice(0, 10).replaceAll('-', '')}-${crypto.randomUUID().slice(0, 6).toUpperCase()}`;
       await connection.execute(
-        `UPDATE orders SET status = 'cancelled', updated_at = UTC_TIMESTAMP() WHERE id = :orderId`,
+        `
+          INSERT INTO refunds (
+            order_id, payment_id, payment_mode, refund_ref, refund_amount_rm,
+            refund_token_amount, status, reason, created_by_admin_id, created_at, completed_at
+          ) VALUES (
+            :orderId, :paymentId, 'token', :refundRef, :amountRm,
+            :tokenAmount, 'completed', :reason, NULL, UTC_TIMESTAMP(), UTC_TIMESTAMP()
+          )
+        `,
+        {
+          orderId: order.id,
+          paymentId: payments[0]?.id ?? null,
+          refundRef,
+          amountRm: order.final_total_rm,
+          tokenAmount,
+          reason: 'Customer cancellation before preparation'
+        }
+      );
+      await connection.execute(
+        `UPDATE orders SET status = 'cancelled', cancelled_at = UTC_TIMESTAMP(), updated_at = UTC_TIMESTAMP() WHERE id = :orderId`,
         { orderId: order.id }
       );
       await connection.execute(
@@ -858,7 +933,11 @@ export async function registerCustomerDataRoutes(
       await connection.commit();
       committed = true;
 
-      return { status: 'cancelled', returned_tokens: tokenAmount };
+      return {
+        status: 'cancelled',
+        returned_tokens: tokenAmount,
+        token_balance: balanceAfter
+      };
     } catch (error) {
       if (!committed) await connection.rollback();
       throw error;

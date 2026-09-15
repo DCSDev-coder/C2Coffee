@@ -110,7 +110,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
       if (order.payment_mode !== 'token' || order.token_amount_charged <= 0) {
         throw new ApiError(409, 'refund_not_supported', 'Only token-paid orders can be refunded in this workflow.');
       }
-      if (['draft', 'pending_payment', 'payment_failed'].includes(order.status)) {
+      if (['draft', 'pending_payment', 'payment_failed', 'cancelled', 'refunded'].includes(order.status)) {
         throw new ApiError(409, 'refund_not_eligible', 'This order is not eligible for a refund request.');
       }
       const [existing] = await connection.execute<Array<RowDataPacket & { id: number }>>(
@@ -243,6 +243,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
         SELECT 
           oi.order_id,
           oi.id as order_item_id,
+          oi.menu_item_id,
           oi.item_name_snapshot as name,
           oi.quantity as qty,
           oi.base_price_rm_snapshot as unitPrice,
@@ -300,6 +301,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
         }
 
         itemsByOrderId[item.order_id].push({
+          menuItemId: item.menu_item_id == null ? null : Number(item.menu_item_id),
           name: item.name,
           qty: item.qty,
           unitPrice: Number(item.unitPrice || 0),
@@ -872,6 +874,21 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
 
       const internalId = rows[0].id;
       const fromStatus = rows[0].status;
+
+      // A tablet-only barista must have an active server-recorded shift before
+      // it can change a customer order. Broader admin roles retain their
+      // operational override for exceptional cases.
+      if (request.adminAuth.isBaristaOnly && ['preparing', 'ready_for_pickup'].includes(effectiveStatus)) {
+        const [attendanceRows] = await connection.query<RowDataPacket[]>(
+          `SELECT id FROM barista_attendance
+           WHERE tenant_id = :tenantId AND admin_user_id = :adminUserId AND clocked_out_at IS NULL
+           ORDER BY clocked_in_at DESC LIMIT 1 FOR UPDATE`,
+          { tenantId: request.adminAuth.tenantId, adminUserId: request.adminAuth.adminUserId }
+        );
+        if (!attendanceRows.length) {
+          throw new ApiError(409, 'clock_in_required', 'Clock in before preparing customer orders.');
+        }
+      }
 
       if (fromStatus === effectiveStatus) {
         await connection.commit();

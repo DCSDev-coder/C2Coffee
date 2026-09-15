@@ -86,10 +86,7 @@ class ApiService {
       (headers) => http.post(
         Uri.parse('$baseUrl/admin/devices/push-token'),
         headers: headers,
-        body: json.encode({
-          'platform': platform,
-          'push_token': pushToken,
-        }),
+        body: json.encode({'platform': platform, 'push_token': pushToken}),
       ),
     );
     if (response.statusCode != 200) {
@@ -191,7 +188,13 @@ class ApiService {
                   addIfPresent(item['orderType']?.toString());
                   addIfPresent(item['remarks']?.toString(), 'Remarks: ');
 
-                  parsedItems.add(OrderItem(title: title, tags: tags));
+                  parsedItems.add(
+                    OrderItem(
+                      title: title,
+                      tags: tags,
+                      menuItemId: (item['menuItemId'] as num?)?.toInt(),
+                    ),
+                  );
                 }
               }
 
@@ -242,6 +245,8 @@ class ApiService {
             return 'Your session has expired. Please sign in again.';
           case 'invalid_order_transition':
             return 'This order has already been updated. Please refresh the order list.';
+          case 'clock_in_required':
+            return 'Clock in from Workstation before preparing orders.';
           case 'printer_not_ready':
             return 'The receipt printer is not ready. Please contact an operations administrator.';
           case 'forbidden':
@@ -355,6 +360,63 @@ class ApiService {
     await _clearSession();
   }
 
+  static Future<BaristaAttendance?> fetchCurrentAttendance() async {
+    final response = await _authenticatedRequest(
+      (headers) => http.get(
+        Uri.parse('$baseUrl/barista/attendance/current'),
+        headers: headers,
+      ),
+    );
+    if (response.statusCode != 200) {
+      throw StateError(_responseMessage(response));
+    }
+    final attendance =
+        (json.decode(response.body) as Map<String, dynamic>)['attendance'];
+    return attendance is Map<String, dynamic>
+        ? BaristaAttendance.fromJson(attendance)
+        : null;
+  }
+
+  static Future<ApiRequestResult> updateAttendance(bool clockIn) async {
+    try {
+      final response = await _authenticatedRequest(
+        (headers) => http.post(
+          Uri.parse(
+            '$baseUrl/barista/attendance/${clockIn ? 'clock-in' : 'clock-out'}',
+          ),
+          headers: headers,
+        ),
+      );
+      return response.statusCode == 200 || response.statusCode == 201
+          ? const ApiRequestResult.success()
+          : ApiRequestResult.failure(_responseMessage(response));
+    } catch (_) {
+      return const ApiRequestResult.failure(
+        'Unable to update your shift. Check the connection and try again.',
+      );
+    }
+  }
+
+  static Future<List<BaristaGuide>> fetchGuides({int? menuItemId}) async {
+    final query = menuItemId == null ? '' : '?menu_item_id=$menuItemId';
+    final response = await _authenticatedRequest(
+      (headers) => http.get(
+        Uri.parse('$baseUrl/barista/guides$query'),
+        headers: headers,
+      ),
+    );
+    if (response.statusCode != 200) {
+      throw StateError(_responseMessage(response));
+    }
+    final guides =
+        (json.decode(response.body) as Map<String, dynamic>)['guides']
+            as List? ??
+        const [];
+    return guides
+        .map((entry) => BaristaGuide.fromJson(entry as Map<String, dynamic>))
+        .toList();
+  }
+
   static Future<void> _clearSession() async {
     _accessToken = null;
     _refreshToken = null;
@@ -364,6 +426,43 @@ class ApiService {
     _currentRoles = const [];
     await SecureSessionService.instance.clear();
   }
+}
+
+class BaristaAttendance {
+  final int id;
+  final DateTime clockedInAt;
+
+  const BaristaAttendance({required this.id, required this.clockedInAt});
+
+  factory BaristaAttendance.fromJson(Map<String, dynamic> json) =>
+      BaristaAttendance(
+        id: (json['id'] as num).toInt(),
+        clockedInAt: DateTime.parse(json['clocked_in_at'].toString()).toLocal(),
+      );
+}
+
+class BaristaGuide {
+  final int id;
+  final String type;
+  final String imageUrl;
+  final String? menuItemName;
+  final int? menuItemId;
+
+  const BaristaGuide({
+    required this.id,
+    required this.type,
+    required this.imageUrl,
+    this.menuItemName,
+    this.menuItemId,
+  });
+
+  factory BaristaGuide.fromJson(Map<String, dynamic> json) => BaristaGuide(
+    id: (json['id'] as num).toInt(),
+    type: json['guide_type']?.toString() ?? '',
+    imageUrl: json['image_url']?.toString() ?? '',
+    menuItemName: json['menu_item_name']?.toString(),
+    menuItemId: (json['menu_item_id'] as num?)?.toInt(),
+  );
 }
 
 class ApiRequestResult {

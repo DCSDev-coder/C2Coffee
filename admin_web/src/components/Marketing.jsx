@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ChevronDown,
+  Bell,
   Plus,
   RefreshCw,
   Search,
@@ -15,6 +16,7 @@ import {
   loadAdminMarketingBanners,
   loadAdminMenu,
   loadAdminVouchers,
+  notifyAdminMarketingBanner,
   updateAdminMarketingBanner,
   uploadAdminMarketingPoster
 } from '../lib/adminApi';
@@ -182,6 +184,8 @@ const Marketing = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [notifyingBannerId, setNotifyingBannerId] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingBanner, setEditingBanner] = useState(null);
   const [selectedImageFile, setSelectedImageFile] = useState(null);
@@ -374,7 +378,11 @@ const Marketing = () => {
       if (editingBanner) {
         await updateAdminMarketingBanner(editingBanner.id, payload);
       } else {
-        await createAdminMarketingBanner(payload);
+        const response = await createAdminMarketingBanner(payload);
+        const recipients = Number(response?.notification?.recipients || 0);
+        if (response?.notification) {
+          setNotice(`Poster created and added to notifications for ${recipients} customer${recipients === 1 ? '' : 's'}.`);
+        }
       }
 
       await loadPageData();
@@ -399,6 +407,26 @@ const Marketing = () => {
       setError(err instanceof Error ? err.message : 'Unable to delete poster.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const notifyCustomers = async (banner) => {
+    if (!window.confirm(`Send "${banner.title}" to all active customers again?`)) {
+      return;
+    }
+
+    try {
+      setError('');
+      setNotice('');
+      setNotifyingBannerId(banner.id);
+      const response = await notifyAdminMarketingBanner(banner.id);
+      const recipients = Number(response?.notification?.recipients || 0);
+      const deliveredDevices = Number(response?.notification?.deliveredDevices || 0);
+      setNotice(`Notification added for ${recipients} customer${recipients === 1 ? '' : 's'}; push delivered to ${deliveredDevices} device${deliveredDevices === 1 ? '' : 's'}.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to send the poster notification.');
+    } finally {
+      setNotifyingBannerId(null);
     }
   };
 
@@ -582,6 +610,15 @@ const Marketing = () => {
                     </td>
                     <td className="px-6 py-4 text-center">
                       <div className="inline-flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void notifyCustomers(banner)}
+                          disabled={notifyingBannerId === banner.id || !['Active', 'Live'].includes(bannerStatusLabel(banner))}
+                          title="Send this poster to customers again"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#1F3A34] text-sm font-semibold text-[#1F3A34] bg-white hover:bg-[#EAF2EF] disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          <Bell size={15} /> {notifyingBannerId === banner.id ? 'Sending...' : 'Notify'}
+                        </button>
                         <button
                           type="button"
                           onClick={() => openEditModal(banner)}
@@ -933,8 +970,13 @@ const Marketing = () => {
       )}
 
       {error && (
-        <div className="fixed bottom-4 right-4 z-50 max-w-md rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700 shadow-lg">
+        <div role="alert" className="fixed top-5 left-1/2 z-[60] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow-lg">
           {error}
+        </div>
+      )}
+      {notice && (
+        <div role="status" className="fixed top-5 left-1/2 z-[60] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-xl border border-[#B7D7CC] bg-[#EAF2EF] px-4 py-3 text-sm text-[#1F3A34] shadow-lg">
+          {notice}
         </div>
       )}
     </div>

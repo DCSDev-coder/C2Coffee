@@ -78,12 +78,14 @@ class CheckoutApiService {
   Future<CheckoutResult> createTokenOrder({
     required String accessToken,
     required CartSnapshot cart,
+    required String idempotencyKey,
     int? appliedVoucherId,
   }) async {
     return _createOrder(
       accessToken: accessToken,
       cart: cart,
       paymentMode: 'token',
+      idempotencyKey: idempotencyKey,
       appliedVoucherId: appliedVoucherId,
     );
   }
@@ -121,13 +123,15 @@ class CheckoutApiService {
       );
     }
 
-    throw ApiException('Collect order failed with status ${response.statusCode}.');
+    throw ApiException(
+        'Collect order failed with status ${response.statusCode}.');
   }
 
   Future<CheckoutResult> _createOrder({
     required String accessToken,
     required CartSnapshot cart,
     required String paymentMode,
+    required String idempotencyKey,
     int? appliedVoucherId,
   }) async {
     final Map<String, dynamic> requestPayload = {
@@ -145,6 +149,7 @@ class CheckoutApiService {
           headers: {
             'Content-Type': 'application/json',
             'Authorization': 'Bearer $accessToken',
+            'Idempotency-Key': idempotencyKey,
           },
           body: jsonEncode(requestPayload),
         )

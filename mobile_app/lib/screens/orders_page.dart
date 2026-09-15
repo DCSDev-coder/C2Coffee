@@ -48,6 +48,7 @@ class _OrdersPageState extends State<OrdersPage>
   CustomerOrder? _activeOrder;
   List<CustomerOrder> _orders = const [];
   int _historyDisplayLimit = 10;
+  int? _collectingOrderId;
 
   @override
   void initState() {
@@ -655,7 +656,9 @@ class _OrdersPageState extends State<OrdersPage>
             SizedBox(
               width: double.infinity,
               child: OutlinedButton(
-                onPressed: () => _confirmCollectOrder(order),
+                onPressed: _collectingOrderId == order.id
+                    ? null
+                    : () => _confirmCollectOrder(order),
                 style: OutlinedButton.styleFrom(
                   side: BorderSide(color: AppColors.deepTeal, width: 1.5),
                   padding: const EdgeInsets.symmetric(vertical: 14),
@@ -791,6 +794,9 @@ class _OrdersPageState extends State<OrdersPage>
   }
 
   Future<void> _collectOrder(CustomerOrder order) async {
+    if (_collectingOrderId == order.id) return;
+
+    setState(() => _collectingOrderId = order.id);
     try {
       final accessToken =
           await SecureSessionService.instance.getValidAccessToken();
@@ -817,6 +823,10 @@ class _OrdersPageState extends State<OrdersPage>
         context,
         'Unable to mark the order as collected right now.',
       );
+    } finally {
+      if (mounted) {
+        setState(() => _collectingOrderId = null);
+      }
     }
   }
 

@@ -872,6 +872,7 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                                               deviceFingerprint:
                                                   deviceFingerprint,
                                               email: profile['email']?.trim(),
+                                              purpose: 'signup',
                                             );
 
                                             if (!context.mounted) return;

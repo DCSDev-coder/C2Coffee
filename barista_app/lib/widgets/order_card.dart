@@ -5,8 +5,9 @@ enum OrderStatus { newOrder, preparing, readyForPickup, completed }
 class OrderItem {
   final String title;
   final List<String> tags;
+  final int? menuItemId;
 
-  OrderItem({required this.title, required this.tags});
+  OrderItem({required this.title, required this.tags, this.menuItemId});
 }
 
 class CurrentOrder {

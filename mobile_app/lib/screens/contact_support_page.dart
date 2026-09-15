@@ -135,6 +135,7 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
   }
 
   void _submitTicket() async {
+    if (_isSubmitting) return;
     if (!_formKey.currentState!.validate()) return;
 
     setState(() {

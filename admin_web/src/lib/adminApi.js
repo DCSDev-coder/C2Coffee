@@ -1,3 +1,5 @@
+import { isTerminalAdminSessionFailure } from './adminSessionPolicy';
+
 const ADMIN_REFRESH_PATH = "/v1/admin/auth/refresh";
 const ADMIN_API_BASE_URL = (
   import.meta.env.VITE_API_BASE_URL || "https://api.c2coffeeandcandle.com"
@@ -89,14 +91,19 @@ async function refreshAdminSession() {
       const body = isJson ? await response.json().catch(() => null) : null;
 
       if (!response.ok) {
-        const code = body?.error?.code || "invalid_refresh_token";
-        const message =
-          code === "invalid_refresh_token"
-            ? "Your admin session has expired. Please sign in again."
-            : "We could not refresh your admin session. Please sign in again.";
+        const code =
+          body?.error?.code ||
+          (response.status === 401 ? "invalid_refresh_token" : "unexpected_error");
+        const error = buildAdminError('', code, response.status);
+        const terminal = isTerminalAdminSessionFailure(error);
+        const message = terminal
+          ? "Your admin session has expired. Please sign in again."
+          : "We could not refresh your admin session. Please try again.";
 
-        clearAdminTokens();
-        broadcastAdminSessionExpired();
+        if (terminal) {
+          clearAdminTokens();
+          broadcastAdminSessionExpired();
+        }
 
         throw buildAdminError(message, code, response.status);
       }
@@ -380,6 +387,12 @@ export async function updateAdminMarketingBanner(bannerId, payload) {
 export async function deleteAdminMarketingBanner(bannerId) {
   return adminRequest(`/v1/admin/marketing/banners/${bannerId}`, {
     method: "DELETE",
+  });
+}
+
+export async function notifyAdminMarketingBanner(bannerId) {
+  return adminRequest(`/v1/admin/marketing/banners/${bannerId}/notify`, {
+    method: "POST",
   });
 }
 

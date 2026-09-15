@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
@@ -28,6 +29,8 @@ String friendlyAuthErrorMessage(
       return 'That email address is already in use. Please choose another one.';
     case 'signup_phone_email_conflict':
       return 'That phone number and email are already in use. Please choose different details.';
+    case 'account_activation_required':
+      return 'This customer record has not been registered yet. Please use Sign Up to activate it.';
     case 'otp_email_required':
       return 'Enter the email address associated with this account to receive a verification code.';
     case 'otp_email_mismatch':
@@ -35,7 +38,9 @@ String friendlyAuthErrorMessage(
     case 'otp_delivery_failed':
       return 'We could not send the verification code right now. Please try again shortly.';
     case 'otp_cooldown_active':
-      return error.message;
+      return 'A verification code was already requested. Please wait a moment, then check your email.';
+    case 'network_error':
+      return 'We could not reach C2 Coffee. Check your connection and try again.';
     case 'validation_error':
       return 'Please review the information and try again.';
     default:
@@ -58,13 +63,23 @@ String friendlyCustomerErrorMessage(
     case 'network_error':
       return 'We could not reach C2 Coffee right now. Please check your connection and try again.';
     case 'order_item_unavailable':
+    case 'menu_item_not_available':
       return 'One or more items are no longer available. Please review your order.';
     case 'insufficient_tokens':
+    case 'insufficient_token_balance':
       return 'Your token balance is not enough to complete this order.';
+    case 'validation_error':
+      return 'Your cart has too many items or a quantity above 20. Please reduce it and try again.';
     case 'token_price_not_available':
       return 'This item does not have a token price yet. Please choose another item or contact the store.';
+    case 'invalid_option_selection':
+      return 'Your item customisations have changed. Remove the affected item, add it again from Menu, choose the current options, then checkout.';
     case 'invalid_order_transition':
       return 'This order has already been updated. Please refresh and try again.';
+    case 'order_cannot_be_cancelled':
+      return 'This order is already being prepared and can no longer be cancelled in the app.';
+    case 'refund_already_in_progress':
+      return 'A token return is already being processed for this order. Please check your wallet shortly.';
     default:
       return fallback;
   }
@@ -257,10 +272,12 @@ class AuthApiService {
     required String phone,
     required String deviceFingerprint,
     String? email,
+    String purpose = 'login',
   }) async {
     final body = <String, dynamic>{
       'phone': phone,
       'device_fingerprint': deviceFingerprint,
+      'purpose': purpose,
       if (email != null && email.trim().isNotEmpty) 'email': email.trim(),
     };
 
@@ -508,29 +525,51 @@ class AuthApiService {
     required Map<String, dynamic> body,
     String? accessToken,
   }) async {
-    final response = await _client
-        .post(
-          Uri.parse('${ApiConfig.baseUrl}$path'),
-          headers: _headers(accessToken: accessToken),
-          body: jsonEncode(body),
-        )
-        .timeout(const Duration(seconds: 15));
+    try {
+      final response = await _client
+          .post(
+            Uri.parse('${ApiConfig.baseUrl}$path'),
+            headers: _headers(accessToken: accessToken),
+            body: jsonEncode(body),
+          )
+          .timeout(const Duration(seconds: 15));
 
-    return _decodeResponse(response);
+      return _decodeResponse(response);
+    } on TimeoutException {
+      throw ApiException(
+        'The request took too long. Please check your connection and try again.',
+        code: 'network_error',
+      );
+    } on http.ClientException {
+      throw ApiException(
+        'We could not reach C2 Coffee. Please check your connection and try again.',
+        code: 'network_error',
+      );
+    }
   }
 
   Future<Map<String, dynamic>> _get(
     String path, {
     String? accessToken,
   }) async {
-    final response = await _client
-        .get(
-          Uri.parse('${ApiConfig.baseUrl}$path'),
-          headers: _headers(accessToken: accessToken),
-        )
-        .timeout(const Duration(seconds: 15));
+    try {
+      final response = await _client
+          .get(
+            Uri.parse('${ApiConfig.baseUrl}$path'),
+            headers: _headers(accessToken: accessToken),
+          )
+          .timeout(const Duration(seconds: 15));
 
-    return _decodeResponse(response);
+      return _decodeResponse(response);
+    } on TimeoutException {
+      throw ApiException(
+          'The request took too long. Please check your connection and try again.',
+          code: 'network_error');
+    } on http.ClientException {
+      throw ApiException(
+          'We could not reach C2 Coffee. Please check your connection and try again.',
+          code: 'network_error');
+    }
   }
 
   Future<Map<String, dynamic>> _put(
@@ -538,15 +577,25 @@ class AuthApiService {
     required Map<String, dynamic> body,
     String? accessToken,
   }) async {
-    final response = await _client
-        .put(
-          Uri.parse('${ApiConfig.baseUrl}$path'),
-          headers: _headers(accessToken: accessToken),
-          body: jsonEncode(body),
-        )
-        .timeout(const Duration(seconds: 15));
+    try {
+      final response = await _client
+          .put(
+            Uri.parse('${ApiConfig.baseUrl}$path'),
+            headers: _headers(accessToken: accessToken),
+            body: jsonEncode(body),
+          )
+          .timeout(const Duration(seconds: 15));
 
-    return _decodeResponse(response);
+      return _decodeResponse(response);
+    } on TimeoutException {
+      throw ApiException(
+          'The request took too long. Please check your connection and try again.',
+          code: 'network_error');
+    } on http.ClientException {
+      throw ApiException(
+          'We could not reach C2 Coffee. Please check your connection and try again.',
+          code: 'network_error');
+    }
   }
 
   Map<String, String> _headers({String? accessToken}) {

@@ -255,8 +255,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage>
                     offset: Offset(0, 4)),
               ],
               border: Border.all(
-                  color: AppColors.primary.withValues(alpha: 0.2),
-                  width: 1),
+                  color: AppColors.primary.withValues(alpha: 0.2), width: 1),
             ),
             child: Padding(
               padding: const EdgeInsets.all(24),
@@ -273,8 +272,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage>
                           color: AppColors.primary.withValues(alpha: 0.1),
                           shape: BoxShape.circle,
                           border: Border.all(
-                              color: AppColors.primary
-                                  .withValues(alpha: 0.2),
+                              color: AppColors.primary.withValues(alpha: 0.2),
                               width: 1),
                         ),
                         child: Icon(Icons.close,
@@ -300,7 +298,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage>
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
-                             color: Colors.grey.withValues(alpha: 0.08),
+                            color: Colors.grey.withValues(alpha: 0.08),
                             blurRadius: 8,
                             offset: const Offset(0, 2))
                       ],
@@ -481,6 +479,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage>
   }
 
   Future<void> _verifyOTP() async {
+    if (_isSubmitting) return;
     if (_hasOtpExpired) {
       _markOtpError();
       _showError('OTP expired. Please request a new code.');
@@ -593,6 +592,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage>
   }
 
   Future<void> _handleResendOtp() async {
+    if (_isSubmitting) return;
     setState(() => _isSubmitting = true);
 
     try {
@@ -600,6 +600,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage>
         phone: widget.phone,
         deviceFingerprint: widget.deviceFingerprint,
         email: widget.signupProfile?['email']?.trim(),
+        purpose: widget.isSignup ? 'signup' : 'login',
       );
 
       if (!mounted) return;
@@ -737,7 +738,8 @@ class _OtpVerificationPageState extends State<OtpVerificationPage>
                                       color: Colors.white,
                                       shape: BoxShape.circle,
                                       border: Border.all(
-                                          color: secondaryColor.withValues(alpha: 0.3),
+                                          color: secondaryColor.withValues(
+                                              alpha: 0.3),
                                           width: 2),
                                       boxShadow: const [
                                         BoxShadow(
@@ -866,8 +868,13 @@ class _OtpVerificationPageState extends State<OtpVerificationPage>
                                                 final hasValue =
                                                     index < digits.length;
                                                 final isActive =
-                                                    _otpInputFocusNode.hasFocus &&
-                                                        (index == digits.length || (index == 5 && digits.length == 6));
+                                                    _otpInputFocusNode
+                                                            .hasFocus &&
+                                                        (index ==
+                                                                digits.length ||
+                                                            (index == 5 &&
+                                                                digits.length ==
+                                                                    6));
 
                                                 return AnimatedContainer(
                                                   duration: const Duration(

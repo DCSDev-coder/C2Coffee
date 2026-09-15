@@ -104,9 +104,15 @@ class PushNotificationService {
   }
 
   void _handleMessage(RemoteMessage message) {
-    if (message.data['type'] != 'order_ready') return;
-    AppNotification.showInfo(null, 'Your order is ready for collection.');
-    unawaited(AppSessionService.instance.pollActiveOrder());
+    switch (message.data['type']) {
+      case 'order_ready':
+        AppNotification.showInfo(null, 'Your order is ready for collection.');
+        unawaited(AppSessionService.instance.pollActiveOrder());
+      case 'marketing_poster':
+        // Marketing copy is available in the notification inbox. Keep the
+        // foreground alert generic so no malformed remote payload is rendered.
+        AppNotification.showInfo(null, 'A new C2 Coffee update is available in Notifications.');
+    }
   }
 
   void dispose() {

@@ -20,6 +20,41 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   late final Future<OperationsContext> _operationsContext =
       ApiService.fetchOperationsContext();
+  late Future<BaristaAttendance?> _attendance =
+      ApiService.fetchCurrentAttendance();
+  bool _attendanceUpdating = false;
+
+  Future<void> _updateAttendance(bool clockIn) async {
+    if (_attendanceUpdating) return;
+    setState(() => _attendanceUpdating = true);
+    final result = await ApiService.updateAttendance(clockIn);
+    if (!mounted) return;
+    setState(() {
+      _attendanceUpdating = false;
+      _attendance = ApiService.fetchCurrentAttendance();
+    });
+    if (!result.isSuccess) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(result.errorMessage!)));
+    }
+  }
+
+  Future<void> _openGuides(String type, String title) async {
+    final guides = await ApiService.fetchGuides();
+    if (!mounted) return;
+    final visible = guides.where((guide) => guide.type == type).toList();
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) => SafeArea(
+        child: SizedBox(
+          height: MediaQuery.sizeOf(sheetContext).height * .82,
+          child: _StaffGuidesSheet(title: title, guides: visible),
+        ),
+      ),
+    );
+  }
 
   Future<void> _signOut(BuildContext context) async {
     final shouldSignOut = await showModalBottomSheet<bool>(
@@ -87,6 +122,84 @@ class _SettingsPageState extends State<SettingsPage> {
                       return _OperationsStatusCard(context: snapshot.data!);
                     },
                   ),
+                  const SizedBox(height: 24),
+                  const _SectionLabel(label: 'MY SHIFT'),
+                  const SizedBox(height: 12),
+                  FutureBuilder<BaristaAttendance?>(
+                    future: _attendance,
+                    builder: (context, snapshot) {
+                      final attendance = snapshot.data;
+                      final clockedIn = attendance != null;
+                      return Container(
+                        padding: const EdgeInsets.all(18),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                            color: SettingsPage.ink.withValues(alpha: .10),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              clockedIn
+                                  ? 'You are clocked in'
+                                  : 'You are not clocked in',
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const SizedBox(height: 5),
+                            Text(
+                              clockedIn
+                                  ? 'Started ${TimeOfDay.fromDateTime(attendance.clockedInAt).format(context)}. Server time is used for attendance.'
+                                  : 'Clock in before preparing or completing customer orders.',
+                            ),
+                            const SizedBox(height: 14),
+                            FilledButton.icon(
+                              onPressed: _attendanceUpdating
+                                  ? null
+                                  : () => _updateAttendance(!clockedIn),
+                              icon: _attendanceUpdating
+                                  ? const SizedBox.square(
+                                      dimension: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : Icon(
+                                      clockedIn
+                                          ? Icons.logout_rounded
+                                          : Icons.login_rounded,
+                                    ),
+                              label: Text(clockedIn ? 'Clock out' : 'Clock in'),
+                              style: FilledButton.styleFrom(
+                                backgroundColor: clockedIn
+                                    ? const Color(0xFFB54E3D)
+                                    : SettingsPage.green,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 24),
+                  const _SectionLabel(label: 'STAFF GUIDES'),
+                  const SizedBox(height: 12),
+                  _GuideLink(
+                    title: 'Attire guide',
+                    icon: Icons.checkroom_outlined,
+                    onTap: () => _openGuides('attire', 'Attire guide'),
+                  ),
+                  const SizedBox(height: 10),
+                  _GuideLink(
+                    title: 'Store rules',
+                    icon: Icons.rule_folder_outlined,
+                    onTap: () => _openGuides('rules', 'Store rules'),
+                  ),
                   const SizedBox(height: 32),
                   Align(
                     alignment: Alignment.centerLeft,
@@ -118,6 +231,95 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
     );
   }
+}
+
+class _GuideLink extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final VoidCallback onTap;
+  const _GuideLink({
+    required this.title,
+    required this.icon,
+    required this.onTap,
+  });
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Colors.white,
+    borderRadius: BorderRadius.circular(16),
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Icon(icon, color: SettingsPage.green),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                ),
+              ),
+            ),
+            const Icon(Icons.chevron_right),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _StaffGuidesSheet extends StatelessWidget {
+  final String title;
+  final List<BaristaGuide> guides;
+  const _StaffGuidesSheet({required this.title, required this.guides});
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.all(24),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: 6),
+        const Text('Images are maintained by your operations administrator.'),
+        const SizedBox(height: 18),
+        Expanded(
+          child: guides.isEmpty
+              ? const Center(
+                  child: Text('No guide images have been uploaded yet.'),
+                )
+              : ListView.separated(
+                  itemCount: guides.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 16),
+                  itemBuilder: (_, index) {
+                    final url = guides[index].imageUrl.startsWith('http')
+                        ? guides[index].imageUrl
+                        : '${ApiService.baseUrl}${guides[index].imageUrl}';
+                    return ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Image.network(
+                        url,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, _, _) => const SizedBox(
+                          height: 180,
+                          child: Center(
+                            child: Icon(Icons.broken_image_outlined),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ],
+    ),
+  );
 }
 
 class _WorkstationHeader extends StatelessWidget {

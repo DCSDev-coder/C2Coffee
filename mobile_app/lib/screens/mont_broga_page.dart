@@ -66,6 +66,39 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
 
   bool get _usesLibraryOptions => _libraryGroups.isNotEmpty;
 
+  bool _isTemperatureLibraryGroup(Map<String, dynamic> group) =>
+      group['name']?.toString().toLowerCase().contains('temperature') ?? false;
+
+  bool _isIceLibraryGroup(Map<String, dynamic> group) => RegExp(
+        r'\bice\b',
+        caseSensitive: false,
+      ).hasMatch(group['name']?.toString() ?? '');
+
+  List<Map<String, dynamic>> get _activeLibraryGroups {
+    final temperatureGroups =
+        _libraryGroups.where(_isTemperatureLibraryGroup).toList();
+    final hasTemperatureSelection = temperatureGroups.any(
+      (group) =>
+          (_librarySelections[group['id'] as int] ?? const []).isNotEmpty,
+    );
+    final isCold = temperatureGroups
+        .expand(
+          (group) => _librarySelections[group['id'] as int] ?? const [],
+        )
+        .any(
+          (option) => option['name']?.toString().trim().toLowerCase() == 'cold',
+        );
+
+    return _libraryGroups.where((group) {
+      return !_isIceLibraryGroup(group) || !hasTemperatureSelection || isCold;
+    }).toList();
+  }
+
+  Iterable<Map<String, dynamic>> get _activeLibrarySelections =>
+      _activeLibraryGroups.expand(
+        (group) => _librarySelections[group['id'] as int] ?? const [],
+      );
+
   @override
   void initState() {
     super.initState();
@@ -256,6 +289,9 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
 
   /// Whether this drink shows ice level options
   bool get _hasIceOption {
+    if (_hasTemperatureOption && temperature.trim().toLowerCase() != 'cold') {
+      return false;
+    }
     return _flagEnabled(
       'allowIceLevel',
       fallback: () {
@@ -393,14 +429,12 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
 
   double get totalPrice {
     if (_usesLibraryOptions) {
-      final adjustment = _librarySelections.values
-          .expand((options) => options)
-          .fold<double>(
-              0,
-              (sum, option) =>
-                  sum +
-                  (double.tryParse(option['priceDeltaRm']?.toString() ?? '0') ??
-                      0));
+      final adjustment = _activeLibrarySelections.fold<double>(
+          0,
+          (sum, option) =>
+              sum +
+              (double.tryParse(option['priceDeltaRm']?.toString() ?? '0') ??
+                  0));
       return (_itemBasePrice + adjustment) * quantity;
     }
     double basePrice = _itemBasePrice;
@@ -420,7 +454,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
         ? rawBaseCalories.toInt()
         : int.tryParse(rawBaseCalories?.toString() ?? '0') ?? 0;
     final optionCalories = _usesLibraryOptions
-        ? _librarySelections.values.expand((options) => options).fold<int>(
+        ? _activeLibrarySelections.fold<int>(
             0,
             (sum, option) =>
                 sum + ((option['calorieDeltaKcal'] as num?)?.toInt() ?? 0))
@@ -430,12 +464,10 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
 
   int get totalTokenPrice {
     if (_usesLibraryOptions) {
-      final adjustment = _librarySelections.values
-          .expand((options) => options)
-          .fold<int>(
-              0,
-              (sum, option) =>
-                  sum + ((option['tokenPriceDelta'] as num?)?.toInt() ?? 0));
+      final adjustment = _activeLibrarySelections.fold<int>(
+          0,
+          (sum, option) =>
+              sum + ((option['tokenPriceDelta'] as num?)?.toInt() ?? 0));
       return (_baseTokenPrice + adjustment) * quantity;
     }
     final modifierTokens = _cartModifiers.fold<int>(
@@ -499,7 +531,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
 
   List<CartModifier> get _cartModifiers {
     if (_usesLibraryOptions) {
-      return _libraryGroups.expand((group) {
+      return _activeLibraryGroups.expand((group) {
         final selected = _librarySelections[group['id'] as int] ?? const [];
         return selected.map((option) => CartModifier(
               groupName: group['name']?.toString() ?? 'Option',
@@ -601,7 +633,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
 
   String get _displayDetails {
     if (_usesLibraryOptions) {
-      return _libraryGroups
+      return _activeLibraryGroups
           .expand((group) => _librarySelections[group['id'] as int] ?? const [])
           .map((option) => option['name']?.toString() ?? '')
           .where((name) => name.isNotEmpty)
@@ -777,7 +809,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
 
   Widget _buildLibraryOptions() {
     return Column(
-      children: _libraryGroups.map((group) {
+      children: _activeLibraryGroups.map((group) {
         final groupId = group['id'] as int;
         final options = (group['options'] as List? ?? const [])
             .whereType<Map>()
@@ -802,19 +834,23 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                   final isSelected =
                       selected.any((value) => value['id'] == option['id']);
                   final imageUrl = option['imageUrl']?.toString();
+                  final optionName = option['name']?.toString() ?? '';
+                  final beanSubtitle =
+                      isBean ? _beanSubtitle(optionName) : null;
                   final price = double.tryParse(
                           option['priceDeltaRm']?.toString() ?? '0') ??
                       0;
                   final colors = _choiceColors(option, options.indexOf(option));
-                  final dir = option['gradientDirection']?.toString() ?? 'diagonal';
+                  final dir =
+                      option['gradientDirection']?.toString() ?? 'diagonal';
                   final selectedDecoration = colors.length == 1
                       ? BoxDecoration(color: colors.first)
                       : BoxDecoration(
                           gradient: LinearGradient(
-                            colors: colors,
-                            begin: _gradientBegin(dir),
-                            end: _gradientEnd(dir),
-                          ));
+                          colors: colors,
+                          begin: _gradientBegin(dir),
+                          end: _gradientEnd(dir),
+                        ));
                   final unselectedColor =
                       Color.lerp(colors.first, Colors.white, .88)!;
                   return GestureDetector(
@@ -840,7 +876,11 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 180),
                       width: isBean ? 154 : 160,
-                      constraints: const BoxConstraints(minHeight: 92),
+                      // Keep every bean choice the same size and leave room for
+                      // the longest two-line tasting note.
+                      height: isBean ? 194 : null,
+                      constraints:
+                          BoxConstraints(minHeight: isBean ? 164 : 118),
                       padding: const EdgeInsets.all(10),
                       decoration: (isSelected
                               ? selectedDecoration
@@ -855,8 +895,8 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                               boxShadow: isSelected
                                   ? [
                                       BoxShadow(
-                                          color:
-                                              colors.first.withValues(alpha: .2),
+                                          color: colors.first
+                                              .withValues(alpha: .2),
                                           blurRadius: 7,
                                           offset: const Offset(0, 3))
                                     ]
@@ -869,23 +909,19 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                                 imageUrl.isNotEmpty) ...[
                               ClipRRect(
                                   borderRadius: BorderRadius.circular(8),
-                                  child: ColorFiltered(
-                                      colorFilter: isSelected
-                                          ? const ColorFilter.mode(
-                                              Colors.transparent,
-                                              BlendMode.multiply)
-                                          : ColorFilter.mode(
-                                              Colors.black.withValues(alpha: .50),
-                                              BlendMode.darken),
+                                  child: Opacity(
+                                      // A darken blend affects the entire image canvas,
+                                      // including transparent pixels, and creates a grey tile.
+                                      opacity: isSelected ? 1 : .65,
                                       child: Image.network(imageUrl,
-                                          height: 42,
-                                          width: 70,
+                                          height: 64,
+                                          width: 106,
                                           fit: BoxFit.contain,
                                           errorBuilder: (_, __, ___) =>
                                               const SizedBox(height: 42)))),
                               const SizedBox(height: 6),
                             ],
-                            Text(option['name']?.toString() ?? '',
+                            Text(optionName,
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                     fontFamily: 'Recoleta',
@@ -894,6 +930,28 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                                     color: isSelected
                                         ? Colors.white
                                         : colors.first.withValues(alpha: .9))),
+                            if (beanSubtitle != null) ...[
+                              const SizedBox(height: 2),
+                              SizedBox(
+                                height: 32,
+                                child: Center(
+                                  child: Text(
+                                    beanSubtitle,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontFamily: 'Afacad',
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: isSelected
+                                          ? Colors.white.withValues(alpha: .9)
+                                          : colors.first.withValues(alpha: .75),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                             if (price != 0)
                               Text(
                                   '${price > 0 ? '+' : ''}${price.toStringAsFixed(2)}',
@@ -938,19 +996,39 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
     return [start, parse(endValue, start)];
   }
 
+  String? _beanSubtitle(String optionName) {
+    final normalizedName =
+        optionName.toLowerCase().replaceAll(RegExp(r'[^a-z]+'), ' ').trim();
+
+    switch (normalizedName) {
+      case 'dato blend':
+        return 'Bold and Smoky';
+      case 'datin blend':
+        return 'Chocolatey & Medium Acidity';
+      default:
+        return null;
+    }
+  }
+
   Alignment _gradientBegin(String direction) {
     switch (direction) {
-      case 'horizontal': return Alignment.centerLeft;
-      case 'vertical':   return Alignment.topCenter;
-      default:           return Alignment.topLeft;   // diagonal
+      case 'horizontal':
+        return Alignment.centerLeft;
+      case 'vertical':
+        return Alignment.topCenter;
+      default:
+        return Alignment.topLeft; // diagonal
     }
   }
 
   Alignment _gradientEnd(String direction) {
     switch (direction) {
-      case 'horizontal': return Alignment.centerRight;
-      case 'vertical':   return Alignment.bottomCenter;
-      default:           return Alignment.bottomRight; // diagonal
+      case 'horizontal':
+        return Alignment.centerRight;
+      case 'vertical':
+        return Alignment.bottomCenter;
+      default:
+        return Alignment.bottomRight; // diagonal
     }
   }
 
@@ -1064,7 +1142,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                             children: [
                               _buildOptionCard(
                                 title: 'DATO\nBLEND',
-                                subtitle: 'Bold & Dark\nChocolatey',
+                                subtitle: 'Bold and Smoky',
                                 value: 'Dato Blend',
                                 groupValue: selectedBean,
                                 onChanged: (v) =>
@@ -1081,7 +1159,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                               ),
                               _buildOptionCard(
                                 title: 'DATIN\nBLEND',
-                                subtitle: 'Citrus & Fruity',
+                                subtitle: 'Chocolatey & Medium Acidity',
                                 value: 'Datin Blend',
                                 groupValue: selectedBean,
                                 onChanged: (v) =>

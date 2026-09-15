@@ -7,6 +7,7 @@ import { authenticateAdminRequest, requireAdminRole } from '../../admin/guard.js
 import { mysqlPool } from '../../db/mysql.js';
 import { ApiError } from '../errors.js';
 import { saveMediaAsset } from '../../lib/media-assets.js';
+import { getActiveLoyaltyTiers, getTierByCode, loadLoyaltyTiers } from '../../services/loyalty-tiers.js';
 
 const voucherCreateUpdateSchema = z.object({
   code: z.string().trim().min(1).max(50),
@@ -325,6 +326,60 @@ function titleCaseTier(tierCode: string | null | undefined): string {
     default:
       return 'Kawan';
   }
+}
+
+const ALL_TIER_SCOPE_VALUES = new Set(['', 'all', 'all tier', 'all tiers', 'all_tiers']);
+
+async function normalizeVoucherTierScope(value: unknown): Promise<string> {
+  const raw = String(value ?? '').trim();
+  const normalized = raw.toLowerCase().replaceAll(/[_-]+/g, ' ').replaceAll(/\s+/g, ' ').trim();
+  if (ALL_TIER_SCOPE_VALUES.has(normalized)) return 'all';
+
+  const activeTiers = getActiveLoyaltyTiers(await loadLoyaltyTiers());
+  const tier = activeTiers.find((entry) =>
+    entry.code === normalized || entry.name.trim().toLowerCase() === normalized
+  );
+  if (!tier) {
+    throw new ApiError(400, 'invalid_voucher_tier', 'Choose an active member tier or All Tiers.');
+  }
+
+  return tier.code;
+}
+
+async function voucherTierScopeLabel(value: unknown): Promise<string> {
+  const raw = String(value ?? '').trim();
+  const normalized = raw.toLowerCase().replaceAll(/[_-]+/g, ' ').replaceAll(/\s+/g, ' ').trim();
+  if (ALL_TIER_SCOPE_VALUES.has(normalized)) return 'All Tiers';
+
+  const tiers = await loadLoyaltyTiers();
+  const tier = getTierByCode(tiers, normalized) ?? tiers.find(
+    (entry) => entry.name.trim().toLowerCase() === normalized
+  );
+  return tier?.name ?? raw;
+}
+
+async function revokeUnusedVoucherIssuances(
+  templateCode: string,
+  tenantId: number,
+  adminUserId: number,
+  reason: string
+): Promise<void> {
+  await mysqlPool.execute(
+    `
+      UPDATE user_vouchers uv
+      JOIN voucher_templates vt ON vt.id = uv.voucher_template_id
+      SET uv.status = 'revoked',
+          uv.revoked_by_admin_id = :adminUserId,
+          uv.revoked_reason = :reason,
+          uv.revoked_at = UTC_TIMESTAMP()
+      WHERE vt.code = :code
+        AND vt.tenant_id = :tenantId
+        AND uv.status = 'active'
+        AND uv.redeemed_at IS NULL
+        AND uv.revoked_at IS NULL
+    `,
+    { code: templateCode, tenantId, adminUserId, reason }
+  );
 }
 
 function addDays(base: Date, days: number): Date {
@@ -927,7 +982,7 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
       { tenantId: request.adminAuth.tenantId }
     );
 
-    const vouchers = rows.map((row) => {
+    const vouchers = await Promise.all(rows.map(async (row) => {
       const templateRow = row as VoucherTemplateRow;
       const scope = parseScopeJson(templateRow.eligible_scope_json);
       const promotionRule = parsePromotionRule(scope);
@@ -950,7 +1005,7 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
         promotionKind: promotionRule.kind,
         audience,
         isReferralReward: Boolean(templateRow.is_referral_reward),
-        tier: String(scope.tier || 'All Tiers'),
+        tier: await voucherTierScopeLabel(scope.tier),
         reward: String(scope.reward || templateRow.name || ''),
         discountValue: templateRow.discount_mode === 'fixed_token' ? templateRow.token_value : templateRow.discount_value,
         eligibleItems: promotionRule.qualifying_scope.items,
@@ -982,7 +1037,7 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
           ? createdDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
           : ''
       };
-    });
+    }));
 
     return { vouchers };
   });
@@ -990,7 +1045,7 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
   app.get('/v1/admin/vouchers/analytics', { preHandler: [authenticateAdminRequest] }, async (request) => {
     requireAdminRole(request, 'super_admin');
     const voucherColumns = await getVoucherTemplateColumns();
-    const whereClauses = ['1 = 1'];
+    const whereClauses = ['vt.tenant_id = :tenantId'];
     if (hasColumn(voucherColumns, 'deleted_at')) {
       whereClauses.push('vt.deleted_at IS NULL');
     }
@@ -1004,13 +1059,21 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
           (SELECT COUNT(*)
            FROM voucher_templates vt
            WHERE ${whereClauses.join(' AND ')} AND vt.is_active = 1) AS active_vouchers,
-          (SELECT COUNT(*) FROM user_vouchers uv) AS issued_vouchers,
-          (SELECT COUNT(*) FROM user_vouchers uv WHERE uv.status = 'redeemed') AS redeemed_vouchers
-      `
+          (SELECT COUNT(*)
+           FROM user_vouchers uv
+           JOIN voucher_templates vt ON vt.id = uv.voucher_template_id
+           WHERE ${whereClauses.join(' AND ')}) AS issued_vouchers,
+          (SELECT COUNT(*)
+           FROM user_vouchers uv
+           JOIN voucher_templates vt ON vt.id = uv.voucher_template_id
+           WHERE ${whereClauses.join(' AND ')} AND uv.status = 'redeemed') AS redeemed_vouchers
+      `,
+      { tenantId: request.adminAuth.tenantId }
     );
 
     const [topRows] = await mysqlPool.query<Array<AdminVoucherAnalyticsTopRow>>(
-      `
+      `,
+      { tenantId: request.adminAuth.tenantId }
         SELECT
           vt.code,
           vt.name,
@@ -1046,9 +1109,11 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
         JOIN voucher_templates vt ON vt.id = uv.voucher_template_id
         JOIN users u ON u.id = uv.user_id
         LEFT JOIN user_profiles up ON up.user_id = u.id
+        WHERE vt.tenant_id = :tenantId
         ORDER BY COALESCE(uv.redeemed_at, uv.revoked_at, uv.issued_at) DESC, uv.id DESC
         LIMIT 10
-      `
+      `,
+      { tenantId: request.adminAuth.tenantId }
     );
 
     const summary = summaryRows[0] ?? {
@@ -1112,6 +1177,7 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
     const payload = voucherCreateUpdateSchema.parse(request.body);
     const voucherColumns = await getVoucherTemplateColumns();
     validateReferralReward(payload);
+    const tierScope = await normalizeVoucherTierScope(payload.tier);
     
     let discountMode = 'percent_rm';
     let voucherType = 'campaign_direct_pay';
@@ -1158,7 +1224,7 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
       frontend_type: payload.benefitType,
       type_label: payload.type,
       benefit_type: payload.benefitType,
-      tier: payload.tier,
+      tier: tierScope,
       reward: derivedReward,
       product_kind_codes: productKinds,
       subcategory_codes: subcategoryCodes,
@@ -1209,6 +1275,7 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
     const voucherColumns = await getVoucherTemplateColumns();
     const code = request.params.id;
     validateReferralReward(payload);
+    const tierScope = await normalizeVoucherTierScope(payload.tier);
     
     let discountMode = 'percent_rm';
     let voucherType = 'campaign_direct_pay';
@@ -1255,7 +1322,7 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
       frontend_type: payload.benefitType,
       type_label: payload.type,
       benefit_type: payload.benefitType,
-      tier: payload.tier,
+      tier: tierScope,
       reward: derivedReward,
       product_kind_codes: productKinds,
       subcategory_codes: subcategoryCodes,
@@ -1349,6 +1416,15 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
       throw new ApiError(404, 'voucher_not_found', 'Voucher was not found.');
     }
 
+    if (isActive === 0 || (effectiveValidUntil && effectiveValidUntil.getTime() <= Date.now())) {
+      await revokeUnusedVoucherIssuances(
+        code,
+        request.adminAuth.tenantId,
+        request.adminAuth.adminUserId,
+        'Voucher campaign is no longer available.'
+      );
+    }
+
     return { success: true, imageUrl: updatedRows[0].image_url };
   });
 
@@ -1370,6 +1446,13 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
         WHERE code = :code AND tenant_id = :tenantId
       `,
       { code, tenantId: request.adminAuth.tenantId }
+    );
+
+    await revokeUnusedVoucherIssuances(
+      code,
+      request.adminAuth.tenantId,
+      request.adminAuth.adminUserId,
+      'Voucher campaign was deleted by the store.'
     );
 
     return { success: true };
@@ -1479,9 +1562,10 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
             ${selectColumns.join(',\n            ')}
           FROM voucher_templates vt
           WHERE vt.code = :code
+            AND vt.tenant_id = :tenantId
           LIMIT 1
         `,
-        { code: request.params.id }
+        { code: request.params.id, tenantId: request.adminAuth.tenantId }
       );
 
       const template = templateRows[0];
@@ -1536,6 +1620,12 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
 
       if (normalizeAudience(scope) === 'employee_only' && Number(customer.is_employee) !== 1) {
         throw new ApiError(400, 'voucher_employee_only', 'This voucher can only be issued to customer accounts marked as employees.');
+      }
+
+      const voucherTierScope = await normalizeVoucherTierScope(scope.tier);
+      const customerTier = String(customer.tier_code ?? '').trim().toLowerCase();
+      if (voucherTierScope !== 'all' && voucherTierScope !== customerTier) {
+        throw new ApiError(400, 'voucher_tier_not_eligible', 'This customer is not in the eligible member tier for this voucher.');
       }
 
       if (hasColumn(voucherColumns, 'total_quantity') && template.total_quantity !== null && template.total_quantity !== undefined) {
@@ -1607,12 +1697,12 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
           )
         `,
         {
-          userId: payload.userId,
+          userId: customer.id,
           templateId: template.id,
           adminUserId: request.adminAuth.adminUserId,
           issuedReason: payload.issuedReason || `Admin issued ${template.name}`,
           issueCaseRef: payload.issueCaseRef || null,
-          tierAtIssue: (customer.tier_code as string | null) ?? 'kawan',
+          tierAtIssue: customerTier || null,
           expiresAt: resolvedExpiry
         }
       );

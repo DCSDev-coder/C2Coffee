@@ -24,6 +24,19 @@ type StaffPushDeliveryInput = {
   data?: Record<string, string>;
 };
 
+type CustomerTenantPushDeliveryInput = {
+  tenantId: number;
+  title: string;
+  body: string;
+  data?: Record<string, string>;
+};
+
+export type PushDeliveryResult = {
+  attemptedTokens: number;
+  deliveredTokens: number;
+  invalidTokens: number;
+};
+
 type FcmMessageInput = Pick<PushDeliveryInput, 'title' | 'body' | 'data'>;
 
 type FcmServiceAccount = {
@@ -130,6 +143,68 @@ export async function deliverPushToUser(input: PushDeliveryInput): Promise<void>
       inactiveTokenIds
     );
   }
+}
+
+/**
+ * Sends a customer-facing marketing update to active devices in one tenant.
+ * The caller persists the in-app notification first, so an FCM outage cannot
+ * make a campaign announcement disappear from the customer notification feed.
+ */
+export async function deliverPushToCustomerTenant(
+  input: CustomerTenantPushDeliveryInput
+): Promise<PushDeliveryResult> {
+  const configuration = fcmConfiguration();
+  if (!configuration) return { attemptedTokens: 0, deliveredTokens: 0, invalidTokens: 0 };
+
+  const [tokens] = await mysqlPool.query<PushTokenRow[]>(
+    `
+      SELECT pt.id, pt.push_token
+      FROM push_tokens pt
+      JOIN users u ON u.id = pt.user_id
+      JOIN customer_tenant_memberships ctm
+        ON ctm.user_id = u.id AND ctm.tenant_id = :tenantId
+      WHERE pt.status = 'active'
+        AND u.status = 'active'
+      GROUP BY pt.id, pt.push_token
+      ORDER BY pt.last_seen_at DESC
+      LIMIT 5000
+    `,
+    { tenantId: input.tenantId }
+  );
+  if (tokens.length === 0) return { attemptedTokens: 0, deliveredTokens: 0, invalidTokens: 0 };
+
+  const inactiveTokenIds: number[] = [];
+  let deliveredTokens = 0;
+  for (let index = 0; index < tokens.length; index += 20) {
+    const batch = tokens.slice(index, index + 20);
+    const outcomes = await Promise.allSettled(
+      batch.map((row) => sendFcmMessage(configuration.client, configuration.projectId, row.push_token, input))
+    );
+    outcomes.forEach((outcome, batchIndex) => {
+      if (outcome.status === 'fulfilled') {
+        if (outcome.value.invalidToken) {
+          inactiveTokenIds.push(batch[batchIndex].id);
+        } else {
+          deliveredTokens++;
+        }
+      }
+    });
+  }
+
+  if (inactiveTokenIds.length > 0) {
+    await mysqlPool.query(
+      `UPDATE push_tokens
+       SET status = 'inactive', last_seen_at = UTC_TIMESTAMP()
+       WHERE id IN (${inactiveTokenIds.map(() => '?').join(', ')})`,
+      inactiveTokenIds
+    );
+  }
+
+  return {
+    attemptedTokens: tokens.length,
+    deliveredTokens,
+    invalidTokens: inactiveTokenIds.length
+  };
 }
 
 /**

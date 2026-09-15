@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../authorization/login.dart';
 import '../services/session_lifecycle_service.dart';
+import '../services/session_restore_policy.dart';
 import '../utils/app_colors.dart';
 import '../widgets/c2_mini_loader.dart';
 import 'home_page.dart';
@@ -14,10 +15,13 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
+class _SplashScreenState extends State<SplashScreen>
+    with SingleTickerProviderStateMixin {
   static const _loadingDuration = Duration(milliseconds: 3200);
   static const _postCompleteDelay = Duration(milliseconds: 700);
   late AnimationController _progressController;
+  bool _restoreUnavailable = false;
+  bool _isRetrying = false;
 
   @override
   void initState() {
@@ -36,14 +40,14 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   }
 
   Future<void> _bootstrap() async {
-    bool hasSession = false;
+    SessionRestoreOutcome restoreOutcome = SessionRestoreOutcome.signedOut;
 
     // Start background session restore concurrently
     final sessionRestoreFuture = () async {
       try {
         return await SessionLifecycleService.instance.restoreSession();
       } catch (e) {
-        return false;
+        return SessionRestoreOutcome.unavailable;
       }
     }();
 
@@ -51,23 +55,41 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     await _progressController.forward().orCancel.catchError((_) {});
 
     // Ensure session restore is resolved
-    hasSession = await sessionRestoreFuture;
+    restoreOutcome = await sessionRestoreFuture;
 
     // Brief delay at 100% full state so the user sees completion
     await Future<void>.delayed(_postCompleteDelay);
 
     if (!mounted) return;
 
+    if (restoreOutcome == SessionRestoreOutcome.unavailable) {
+      setState(() => _restoreUnavailable = true);
+      return;
+    }
+
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
         pageBuilder: (_, __, ___) =>
-            hasSession ? const HomePage() : const LoginPage(),
+            restoreOutcome == SessionRestoreOutcome.restored
+                ? const HomePage()
+                : const LoginPage(),
         transitionsBuilder: (_, animation, __, child) {
           return FadeTransition(opacity: animation, child: child);
         },
         transitionDuration: const Duration(milliseconds: 400),
       ),
     );
+  }
+
+  Future<void> _retryRestore() async {
+    if (_isRetrying) return;
+    setState(() {
+      _isRetrying = true;
+      _restoreUnavailable = false;
+    });
+    _progressController.reset();
+    await _bootstrap();
+    if (mounted) setState(() => _isRetrying = false);
   }
 
   @override
@@ -137,28 +159,51 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                                 child: LinearProgressIndicator(
                                   value: _progressController.value,
                                   minHeight: 6,
-                                  backgroundColor: Colors.white.withValues(alpha: 0.2),
-                                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.secondary),
+                                  backgroundColor:
+                                      Colors.white.withValues(alpha: 0.2),
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                      AppColors.secondary),
                                 ),
                               );
                             },
                           ),
                         ),
                         const SizedBox(height: 12),
-                        AnimatedBuilder(
-                          animation: _progressController,
-                          builder: (context, child) {
-                            return Text(
-                              '${(_progressController.value * 100).toInt()}%',
-                              style: const TextStyle(
-                                fontFamily: 'Afacad',
-                                color: Colors.white70,
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
+                        if (_restoreUnavailable)
+                          Column(
+                            children: [
+                              const Text(
+                                'We could not restore your session. Check your connection and try again.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                    fontFamily: 'Afacad',
+                                    color: Colors.white70,
+                                    fontSize: 15),
                               ),
-                            );
-                          },
-                        ),
+                              const SizedBox(height: 12),
+                              FilledButton(
+                                onPressed: _isRetrying ? null : _retryRestore,
+                                child: Text(_isRetrying
+                                    ? 'TRYING AGAIN...'
+                                    : 'TRY AGAIN'),
+                              ),
+                            ],
+                          )
+                        else
+                          AnimatedBuilder(
+                            animation: _progressController,
+                            builder: (context, child) {
+                              return Text(
+                                '${(_progressController.value * 100).toInt()}%',
+                                style: const TextStyle(
+                                  fontFamily: 'Afacad',
+                                  color: Colors.white70,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              );
+                            },
+                          ),
                       ],
                     ),
                   ),

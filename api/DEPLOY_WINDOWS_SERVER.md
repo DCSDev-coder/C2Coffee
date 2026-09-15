@@ -44,6 +44,10 @@ Then edit `.env` and set the real values for:
 - `DB_NAME`
 - `ACCESS_TOKEN_SECRET`
 - `REFRESH_TOKEN_SECRET`
+- `REFRESH_TOKEN_TTL_DAYS=90` to require sign-in after 90 days without a
+  successful session refresh. This is a rolling inactivity limit, so normal
+  ongoing use renews the session. It applies to both customer mobile sessions
+  and Admin Web browser sessions.
 - `CORS_ALLOWED_ORIGINS` can use bare localhost origins to allow any local port during development, for example `http://localhost` and `http://127.0.0.1`
 - When testing Admin Web from `http://localhost` against the HTTPS production API, set `ADMIN_COOKIE_SAME_SITE=none` and `ADMIN_COOKIE_SECURE=true`. This allows the HttpOnly refresh cookie to restore the admin session after a browser refresh; do not use `none` without HTTPS.
 - `OTP_DELIVERY_MODE=email` and `OTP_DEBUG_EXPOSE_CODE=false`

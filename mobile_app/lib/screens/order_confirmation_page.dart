@@ -32,6 +32,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
   bool _isSubmitting = false;
   RewardVoucher? _selectedVoucher;
   String? _checkoutError;
+  String? _checkoutIdempotencyKey;
 
   Color get orangeColor => AppColors.deepTeal;
 
@@ -103,7 +104,10 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                       ),
                     ),
                     const SizedBox(height: 24),
-                    _buildVoucherCard(),
+                    IgnorePointer(
+                      ignoring: _isSubmitting,
+                      child: _buildVoucherCard(),
+                    ),
                     const SizedBox(height: 16),
                     _buildPaymentMethodCard(snapshot),
                     const SizedBox(height: 16),
@@ -387,11 +391,14 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
     } else if (t.discountMode == 'fixed_rm') {
       final discountRm = min(subtotalRm, double.tryParse(t.discountValue) ?? 0);
       if (subtotalRm <= 0 || discountRm <= 0) return 0;
-      return min(subtotalTokens, max(0, (subtotalTokens * (discountRm / subtotalRm)).round()));
+      return min(subtotalTokens,
+          max(0, (subtotalTokens * (discountRm / subtotalRm)).round()));
     } else if (t.discountMode == 'percent_rm') {
-      final discountRm = min(subtotalRm, subtotalRm * ((double.tryParse(t.discountValue) ?? 0) / 100));
+      final discountRm = min(subtotalRm,
+          subtotalRm * ((double.tryParse(t.discountValue) ?? 0) / 100));
       if (subtotalRm <= 0 || discountRm <= 0) return 0;
-      return min(subtotalTokens, max(0, (subtotalTokens * (discountRm / subtotalRm)).round()));
+      return min(subtotalTokens,
+          max(0, (subtotalTokens * (discountRm / subtotalRm)).round()));
     } else if (t.discountMode == 'free_drink') {
       final highestTokenItem = snapshot.items.isEmpty
           ? 0
@@ -657,7 +664,11 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
         ),
         child: Center(
           child: Text(
-            hasEnoughBalance ? 'CHECKOUT' : 'INSUFFICIENT TOKENS',
+            _isSubmitting
+                ? 'PROCESSING ORDER...'
+                : hasEnoughBalance
+                    ? 'CHECKOUT'
+                    : 'INSUFFICIENT TOKENS',
             style: const TextStyle(
               fontFamily: 'Afacad',
               fontSize: 18,
@@ -671,6 +682,8 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
   }
 
   Future<void> _submitCheckout(CartSnapshot snapshot) async {
+    if (_isSubmitting) return;
+
     setState(() {
       _isSubmitting = true;
       _checkoutError = null;
@@ -686,6 +699,8 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
       final checkoutResult = await CheckoutApiService.instance.createTokenOrder(
         accessToken: accessToken,
         cart: snapshot,
+        idempotencyKey: _checkoutIdempotencyKey ??=
+            _newCheckoutIdempotencyKey(),
         appliedVoucherId: _selectedVoucher?.id,
       );
 
@@ -709,7 +724,8 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
       setState(() {
         _checkoutError = friendlyCustomerErrorMessage(
           error,
-          fallback: 'We could not place your order right now. Please try again.',
+          fallback:
+              'We could not place your order right now. Please try again.',
         );
       });
     } finally {
@@ -719,5 +735,11 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
         });
       }
     }
+  }
+
+  String _newCheckoutIdempotencyKey() {
+    final randomPart =
+        Random.secure().nextInt(1 << 32).toRadixString(16).padLeft(8, '0');
+    return '${DateTime.now().microsecondsSinceEpoch.toRadixString(16)}_$randomPart';
   }
 }

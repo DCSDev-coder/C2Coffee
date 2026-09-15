@@ -32,6 +32,7 @@ class _LoginPageState extends State<LoginPage>
   final FocusNode _phoneFocusNode = FocusNode();
   late final AnimationController _shakeController;
   bool _isPhoneValid = false;
+  bool _isRequestingOtp = false;
   String _fullPhoneNumber = '';
   final Set<_LoginErrorField> _errorFields = <_LoginErrorField>{};
 
@@ -85,6 +86,58 @@ class _LoginPageState extends State<LoginPage>
 
   void _showError(String message) {
     showAuthErrorBanner(context, message);
+  }
+
+  Future<void> _requestVerificationCode() async {
+    if (_isRequestingOtp) return;
+    if (_fullPhoneNumber.isEmpty || !_isPhoneValid) {
+      _markLoginError();
+      _showError('Please enter a valid phone number before continuing.');
+      return;
+    }
+
+    setState(() => _isRequestingOtp = true);
+    try {
+      await UserService.saveUserProfile({'phone': _fullPhoneNumber});
+      final deviceFingerprint =
+          await AuthApiService.instance.getOrCreateDeviceFingerprint();
+      final otpRequest = await AuthApiService.instance.requestOtp(
+        phone: _fullPhoneNumber,
+        deviceFingerprint: deviceFingerprint,
+      );
+
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        buildAuthRoute(
+          OtpVerificationPage(
+            phone: _fullPhoneNumber,
+            requestId: otpRequest.requestId,
+            deviceFingerprint: deviceFingerprint,
+            debugOtpCode: otpRequest.debugOtpCode,
+            expiresInSeconds: otpRequest.expiresInSeconds,
+            resendInSeconds: otpRequest.resendInSeconds,
+          ),
+        ),
+      );
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      _markLoginError();
+      _showError(
+        friendlyAuthErrorMessage(
+          error,
+          fallback: 'Unable to request a verification code right now.',
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      _markLoginError();
+      _showError('Unable to request a verification code right now.');
+    } finally {
+      if (mounted) {
+        setState(() => _isRequestingOtp = false);
+      }
+    }
   }
 
   Widget _buildMainAvatar({required bool compact}) {
@@ -275,64 +328,9 @@ class _LoginPageState extends State<LoginPage>
                               width: double.infinity,
                               height: 48,
                               child: ElevatedButton(
-                                onPressed: () async {
-                                  if (_fullPhoneNumber.isEmpty ||
-                                      !_isPhoneValid) {
-                                    _markLoginError();
-                                    _showError(
-                                      'Please enter a valid phone number before continuing.',
-                                    );
-                                    return;
-                                  }
-
-                                  await UserService.saveUserProfile({
-                                    'phone': _fullPhoneNumber,
-                                  });
-
-                                  try {
-                                    final deviceFingerprint =
-                                        await AuthApiService.instance
-                                            .getOrCreateDeviceFingerprint();
-                                    final otpRequest = await AuthApiService
-                                        .instance
-                                        .requestOtp(
-                                      phone: _fullPhoneNumber,
-                                      deviceFingerprint: deviceFingerprint,
-                                    );
-
-                                    if (!context.mounted) return;
-                                    Navigator.push(
-                                      context,
-                                      buildAuthRoute(
-                                        OtpVerificationPage(
-                                          phone: _fullPhoneNumber,
-                                          requestId: otpRequest.requestId,
-                                          deviceFingerprint: deviceFingerprint,
-                                          debugOtpCode: otpRequest.debugOtpCode,
-                                          expiresInSeconds:
-                                              otpRequest.expiresInSeconds,
-                                          resendInSeconds:
-                                              otpRequest.resendInSeconds,
-                                        ),
-                                      ),
-                                    );
-                                  } on ApiException catch (error) {
-                                    if (!context.mounted) return;
-                                    _markLoginError();
-                                    _showError(
-                                      friendlyAuthErrorMessage(
-                                        error,
-                                        fallback:
-                                            'Unable to request OTP right now.',
-                                      ),
-                                    );
-                                  } catch (_) {
-                                    if (!context.mounted) return;
-                                    _markLoginError();
-                                    _showError(
-                                        'Unable to request OTP right now.');
-                                  }
-                                },
+                                onPressed: _isRequestingOtp
+                                    ? null
+                                    : _requestVerificationCode,
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: primaryColor,
                                   foregroundColor: Colors.white,
@@ -340,14 +338,41 @@ class _LoginPageState extends State<LoginPage>
                                   shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(30)),
                                 ),
-                                child: const Text(
-                                  'LOGIN',
-                                  style: TextStyle(
-                                      fontFamily: 'Recoleta',
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 1.0),
-                                ),
+                                child: _isRequestingOtp
+                                    ? const Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          SizedBox(
+                                            width: 20,
+                                            height: 20,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2.2,
+                                              valueColor:
+                                                  AlwaysStoppedAnimation<Color>(
+                                                Colors.white,
+                                              ),
+                                            ),
+                                          ),
+                                          SizedBox(width: 10),
+                                          Text(
+                                            'SENDING CODE...',
+                                            style: TextStyle(
+                                              fontFamily: 'Recoleta',
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                              letterSpacing: 0.8,
+                                            ),
+                                          ),
+                                        ],
+                                      )
+                                    : const Text(
+                                        'LOGIN',
+                                        style: TextStyle(
+                                            fontFamily: 'Recoleta',
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
+                                            letterSpacing: 1.0),
+                                      ),
                               ),
                             ),
                           ],

@@ -658,7 +658,7 @@ class _MenuPageState extends State<MenuPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          width: 80,
+          width: 96,
           color: Colors.white,
           child: ListView.builder(
             controller: _sidebarScrollController,
@@ -683,16 +683,24 @@ class _MenuPageState extends State<MenuPage> {
                   ),
                   padding: const EdgeInsets.symmetric(horizontal: 4),
                   child: Center(
-                    child: Text(
-                      sections[index].sidebarLabel,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontFamily: 'Afacad',
-                        fontSize: 11,
-                        fontWeight:
-                            isSelected ? FontWeight.bold : FontWeight.w600,
-                        color: isSelected ? AppColors.deepTeal : Colors.black87,
-                        height: 1.1,
+                    child: SizedBox(
+                      width: 84,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          sections[index].sidebarLabel,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontFamily: 'Afacad',
+                            fontSize: 11,
+                            fontWeight:
+                                isSelected ? FontWeight.bold : FontWeight.w600,
+                            color: isSelected
+                                ? AppColors.deepTeal
+                                : Colors.black87,
+                            height: 1.1,
+                          ),
+                        ),
                       ),
                     ),
                   ),

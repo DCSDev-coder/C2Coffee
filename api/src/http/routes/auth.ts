@@ -16,6 +16,7 @@ const requestOtpSchema = z.object({
   phone: z.string().min(1),
   device_fingerprint: z.string().trim().min(8).max(255),
   email: z.string().trim().email().max(255).optional().or(z.literal('')),
+  purpose: z.enum(['login', 'signup']).optional().default('login'),
   preferred_channel: z.enum(['email', 'whatsapp', 'sms']).optional()
 });
 
@@ -45,6 +46,76 @@ interface UserProfileSummary {
   phone: string;
   display_name: string;
   status: string;
+}
+
+interface ImportedMembership {
+  userId: number;
+}
+
+async function findImportedMembership(phone: string): Promise<ImportedMembership | null> {
+  const [rows] = await mysqlPool.query<Array<RowDataPacket & { user_id: number }>>(
+    `
+      SELECT ctm.user_id
+      FROM customer_tenant_memberships ctm
+      JOIN admin_tenants tenant ON tenant.id = ctm.tenant_id AND tenant.code = 'c2coffee'
+      JOIN users u ON u.id = ctm.user_id AND u.phone_e164 = :phone AND u.deleted_at IS NULL
+      WHERE ctm.registration_status = 'imported'
+      LIMIT 1
+    `,
+    { phone }
+  );
+
+  const row = rows[0];
+  return row ? { userId: row.user_id } : null;
+}
+
+async function claimImportedMembership(
+  connection: PoolConnection,
+  userId: number,
+  otpPurpose: 'login' | 'signup',
+  verifiedEmail: string | null
+): Promise<void> {
+  const [result] = await connection.execute<ResultSetHeader>(
+    `
+      UPDATE customer_tenant_memberships ctm
+      JOIN admin_tenants tenant ON tenant.id = ctm.tenant_id AND tenant.code = 'c2coffee'
+      SET ctm.registration_status = 'registered',
+          ctm.registered_at = UTC_TIMESTAMP()
+      WHERE ctm.user_id = :userId
+        AND ctm.registration_status = 'imported'
+        AND :otpPurpose = 'signup'
+    `,
+    { userId, otpPurpose }
+  );
+
+  if (result.affectedRows > 0) {
+    await connection.execute(
+      `
+        UPDATE user_profiles
+        SET email = :email,
+            updated_at = UTC_TIMESTAMP()
+        WHERE user_id = :userId
+      `,
+      { userId, email: verifiedEmail?.trim().toLowerCase() || null }
+    );
+    return;
+  }
+
+  const [pendingRows] = await connection.query<Array<RowDataPacket & { user_id: number }>>(
+    `
+      SELECT ctm.user_id
+      FROM customer_tenant_memberships ctm
+      JOIN admin_tenants tenant ON tenant.id = ctm.tenant_id AND tenant.code = 'c2coffee'
+      WHERE ctm.user_id = :userId AND ctm.registration_status = 'imported'
+      LIMIT 1
+      FOR UPDATE
+    `,
+    { userId }
+  );
+
+  if (pendingRows[0]) {
+    throw new ApiError(409, 'account_activation_required', 'Complete Sign Up to activate this imported customer record.');
+  }
 }
 
 type BootstrapTierConfig = Pick<
@@ -133,10 +204,17 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
   }, async (request) => {
     const payload = signupIdentitySchema.parse(request.body);
 
-    await ensureSignupIdentityAvailable({
-      phone: normalizePhoneE164(payload.phone),
-      email: payload.email
-    });
+    const phone = normalizePhoneE164(payload.phone);
+    const importedMembership = await findImportedMembership(phone);
+
+    if (importedMembership) {
+      await ensureSignupIdentityAvailable({
+        email: payload.email,
+        excludeUserId: importedMembership.userId
+      });
+    } else {
+      await ensureSignupIdentityAvailable({ phone, email: payload.email });
+    }
 
     return {
       available: true
@@ -148,12 +226,33 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
   }, async (request) => {
     const payload = requestOtpSchema.parse(request.body);
     const phone = normalizePhoneE164(payload.phone);
+    const importedMembership = await findImportedMembership(phone);
+    if (importedMembership && payload.purpose !== 'signup') {
+      throw new ApiError(
+        409,
+        'account_activation_required',
+        'Your imported customer record needs to be claimed through Sign Up before you can log in.'
+      );
+    }
     const device = await findOrCreateDevice(payload.device_fingerprint);
-    const resolvedEmail = await resolveOtpEmail({
-      phone,
-      providedEmail: payload.email?.trim() || null,
-      connection: mysqlPool
-    });
+    const providedEmail = payload.email?.trim() || null;
+    let resolvedEmail: string;
+    if (importedMembership && payload.purpose === 'signup') {
+      if (!providedEmail) {
+        throw new ApiError(400, 'otp_email_required', 'Email address is required to complete Sign Up.');
+      }
+      await ensureSignupIdentityAvailable({
+        email: providedEmail,
+        excludeUserId: importedMembership.userId
+      });
+      resolvedEmail = providedEmail.toLowerCase();
+    } else {
+      resolvedEmail = await resolveOtpEmail({
+        phone,
+        providedEmail,
+        connection: mysqlPool
+      });
+    }
 
     const [latestRows] = await mysqlPool.query<Array<RowDataPacket & { requested_at: Date }>>(
       `
@@ -196,6 +295,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
           phone_e164,
           device_id,
           channel,
+          purpose,
           recipient_email,
           otp_hash,
           provider_message_ref,
@@ -207,6 +307,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
           :phone,
           :deviceId,
           'email',
+          :purpose,
           :recipientEmail,
           :otpHash,
           :providerMessageRef,
@@ -218,6 +319,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
       {
         phone,
         deviceId: device.id,
+        purpose: payload.purpose,
         recipientEmail: resolvedEmail,
         otpHash: hashSha256(otpCode),
         providerMessageRef: null,
@@ -349,6 +451,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
             phone_e164: string;
             device_id: number | null;
             recipient_email: string | null;
+            purpose: 'login' | 'signup';
             otp_hash: string;
             expires_at: Date;
             attempts_used: number;
@@ -441,6 +544,8 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
         otpRow.recipient_email,
         connection
       );
+
+      await claimImportedMembership(connection, user.id, otpRow.purpose, otpRow.recipient_email);
 
       if (user.status !== 'active') {
         throw new ApiError(403, 'user_not_active', 'User account is not active.');

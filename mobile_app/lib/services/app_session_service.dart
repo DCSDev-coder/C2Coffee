@@ -25,6 +25,7 @@ class AppSessionService extends ChangeNotifier {
   String _tier = 'kawan';
   int _cupsLast180d = 0;
   bool _isBootstrapLoading = false;
+  bool _hasAccountData = false;
   bool _isMenuLoading = false;
   String? _bootstrapError;
   String? _menuError;
@@ -43,6 +44,11 @@ class AppSessionService extends ChangeNotifier {
   String get tier => _tier;
   int get cupsLast180d => _cupsLast180d;
   bool get isBootstrapLoading => _isBootstrapLoading;
+
+  /// Account balances, tier and cup progress are only displayable after a
+  /// successful live bootstrap. Never present stale/default loyalty values as
+  /// the current account when that request has failed.
+  bool get hasAccountData => _hasAccountData;
   bool get isMenuLoading => _isMenuLoading;
   String? get bootstrapError => _bootstrapError;
   String? get menuError => _menuError;
@@ -69,6 +75,11 @@ class AppSessionService extends ChangeNotifier {
     globalOrderStatusRawStatus.value = result.order.status;
     globalOrderStatusVisible.value = true;
     startActiveOrderPolling();
+    notifyListeners();
+  }
+
+  void applyTokenBalance(int tokenBalance) {
+    _tokenBalance = tokenBalance;
     notifyListeners();
   }
 
@@ -203,6 +214,7 @@ class AppSessionService extends ChangeNotifier {
       _stores = stores;
       _homeBanners = bootstrap.homeBanners;
       _loyaltyTiers = bootstrap.loyaltyTiers;
+      _hasAccountData = true;
 
       await UserService.overwriteUserProfile(_user!.toLocalProfileMap());
 
@@ -229,6 +241,7 @@ class AppSessionService extends ChangeNotifier {
         notifyListeners();
       }
     } catch (error) {
+      _hasAccountData = false;
       _bootstrapError = _friendlyErrorMessage(
         error,
         fallback: 'Unable to load your account data right now.',
@@ -278,6 +291,7 @@ class AppSessionService extends ChangeNotifier {
     _stores = const [];
     _selectedStore = null;
     _menuCategories = const [];
+    _hasAccountData = false;
     _homeBanners = const [];
     _loyaltyTiers = const [];
     notifyListeners();

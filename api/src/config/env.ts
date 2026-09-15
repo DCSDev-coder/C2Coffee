@@ -21,7 +21,9 @@ const envSchema = z.object({
   OTP_DELIVERY_MODE: z.enum(['stub', 'log', 'email']).default('stub'),
   OTP_DEBUG_EXPOSE_CODE: envBoolean(false),
   ACCESS_TOKEN_TTL_MINUTES: z.coerce.number().int().positive().default(15),
-  REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(30),
+  // Refresh sessions are rotated on successful use. Ninety days is the
+  // maximum inactive period before customers and staff must sign in again.
+  REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(90),
   OTP_EXPIRY_SECONDS: z.coerce.number().int().positive().default(300),
   OTP_RESEND_SECONDS: z.coerce.number().int().positive().default(45),
   OTP_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),

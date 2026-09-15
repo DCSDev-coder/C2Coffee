@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { authenticateAdminRequest, requireAdminRole, requireAnyAdminRole } from '../../admin/guard.js';
 import { mysqlPool } from '../../db/mysql.js';
 import { ApiError } from '../errors.js';
+import { normalizePhoneE164 } from '../../lib/phone.js';
 import { verifyPassword } from '../../lib/password.js';
 import { formatTierName, getTierByCode, getTierProgress, loadLoyaltyTiers } from '../../services/loyalty-tiers.js';
 
@@ -63,6 +64,7 @@ const customerListQueryRowSchema = z.object({
   phone_e164: z.string(),
   user_status: z.string(),
   is_employee: z.number(),
+  registration_status: z.enum(['imported', 'registered']),
   joined_at: z.union([z.string(), z.date()]),
   display_name: z.string().nullable(),
   email: z.string().nullable(),
@@ -127,10 +129,13 @@ function mapCustomerRow(row: CustomerListRow, tiers: Awaited<ReturnType<typeof l
     cupsLast180d,
     lastOrder: formatDisplayDate(lastOrderAt),
     joinedAt: formatDisplayDate(joinedAt),
-    status: row.user_status === 'active' ? 'Active' : 'Inactive',
+    status: row.registration_status === 'imported'
+      ? 'Pending signup'
+      : row.user_status === 'active' ? 'Active' : 'Inactive',
     avatar: row.avatar_value || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
     userStatus: row.user_status,
     isEmployee: Number(row.is_employee) === 1,
+    registrationStatus: row.registration_status,
     refundCount
   };
 }
@@ -180,6 +185,7 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
             u.phone_e164,
             u.status AS user_status,
             ctm.is_employee,
+            ctm.registration_status,
             u.created_at AS joined_at,
             up.display_name,
             up.email,
@@ -390,8 +396,20 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
       let linkedExisting = 0;
       let skippedExisting = 0;
 
-      for (const customer of payload.customers) {
-        const phone = customer.phone.replace(/\s+/g, '');
+      const importedCustomers = payload.customers.map((customer) => ({
+        ...customer,
+        phone: normalizePhoneE164(customer.phone)
+      }));
+      const duplicatePhones = new Set<string>();
+      for (const customer of importedCustomers) {
+        if (duplicatePhones.has(customer.phone)) {
+          throw new ApiError(400, 'duplicate_import_phone', 'Each phone number may appear only once in an import.');
+        }
+        duplicatePhones.add(customer.phone);
+      }
+
+      for (const customer of importedCustomers) {
+        const phone = customer.phone;
         const [existingUsers] = await connection.execute<Array<RowDataPacket & { id: number }>>(
           `SELECT id FROM users WHERE phone_e164 = :phone LIMIT 1 FOR UPDATE`,
           { phone }
@@ -437,8 +455,8 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
 
         await connection.execute(
           `
-            INSERT INTO customer_tenant_memberships (tenant_id, user_id, is_employee)
-            VALUES (:tenantId, :userId, :isEmployee)
+            INSERT INTO customer_tenant_memberships (tenant_id, user_id, is_employee, registration_status, registered_at)
+            VALUES (:tenantId, :userId, :isEmployee, 'imported', NULL)
           `,
           { tenantId: request.adminAuth.tenantId, userId, isEmployee: customer.isEmployee ? 1 : 0 }
         );

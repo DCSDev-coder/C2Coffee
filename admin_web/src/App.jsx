@@ -7,6 +7,7 @@ import {
   loadAdminTokens,
   saveAdminTokens
 } from './lib/adminApi';
+import { isTerminalAdminSessionFailure } from './lib/adminSessionPolicy';
 import { canAccessAdminPage, firstAccessibleAdminPage } from './lib/adminPermissions';
 import { UnsavedChangesProvider, useUnsavedChanges } from './utils/UnsavedChangesContext';
 
@@ -30,6 +31,7 @@ const ReportByProduct = lazy(() => import('./components/ReportByProduct'));
 const AuditLogs = lazy(() => import('./components/AuditLogs'));
 const Settings = lazy(() => import('./components/Settings'));
 const Operations = lazy(() => import('./components/Operations'));
+const StaffGuides = lazy(() => import('./components/StaffGuides'));
 
 function AppContent({
   layoutCurrentPage,
@@ -76,6 +78,7 @@ function AppContent({
         {currentPage === 'Admin Management' && <AdminManagement currentUser={currentUser} />}
         {currentPage === 'Barista Management' && <BaristaManagement />}
         {currentPage === 'Operations' && <Operations />}
+        {currentPage === 'Staff Guides' && <StaffGuides />}
         {currentPage === 'Audit Logs' && <AuditLogs onNavigate={navigateWithPrompt} currentUser={currentUser} />}
         {currentPage === 'Settings' && <Settings setCurrentPage={navigateWithPrompt} currentUser={currentUser} />}
       </Suspense>
@@ -86,6 +89,8 @@ function AppContent({
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
+  const [sessionRestoreError, setSessionRestoreError] = useState('');
+  const [sessionRestoreAttempt, setSessionRestoreAttempt] = useState(0);
   const [currentTenant, setCurrentTenant] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [currentPage, setCurrentPage] = useState('Dashboard');
@@ -110,18 +115,24 @@ function App() {
         } : null);
         setCurrentUser(response.user || null);
         setIsLoggedIn(true);
-      } catch {
-        clearAdminTokens();
-        setIsLoggedIn(false);
-        setCurrentTenant(null);
-        setCurrentUser(null);
+        setSessionRestoreError('');
+      } catch (error) {
+        if (isTerminalAdminSessionFailure(error)) {
+          clearAdminTokens();
+          setIsLoggedIn(false);
+          setCurrentTenant(null);
+          setCurrentUser(null);
+          setSessionRestoreError('');
+        } else {
+          setSessionRestoreError('We could not restore your admin session. Check the connection and try again.');
+        }
       } finally {
         setIsBootstrapping(false);
       }
     };
 
     void restoreAdminSession();
-  }, []);
+  }, [sessionRestoreAttempt]);
 
   useEffect(() => {
     const handleSessionExpired = () => {
@@ -203,6 +214,28 @@ function App() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#F5F3EE] text-[#2E5E58] font-semibold">
         Restoring admin session...
+      </div>
+    );
+  }
+
+  if (sessionRestoreError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#F5F3EE] px-6 text-center">
+        <div className="max-w-md rounded-2xl border border-amber-200 bg-white p-8 shadow-sm">
+          <h1 className="text-xl font-bold text-[#1F3A34]">Connection needed</h1>
+          <p className="mt-3 text-sm text-gray-600">{sessionRestoreError}</p>
+          <button
+            type="button"
+            onClick={() => {
+              setIsBootstrapping(true);
+              setSessionRestoreError('');
+              setSessionRestoreAttempt((attempt) => attempt + 1);
+            }}
+            className="mt-6 rounded-lg bg-[#1F3A34] px-4 py-2 text-sm font-semibold text-white hover:bg-[#2E5E58]"
+          >
+            Try again
+          </button>
+        </div>
       </div>
     );
   }

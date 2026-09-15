@@ -192,7 +192,9 @@ class _RewardsPageState extends State<RewardsPage> {
               ),
               const SizedBox(height: 2),
               Text(
-                _currentTierLabel().toUpperCase(),
+                _session.hasAccountData
+                    ? _currentTierLabel().toUpperCase()
+                    : 'ACCOUNT UNAVAILABLE',
                 style: const TextStyle(
                   fontFamily: 'Afacad',
                   fontSize: 14,
@@ -235,6 +237,9 @@ class _RewardsPageState extends State<RewardsPage> {
   }
 
   Widget _buildPointsCard() {
+    if (!_session.hasAccountData) {
+      return _buildAccountUnavailableCard();
+    }
     final tierArtworkUrl = _currentTier()?.imageUrl;
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20),
@@ -382,6 +387,45 @@ class _RewardsPageState extends State<RewardsPage> {
               fontSize: 10,
               color: Colors.black54,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAccountUnavailableCard() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.all(28),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        children: [
+          Icon(Icons.cloud_off_outlined, size: 42, color: AppColors.brandText),
+          const SizedBox(height: 14),
+          const Text(
+            'Account information is unavailable',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontFamily: 'Recoleta', fontSize: 22),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _session.bootstrapError ??
+                'We could not load your current rewards information.',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+                fontFamily: 'Afacad', fontSize: 15, color: Colors.black54),
+          ),
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            onPressed: _session.isBootstrapLoading
+                ? null
+                : () => _session.loadAuthenticatedState(force: true),
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('Try again'),
           ),
         ],
       ),
@@ -575,6 +619,9 @@ class _RewardsPageState extends State<RewardsPage> {
   }
 
   Widget _buildTierSection() {
+    if (!_session.hasAccountData) {
+      return const SizedBox.shrink();
+    }
     final tiers = _availableTiers;
     if (tiers.isEmpty) {
       return Padding(

@@ -118,6 +118,7 @@ const formatTokens = (value) => {
 const getStatusColor = (status) => {
   switch (status) {
     case 'Active': return 'bg-green-100 text-green-600';
+    case 'Pending signup': return 'bg-amber-100 text-amber-800';
     case 'Inactive': return 'bg-gray-100 text-gray-600';
     default: return 'bg-gray-100 text-gray-600';
   }
@@ -192,6 +193,25 @@ const parseCsvLine = (line) => {
 
 const normalizeImportHeader = (value) => value.trim().toLowerCase().replace(/[\s_-]+/g, '');
 
+const normalizeImportedPhone = (value, rowNumber) => {
+  const raw = String(value || '').trim();
+  if (!raw) throw new Error(`Row ${rowNumber} is missing a phone number.`);
+  if (/\d(?:\.\d+)?e[+-]?\d+/i.test(raw)) {
+    throw new Error(`Row ${rowNumber} has a phone number stored as scientific notation (${raw}). Re-export the POS file with the Phone column formatted as text.`);
+  }
+
+  const compact = raw.replace(/[^\d+]/g, '');
+  let phone = compact;
+  if (phone.startsWith('00')) phone = `+${phone.slice(2)}`;
+  else if (phone.startsWith('60')) phone = `+${phone}`;
+  else if (phone.startsWith('0')) phone = `+60${phone.slice(1)}`;
+
+  if (!/^\+\d{9,15}$/.test(phone)) {
+    throw new Error(`Row ${rowNumber} has an invalid Malaysian phone number.`);
+  }
+  return phone;
+};
+
 const parseCustomerImportCsv = (content) => {
   const lines = content.replace(/^\uFEFF/, '').split(/\r?\n/).filter((line) => line.trim());
   if (lines.length < 2) {
@@ -201,6 +221,8 @@ const parseCustomerImportCsv = (content) => {
   const headers = parseCsvLine(lines[0]).map(normalizeImportHeader);
   const phoneIndex = headers.findIndex((header) => ['phone', 'phonee164', 'mobile', 'mobilenumber'].includes(header));
   const nameIndex = headers.findIndex((header) => ['name', 'displayname', 'username', 'customername'].includes(header));
+  const firstNameIndex = headers.findIndex((header) => ['firstname', 'givenname'].includes(header));
+  const lastNameIndex = headers.findIndex((header) => ['lastname', 'familyname', 'surname'].includes(header));
   const emailIndex = headers.findIndex((header) => header === 'email');
   const employeeIndex = headers.findIndex((header) => ['employee', 'isemployee'].includes(header));
 
@@ -208,32 +230,47 @@ const parseCustomerImportCsv = (content) => {
     throw new Error('The CSV needs a phone column. Use the downloadable template for the required format.');
   }
 
-  const rows = lines.slice(1).map((line, index) => {
+  const rows = [];
+  const issues = [];
+  const seenPhones = new Set();
+  lines.slice(1).forEach((line, index) => {
     const cells = parseCsvLine(line);
-    const phone = String(cells[phoneIndex] || '').replace(/\s+/g, '');
-    const displayName = nameIndex === -1 ? '' : String(cells[nameIndex] || '').trim();
-    const email = emailIndex === -1 ? '' : String(cells[emailIndex] || '').trim();
-    const employeeValue = employeeIndex === -1 ? '' : String(cells[employeeIndex] || '').trim().toLowerCase();
+    const rowNumber = index + 2;
+    const rawPhone = String(cells[phoneIndex] || '').trim();
+    // POS exports include a second-row instruction, not a customer record.
+    if (/optional\.|country code/i.test(rawPhone)) return;
 
-    if (!phone) {
-      throw new Error(`Row ${index + 2} is missing a phone number.`);
-    }
-    if (email && !/^\S+@\S+\.\S+$/.test(email)) {
-      throw new Error(`Row ${index + 2} has an invalid email address.`);
-    }
+    try {
+      const phone = normalizeImportedPhone(rawPhone, rowNumber);
+      if (seenPhones.has(phone)) {
+        throw new Error(`Row ${rowNumber} repeats the phone number ${phone}.`);
+      }
+      const displayName = nameIndex === -1
+        ? [cells[firstNameIndex], cells[lastNameIndex]].filter(Boolean).join(' ').trim()
+        : String(cells[nameIndex] || '').trim();
+      const email = emailIndex === -1 ? '' : String(cells[emailIndex] || '').trim();
+      const employeeValue = employeeIndex === -1 ? '' : String(cells[employeeIndex] || '').trim().toLowerCase();
 
-    return {
-      phone,
-      displayName: displayName || undefined,
-      email,
-      isEmployee: ['yes', 'true', '1', 'employee'].includes(employeeValue)
-    };
+      if (email && !/^\S+@\S+\.\S+$/.test(email)) {
+        throw new Error(`Row ${rowNumber} has an invalid email address.`);
+      }
+
+      seenPhones.add(phone);
+      rows.push({
+        phone,
+        displayName: displayName || undefined,
+        email,
+        isEmployee: ['yes', 'true', '1', 'employee'].includes(employeeValue)
+      });
+    } catch (error) {
+      issues.push(error?.message || `Row ${rowNumber} could not be imported.`);
+    }
   });
 
   if (rows.length > 500) {
     throw new Error('Import up to 500 customers at one time. Split larger files into smaller CSV files.');
   }
-  return rows;
+  return { rows, issues };
 };
 
 const Customers = ({ currentUser }) => {
@@ -263,6 +300,7 @@ const Customers = ({ currentUser }) => {
   const [importFileName, setImportFileName] = useState('');
   const [importPassword, setImportPassword] = useState('');
   const [importError, setImportError] = useState('');
+  const [importIssues, setImportIssues] = useState([]);
   const [importResult, setImportResult] = useState(null);
   const [isImporting, setIsImporting] = useState(false);
   const itemsPerPage = 10;
@@ -404,6 +442,7 @@ const Customers = ({ currentUser }) => {
     setImportFileName('');
     setImportPassword('');
     setImportError('');
+    setImportIssues([]);
     setImportResult(null);
   };
 
@@ -417,17 +456,20 @@ const Customers = ({ currentUser }) => {
     if (!file.name.toLowerCase().endsWith('.csv')) {
       setImportRows([]);
       setImportFileName('');
+      setImportIssues([]);
       setImportError('Please choose a CSV file.');
       return;
     }
 
     try {
-      const rows = parseCustomerImportCsv(await file.text());
-      setImportRows(rows);
+      const parsed = parseCustomerImportCsv(await file.text());
+      setImportRows(parsed.rows);
+      setImportIssues(parsed.issues);
       setImportFileName(file.name);
     } catch (error) {
       setImportRows([]);
       setImportFileName('');
+      setImportIssues([]);
       setImportError(error?.message || 'This CSV could not be read.');
     }
   };
@@ -443,7 +485,7 @@ const Customers = ({ currentUser }) => {
         customers: importRows,
         confirmation_password: importPassword
       });
-      setImportResult(result);
+      setImportResult({ ...result, rejected_rows: importIssues });
       setImportPassword('');
       const response = await loadAdminCustomers();
       setCustomers(Array.isArray(response?.customers) ? response.customers : []);
@@ -617,6 +659,7 @@ const Customers = ({ currentUser }) => {
             >
               <option value="All Status">All Status</option>
               <option value="Active">Active</option>
+              <option value="Pending signup">Pending signup</option>
               <option value="Inactive">Inactive</option>
             </select>
             <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
@@ -897,8 +940,9 @@ const Customers = ({ currentUser }) => {
       </div>
 
       {isImportModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <form onSubmit={submitImport} className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-4">
+          <div className="flex min-h-full items-start justify-center py-4 sm:items-center">
+            <form onSubmit={submitImport} className="my-auto w-full max-w-2xl max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-2xl bg-white p-6 shadow-xl">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-xl font-bold text-gray-900">Import Customers</h2>
@@ -932,6 +976,16 @@ const Customers = ({ currentUser }) => {
                   <div className="mt-4 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm">
                     <span className="font-bold text-gray-900">{importFileName}</span>
                     <span className="ml-2 text-gray-500">{importRows.length} customer{importRows.length === 1 ? '' : 's'} ready to import</span>
+                  </div>
+                )}
+                {importIssues.length > 0 && (
+                  <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                    <p className="font-bold">{importIssues.length} row{importIssues.length === 1 ? '' : 's'} will be excluded</p>
+                    <p className="mt-1">The valid rows can still be imported. Fix these rows in the POS export before a later import.</p>
+                    <ul className="mt-2 max-h-28 list-disc space-y-1 overflow-y-auto pl-5 text-xs">
+                      {importIssues.slice(0, 10).map((issue) => <li key={issue}>{issue}</li>)}
+                    </ul>
+                    {importIssues.length > 10 && <p className="mt-2 text-xs">Plus {importIssues.length - 10} more excluded rows.</p>}
                   </div>
                 )}
                 {importRows.length > 0 && (
@@ -971,12 +1025,24 @@ const Customers = ({ currentUser }) => {
                 <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-800">
                   <p className="font-bold">Customer import completed</p>
                   <p className="mt-1">Created: {importResult.created || 0}. Linked existing account: {importResult.linked_existing || 0}. Already in this outlet: {importResult.skipped_existing || 0}.</p>
+                  <p className="mt-1">Rejected before import: {importResult.rejected_rows?.length || 0}.</p>
+                  {(importResult.created || 0) > 0 && <p className="mt-2 text-amber-800">New imports remain pending until each customer completes Sign Up in the mobile app.</p>}
                 </div>
-                <p className="mt-4 text-sm text-gray-500">New customers can sign in to the mobile app using their imported phone number.</p>
+                {importResult.rejected_rows?.length > 0 && (
+                  <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                    <p className="font-bold">Excluded row details</p>
+                    <ul className="mt-2 max-h-36 list-disc space-y-1 overflow-y-auto pl-5 text-xs">
+                      {importResult.rejected_rows.slice(0, 20).map((issue) => <li key={issue}>{issue}</li>)}
+                    </ul>
+                    {importResult.rejected_rows.length > 20 && <p className="mt-2 text-xs">Plus {importResult.rejected_rows.length - 20} more excluded rows.</p>}
+                  </div>
+                )}
+                <p className="mt-4 text-sm text-gray-500">New customers must complete Sign Up in the mobile app before they can log in.</p>
                 <div className="mt-6 flex justify-end"><button type="button" onClick={resetImport} className="rounded-lg bg-[#1F3A34] px-4 py-2 text-sm font-medium text-white hover:bg-[#2E5E58]">Done</button></div>
               </div>
             )}
-          </form>
+            </form>
+          </div>
         </div>
       )}
 

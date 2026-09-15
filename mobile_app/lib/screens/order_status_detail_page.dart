@@ -274,6 +274,10 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
         accessToken: accessToken,
         orderId: _order.id,
       );
+      final tokenBalance = (result['token_balance'] as num?)?.toInt();
+      if (tokenBalance != null) {
+        AppSessionService.instance.applyTokenBalance(tokenBalance);
+      }
       await _refreshOrder(silent: true);
       if (!mounted) return;
       AppNotification.showSuccess(
@@ -309,7 +313,8 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
       default:
         return friendlyCustomerErrorMessage(
           error,
-          fallback: 'We could not update this order right now. Please try again.',
+          fallback:
+              'We could not update this order right now. Please try again.',
         );
     }
   }

@@ -5,6 +5,7 @@ import sharp from 'sharp';
 import { z } from 'zod';
 import { authenticateAdminRequest } from '../../admin/guard.js';
 import { mysqlPool } from '../../db/mysql.js';
+import { deliverPushToCustomerTenant } from '../../services/push-delivery.js';
 import { ApiError } from '../errors.js';
 import { saveMediaAsset } from '../../lib/media-assets.js';
 
@@ -166,6 +167,26 @@ function buildHomeBannerSelectClause(columns: Set<string>): string {
   }
 
   return selects.join(',\n          ');
+}
+
+function buildHomeBannerJoinClause(columns: Set<string>): string {
+  if (!supportsHomeBannerTargeting(columns)) {
+    return `
+      LEFT JOIN menu_items mi
+        ON 1 = 0
+      LEFT JOIN voucher_templates vt
+        ON 1 = 0
+    `;
+  }
+
+  return `
+    LEFT JOIN menu_items mi
+      ON hb.banner_type = 'new_item'
+     AND mi.code = hb.target_value
+    LEFT JOIN voucher_templates vt
+      ON hb.banner_type = 'voucher'
+     AND vt.code = hb.target_value
+  `;
 }
 
 function buildHomeBannerInsertParts(columns: Set<string>): { columns: string[]; values: string[] } {
@@ -418,6 +439,73 @@ function normalizeRequestBody(body: z.infer<typeof bannerCreateSchema> | z.infer
   };
 }
 
+function publicPosterNotificationText(value: string, fallback: string, maximumLength: number): string {
+  const text = String(value ?? '')
+    .replace(/[\u0000-\u001F\u007F]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return text ? text.slice(0, maximumLength) : fallback;
+}
+
+function isBannerNotifiable(row: Pick<BannerRow, 'is_active' | 'banner_type' | 'starts_at' | 'ends_at'>): boolean {
+  if (row.is_active !== 1) return false;
+  if (row.banner_type !== 'event') return true;
+
+  const now = Date.now();
+  const startsAt = row.starts_at ? new Date(row.starts_at).getTime() : Number.NaN;
+  const endsAt = row.ends_at ? new Date(row.ends_at).getTime() : Number.NaN;
+  return !Number.isNaN(startsAt) && !Number.isNaN(endsAt) && startsAt <= now && endsAt > now;
+}
+
+async function notifyCustomersAboutPoster(input: {
+  banner: BannerRow;
+  tenantId: number;
+  log: { warn: (payload: unknown, message: string) => void };
+}): Promise<{ recipients: number; attemptedDevices: number; deliveredDevices: number }> {
+  const title = publicPosterNotificationText(input.banner.title, 'New update from C2 Coffee', 120);
+  const body = publicPosterNotificationText(input.banner.subtitle, 'A new offer is available in the C2 Coffee app.', 180);
+  const data = {
+    type: 'marketing_poster',
+    banner_id: String(input.banner.id),
+    banner_code: input.banner.code,
+    destination: input.banner.destination_type
+  };
+
+  const [result] = await mysqlPool.execute<ResultSetHeader>(
+    `
+      INSERT INTO notifications (user_id, type, title, body, data_json, sent_at, created_at)
+      SELECT ctm.user_id, 'marketing_poster', :title, :body, :dataJson, UTC_TIMESTAMP(), UTC_TIMESTAMP()
+      FROM customer_tenant_memberships ctm
+      JOIN users u ON u.id = ctm.user_id
+      WHERE ctm.tenant_id = :tenantId
+        AND u.status = 'active'
+    `,
+    {
+      tenantId: input.tenantId,
+      title,
+      body,
+      dataJson: JSON.stringify(data)
+    }
+  );
+
+  try {
+    const delivery = await deliverPushToCustomerTenant({
+      tenantId: input.tenantId,
+      title,
+      body,
+      data
+    });
+    return {
+      recipients: result.affectedRows,
+      attemptedDevices: delivery.attemptedTokens,
+      deliveredDevices: delivery.deliveredTokens
+    };
+  } catch (error) {
+    input.log.warn({ err: error, bannerId: input.banner.id }, 'Poster push delivery failed after notification creation.');
+    return { recipients: result.affectedRows, attemptedDevices: 0, deliveredDevices: 0 };
+  }
+}
+
 export async function registerAdminMarketingRoutes(app: FastifyInstance): Promise<void> {
   app.post('/v1/admin/marketing/uploads', {
     preHandler: authenticateAdminRequest,
@@ -506,21 +594,7 @@ export async function registerAdminMarketingRoutes(app: FastifyInstance): Promis
     }
 
     const selectClause = buildHomeBannerSelectClause(columns);
-    const joinClause = supportsTargeting
-      ? `
-        LEFT JOIN menu_items mi
-          ON hb.banner_type = 'new_item'
-         AND mi.code = hb.target_value
-        LEFT JOIN voucher_templates vt
-          ON hb.banner_type = 'voucher'
-         AND vt.code = hb.target_value
-      `
-      : `
-        LEFT JOIN menu_items mi
-          ON 1 = 0
-        LEFT JOIN voucher_templates vt
-          ON 1 = 0
-      `;
+    const joinClause = buildHomeBannerJoinClause(columns);
 
     const [rows] = await mysqlPool.query<Array<BannerRow>>(
       `
@@ -591,21 +665,7 @@ export async function registerAdminMarketingRoutes(app: FastifyInstance): Promis
     const supportsTargeting = supportsHomeBannerTargeting(columns);
     const supportsMedia = supportsHomeBannerMedia(columns);
     const selectClause = buildHomeBannerSelectClause(columns);
-    const joinClause = supportsTargeting
-      ? `
-        LEFT JOIN menu_items mi
-          ON hb.banner_type = 'new_item'
-         AND mi.code = hb.target_value
-        LEFT JOIN voucher_templates vt
-          ON hb.banner_type = 'voucher'
-         AND vt.code = hb.target_value
-      `
-      : `
-        LEFT JOIN menu_items mi
-          ON 1 = 0
-        LEFT JOIN voucher_templates vt
-          ON 1 = 0
-      `;
+    const joinClause = buildHomeBannerJoinClause(columns);
 
     if (!supportsTargeting && (payload.bannerType !== 'general' || payload.destinationType === 'calendar')) {
       throw new ApiError(412, 'poster_targeting_unavailable', 'Poster targeting fields are not installed in the database yet.');
@@ -681,6 +741,14 @@ export async function registerAdminMarketingRoutes(app: FastifyInstance): Promis
       throw new ApiError(500, 'banner_create_failed', 'Banner was created but could not be loaded.');
     }
 
+    const notification = isBannerNotifiable(created)
+      ? await notifyCustomersAboutPoster({
+          banner: created,
+          tenantId: request.adminAuth.tenantId,
+          log: request.log
+        })
+      : null;
+
     return {
       banner: {
         id: created.id,
@@ -710,8 +778,39 @@ export async function registerAdminMarketingRoutes(app: FastifyInstance): Promis
         secondaryDestinationLabel: created.secondary_destination_type ? formatDestinationLabel(created.secondary_destination_type) : '',
         createdAt: created.created_at ? new Date(created.created_at).toISOString() : null,
         updatedAt: created.updated_at ? new Date(created.updated_at).toISOString() : null
-      }
+      },
+      notification
     };
+  });
+
+  app.post('/v1/admin/marketing/banners/:id/notify', { preHandler: authenticateAdminRequest }, async (request) => {
+    requireMarketingAccess(request);
+    const bannerId = z.coerce.number().int().positive().parse((request.params as { id: string }).id);
+    const columns = await getHomeBannerColumns();
+    const selectClause = buildHomeBannerSelectClause(columns);
+    const joinClause = buildHomeBannerJoinClause(columns);
+    const [rows] = await mysqlPool.query<Array<BannerRow>>(
+      `
+        SELECT ${selectClause}
+        FROM home_banners hb
+        ${joinClause}
+        WHERE hb.id = :bannerId AND hb.tenant_id = :tenantId
+        LIMIT 1
+      `,
+      { bannerId, tenantId: request.adminAuth.tenantId }
+    );
+    const banner = rows[0];
+    if (!banner) throw new ApiError(404, 'banner_not_found', 'Poster was not found.');
+    if (!isBannerNotifiable(banner)) {
+      throw new ApiError(409, 'poster_not_live', 'Only active, live posters can be sent to customers.');
+    }
+
+    const notification = await notifyCustomersAboutPoster({
+      banner,
+      tenantId: request.adminAuth.tenantId,
+      log: request.log
+    });
+    return { success: true, notification };
   });
 
   app.patch('/v1/admin/marketing/banners/:id', { preHandler: authenticateAdminRequest }, async (request) => {

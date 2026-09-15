@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../main.dart';
 import '../widgets/order_card.dart';
-import 'pickup_ready_page.dart';
 import '../services/api_service.dart';
 import '../widgets/blinking_online_indicator.dart';
 
@@ -59,9 +58,6 @@ class OrderDetailsPage extends StatelessWidget {
     Color beigeColor,
     Color buttonOrange,
   ) {
-    final bool isNewOrder = order != null
-        ? order.status == OrderStatus.newOrder
-        : false;
     final bool isPreparing = order != null
         ? order.status == OrderStatus.preparing
         : false;
@@ -337,114 +333,11 @@ class OrderDetailsPage extends StatelessWidget {
 
                         if (!isHistory && !isCompleted && !isReady) ...[
                           const SizedBox(height: 32.0),
-
-                          // Action Button
-                          SizedBox(
-                            width: double.infinity,
-                            height: 56,
-                            child: isNewOrder
-                                ? ElevatedButton.icon(
-                                    onPressed: () async {
-                                      final result =
-                                          await ApiService.updateOrderStatus(
-                                            orderId,
-                                            'preparing',
-                                          );
-                                      if (!result.isSuccess) {
-                                        if (!context.mounted) return;
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          SnackBar(
-                                            content: Text(result.errorMessage!),
-                                          ),
-                                        );
-                                        return;
-                                      }
-                                      order.status = OrderStatus.preparing;
-                                      globalCurrentOrders.value = List.from(
-                                        globalCurrentOrders.value,
-                                      );
-                                    },
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: darkGreen,
-                                      foregroundColor: Colors.white,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(
-                                          16.0,
-                                        ),
-                                      ),
-                                      elevation: 0,
-                                    ),
-                                    icon: const Icon(
-                                      Icons.play_circle_fill,
-                                      size: 28,
-                                    ),
-                                    label: const Text(
-                                      'Start Preparing',
-                                      style: TextStyle(
-                                        fontSize: 22,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  )
-                                : ElevatedButton.icon(
-                                    onPressed: () {
-                                      if (isPreparing) {
-                                        Navigator.push(
-                                          context,
-                                          PageRouteBuilder(
-                                            pageBuilder:
-                                                (
-                                                  context,
-                                                  animation,
-                                                  secondaryAnimation,
-                                                ) => PickupReadyPage(
-                                                  orderId: orderId,
-                                                  customerDetails:
-                                                      customerDetails,
-                                                  timeDate: order.timeDate,
-                                                  items: items,
-                                                  onSettingsTap: onSettingsTap,
-                                                ),
-                                            transitionsBuilder:
-                                                (
-                                                  context,
-                                                  animation,
-                                                  secondaryAnimation,
-                                                  child,
-                                                ) {
-                                                  return FadeTransition(
-                                                    opacity: animation,
-                                                    child: child,
-                                                  );
-                                                },
-                                          ),
-                                        );
-                                      }
-                                    },
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: beigeColor,
-                                      foregroundColor: Colors.black,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(
-                                          16.0,
-                                        ),
-                                      ),
-                                      elevation: 0,
-                                    ),
-                                    icon: const Icon(
-                                      Icons.check_circle_rounded,
-                                      size: 28,
-                                    ),
-                                    label: const Text(
-                                      'Mark as Ready',
-                                      style: TextStyle(
-                                        fontSize: 22,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
+                          _PreparationWorkspace(
+                            order: order!,
+                            items: items,
+                            darkGreen: darkGreen,
+                            beigeColor: beigeColor,
                           ),
                         ],
                       ],
@@ -551,4 +444,207 @@ class OrderDetailsPage extends StatelessWidget {
       ),
     );
   }
+}
+
+class _PreparationWorkspace extends StatefulWidget {
+  final CurrentOrder order;
+  final List<OrderItem> items;
+  final Color darkGreen;
+  final Color beigeColor;
+  const _PreparationWorkspace({
+    required this.order,
+    required this.items,
+    required this.darkGreen,
+    required this.beigeColor,
+  });
+
+  @override
+  State<_PreparationWorkspace> createState() => _PreparationWorkspaceState();
+}
+
+class _PreparationWorkspaceState extends State<_PreparationWorkspace> {
+  bool _submitting = false;
+  late final Future<List<BaristaGuide>> _guides = ApiService.fetchGuides();
+
+  Future<void> _changeStatus(String status) async {
+    if (_submitting) return;
+    setState(() => _submitting = true);
+    final result = await ApiService.updateOrderStatus(
+      widget.order.orderId,
+      status,
+    );
+    if (!mounted) return;
+    setState(() => _submitting = false);
+    if (!result.isSuccess) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(result.errorMessage!)));
+      return;
+    }
+    widget.order.status = status == 'preparing'
+        ? OrderStatus.preparing
+        : OrderStatus.readyForPickup;
+    globalCurrentOrders.value = List.from(globalCurrentOrders.value);
+    if (status == 'ready_for_pickup') Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final preparing = widget.order.status == OrderStatus.preparing;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (preparing)
+          _GuidePanel(
+            items: widget.items,
+            guides: _guides,
+            color: widget.darkGreen,
+          ),
+        if (preparing) const SizedBox(height: 16),
+        SizedBox(
+          height: 56,
+          child: ElevatedButton.icon(
+            onPressed: _submitting
+                ? null
+                : () => _changeStatus(
+                    preparing ? 'ready_for_pickup' : 'preparing',
+                  ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: preparing ? widget.beigeColor : widget.darkGreen,
+              foregroundColor: preparing ? Colors.black : Colors.white,
+              disabledBackgroundColor: Colors.grey.shade300,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+            icon: _submitting
+                ? const SizedBox.square(
+                    dimension: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Icon(
+                    preparing
+                        ? Icons.check_circle_rounded
+                        : Icons.play_circle_fill,
+                    size: 28,
+                  ),
+            label: Text(
+              _submitting
+                  ? 'Updating...'
+                  : preparing
+                  ? 'Mark as Ready'
+                  : 'Start Preparing',
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _GuidePanel extends StatelessWidget {
+  final List<OrderItem> items;
+  final Future<List<BaristaGuide>> guides;
+  final Color color;
+  const _GuidePanel({
+    required this.items,
+    required this.guides,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<List<BaristaGuide>>(
+    future: guides,
+    builder: (context, snapshot) {
+      final itemIds = items
+          .map((item) => item.menuItemId)
+          .whereType<int>()
+          .toSet();
+      final drinkGuides = (snapshot.data ?? const <BaristaGuide>[])
+          .where(
+            (guide) =>
+                guide.type == 'drink' && itemIds.contains(guide.menuItemId),
+          )
+          .toList();
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: color.withValues(alpha: 0.2)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.menu_book_outlined, color: color),
+                const SizedBox(width: 8),
+                Text(
+                  'Preparation guide',
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (snapshot.connectionState == ConnectionState.waiting)
+              const LinearProgressIndicator()
+            else if (drinkGuides.isEmpty || itemIds.isEmpty)
+              const Text('No drink guide has been uploaded for this order yet.')
+            else
+              SizedBox(
+                height: 190,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: drinkGuides.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 12),
+                  itemBuilder: (_, index) {
+                    final guide = drinkGuides[index];
+                    final imageUrl = guide.imageUrl.startsWith('http')
+                        ? guide.imageUrl
+                        : '${ApiService.baseUrl}${guide.imageUrl}';
+                    return SizedBox(
+                      width: 142,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Image.network(
+                                imageUrl,
+                                width: double.infinity,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, _, _) => const ColoredBox(
+                                  color: Color(0xFFE9E9E9),
+                                  child: Center(
+                                    child: Icon(Icons.broken_image_outlined),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            guide.menuItemName ?? 'Drink guide',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+          ],
+        ),
+      );
+    },
+  );
 }

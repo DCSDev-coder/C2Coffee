@@ -156,6 +156,9 @@ function enforceBaristaRouteAccess(request: FastifyRequest): void {
     /^\/v1\/admin\/orders\/[^/]+\/status$/.test(path);
   const canReadOperationalContext =
     request.method === 'GET' && path === '/v1/barista/operations/context';
+  const canUseStaffAttendance =
+    /^\/v1\/barista\/attendance\/(current|clock-in|clock-out)$/.test(path);
+  const canReadStaffGuides = request.method === 'GET' && path === '/v1/barista/guides';
   const canQueuePrintJob =
     request.method === 'POST' && path === '/v1/barista/print-jobs';
   const canManageOwnPushToken =
@@ -171,6 +174,8 @@ function enforceBaristaRouteAccess(request: FastifyRequest): void {
     !canReadBaristaRoster &&
     !canUpdateOrderStatus &&
     !canReadOperationalContext &&
+    !canUseStaffAttendance &&
+    !canReadStaffGuides &&
     !canQueuePrintJob &&
     !canManageOwnPushToken &&
     !canUseOwnSession

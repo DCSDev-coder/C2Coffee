@@ -28,6 +28,7 @@ import { registerOperationalIntegrationRoutes } from './http/routes/operational-
 import { registerPrintConnectorRoutes } from './http/routes/print-connectors.js';
 import { registerAdminStoreRoutes } from './http/routes/admin-store.js';
 import { registerAdminPushRoutes } from './http/routes/admin-push.js';
+import { registerBaristaStaffRoutes } from './http/routes/barista-staff.js';
 
 function isAllowedCorsOrigin(origin: string, allowedOrigins: string[]): boolean {
   let requestUrl: URL;
@@ -117,6 +118,7 @@ export async function buildApp() {
   await registerAdminBaristasRoutes(app);
   await registerAdminStoreRoutes(app);
   await registerAdminPushRoutes(app);
+  await registerBaristaStaffRoutes(app);
   await registerOperationalIntegrationRoutes(app);
   await registerPrintConnectorRoutes(app);
   await registerHomeFeaturedRoutes(app);

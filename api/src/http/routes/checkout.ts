@@ -104,6 +104,12 @@ type OrderResponseRow = RowDataPacket & {
   token_amount_charged: number;
 };
 
+type IdempotentOrderResponseRow = OrderResponseRow & {
+  balance_available: number;
+  balance_reserved: number;
+  balance_cap: number;
+};
+
 type OrderCollectRow = RowDataPacket & {
   id: number;
   user_id: number;
@@ -411,6 +417,16 @@ export async function registerCheckoutRoutes(
 ): Promise<void> {
   app.post('/v1/orders', { preHandler: authenticateRequest }, async (request) => {
     const payload = createOrderSchema.parse(request.body);
+    const idempotencyKey = _readCheckoutIdempotencyKey(request.headers['idempotency-key']);
+
+    if (idempotencyKey) {
+      const existingResponse = await _findIdempotentCheckoutResponse(
+        request.auth.userId,
+        idempotencyKey
+      );
+      if (existingResponse) return existingResponse;
+    }
+
     const connection = await getUtcConnection();
     let committed = false;
 
@@ -699,6 +715,7 @@ export async function registerCheckoutRoutes(
         `
           INSERT INTO orders (
             order_ref,
+            checkout_idempotency_key,
             daily_order_number,
             user_id,
             store_id,
@@ -716,6 +733,7 @@ export async function registerCheckoutRoutes(
           )
           VALUES (
             :orderRef,
+            :checkoutIdempotencyKey,
             :dailyOrderNumber,
             :userId,
             :storeId,
@@ -734,6 +752,7 @@ export async function registerCheckoutRoutes(
         `,
         {
           orderRef,
+          checkoutIdempotencyKey: idempotencyKey,
           dailyOrderNumber,
           userId: request.auth.userId,
           storeId: payload.store_id,
@@ -1053,19 +1072,20 @@ export async function registerCheckoutRoutes(
       await connection.commit();
       committed = true;
 
-      try {
-        await deliverPushToStaff({
+      // Do not make a completed payment wait for Firebase or registered staff
+      // devices. Delivery failures are logged but cannot turn success into a
+      // client timeout that encourages a duplicate retry.
+      void deliverPushToStaff({
           tenantId: store.tenant_id,
           roleCodes: ['barista', 'operations_admin', 'super_admin'],
           title: 'New order to prepare',
           body: 'A paid pickup order is waiting in the queue.',
           data: { type: 'new_order' }
+        }).catch((error) => {
+          // Delivery failure never affects a completed checkout. Do not log
+          // order contents or customer data alongside the provider error.
+          request.log.warn({ err: error }, 'Staff push delivery failed after checkout.');
         });
-      } catch (error) {
-        // Delivery failure never affects a completed checkout. Do not log order
-        // contents or customer data alongside the provider error.
-        request.log.warn({ err: error }, 'Staff push delivery failed after checkout.');
-      }
 
       const [orderRows] = await mysqlPool.query<Array<OrderResponseRow>>(
         `
@@ -1103,6 +1123,13 @@ export async function registerCheckoutRoutes(
     } catch (error) {
       if (!committed) {
         await connection.rollback();
+      }
+      if (idempotencyKey && _isDuplicateKeyError(error)) {
+        const existingResponse = await _findIdempotentCheckoutResponse(
+          request.auth.userId,
+          idempotencyKey
+        );
+        if (existingResponse) return existingResponse;
       }
       throw error;
     } finally {
@@ -1260,6 +1287,63 @@ export async function registerCheckoutRoutes(
       connection.release();
     }
   });
+}
+
+function _readCheckoutIdempotencyKey(value: string | string[] | undefined): string | null {
+  if (typeof value !== 'string') return null;
+  const key = value.trim();
+  if (!/^[A-Za-z0-9_-]{12,64}$/.test(key)) {
+    throw new ApiError(400, 'invalid_idempotency_key', 'Checkout request key is invalid.');
+  }
+  return key;
+}
+
+function _isDuplicateKeyError(error: unknown): boolean {
+  return (error as { code?: string } | null)?.code === 'ER_DUP_ENTRY';
+}
+
+async function _findIdempotentCheckoutResponse(
+  userId: number,
+  idempotencyKey: string
+): Promise<Record<string, unknown> | null> {
+  const [rows] = await mysqlPool.query<Array<IdempotentOrderResponseRow>>(
+    `
+      SELECT
+        o.id,
+        o.order_ref,
+        o.daily_order_number,
+        o.status,
+        o.payment_mode,
+        CAST(o.final_total_rm AS CHAR) AS final_total_rm,
+        o.token_amount_charged,
+        ta.balance_available,
+        ta.balance_reserved,
+        ta.balance_cap
+      FROM orders o
+      JOIN token_accounts ta ON ta.user_id = o.user_id
+      WHERE o.user_id = :userId
+        AND o.checkout_idempotency_key = :idempotencyKey
+      LIMIT 1
+    `,
+    { userId, idempotencyKey }
+  );
+  const order = rows[0];
+  if (!order) return null;
+
+  return {
+    order: {
+      id: order.id,
+      order_ref: order.order_ref,
+      daily_order_number: order.daily_order_number,
+      status: order.status,
+      payment_mode: order.payment_mode,
+      final_total_rm: order.final_total_rm,
+      token_amount_charged: order.token_amount_charged
+    },
+    token_balance: order.balance_available,
+    token_reserved: order.balance_reserved,
+    token_cap: order.balance_cap
+  };
 }
 
 async function _loadStore(
