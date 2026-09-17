@@ -18,26 +18,45 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  late final Future<OperationsContext> _operationsContext =
-      ApiService.fetchOperationsContext();
-  late Future<BaristaAttendance?> _attendance =
-      ApiService.fetchCurrentAttendance();
+  late Future<OperationsContext> _operationsContext;
+  late Future<BaristaAttendanceStatus> _attendance;
   bool _attendanceUpdating = false;
 
-  Future<void> _updateAttendance(bool clockIn) async {
+  @override
+  void initState() {
+    super.initState();
+    _operationsContext = ApiService.fetchOperationsContext();
+    _attendance = ApiService.fetchAttendanceStatus();
+  }
+
+  void _refreshWorkstation() {
+    setState(() {
+      _operationsContext = ApiService.fetchOperationsContext();
+      _attendance = ApiService.fetchAttendanceStatus();
+    });
+  }
+
+  Future<void> _updateAttendance(bool clockIn, AttendanceBarista barista, String pin) async {
     if (_attendanceUpdating) return;
     setState(() => _attendanceUpdating = true);
-    final result = await ApiService.updateAttendance(clockIn);
+    final result = await ApiService.updateAttendance(clockIn: clockIn, baristaId: barista.id, pin: pin);
     if (!mounted) return;
     setState(() {
       _attendanceUpdating = false;
-      _attendance = ApiService.fetchCurrentAttendance();
+      _attendance = ApiService.fetchAttendanceStatus();
     });
     if (!result.isSuccess) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(result.errorMessage!)));
     }
+  }
+
+  Future<void> _openAttendanceSheet(BaristaAttendanceStatus status, bool clockIn) async {
+    final activeIds = status.activeAttendance.map((item) => item.baristaId).toSet();
+    final choices = (clockIn ? status.baristas.where((item) => item.pinConfigured && !activeIds.contains(item.id)) : status.baristas.where((item) => activeIds.contains(item.id))).toList();
+    final action = await showModalBottomSheet<_AttendanceAction>(context: context, isScrollControlled: true, builder: (_) => _AttendancePinSheet(clockIn: clockIn, baristas: choices));
+    if (action != null && mounted) await _updateAttendance(clockIn, action.barista, action.pin);
   }
 
   Future<void> _openGuides(String type, String title) async {
@@ -107,7 +126,15 @@ class _SettingsPageState extends State<SettingsPage> {
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                  const SizedBox(height: 36),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: _refreshWorkstation,
+                      icon: const Icon(Icons.refresh_rounded),
+                      label: const Text('Refresh workstation'),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
                   const _SectionLabel(label: 'OPERATIONS'),
                   const SizedBox(height: 12),
                   FutureBuilder<OperationsContext>(
@@ -119,17 +146,20 @@ class _SettingsPageState extends State<SettingsPage> {
                       if (!snapshot.hasData) {
                         return const _OperationsLoadingCard();
                       }
-                      return _OperationsStatusCard(context: snapshot.data!);
+                      return _OperationsStatusCard(
+                        context: snapshot.data!,
+                        onRefresh: _refreshWorkstation,
+                      );
                     },
                   ),
                   const SizedBox(height: 24),
-                  const _SectionLabel(label: 'MY SHIFT'),
+                  const _SectionLabel(label: 'SHIFT ATTENDANCE'),
                   const SizedBox(height: 12),
-                  FutureBuilder<BaristaAttendance?>(
+                  FutureBuilder<BaristaAttendanceStatus>(
                     future: _attendance,
                     builder: (context, snapshot) {
-                      final attendance = snapshot.data;
-                      final clockedIn = attendance != null;
+                      final status = snapshot.data;
+                      final active = status?.activeAttendance ?? const <BaristaAttendance>[];
                       return Container(
                         padding: const EdgeInsets.all(18),
                         decoration: BoxDecoration(
@@ -143,9 +173,7 @@ class _SettingsPageState extends State<SettingsPage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              clockedIn
-                                  ? 'You are clocked in'
-                                  : 'You are not clocked in',
+                              active.isEmpty ? 'No barista clocked in' : '${active.length} barista${active.length == 1 ? '' : 's'} clocked in',
                               style: const TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.w800,
@@ -153,15 +181,13 @@ class _SettingsPageState extends State<SettingsPage> {
                             ),
                             const SizedBox(height: 5),
                             Text(
-                              clockedIn
-                                  ? 'Started ${TimeOfDay.fromDateTime(attendance.clockedInAt).format(context)}. Server time is used for attendance.'
-                                  : 'Clock in before preparing or completing customer orders.',
+                              active.isEmpty
+                                  ? 'Select your name and enter your six-digit PIN. The shared tablet stays signed in.'
+                                  : active.map((item) => '${item.baristaName} since ${TimeOfDay.fromDateTime(item.clockedInAt).format(context)}').join('\n'),
                             ),
                             const SizedBox(height: 14),
-                            FilledButton.icon(
-                              onPressed: _attendanceUpdating
-                                  ? null
-                                  : () => _updateAttendance(!clockedIn),
+                            Row(children: [Expanded(child: FilledButton.icon(
+                              onPressed: _attendanceUpdating || status == null ? null : () => _openAttendanceSheet(status, true),
                               icon: _attendanceUpdating
                                   ? const SizedBox.square(
                                       dimension: 16,
@@ -169,18 +195,16 @@ class _SettingsPageState extends State<SettingsPage> {
                                         strokeWidth: 2,
                                       ),
                                     )
-                                  : Icon(
-                                      clockedIn
-                                          ? Icons.logout_rounded
-                                          : Icons.login_rounded,
-                                    ),
-                              label: Text(clockedIn ? 'Clock out' : 'Clock in'),
+                                  : const Icon(Icons.login_rounded),
+                              label: const Text('Clock in'),
                               style: FilledButton.styleFrom(
-                                backgroundColor: clockedIn
-                                    ? const Color(0xFFB54E3D)
-                                    : SettingsPage.green,
+                                backgroundColor: SettingsPage.green,
                               ),
-                            ),
+                            )), const SizedBox(width: 10), Expanded(child: FilledButton.icon(
+                              onPressed: _attendanceUpdating || status == null || active.isEmpty ? null : () => _openAttendanceSheet(status, false),
+                              icon: const Icon(Icons.logout_rounded), label: const Text('Clock out'),
+                              style: FilledButton.styleFrom(backgroundColor: const Color(0xFFB54E3D)),
+                            ))]),
                           ],
                         ),
                       );
@@ -199,6 +223,12 @@ class _SettingsPageState extends State<SettingsPage> {
                     title: 'Store rules',
                     icon: Icons.rule_folder_outlined,
                     onTap: () => _openGuides('rules', 'Store rules'),
+                  ),
+                  const SizedBox(height: 10),
+                  _GuideLink(
+                    title: 'Drink SOPs',
+                    icon: Icons.local_cafe_outlined,
+                    onTap: () => _openGuides('drink', 'Drink SOPs'),
                   ),
                   const SizedBox(height: 32),
                   Align(
@@ -231,6 +261,43 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
     );
   }
+}
+
+class _AttendanceAction {
+  final AttendanceBarista barista;
+  final String pin;
+  const _AttendanceAction(this.barista, this.pin);
+}
+
+class _AttendancePinSheet extends StatefulWidget {
+  final bool clockIn;
+  final List<AttendanceBarista> baristas;
+  const _AttendancePinSheet({required this.clockIn, required this.baristas});
+  @override
+  State<_AttendancePinSheet> createState() => _AttendancePinSheetState();
+}
+
+class _AttendancePinSheetState extends State<_AttendancePinSheet> {
+  AttendanceBarista? selected;
+  String pin = '';
+  @override
+  Widget build(BuildContext context) => SafeArea(child: Padding(
+    padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + MediaQuery.viewInsetsOf(context).bottom),
+    child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(widget.clockIn ? 'Clock in' : 'Clock out', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800)),
+      const SizedBox(height: 6),
+      Text(widget.clockIn ? 'Select your name, then enter your six-digit PIN.' : 'Confirm your name and PIN to end your shift.'),
+      const SizedBox(height: 18),
+      if (widget.baristas.isEmpty) const Padding(padding: EdgeInsets.symmetric(vertical: 18), child: Text('No eligible barista profiles are available. Ask an administrator to set up the profile PIN.')) else ...[
+        DropdownButtonFormField<AttendanceBarista>(initialValue: selected, isExpanded: true, decoration: const InputDecoration(labelText: 'Your name', border: OutlineInputBorder()), items: widget.baristas.map((barista) => DropdownMenuItem(value: barista, child: Text(barista.name))).toList(), onChanged: (value) => setState(() => selected = value)),
+        const SizedBox(height: 14),
+        TextField(keyboardType: TextInputType.number, obscureText: true, maxLength: 6, onChanged: (value) => setState(() => pin = value.replaceAll(RegExp(r'[^0-9]'), '')), decoration: const InputDecoration(labelText: 'Six-digit PIN', border: OutlineInputBorder(), counterText: '')),
+        const SizedBox(height: 18),
+        SizedBox(width: double.infinity, child: FilledButton(onPressed: selected == null || pin.length != 6 ? null : () => Navigator.pop(context, _AttendanceAction(selected!, pin)), style: FilledButton.styleFrom(backgroundColor: widget.clockIn ? SettingsPage.green : const Color(0xFFB54E3D)), child: Text(widget.clockIn ? 'Clock in now' : 'Clock out now'))),
+      ],
+      const SizedBox(height: 8),
+    ]),
+  ));
 }
 
 class _GuideLink extends StatelessWidget {
@@ -272,46 +339,106 @@ class _GuideLink extends StatelessWidget {
   );
 }
 
-class _StaffGuidesSheet extends StatelessWidget {
+class _StaffGuidesSheet extends StatefulWidget {
   final String title;
   final List<BaristaGuide> guides;
   const _StaffGuidesSheet({required this.title, required this.guides});
+
   @override
-  Widget build(BuildContext context) => Padding(
+  State<_StaffGuidesSheet> createState() => _StaffGuidesSheetState();
+}
+
+class _StaffGuidesSheetState extends State<_StaffGuidesSheet> {
+  String _searchQuery = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final isDrinkLibrary = widget.title == 'Drink SOPs';
+    final visibleGuides = _searchQuery.trim().isNotEmpty
+        ? widget.guides
+            .where(
+              (guide) => '${guide.menuItemName ?? ''} ${guide.guideTitle ?? ''} ${widget.title}'
+                  .toLowerCase()
+                  .contains(_searchQuery.trim().toLowerCase()),
+            )
+            .toList()
+        : widget.guides;
+
+    return Padding(
     padding: const EdgeInsets.all(24),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          title,
+          widget.title,
           style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
         ),
         const SizedBox(height: 6),
         const Text('Images are maintained by your operations administrator.'),
+        ...[
+          const SizedBox(height: 16),
+          TextField(
+            onChanged: (value) => setState(() => _searchQuery = value),
+            textInputAction: TextInputAction.search,
+            decoration: InputDecoration(
+              hintText: isDrinkLibrary ? 'Search drink SOPs' : 'Search guides',
+              prefixIcon: const Icon(Icons.search_rounded),
+              suffixIcon: _searchQuery.isEmpty
+                  ? null
+                  : IconButton(
+                      tooltip: 'Clear search',
+                      onPressed: () => setState(() => _searchQuery = ''),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+          ),
+        ],
         const SizedBox(height: 18),
         Expanded(
-          child: guides.isEmpty
+          child: visibleGuides.isEmpty
               ? const Center(
-                  child: Text('No guide images have been uploaded yet.'),
+                  child: Text('No matching guide images were found.'),
                 )
               : ListView.separated(
-                  itemCount: guides.length,
+                  itemCount: visibleGuides.length,
                   separatorBuilder: (_, _) => const SizedBox(height: 16),
                   itemBuilder: (_, index) {
-                    final url = guides[index].imageUrl.startsWith('http')
-                        ? guides[index].imageUrl
-                        : '${ApiService.baseUrl}${guides[index].imageUrl}';
-                    return ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
-                      child: Image.network(
-                        url,
-                        fit: BoxFit.contain,
-                        errorBuilder: (_, _, _) => const SizedBox(
-                          height: 180,
-                          child: Center(
-                            child: Icon(Icons.broken_image_outlined),
+                    final guide = visibleGuides[index];
+                    final url = ApiService.resolveAssetUrl(guide.imageUrl);
+                    final guideTitle =
+                        guide.menuItemName ?? guide.guideTitle ?? widget.title;
+                    return Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: SettingsPage.ink.withValues(alpha: .12)),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            guideTitle,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                            ),
                           ),
-                        ),
+                          const SizedBox(height: 10),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Image.network(
+                              url,
+                              fit: BoxFit.contain,
+                              errorBuilder: (_, _, _) => const SizedBox(
+                                height: 180,
+                                child: Center(child: Icon(Icons.broken_image_outlined)),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     );
                   },
@@ -320,6 +447,7 @@ class _StaffGuidesSheet extends StatelessWidget {
       ],
     ),
   );
+  }
 }
 
 class _WorkstationHeader extends StatelessWidget {
@@ -407,8 +535,9 @@ class _OperationsUnavailableCard extends StatelessWidget {
 
 class _OperationsStatusCard extends StatelessWidget {
   final OperationsContext context;
+  final VoidCallback onRefresh;
 
-  const _OperationsStatusCard({required this.context});
+  const _OperationsStatusCard({required this.context, required this.onRefresh});
 
   @override
   Widget build(BuildContext buildContext) {
@@ -464,10 +593,20 @@ class _OperationsStatusCard extends StatelessWidget {
           const Divider(height: 28),
           Align(
             alignment: Alignment.centerLeft,
-            child: TextButton.icon(
-              onPressed: () => _showWeeklyTimetable(buildContext, context),
-              icon: const Icon(Icons.calendar_view_week_outlined),
-              label: const Text('View weekly timetable'),
+            child: Wrap(
+              spacing: 4,
+              children: [
+                TextButton.icon(
+                  onPressed: () => _showWeeklyTimetable(buildContext, context),
+                  icon: const Icon(Icons.calendar_view_week_outlined),
+                  label: const Text('View weekly timetable'),
+                ),
+                IconButton(
+                  tooltip: 'Refresh timetable',
+                  onPressed: onRefresh,
+                  icon: const Icon(Icons.refresh_rounded),
+                ),
+              ],
             ),
           ),
         ],
@@ -502,6 +641,8 @@ class _OperationsStatusCard extends StatelessWidget {
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      isDismissible: true,
+      enableDrag: true,
       builder: (sheetContext) => SafeArea(
         child: SizedBox(
           height: MediaQuery.sizeOf(sheetContext).height * 0.78,
@@ -510,13 +651,24 @@ class _OperationsStatusCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Weekly timetable',
-                  style: TextStyle(
-                    color: SettingsPage.ink,
-                    fontSize: 24,
-                    fontWeight: FontWeight.w800,
-                  ),
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Weekly timetable',
+                        style: TextStyle(
+                          color: SettingsPage.ink,
+                          fontSize: 24,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Close timetable',
+                      onPressed: () => Navigator.of(sheetContext).pop(),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 6),
                 const Text(

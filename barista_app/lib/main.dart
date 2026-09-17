@@ -72,6 +72,7 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _isPasswordVisible = false;
+  bool _isSubmitting = false;
 
   @override
   void dispose() {
@@ -248,7 +249,7 @@ class _LoginPageState extends State<LoginPage> {
 
                                 // Login Button
                                 ElevatedButton(
-                                  onPressed: () async {
+                                  onPressed: _isSubmitting ? null : () async {
                                     final username = _usernameController.text
                                         .trim();
                                     final password = _passwordController.text
@@ -269,29 +270,39 @@ class _LoginPageState extends State<LoginPage> {
                                       return;
                                     }
 
-                                    // Validate with API
-                                    final success = await ApiService.login(
+                                    setState(() => _isSubmitting = true);
+                                    final result = await ApiService.login(
                                       username,
                                       password,
                                     );
-                                    if (!success) {
+                                    if (!result.isSuccess) {
                                       if (!context.mounted) return;
                                       ScaffoldMessenger.of(
                                         context,
                                       ).showSnackBar(
-                                        const SnackBar(
+                                        SnackBar(
                                           content: Text(
-                                            'Use a valid Barista account created in Admin Web.',
+                                            result.errorMessage ??
+                                                'Unable to sign in. Please try again.',
                                           ),
                                           backgroundColor: Colors.redAccent,
                                           behavior: SnackBarBehavior.floating,
                                         ),
                                       );
+                                      setState(() => _isSubmitting = false);
                                       return;
                                     }
 
-                                    await PushNotificationService.instance
-                                        .syncAfterSignIn();
+                                    try {
+                                      await PushNotificationService.instance
+                                          .syncAfterSignIn();
+                                    } catch (error) {
+                                      // A successful sign-in must not be held
+                                      // hostage by optional push registration.
+                                      debugPrint(
+                                        'Push registration after sign-in failed: $error',
+                                      );
+                                    }
 
                                     if (!context.mounted) return;
                                     Navigator.pushReplacement(
@@ -341,19 +352,32 @@ class _LoginPageState extends State<LoginPage> {
                                     ),
                                     elevation: 0,
                                   ),
-                                  child: const Row(
+                                  child: Row(
                                     mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Text(
-                                        'Login',
-                                        style: TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                      SizedBox(width: 8),
-                                      Icon(Icons.arrow_right_alt, size: 24),
-                                    ],
+                                    children: _isSubmitting
+                                        ? const [
+                                            SizedBox(
+                                              height: 20,
+                                              width: 20,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                            SizedBox(width: 10),
+                                            Text('Signing in...'),
+                                          ]
+                                        : const [
+                                            Text(
+                                              'Login',
+                                              style: TextStyle(
+                                                fontSize: 18,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                            SizedBox(width: 8),
+                                            Icon(Icons.arrow_right_alt, size: 24),
+                                          ],
                                   ),
                                 ),
                               ],

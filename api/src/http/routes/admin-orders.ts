@@ -875,20 +875,8 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
       const internalId = rows[0].id;
       const fromStatus = rows[0].status;
 
-      // A tablet-only barista must have an active server-recorded shift before
-      // it can change a customer order. Broader admin roles retain their
-      // operational override for exceptional cases.
-      if (request.adminAuth.isBaristaOnly && ['preparing', 'ready_for_pickup'].includes(effectiveStatus)) {
-        const [attendanceRows] = await connection.query<RowDataPacket[]>(
-          `SELECT id FROM barista_attendance
-           WHERE tenant_id = :tenantId AND admin_user_id = :adminUserId AND clocked_out_at IS NULL
-           ORDER BY clocked_in_at DESC LIMIT 1 FOR UPDATE`,
-          { tenantId: request.adminAuth.tenantId, adminUserId: request.adminAuth.adminUserId }
-        );
-        if (!attendanceRows.length) {
-          throw new ApiError(409, 'clock_in_required', 'Clock in before preparing customer orders.');
-        }
-      }
+      // Attendance is an operational record, not a customer-service blocker.
+      // A missed clock-in is surfaced in Operations for manager follow-up.
 
       if (fromStatus === effectiveStatus) {
         await connection.commit();

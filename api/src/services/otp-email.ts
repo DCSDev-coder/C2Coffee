@@ -25,6 +25,23 @@ type SupportTicketEmailPayload = {
   }>;
 };
 
+type OrderReceiptEmailPayload = {
+  to: string;
+  orderReference: string;
+  orderNumber: number;
+  storeName: string;
+  orderedAt: string;
+  pickupAt: string;
+  items: Array<{
+    name: string;
+    quantity: number;
+    totalRm: string;
+    modifiers: string[];
+  }>;
+  totalRm: string;
+  tokens: number;
+};
+
 let transporter: Transporter | null = null;
 
 function getTransporter(): Transporter {
@@ -118,6 +135,75 @@ export async function sendSupportTicketEmail(
       content: attachment.content,
       contentType: attachment.mimeType
     }))
+  });
+
+  return { messageId: info.messageId };
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }[character] ?? character));
+}
+
+/** Send a transactional receipt using immutable order snapshots. */
+export async function sendOrderReceiptEmail(payload: OrderReceiptEmailPayload): Promise<{ messageId?: string }> {
+  const fromAddress = env.EMAIL_FROM_ADDRESS || env.EMAIL_SMTP_USER;
+  if (!fromAddress) {
+    throw new Error('EMAIL_FROM_ADDRESS is required for receipt delivery.');
+  }
+
+  const itemText = payload.items.flatMap((item) => [
+    `${Math.max(1, item.quantity)} x ${item.name} - RM ${item.totalRm}`,
+    ...item.modifiers.map((modifier) => `  ${modifier}`)
+  ]);
+  const itemHtml = payload.items.map((item) => `
+    <tr>
+      <td style="padding:10px 0;border-bottom:1px solid #e5e7eb">
+        <strong>${escapeHtml(String(Math.max(1, item.quantity)))} x ${escapeHtml(item.name)}</strong>
+        ${item.modifiers.length > 0 ? `<div style="margin-top:4px;color:#6b7280;font-size:13px">${item.modifiers.map(escapeHtml).join('<br>')}</div>` : ''}
+      </td>
+      <td style="padding:10px 0;border-bottom:1px solid #e5e7eb;text-align:right;white-space:nowrap">RM ${escapeHtml(item.totalRm)}</td>
+    </tr>`).join('');
+  const subject = `Your C2 Coffee receipt - Order #${payload.orderNumber}`;
+  const text = [
+    'C2 Coffee & Candle',
+    `Order #${payload.orderNumber} (${payload.orderReference})`,
+    `Store: ${payload.storeName}`,
+    `Ordered: ${payload.orderedAt}`,
+    `Pickup: ${payload.pickupAt}`,
+    '',
+    ...itemText,
+    '',
+    `Total: RM ${payload.totalRm}`,
+    `Tokens charged: ${payload.tokens}`,
+    '',
+    'Thank you for your order.'
+  ].join('\n');
+
+  const info = await getTransporter().sendMail({
+    from: `"${env.EMAIL_FROM_NAME}" <${fromAddress}>`,
+    to: payload.to,
+    subject,
+    text,
+    html: `
+      <div style="max-width:600px;margin:auto;font-family:Arial,sans-serif;color:#1f2937;line-height:1.5">
+        <h1 style="font-size:24px;margin-bottom:4px">C2 Coffee &amp; Candle</h1>
+        <p style="margin-top:0;color:#4b5563">Receipt for order #${escapeHtml(String(payload.orderNumber))}</p>
+        <div style="padding:16px;background:#f3f4f6;border-radius:10px">
+          <div><strong>Store:</strong> ${escapeHtml(payload.storeName)}</div>
+          <div><strong>Order reference:</strong> ${escapeHtml(payload.orderReference)}</div>
+          <div><strong>Ordered:</strong> ${escapeHtml(payload.orderedAt)}</div>
+          <div><strong>Pickup:</strong> ${escapeHtml(payload.pickupAt)}</div>
+        </div>
+        <table style="width:100%;border-collapse:collapse;margin-top:18px">${itemHtml}</table>
+        <div style="margin-top:18px;text-align:right;font-size:17px"><strong>Total: RM ${escapeHtml(payload.totalRm)}</strong><br><span style="color:#4b5563">Tokens charged: ${escapeHtml(String(payload.tokens))}</span></div>
+        <p style="margin-top:28px">Thank you for your order.</p>
+      </div>`
   });
 
   return { messageId: info.messageId };

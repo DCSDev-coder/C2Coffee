@@ -26,6 +26,9 @@ async function main(): Promise<void> {
   const fcmReadinessDetail = env.FCM_DELIVERY_ENABLED
     ? 'FCM delivery is enabled and the service-account secret has the required fields; a physical device test remains required.'
     : 'FCM delivery is disabled. Set FCM_DELIVERY_ENABLED=true and install the service-account secret before testing notifications.';
+  const topUpReadinessDetail = env.TOPUP_GATEWAY_ENABLED
+    ? `Top-up gateway ${env.TOPUP_GATEWAY_PROVIDER} is configured for ${env.TOPUP_GATEWAY_ALLOWED_METHODS.join(', ')}. Provider sandbox callback testing is still required before production activation.`
+    : 'Online token top-up is intentionally disabled. Counter/admin token credits remain the only available top-up route.';
   const checks: Check[] = [
     {
       name: 'Production environment',
@@ -93,6 +96,20 @@ async function main(): Promise<void> {
           throw new Error('The FCM service-account secret is incomplete.');
         }
       }
+    },
+    {
+      name: 'Top-up gateway policy',
+      detail: topUpReadinessDetail,
+      run: () => {
+        if (!env.TOPUP_GATEWAY_ENABLED) return;
+        requireValue('TOPUP_GATEWAY_PROVIDER', env.TOPUP_GATEWAY_PROVIDER);
+        requireValue('TOPUP_GATEWAY_BASE_URL', env.TOPUP_GATEWAY_BASE_URL);
+        requireValue('TOPUP_GATEWAY_API_KEY', env.TOPUP_GATEWAY_API_KEY);
+        requireValue('TOPUP_GATEWAY_WEBHOOK_SECRET', env.TOPUP_GATEWAY_WEBHOOK_SECRET);
+        if (env.TOPUP_GATEWAY_ALLOWED_METHODS.includes('atome')) {
+          throw new Error('Atome must not be enabled for token top-up.');
+        }
+      }
     }
   ];
 
@@ -108,7 +125,7 @@ async function main(): Promise<void> {
     }
   }
 
-  console.log('MANUAL  Verify one OTP email, Admin Web login/refresh/logout, a real device notification, and a physical printer receipt.');
+  console.log('MANUAL  Verify one OTP email, Admin Web login/refresh/logout, a real device notification, a physical printer receipt, and gateway sandbox callbacks before enabling online top-up.');
   if (failed) process.exitCode = 1;
 }
 

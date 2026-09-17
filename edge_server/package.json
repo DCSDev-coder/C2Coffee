@@ -1,0 +1,14 @@
+{
+  "name": "c2-coffee-print-connector",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Local ESC/POS receipt connector for C2 Coffee outlets.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node --env-file=.env src/app.js",
+    "test": "node --test"
+  }
+}

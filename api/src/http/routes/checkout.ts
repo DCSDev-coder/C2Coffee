@@ -18,6 +18,7 @@ import { getBootstrapForUser } from './auth.js';
 import { resolveOrderLifecycleStatus } from '../order-lifecycle.js';
 import { getKualaLumpurDateParts } from '../../lib/kuala-lumpur-time.js';
 import { deliverPushToStaff } from '../../services/push-delivery.js';
+import { deliverQueuedOrderReceiptEmail, queueOrderReceiptEmail } from '../../services/order-receipt-email.js';
 
 const createOrderSchema = z.object({
   store_id: z.coerce.number().int().positive(),
@@ -65,6 +66,7 @@ type LibraryOptionRow = RowDataPacket & {
   min_select: number;
   max_select: number;
   is_required: number;
+  option_id: number;
   option_name: string;
   price_delta_rm: string;
   token_price_delta: number;
@@ -1069,6 +1071,15 @@ export async function registerCheckoutRoutes(
         }
       });
 
+      const [customerRows] = await connection.query<Array<RowDataPacket & { email: string | null }>>(
+        `SELECT email FROM user_profiles WHERE user_id = :userId LIMIT 1`,
+        { userId: request.auth.userId }
+      );
+      const receiptEmailQueued = await queueOrderReceiptEmail(connection, {
+        orderId,
+        recipientEmail: customerRows[0]?.email ?? null
+      });
+
       await connection.commit();
       committed = true;
 
@@ -1086,6 +1097,16 @@ export async function registerCheckoutRoutes(
           // order contents or customer data alongside the provider error.
           request.log.warn({ err: error }, 'Staff push delivery failed after checkout.');
         });
+
+      if (receiptEmailQueued) {
+        void deliverQueuedOrderReceiptEmail(orderId).then((outcome) => {
+          if (outcome === 'failed') {
+            request.log.warn({ orderId }, 'Order receipt email delivery failed after checkout.');
+          }
+        }).catch(() => {
+          request.log.warn({ orderId }, 'Order receipt email delivery could not be started after checkout.');
+        });
+      }
 
       const [orderRows] = await mysqlPool.query<Array<OrderResponseRow>>(
         `
@@ -1116,7 +1137,8 @@ export async function registerCheckoutRoutes(
         },
         token_balance: accountBalanceAvailable,
         token_reserved: accountBalanceReserved,
-        token_cap: accountBalanceCap
+        token_cap: accountBalanceCap,
+        receipt_email: receiptEmailQueued ? 'queued' : 'unavailable'
       };
 
       return response;
@@ -1433,7 +1455,7 @@ async function _verifyLibraryModifiers(
 ) {
   const [rows] = await connection.query<Array<LibraryOptionRow>>(
     `SELECT g.id AS group_id, g.name AS group_name, g.selection_type, g.min_select, g.max_select, g.is_required,
-            o.name AS option_name, CAST(o.price_delta_rm AS CHAR) AS price_delta_rm, o.token_price_delta, o.calorie_delta_kcal
+            o.id AS option_id, o.name AS option_name, CAST(o.price_delta_rm AS CHAR) AS price_delta_rm, o.token_price_delta, o.calorie_delta_kcal
      FROM menu_option_groups g
      JOIN menu_option_group_options o ON o.option_group_id = g.id AND o.is_active = 1
      LEFT JOIN menu_option_group_items a ON a.option_group_id = g.id AND a.menu_item_id = :menuItemId
@@ -1447,6 +1469,21 @@ async function _verifyLibraryModifiers(
   );
   if (rows.length === 0) return modifiers;
 
+  const [visibilityRows] = await connection.query<Array<RowDataPacket>>(
+    `SELECT r.option_group_id, r.trigger_option_id
+     FROM menu_option_group_visibility_rules r
+     JOIN menu_option_groups g ON g.id = r.option_group_id
+     WHERE g.tenant_id = :tenantId`,
+    { tenantId }
+  );
+  const hiddenWhenByGroup = new Map<number, Set<number>>();
+  for (const row of visibilityRows) {
+    const groupId = Number(row.option_group_id);
+    const triggerIds = hiddenWhenByGroup.get(groupId) ?? new Set<number>();
+    triggerIds.add(Number(row.trigger_option_id));
+    hiddenWhenByGroup.set(groupId, triggerIds);
+  }
+
   const groups = new Map<number, { name: string; selectionType: string; min: number; max: number; required: boolean; options: Map<string, LibraryOptionRow> }>();
   for (const row of rows) {
     const group = groups.get(row.group_id) ?? { name: row.group_name, selectionType: row.selection_type, min: row.min_select, max: row.max_select, required: row.is_required === 1, options: new Map() };
@@ -1454,16 +1491,45 @@ async function _verifyLibraryModifiers(
     groups.set(row.group_id, group);
   }
 
-  const canonical: typeof modifiers = [];
-  for (const group of groups.values()) {
+  const selectedOptionsByGroup = new Map<number, LibraryOptionRow[]>();
+  for (const [groupId, group] of groups.entries()) {
     const selected = modifiers.filter((modifier) => modifier.group_name === group.name);
+    const resolved = selected.map((selection) => {
+      const option = group.options.get(selection.option_name);
+      if (!option) throw new ApiError(400, 'invalid_option_selection', `The selected option for ${group.name} is unavailable.`);
+      return option;
+    });
+    selectedOptionsByGroup.set(groupId, resolved);
+  }
+  const selectedOptionIds = new Set(
+    [...selectedOptionsByGroup.values()].flat().map((option) => Number(option.option_id))
+  );
+  const hasNonColdTemperature = [...groups.entries()]
+    .filter(([, group]) => _normalizeValue(group.name).includes('temperature'))
+    .flatMap(([groupId]) => selectedOptionsByGroup.get(groupId) ?? [])
+    .some((option) => _normalizeValue(option.option_name) !== 'cold');
+
+  const canonical: typeof modifiers = [];
+  for (const [groupId, group] of groups.entries()) {
+    const selected = selectedOptionsByGroup.get(groupId) ?? [];
+    const isHiddenByRule = [...(hiddenWhenByGroup.get(groupId) ?? new Set<number>())]
+      .some((optionId) => selectedOptionIds.has(optionId));
+    // Ice Level is only meaningful for Cold drinks. Keep this server rule in
+    // sync with the mobile UI so new temperatures such as Extra Hot do not
+    // require an Ice Level database rule before they can be ordered.
+    const isIceLevelGroup = /\bice\b/i.test(group.name);
+    const isHiddenByTemperature = isIceLevelGroup && hasNonColdTemperature;
+    const isHidden = isHiddenByRule || isHiddenByTemperature;
+    if (isHidden) {
+      // A customer can change temperature after choosing ice. Drop that stale
+      // selection rather than blocking a valid non-Cold checkout.
+      continue;
+    }
     const minimum = group.required ? Math.max(1, group.min) : group.min;
     if (selected.length < minimum || selected.length > group.max || (group.selectionType === 'single' && selected.length > 1)) {
       throw new ApiError(400, 'invalid_option_selection', `Please choose valid options for ${group.name}.`);
     }
-    for (const selection of selected) {
-      const option = group.options.get(selection.option_name);
-      if (!option) throw new ApiError(400, 'invalid_option_selection', `The selected option for ${group.name} is unavailable.`);
+    for (const option of selected) {
       canonical.push({ group_name: group.name, option_name: option.option_name, price_delta_rm: Number(option.price_delta_rm), token_price_delta: option.token_price_delta, calorie_delta_kcal: option.calorie_delta_kcal });
     }
   }

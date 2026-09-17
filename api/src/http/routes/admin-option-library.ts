@@ -38,6 +38,7 @@ const groupSchema = z.object({
   sort_order: z.coerce.number().int().min(0).default(0),
   is_active: z.coerce.boolean().default(true),
   menu_item_ids: z.array(z.coerce.number().int().positive()).default([]),
+  hidden_when_option_ids: z.array(z.coerce.number().int().positive()).max(100).default([]),
   options: z.array(optionSchema).min(1)
 }).superRefine((value, context) => {
   if (value.min_select > value.max_select) {
@@ -66,7 +67,7 @@ export async function registerAdminOptionLibraryRoutes(app: FastifyInstance): Pr
     for (const row of rows) {
       let group = groups.get(row.id);
       if (!group) {
-        group = { id: row.id, name: row.name, applies_to: row.applies_to, selection_type: row.selection_type, min_select: row.min_select, max_select: row.max_select, is_required: row.is_required === 1, sort_order: row.sort_order, is_active: row.is_active === 1, menu_item_ids: [], options: [] };
+        group = { id: row.id, name: row.name, applies_to: row.applies_to, selection_type: row.selection_type, min_select: row.min_select, max_select: row.max_select, is_required: row.is_required === 1, sort_order: row.sort_order, is_active: row.is_active === 1, menu_item_ids: [], hidden_when_option_ids: [], options: [] };
         groups.set(row.id, group);
       }
       if (row.menu_item_id && !group.menu_item_ids.includes(row.menu_item_id)) group.menu_item_ids.push(row.menu_item_id);
@@ -91,6 +92,19 @@ export async function registerAdminOptionLibraryRoutes(app: FastifyInstance): Pr
     for (const group of groups.values()) {
       for (const option of group.options) {
         option.excluded_menu_item_ids = exclusionsByOption.get(option.id) || [];
+      }
+    }
+    const [visibilityRows] = await mysqlPool.query<Array<RowDataPacket>>(
+      `SELECT r.option_group_id, r.trigger_option_id
+       FROM menu_option_group_visibility_rules r
+       JOIN menu_option_groups g ON g.id = r.option_group_id
+       WHERE g.tenant_id = :tenantId`,
+      { tenantId: request.adminAuth.tenantId }
+    );
+    for (const row of visibilityRows) {
+      const group = groups.get(Number(row.option_group_id));
+      if (group) {
+        group.hidden_when_option_ids.push(Number(row.trigger_option_id));
       }
     }
     return { groups: [...groups.values()] };
@@ -287,6 +301,32 @@ async function saveGroup(tenantId: number, payload: z.infer<typeof groupSchema>,
         if (!items[0]) throw new ApiError(400, 'invalid_option_item', 'Options can only be assigned to drink items.');
         await connection.execute('INSERT INTO menu_option_group_items (option_group_id,menu_item_id) VALUES (:id,:menuItemId)', { id, menuItemId });
       }
+    }
+    const hiddenWhenOptionIds = [...new Set(payload.hidden_when_option_ids)];
+    if (hiddenWhenOptionIds.some((optionId) => currentOptionIds.has(optionId))) {
+      throw new ApiError(400, 'invalid_visibility_rule', 'A choice cannot hide its own option group.');
+    }
+    if (hiddenWhenOptionIds.length > 0) {
+      const [triggerRows] = await connection.query<Array<RowDataPacket>>(
+        `SELECT o.id
+         FROM menu_option_group_options o
+         JOIN menu_option_groups g ON g.id = o.option_group_id
+         WHERE g.tenant_id = :tenantId AND o.id IN (:optionIds)`,
+        { tenantId, optionIds: hiddenWhenOptionIds }
+      );
+      if (triggerRows.length !== hiddenWhenOptionIds.length) {
+        throw new ApiError(400, 'invalid_visibility_rule', 'One or more choices used to hide this group are unavailable.');
+      }
+    }
+    await connection.execute(
+      'DELETE FROM menu_option_group_visibility_rules WHERE option_group_id = :id',
+      { id }
+    );
+    for (const optionId of hiddenWhenOptionIds) {
+      await connection.execute(
+        'INSERT INTO menu_option_group_visibility_rules (option_group_id, trigger_option_id) VALUES (:id, :optionId)',
+        { id, optionId }
+      );
     }
     await connection.commit();
     return { group: { id, ...payload } };

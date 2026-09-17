@@ -605,25 +605,64 @@ class _GuidePanel extends StatelessWidget {
                   separatorBuilder: (_, _) => const SizedBox(width: 12),
                   itemBuilder: (_, index) {
                     final guide = drinkGuides[index];
-                    final imageUrl = guide.imageUrl.startsWith('http')
-                        ? guide.imageUrl
-                        : '${ApiService.baseUrl}${guide.imageUrl}';
+                    final imageUrl = ApiService.resolveAssetUrl(guide.imageUrl);
                     return SizedBox(
                       width: 142,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Expanded(
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: Image.network(
-                                imageUrl,
-                                width: double.infinity,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, _, _) => const ColoredBox(
-                                  color: Color(0xFFE9E9E9),
-                                  child: Center(
-                                    child: Icon(Icons.broken_image_outlined),
+                            child: Semantics(
+                              button: true,
+                              label:
+                                  'Enlarge ${guide.menuItemName ?? 'preparation guide'}',
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(12),
+                                onTap: () => _showGuideImage(
+                                  context,
+                                  title:
+                                      guide.menuItemName ?? 'Preparation guide',
+                                  imageUrl: imageUrl,
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Stack(
+                                    fit: StackFit.expand,
+                                    children: [
+                                      Image.network(
+                                        imageUrl,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, _, _) =>
+                                            const ColoredBox(
+                                              color: Color(0xFFE9E9E9),
+                                              child: Center(
+                                                child: Icon(
+                                                  Icons.broken_image_outlined,
+                                                ),
+                                              ),
+                                            ),
+                                      ),
+                                      const Align(
+                                        alignment: Alignment.bottomRight,
+                                        child: Padding(
+                                          padding: EdgeInsets.all(8),
+                                          child: DecoratedBox(
+                                            decoration: BoxDecoration(
+                                              color: Color(0xCC17281F),
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: Padding(
+                                              padding: EdgeInsets.all(6),
+                                              child: Icon(
+                                                Icons.zoom_in_rounded,
+                                                color: Colors.white,
+                                                size: 20,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),
@@ -647,4 +686,78 @@ class _GuidePanel extends StatelessWidget {
       );
     },
   );
+
+  static Future<void> _showGuideImage(
+    BuildContext context, {
+    required String title,
+    required String imageUrl,
+  }) {
+    return showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        final size = MediaQuery.sizeOf(dialogContext);
+        return Dialog(
+          insetPadding: const EdgeInsets.all(18),
+          clipBehavior: Clip.antiAlias,
+          child: SizedBox(
+            width: size.width * 0.92,
+            height: size.height * 0.9,
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 14, 8, 14),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Close guide',
+                        onPressed: () => Navigator.of(dialogContext).pop(),
+                        icon: const Icon(Icons.close_rounded),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: InteractiveViewer(
+                    minScale: 0.8,
+                    maxScale: 4,
+                    child: Center(
+                      child: Image.network(
+                        imageUrl,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, _, _) => const Center(
+                          child: Text(
+                            'The preparation guide image could not load.',
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const Padding(
+                  padding: EdgeInsets.all(12),
+                  child: Text(
+                    'Pinch or scroll to zoom. Drag to move around the guide.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Color(0xFF64748B)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
 }

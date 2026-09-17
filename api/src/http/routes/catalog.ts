@@ -90,6 +90,7 @@ type MenuModifierGroup = {
   max_select: number;
   is_required: boolean;
   source: 'item' | 'library';
+  hidden_when_option_ids: number[];
   options: Array<MenuModifierOption>;
 };
 
@@ -516,6 +517,7 @@ export async function registerCatalogRoutes(app: FastifyInstance): Promise<void>
             max_select: row.modifier_max_select ?? 1,
             is_required: row.modifier_is_required === 1,
             source: 'item',
+            hidden_when_option_ids: [],
             options: [],
           };
           item.modifier_groups.push(modifierGroup);
@@ -572,6 +574,22 @@ export async function registerCatalogRoutes(app: FastifyInstance): Promise<void>
        )`,
       { storeId }
     );
+    const [visibilityRows] = await mysqlPool.query<Array<RowDataPacket>>(
+      `SELECT r.option_group_id, r.trigger_option_id
+       FROM menu_option_group_visibility_rules r
+       JOIN menu_option_groups g ON g.id = r.option_group_id
+       JOIN stores s ON s.tenant_id = g.tenant_id
+       WHERE s.id = :storeId`,
+      { storeId }
+    );
+    const hiddenWhenByGroup = new Map<number, number[]>();
+    for (const row of visibilityRows) {
+      const groupId = Number(row.option_group_id);
+      hiddenWhenByGroup.set(groupId, [
+        ...(hiddenWhenByGroup.get(groupId) ?? []),
+        Number(row.trigger_option_id)
+      ]);
+    }
     const excludedOptionIdsByItem = new Map<number, Set<number>>();
     for (const row of exclusionRows) {
       const excludedIds = excludedOptionIdsByItem.get(Number(row.menu_item_id)) ?? new Set<number>();
@@ -586,7 +604,7 @@ export async function registerCatalogRoutes(app: FastifyInstance): Promise<void>
         if (excludedOptionIdsByItem.get(item.id)?.has(Number(row.option_id))) continue;
         let group = item.modifier_groups.find((candidate) => candidate.source === 'library' && candidate.id === row.group_id);
         if (!group) {
-          group = { id: row.group_id, code: `library-${row.group_id}`, name: row.group_name, selection_type: row.selection_type, min_select: row.min_select, max_select: row.max_select, is_required: row.is_required === 1, source: 'library', options: [] };
+          group = { id: row.group_id, code: `library-${row.group_id}`, name: row.group_name, selection_type: row.selection_type, min_select: row.min_select, max_select: row.max_select, is_required: row.is_required === 1, source: 'library', hidden_when_option_ids: hiddenWhenByGroup.get(Number(row.group_id)) ?? [], options: [] };
           item.modifier_groups.push(group);
         }
         if (!group.options.some((option) => option.id === row.option_id)) {

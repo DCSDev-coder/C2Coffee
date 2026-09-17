@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { CalendarDays, Check, CircleAlert, Plus, Printer, RefreshCw, Save, Server, Trash2 } from 'lucide-react';
+import { CalendarDays, Check, CircleAlert, Clock3, Plus, Printer, RefreshCw, Save, Server, Trash2 } from 'lucide-react';
 import {
   adminRequest,
   createAdminOperationalIntegration,
   createAdminPrinterTarget,
+  loadAdminAttendance,
   loadAdminOperationalSetup,
   saveAdminWeeklySchedule
 } from '../lib/adminApi';
@@ -22,7 +23,7 @@ const printerModes = [
   { value: 'android_direct', label: 'Direct Android tablet', hint: 'Bluetooth MAC address or printer IP' },
   { value: 'local_print_bridge', label: 'Windows Print Bridge', hint: 'Bridge printer name' },
   { value: 'pos_adapter', label: 'POS adapter', hint: 'Printer ID supplied by the POS provider' },
-  { value: 'network_printer', label: 'Managed network printer', hint: 'Printer IP address or hostname' }
+  { value: 'network_printer', label: 'Managed network printer', hint: 'Connector ID, for example c2-broga-zy905' }
 ];
 
 const providers = [
@@ -44,12 +45,25 @@ function printerModeLabel(mode) {
   return printerModes.find((item) => item.value === mode)?.label || mode;
 }
 
+function isoDate(offsetDays = 0) {
+  const date = new Date();
+  date.setDate(date.getDate() + offsetDays);
+  return date.toISOString().slice(0, 10);
+}
+
+const attendanceLabel = (status) => ({ completed: 'Completed', late: 'Late arrival', clocked_in: 'Clocked in', clocked_in_late: 'Clocked in late', missing_clock_out: 'Missing clock-out', missed_clock_in: 'Missed clock-in', unscheduled: 'No shift planned' })[status] || status;
+
 export default function Operations() {
   const [activeTab, setActiveTab] = useState('timetable');
   const [baristas, setBaristas] = useState([]);
   const [schedule, setSchedule] = useState([]);
   const [printers, setPrinters] = useState([]);
   const [integrations, setIntegrations] = useState([]);
+  const [attendance, setAttendance] = useState([]);
+  const [attendanceSummary, setAttendanceSummary] = useState({ active_now: 0, late_arrivals: 0, missing_clock_out: 0, missed_clock_in: 0 });
+  const [attendanceFrom, setAttendanceFrom] = useState(isoDate(-29));
+  const [attendanceTo, setAttendanceTo] = useState(isoDate());
+  const [attendanceBaristaId, setAttendanceBaristaId] = useState('');
   const [shiftForm, setShiftForm] = useState(initialShift);
   const [printerForm, setPrinterForm] = useState(initialPrinter);
   const [integrationForm, setIntegrationForm] = useState(initialIntegration);
@@ -82,6 +96,20 @@ export default function Operations() {
   useEffect(() => {
     void loadData();
   }, []);
+
+  const loadAttendance = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const result = await loadAdminAttendance({ from: attendanceFrom, to: attendanceTo, baristaId: attendanceBaristaId || undefined });
+      setAttendance(result.attendance || []);
+      setAttendanceSummary(result.summary || { active_now: 0, late_arrivals: 0, missing_clock_out: 0, missed_clock_in: 0 });
+    } catch (loadError) {
+      setError(loadError.message || 'Unable to load attendance history.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const addShift = (event) => {
     event.preventDefault();
@@ -204,6 +232,9 @@ export default function Operations() {
           <button type="button" onClick={() => setActiveTab('timetable')} className={`inline-flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-bold ${activeTab === 'timetable' ? 'border-[#2E5E58] text-[#2E5E58]' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
             <CalendarDays size={17} /> Weekly timetable
           </button>
+          <button type="button" onClick={() => setActiveTab('attendance')} className={`inline-flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-bold ${activeTab === 'attendance' ? 'border-[#2E5E58] text-[#2E5E58]' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
+            <Clock3 size={17} /> Attendance
+          </button>
           <button type="button" onClick={() => setActiveTab('printers')} className={`inline-flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-bold ${activeTab === 'printers' ? 'border-[#2E5E58] text-[#2E5E58]' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
             <Printer size={17} /> Printers &amp; POS
           </button>
@@ -285,6 +316,11 @@ export default function Operations() {
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="text-lg font-bold text-slate-900">Registered printers</h2><p className="mt-1 text-sm text-slate-500">A pending route cannot print yet.</p><div className="mt-4 divide-y divide-slate-100">{printers.length === 0 ? <p className="py-5 text-sm text-slate-500">No receipt printer has been registered.</p> : printers.map((printer) => <div key={printer.id} className="flex items-center justify-between gap-4 py-4"><div><div className="flex items-center gap-2"><p className="font-bold text-slate-800">{printer.name}</p>{printer.is_default && <span className="rounded-full bg-[#E8F1EF] px-2 py-0.5 text-[11px] font-bold text-[#2E5E58]">Default</span>}</div><p className="mt-1 text-sm text-slate-500">{printerModeLabel(printer.delivery_mode)}</p></div><span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700">{printer.status.replace('_', ' ')}</span></div>)}</div></div>
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="text-lg font-bold text-slate-900">POS connections</h2><p className="mt-1 text-sm text-slate-500">Current registrations are not live data syncs.</p><div className="mt-4 divide-y divide-slate-100">{integrations.length === 0 ? <p className="py-5 text-sm text-slate-500">No POS or print bridge has been registered.</p> : integrations.map((integration) => <div key={integration.id} className="flex items-center justify-between gap-4 py-4"><div><p className="font-bold text-slate-800">{integration.display_name}</p><p className="mt-1 text-sm capitalize text-slate-500">{integration.provider_code.replace('_', ' ')}</p></div><span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700">{integration.status.replace('_', ' ')}</span></div>)}</div></div>
           </div>
+        </section>}
+        {activeTab === 'attendance' && <section className="mt-6 space-y-5">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"><div><h2 className="text-lg font-bold text-slate-900">Attendance history</h2><p className="mt-1 text-sm text-slate-500">Compare server-recorded clock-ins and clock-outs with shifts published on or before each date. A current open shift is not marked as a missing clock-out.</p></div><div className="flex flex-wrap gap-3"><input type="date" value={attendanceFrom} onChange={(event) => setAttendanceFrom(event.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" /><input type="date" value={attendanceTo} onChange={(event) => setAttendanceTo(event.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" /><select value={attendanceBaristaId} onChange={(event) => setAttendanceBaristaId(event.target.value)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"><option value="">All baristas</option>{baristas.map((barista) => <option key={barista.id} value={barista.id}>{barista.name}</option>)}</select><button type="button" onClick={() => void loadAttendance()} className="inline-flex items-center gap-2 rounded-xl bg-[#2E5E58] px-4 py-2 text-sm font-bold text-white"><RefreshCw size={16} /> Load</button></div></div></div>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{[['Working now', attendanceSummary.active_now, 'bg-emerald-50 text-emerald-700'], ['Late arrivals', attendanceSummary.late_arrivals, 'bg-amber-50 text-amber-700'], ['Missing clock-out', attendanceSummary.missing_clock_out, 'bg-red-50 text-red-700'], ['Missed clock-in', attendanceSummary.missed_clock_in, 'bg-red-50 text-red-700']].map(([label, value, color]) => <div key={label} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p className="text-sm font-semibold text-slate-500">{label}</p><p className={`mt-2 inline-flex rounded-lg px-3 py-1 text-2xl font-bold ${color}`}>{value}</p></div>)}</div>
+          <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm"><table className="min-w-[850px] w-full text-left text-sm"><thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-5 py-4">Date</th><th className="px-5 py-4">Barista</th><th className="px-5 py-4">Planned</th><th className="px-5 py-4">Actual</th><th className="px-5 py-4">Duration</th><th className="px-5 py-4">Status</th></tr></thead><tbody className="divide-y divide-slate-100">{attendance.length === 0 ? <tr><td colSpan="6" className="px-5 py-12 text-center text-slate-500">Choose a date range and load attendance history.</td></tr> : attendance.map((record) => <tr key={record.id}><td className="px-5 py-4 font-medium text-slate-800">{record.date}</td><td className="px-5 py-4">{record.barista_name}</td><td className="px-5 py-4">{record.planned_start ? `${record.planned_start} - ${record.planned_end}` : 'No shift planned'}</td><td className="px-5 py-4">{record.clocked_in_at ? `${new Date(record.clocked_in_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${record.clocked_out_at ? new Date(record.clocked_out_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Open'}` : '--'}</td><td className="px-5 py-4">{record.duration_minutes == null ? '--' : `${Math.floor(record.duration_minutes / 60)}h ${record.duration_minutes % 60}m`}</td><td className="px-5 py-4"><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${record.status === 'completed' || record.status === 'clocked_in' ? 'bg-emerald-50 text-emerald-700' : record.status === 'clocked_in_late' || record.status === 'late' ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-700'}`}>{attendanceLabel(record.status)}{record.late_minutes ? ` (${record.late_minutes}m)` : ''}</span></td></tr>)}</tbody></table></div>
         </section>}
       </div>
     </div>

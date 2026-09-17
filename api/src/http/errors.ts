@@ -22,18 +22,26 @@ export function errorHandler(
     statusCode?: unknown;
     code?: unknown;
   };
-  const isApiError = error instanceof ApiError || (
+  const hasHttpStatus =
     Number.isInteger(apiError.statusCode)
     && Number(apiError.statusCode) >= 400
-    && Number(apiError.statusCode) <= 599
-    && typeof apiError.code === 'string'
-  );
-  let statusCode = isApiError ? Number(apiError.statusCode) : 500;
-  let code = isApiError ? String(apiError.code) : 'internal_server_error';
-  let message =
-    isApiError
-      ? error.message
-      : 'Unexpected server error. Please try again later.';
+    && Number(apiError.statusCode) <= 599;
+  const isApiError = error instanceof ApiError;
+  let statusCode = hasHttpStatus ? Number(apiError.statusCode) : 500;
+  let code = isApiError
+    ? error.code
+    : statusCode === 429
+      ? 'rate_limit_exceeded'
+      : hasHttpStatus && typeof apiError.code === 'string'
+        ? apiError.code
+        : 'internal_server_error';
+  let message = isApiError
+    ? error.message
+    : statusCode === 429
+      ? 'Too many requests. Please wait a moment and try again.'
+      : statusCode >= 500
+        ? 'Unexpected server error. Please try again later.'
+        : 'Request could not be completed. Please try again.';
 
   // Handle Zod validation errors
   if (error.name === 'ZodError' && (error as any).issues) {

@@ -38,10 +38,14 @@ const envSchema = z.object({
   DB_CONNECTION_LIMIT: z.coerce.number().int().positive().default(10),
   ACCESS_TOKEN_SECRET: z.string().min(32),
   REFRESH_TOKEN_SECRET: z.string().min(32),
-  BILLPLZ_BASE_URL: z.string().optional().default(''),
-  BILLPLZ_COLLECTION_ID: z.string().optional().default(''),
-  BILLPLZ_API_KEY: z.string().optional().default(''),
-  BILLPLZ_X_SIGNATURE_KEY: z.string().optional().default(''),
+  // Top-up stays fail-closed until a provider is approved and the gateway
+  // implementation, credentials, and signed callback are all in place.
+  TOPUP_GATEWAY_ENABLED: envBoolean(false),
+  TOPUP_GATEWAY_PROVIDER: z.string().trim().max(50).default(''),
+  TOPUP_GATEWAY_BASE_URL: z.string().trim().default(''),
+  TOPUP_GATEWAY_API_KEY: z.string().trim().default(''),
+  TOPUP_GATEWAY_WEBHOOK_SECRET: z.string().trim().default(''),
+  TOPUP_GATEWAY_ALLOWED_METHODS: z.string().trim().default('touch_n_go,card,bank_transfer'),
   WHATSAPP_CLOUD_API_TOKEN: z.string().optional().default(''),
   WHATSAPP_PHONE_NUMBER_ID: z.string().optional().default(''),
   SMS_PROVIDER_BASE_URL: z.string().optional().default(''),
@@ -91,12 +95,35 @@ if (parsed.ADMIN_COOKIE_SAME_SITE === 'none' && !(parsed.NODE_ENV === 'productio
   throw new Error('ADMIN_COOKIE_SAME_SITE=none requires HTTPS via production mode or ADMIN_COOKIE_SECURE=true.');
 }
 
+const topUpMethods = parsed.TOPUP_GATEWAY_ALLOWED_METHODS
+  .split(',')
+  .map((method) => method.trim().toLowerCase())
+  .filter(Boolean);
+const allowedTopUpMethods = new Set(['touch_n_go', 'card', 'bank_transfer']);
+
+if (topUpMethods.some((method) => !allowedTopUpMethods.has(method))) {
+  throw new Error('TOPUP_GATEWAY_ALLOWED_METHODS may only include touch_n_go, card, and bank_transfer.');
+}
+
+if (parsed.TOPUP_GATEWAY_ENABLED) {
+  if (!parsed.TOPUP_GATEWAY_PROVIDER || !parsed.TOPUP_GATEWAY_BASE_URL || !parsed.TOPUP_GATEWAY_API_KEY || !parsed.TOPUP_GATEWAY_WEBHOOK_SECRET) {
+    throw new Error('TOPUP_GATEWAY_ENABLED=true requires provider, HTTPS base URL, API key, and webhook secret.');
+  }
+  if (new URL(parsed.TOPUP_GATEWAY_BASE_URL).protocol !== 'https:') {
+    throw new Error('TOPUP_GATEWAY_BASE_URL must use HTTPS.');
+  }
+  if (topUpMethods.length === 0) {
+    throw new Error('TOPUP_GATEWAY_ENABLED=true requires at least one approved payment method.');
+  }
+}
+
 export const env = {
   ...parsed,
   CORS_ALLOWED_ORIGINS: parsed.CORS_ALLOWED_ORIGINS
     .split(',')
     .map((origin) => origin.trim())
-    .filter(Boolean)
+    .filter(Boolean),
+  TOPUP_GATEWAY_ALLOWED_METHODS: topUpMethods
 };
 
 export type ApiEnv = typeof env;

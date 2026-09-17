@@ -50,6 +50,30 @@ const weeklyScheduleSchema = z.object({
     path: ['ends_at']
   })).max(200)
 });
+const attendanceQuerySchema = z.object({
+  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  barista_id: z.coerce.number().int().positive().optional()
+});
+
+function malaysiaDate(value: Date): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kuala_Lumpur', year: 'numeric', month: '2-digit', day: '2-digit' }).format(value);
+}
+
+function malaysiaTime(value: Date | string): string {
+  return new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kuala_Lumpur', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(value));
+}
+
+function weekdayForDate(date: string): number {
+  const day = new Date(`${date}T12:00:00+08:00`).getUTCDay();
+  return day === 0 ? 7 : day;
+}
+
+function datesBetween(from: string, to: string): string[] {
+  const dates: string[] = [];
+  for (let date = new Date(`${from}T12:00:00+08:00`); date <= new Date(`${to}T12:00:00+08:00`); date.setUTCDate(date.getUTCDate() + 1)) dates.push(malaysiaDate(date));
+  return dates;
+}
 
 function canOperate(request: { adminAuth?: { roles?: string[] } }): void {
   const roles = request.adminAuth?.roles ?? [];
@@ -88,6 +112,87 @@ function integrationResponse(row: RowDataPacket) {
 }
 
 export async function registerOperationalIntegrationRoutes(app: FastifyInstance): Promise<void> {
+  app.get('/v1/admin/operations/attendance', { preHandler: authenticateAdminRequest }, async (request) => {
+    canConfigure(request);
+    const query = attendanceQuerySchema.parse(request.query);
+    const today = malaysiaDate(new Date());
+    const to = query.to ?? today;
+    const from = query.from ?? malaysiaDate(new Date(new Date(`${to}T12:00:00+08:00`).getTime() - 29 * 86400000));
+    if (from > to || datesBetween(from, to).length > 93) throw new ApiError(400, 'invalid_date_range', 'Choose a date range of up to 93 days.');
+    const [attendanceResult, scheduleResult] = await Promise.all([
+      mysqlPool.query<RowDataPacket[]>(
+        `SELECT a.id, a.barista_id, b.name AS barista_name, a.clocked_in_at, a.clocked_out_at
+         FROM barista_attendance a JOIN baristas b ON b.id = a.barista_id
+         WHERE a.tenant_id = :tenantId AND a.barista_id IS NOT NULL
+           AND a.clocked_in_at >= CONVERT_TZ(CONCAT(:from, ' 00:00:00'), '+08:00', '+00:00')
+           AND a.clocked_in_at < CONVERT_TZ(CONCAT(DATE_ADD(:to, INTERVAL 1 DAY), ' 00:00:00'), '+08:00', '+00:00')
+           AND (:baristaId IS NULL OR a.barista_id = :baristaId)
+         ORDER BY a.clocked_in_at DESC`,
+        { tenantId: request.adminAuth.tenantId, from, to, baristaId: query.barista_id ?? null }
+      ),
+      mysqlPool.query<RowDataPacket[]>(
+        `SELECT s.barista_id, b.name AS barista_name, s.weekday, s.starts_at, s.ends_at, s.created_at
+         FROM barista_weekly_schedules s JOIN baristas b ON b.id = s.barista_id
+         WHERE s.tenant_code = :tenantCode AND s.is_active = 1
+           AND (:baristaId IS NULL OR s.barista_id = :baristaId)`,
+        { tenantCode: request.adminAuth.tenantCode, baristaId: query.barista_id ?? null }
+      )
+    ]);
+    const schedules = scheduleResult[0];
+    const actualByKey = new Set<string>();
+    const records: Array<Record<string, unknown>> = attendanceResult[0].map((row) => {
+      const date = malaysiaDate(new Date(row.clocked_in_at));
+      actualByKey.add(`${row.barista_id}:${date}`);
+      const time = malaysiaTime(row.clocked_in_at);
+      const candidates = schedules.filter((schedule) =>
+        Number(schedule.barista_id) === Number(row.barista_id)
+        && Number(schedule.weekday) === weekdayForDate(date)
+        && malaysiaDate(new Date(schedule.created_at)) <= date
+      );
+      const planned = candidates.sort((left, right) => Math.abs(time.localeCompare(left.starts_at.slice(0, 5))) - Math.abs(time.localeCompare(right.starts_at.slice(0, 5))))[0];
+      const lateMinutes = planned && time > planned.starts_at.slice(0, 5)
+        ? Math.round((new Date(`${date}T${time}:00+08:00`).getTime() - new Date(`${date}T${planned.starts_at.slice(0, 5)}:00+08:00`).getTime()) / 60000)
+        : 0;
+      const durationMinutes = row.clocked_out_at ? Math.round((new Date(row.clocked_out_at).getTime() - new Date(row.clocked_in_at).getTime()) / 60000) : null;
+      return {
+        id: Number(row.id), barista_id: Number(row.barista_id), barista_name: row.barista_name, date,
+        planned_start: planned?.starts_at?.slice(0, 5) ?? null, planned_end: planned?.ends_at?.slice(0, 5) ?? null,
+        clocked_in_at: row.clocked_in_at, clocked_out_at: row.clocked_out_at, late_minutes: lateMinutes, duration_minutes: durationMinutes,
+        status: !row.clocked_out_at
+          ? date < today
+            ? 'missing_clock_out'
+            : lateMinutes > 0
+              ? 'clocked_in_late'
+              : 'clocked_in'
+          : !planned
+            ? 'unscheduled'
+            : lateMinutes > 0
+              ? 'late'
+              : 'completed'
+      };
+    });
+    for (const date of datesBetween(from, to)) {
+      if (date >= today) continue;
+      for (const shift of schedules.filter((entry) =>
+        Number(entry.weekday) === weekdayForDate(date)
+        && malaysiaDate(new Date(entry.created_at)) <= date
+      )) {
+        if (!actualByKey.has(`${shift.barista_id}:${date}`)) records.push({
+          id: `missing-${shift.barista_id}-${date}`, barista_id: Number(shift.barista_id), barista_name: shift.barista_name, date,
+          planned_start: shift.starts_at.slice(0, 5), planned_end: shift.ends_at.slice(0, 5), clocked_in_at: null, clocked_out_at: null,
+          late_minutes: 0, duration_minutes: null, status: 'missed_clock_in'
+        });
+      }
+    }
+    records.sort((left, right) => `${right.date}${right.barista_name}`.localeCompare(`${left.date}${left.barista_name}`));
+    return { from, to, attendance: records, summary: {
+      active_now: records.filter((record) => record.status === 'clocked_in' || record.status === 'clocked_in_late').length,
+      late_arrivals: records.filter((record) => record.status === 'late' || record.status === 'clocked_in_late').length,
+      missing_clock_out: records.filter((record) => record.status === 'missing_clock_out').length,
+      missed_clock_in: records.filter((record) => record.status === 'missed_clock_in').length
+    } };
+  });
+
   app.get('/v1/admin/operational-integrations', { preHandler: authenticateAdminRequest }, async (request, reply) => {
     canConfigure(request);
     const [integrations, printers, schedules] = await Promise.all([
@@ -263,7 +368,8 @@ export async function registerOperationalIntegrationRoutes(app: FastifyInstance)
          FROM outlet_integrations oi
          WHERE tenant_code = :tenantCode
            AND (
-             :isBaristaOnly = 0
+           :isBaristaOnly = 0
+             OR oi.store_id IS NULL
              OR EXISTS (SELECT 1 FROM admin_user_store_assignments aus WHERE aus.admin_user_id = :adminUserId AND aus.store_id = oi.store_id)
            )
          ORDER BY display_name ASC`,
@@ -274,7 +380,8 @@ export async function registerOperationalIntegrationRoutes(app: FastifyInstance)
          FROM printer_targets pt
          WHERE tenant_code = :tenantCode
            AND (
-             :isBaristaOnly = 0
+           :isBaristaOnly = 0
+             OR pt.store_id IS NULL
              OR EXISTS (SELECT 1 FROM admin_user_store_assignments aus WHERE aus.admin_user_id = :adminUserId AND aus.store_id = pt.store_id)
            )
          ORDER BY is_default DESC, name ASC`,
@@ -286,7 +393,8 @@ export async function registerOperationalIntegrationRoutes(app: FastifyInstance)
          JOIN baristas b ON b.id = s.barista_id
          WHERE s.tenant_code = :tenantCode AND s.is_active = 1
            AND (
-             :isBaristaOnly = 0
+           :isBaristaOnly = 0
+             OR s.store_id IS NULL
              OR EXISTS (SELECT 1 FROM admin_user_store_assignments aus WHERE aus.admin_user_id = :adminUserId AND aus.store_id = s.store_id)
            )
          ORDER BY s.weekday ASC, s.starts_at ASC`,

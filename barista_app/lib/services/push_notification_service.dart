@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 
 import 'api_service.dart';
 
@@ -22,6 +23,9 @@ class PushNotificationService {
   bool _initialized = false;
 
   Future<void> initialize() async {
+    // The Barista web build has no Firebase web configuration. Push is a
+    // mobile-only enhancement and must not block web sign-in or navigation.
+    if (kIsWeb) return;
     if (_initialized) return;
 
     await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
@@ -42,6 +46,7 @@ class PushNotificationService {
   }
 
   Future<void> syncAfterSignIn() async {
+    if (kIsWeb) return;
     await initialize();
     final permission = await FirebaseMessaging.instance.requestPermission(
       alert: true,
@@ -56,6 +61,7 @@ class PushNotificationService {
   }
 
   Future<void> syncExistingSession() async {
+    if (kIsWeb) return;
     await initialize();
     final permission = await FirebaseMessaging.instance.getNotificationSettings();
     if (permission.authorizationStatus != AuthorizationStatus.authorized &&
@@ -66,6 +72,7 @@ class PushNotificationService {
   }
 
   Future<void> deactivateForCurrentSession() async {
+    if (kIsWeb) return;
     final pushToken = await FirebaseMessaging.instance.getToken();
     if (pushToken == null || pushToken.isEmpty || !ApiService.isSignedIn) return;
     await ApiService.deactivatePushToken(pushToken);

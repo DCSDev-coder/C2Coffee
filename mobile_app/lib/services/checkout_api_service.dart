@@ -127,6 +127,38 @@ class CheckoutApiService {
         'Collect order failed with status ${response.statusCode}.');
   }
 
+  Future<void> emailOrderReceipt({
+    required String accessToken,
+    required int orderId,
+  }) async {
+    final response = await _client
+        .post(
+          Uri.parse('${ApiConfig.baseUrl}/orders/$orderId/receipt-email'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $accessToken',
+          },
+          body: jsonEncode(<String, dynamic>{}),
+        )
+        .timeout(const Duration(seconds: 20));
+
+    final text = utf8.decode(response.bodyBytes);
+    final decoded = text.isEmpty ? <String, dynamic>{} : jsonDecode(text);
+    if (response.statusCode >= 200 && response.statusCode < 300) return;
+
+    final body = decoded is Map
+        ? Map<String, dynamic>.from(decoded)
+        : <String, dynamic>{};
+    final error = body['error'];
+    if (error is Map<String, dynamic>) {
+      throw ApiException(
+        (error['message'] as String?) ?? 'Could not email the receipt.',
+        code: error['code'] as String?,
+      );
+    }
+    throw ApiException('Could not email the receipt right now.');
+  }
+
   Future<CheckoutResult> _createOrder({
     required String accessToken,
     required CartSnapshot cart,

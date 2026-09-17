@@ -10,6 +10,8 @@ import {
   Edit2,
   Copy,
   Archive,
+  ImagePlus,
+  Trash2,
   X,
 } from 'lucide-react';
 import Pagination from './Pagination';
@@ -33,6 +35,7 @@ import {
   loadAdminHomeFeatured,
   saveAdminHomeFeatured
 } from '../lib/adminApi';
+import { adminRequest } from '../lib/adminApi';
 
 const RESTRICTED_CATEGORIES = new Set(['C2 Pastries', 'C2 Merchandise', '5luxes Candles']);
 const ITEMS_PER_PAGE = 10;
@@ -254,6 +257,13 @@ const createTempId = (prefix) => {
   return `${prefix}-${suffix}`;
 };
 
+const fileToDataUrl = (file) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(reader.result);
+  reader.onerror = reject;
+  reader.readAsDataURL(file);
+});
+
 const buildEmptyForm = (categoryCode) => ({
   id: null,
   category_code: categoryCode || '',
@@ -361,6 +371,9 @@ const Menu = ({ onNavigate }) => {
   const [isHomePicksOpen, setIsHomePicksOpen] = useState(false);
   const [homePickIds, setHomePickIds] = useState({ featured_drinks: [], lifestyle_picks: [] });
   const [isSavingHomePicks, setIsSavingHomePicks] = useState(false);
+  const [drinkGuides, setDrinkGuides] = useState([]);
+  const [sopFile, setSopFile] = useState(null);
+  const [isSavingSop, setIsSavingSop] = useState(false);
   const [categoryForm, setCategoryForm] = useState({
     id: null,
     code: '',
@@ -427,6 +440,19 @@ const Menu = ({ onNavigate }) => {
 
   useEffect(() => {
     void loadMenu();
+  }, []);
+
+  const loadDrinkGuides = async () => {
+    try {
+      const response = await adminRequest('/v1/admin/barista-guides');
+      setDrinkGuides((response.guides || []).filter((guide) => guide.guide_type === 'drink'));
+    } catch (error) {
+      setErrorMessage(error.message || 'Unable to load drink SOPs.');
+    }
+  };
+
+  useEffect(() => {
+    void loadDrinkGuides();
   }, []);
 
   const categoryOptions = [
@@ -508,6 +534,9 @@ const Menu = ({ onNavigate }) => {
   const totalPages = Math.max(1, Math.ceil(filteredMenuItems.length / ITEMS_PER_PAGE));
   const paginatedItems = filteredMenuItems.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
   const selectedItem = allMenuItems.find((item) => item.id === selectedItemId) || null;
+  const selectedItemIsDrink = selectedItem && String(
+    selectedItem.product_kind_code || menuCategories.find((category) => category.code === selectedItem.category_code)?.product_kind_code || ''
+  ).toLowerCase() === 'drink';
 
   const totalMenuItems = allMenuItems.length;
   const activeItems = allMenuItems.filter((item) => item.is_active).length;
@@ -531,6 +560,10 @@ const Menu = ({ onNavigate }) => {
     if (window.localStorage.getItem(MENU_PANEL_DISMISSED_KEY) !== '1') {
       window.localStorage.removeItem(LAST_SELECTED_ITEM_KEY);
     }
+  }, [selectedItemId]);
+
+  useEffect(() => {
+    setSopFile(null);
   }, [selectedItemId]);
 
   const resetPage = () => setCurrentPage(1);
@@ -643,6 +676,37 @@ const Menu = ({ onNavigate }) => {
       setErrorMessage(error.message || 'Unable to restore menu item.');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const uploadDrinkSop = async () => {
+    if (!selectedItem || !sopFile) return;
+    setIsSavingSop(true);
+    setErrorMessage('');
+    try {
+      const dataUrl = await fileToDataUrl(sopFile);
+      const upload = await adminRequest('/v1/admin/barista-guides/uploads', {
+        method: 'POST', body: JSON.stringify({ file_name: sopFile.name, data_url: dataUrl })
+      });
+      await adminRequest('/v1/admin/barista-guides', {
+        method: 'POST', body: JSON.stringify({ guide_type: 'drink', menu_item_id: selectedItem.id, image_url: upload.image_url })
+      });
+      setSopFile(null);
+      await loadDrinkGuides();
+    } catch (error) {
+      setErrorMessage(error.message || 'Unable to upload the drink SOP.');
+    } finally {
+      setIsSavingSop(false);
+    }
+  };
+
+  const deleteDrinkSop = async (guideId) => {
+    if (!window.confirm('Delete this drink SOP image?')) return;
+    try {
+      await adminRequest(`/v1/admin/barista-guides/${guideId}`, { method: 'DELETE' });
+      await loadDrinkGuides();
+    } catch (error) {
+      setErrorMessage(error.message || 'Unable to delete the drink SOP.');
     }
   };
 
@@ -1199,6 +1263,24 @@ const Menu = ({ onNavigate }) => {
                         className="w-16 h-16 object-contain shrink-0 drop-shadow-md"
                       />
                     </div>
+                    {selectedItemIsDrink && (
+                      <div className="rounded-xl border border-[#B9D6D0] bg-[#F3FAF8] p-4">
+                        <div className="flex items-start gap-3">
+                          <div className="rounded-lg bg-white p-2 text-[#2E5E58]"><ImagePlus size={18} /></div>
+                          <div className="min-w-0 flex-1">
+                            <p className="font-bold text-gray-900">Drink SOP</p>
+                            <p className="mt-1 text-xs leading-5 text-gray-600">Upload preparation images for {selectedItem.name}. They appear in the Barista app library and when this drink is being prepared.</p>
+                          </div>
+                        </div>
+                        <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                          <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => setSopFile(event.target.files?.[0] || null)} className="min-w-0 flex-1 text-xs" />
+                          <button type="button" disabled={!sopFile || isSavingSop} onClick={() => void uploadDrinkSop()} className="rounded-lg bg-[#2E5E58] px-3 py-2 text-xs font-bold text-white hover:bg-[#244B46] disabled:cursor-not-allowed disabled:opacity-50">{isSavingSop ? 'Uploading...' : 'Add SOP image'}</button>
+                        </div>
+                        <div className="mt-4 space-y-2">
+                          {drinkGuides.filter((guide) => Number(guide.menu_item_id) === Number(selectedItem.id)).length === 0 ? <p className="text-xs text-gray-500">No SOP image uploaded for this drink yet.</p> : drinkGuides.filter((guide) => Number(guide.menu_item_id) === Number(selectedItem.id)).map((guide) => <div key={guide.id} className="flex items-center justify-between gap-3 rounded-lg bg-white p-2"><img src={`${getAdminApiBaseUrl()}${guide.image_url}`} alt={`${selectedItem.name} SOP`} className="h-12 w-12 rounded object-cover" /><span className="min-w-0 flex-1 truncate text-xs font-medium text-gray-700">Preparation image</span><button type="button" onClick={() => void deleteDrinkSop(guide.id)} className="rounded p-1.5 text-red-600 hover:bg-red-50" aria-label="Delete SOP image"><Trash2 size={16} /></button></div>)}
+                        </div>
+                      </div>
+                    )}
                   </>
                 )}
 

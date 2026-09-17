@@ -146,6 +146,8 @@ function formatAdminErrorMessage(body, response) {
       return "The admin username or password is incorrect.";
     case "admin_not_active":
       return "This admin account is not active.";
+    case "rate_limit_exceeded":
+      return "Too many sign-in attempts. Please wait a few minutes before trying again.";
     case "forbidden":
       return "Your account does not have permission for this action.";
     case "printer_not_ready":
@@ -527,6 +529,14 @@ export async function deleteAdminMenuItem(menuItemId) {
 
 export async function loadAdminOperationalSetup() {
   return adminRequest("/v1/admin/operational-integrations");
+}
+
+export async function loadAdminAttendance({ from, to, baristaId } = {}) {
+  const query = new URLSearchParams();
+  if (from) query.set('from', from);
+  if (to) query.set('to', to);
+  if (baristaId) query.set('barista_id', baristaId);
+  return adminRequest(`/v1/admin/operations/attendance${query.size ? `?${query}` : ''}`);
 }
 
 export async function loadAdminStore() {

@@ -98,7 +98,10 @@ export async function buildApp() {
     credentials: true
   });
   await app.register(rateLimit, {
-    max: 120,
+    // IIS is the only public entry point and Docker sees all proxied clients
+    // as the same local address. Keep a broad service guard here; sensitive
+    // routes apply their own identity-specific limits.
+    max: 600,
     timeWindow: '1 minute'
   });
 

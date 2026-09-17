@@ -7,6 +7,14 @@ import 'secure_session_service.dart';
 
 class ApiService {
   static String get baseUrl => ApiConfig.baseUrl;
+
+  static String resolveAssetUrl(String imageUrl) {
+    if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+      return imageUrl;
+    }
+    final origin = Uri.parse(baseUrl).replace(path: '').toString();
+    return '$origin${imageUrl.startsWith('/') ? imageUrl : '/$imageUrl'}';
+  }
   static String? _accessToken;
   static String? _refreshToken;
   static String _tenantCode = ApiConfig.tenantCode;
@@ -50,7 +58,10 @@ class ApiService {
     }
   }
 
-  static Future<bool> login(String identifier, String password) async {
+  static Future<ApiRequestResult> login(
+    String identifier,
+    String password,
+  ) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/admin/auth/login'),
@@ -67,15 +78,20 @@ class ApiService {
 
         if (!canWorkOrders) {
           await logout();
-          return false;
+          return const ApiRequestResult.failure(
+            'This account is not allowed to use the Barista app.',
+          );
         }
 
-        return true;
+        return const ApiRequestResult.success();
       }
+      return ApiRequestResult.failure(_responseMessage(response));
     } catch (e) {
       debugPrint('Login Error: $e');
+      return const ApiRequestResult.failure(
+        'Unable to sign in. Check the connection and try again.',
+      );
     }
-    return false;
   }
 
   static Future<void> registerPushToken({
@@ -251,6 +267,8 @@ class ApiService {
             return 'The receipt printer is not ready. Please contact an operations administrator.';
           case 'forbidden':
             return 'Your account does not have permission for this action.';
+          case 'rate_limit_exceeded':
+            return 'Too many sign-in attempts. Please wait a few minutes before trying again.';
         }
       }
     } catch (_) {
@@ -360,24 +378,22 @@ class ApiService {
     await _clearSession();
   }
 
-  static Future<BaristaAttendance?> fetchCurrentAttendance() async {
+  static Future<BaristaAttendanceStatus> fetchAttendanceStatus() async {
     final response = await _authenticatedRequest(
       (headers) => http.get(
-        Uri.parse('$baseUrl/barista/attendance/current'),
+        Uri.parse('$baseUrl/barista/attendance/status'),
         headers: headers,
       ),
     );
     if (response.statusCode != 200) {
       throw StateError(_responseMessage(response));
     }
-    final attendance =
-        (json.decode(response.body) as Map<String, dynamic>)['attendance'];
-    return attendance is Map<String, dynamic>
-        ? BaristaAttendance.fromJson(attendance)
-        : null;
+    return BaristaAttendanceStatus.fromJson(
+      json.decode(response.body) as Map<String, dynamic>,
+    );
   }
 
-  static Future<ApiRequestResult> updateAttendance(bool clockIn) async {
+  static Future<ApiRequestResult> updateAttendance({required bool clockIn, required int baristaId, required String pin}) async {
     try {
       final response = await _authenticatedRequest(
         (headers) => http.post(
@@ -385,6 +401,7 @@ class ApiService {
             '$baseUrl/barista/attendance/${clockIn ? 'clock-in' : 'clock-out'}',
           ),
           headers: headers,
+          body: json.encode({'barista_id': baristaId, 'pin': pin}),
         ),
       );
       return response.statusCode == 200 || response.statusCode == 201
@@ -430,15 +447,39 @@ class ApiService {
 
 class BaristaAttendance {
   final int id;
+  final int baristaId;
+  final String baristaName;
   final DateTime clockedInAt;
 
-  const BaristaAttendance({required this.id, required this.clockedInAt});
+  const BaristaAttendance({required this.id, required this.baristaId, required this.baristaName, required this.clockedInAt});
 
   factory BaristaAttendance.fromJson(Map<String, dynamic> json) =>
       BaristaAttendance(
         id: (json['id'] as num).toInt(),
+        baristaId: (json['barista_id'] as num?)?.toInt() ?? 0,
+        baristaName: json['barista_name']?.toString() ?? 'Barista',
         clockedInAt: DateTime.parse(json['clocked_in_at'].toString()).toLocal(),
       );
+}
+
+class AttendanceBarista {
+  final int id;
+  final String name;
+  final bool pinConfigured;
+  const AttendanceBarista({required this.id, required this.name, required this.pinConfigured});
+  factory AttendanceBarista.fromJson(Map<String, dynamic> json) => AttendanceBarista(
+    id: (json['id'] as num).toInt(), name: json['name']?.toString() ?? 'Barista', pinConfigured: json['pin_configured'] == true,
+  );
+}
+
+class BaristaAttendanceStatus {
+  final List<AttendanceBarista> baristas;
+  final List<BaristaAttendance> activeAttendance;
+  const BaristaAttendanceStatus({required this.baristas, required this.activeAttendance});
+  factory BaristaAttendanceStatus.fromJson(Map<String, dynamic> json) => BaristaAttendanceStatus(
+    baristas: (json['baristas'] as List? ?? const []).map((item) => AttendanceBarista.fromJson(item as Map<String, dynamic>)).toList(),
+    activeAttendance: (json['active_attendance'] as List? ?? const []).map((item) => BaristaAttendance.fromJson(item as Map<String, dynamic>)).toList(),
+  );
 }
 
 class BaristaGuide {
@@ -447,6 +488,7 @@ class BaristaGuide {
   final String imageUrl;
   final String? menuItemName;
   final int? menuItemId;
+  final String? guideTitle;
 
   const BaristaGuide({
     required this.id,
@@ -454,6 +496,7 @@ class BaristaGuide {
     required this.imageUrl,
     this.menuItemName,
     this.menuItemId,
+    this.guideTitle,
   });
 
   factory BaristaGuide.fromJson(Map<String, dynamic> json) => BaristaGuide(
@@ -462,6 +505,7 @@ class BaristaGuide {
     imageUrl: json['image_url']?.toString() ?? '',
     menuItemName: json['menu_item_name']?.toString(),
     menuItemId: (json['menu_item_id'] as num?)?.toInt(),
+    guideTitle: json['guide_title']?.toString(),
   );
 }
 

@@ -29,6 +29,7 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
   bool _isRefreshing = false;
   bool _isCollecting = false;
   bool _isCancelling = false;
+  bool _isEmailingReceipt = false;
   String? _errorMessage;
 
   @override
@@ -296,6 +297,46 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
       AppNotification.showError(context, message);
     } finally {
       if (mounted) setState(() => _isCancelling = false);
+    }
+  }
+
+  Future<void> _emailReceipt() async {
+    if (_isEmailingReceipt) return;
+    setState(() {
+      _isEmailingReceipt = true;
+      _errorMessage = null;
+    });
+    try {
+      final accessToken =
+          await SecureSessionService.instance.getValidAccessToken();
+      if (accessToken == null || accessToken.isEmpty) {
+        throw ApiException('Missing access token.',
+            code: 'missing_access_token');
+      }
+      await CheckoutApiService.instance.emailOrderReceipt(
+        accessToken: accessToken,
+        orderId: _order.id,
+      );
+      if (!mounted) return;
+      AppNotification.showSuccess(
+        context,
+        'Your receipt is being sent to your registered email address.',
+      );
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      final message = error.code == 'receipt_email_unavailable'
+          ? 'Add and verify an email address in Settings before requesting a receipt.'
+          : _friendlyMessage(error);
+      setState(() => _errorMessage = message);
+      AppNotification.showError(context, message);
+    } catch (_) {
+      if (!mounted) return;
+      const message =
+          'Unable to email your receipt right now. Please try again.';
+      setState(() => _errorMessage = message);
+      AppNotification.showError(context, message);
+    } finally {
+      if (mounted) setState(() => _isEmailingReceipt = false);
     }
   }
 
@@ -641,6 +682,30 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
               ),
             ],
             const SizedBox(height: 32),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _isEmailingReceipt ? null : _emailReceipt,
+                icon: const Icon(Icons.email_outlined),
+                label: Text(
+                  _isEmailingReceipt ? 'SENDING RECEIPT...' : 'EMAIL RECEIPT',
+                  style: const TextStyle(
+                    fontFamily: 'Recoleta',
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.deepTeal,
+                  side: BorderSide(color: AppColors.border),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
             if (canCollect)
               SizedBox(
                 width: double.infinity,

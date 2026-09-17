@@ -102,4 +102,38 @@ export async function registerAssetRoutes(
       .type(databaseAsset.mime_type)
       .send(databaseAsset.content);
   });
+
+  app.get('/assets/marketing/*', async (request, reply) => {
+    const params = request.params as { '*': string };
+    const relativePath = decodeURIComponent(params['*'] ?? '').trim();
+    const assetPath = normalizeAssetPath(`/assets/marketing/${relativePath}`);
+    const databaseAsset = assetPath ? await loadMediaAsset(assetPath) : null;
+
+    if (!databaseAsset) {
+      return reply.status(404).send();
+    }
+
+    return reply
+      .header('Cross-Origin-Resource-Policy', 'cross-origin')
+      .header('Cache-Control', 'public, max-age=31536000, immutable')
+      .type(databaseAsset.mime_type)
+      .send(databaseAsset.content);
+  });
+
+  app.get('/assets/barista-guides/*', async (request, reply) => {
+    const params = request.params as { '*': string };
+    const relativePath = decodeURIComponent(params['*'] ?? '').trim();
+    const assetPath = normalizeAssetPath(`/assets/barista-guides/${relativePath}`);
+    const databaseAsset = assetPath ? await loadMediaAsset(assetPath) : null;
+
+    if (!databaseAsset) {
+      return reply.status(404).send();
+    }
+
+    return reply
+      .header('Cross-Origin-Resource-Policy', 'cross-origin')
+      .header('Cache-Control', 'public, max-age=31536000, immutable')
+      .type(databaseAsset.mime_type)
+      .send(databaseAsset.content);
+  });
 }

@@ -53,6 +53,7 @@ const BaristaManagement = () => {
   // Modal form states
   const [formName, setFormName] = useState('');
   const [formStatus, setFormStatus] = useState(true);
+  const [formPin, setFormPin] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
 
@@ -67,6 +68,7 @@ const BaristaManagement = () => {
         name: b.name,
         status: b.is_active ? 'Active' : 'Inactive',
         is_active: !!b.is_active,
+        pinConfigured: !!b.pin_configured,
         createdAt: new Date(b.created_at).toLocaleString(),
         raw: b
       }));
@@ -116,6 +118,7 @@ const BaristaManagement = () => {
     setEditingBarista(barista);
     setFormName(barista ? barista.name : '');
     setFormStatus(barista ? !!barista.is_active : true);
+    setFormPin('');
     setFormError('');
     setIsModalOpen(true);
   };
@@ -143,7 +146,8 @@ const BaristaManagement = () => {
           method: 'PUT',
           body: JSON.stringify({
             name: formName,
-            is_active: formStatus
+            is_active: formStatus,
+            ...(formPin ? { pin: formPin } : {})
           })
         });
       } else {
@@ -152,7 +156,8 @@ const BaristaManagement = () => {
           method: 'POST',
           body: JSON.stringify({
             name: formName,
-            is_active: formStatus
+            is_active: formStatus,
+            pin: formPin
           })
         });
       }
@@ -171,7 +176,7 @@ const BaristaManagement = () => {
       <div className="p-6 lg:p-8 w-full h-full flex flex-col">
         <div className="mb-6 shrink-0">
           <h1 className="text-2xl font-bold text-gray-900">Barista Management</h1>
-          <p className="text-sm text-gray-500 mt-1">Manage staff names shown on prepared orders. These names do not need email, phone number, or separate app credentials.</p>
+          <p className="text-sm text-gray-500 mt-1">Manage staff profiles used on prepared orders and quick six-digit PIN clock-ins. Profiles do not need email, phone number, or separate app credentials.</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 shrink-0">
@@ -262,6 +267,7 @@ const BaristaManagement = () => {
                 <tr>
                   <th className="py-4 px-6 text-xs font-bold text-gray-500 uppercase tracking-wider">Name</th>
                   <th className="py-4 px-6 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Status</th>
+                  <th className="py-4 px-6 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Attendance PIN</th>
                   <th className="py-4 px-6 text-xs font-bold text-gray-500 uppercase tracking-wider">Created At</th>
                   <th className="py-4 px-6 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Actions</th>
                 </tr>
@@ -269,7 +275,7 @@ const BaristaManagement = () => {
               <tbody className="divide-y divide-gray-100">
                 {isLoading ? (
                   <tr>
-                    <td colSpan="4" className="py-12 text-center text-gray-500">
+                    <td colSpan="5" className="py-12 text-center text-gray-500">
                       Loading baristas...
                     </td>
                   </tr>
@@ -287,6 +293,7 @@ const BaristaManagement = () => {
                       <td className="py-4 px-6 text-center">
                         <StatusTag status={barista.status} />
                       </td>
+                      <td className="py-4 px-6 text-center"><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${barista.pinConfigured ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>{barista.pinConfigured ? 'PIN set' : 'Needs setup'}</span></td>
                       <td className="py-4 px-6 text-sm text-gray-600">{barista.createdAt}</td>
                       <td className="py-4 px-6 text-center">
                         <div className="relative inline-block text-left">
@@ -329,7 +336,7 @@ const BaristaManagement = () => {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="4" className="py-12 text-center text-gray-500">
+                    <td colSpan="5" className="py-12 text-center text-gray-500">
                       No baristas found matching your filters.
                     </td>
                   </tr>
@@ -396,6 +403,11 @@ const BaristaManagement = () => {
                   <option value="active">Active</option>
                   <option value="inactive">Inactive</option>
                 </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Six-digit attendance PIN</label>
+                <input type="password" inputMode="numeric" pattern="[0-9]{6}" minLength="6" maxLength="6" required={!editingBarista} value={formPin} onChange={(e) => setFormPin(e.target.value.replace(/\D/g, '').slice(0, 6))} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#2E5E58]" placeholder={editingBarista ? 'Leave empty to keep current PIN' : 'Six digits'} />
+                <p className="mt-1 text-xs text-gray-500">{editingBarista ? 'Enter a new PIN only to replace it. PINs are never displayed.' : 'Used only to clock in or out on the shared Barista workstation.'}</p>
               </div>
               
               <div className="pt-6 flex justify-end space-x-3">

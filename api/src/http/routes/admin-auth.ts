@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { z } from 'zod';
 import { authenticateAdminRequest, requireAdminRole } from '../../admin/guard.js';
@@ -51,6 +51,25 @@ const adminDeactivateSchema = z.object({
 
 function toStoredAdminStatus(status: 'active' | 'inactive'): 'active' | 'deactivated' {
   return status === 'inactive' ? 'deactivated' : 'active';
+}
+
+function getAdminLoginRateLimitKey(request: FastifyRequest): string {
+  const body = request.body as {
+    tenant_code?: unknown;
+    identifier?: unknown;
+  } | null;
+  const tenantCode = typeof body?.tenant_code === 'string'
+    ? body.tenant_code.trim().toLowerCase()
+    : '';
+  const identifier = typeof body?.identifier === 'string'
+    ? body.identifier.trim().toLowerCase()
+    : '';
+
+  // The per-account key avoids treating every IIS-proxied client as one IP.
+  // Invalid payloads still share a bounded bucket before Zod rejects them.
+  return tenantCode && identifier
+    ? `admin-login:${tenantCode}:${identifier}`
+    : 'admin-login:invalid-request';
 }
 
 function toAdminResponseStatus(status: string): string {
@@ -214,7 +233,14 @@ export async function registerAdminAuthRoutes(app: FastifyInstance): Promise<voi
   });
 
   app.post('/v1/admin/auth/login', {
-    config: { rateLimit: { max: 8, timeWindow: '15 minutes' } }
+    config: {
+      rateLimit: {
+        max: 8,
+        timeWindow: '15 minutes',
+        hook: 'preHandler',
+        keyGenerator: getAdminLoginRateLimitKey
+      }
+    }
   }, async (request, reply) => {
     const payload = adminLoginSchema.parse(request.body);
 

@@ -59,6 +59,7 @@ class CatalogPresentation {
                 'isRequired': group.isRequired,
                 'sortOrder': group.sortOrder,
                 'source': group.source,
+                'hiddenWhenOptionIds': group.hiddenWhenOptionIds,
                 'options': group.options
                     .map((option) => {
                           'id': option.id,

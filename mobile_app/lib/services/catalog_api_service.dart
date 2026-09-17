@@ -222,6 +222,7 @@ class CatalogModifierGroup {
   final bool isRequired;
   final int sortOrder;
   final String source;
+  final List<int> hiddenWhenOptionIds;
   final List<CatalogModifierOption> options;
 
   const CatalogModifierGroup({
@@ -234,6 +235,7 @@ class CatalogModifierGroup {
     required this.isRequired,
     required this.sortOrder,
     required this.source,
+    required this.hiddenWhenOptionIds,
     required this.options,
   });
 
@@ -254,6 +256,10 @@ class CatalogModifierGroup {
       isRequired: json['is_required'] as bool? ?? false,
       sortOrder: (json['sort_order'] as num?)?.toInt() ?? 0,
       source: json['source'] as String? ?? 'item',
+      hiddenWhenOptionIds: (json['hidden_when_option_ids'] as List? ?? const [])
+          .whereType<num>()
+          .map((id) => id.toInt())
+          .toList(),
       options: options,
     );
   }

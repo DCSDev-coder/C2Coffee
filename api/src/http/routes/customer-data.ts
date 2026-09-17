@@ -16,6 +16,7 @@ import {
   getKualaLumpurDayEndUtc
 } from '../../lib/kuala-lumpur-time.js';
 import { getActiveLoyaltyTiers, getTierByCode, loadLoyaltyTiers, type LoyaltyTierConfig } from '../../services/loyalty-tiers.js';
+import { deliverQueuedOrderReceiptEmail, queueOrderReceiptEmail } from '../../services/order-receipt-email.js';
 
 const listQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional().default(20)
@@ -938,6 +939,49 @@ export async function registerCustomerDataRoutes(
         returned_tokens: tokenAmount,
         token_balance: balanceAfter
       };
+    } catch (error) {
+      if (!committed) await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  });
+
+  app.post('/v1/orders/:orderId/receipt-email', { preHandler: authenticateRequest }, async (request) => {
+    const params = z.object({ orderId: z.coerce.number().int().positive() }).parse(request.params);
+    const connection = await getUtcConnection();
+    let committed = false;
+    try {
+      await connection.beginTransaction();
+      const [orders] = await connection.query<Array<RowDataPacket & { id: number; email: string | null }>>(
+        `SELECT o.id, up.email
+         FROM orders o
+         LEFT JOIN user_profiles up ON up.user_id = o.user_id
+         WHERE o.id = :orderId AND o.user_id = :userId
+         LIMIT 1
+         FOR UPDATE`,
+        { orderId: params.orderId, userId: request.auth.userId }
+      );
+      const order = orders[0];
+      if (!order) throw new ApiError(404, 'order_not_found', 'Order not found.');
+      if (!order.email?.trim()) {
+        throw new ApiError(409, 'receipt_email_unavailable', 'Add a verified email address in Settings before requesting a receipt.');
+      }
+
+      const queued = await queueOrderReceiptEmail(connection, {
+        orderId: order.id,
+        recipientEmail: order.email,
+        force: true
+      });
+      await connection.commit();
+      committed = true;
+
+      if (queued) {
+        void deliverQueuedOrderReceiptEmail(order.id).catch(() => {
+          request.log.warn({ orderId: order.id }, 'Order receipt resend could not be started.');
+        });
+      }
+      return { receipt_email: queued ? 'queued' : 'sending' };
     } catch (error) {
       if (!committed) await connection.rollback();
       throw error;

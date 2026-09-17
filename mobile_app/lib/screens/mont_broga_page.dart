@@ -47,10 +47,10 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
 
   String selectedBean = 'Dato Blend';
   int espressoShots = 1;
-  String temperature = 'Hot';
+  String temperature = 'Cold';
   String milk = 'Fresh Milk';
-  String sweetness = 'No Sugar';
-  String iceLevel = 'Less Ice';
+  String sweetness = 'Regular Sweet';
+  String iceLevel = 'Regular Ice';
   String orderType = 'Take Away';
   String sparklingMixer = 'Ginger Ade';
   int quantity = 1;
@@ -75,6 +75,11 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
       ).hasMatch(group['name']?.toString() ?? '');
 
   List<Map<String, dynamic>> get _activeLibraryGroups {
+    final selectedOptionIds = _librarySelections.values
+        .expand((selection) => selection)
+        .map((option) => (option['id'] as num?)?.toInt())
+        .whereType<int>()
+        .toSet();
     final temperatureGroups =
         _libraryGroups.where(_isTemperatureLibraryGroup).toList();
     final hasTemperatureSelection = temperatureGroups.any(
@@ -90,6 +95,15 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
         );
 
     return _libraryGroups.where((group) {
+      final hiddenWhen = (group['hiddenWhenOptionIds'] as List? ?? const [])
+          .whereType<num>()
+          .map((id) => id.toInt())
+          .toSet();
+      if (hiddenWhen.isNotEmpty) {
+        return !hiddenWhen.any(selectedOptionIds.contains);
+      }
+      // Existing outlets that have not configured a rule keep the established
+      // cold-only Ice Level behaviour until an administrator adds one.
       return !_isIceLibraryGroup(group) || !hasTemperatureSelection || isCold;
     }).toList();
   }
@@ -98,6 +112,31 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
       _activeLibraryGroups.expand(
         (group) => _librarySelections[group['id'] as int] ?? const [],
       );
+
+  Map<String, dynamic>? _defaultLibraryOption(
+    Map<String, dynamic> group,
+    List<Map<String, dynamic>> options,
+  ) {
+    final groupName = group['name']?.toString().toLowerCase() ?? '';
+    final preferredName = groupName.contains('espresso')
+        ? '1 shot'
+        : groupName.contains('temperature')
+            ? 'cold'
+            : groupName.contains('sweetness')
+                ? 'regular sweet'
+                : _isIceLibraryGroup(group)
+                    ? 'regular ice'
+                    : groupName.contains('order type')
+                        ? 'take away'
+                        : null;
+    if (preferredName == null) return null;
+    for (final option in options) {
+      if (option['name']?.toString().trim().toLowerCase() == preferredName) {
+        return option;
+      }
+    }
+    return null;
+  }
 
   @override
   void initState() {
@@ -129,7 +168,10 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
           .toList();
       final minimum = (group['minSelect'] as num?)?.toInt() ?? 0;
       final required = group['isRequired'] == true;
-      if (options.isNotEmpty && (required || minimum > 0)) {
+      final defaultOption = _defaultLibraryOption(group, options);
+      if (defaultOption != null) {
+        _librarySelections[group['id'] as int] = [defaultOption];
+      } else if (options.isNotEmpty && (required || minimum > 0)) {
         _librarySelections[group['id'] as int] = [options.first];
       }
     }

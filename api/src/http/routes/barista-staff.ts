@@ -7,16 +7,22 @@ import { authenticateAdminRequest, requireAnyAdminRole } from '../../admin/guard
 import { mysqlPool } from '../../db/mysql.js';
 import { ApiError } from '../errors.js';
 import { saveMediaAsset } from '../../lib/media-assets.js';
+import { verifyPassword } from '../../lib/password.js';
 
 const guideTypeSchema = z.enum(['attire', 'rules', 'drink']);
 const imageUploadSchema = z.object({
   file_name: z.string().trim().min(1).max(255),
   data_url: z.string().trim().min(1)
 });
+const attendanceActionSchema = z.object({
+  barista_id: z.coerce.number().int().positive(),
+  pin: z.string().regex(/^\d{6}$/)
+});
 
 const guideSchema = z.object({
   guide_type: guideTypeSchema,
   menu_item_id: z.coerce.number().int().positive().nullable().optional(),
+  guide_title: z.string().trim().min(1).max(120).nullable().optional(),
   image_url: z.string().trim().min(1).max(512),
   sort_order: z.coerce.number().int().min(0).max(999).optional().default(0),
   is_active: z.coerce.boolean().optional().default(true)
@@ -35,41 +41,66 @@ function assertStaffAccess(request: { adminAuth: { roles: string[] } }) {
 
 function guideResponse(row: RowDataPacket) {
   return {
-    id: Number(row.id), guide_type: row.guide_type, menu_item_id: row.menu_item_id == null ? null : Number(row.menu_item_id),
+    id: Number(row.id), guide_type: row.guide_type, menu_item_id: row.menu_item_id == null ? null : Number(row.menu_item_id), guide_title: row.guide_title ?? null,
     image_url: row.image_url, sort_order: Number(row.sort_order), is_active: !!row.is_active,
     menu_item_name: row.menu_item_name ?? null, created_at: row.created_at, updated_at: row.updated_at
   };
 }
 
 export async function registerBaristaStaffRoutes(app: FastifyInstance) {
-  app.get('/v1/barista/attendance/current', { preHandler: authenticateAdminRequest }, async (request) => {
+  app.get('/v1/barista/attendance/status', { preHandler: authenticateAdminRequest }, async (request) => {
     assertStaffAccess(request);
-    const [rows] = await mysqlPool.query<RowDataPacket[]>(
-      `SELECT id, clocked_in_at, clocked_out_at FROM barista_attendance
-       WHERE tenant_id = :tenantId AND admin_user_id = :adminUserId AND clocked_out_at IS NULL
-       ORDER BY clocked_in_at DESC LIMIT 1`,
-      { tenantId: request.adminAuth.tenantId, adminUserId: request.adminAuth.adminUserId }
-    );
-    return { attendance: rows[0] ? { id: Number(rows[0].id), clocked_in_at: rows[0].clocked_in_at, clocked_out_at: rows[0].clocked_out_at } : null };
+    const [baristas, attendance] = await Promise.all([
+      mysqlPool.query<RowDataPacket[]>(
+        `SELECT b.id, b.name, b.pin_hash IS NOT NULL AS pin_configured FROM baristas b
+         WHERE b.tenant_code = :tenantCode AND (
+           b.is_active = 1 OR EXISTS (
+             SELECT 1 FROM barista_attendance a
+             WHERE a.tenant_id = :tenantId AND a.barista_id = b.id AND a.clocked_out_at IS NULL
+           )
+         ) ORDER BY b.name ASC`,
+        { tenantCode: request.adminAuth.tenantCode, tenantId: request.adminAuth.tenantId }
+      ),
+      mysqlPool.query<RowDataPacket[]>(
+        `SELECT a.id, a.barista_id, b.name AS barista_name, a.clocked_in_at
+         FROM barista_attendance a JOIN baristas b ON b.id = a.barista_id
+         WHERE a.tenant_id = :tenantId AND a.clocked_out_at IS NULL AND a.barista_id IS NOT NULL
+         ORDER BY a.clocked_in_at ASC`,
+        { tenantId: request.adminAuth.tenantId }
+      )
+    ]);
+    return {
+      baristas: baristas[0].map((row) => ({ id: Number(row.id), name: row.name, pin_configured: !!row.pin_configured })),
+      active_attendance: attendance[0].map((row) => ({ id: Number(row.id), barista_id: Number(row.barista_id), barista_name: row.barista_name, clocked_in_at: row.clocked_in_at }))
+    };
   });
 
   app.post('/v1/barista/attendance/clock-in', { preHandler: authenticateAdminRequest }, async (request, reply) => {
     assertStaffAccess(request);
+    const payload = attendanceActionSchema.parse(request.body);
     const connection = await mysqlPool.getConnection();
     try {
       await connection.beginTransaction();
+      const [baristas] = await connection.query<RowDataPacket[]>(
+        `SELECT id, name, pin_hash FROM baristas WHERE id = :baristaId AND tenant_code = :tenantCode AND is_active = 1 LIMIT 1 FOR UPDATE`,
+        { baristaId: payload.barista_id, tenantCode: request.adminAuth.tenantCode }
+      );
+      const barista = baristas[0];
+      if (!barista || !barista.pin_hash || !(await verifyPassword(payload.pin, barista.pin_hash))) {
+        throw new ApiError(401, 'invalid_barista_pin', 'The selected barista or PIN is not valid.');
+      }
       const [existing] = await connection.query<RowDataPacket[]>(
-        `SELECT id, clocked_in_at FROM barista_attendance WHERE tenant_id = :tenantId AND admin_user_id = :adminUserId
+        `SELECT id, clocked_in_at FROM barista_attendance WHERE tenant_id = :tenantId AND barista_id = :baristaId
          AND clocked_out_at IS NULL ORDER BY clocked_in_at DESC LIMIT 1 FOR UPDATE`,
-        { tenantId: request.adminAuth.tenantId, adminUserId: request.adminAuth.adminUserId }
+        { tenantId: request.adminAuth.tenantId, baristaId: payload.barista_id }
       );
       if (existing[0]) {
         await connection.commit();
         return reply.send({ attendance: { id: Number(existing[0].id), clocked_in_at: existing[0].clocked_in_at, clocked_out_at: null }, unchanged: true });
       }
       const [result] = await connection.execute<ResultSetHeader>(
-        `INSERT INTO barista_attendance (tenant_id, admin_user_id, clocked_in_at) VALUES (:tenantId, :adminUserId, UTC_TIMESTAMP())`,
-        { tenantId: request.adminAuth.tenantId, adminUserId: request.adminAuth.adminUserId }
+        `INSERT INTO barista_attendance (tenant_id, barista_id, recorded_by_admin_user_id, clocked_in_at) VALUES (:tenantId, :baristaId, :adminUserId, UTC_TIMESTAMP())`,
+        { tenantId: request.adminAuth.tenantId, baristaId: payload.barista_id, adminUserId: request.adminAuth.adminUserId }
       );
       const [rows] = await connection.query<RowDataPacket[]>('SELECT id, clocked_in_at, clocked_out_at FROM barista_attendance WHERE id = ?', [result.insertId]);
       await connection.commit();
@@ -79,10 +110,18 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
 
   app.post('/v1/barista/attendance/clock-out', { preHandler: authenticateAdminRequest }, async (request, reply) => {
     assertStaffAccess(request);
+    const payload = attendanceActionSchema.parse(request.body);
+    const [baristas] = await mysqlPool.query<RowDataPacket[]>(
+      `SELECT pin_hash FROM baristas WHERE id = :baristaId AND tenant_code = :tenantCode LIMIT 1`,
+      { baristaId: payload.barista_id, tenantCode: request.adminAuth.tenantCode }
+    );
+    if (!baristas[0]?.pin_hash || !(await verifyPassword(payload.pin, baristas[0].pin_hash))) {
+      throw new ApiError(401, 'invalid_barista_pin', 'The selected barista or PIN is not valid.');
+    }
     const [result] = await mysqlPool.execute<ResultSetHeader>(
       `UPDATE barista_attendance SET clocked_out_at = UTC_TIMESTAMP()
-       WHERE tenant_id = :tenantId AND admin_user_id = :adminUserId AND clocked_out_at IS NULL`,
-      { tenantId: request.adminAuth.tenantId, adminUserId: request.adminAuth.adminUserId }
+       WHERE tenant_id = :tenantId AND barista_id = :baristaId AND clocked_out_at IS NULL`,
+      { tenantId: request.adminAuth.tenantId, baristaId: payload.barista_id }
     );
     return reply.send({ success: true, unchanged: result.affectedRows === 0 });
   });
@@ -133,9 +172,9 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
       if (!menuRows.length) throw new ApiError(404, 'menu_item_not_found', 'The selected menu item was not found.');
     }
     const [result] = await mysqlPool.execute<ResultSetHeader>(
-      `INSERT INTO barista_sop_guides (tenant_id, guide_type, menu_item_id, image_url, sort_order, is_active, created_by_admin_user_id)
-       VALUES (:tenantId, :guideType, :menuItemId, :imageUrl, :sortOrder, :isActive, :adminUserId)`,
-      { tenantId: request.adminAuth.tenantId, guideType: payload.guide_type, menuItemId: payload.menu_item_id ?? null, imageUrl: payload.image_url, sortOrder: payload.sort_order, isActive: payload.is_active ? 1 : 0, adminUserId: request.adminAuth.adminUserId }
+      `INSERT INTO barista_sop_guides (tenant_id, guide_type, menu_item_id, guide_title, image_url, sort_order, is_active, created_by_admin_user_id)
+       VALUES (:tenantId, :guideType, :menuItemId, :guideTitle, :imageUrl, :sortOrder, :isActive, :adminUserId)`,
+      { tenantId: request.adminAuth.tenantId, guideType: payload.guide_type, menuItemId: payload.menu_item_id ?? null, guideTitle: payload.guide_title ?? null, imageUrl: payload.image_url, sortOrder: payload.sort_order, isActive: payload.is_active ? 1 : 0, adminUserId: request.adminAuth.adminUserId }
     );
     return reply.code(201).send({ id: result.insertId });
   });

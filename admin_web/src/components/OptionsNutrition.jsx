@@ -21,6 +21,7 @@ const emptyGroup = () => ({
   sort_order: 0,
   is_active: true,
   menu_item_ids: [],
+  hidden_when_option_ids: [],
   options: [
     {
       name: '',
@@ -563,6 +564,32 @@ export default function OptionsNutrition() {
               <div className="rounded-xl border border-[#D7E7E2] bg-[#F6FBF9] p-3.5 text-sm text-[#31584F]">
                 <strong>Setup guide:</strong> use <em>Choose one</em> with minimum <strong>1</strong> and <strong>Required</strong> for Beans, Temperature, Milk, Sweetness, and Order Type. Set all adjustments to <strong>0</strong> when a choice does not change the price, tokens, or calories.
               </div>
+              {form.id && (
+                <fieldset className="rounded-xl border border-[#D7E7E2] bg-[#F6FBF9] p-3.5">
+                  <legend className="px-1 text-sm font-semibold text-[#31584F]">Hide this group when</legend>
+                  <p className="mb-3 text-xs text-[#52736C]">Optional. Select choices that make this whole group unavailable. For Ice Level, select Temperature: Hot and Temperature: Hotter.</p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {groups.filter((group) => group.id !== form.id).flatMap((group) => (group.options || []).filter((option) => option.is_active).map((option) => (
+                      <label key={option.id} className="flex items-center gap-2 rounded-lg border border-[#D7E7E2] bg-white px-3 py-2 text-sm text-slate-600">
+                        <input
+                          type="checkbox"
+                          checked={(form.hidden_when_option_ids || []).includes(option.id)}
+                          onChange={(event) => {
+                            const current = form.hidden_when_option_ids || [];
+                            setForm({
+                              ...form,
+                              hidden_when_option_ids: event.target.checked
+                                ? [...current, option.id]
+                                : current.filter((id) => id !== option.id)
+                            });
+                          }}
+                        />
+                        {group.name}: {option.name}
+                      </label>
+                    )))}
+                  </div>
+                </fieldset>
+              )}
               <div className="grid gap-4 sm:grid-cols-4">
                 <label className="text-sm font-semibold text-gray-700">
                   Selection
