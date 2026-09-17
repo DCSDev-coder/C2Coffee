@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   LayoutDashboard, Users, ShoppingBag, Ticket, Coins, Crown, Package,
-  Coffee, Megaphone, LineChart, UserCog, ClipboardList, Settings, LogOut, UserCheck, Printer, SlidersHorizontal, BookOpen
+  Coffee, Megaphone, LineChart, UserCog, ClipboardList, Settings, LogOut, UserCheck, Printer, SlidersHorizontal, BookOpen, RotateCcw
 } from 'lucide-react';
 
 import { canAccessAdminPage } from '../lib/adminPermissions';
@@ -10,23 +10,24 @@ import { canAccessAdminPage } from '../lib/adminPermissions';
 const Sidebar = ({ currentPage, setCurrentPage, onLogout, currentTenant, currentUser }) => {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const menuItems = [
-    { name: 'Dashboard', icon: LayoutDashboard },
-    { name: 'Orders', icon: ShoppingBag },
-    { name: 'Menu', icon: Coffee },
-    { name: 'Options & Nutrition', icon: SlidersHorizontal },
-    { name: 'Customers', icon: Users },
-    { name: 'Marketing', icon: Megaphone },
-    { name: 'Voucher', icon: Ticket },
-    { name: 'Token Ledger', icon: Coins },
-    { name: 'Tier Management', icon: Crown },
-    { name: 'Finance', icon: LineChart },
-    { name: 'Product Report', icon: Package },
-    { name: 'Barista Management', icon: UserCheck },
-    { name: 'Staff Guides', icon: BookOpen },
-    { name: 'Operations', icon: Printer },
-    { name: 'Admin Management', icon: UserCog },
-    { name: 'Audit Logs', icon: ClipboardList },
-    { name: 'Settings', icon: Settings }
+    { name: 'Dashboard', icon: LayoutDashboard, section: 'Daily work' },
+    { name: 'Orders', icon: ShoppingBag, section: 'Daily work' },
+    { name: 'Refunds', icon: RotateCcw, section: 'Daily work' },
+    { name: 'Customers', icon: Users, section: 'Daily work' },
+    { name: 'Menu', icon: Coffee, section: 'Menu setup' },
+    { name: 'Options & Nutrition', icon: SlidersHorizontal, section: 'Menu setup' },
+    { name: 'Marketing', icon: Megaphone, section: 'Marketing & loyalty' },
+    { name: 'Voucher', icon: Ticket, section: 'Marketing & loyalty' },
+    { name: 'Token Ledger', icon: Coins, section: 'Marketing & loyalty' },
+    { name: 'Tier Management', icon: Crown, section: 'Marketing & loyalty' },
+    { name: 'Finance', icon: LineChart, section: 'Reports' },
+    { name: 'Product Report', icon: Package, section: 'Reports' },
+    { name: 'Barista Management', icon: UserCheck, section: 'Staff & store' },
+    { name: 'Staff Guides', icon: BookOpen, section: 'Staff & store' },
+    { name: 'Operations', icon: Printer, section: 'Staff & store' },
+    { name: 'Admin Management', icon: UserCog, section: 'Administration' },
+    { name: 'Audit Logs', icon: ClipboardList, section: 'Administration' },
+    { name: 'Settings', icon: Settings, section: 'Administration' }
   ];
 
   const visibleMenuItems = menuItems.filter((item) => canAccessAdminPage(currentUser?.roles, item.name));
@@ -50,23 +51,30 @@ const Sidebar = ({ currentPage, setCurrentPage, onLogout, currentTenant, current
         {visibleMenuItems.map((item, index) => {
           const Icon = item.icon;
           const isActive = currentPage ? currentPage === item.name : index === 0;
+          const startsSection = index === 0 || visibleMenuItems[index - 1].section !== item.section;
           return (
-            <a
-              key={item.name}
-              href="#"
-              onClick={(e) => {
-                e.preventDefault();
-                if (setCurrentPage) {
-                  setCurrentPage(item.name);
-                }
-              }}
-              className={`flex items-center space-x-3 px-4 py-2.5 rounded-lg transition-colors text-sm ${isActive ? 'bg-[#1F3A34] font-medium' : 'hover:bg-[#1F3A34] text-white/90'}`}
-            >
-              <div className="w-5 h-5 flex items-center justify-center">
-                <Icon size={18} strokeWidth={2.5} className="opacity-90" />
-              </div>
-              <span>{item.name}</span>
-            </a>
+            <React.Fragment key={item.name}>
+              {startsSection && (
+                <p className={`px-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/45 ${index === 0 ? 'mb-1' : 'mb-1 mt-5'}`}>
+                  {item.section}
+                </p>
+              )}
+              <a
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (setCurrentPage) {
+                    setCurrentPage(item.name);
+                  }
+                }}
+                className={`flex items-center space-x-3 px-4 py-2.5 rounded-lg transition-colors text-sm ${isActive ? 'bg-[#1F3A34] font-medium' : 'hover:bg-[#1F3A34] text-white/90'}`}
+              >
+                <div className="w-5 h-5 flex items-center justify-center">
+                  <Icon size={18} strokeWidth={2.5} className="opacity-90" />
+                </div>
+                <span>{item.name}</span>
+              </a>
+            </React.Fragment>
           );
         })}
       </nav>
