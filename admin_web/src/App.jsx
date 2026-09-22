@@ -12,6 +12,7 @@ import { canAccessAdminPage, firstAccessibleAdminPage } from './lib/adminPermiss
 import { UnsavedChangesProvider, useUnsavedChanges } from './utils/UnsavedChangesContext';
 
 const DashboardHome = lazy(() => import('./components/DashboardHome'));
+const BaristaConsole = lazy(() => import('./components/BaristaConsole'));
 const Customers = lazy(() => import('./components/Customers'));
 const Orders = lazy(() => import('./components/Orders'));
 const Profile = lazy(() => import('./components/Profile'));
@@ -53,6 +54,8 @@ function AppContent({
       currentUser={currentUser}
     >
       <Suspense fallback={<div className="flex min-h-[320px] items-center justify-center text-sm font-semibold text-[#2E5E58]">Loading page...</div>}>
+        {currentPage === 'Barista Console' && <BaristaConsole currentUser={currentUser} />}
+        {currentPage === 'Barista Workspace' && <BaristaConsole currentUser={currentUser} view="workspace" />}
         {currentPage === 'Dashboard' && <DashboardHome setCurrentPage={navigateWithPrompt} />}
         {currentPage === 'Customers' && <Customers currentUser={currentUser} />}
         {currentPage === 'Orders' && <Orders initialShowRefunds={false} currentUser={currentUser} />}
@@ -207,7 +210,7 @@ function App() {
       setCurrentUser(user);
     }
     setIsLoggedIn(true);
-    setCurrentPage('Dashboard');
+    setCurrentPage(firstAccessibleAdminPage(user?.roles));
   };
 
   if (isBootstrapping) {

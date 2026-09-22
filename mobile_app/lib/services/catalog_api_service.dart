@@ -27,6 +27,13 @@ String? resolveCatalogImageSource(String? source) {
   return value.startsWith('/') ? '$baseOrigin$value' : '$baseOrigin/$value';
 }
 
+int readCatalogInt(Object? value, {int fallback = 0}) {
+  if (value is num) {
+    return value.toInt();
+  }
+  return int.tryParse(value?.toString() ?? '') ?? fallback;
+}
+
 class StoreSummary {
   final int id;
   final String code;
@@ -135,7 +142,7 @@ class CatalogMenuItem {
       description: json['description'] as String?,
       basePriceRm: json['base_price_rm'] as String? ?? '0.00',
       basePriceToken: (json['base_price_token'] as num?)?.toInt() ?? 0,
-      baseCaloriesKcal: (json['base_calories_kcal'] as num?)?.toInt() ?? 0,
+      baseCaloriesKcal: readCatalogInt(json['base_calories_kcal']),
       imageUrl: json['image_url'] as String?,
       colorHex: json['color_hex'] as String?,
       gradientEndHex: json['gradient_end_hex'] as String?,
@@ -177,6 +184,7 @@ class CatalogModifierOption {
   final String? gradientEndHex;
   final String gradientDirection;
   final bool isActive;
+  final bool isDefault;
   final int sortOrder;
 
   const CatalogModifierOption({
@@ -191,6 +199,7 @@ class CatalogModifierOption {
     required this.gradientEndHex,
     required this.gradientDirection,
     required this.isActive,
+    required this.isDefault,
     required this.sortOrder,
   });
 
@@ -207,6 +216,7 @@ class CatalogModifierOption {
       gradientEndHex: json['gradient_end_hex'] as String?,
       gradientDirection: json['gradient_direction'] as String? ?? 'diagonal',
       isActive: json['is_active'] as bool? ?? true,
+      isDefault: json['is_default'] as bool? ?? false,
       sortOrder: (json['sort_order'] as num?)?.toInt() ?? 0,
     );
   }
@@ -464,11 +474,36 @@ class TierRewardSummary {
   }
 }
 
-class HomeFeaturedItems {
-  final List<int> drinks;
-  final List<int> lifestyle;
+class HomeFeaturedSection {
+  final int categoryId;
+  final String categoryCode;
+  final String categoryName;
+  final List<int> itemIds;
 
-  const HomeFeaturedItems({required this.drinks, required this.lifestyle});
+  const HomeFeaturedSection({
+    required this.categoryId,
+    required this.categoryCode,
+    required this.categoryName,
+    required this.itemIds,
+  });
+
+  factory HomeFeaturedSection.fromApi(Map<String, dynamic> json) {
+    return HomeFeaturedSection(
+      categoryId: (json['category_id'] as num?)?.toInt() ?? 0,
+      categoryCode: json['category_code'] as String? ?? '',
+      categoryName: json['category_name'] as String? ?? 'Menu',
+      itemIds: (json['item_ids'] as List? ?? const [])
+          .whereType<num>()
+          .map((value) => value.toInt())
+          .toList(),
+    );
+  }
+}
+
+class HomeFeaturedItems {
+  final List<HomeFeaturedSection> sections;
+
+  const HomeFeaturedItems({required this.sections});
 }
 
 class BootstrapSnapshot {
@@ -516,13 +551,13 @@ class CatalogApiService {
   }) async {
     final response = await _get('/home/featured?store_id=$storeId',
         accessToken: accessToken);
-    List<int> readIds(String key) => (response[key] as List? ?? const [])
-        .whereType<num>()
-        .map((value) => value.toInt())
-        .toList();
     return HomeFeaturedItems(
-      drinks: readIds('featured_drinks'),
-      lifestyle: readIds('lifestyle_picks'),
+      sections: (response['sections'] as List? ?? const [])
+          .whereType<Map>()
+          .map((section) =>
+              HomeFeaturedSection.fromApi(Map<String, dynamic>.from(section)))
+          .where((section) => section.categoryId > 0)
+          .toList(),
     );
   }
 

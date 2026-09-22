@@ -460,8 +460,11 @@ function isBannerNotifiable(row: Pick<BannerRow, 'is_active' | 'banner_type' | '
 async function notifyCustomersAboutPoster(input: {
   banner: BannerRow;
   tenantId: number;
-  log: { warn: (payload: unknown, message: string) => void };
-}): Promise<{ recipients: number; attemptedDevices: number; deliveredDevices: number }> {
+  log: {
+    info: (payload: unknown, message: string) => void;
+    warn: (payload: unknown, message: string) => void;
+  };
+}): Promise<{ recipients: number; attemptedDevices: number; deliveredDevices: number; failedDevices: number }> {
   const title = publicPosterNotificationText(input.banner.title, 'New update from C2 Coffee', 120);
   const body = publicPosterNotificationText(input.banner.subtitle, 'A new offer is available in the C2 Coffee app.', 180);
   const data = {
@@ -495,14 +498,20 @@ async function notifyCustomersAboutPoster(input: {
       body,
       data
     });
-    return {
+    const resultSummary = {
       recipients: result.affectedRows,
       attemptedDevices: delivery.attemptedTokens,
-      deliveredDevices: delivery.deliveredTokens
+      deliveredDevices: delivery.deliveredTokens,
+      failedDevices: delivery.failedTokens
     };
+    input.log.info(
+      { bannerId: input.banner.id, ...resultSummary, invalidDevices: delivery.invalidTokens, failureReasons: delivery.failureReasons },
+      'Poster push delivery completed.'
+    );
+    return resultSummary;
   } catch (error) {
     input.log.warn({ err: error, bannerId: input.banner.id }, 'Poster push delivery failed after notification creation.');
-    return { recipients: result.affectedRows, attemptedDevices: 0, deliveredDevices: 0 };
+    return { recipients: result.affectedRows, attemptedDevices: 0, deliveredDevices: 0, failedDevices: 0 };
   }
 }
 

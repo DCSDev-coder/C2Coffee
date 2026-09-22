@@ -421,8 +421,10 @@ const Marketing = () => {
       setNotifyingBannerId(banner.id);
       const response = await notifyAdminMarketingBanner(banner.id);
       const recipients = Number(response?.notification?.recipients || 0);
+      const attemptedDevices = Number(response?.notification?.attemptedDevices || 0);
       const deliveredDevices = Number(response?.notification?.deliveredDevices || 0);
-      setNotice(`Notification added for ${recipients} customer${recipients === 1 ? '' : 's'}; push delivered to ${deliveredDevices} device${deliveredDevices === 1 ? '' : 's'}.`);
+      const failedDevices = Number(response?.notification?.failedDevices || 0);
+      setNotice(`Notification added for ${recipients} customer${recipients === 1 ? '' : 's'}; push attempted on ${attemptedDevices} device${attemptedDevices === 1 ? '' : 's'}, delivered to ${deliveredDevices}, failed on ${failedDevices}.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to send the poster notification.');
     } finally {

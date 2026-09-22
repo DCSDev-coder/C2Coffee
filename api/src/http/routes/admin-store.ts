@@ -15,7 +15,15 @@ const updateAppearanceSchema = z.object({
   secondary_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Use a six-digit hex colour.').optional(),
   text_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Use a six-digit hex colour.').optional(),
   background_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Use a six-digit hex colour.').optional(),
-  muted_text_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Use a six-digit hex colour.').optional()
+  muted_text_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Use a six-digit hex colour.').optional(),
+  tier_appearances: z.array(z.object({
+    tier_id: z.coerce.number().int().positive(),
+    primary_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Use a six-digit hex colour.'),
+    secondary_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Use a six-digit hex colour.'),
+    text_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Use a six-digit hex colour.'),
+    background_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Use a six-digit hex colour.'),
+    muted_text_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Use a six-digit hex colour.')
+  })).max(50).optional()
 }).refine((value) => Object.values(value).some(Boolean), {
   message: 'Choose at least one colour to update.'
 });
@@ -27,6 +35,19 @@ type StoreRow = RowDataPacket & {
 };
 
 type AppearanceRow = RowDataPacket & {
+  primary_color: string | null;
+  secondary_color: string | null;
+  text_color: string | null;
+  background_color: string | null;
+  muted_text_color: string | null;
+};
+
+type TierAppearanceRow = RowDataPacket & {
+  id: number;
+  code: string;
+  name: string;
+  min_cups: number | string;
+  sort_order: number | string;
   primary_color: string | null;
   secondary_color: string | null;
   text_color: string | null;
@@ -75,6 +96,36 @@ function requireAccessibleText(appearance: typeof defaultAppearance): void {
   }
 }
 
+function normalizeTierAppearance(row: TierAppearanceRow, fallback: typeof defaultAppearance) {
+  return {
+    tier_id: row.id,
+    code: row.code,
+    name: row.name,
+    min_cups: Number(row.min_cups ?? 0),
+    sort_order: Number(row.sort_order ?? 0),
+    primary_color: row.primary_color ?? fallback.primary_color,
+    secondary_color: row.secondary_color ?? fallback.secondary_color,
+    text_color: row.text_color ?? fallback.text_color,
+    background_color: row.background_color ?? fallback.background_color,
+    muted_text_color: row.muted_text_color ?? fallback.muted_text_color
+  };
+}
+
+async function loadTierAppearances(tenantId: number, fallback: typeof defaultAppearance) {
+  const [rows] = await mysqlPool.query<TierAppearanceRow[]>(
+    `SELECT lt.id, lt.code, lt.name, lt.min_cups, lt.sort_order,
+            appearance.primary_color, appearance.secondary_color, appearance.text_color,
+            appearance.background_color, appearance.muted_text_color
+     FROM loyalty_tiers lt
+     LEFT JOIN tenant_loyalty_tier_appearances appearance
+       ON appearance.loyalty_tier_id = lt.id AND appearance.tenant_id = :tenantId
+     WHERE lt.is_active = 1
+     ORDER BY lt.min_cups ASC, lt.sort_order ASC, lt.id ASC`,
+    { tenantId }
+  );
+  return rows.map((row) => normalizeTierAppearance(row, fallback));
+}
+
 async function getCustomerFacingStore(tenantId: number): Promise<StoreRow> {
   const [stores] = await mysqlPool.query<StoreRow[]>(
     `SELECT id, name, pickup_lead_minutes
@@ -114,7 +165,8 @@ export async function registerAdminStoreRoutes(app: FastifyInstance): Promise<vo
        FROM admin_tenants WHERE id = :tenantId LIMIT 1`,
       { tenantId: request.adminAuth.tenantId }
     );
-    return { appearance: normalizeAppearance(rows[0]) };
+    const appearance = normalizeAppearance(rows[0]);
+    return { appearance, tier_appearances: await loadTierAppearances(request.adminAuth.tenantId, appearance) };
   });
 
   app.patch('/v1/admin/appearance', { preHandler: authenticateAdminRequest }, async (request) => {
@@ -134,6 +186,9 @@ export async function registerAdminStoreRoutes(app: FastifyInstance): Promise<vo
       muted_text_color: update.muted_text_color?.toUpperCase() ?? existing?.muted_text_color ?? defaultAppearance.muted_text_color
     };
     requireAccessibleText(appearance);
+    for (const tierAppearance of update.tier_appearances ?? []) {
+      requireAccessibleText(tierAppearance);
+    }
     await mysqlPool.execute<ResultSetHeader>(
       `UPDATE admin_tenants
        SET primary_color = COALESCE(:primaryColor, primary_color),
@@ -152,11 +207,45 @@ export async function registerAdminStoreRoutes(app: FastifyInstance): Promise<vo
         tenantId: request.adminAuth.tenantId
       }
     );
+    if (update.tier_appearances?.length) {
+      for (const tierAppearance of update.tier_appearances) {
+        await mysqlPool.execute<ResultSetHeader>(
+          `INSERT INTO tenant_loyalty_tier_appearances (
+             tenant_id, loyalty_tier_id, primary_color, secondary_color,
+             text_color, background_color, muted_text_color
+           )
+           SELECT :tenantId, id, :primaryColor, :secondaryColor,
+                  :textColor, :backgroundColor, :mutedTextColor
+           FROM loyalty_tiers
+           WHERE id = :tierId AND is_active = 1
+           ON DUPLICATE KEY UPDATE
+             primary_color = VALUES(primary_color),
+             secondary_color = VALUES(secondary_color),
+             text_color = VALUES(text_color),
+             background_color = VALUES(background_color),
+             muted_text_color = VALUES(muted_text_color),
+             updated_at = UTC_TIMESTAMP()`,
+          {
+            tierId: tierAppearance.tier_id,
+            tenantId: request.adminAuth.tenantId,
+            primaryColor: tierAppearance.primary_color.toUpperCase(),
+            secondaryColor: tierAppearance.secondary_color.toUpperCase(),
+            textColor: tierAppearance.text_color.toUpperCase(),
+            backgroundColor: tierAppearance.background_color.toUpperCase(),
+            mutedTextColor: tierAppearance.muted_text_color.toUpperCase()
+          }
+        );
+      }
+    }
     const [rows] = await mysqlPool.query<AppearanceRow[]>(
       `SELECT primary_color, secondary_color, text_color, background_color, muted_text_color
        FROM admin_tenants WHERE id = :tenantId LIMIT 1`,
       { tenantId: request.adminAuth.tenantId }
     );
-    return { appearance: normalizeAppearance(rows[0]) };
+    const savedAppearance = normalizeAppearance(rows[0]);
+    return {
+      appearance: savedAppearance,
+      tier_appearances: await loadTierAppearances(request.adminAuth.tenantId, savedAppearance)
+    };
   });
 }

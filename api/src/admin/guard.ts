@@ -156,11 +156,20 @@ function enforceBaristaRouteAccess(request: FastifyRequest): void {
     /^\/v1\/admin\/orders\/[^/]+\/status$/.test(path);
   const canReadOperationalContext =
     request.method === 'GET' && path === '/v1/barista/operations/context';
+  const canReadWeeklySchedule =
+    request.method === 'GET' && path === '/v1/barista/weekly-schedule';
   const canUseStaffAttendance =
     /^\/v1\/barista\/attendance\/(status|current|clock-in|clock-out)$/.test(path);
   const canReadStaffGuides = request.method === 'GET' && path === '/v1/barista/guides';
   const canQueuePrintJob =
     request.method === 'POST' && path === '/v1/barista/print-jobs';
+  const canUseAssignedDirectPrinter =
+    request.method === 'POST' &&
+    [
+      '/v1/barista/direct-printer/tested',
+      '/v1/barista/direct-print-jobs/claim',
+      '/v1/barista/direct-print-jobs/acknowledge'
+    ].includes(path);
   const canManageOwnPushToken =
     request.method === 'POST' &&
     (path === '/v1/admin/devices/push-token' ||
@@ -174,9 +183,11 @@ function enforceBaristaRouteAccess(request: FastifyRequest): void {
     !canReadBaristaRoster &&
     !canUpdateOrderStatus &&
     !canReadOperationalContext &&
+    !canReadWeeklySchedule &&
     !canUseStaffAttendance &&
     !canReadStaffGuides &&
     !canQueuePrintJob &&
+    !canUseAssignedDirectPrinter &&
     !canManageOwnPushToken &&
     !canUseOwnSession
   ) {

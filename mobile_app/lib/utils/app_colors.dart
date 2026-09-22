@@ -237,9 +237,8 @@ class AppColors {
       ? Color.lerp(secondary, brandText, 0.58)!
       : secondary;
 
-  /// Accent CTA color (#E0715F in Tier 1&2, #AD6D15 in Tier 3&4)
-  static Color get accent =>
-      _brandSecondary ?? (isTier3Or4 ? t2AmberGold : t1Terracotta);
+  /// Accent CTA color follows the configured primary action colour.
+  static Color get accent => primary;
   static Color get terracotta => accent;
 
   /// Loyalty / gold badge color (#D4AF7A in Tier 1&2, #AD6D15 in Tier 3&4)

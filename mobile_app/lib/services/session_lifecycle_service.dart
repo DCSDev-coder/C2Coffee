@@ -18,13 +18,9 @@ class SessionLifecycleService {
     }
 
     try {
-      final tokens = await AuthApiService.instance.refreshSession(
-        refreshToken: refreshToken,
-      );
-      await SecureSessionService.instance.saveSession(
-        accessToken: tokens.accessToken,
-        refreshToken: tokens.refreshToken,
-      );
+      // Joins the app lifecycle refresh when startup and resume happen at the
+      // same time, so a rotating refresh token is never consumed twice.
+      await SecureSessionService.instance.refreshSession();
     } catch (error) {
       final outcome = sessionRestoreOutcomeForError(error);
       if (outcome == SessionRestoreOutcome.signedOut) {

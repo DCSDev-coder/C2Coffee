@@ -206,6 +206,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           p.status as paymentStatus,
           p.provider_payment_ref as txnId,
           COALESCE(ready_barista.name, preparing_barista.name) as baristaName,
+          o.ready_at,
           o.created_at
         FROM orders o
         JOIN users u ON o.user_id = u.id
@@ -340,6 +341,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           baristaName: o.baristaName || '',
           baristaUsername: '',
           createdAt: d.toISOString(),
+          readyAt: o.ready_at ? new Date(o.ready_at).toISOString() : null,
           time: formatDisplayTime(d),
           date: formatDisplayDate(d)
         };
@@ -442,6 +444,28 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
          WHERE t.code = :tenantCode
          GROUP BY o.status
          ORDER BY value DESC, o.status ASC`,
+        { tenantCode }
+      );
+      const [topUpMethodRows] = await connection.query<Array<RowDataPacket & {
+        payment_method: string | null;
+        topup_count: number;
+        amount_rm: string | number;
+        token_amount: string | number;
+      }>>(
+        `SELECT
+           NULLIF(p.payment_method, '') AS payment_method,
+           COUNT(*) AS topup_count,
+           COALESCE(SUM(p.amount_rm), 0) AS amount_rm,
+           COALESCE(SUM(tt.token_amount), 0) AS token_amount
+         FROM payments p
+         JOIN token_topups tt ON tt.id = p.topup_id
+         JOIN customer_tenant_memberships ctm ON ctm.user_id = tt.user_id
+         JOIN admin_tenants t ON t.id = ctm.tenant_id
+         WHERE t.code = :tenantCode
+           AND p.status = 'paid'
+           AND tt.status = 'paid'
+         GROUP BY NULLIF(p.payment_method, '')
+         ORDER BY topup_count DESC, amount_rm DESC, payment_method ASC`,
         { tenantCode }
       );
       const [transactionRows] = await connection.query<Array<RowDataPacket & {
@@ -570,6 +594,12 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           value: Number(row.value || 0),
           amountRm: Number(row.amount_rm || 0),
           color: ['#1F3A34', '#2E5E58', '#6F9F96', '#8AACA5', '#E07A5F', '#D4AF7A'][index % 6]
+        })),
+        topUpMethodBreakdown: topUpMethodRows.map((row) => ({
+          method: row.payment_method || 'not_recorded',
+          count: Number(row.topup_count || 0),
+          amountRm: Number(row.amount_rm || 0),
+          tokenAmount: Number(row.token_amount || 0)
         })),
         recentTransactions: transactionRows.map((row) => ({
           id: row.id,

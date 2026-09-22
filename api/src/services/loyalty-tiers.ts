@@ -7,6 +7,11 @@ export type LoyaltyTierConfig = {
   name: string;
   minCups: number;
   badgeColor: string | null;
+  primaryColor: string | null;
+  secondaryColor: string | null;
+  textColor: string | null;
+  backgroundColor: string | null;
+  mutedTextColor: string | null;
   imageUrl: string | null;
   sortOrder: number;
   isActive: boolean;
@@ -23,6 +28,11 @@ type LoyaltyTierRow = RowDataPacket & {
   name: string;
   min_cups: number | string;
   badge_color: string | null;
+  primary_color: string | null;
+  secondary_color: string | null;
+  text_color: string | null;
+  background_color: string | null;
+  muted_text_color: string | null;
   image_url: string | null;
   sort_order: number | string;
   is_active: number | string;
@@ -71,6 +81,11 @@ export async function loadLoyaltyTiers(
         name,
         min_cups,
         badge_color,
+        primary_color,
+        secondary_color,
+        text_color,
+        background_color,
+        muted_text_color,
         image_url,
         sort_order,
         is_active,
@@ -86,6 +101,11 @@ export async function loadLoyaltyTiers(
     name: String(row.name ?? '').trim(),
     minCups: Number(row.min_cups ?? 0),
     badgeColor: row.badge_color ? String(row.badge_color) : null,
+    primaryColor: row.primary_color ? String(row.primary_color) : null,
+    secondaryColor: row.secondary_color ? String(row.secondary_color) : null,
+    textColor: row.text_color ? String(row.text_color) : null,
+    backgroundColor: row.background_color ? String(row.background_color) : null,
+    mutedTextColor: row.muted_text_color ? String(row.muted_text_color) : null,
     imageUrl: row.image_url ? String(row.image_url) : null,
     sortOrder: Number(row.sort_order ?? 0),
     isActive: Number(row.is_active ?? 0) === 1,

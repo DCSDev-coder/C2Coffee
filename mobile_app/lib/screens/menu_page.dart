@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/app_session_service.dart';
 import '../services/catalog_presentation.dart';
@@ -24,8 +25,10 @@ import 'simple_product_detail_page.dart';
 
 class MenuPage extends StatefulWidget {
   final int initialCategoryIndex;
+  final String? initialCategoryCode;
 
-  const MenuPage({super.key, this.initialCategoryIndex = 0});
+  const MenuPage(
+      {super.key, this.initialCategoryIndex = 0, this.initialCategoryCode});
 
   @override
   State<MenuPage> createState() => _MenuPageState();
@@ -43,6 +46,7 @@ class _MenuPageState extends State<MenuPage> {
   bool _isSearching = false;
   bool _showTokenPrice = false;
   bool _isAutoScrolling = false;
+  _MenuSortOrder _sortOrder = _MenuSortOrder.menuOrder;
   int _selectedCategoryIndex = 0;
   int _voucherBannerIndex = 0;
   Timer? _voucherBannerTimer;
@@ -60,14 +64,21 @@ class _MenuPageState extends State<MenuPage> {
         await _session.loadAuthenticatedState();
       } catch (_) {}
       if (!mounted) return;
+      await _loadMenuPreferences();
+      if (!mounted) return;
       await _loadVoucherBanners();
       if (!mounted) return;
       await _precacheMenuImages();
       if (!mounted) return;
       _ensureSectionKeys(_uiSections.length);
       if (_uiSections.isNotEmpty) {
+        final categoryIndex = widget.initialCategoryCode == null
+            ? -1
+            : _uiSections.indexWhere(
+                (section) => section.key == widget.initialCategoryCode);
         final safeIndex =
-            widget.initialCategoryIndex.clamp(0, _uiSections.length - 1);
+            (categoryIndex >= 0 ? categoryIndex : widget.initialCategoryIndex)
+                .clamp(0, _uiSections.length - 1);
         _selectedCategoryIndex = safeIndex;
       }
     });
@@ -75,6 +86,13 @@ class _MenuPageState extends State<MenuPage> {
 
   void _onSessionChanged() {
     if (!mounted) return;
+    final bannerCount = _menuVoucherBanners.length;
+    if (bannerCount == 0) {
+      _voucherBannerIndex = 0;
+    } else if (_voucherBannerIndex >= bannerCount) {
+      _voucherBannerIndex = 0;
+    }
+    _startVoucherBannerTimer();
     setState(() {});
   }
 
@@ -98,6 +116,9 @@ class _MenuPageState extends State<MenuPage> {
       if (accessToken == null || accessToken.isEmpty) return;
       final vouchers = await CustomerDataService.instance.getRewardVouchers(
         accessToken: accessToken,
+        // Menu banners must only advertise vouchers the customer can redeem.
+        // History can contain expired, revoked, and retired templates.
+        onlyActive: true,
       );
       if (!mounted) return;
       setState(() {
@@ -114,16 +135,26 @@ class _MenuPageState extends State<MenuPage> {
 
   void _startVoucherBannerTimer() {
     _voucherBannerTimer?.cancel();
-    if (_voucherBanners.length < 2) return;
+    if (_menuVoucherBanners.length < 2) return;
     _voucherBannerTimer = Timer.periodic(const Duration(seconds: 5), (_) {
       if (!mounted || !_voucherBannerController.hasClients) return;
-      final nextIndex = (_voucherBannerIndex + 1) % _voucherBanners.length;
+      final bannerCount = _menuVoucherBanners.length;
+      if (bannerCount < 2) return;
+      final nextIndex = (_voucherBannerIndex + 1) % bannerCount;
       _voucherBannerController.animateToPage(
         nextIndex,
         duration: const Duration(milliseconds: 360),
         curve: Curves.easeInOut,
       );
     });
+  }
+
+  List<_MenuVoucherBanner> get _menuVoucherBanners {
+    return _voucherBanners
+        .where(
+            (voucher) => voucher.template.imageUrl?.trim().isNotEmpty ?? false)
+        .map(_MenuVoucherBanner.fromIssuedVoucher)
+        .toList();
   }
 
   List<_MenuSection> get _uiSections {
@@ -143,7 +174,6 @@ class _MenuPageState extends State<MenuPage> {
             continue;
           }
         }
-
         final sectionTitle =
             CatalogPresentation.displayCategoryName(category.name);
         final sectionKey = category.code;
@@ -170,13 +200,72 @@ class _MenuPageState extends State<MenuPage> {
             title: section.title,
             sidebarLabel: section.sidebarLabel,
             sortOrder: section.sortOrder,
-            items: List.unmodifiable(section.items),
+            items: List.unmodifiable(_sortSectionItems(section.items)),
           ),
         )
         .toList()
       ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder) != 0
           ? a.sortOrder.compareTo(b.sortOrder)
           : a.title.compareTo(b.title));
+  }
+
+  String get _menuPreferencesKey {
+    final userId = _session.user?.id;
+    return 'menu_preferences_${userId ?? 'guest'}';
+  }
+
+  Future<void> _loadMenuPreferences() async {
+    final preferences = await SharedPreferences.getInstance();
+    final savedSort = preferences.getString('${_menuPreferencesKey}_sort');
+
+    if (!mounted) return;
+    setState(() {
+      _sortOrder = _MenuSortOrder.values.firstWhere(
+        (value) => value.name == savedSort,
+        orElse: () => _MenuSortOrder.menuOrder,
+      );
+    });
+  }
+
+  Future<void> _saveMenuPreferences() async {
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString(
+      '${_menuPreferencesKey}_sort',
+      _sortOrder.name,
+    );
+  }
+
+  List<Map<String, dynamic>> _sortSectionItems(
+    List<Map<String, dynamic>> items,
+  ) {
+    final sortedItems = List<Map<String, dynamic>>.from(items);
+    if (_sortOrder == _MenuSortOrder.menuOrder) {
+      return sortedItems;
+    }
+
+    sortedItems.sort((first, second) {
+      final firstAmount = _rmAmountForItem(first) ?? double.infinity;
+      final secondAmount = _rmAmountForItem(second) ?? double.infinity;
+      final firstName = first['name']?.toString() ?? '';
+      final secondName = second['name']?.toString() ?? '';
+      final nameComparison =
+          firstName.toLowerCase().compareTo(secondName.toLowerCase());
+      final priceComparison = firstAmount.compareTo(secondAmount);
+
+      switch (_sortOrder) {
+        case _MenuSortOrder.menuOrder:
+          return 0;
+        case _MenuSortOrder.nameAToZ:
+          return nameComparison;
+        case _MenuSortOrder.nameZToA:
+          return -nameComparison;
+        case _MenuSortOrder.priceLowToHigh:
+          return priceComparison != 0 ? priceComparison : nameComparison;
+        case _MenuSortOrder.priceHighToLow:
+          return priceComparison != 0 ? -priceComparison : nameComparison;
+      }
+    });
+    return sortedItems;
   }
 
   void _ensureSectionKeys(int length) {
@@ -249,6 +338,11 @@ class _MenuPageState extends State<MenuPage> {
   }
 
   int? _tokenPriceForItem(Map<String, dynamic> item) {
+    final displayedTokenPrice = item['displayTokenPrice'];
+    if (displayedTokenPrice is num) {
+      return displayedTokenPrice.toInt();
+    }
+
     final baseTokenPrice = item['basePriceToken'];
     if (baseTokenPrice is num) {
       return baseTokenPrice.toInt();
@@ -271,10 +365,137 @@ class _MenuPageState extends State<MenuPage> {
   }
 
   String _rmPriceForItem(Map<String, dynamic> item) {
-    final rawPrice =
-        item['basePriceRm']?.toString() ?? item['price']?.toString() ?? '';
+    final rawPrice = item['displayPriceRm']?.toString() ??
+        item['basePriceRm']?.toString() ??
+        item['price']?.toString() ??
+        '';
     if (rawPrice.isEmpty) return '';
     return AppColors.formatRmPrice(rawPrice);
+  }
+
+  double? _rmAmountForItem(Map<String, dynamic> item) {
+    final rawPrice = item['displayPriceRm']?.toString() ??
+        item['basePriceRm']?.toString() ??
+        item['price']?.toString();
+    if (rawPrice == null || rawPrice.trim().isEmpty) return null;
+    return double.tryParse(
+      rawPrice.replaceAll(RegExp(r'[^0-9.]'), ''),
+    );
+  }
+
+  Future<void> _showMenuFilters() async {
+    final selection = await showModalBottomSheet<_MenuFilterSelection>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      builder: (context) {
+        var selectedSortOrder = _sortOrder;
+
+        return StatefulBuilder(
+          builder: (context, setSheetState) => SafeArea(
+            top: false,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(context).height * 0.72,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Sort menu',
+                      style: TextStyle(
+                        fontFamily: 'Recoleta',
+                        fontSize: 23,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.deepTeal,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Sort items within each category.',
+                      style: TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 16,
+                        color: Colors.black54,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Expanded(
+                      child: RadioGroup<_MenuSortOrder>(
+                        groupValue: selectedSortOrder,
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setSheetState(() => selectedSortOrder = value);
+                        },
+                        child: ListView(
+                          children: [
+                            for (final sort in _MenuSortOrder.values)
+                              RadioListTile<_MenuSortOrder>(
+                                contentPadding: EdgeInsets.zero,
+                                dense: true,
+                                value: sort,
+                                title: Text(
+                                  sort.label,
+                                  style: const TextStyle(fontFamily: 'Afacad'),
+                                ),
+                                activeColor: AppColors.deepTeal,
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(
+                              context,
+                              const _MenuFilterSelection(
+                                sortOrder: _MenuSortOrder.menuOrder,
+                              ),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.deepTeal,
+                              side: BorderSide(color: AppColors.deepTeal),
+                            ),
+                            child: const Text('Reset'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: () => Navigator.pop(
+                              context,
+                              _MenuFilterSelection(
+                                sortOrder: selectedSortOrder,
+                              ),
+                            ),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: AppColors.deepTeal,
+                            ),
+                            child: const Text('Apply'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    if (selection == null || !mounted) return;
+    setState(() {
+      _sortOrder = selection.sortOrder;
+      _selectedCategoryIndex = 0;
+    });
+    await _saveMenuPreferences();
   }
 
   int _displayTokenValueForItem(Map<String, dynamic> item) {
@@ -360,10 +581,33 @@ class _MenuPageState extends State<MenuPage> {
                       ),
                       Align(
                         alignment: Alignment.centerRight,
-                        child: GestureDetector(
-                          onTap: () => setState(() => _isSearching = true),
-                          child: const Icon(Icons.search,
-                              color: Colors.white, size: 22),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            GestureDetector(
+                              onTap: _showMenuFilters,
+                              child: const Padding(
+                                padding: EdgeInsets.all(6),
+                                child: Icon(
+                                  Icons.tune,
+                                  color: Colors.white,
+                                  size: 21,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            GestureDetector(
+                              onTap: () => setState(() => _isSearching = true),
+                              child: const Padding(
+                                padding: EdgeInsets.all(6),
+                                child: Icon(
+                                  Icons.search,
+                                  color: Colors.white,
+                                  size: 22,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
@@ -461,6 +705,7 @@ class _MenuPageState extends State<MenuPage> {
   }
 
   Widget _buildVoucherBanner() {
+    final banners = _menuVoucherBanners;
     return AspectRatio(
       // Voucher artwork uses the same 2:1 ratio enforced by Admin uploads.
       aspectRatio: 2 / 1,
@@ -473,16 +718,100 @@ class _MenuPageState extends State<MenuPage> {
             children: [
               PageView.builder(
                 controller: _voucherBannerController,
-                itemCount: _voucherBanners.length,
+                itemCount: banners.length,
                 onPageChanged: (index) =>
                     setState(() => _voucherBannerIndex = index),
-                itemBuilder: (context, index) => CatalogProductImage(
-                  imageUrl: resolveCatalogImageSource(
-                      _voucherBanners[index].template.imageUrl),
-                  fit: BoxFit.cover,
-                ),
+                itemBuilder: (context, index) {
+                  final banner = banners[index];
+                  return GestureDetector(
+                    onTap: () => _openVoucherBanner(banner),
+                    child: Semantics(
+                      button: true,
+                      label: '${banner.actionLabel}: ${banner.title}',
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          _buildVoucherBannerArtwork(banner),
+                          DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Colors.transparent,
+                                  Colors.black.withValues(alpha: 0.72),
+                                ],
+                                stops: const [0.35, 1],
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            left: 14,
+                            right: 14,
+                            bottom: 16,
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        banner.eyebrow,
+                                        style: const TextStyle(
+                                          fontFamily: 'Afacad',
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700,
+                                          letterSpacing: 1.1,
+                                          color: Colors.white70,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 1),
+                                      Text(
+                                        banner.title,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontFamily: 'Recoleta',
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 7,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  child: Text(
+                                    banner.actionLabel,
+                                    style: TextStyle(
+                                      fontFamily: 'Afacad',
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.deepTeal,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
               ),
-              if (_voucherBanners.length > 1)
+              if (banners.length > 1)
                 Positioned(
                   left: 0,
                   right: 0,
@@ -490,7 +819,7 @@ class _MenuPageState extends State<MenuPage> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: List.generate(
-                      _voucherBanners.length,
+                      banners.length,
                       (index) => AnimatedContainer(
                         duration: const Duration(milliseconds: 180),
                         width: index == _voucherBannerIndex ? 16 : 6,
@@ -511,6 +840,17 @@ class _MenuPageState extends State<MenuPage> {
         ),
       ),
     );
+  }
+
+  Widget _buildVoucherBannerArtwork(_MenuVoucherBanner banner) {
+    return CatalogProductImage(
+      imageUrl: resolveCatalogImageSource(banner.imageSource),
+      fit: BoxFit.cover,
+    );
+  }
+
+  void _openVoucherBanner(_MenuVoucherBanner banner) {
+    CustomBottomNav.switchTab(context, const RewardsPage());
   }
 
   Widget _buildStoreBar() {
@@ -722,7 +1062,7 @@ class _MenuPageState extends State<MenuPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (_voucherBanners.isNotEmpty) ...[
+                if (_menuVoucherBanners.isNotEmpty) ...[
                   _buildVoucherBanner(),
                   const SizedBox(height: 16),
                 ],
@@ -1001,6 +1341,52 @@ class _MenuSection {
     required this.sidebarLabel,
     required this.sortOrder,
     required this.items,
+  });
+}
+
+class _MenuVoucherBanner {
+  final String imageSource;
+  final RewardVoucher voucher;
+
+  const _MenuVoucherBanner({
+    required this.imageSource,
+    required this.voucher,
+  });
+
+  String get eyebrow => 'YOUR AVAILABLE REWARD';
+
+  String get title {
+    final value = voucher.template.displayLabel;
+    return value.trim().isEmpty ? 'View reward' : value;
+  }
+
+  String get actionLabel => 'View reward';
+
+  factory _MenuVoucherBanner.fromIssuedVoucher(RewardVoucher voucher) {
+    return _MenuVoucherBanner(
+      imageSource: voucher.template.imageUrl ?? '',
+      voucher: voucher,
+    );
+  }
+}
+
+enum _MenuSortOrder {
+  menuOrder('Menu order'),
+  nameAToZ('Name: A to Z'),
+  nameZToA('Name: Z to A'),
+  priceLowToHigh('Price: low to high'),
+  priceHighToLow('Price: high to low');
+
+  final String label;
+
+  const _MenuSortOrder(this.label);
+}
+
+class _MenuFilterSelection {
+  final _MenuSortOrder sortOrder;
+
+  const _MenuFilterSelection({
+    required this.sortOrder,
   });
 }
 

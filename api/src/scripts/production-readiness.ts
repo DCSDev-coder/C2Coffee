@@ -21,6 +21,30 @@ async function requireHealthy(url: string): Promise<void> {
   }
 }
 
+async function requireBillplzApprovedMethods(): Promise<void> {
+  const baseUrl = env.TOPUP_GATEWAY_BASE_URL.replace(/\/+$/, '');
+  const authorization = `Basic ${Buffer.from(`${env.TOPUP_GATEWAY_API_KEY}:`).toString('base64')}`;
+  const response = await fetch(`${baseUrl}/v4/payment_gateways`, {
+    headers: { authorization },
+    signal: AbortSignal.timeout(10_000)
+  });
+  const body = await response.json().catch(() => null) as { payment_gateways?: unknown } | null;
+  if (!response.ok || !Array.isArray(body?.payment_gateways)) {
+    throw new Error(`Billplz payment-gateway lookup returned HTTP ${response.status}.`);
+  }
+  const activeCodes = new Set(
+    body.payment_gateways
+      .filter((gateway): gateway is Record<string, unknown> => Boolean(gateway) && typeof gateway === 'object')
+      .filter((gateway) => gateway.active === true)
+      .map((gateway) => String(gateway.code ?? ''))
+  );
+  for (const requiredCode of ['BP-TNG01', 'BP-BILLPLZ1']) {
+    if (!activeCodes.has(requiredCode)) {
+      throw new Error(`Billplz approved payment method ${requiredCode} is not active.`);
+    }
+  }
+}
+
 async function main(): Promise<void> {
   const publicOrigin = env.PUBLIC_API_BASE_URL.replace(/\/v1\/?$/, '');
   const fcmReadinessDetail = env.FCM_DELIVERY_ENABLED
@@ -106,9 +130,14 @@ async function main(): Promise<void> {
         requireValue('TOPUP_GATEWAY_BASE_URL', env.TOPUP_GATEWAY_BASE_URL);
         requireValue('TOPUP_GATEWAY_API_KEY', env.TOPUP_GATEWAY_API_KEY);
         requireValue('TOPUP_GATEWAY_WEBHOOK_SECRET', env.TOPUP_GATEWAY_WEBHOOK_SECRET);
+        requireValue('TOPUP_GATEWAY_COLLECTION_ID', env.TOPUP_GATEWAY_COLLECTION_ID);
+        if (env.TOPUP_GATEWAY_PROVIDER !== 'billplz') {
+          throw new Error('Only Billplz is approved for online C2 Token top-up.');
+        }
         if (env.TOPUP_GATEWAY_ALLOWED_METHODS.includes('atome')) {
           throw new Error('Atome must not be enabled for token top-up.');
         }
+        return requireBillplzApprovedMethods();
       }
     }
   ];

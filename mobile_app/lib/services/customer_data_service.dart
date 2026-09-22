@@ -44,6 +44,95 @@ class WalletTransaction {
   }
 }
 
+class OnlineTopUpSession {
+  final String topupRef;
+  final String checkoutUrl;
+  final String status;
+
+  const OnlineTopUpSession({
+    required this.topupRef,
+    required this.checkoutUrl,
+    required this.status,
+  });
+
+  factory OnlineTopUpSession.fromApi(Map<String, dynamic> json) {
+    return OnlineTopUpSession(
+      topupRef: json['topup_ref'] as String? ?? '',
+      checkoutUrl: json['checkout_url'] as String? ?? '',
+      status: json['status'] as String? ?? 'pending_payment',
+    );
+  }
+}
+
+class TokenTopUpPackage {
+  final int id;
+  final String name;
+  final int tokenAmount;
+  final String amountRm;
+
+  const TokenTopUpPackage(
+      {required this.id,
+      required this.name,
+      required this.tokenAmount,
+      required this.amountRm});
+
+  factory TokenTopUpPackage.fromApi(Map<String, dynamic> json) =>
+      TokenTopUpPackage(
+        id: (json['id'] as num?)?.toInt() ?? 0,
+        name: json['name'] as String? ?? 'C2 Tokens',
+        tokenAmount: (json['token_amount'] as num?)?.toInt() ?? 0,
+        amountRm: json['amount_rm'] as String? ?? '0.00',
+      );
+}
+
+class OnlineTopUpPaymentMethods {
+  final Set<String> methods;
+
+  const OnlineTopUpPaymentMethods({required this.methods});
+
+  factory OnlineTopUpPaymentMethods.fromApi(Map<String, dynamic> json) {
+    return OnlineTopUpPaymentMethods(
+      methods: (json['methods'] as List? ?? const [])
+          .whereType<String>()
+          .map((method) => method.trim())
+          .where((method) => method.isNotEmpty)
+          .toSet(),
+    );
+  }
+}
+
+class OnlineBankOption {
+  final String code;
+
+  const OnlineBankOption({required this.code});
+
+  String get label {
+    const labels = <String, String>{
+      'MB2U0227': 'Maybank2u',
+      'MBSB001': 'MBSB Bank',
+      'BCBB0235': 'CIMB Clicks',
+      'RHB0218': 'RHB Bank',
+      'PBB0233': 'Public Bank',
+      'HLB0224': 'Hong Leong Bank',
+      'ABB0233': 'Affin Bank',
+      'AGRO01': 'Agrobank',
+      'ABMB0212': 'Alliance Bank',
+      'AMBB0209': 'AmBank',
+      'BIMB0340': 'Bank Islam',
+      'BMMB0341': 'Bank Muamalat',
+      'BOCM01': 'Bank of China',
+      'BKRM0602': 'Bank Rakyat',
+      'BSN0601': 'Bank Simpanan Nasional',
+      'HSBC0223': 'HSBC',
+      'KFH0346': 'Kuwait Finance House',
+      'OCBC0229': 'OCBC',
+      'SCB0216': 'Standard Chartered',
+      'UOB0226': 'UOB',
+    };
+    return labels[code] ?? code;
+  }
+}
+
 class RewardVoucherTemplate {
   final String code;
   final String name;
@@ -612,8 +701,14 @@ class RewardVoucher {
   }
 
   String get visibilityLabel {
+    if (isRedeemed) {
+      return 'Used';
+    }
+    if (revokedAt != null || status == 'revoked') {
+      return 'Revoked';
+    }
     if (!isActive) {
-      return 'Inactive / expired';
+      return 'Expired';
     }
     if (!template.isTokenCheckoutCompatible) {
       return 'Not available for checkout';
@@ -926,14 +1021,74 @@ class CustomerDataService {
         .toList();
   }
 
+  Future<List<OnlineBankOption>> getBillplzBanks({
+    required String accessToken,
+  }) async {
+    final response =
+        await _get('/topups/billplz/banks', accessToken: accessToken);
+    return (response['banks'] as List? ?? const [])
+        .map((item) => OnlineBankOption(
+              code: (item as Map)['code'] as String? ?? '',
+            ))
+        .where((bank) => bank.code.isNotEmpty)
+        .toList();
+  }
+
+  Future<OnlineTopUpPaymentMethods> getBillplzPaymentMethods({
+    required String accessToken,
+  }) async {
+    final response = await _get(
+      '/topups/billplz/payment-methods',
+      accessToken: accessToken,
+    );
+    return OnlineTopUpPaymentMethods.fromApi(response);
+  }
+
+  Future<List<TokenTopUpPackage>> getTopUpPackages(
+      {required String accessToken}) async {
+    final response = await _get('/topups/packages', accessToken: accessToken);
+    return (response['packages'] as List? ?? const [])
+        .map((item) =>
+            TokenTopUpPackage.fromApi(Map<String, dynamic>.from(item as Map)))
+        .where((item) => item.id > 0 && item.tokenAmount > 0)
+        .toList();
+  }
+
+  Future<OnlineTopUpSession> startBillplzTopUp({
+    required String accessToken,
+    required int packageId,
+    required String paymentMethod,
+    String? bankCode,
+  }) async {
+    final response = await _post(
+      '/topups/billplz',
+      accessToken: accessToken,
+      body: {
+        'package_id': packageId,
+        'payment_method': paymentMethod,
+        if (bankCode != null) 'bank_code': bankCode,
+      },
+    );
+    return OnlineTopUpSession.fromApi(response);
+  }
+
+  Future<OnlineTopUpSession> getOnlineTopUp({
+    required String accessToken,
+    required String topupRef,
+  }) async {
+    final response = await _get('/topups/$topupRef', accessToken: accessToken);
+    return OnlineTopUpSession.fromApi(response);
+  }
+
   Future<List<RewardVoucher>> getRewardVouchers({
     required String accessToken,
     int limit = 50,
     bool onlyActive = true,
     bool onlyTokenCheckoutEligible = false,
+    bool includeHistory = false,
   }) async {
     final response = await _get(
-      '/rewards/vouchers?limit=$limit',
+      '/rewards/vouchers?limit=$limit${includeHistory ? '&include_history=true' : ''}',
       accessToken: accessToken,
     );
 
@@ -941,7 +1096,6 @@ class CustomerDataService {
         .map((item) => RewardVoucher.fromApi(
               Map<String, dynamic>.from(item as Map),
             ))
-        .where((voucher) => !voucher.isRedeemed)
         .where((voucher) => !onlyActive || voucher.isActive)
         .where(
           (voucher) =>

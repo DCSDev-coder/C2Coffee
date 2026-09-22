@@ -15,6 +15,7 @@ import '../widgets/custom_bottom_nav.dart';
 import '../widgets/order_status_banner.dart';
 import '../widgets/poster_popup.dart';
 import 'loading_order_page.dart';
+import 'contact_support_page.dart';
 import 'menu_page.dart';
 import 'notification_page.dart';
 import 'orders_page.dart';
@@ -227,36 +228,19 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  List<Map<String, dynamic>> _featuredDrinkItems() {
+  List<Map<String, dynamic>> _featuredItemsFor(HomeFeaturedSection section) {
+    final category = _session.menuCategories
+        .where((candidate) => candidate.id == section.categoryId)
+        .firstOrNull;
+    if (category == null) return const [];
     final itemsById = <int, Map<String, dynamic>>{};
-    for (final category in _session.menuCategories) {
-      for (final item in category.items) {
-        if (item.isAvailable &&
-            CatalogPresentation.isDrinkCategory(category.name, item)) {
-          itemsById[item.id] = CatalogPresentation.toLegacyItem(
-              item, category.code, category.name);
-        }
+    for (final item in category.items) {
+      if (item.isAvailable) {
+        itemsById[item.id] = CatalogPresentation.toLegacyItem(
+            item, category.code, category.name);
       }
     }
-    return _session.homeFeaturedDrinkIds
-        .map((id) => itemsById[id])
-        .whereType<Map<String, dynamic>>()
-        .take(6)
-        .toList();
-  }
-
-  List<Map<String, dynamic>> _featuredLifestyleItems() {
-    final itemsById = <int, Map<String, dynamic>>{};
-    for (final category in _session.menuCategories) {
-      for (final item in category.items) {
-        if (item.isAvailable &&
-            CatalogPresentation.isLifestyleCategory(category.name, item)) {
-          itemsById[item.id] = CatalogPresentation.toLegacyItem(
-              item, category.code, category.name);
-        }
-      }
-    }
-    return _session.homeFeaturedLifestyleIds
+    return section.itemIds
         .map((id) => itemsById[id])
         .whereType<Map<String, dynamic>>()
         .take(6)
@@ -264,6 +248,9 @@ class _HomePageState extends State<HomePage> {
   }
 
   int? _tokenPriceForItem(Map<String, dynamic> item) {
+    final displayedTokenPrice = item['displayTokenPrice'];
+    if (displayedTokenPrice is num) return displayedTokenPrice.toInt();
+
     final baseTokenPrice = item['basePriceToken'];
     if (baseTokenPrice is num) return baseTokenPrice.toInt();
 
@@ -281,8 +268,10 @@ class _HomePageState extends State<HomePage> {
   }
 
   String _formatPrice(Map<String, dynamic> item) {
-    final rawPrice =
-        item['basePriceRm']?.toString() ?? item['price']?.toString() ?? '';
+    final rawPrice = item['displayPriceRm']?.toString() ??
+        item['basePriceRm']?.toString() ??
+        item['price']?.toString() ??
+        '';
     if (rawPrice.isEmpty) return '';
     if (!_showTokenPrice) {
       return AppColors.formatRmPrice(rawPrice);
@@ -306,8 +295,13 @@ class _HomePageState extends State<HomePage> {
       builder: (context, _) {
         final userName = _session.user?.displayName ?? 'C2 Member';
         final tokenCount = _session.tokenBalance;
-        final featuredDrinks = _featuredDrinkItems();
-        final featuredLifestyle = _featuredLifestyleItems();
+        final featuredSections = _session.homeFeaturedSections
+            .map((section) => _HomeFeaturedCategory(
+                  section: section,
+                  items: _featuredItemsFor(section),
+                ))
+            .where((section) => section.items.isNotEmpty)
+            .toList();
 
         return Scaffold(
           backgroundColor: AppColors.background,
@@ -350,28 +344,21 @@ class _HomePageState extends State<HomePage> {
                                 _session.loadAuthenticatedState(force: true),
                           )
                         else ...[
-                          if (featuredDrinks.isNotEmpty) ...[
+                          for (final featured in featuredSections) ...[
                             _buildProductSection(
-                              title: 'Featured Drinks',
-                              items: featuredDrinks,
+                              title: featured.section.categoryName,
+                              items: featured.items,
                               onSeeAll: () => InteractiveFillingLoader.show(
                                 context,
-                                targetPage: const MenuPage(),
+                                targetPage: MenuPage(
+                                  initialCategoryCode:
+                                      featured.section.categoryCode,
+                                ),
                               ),
                             ),
                             const SizedBox(height: 24),
                           ],
-                          if (featuredLifestyle.isNotEmpty) ...[
-                            const SizedBox(height: 24),
-                            _buildProductSection(
-                              title: 'Lifestyle Picks',
-                              items: featuredLifestyle,
-                              onSeeAll: () => InteractiveFillingLoader.show(
-                                context,
-                                targetPage: const MenuPage(),
-                              ),
-                            ),
-                          ],
+                          _buildAdvertiseWithUs(),
                         ],
                       ],
                     ),
@@ -824,6 +811,85 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Widget _buildAdvertiseWithUs() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(22),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24),
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF1F3A34), Color(0xFF315F56)],
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'PARTNER SPOTLIGHT',
+              style: TextStyle(
+                fontFamily: 'Afacad',
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFFD4AF7A),
+                letterSpacing: 1.4,
+              ),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Put your brand in front of the C2 community.',
+              style: TextStyle(
+                fontFamily: 'Recoleta',
+                fontSize: 25,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+                height: 1.12,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Feature your business, event, or exclusive offer in the C2 Coffee app.',
+              style: TextStyle(
+                fontFamily: 'Afacad',
+                fontSize: 16,
+                color: Color(0xFFE8F1EE),
+                height: 1.25,
+              ),
+            ),
+            const SizedBox(height: 18),
+            FilledButton.icon(
+              onPressed: () => InteractiveFillingLoader.show(
+                context,
+                targetPage: const ContactSupportPage(),
+              ),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFD4AF7A),
+                foregroundColor: const Color(0xFF1F3A34),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              icon: const Icon(Icons.campaign_outlined, size: 18),
+              label: const Text(
+                'Advertise with us',
+                style: TextStyle(
+                  fontFamily: 'Afacad',
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildProductSection({
     required String title,
     required List<Map<String, dynamic>> items,
@@ -1091,4 +1157,11 @@ class _HomePageState extends State<HomePage> {
       ),
     );
   }
+}
+
+class _HomeFeaturedCategory {
+  final HomeFeaturedSection section;
+  final List<Map<String, dynamic>> items;
+
+  const _HomeFeaturedCategory({required this.section, required this.items});
 }

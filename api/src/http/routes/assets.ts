@@ -36,7 +36,8 @@ export async function registerAssetRoutes(
     }
 
     const resolvedPath = path.resolve(menuRoot, relativePath);
-    if (!resolvedPath.startsWith(menuRoot)) {
+    const relativeToMenuRoot = path.relative(menuRoot, resolvedPath);
+    if (relativeToMenuRoot.startsWith('..') || path.isAbsolute(relativeToMenuRoot)) {
       return reply.status(404).send();
     }
 

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   LayoutDashboard, Users, ShoppingBag, Ticket, Coins, Crown, Package,
-  Coffee, Megaphone, LineChart, UserCog, ClipboardList, Settings, LogOut, UserCheck, Printer, SlidersHorizontal, BookOpen, RotateCcw
+  Coffee, Megaphone, LineChart, UserCog, ClipboardList, Settings, LogOut, UserCheck, Printer, SlidersHorizontal, BookOpen, RotateCcw, CalendarDays
 } from 'lucide-react';
 
 import { canAccessAdminPage } from '../lib/adminPermissions';
@@ -10,6 +10,8 @@ import { canAccessAdminPage } from '../lib/adminPermissions';
 const Sidebar = ({ currentPage, setCurrentPage, onLogout, currentTenant, currentUser }) => {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const menuItems = [
+    { name: 'Barista Console', icon: Coffee, section: 'Daily work' },
+    { name: 'Barista Workspace', icon: CalendarDays, section: 'Daily work' },
     { name: 'Dashboard', icon: LayoutDashboard, section: 'Daily work' },
     { name: 'Orders', icon: ShoppingBag, section: 'Daily work' },
     { name: 'Refunds', icon: RotateCcw, section: 'Daily work' },

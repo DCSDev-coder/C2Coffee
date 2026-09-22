@@ -650,20 +650,27 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
     const nextRefreshToken = generateOpaqueToken();
     const nextRefreshTokenHash = hashSha256(nextRefreshToken);
 
-    await mysqlPool.execute(
+    const [rotationResult] = await mysqlPool.execute<ResultSetHeader>(
       `
         UPDATE sessions
         SET refresh_token_hash = :refreshTokenHash,
             issued_at = UTC_TIMESTAMP(),
             expires_at = DATE_ADD(UTC_TIMESTAMP(), INTERVAL :refreshDays DAY)
         WHERE id = :sessionId
+          AND refresh_token_hash = :currentRefreshTokenHash
+          AND revoked_at IS NULL
       `,
       {
         refreshTokenHash: nextRefreshTokenHash,
+        currentRefreshTokenHash: refreshTokenHash,
         refreshDays: env.REFRESH_TOKEN_TTL_DAYS,
         sessionId: session.id
       }
     );
+
+    if (rotationResult.affectedRows !== 1) {
+      throw new ApiError(401, 'invalid_refresh_token', 'Refresh token is invalid or expired.');
+    }
 
     const accessToken = await signAccessToken({
       userId: session.user_id,

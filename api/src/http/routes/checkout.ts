@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import type {
   FastifyInstance
 } from 'fastify';
@@ -885,6 +886,28 @@ export async function registerCheckoutRoutes(
         }
       }
 
+      // A direct Android printer receives a durable job only after the order is
+      // fully stored. No printer failure can roll back a paid checkout.
+      const [directPrinters] = await connection.execute<RowDataPacket[]>(
+        `SELECT pt.id, pt.tenant_code FROM printer_targets pt
+         JOIN stores s ON s.id = :storeId
+         JOIN admin_tenants t ON t.id = s.tenant_id
+         WHERE pt.tenant_code = t.code AND pt.store_id = s.id
+           AND pt.delivery_mode = 'android_direct' AND pt.status = 'connected'
+           AND pt.is_default = 1 AND pt.network_host IS NOT NULL
+           AND pt.network_port IS NOT NULL AND pt.direct_print_device_key IS NOT NULL
+         LIMIT 1`,
+        { storeId: payload.store_id }
+      );
+      if (directPrinters[0]) {
+        await connection.execute(
+          `INSERT INTO print_jobs (
+            job_ref, tenant_code, order_id, printer_target_id, requested_by_admin_user_id, request_type
+          ) VALUES (:jobRef, :tenantCode, :orderId, :printerTargetId, NULL, 'original')`,
+          { jobRef: crypto.randomUUID(), tenantCode: directPrinters[0].tenant_code, orderId, printerTargetId: directPrinters[0].id }
+        );
+      }
+
       await connection.execute(
         `
           INSERT INTO order_status_history (
@@ -1092,6 +1115,8 @@ export async function registerCheckoutRoutes(
           title: 'New order to prepare',
           body: 'A paid pickup order is waiting in the queue.',
           data: { type: 'new_order' }
+        }).then((delivery) => {
+          request.log.info({ staffPush: delivery }, 'Staff push delivery attempted after checkout.');
         }).catch((error) => {
           // Delivery failure never affects a completed checkout. Do not log
           // order contents or customer data alongside the provider error.
@@ -1407,7 +1432,7 @@ async function _loadMenuItems(
         i.name,
         CAST(i.base_price_rm AS CHAR) AS base_price_rm,
         i.base_price_token,
-        i.base_calories_kcal,
+        CAST(COALESCE(recipe.calculated_base_calories_kcal, i.base_calories_kcal) AS UNSIGNED) AS base_calories_kcal,
         COALESCE(a.is_available, 1) AS is_available,
         tp.token_price,
         i.is_qualifying_cup,
@@ -1424,6 +1449,14 @@ async function _loadMenuItems(
         sc.name AS subcategory_name
       FROM menu_items i
       JOIN menu_categories c ON c.id = i.category_id
+      LEFT JOIN (
+        SELECT r.menu_item_id, ROUND(SUM(component.quantity * ingredient.calories_per_100_units / 100)) AS calculated_base_calories_kcal
+        FROM menu_item_recipe_versions r
+        JOIN menu_item_recipe_components component ON component.recipe_version_id = r.id
+        JOIN nutrition_ingredients ingredient ON ingredient.id = component.ingredient_id
+        WHERE r.status = 'active'
+        GROUP BY r.menu_item_id
+      ) recipe ON recipe.menu_item_id = i.id
       LEFT JOIN menu_subcategories sc ON sc.id = i.subcategory_id
       LEFT JOIN menu_item_store_availability a
         ON a.store_id = :storeId
@@ -1455,12 +1488,15 @@ async function _verifyLibraryModifiers(
 ) {
   const [rows] = await connection.query<Array<LibraryOptionRow>>(
     `SELECT g.id AS group_id, g.name AS group_name, g.selection_type, g.min_select, g.max_select, g.is_required,
-            o.id AS option_id, o.name AS option_name, CAST(o.price_delta_rm AS CHAR) AS price_delta_rm, o.token_price_delta, o.calorie_delta_kcal
+            o.id AS option_id, o.name AS option_name, CAST(o.price_delta_rm AS CHAR) AS price_delta_rm, o.token_price_delta,
+            COALESCE(nutrition_override.calorie_delta_kcal, o.calorie_delta_kcal) AS calorie_delta_kcal
      FROM menu_option_groups g
      JOIN menu_option_group_options o ON o.option_group_id = g.id AND o.is_active = 1
      LEFT JOIN menu_option_group_items a ON a.option_group_id = g.id AND a.menu_item_id = :menuItemId
      LEFT JOIN menu_item_option_exclusions e
        ON e.menu_item_id = :menuItemId AND e.option_group_option_id = o.id
+     LEFT JOIN menu_item_option_nutrition_overrides nutrition_override
+       ON nutrition_override.menu_item_id = :menuItemId AND nutrition_override.option_group_option_id = o.id
      WHERE g.tenant_id = :tenantId AND g.is_active = 1
        AND (g.applies_to = 'all_drinks' OR a.menu_item_id IS NOT NULL)
        AND e.option_group_option_id IS NULL

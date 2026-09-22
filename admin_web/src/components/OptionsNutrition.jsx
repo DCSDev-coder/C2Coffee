@@ -10,6 +10,7 @@ import {
   updateAdminOptionGroup
 } from '../lib/adminApi';
 import { useUnsavedChanges } from '../utils/UnsavedChangesContext';
+import RecipeNutrition from './RecipeNutrition';
 
 const emptyGroup = () => ({
   name: '',
@@ -32,7 +33,8 @@ const emptyGroup = () => ({
       price_delta_rm: 0,
       token_price_delta: 0,
       calorie_delta_kcal: 0,
-      is_active: true
+      is_active: true,
+      is_default: false
     }
   ]
 });
@@ -47,7 +49,8 @@ const emptyOption = () => ({
   price_delta_rm: 0,
   token_price_delta: 0,
   calorie_delta_kcal: 0,
-  is_active: true
+  is_active: true,
+  is_default: false
 });
 
 const gradientDirectionToDeg = (dir) => {
@@ -88,7 +91,7 @@ export default function OptionsNutrition() {
         .sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }));
       const drinkItems = menuItems.filter((item) => item.product_kind_code === 'drink');
       setDrinks(drinkItems);
-      setNutritionItems(menuItems);
+      setNutritionItems(menuItems.filter((item) => item.product_kind_code !== 'drink'));
       const drafts = Object.fromEntries(
         menuItems.map((item) => [item.id, item.base_calories_kcal ?? 0])
       );
@@ -242,6 +245,16 @@ export default function OptionsNutrition() {
     setForm({ ...form, options });
   };
 
+  const setOptionDefault = (index, isDefault) => {
+    const options = form.options.map((option, optionIndex) => ({
+      ...option,
+      is_default: isDefault
+        ? (form.selection_type === 'single' ? optionIndex === index : optionIndex === index || option.is_default)
+        : (optionIndex === index ? false : option.is_default)
+    }));
+    setForm({ ...form, options });
+  };
+
   const uploadChoiceImage = async (file, index) => {
     if (!file) return;
     setSaving(true);
@@ -263,7 +276,7 @@ export default function OptionsNutrition() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Options &amp; Nutrition</h1>
           <p className="mt-1 text-sm text-gray-500">
-            Create reusable drink options and set standard base calories for all menu items.
+            Create reusable option rules. Set drink calories separately for each menu item.
           </p>
         </div>
         <button
@@ -281,12 +294,14 @@ export default function OptionsNutrition() {
         </div>
       )}
 
+      <RecipeNutrition drinks={drinks} groups={groups} />
+
       {/* Option Groups Section */}
       <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
         <div className="border-b border-gray-100 bg-gray-50/70 px-5 py-3.5 flex items-center justify-between">
           <div>
             <h2 className="text-base font-bold text-gray-900">Option Groups</h2>
-            <p className="text-xs text-gray-500">Choice modifiers for beans, milk, temperature, and syrups.</p>
+            <p className="text-xs text-gray-500">Choice modifiers for beans, milk, temperature, and syrups. Their calorie values are managed per drink above.</p>
           </div>
           <span className="rounded-full bg-[#E8F2EF] px-2.5 py-1 text-xs font-bold text-[#1F3A34]">
             {groups.length} {groups.length === 1 ? 'group' : 'groups'}
@@ -359,10 +374,7 @@ export default function OptionsNutrition() {
                         />
                         <span className="font-semibold text-gray-900 truncate">{option.name}</span>
                       </div>
-                      <span className="text-xs text-gray-500 shrink-0">
-                        RM {Number(option.price_delta_rm).toFixed(2)} · {Number(option.calorie_delta_kcal) >= 0 ? '+' : ''}
-                        {option.calorie_delta_kcal} kcal
-                      </span>
+                      <span className="text-xs text-gray-500 shrink-0">RM {Number(option.price_delta_rm).toFixed(2)}</span>
                     </div>
                   ))}
                 </div>
@@ -376,9 +388,9 @@ export default function OptionsNutrition() {
       <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-gray-100 pb-4">
           <div>
-            <h2 className="text-lg font-bold text-gray-900">Base calories by menu item</h2>
+            <h2 className="text-lg font-bold text-gray-900">Base calories for non-drink menu items</h2>
             <p className="mt-0.5 text-sm text-gray-500">
-              Enter the standard calories for drinks, food, and other menu items. Drink option adjustments are added separately.
+              Drink nutrition is managed above. Use this only for food, merchandise, and other non-drink menu items.
             </p>
           </div>
           {hasUnsavedNutrition && (
@@ -637,7 +649,7 @@ export default function OptionsNutrition() {
                 <div className="mb-2.5 flex items-center justify-between">
                   <div>
                     <h3 className="font-bold text-gray-900">Customer choices</h3>
-                    <p className="text-xs text-gray-500">Use a negative calorie value for less sugar or other reductions.</p>
+                    <p className="text-xs text-gray-500">Mark the choices preselected for customers. The menu price includes their extra price and tokens.</p>
                   </div>
                   <button
                     type="button"
@@ -728,7 +740,7 @@ export default function OptionsNutrition() {
                       </div>
 
                       {/* Row 2: Price, Tokens, Calories, Actions */}
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 items-end pt-1 border-t border-gray-200/60">
+                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 items-end pt-1 border-t border-gray-200/60">
                         <label className="text-xs font-bold text-gray-700">
                           Extra price (RM)
                           <input
@@ -749,13 +761,23 @@ export default function OptionsNutrition() {
                           />
                         </label>
                         <label className="text-xs font-bold text-gray-700">
-                          Calories (+/- kcal)
+                          Legacy fallback calories
                           <input
                             type="number"
                             value={option.calorie_delta_kcal}
                             onChange={(e) => updateOption(index, { calorie_delta_kcal: e.target.value })}
                             className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm font-normal bg-white outline-none focus:border-[#2E5E58]"
                           />
+                          <span className="mt-1 block text-[11px] font-normal text-gray-500">Used only until a drink has its own nutrition value.</span>
+                        </label>
+                        <label className="flex min-h-10 items-center gap-2 rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-700">
+                          <input
+                            type="checkbox"
+                            checked={option.is_default === true}
+                            onChange={(event) => setOptionDefault(index, event.target.checked)}
+                            className="h-4 w-4 rounded text-[#2E5E58] focus:ring-[#2E5E58]"
+                          />
+                          Default for customers
                         </label>
                         <div className="flex items-center justify-end pb-1">
                           <button

@@ -768,7 +768,8 @@ function buildVoucherWriteBindings(
   discountValue: number,
   tokenValue: number | null,
   isActive: number,
-  validUntil: Date | null
+  validUntil: Date | null,
+  voucherCode = payload.code
 ): { columns: string[]; placeholders: string[]; values: Record<string, unknown> } {
   const columnsToWrite = [
     'code',
@@ -792,7 +793,7 @@ function buildVoucherWriteBindings(
   ];
 
   const values: Record<string, unknown> = {
-    code: payload.code,
+    code: voucherCode,
     name: payload.name,
     voucherType,
     discountMode,
@@ -839,6 +840,21 @@ function buildVoucherWriteBindings(
   }
 
   return { columns: columnsToWrite, placeholders, values };
+}
+
+async function nextVoucherCode(tenantId: number): Promise<string> {
+  const [rows] = await mysqlPool.query<Array<RowDataPacket & { max_code_number: number | null }>>(
+    `SELECT MAX(CAST(SUBSTRING(code, 5) AS UNSIGNED)) AS max_code_number
+     FROM voucher_templates
+     WHERE tenant_id = :tenantId AND code REGEXP '^VCH-[0-9]+$'`,
+    { tenantId }
+  );
+  return `VCH-${Math.max(1000, Number(rows[0]?.max_code_number || 1000)) + 1}`;
+}
+
+function isVoucherCodeCollision(error: unknown): boolean {
+  return typeof error === 'object' && error !== null &&
+    'code' in error && (error as { code?: string }).code === 'ER_DUP_ENTRY';
 }
 
 export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<void> {
@@ -1235,18 +1251,6 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
       audience: payload.audience,
       schedule
     });
-    const writeBindings = buildVoucherWriteBindings(
-      voucherColumns,
-      payload,
-      scopeJson,
-      discountMode,
-      voucherType,
-      discountValue,
-      tokenValue,
-      isActive,
-      effectiveValidUntil
-    );
-
     if (payload.isReferralReward && hasColumn(voucherColumns, 'is_referral_reward')) {
       await mysqlPool.execute(
         'UPDATE voucher_templates SET is_referral_reward = 0 WHERE is_referral_reward = 1 AND tenant_id = :tenantId',
@@ -1254,18 +1258,38 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
       );
     }
 
-    const [result] = await mysqlPool.query<ResultSetHeader>(
-      `
-        INSERT INTO voucher_templates (
-          tenant_id, ${writeBindings.columns.join(', ')}
-        ) VALUES (
-          :tenantId, ${writeBindings.placeholders.join(', ')}
-        )
-      `,
-      { ...(writeBindings.values as Record<string, unknown>), tenantId: request.adminAuth.tenantId } as never
-    );
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const code = await nextVoucherCode(request.adminAuth.tenantId);
+      const writeBindings = buildVoucherWriteBindings(
+        voucherColumns,
+        payload,
+        scopeJson,
+        discountMode,
+        voucherType,
+        discountValue,
+        tokenValue,
+        isActive,
+        effectiveValidUntil,
+        code
+      );
+      try {
+        const [result] = await mysqlPool.query<ResultSetHeader>(
+          `
+            INSERT INTO voucher_templates (
+              tenant_id, ${writeBindings.columns.join(', ')}
+            ) VALUES (
+              :tenantId, ${writeBindings.placeholders.join(', ')}
+            )
+          `,
+          { ...(writeBindings.values as Record<string, unknown>), tenantId: request.adminAuth.tenantId } as never
+        );
+        return { id: code, db_id: result.insertId };
+      } catch (error) {
+        if (!isVoucherCodeCollision(error) || attempt === 2) throw error;
+      }
+    }
 
-    return { id: payload.code, db_id: result.insertId };
+    throw new ApiError(409, 'voucher_code_unavailable', 'Unable to allocate a unique voucher code. Please try again.');
   });
 
   // PUT /v1/admin/vouchers/:id

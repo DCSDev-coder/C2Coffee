@@ -14,6 +14,17 @@ class CatalogPresentation {
     final isCandle = normalizedCategoryCode == 'candles' ||
         _isCandleCategory(categoryName, item.name);
     final isFood = normalizedCategoryCode == 'food';
+    final startingOptions = _defaultActiveLibraryOptions(item);
+    final startingPriceRm = (double.tryParse(item.basePriceRm) ?? 0) +
+        startingOptions.fold<double>(
+          0,
+          (sum, option) => sum + (double.tryParse(option.priceDeltaRm) ?? 0),
+        );
+    final startingTokenPrice = item.basePriceToken +
+        startingOptions.fold<int>(
+          0,
+          (sum, option) => sum + option.tokenPriceDelta,
+        );
 
     return {
       'id': item.id,
@@ -23,6 +34,10 @@ class CatalogPresentation {
       'basePriceRm': item.basePriceRm,
       'tokenPrice': item.basePriceToken,
       'basePriceToken': item.basePriceToken,
+      // The menu advertises the price a customer pays with the selections
+      // preselected by the customization screen, not only the item base.
+      'displayPriceRm': startingPriceRm.toStringAsFixed(2),
+      'displayTokenPrice': startingTokenPrice,
       'baseCaloriesKcal': item.baseCaloriesKcal,
       'tokenPrices': item.tokenPrices,
       'image': '',
@@ -73,12 +88,63 @@ class CatalogPresentation {
                           'gradientEndHex': option.gradientEndHex,
                           'gradientDirection': option.gradientDirection,
                           'isActive': option.isActive,
+                          'isDefault': option.isDefault,
                           'sortOrder': option.sortOrder,
                         })
                     .toList(),
               })
           .toList(),
     };
+  }
+
+  static List<CatalogModifierOption> _defaultActiveLibraryOptions(
+    CatalogMenuItem item,
+  ) {
+    final groups = item.modifierGroups
+        .where((group) => group.source == 'library')
+        .toList();
+    final selections = <int, List<CatalogModifierOption>>{};
+
+    for (final group in groups) {
+      final selected = group.options.where((option) => option.isDefault).toList();
+      final requiredMinimum = group.isRequired
+          ? (group.minSelect > 0 ? group.minSelect : 1)
+          : group.minSelect;
+      if (selected.length < requiredMinimum) {
+        selected.addAll(group.options
+            .where((option) => !selected.contains(option))
+            .take(requiredMinimum - selected.length));
+      }
+      selections[group.id] = selected.take(group.maxSelect).toList();
+    }
+
+    final selectedOptionIds =
+        selections.values.expand((options) => options).map((option) => option.id).toSet();
+    final temperatureGroups = groups
+        .where((group) => group.name.toLowerCase().contains('temperature'))
+        .toList();
+    final hasTemperatureSelection = temperatureGroups.any(
+      (group) => selections.containsKey(group.id),
+    );
+    final isCold = temperatureGroups.any(
+      (group) => selections[group.id]
+              ?.any((option) => option.name.trim().toLowerCase() == 'cold') ??
+          false,
+    );
+
+    return groups
+        .where((group) {
+          if (group.hiddenWhenOptionIds.isNotEmpty) {
+            return !group.hiddenWhenOptionIds.any(selectedOptionIds.contains);
+          }
+          final isIceGroup =
+              RegExp(r'\bice\b', caseSensitive: false).hasMatch(group.name);
+          return !isIceGroup || !hasTemperatureSelection || isCold;
+        })
+        .expand<CatalogModifierOption>(
+          (group) => selections[group.id] ?? const <CatalogModifierOption>[],
+        )
+        .toList();
   }
 
   static String sidebarLabel(String categoryName) {

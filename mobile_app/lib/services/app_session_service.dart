@@ -32,8 +32,7 @@ class AppSessionService extends ChangeNotifier {
   List<StoreSummary> _stores = const [];
   StoreSummary? _selectedStore;
   List<MenuCategoryGroup> _menuCategories = const [];
-  List<int> _homeFeaturedDrinkIds = const [];
-  List<int> _homeFeaturedLifestyleIds = const [];
+  List<HomeFeaturedSection> _homeFeaturedSections = const [];
   List<HomeBanner> _homeBanners = const [];
   List<LoyaltyTier> _loyaltyTiers = const [];
 
@@ -55,8 +54,7 @@ class AppSessionService extends ChangeNotifier {
   List<StoreSummary> get stores => _stores;
   StoreSummary? get selectedStore => _selectedStore;
   List<MenuCategoryGroup> get menuCategories => _menuCategories;
-  List<int> get homeFeaturedDrinkIds => _homeFeaturedDrinkIds;
-  List<int> get homeFeaturedLifestyleIds => _homeFeaturedLifestyleIds;
+  List<HomeFeaturedSection> get homeFeaturedSections => _homeFeaturedSections;
   List<HomeBanner> get homeBanners => _homeBanners;
   List<LoyaltyTier> get loyaltyTiers => _loyaltyTiers;
   Map<String, String?> get userProfileSnapshot =>
@@ -315,12 +313,10 @@ class AppSessionService extends ChangeNotifier {
           accessToken: accessToken,
           storeId: storeId,
         );
-        _homeFeaturedDrinkIds = featured.drinks;
-        _homeFeaturedLifestyleIds = featured.lifestyle;
+        _homeFeaturedSections = featured.sections;
       } catch (_) {
         // Keep the catalog usable while an older API is being rolled over.
-        _homeFeaturedDrinkIds = const [];
-        _homeFeaturedLifestyleIds = const [];
+        _homeFeaturedSections = const [];
       }
     } on ApiException catch (error) {
       _menuError = _friendlyErrorMessage(
@@ -328,13 +324,11 @@ class AppSessionService extends ChangeNotifier {
         fallback: 'Unable to load the menu right now.',
       );
       _menuCategories = const [];
-      _homeFeaturedDrinkIds = const [];
-      _homeFeaturedLifestyleIds = const [];
+      _homeFeaturedSections = const [];
     } catch (error) {
       _menuError = 'Unable to load the menu right now.';
       _menuCategories = const [];
-      _homeFeaturedDrinkIds = const [];
-      _homeFeaturedLifestyleIds = const [];
+      _homeFeaturedSections = const [];
     } finally {
       _isMenuLoading = false;
       notifyListeners();

@@ -38,7 +38,23 @@ const EMPTY_OVERVIEW = {
   },
   monthlyRevenue: [],
   statusBreakdown: [],
+  topUpMethodBreakdown: [],
   recentTransactions: []
+};
+
+const topUpMethodLabel = (method) => {
+  switch (method) {
+    case 'touch_n_go':
+      return 'Touch n Go eWallet';
+    case 'card':
+      return 'Visa or Mastercard';
+    case 'bank_transfer':
+      return 'Online banking';
+    case 'not_recorded':
+      return 'Not recorded';
+    default:
+      return formatPaymentLabel(method);
+  }
 };
 
 const StatCard = ({ title, value, subtitle, icon: Icon, iconBg, iconColor = 'text-white' }) => (
@@ -99,6 +115,7 @@ const Finance = ({ setCurrentPage }) => {
 
   const summary = overview.summary || EMPTY_OVERVIEW.summary;
   const monthlyRevenue = Array.isArray(overview.monthlyRevenue) ? overview.monthlyRevenue : [];
+  const topUpMethodBreakdown = Array.isArray(overview.topUpMethodBreakdown) ? overview.topUpMethodBreakdown : [];
   const recentTransactions = Array.isArray(overview.recentTransactions) ? overview.recentTransactions : [];
   const netTokens = Number(summary.netTokens ?? Math.max(0, Number(summary.totalTokensCharged || 0) - Number(summary.totalRefundTokens || 0)));
   const tokenRefundRate = Number(summary.totalTokensCharged || 0) > 0
@@ -108,6 +125,8 @@ const Finance = ({ setCurrentPage }) => {
     if (!best) return entry;
     return Number(entry.tokensCharged || 0) > Number(best.tokensCharged || 0) ? entry : best;
   }, null);
+  const totalPaidTopUps = topUpMethodBreakdown.reduce((total, entry) => total + Number(entry.count || 0), 0);
+  const mostUsedTopUpMethod = topUpMethodBreakdown.find((entry) => entry.method !== 'not_recorded') || null;
 
   const exportRows = useMemo(() => {
     return [
@@ -220,6 +239,48 @@ const Finance = ({ setCurrentPage }) => {
               />
             </div>
           </div>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h3 className="text-lg font-bold text-gray-900">Top-up Payment Methods</h3>
+              <p className="mt-1 text-sm text-gray-500">Paid token top-ups by the method selected at checkout.</p>
+            </div>
+            <div className="rounded-full bg-[#EEF6F3] px-3 py-1 text-xs font-semibold text-[#1F5A4D]">
+              {mostUsedTopUpMethod ? `Most used: ${topUpMethodLabel(mostUsedTopUpMethod.method)}` : 'No paid top-ups yet'}
+            </div>
+          </div>
+
+          {topUpMethodBreakdown.length > 0 ? (
+            <div className="mt-5 grid gap-3 lg:grid-cols-3">
+              {topUpMethodBreakdown.map((entry) => {
+                const count = Number(entry.count || 0);
+                const share = totalPaidTopUps > 0 ? Math.round((count / totalPaidTopUps) * 100) : 0;
+                const historical = entry.method === 'not_recorded';
+                return (
+                  <div key={entry.method} className="rounded-xl border border-gray-200 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="font-semibold text-gray-900">{topUpMethodLabel(entry.method)}</p>
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${historical ? 'bg-gray-100 text-gray-600' : 'bg-[#E5F2ED] text-[#1F5A4D]'}`}>{share}%</span>
+                    </div>
+                    <p className="mt-3 text-2xl font-bold text-gray-900">{count.toLocaleString('en-US')}</p>
+                    <p className="text-xs text-gray-500">paid top-ups</p>
+                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-gray-100">
+                      <div className="h-full rounded-full bg-[#2E5E58]" style={{ width: `${share}%` }} />
+                    </div>
+                    <div className="mt-3 flex justify-between gap-3 text-xs text-gray-600">
+                      <span>{formatReportMoney(entry.amountRm)}</span>
+                      <span>{formatReportTokens(entry.tokenAmount)}</span>
+                    </div>
+                    {historical && <p className="mt-3 text-[11px] leading-relaxed text-gray-500">Older paid top-ups before method tracking.</p>}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="mt-5 rounded-xl bg-gray-50 px-4 py-5 text-sm text-gray-500">No paid online token top-ups are available for this tenant yet.</p>
+          )}
         </div>
 
         <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex flex-col min-h-[440px]">

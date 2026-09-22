@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../main.dart';
 import '../services/api_service.dart';
+import '../services/direct_printer_service.dart';
 import '../services/push_notification_service.dart';
 import '../widgets/blinking_online_indicator.dart';
 
@@ -36,10 +37,18 @@ class _SettingsPageState extends State<SettingsPage> {
     });
   }
 
-  Future<void> _updateAttendance(bool clockIn, AttendanceBarista barista, String pin) async {
+  Future<void> _updateAttendance(
+    bool clockIn,
+    AttendanceBarista barista,
+    String pin,
+  ) async {
     if (_attendanceUpdating) return;
     setState(() => _attendanceUpdating = true);
-    final result = await ApiService.updateAttendance(clockIn: clockIn, baristaId: barista.id, pin: pin);
+    final result = await ApiService.updateAttendance(
+      clockIn: clockIn,
+      baristaId: barista.id,
+      pin: pin,
+    );
     if (!mounted) return;
     setState(() {
       _attendanceUpdating = false;
@@ -52,11 +61,29 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
-  Future<void> _openAttendanceSheet(BaristaAttendanceStatus status, bool clockIn) async {
-    final activeIds = status.activeAttendance.map((item) => item.baristaId).toSet();
-    final choices = (clockIn ? status.baristas.where((item) => item.pinConfigured && !activeIds.contains(item.id)) : status.baristas.where((item) => activeIds.contains(item.id))).toList();
-    final action = await showModalBottomSheet<_AttendanceAction>(context: context, isScrollControlled: true, builder: (_) => _AttendancePinSheet(clockIn: clockIn, baristas: choices));
-    if (action != null && mounted) await _updateAttendance(clockIn, action.barista, action.pin);
+  Future<void> _openAttendanceSheet(
+    BaristaAttendanceStatus status,
+    bool clockIn,
+  ) async {
+    final activeIds = status.activeAttendance
+        .map((item) => item.baristaId)
+        .toSet();
+    final choices =
+        (clockIn
+                ? status.baristas.where(
+                    (item) =>
+                        item.pinConfigured && !activeIds.contains(item.id),
+                  )
+                : status.baristas.where((item) => activeIds.contains(item.id)))
+            .toList();
+    final action = await showModalBottomSheet<_AttendanceAction>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => _AttendancePinSheet(clockIn: clockIn, baristas: choices),
+    );
+    if (action != null && mounted) {
+      await _updateAttendance(clockIn, action.barista, action.pin);
+    }
   }
 
   Future<void> _openGuides(String type, String title) async {
@@ -118,7 +145,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'View the weekly timetable and receipt delivery readiness.',
+                    'View today\'s timetable and set up the receipt printer.',
                     style: TextStyle(
                       color: SettingsPage.ink.withValues(alpha: 0.65),
                       fontSize: 16,
@@ -135,7 +162,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  const _SectionLabel(label: 'OPERATIONS'),
+                  const _SectionLabel(label: 'TODAY\'S COVERAGE'),
                   const SizedBox(height: 12),
                   FutureBuilder<OperationsContext>(
                     future: _operationsContext,
@@ -153,13 +180,19 @@ class _SettingsPageState extends State<SettingsPage> {
                     },
                   ),
                   const SizedBox(height: 24),
+                  const _SectionLabel(label: 'RECEIPT PRINTER'),
+                  const SizedBox(height: 12),
+                  const _DirectPrinterCard(),
+                  const SizedBox(height: 24),
                   const _SectionLabel(label: 'SHIFT ATTENDANCE'),
                   const SizedBox(height: 12),
                   FutureBuilder<BaristaAttendanceStatus>(
                     future: _attendance,
                     builder: (context, snapshot) {
                       final status = snapshot.data;
-                      final active = status?.activeAttendance ?? const <BaristaAttendance>[];
+                      final active =
+                          status?.activeAttendance ??
+                          const <BaristaAttendance>[];
                       return Container(
                         padding: const EdgeInsets.all(18),
                         decoration: BoxDecoration(
@@ -173,7 +206,9 @@ class _SettingsPageState extends State<SettingsPage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              active.isEmpty ? 'No barista clocked in' : '${active.length} barista${active.length == 1 ? '' : 's'} clocked in',
+                              active.isEmpty
+                                  ? 'No barista clocked in'
+                                  : '${active.length} barista${active.length == 1 ? '' : 's'} clocked in',
                               style: const TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.w800,
@@ -183,28 +218,60 @@ class _SettingsPageState extends State<SettingsPage> {
                             Text(
                               active.isEmpty
                                   ? 'Select your name and enter your six-digit PIN. The shared tablet stays signed in.'
-                                  : active.map((item) => '${item.baristaName} since ${TimeOfDay.fromDateTime(item.clockedInAt).format(context)}').join('\n'),
+                                  : active
+                                        .map(
+                                          (item) =>
+                                              '${item.baristaName} since ${TimeOfDay.fromDateTime(item.clockedInAt).format(context)}',
+                                        )
+                                        .join('\n'),
                             ),
                             const SizedBox(height: 14),
-                            Row(children: [Expanded(child: FilledButton.icon(
-                              onPressed: _attendanceUpdating || status == null ? null : () => _openAttendanceSheet(status, true),
-                              icon: _attendanceUpdating
-                                  ? const SizedBox.square(
-                                      dimension: 16,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : const Icon(Icons.login_rounded),
-                              label: const Text('Clock in'),
-                              style: FilledButton.styleFrom(
-                                backgroundColor: SettingsPage.green,
-                              ),
-                            )), const SizedBox(width: 10), Expanded(child: FilledButton.icon(
-                              onPressed: _attendanceUpdating || status == null || active.isEmpty ? null : () => _openAttendanceSheet(status, false),
-                              icon: const Icon(Icons.logout_rounded), label: const Text('Clock out'),
-                              style: FilledButton.styleFrom(backgroundColor: const Color(0xFFB54E3D)),
-                            ))]),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: FilledButton.icon(
+                                    onPressed:
+                                        _attendanceUpdating || status == null
+                                        ? null
+                                        : () => _openAttendanceSheet(
+                                            status,
+                                            true,
+                                          ),
+                                    icon: _attendanceUpdating
+                                        ? const SizedBox.square(
+                                            dimension: 16,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                            ),
+                                          )
+                                        : const Icon(Icons.login_rounded),
+                                    label: const Text('Clock in'),
+                                    style: FilledButton.styleFrom(
+                                      backgroundColor: SettingsPage.green,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: FilledButton.icon(
+                                    onPressed:
+                                        _attendanceUpdating ||
+                                            status == null ||
+                                            active.isEmpty
+                                        ? null
+                                        : () => _openAttendanceSheet(
+                                            status,
+                                            false,
+                                          ),
+                                    icon: const Icon(Icons.logout_rounded),
+                                    label: const Text('Clock out'),
+                                    style: FilledButton.styleFrom(
+                                      backgroundColor: const Color(0xFFB54E3D),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ],
                         ),
                       );
@@ -263,6 +330,205 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 }
 
+class _DirectPrinterCard extends StatefulWidget {
+  const _DirectPrinterCard();
+
+  @override
+  State<_DirectPrinterCard> createState() => _DirectPrinterCardState();
+}
+
+class _DirectPrinterCardState extends State<_DirectPrinterCard> {
+  bool _working = false;
+  final _hostController = TextEditingController();
+  final _portController = TextEditingController(text: '9100');
+  DirectPrinterConfig? _savedConfig;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadConfig();
+  }
+
+  @override
+  void dispose() {
+    _hostController.dispose();
+    _portController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadConfig() async {
+    final config = await DirectPrinterService.instance.loadConfig();
+    if (!mounted) return;
+    setState(() {
+      _savedConfig = config;
+      _hostController.text = config?.host ?? '';
+      _portController.text = (config?.port ?? 9100).toString();
+    });
+  }
+
+  DirectPrinterConfig? _formConfig() {
+    final host = _hostController.text.trim();
+    final port = int.tryParse(_portController.text.trim());
+    if (host.isEmpty || port == null || port < 1 || port > 65535) return null;
+    return DirectPrinterConfig(host: host, port: port);
+  }
+
+  Future<void> _save() async {
+    final config = _formConfig();
+    if (config == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Enter a valid printer IP address and port.'),
+        ),
+      );
+      return;
+    }
+    setState(() => _working = true);
+    try {
+      await DirectPrinterService.instance.saveConfig(config);
+      if (!mounted) return;
+      setState(() => _savedConfig = config);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Printer saved on this tablet.')),
+      );
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
+  }
+
+  Future<void> _remove() async {
+    setState(() => _working = true);
+    try {
+      await DirectPrinterService.instance.clearConfig();
+      if (!mounted) return;
+      setState(() {
+        _savedConfig = null;
+        _hostController.clear();
+        _portController.text = '9100';
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Printer removed from this tablet.')),
+      );
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
+  }
+
+  Future<void> _printTest(DirectPrinterConfig config) async {
+    if (_working) return;
+    setState(() => _working = true);
+    try {
+      await DirectPrinterService.instance.printTestReceipt(config);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Test receipt sent to the printer.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Bad state: ', '')),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: SettingsPage.ink.withValues(alpha: .10)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.print_outlined, color: SettingsPage.green),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  _savedConfig == null
+                      ? 'Set up receipt printer'
+                      : 'Printer ready · ${_savedConfig!.host}:${_savedConfig!.port}',
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Enter the Wi-Fi printer IP used by this Android tablet. New orders print once when they arrive.',
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: _hostController,
+            keyboardType: TextInputType.url,
+            decoration: const InputDecoration(
+              labelText: 'Printer IP address',
+              hintText: '192.168.1.100',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _portController,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: 'Port',
+              hintText: '9100',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              FilledButton.icon(
+                onPressed: _working ? null : _save,
+                icon: const Icon(Icons.save_outlined),
+                label: const Text('Save printer'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: SettingsPage.green,
+                ),
+              ),
+              if (_savedConfig != null)
+                OutlinedButton.icon(
+                  onPressed: _working ? null : () => _printTest(_savedConfig!),
+                  icon: _working
+                      ? const SizedBox.square(
+                          dimension: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.receipt_long_outlined),
+                  label: const Text('Print test receipt'),
+                ),
+              if (_savedConfig != null)
+                TextButton.icon(
+                  onPressed: _working ? null : _remove,
+                  icon: const Icon(Icons.delete_outline),
+                  label: const Text('Remove printer'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.red.shade700,
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _AttendanceAction {
   final AttendanceBarista barista;
   final String pin;
@@ -281,23 +547,91 @@ class _AttendancePinSheetState extends State<_AttendancePinSheet> {
   AttendanceBarista? selected;
   String pin = '';
   @override
-  Widget build(BuildContext context) => SafeArea(child: Padding(
-    padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + MediaQuery.viewInsetsOf(context).bottom),
-    child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(widget.clockIn ? 'Clock in' : 'Clock out', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800)),
-      const SizedBox(height: 6),
-      Text(widget.clockIn ? 'Select your name, then enter your six-digit PIN.' : 'Confirm your name and PIN to end your shift.'),
-      const SizedBox(height: 18),
-      if (widget.baristas.isEmpty) const Padding(padding: EdgeInsets.symmetric(vertical: 18), child: Text('No eligible barista profiles are available. Ask an administrator to set up the profile PIN.')) else ...[
-        DropdownButtonFormField<AttendanceBarista>(initialValue: selected, isExpanded: true, decoration: const InputDecoration(labelText: 'Your name', border: OutlineInputBorder()), items: widget.baristas.map((barista) => DropdownMenuItem(value: barista, child: Text(barista.name))).toList(), onChanged: (value) => setState(() => selected = value)),
-        const SizedBox(height: 14),
-        TextField(keyboardType: TextInputType.number, obscureText: true, maxLength: 6, onChanged: (value) => setState(() => pin = value.replaceAll(RegExp(r'[^0-9]'), '')), decoration: const InputDecoration(labelText: 'Six-digit PIN', border: OutlineInputBorder(), counterText: '')),
-        const SizedBox(height: 18),
-        SizedBox(width: double.infinity, child: FilledButton(onPressed: selected == null || pin.length != 6 ? null : () => Navigator.pop(context, _AttendanceAction(selected!, pin)), style: FilledButton.styleFrom(backgroundColor: widget.clockIn ? SettingsPage.green : const Color(0xFFB54E3D)), child: Text(widget.clockIn ? 'Clock in now' : 'Clock out now'))),
-      ],
-      const SizedBox(height: 8),
-    ]),
-  ));
+  Widget build(BuildContext context) => SafeArea(
+    child: Padding(
+      padding: EdgeInsets.fromLTRB(
+        24,
+        24,
+        24,
+        24 + MediaQuery.viewInsetsOf(context).bottom,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            widget.clockIn ? 'Clock in' : 'Clock out',
+            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            widget.clockIn
+                ? 'Select your name, then enter your six-digit PIN.'
+                : 'Confirm your name and PIN to end your shift.',
+          ),
+          const SizedBox(height: 18),
+          if (widget.baristas.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 18),
+              child: Text(
+                'No eligible barista profiles are available. Ask an administrator to set up the profile PIN.',
+              ),
+            )
+          else ...[
+            DropdownButtonFormField<AttendanceBarista>(
+              initialValue: selected,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Your name',
+                border: OutlineInputBorder(),
+              ),
+              items: widget.baristas
+                  .map(
+                    (barista) => DropdownMenuItem(
+                      value: barista,
+                      child: Text(barista.name),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (value) => setState(() => selected = value),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              keyboardType: TextInputType.number,
+              obscureText: true,
+              maxLength: 6,
+              onChanged: (value) =>
+                  setState(() => pin = value.replaceAll(RegExp(r'[^0-9]'), '')),
+              decoration: const InputDecoration(
+                labelText: 'Six-digit PIN',
+                border: OutlineInputBorder(),
+                counterText: '',
+              ),
+            ),
+            const SizedBox(height: 18),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: selected == null || pin.length != 6
+                    ? null
+                    : () => Navigator.pop(
+                        context,
+                        _AttendanceAction(selected!, pin),
+                      ),
+                style: FilledButton.styleFrom(
+                  backgroundColor: widget.clockIn
+                      ? SettingsPage.green
+                      : const Color(0xFFB54E3D),
+                ),
+                child: Text(widget.clockIn ? 'Clock in now' : 'Clock out now'),
+              ),
+            ),
+          ],
+          const SizedBox(height: 8),
+        ],
+      ),
+    ),
+  );
 }
 
 class _GuideLink extends StatelessWidget {
@@ -356,97 +690,106 @@ class _StaffGuidesSheetState extends State<_StaffGuidesSheet> {
     final isDrinkLibrary = widget.title == 'Drink SOPs';
     final visibleGuides = _searchQuery.trim().isNotEmpty
         ? widget.guides
-            .where(
-              (guide) => '${guide.menuItemName ?? ''} ${guide.guideTitle ?? ''} ${widget.title}'
-                  .toLowerCase()
-                  .contains(_searchQuery.trim().toLowerCase()),
-            )
-            .toList()
+              .where(
+                (guide) =>
+                    '${guide.menuItemName ?? ''} ${guide.guideTitle ?? ''} ${widget.title}'
+                        .toLowerCase()
+                        .contains(_searchQuery.trim().toLowerCase()),
+              )
+              .toList()
         : widget.guides;
 
     return Padding(
-    padding: const EdgeInsets.all(24),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          widget.title,
-          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
-        ),
-        const SizedBox(height: 6),
-        const Text('Images are maintained by your operations administrator.'),
-        ...[
-          const SizedBox(height: 16),
-          TextField(
-            onChanged: (value) => setState(() => _searchQuery = value),
-            textInputAction: TextInputAction.search,
-            decoration: InputDecoration(
-              hintText: isDrinkLibrary ? 'Search drink SOPs' : 'Search guides',
-              prefixIcon: const Icon(Icons.search_rounded),
-              suffixIcon: _searchQuery.isEmpty
-                  ? null
-                  : IconButton(
-                      tooltip: 'Clear search',
-                      onPressed: () => setState(() => _searchQuery = ''),
-                      icon: const Icon(Icons.close_rounded),
-                    ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            widget.title,
+            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 6),
+          const Text('Images are maintained by your operations administrator.'),
+          ...[
+            const SizedBox(height: 16),
+            TextField(
+              onChanged: (value) => setState(() => _searchQuery = value),
+              textInputAction: TextInputAction.search,
+              decoration: InputDecoration(
+                hintText: isDrinkLibrary
+                    ? 'Search drink SOPs'
+                    : 'Search guides',
+                prefixIcon: const Icon(Icons.search_rounded),
+                suffixIcon: _searchQuery.isEmpty
+                    ? null
+                    : IconButton(
+                        tooltip: 'Clear search',
+                        onPressed: () => setState(() => _searchQuery = ''),
+                        icon: const Icon(Icons.close_rounded),
+                      ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
               ),
             ),
-          ),
-        ],
-        const SizedBox(height: 18),
-        Expanded(
-          child: visibleGuides.isEmpty
-              ? const Center(
-                  child: Text('No matching guide images were found.'),
-                )
-              : ListView.separated(
-                  itemCount: visibleGuides.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 16),
-                  itemBuilder: (_, index) {
-                    final guide = visibleGuides[index];
-                    final url = ApiService.resolveAssetUrl(guide.imageUrl);
-                    final guideTitle =
-                        guide.menuItemName ?? guide.guideTitle ?? widget.title;
-                    return Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: SettingsPage.ink.withValues(alpha: .12)),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            guideTitle,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                            ),
+          ],
+          const SizedBox(height: 18),
+          Expanded(
+            child: visibleGuides.isEmpty
+                ? const Center(
+                    child: Text('No matching guide images were found.'),
+                  )
+                : ListView.separated(
+                    itemCount: visibleGuides.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 16),
+                    itemBuilder: (_, index) {
+                      final guide = visibleGuides[index];
+                      final url = ApiService.resolveAssetUrl(guide.imageUrl);
+                      final guideTitle =
+                          guide.menuItemName ??
+                          guide.guideTitle ??
+                          widget.title;
+                      return Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          border: Border.all(
+                            color: SettingsPage.ink.withValues(alpha: .12),
                           ),
-                          const SizedBox(height: 10),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: Image.network(
-                              url,
-                              fit: BoxFit.contain,
-                              errorBuilder: (_, _, _) => const SizedBox(
-                                height: 180,
-                                child: Center(child: Icon(Icons.broken_image_outlined)),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              guideTitle,
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-        ),
-      ],
-    ),
-  );
+                            const SizedBox(height: 10),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Image.network(
+                                url,
+                                fit: BoxFit.contain,
+                                errorBuilder: (_, _, _) => const SizedBox(
+                                  height: 180,
+                                  child: Center(
+                                    child: Icon(Icons.broken_image_outlined),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -514,7 +857,7 @@ class _OperationsLoadingCard extends StatelessWidget {
     return const _OperationsCard(
       icon: Icons.sync_rounded,
       title: 'Checking operational connections',
-      subtitle: 'Loading POS, printer, and weekly coverage status.',
+      subtitle: 'Loading today\'s coverage.',
     );
   }
 }
@@ -528,7 +871,7 @@ class _OperationsUnavailableCard extends StatelessWidget {
       icon: Icons.cloud_off_rounded,
       title: 'Operational setup is not available yet',
       subtitle:
-          'POS and printer connections are configured by an operations administrator. Order preparation remains available.',
+          'Today\'s timetable is not available right now. Order preparation remains available.',
     );
   }
 }
@@ -541,12 +884,6 @@ class _OperationsStatusCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext buildContext) {
-    final defaultPrinter = context.printers
-        .where((printer) => printer.isDefault)
-        .firstOrNull;
-    final connectedIntegrations = context.integrations
-        .where((integration) => integration.status == 'connected')
-        .toList();
     // Database weekday values follow Dart's Monday=1 through Sunday=7 convention.
     final today = DateTime.now().weekday;
     final todaySchedule = context.weeklySchedule
@@ -562,26 +899,6 @@ class _OperationsStatusCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          _OperationalRow(
-            icon: Icons.point_of_sale_outlined,
-            title: 'POS connection',
-            value: connectedIntegrations.isEmpty
-                ? 'Not connected'
-                : connectedIntegrations
-                      .map((item) => item.displayName)
-                      .join(', '),
-            connected: connectedIntegrations.isNotEmpty,
-          ),
-          const Divider(height: 28),
-          _OperationalRow(
-            icon: Icons.receipt_long_outlined,
-            title: 'Receipt printer',
-            value: defaultPrinter == null
-                ? 'No default printer'
-                : '${defaultPrinter.name} (${_printerStatus(defaultPrinter.status)})',
-            connected: defaultPrinter?.status == 'connected',
-          ),
-          const Divider(height: 28),
           _OperationalRow(
             icon: Icons.calendar_month_outlined,
             title: 'Today\'s coverage',
@@ -613,13 +930,6 @@ class _OperationsStatusCard extends StatelessWidget {
       ),
     );
   }
-
-  static String _printerStatus(String status) => switch (status) {
-    'connected' => 'ready',
-    'pending' => 'awaiting setup',
-    'disabled' => 'disabled',
-    _ => 'not configured',
-  };
 
   static String _scheduleLabel(WeeklyScheduleEntry entry) =>
       '${entry.baristaName} ${entry.startsAt}-${entry.endsAt}';

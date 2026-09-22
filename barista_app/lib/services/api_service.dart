@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../widgets/order_card.dart';
+import 'direct_printer_service.dart';
 import 'api_config.dart';
 import 'secure_session_service.dart';
 
@@ -15,6 +16,7 @@ class ApiService {
     final origin = Uri.parse(baseUrl).replace(path: '').toString();
     return '$origin${imageUrl.startsWith('/') ? imageUrl : '/$imageUrl'}';
   }
+
   static String? _accessToken;
   static String? _refreshToken;
   static String _tenantCode = ApiConfig.tenantCode;
@@ -124,10 +126,11 @@ class ApiService {
   }
 
   static Future<OperationsContext> fetchOperationsContext() async {
+    final workstationKey = await DirectPrinterService.instance.workstationKey();
     final response = await _authenticatedRequest(
       (headers) => http.get(
         Uri.parse('$baseUrl/barista/operations/context'),
-        headers: headers,
+        headers: {...headers, 'x-c2-workstation-key': workstationKey},
       ),
     );
     if (response.statusCode != 200) {
@@ -136,6 +139,80 @@ class ApiService {
     return OperationsContext.fromJson(
       json.decode(response.body) as Map<String, dynamic>,
     );
+  }
+
+  static Future<DirectPrintJob?> claimDirectPrintJob() async {
+    final workstationKey = await DirectPrinterService.instance.workstationKey();
+    final response = await _authenticatedRequest(
+      (headers) => http.post(
+        Uri.parse('$baseUrl/barista/direct-print-jobs/claim'),
+        headers: {...headers, 'x-c2-workstation-key': workstationKey},
+        body: jsonEncode({}),
+      ),
+    );
+    if (response.statusCode == 204) return null;
+    if (response.statusCode != 200) {
+      throw StateError(_responseMessage(response));
+    }
+    final json = jsonDecode(response.body) as Map<String, dynamic>;
+    final printer = json['printer'] as Map<String, dynamic>;
+    final order = json['order'] as Map<String, dynamic>;
+    return DirectPrintJob(
+      jobRef: json['job_ref'].toString(),
+      config: DirectPrinterConfig(
+        host: printer['host'].toString(),
+        port: (printer['port'] as num).toInt(),
+      ),
+      orderRef: order['order_ref'].toString(),
+      customerName: order['customer_name']?.toString().trim().isNotEmpty == true
+          ? order['customer_name'].toString().trim()
+          : 'Guest',
+      createdAt: DateTime.parse(order['created_at'].toString()),
+      items: (order['items'] as List).map((item) {
+        final value = item as Map<String, dynamic>;
+        return DirectPrintItem(
+          name: value['name'].toString(),
+          quantity: (value['quantity'] as num).toInt(),
+          details: (value['details'] as List? ?? const [])
+              .map((detail) => detail.toString())
+              .toList(),
+        );
+      }).toList(),
+    );
+  }
+
+  static Future<void> acknowledgeDirectPrintJob(
+    String jobRef, {
+    required bool printed,
+  }) async {
+    final workstationKey = await DirectPrinterService.instance.workstationKey();
+    final response = await _authenticatedRequest(
+      (headers) => http.post(
+        Uri.parse('$baseUrl/barista/direct-print-jobs/acknowledge'),
+        headers: {...headers, 'x-c2-workstation-key': workstationKey},
+        body: jsonEncode({
+          'job_ref': jobRef,
+          'outcome': printed ? 'printed' : 'failed',
+        }),
+      ),
+    );
+    if (response.statusCode != 200) {
+      throw StateError(_responseMessage(response));
+    }
+  }
+
+  static Future<void> confirmDirectPrinterTest() async {
+    final workstationKey = await DirectPrinterService.instance.workstationKey();
+    final response = await _authenticatedRequest(
+      (headers) => http.post(
+        Uri.parse('$baseUrl/barista/direct-printer/tested'),
+        headers: {...headers, 'x-c2-workstation-key': workstationKey},
+        body: jsonEncode({}),
+      ),
+    );
+    if (response.statusCode != 200) {
+      throw StateError(_responseMessage(response));
+    }
   }
 
   static Future<OrdersFetchResult> fetchOrders() async {
@@ -393,7 +470,11 @@ class ApiService {
     );
   }
 
-  static Future<ApiRequestResult> updateAttendance({required bool clockIn, required int baristaId, required String pin}) async {
+  static Future<ApiRequestResult> updateAttendance({
+    required bool clockIn,
+    required int baristaId,
+    required String pin,
+  }) async {
     try {
       final response = await _authenticatedRequest(
         (headers) => http.post(
@@ -451,7 +532,12 @@ class BaristaAttendance {
   final String baristaName;
   final DateTime clockedInAt;
 
-  const BaristaAttendance({required this.id, required this.baristaId, required this.baristaName, required this.clockedInAt});
+  const BaristaAttendance({
+    required this.id,
+    required this.baristaId,
+    required this.baristaName,
+    required this.clockedInAt,
+  });
 
   factory BaristaAttendance.fromJson(Map<String, dynamic> json) =>
       BaristaAttendance(
@@ -466,19 +552,35 @@ class AttendanceBarista {
   final int id;
   final String name;
   final bool pinConfigured;
-  const AttendanceBarista({required this.id, required this.name, required this.pinConfigured});
-  factory AttendanceBarista.fromJson(Map<String, dynamic> json) => AttendanceBarista(
-    id: (json['id'] as num).toInt(), name: json['name']?.toString() ?? 'Barista', pinConfigured: json['pin_configured'] == true,
-  );
+  const AttendanceBarista({
+    required this.id,
+    required this.name,
+    required this.pinConfigured,
+  });
+  factory AttendanceBarista.fromJson(Map<String, dynamic> json) =>
+      AttendanceBarista(
+        id: (json['id'] as num).toInt(),
+        name: json['name']?.toString() ?? 'Barista',
+        pinConfigured: json['pin_configured'] == true,
+      );
 }
 
 class BaristaAttendanceStatus {
   final List<AttendanceBarista> baristas;
   final List<BaristaAttendance> activeAttendance;
-  const BaristaAttendanceStatus({required this.baristas, required this.activeAttendance});
-  factory BaristaAttendanceStatus.fromJson(Map<String, dynamic> json) => BaristaAttendanceStatus(
-    baristas: (json['baristas'] as List? ?? const []).map((item) => AttendanceBarista.fromJson(item as Map<String, dynamic>)).toList(),
-    activeAttendance: (json['active_attendance'] as List? ?? const []).map((item) => BaristaAttendance.fromJson(item as Map<String, dynamic>)).toList(),
+  const BaristaAttendanceStatus({
+    required this.baristas,
+    required this.activeAttendance,
+  });
+  factory BaristaAttendanceStatus.fromJson(
+    Map<String, dynamic> json,
+  ) => BaristaAttendanceStatus(
+    baristas: (json['baristas'] as List? ?? const [])
+        .map((item) => AttendanceBarista.fromJson(item as Map<String, dynamic>))
+        .toList(),
+    activeAttendance: (json['active_attendance'] as List? ?? const [])
+        .map((item) => BaristaAttendance.fromJson(item as Map<String, dynamic>))
+        .toList(),
   );
 }
 
@@ -580,23 +682,32 @@ class OperationalIntegration {
 }
 
 class PrinterTarget {
+  final int id;
   final String name;
   final String deliveryMode;
   final String status;
   final bool isDefault;
+  final String? networkHost;
+  final int? networkPort;
 
   const PrinterTarget({
+    required this.id,
     required this.name,
     required this.deliveryMode,
     required this.status,
     required this.isDefault,
+    required this.networkHost,
+    required this.networkPort,
   });
 
   factory PrinterTarget.fromJson(Map<String, dynamic> json) => PrinterTarget(
+    id: (json['id'] as num?)?.toInt() ?? 0,
     name: json['name']?.toString() ?? 'Receipt printer',
     deliveryMode: json['delivery_mode']?.toString() ?? '',
     status: json['status']?.toString() ?? 'not_configured',
     isDefault: json['is_default'] == true,
+    networkHost: json['network_host']?.toString(),
+    networkPort: (json['network_port'] as num?)?.toInt(),
   );
 }
 

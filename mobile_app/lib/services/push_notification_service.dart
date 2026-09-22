@@ -2,11 +2,15 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import 'auth_api_service.dart';
 import 'app_session_service.dart';
 import 'secure_session_service.dart';
 import '../utils/app_notification.dart';
+
+const _customerNotificationChannelId = 'c2_order_updates';
+const _customerNotificationChannelName = 'C2 updates';
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -21,21 +25,29 @@ class PushNotificationService {
   StreamSubscription<String>? _tokenRefreshSubscription;
   StreamSubscription<RemoteMessage>? _foregroundSubscription;
   StreamSubscription<RemoteMessage>? _openedSubscription;
+  final FlutterLocalNotificationsPlugin _localNotifications =
+      FlutterLocalNotificationsPlugin();
   bool _initialized = false;
 
   Future<void> initialize() async {
     if (_initialized) return;
 
-    await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
+    await FirebaseMessaging.instance
+        .setForegroundNotificationPresentationOptions(
       alert: true,
       badge: true,
       sound: true,
     );
-    _tokenRefreshSubscription = FirebaseMessaging.instance.onTokenRefresh.listen(
+    await _configureLocalNotifications();
+    _tokenRefreshSubscription =
+        FirebaseMessaging.instance.onTokenRefresh.listen(
       _registerToken,
     );
-    _foregroundSubscription = FirebaseMessaging.onMessage.listen(_handleMessage);
-    _openedSubscription = FirebaseMessaging.onMessageOpenedApp.listen(_handleMessage);
+    _foregroundSubscription =
+        FirebaseMessaging.onMessage.listen(_handleMessage);
+    _openedSubscription = FirebaseMessaging.onMessageOpenedApp.listen(
+      (message) => _handleMessage(message, showSystemNotification: false),
+    );
     _initialized = true;
   }
 
@@ -60,7 +72,11 @@ class PushNotificationService {
 
   Future<void> syncExistingSession() async {
     await initialize();
-    final permission = await FirebaseMessaging.instance.getNotificationSettings();
+    final permission = await FirebaseMessaging.instance.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
     if (permission.authorizationStatus != AuthorizationStatus.authorized &&
         permission.authorizationStatus != AuthorizationStatus.provisional) {
       return;
@@ -73,8 +89,10 @@ class PushNotificationService {
     final accessToken =
         await SecureSessionService.instance.getValidAccessToken();
     final pushToken = await FirebaseMessaging.instance.getToken();
-    if (accessToken == null || accessToken.isEmpty ||
-        pushToken == null || pushToken.isEmpty) {
+    if (accessToken == null ||
+        accessToken.isEmpty ||
+        pushToken == null ||
+        pushToken.isEmpty) {
       return;
     }
 
@@ -103,7 +121,33 @@ class PushNotificationService {
     }
   }
 
-  void _handleMessage(RemoteMessage message) {
+  Future<void> _configureLocalNotifications() async {
+    if (!Platform.isAndroid) return;
+
+    const initializationSettings = InitializationSettings(
+      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+    );
+    await _localNotifications.initialize(initializationSettings);
+
+    const channel = AndroidNotificationChannel(
+      _customerNotificationChannelId,
+      _customerNotificationChannelName,
+      description: 'Order and account updates from C2 Coffee.',
+      importance: Importance.high,
+    );
+    await _localNotifications
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(channel);
+  }
+
+  Future<void> _handleMessage(
+    RemoteMessage message, {
+    bool showSystemNotification = true,
+  }) async {
+    if (showSystemNotification) {
+      await _showForegroundNotification(message);
+    }
     switch (message.data['type']) {
       case 'order_ready':
         AppNotification.showInfo(null, 'Your order is ready for collection.');
@@ -111,8 +155,42 @@ class PushNotificationService {
       case 'marketing_poster':
         // Marketing copy is available in the notification inbox. Keep the
         // foreground alert generic so no malformed remote payload is rendered.
-        AppNotification.showInfo(null, 'A new C2 Coffee update is available in Notifications.');
+        AppNotification.showInfo(
+            null, 'A new C2 Coffee update is available in Notifications.');
     }
+  }
+
+  Future<void> _showForegroundNotification(RemoteMessage message) async {
+    if (!Platform.isAndroid) return;
+
+    final type = message.data['type'];
+    final title = switch (type) {
+      'order_ready' => 'Order ready for collection',
+      'marketing_poster' => 'New C2 Coffee update',
+      _ => null,
+    };
+    final body = switch (type) {
+      'order_ready' => 'Your order is ready to collect.',
+      'marketing_poster' => 'Open Notifications to see the latest update.',
+      _ => null,
+    };
+    if (title == null || body == null) return;
+
+    await _localNotifications.show(
+      message.messageId?.hashCode ?? DateTime.now().microsecondsSinceEpoch,
+      title,
+      body,
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          _customerNotificationChannelId,
+          _customerNotificationChannelName,
+          channelDescription: 'Order and account updates from C2 Coffee.',
+          importance: Importance.high,
+          priority: Priority.high,
+          icon: '@mipmap/ic_launcher',
+        ),
+      ),
+    );
   }
 
   void dispose() {

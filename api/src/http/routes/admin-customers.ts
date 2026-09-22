@@ -9,7 +9,9 @@ import { verifyPassword } from '../../lib/password.js';
 import { formatTierName, getTierByCode, getTierProgress, loadLoyaltyTiers } from '../../services/loyalty-tiers.js';
 
 const listQuerySchema = z.object({
-  limit: z.coerce.number().int().min(1).max(250).optional().default(100)
+  // Customer imports support up to 500 rows. Keep the list aligned so older
+  // registered members are not hidden behind newly imported records.
+  limit: z.coerce.number().int().min(1).max(500).optional().default(500)
 });
 
 const createCustomerSchema = z.object({

@@ -29,6 +29,7 @@ import { registerPrintConnectorRoutes } from './http/routes/print-connectors.js'
 import { registerAdminStoreRoutes } from './http/routes/admin-store.js';
 import { registerAdminPushRoutes } from './http/routes/admin-push.js';
 import { registerBaristaStaffRoutes } from './http/routes/barista-staff.js';
+import { registerTopUpRoutes } from './http/routes/topups.js';
 
 function isAllowedCorsOrigin(origin: string, allowedOrigins: string[]): boolean {
   let requestUrl: URL;
@@ -56,11 +57,14 @@ function isAllowedCorsOrigin(origin: string, allowedOrigins: string[]): boolean 
       return false;
     }
 
-    if (allowedUrl.port) {
-      return allowedUrl.port === requestUrl.port;
+    if (allowedUrl.port === requestUrl.port) {
+      return true;
     }
 
-    return allowedUrl.hostname === 'localhost' || allowedUrl.hostname === '127.0.0.1';
+    // Local development may use a Vite port that is not fixed in the template.
+    // Production origins must match the configured port exactly.
+    return !allowedUrl.port &&
+      ['localhost', '127.0.0.1'].includes(allowedUrl.hostname);
   });
 }
 
@@ -104,6 +108,18 @@ export async function buildApp() {
     max: 600,
     timeWindow: '1 minute'
   });
+  app.addContentTypeParser('application/x-www-form-urlencoded', { parseAs: 'string' }, (_request, body, done) => {
+    const values: Record<string, string> = {};
+    const formBody = typeof body === 'string' ? body : body.toString('utf8');
+    for (const [key, value] of new URLSearchParams(formBody).entries()) {
+      if (Object.hasOwn(values, key)) {
+        done(new Error('Repeated form fields are not supported.'));
+        return;
+      }
+      values[key] = value;
+    }
+    done(null, values);
+  });
 
   await registerHealthRoutes(app);
   await registerAssetRoutes(app);
@@ -129,6 +145,7 @@ export async function buildApp() {
   await registerCatalogRoutes(app);
   await registerCheckoutRoutes(app);
   await registerCustomerDataRoutes(app);
+  await registerTopUpRoutes(app);
 
   return app;
 }

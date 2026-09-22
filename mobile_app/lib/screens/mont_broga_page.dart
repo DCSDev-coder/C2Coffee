@@ -113,29 +113,24 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
         (group) => _librarySelections[group['id'] as int] ?? const [],
       );
 
-  Map<String, dynamic>? _defaultLibraryOption(
+  List<Map<String, dynamic>> _defaultLibraryOptions(
     Map<String, dynamic> group,
     List<Map<String, dynamic>> options,
   ) {
-    final groupName = group['name']?.toString().toLowerCase() ?? '';
-    final preferredName = groupName.contains('espresso')
-        ? '1 shot'
-        : groupName.contains('temperature')
-            ? 'cold'
-            : groupName.contains('sweetness')
-                ? 'regular sweet'
-                : _isIceLibraryGroup(group)
-                    ? 'regular ice'
-                    : groupName.contains('order type')
-                        ? 'take away'
-                        : null;
-    if (preferredName == null) return null;
-    for (final option in options) {
-      if (option['name']?.toString().trim().toLowerCase() == preferredName) {
-        return option;
-      }
+    final maximum = (group['maxSelect'] as num?)?.toInt() ?? 1;
+    final minimum = (group['minSelect'] as num?)?.toInt() ?? 0;
+    final required = group['isRequired'] == true;
+    final requiredMinimum = required ? (minimum > 0 ? minimum : 1) : minimum;
+    final selected = options
+        .where((option) => option['isDefault'] == true)
+        .take(maximum)
+        .toList();
+    if (selected.length < requiredMinimum) {
+      selected.addAll(options
+          .where((option) => !selected.contains(option))
+          .take(requiredMinimum - selected.length));
     }
-    return null;
+    return selected;
   }
 
   @override
@@ -166,14 +161,8 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
           .whereType<Map>()
           .map((option) => Map<String, dynamic>.from(option))
           .toList();
-      final minimum = (group['minSelect'] as num?)?.toInt() ?? 0;
-      final required = group['isRequired'] == true;
-      final defaultOption = _defaultLibraryOption(group, options);
-      if (defaultOption != null) {
-        _librarySelections[group['id'] as int] = [defaultOption];
-      } else if (options.isNotEmpty && (required || minimum > 0)) {
-        _librarySelections[group['id'] as int] = [options.first];
-      }
+      final defaults = _defaultLibraryOptions(group, options);
+      if (defaults.isNotEmpty) _librarySelections[group['id'] as int] = defaults;
     }
 
     if (widget.isReorder) {
@@ -533,10 +522,17 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
   }
 
   String get _rmPriceText {
-    final rawPrice = widget.item['basePriceRm']?.toString() ??
+    final rawPrice = widget.item['displayPriceRm']?.toString() ??
+        widget.item['basePriceRm']?.toString() ??
         widget.item['price']?.toString() ??
         '16.90';
     return AppColors.formatRmPrice(rawPrice);
+  }
+
+  int get _displayStartingTokenPrice {
+    final displayedTokenPrice = widget.item['displayTokenPrice'];
+    if (displayedTokenPrice is num) return displayedTokenPrice.toInt();
+    return _baseTokenPrice;
   }
 
   String get _displayTotalText {
@@ -1148,7 +1144,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                                 child: _showTokenPrice
                                     ? TokenPricePair(
                                         key: const ValueKey('tokenPrice'),
-                                        tokenValue: _baseTokenPrice,
+                                        tokenValue: _displayStartingTokenPrice,
                                         tokenFontSize: 14,
                                         tokenColor: Colors.black87,
                                       )

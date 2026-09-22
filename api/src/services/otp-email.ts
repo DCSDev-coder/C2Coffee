@@ -42,6 +42,16 @@ type OrderReceiptEmailPayload = {
   tokens: number;
 };
 
+type TopUpReceiptEmailPayload = {
+  to: string;
+  topUpReference: string;
+  providerBillId: string;
+  paymentMethod: string;
+  paidAt: string;
+  amountRm: string;
+  tokens: number;
+};
+
 let transporter: Transporter | null = null;
 
 function getTransporter(): Transporter {
@@ -203,6 +213,51 @@ export async function sendOrderReceiptEmail(payload: OrderReceiptEmailPayload): 
         <table style="width:100%;border-collapse:collapse;margin-top:18px">${itemHtml}</table>
         <div style="margin-top:18px;text-align:right;font-size:17px"><strong>Total: RM ${escapeHtml(payload.totalRm)}</strong><br><span style="color:#4b5563">Tokens charged: ${escapeHtml(String(payload.tokens))}</span></div>
         <p style="margin-top:28px">Thank you for your order.</p>
+      </div>`
+  });
+
+  return { messageId: info.messageId };
+}
+
+/** Send a receipt only after a verified payment callback has credited tokens. */
+export async function sendTopUpReceiptEmail(payload: TopUpReceiptEmailPayload): Promise<{ messageId?: string }> {
+  const fromAddress = env.EMAIL_FROM_ADDRESS || env.EMAIL_SMTP_USER;
+  if (!fromAddress) {
+    throw new Error('EMAIL_FROM_ADDRESS is required for receipt delivery.');
+  }
+
+  const subject = `Your C2 Coffee top-up receipt - ${payload.topUpReference}`;
+  const text = [
+    'C2 Coffee & Candle',
+    'Token top-up payment confirmed',
+    '',
+    `Top-up reference: ${payload.topUpReference}`,
+    `Billplz bill ID: ${payload.providerBillId}`,
+    `Payment method: ${payload.paymentMethod}`,
+    `Paid: ${payload.paidAt}`,
+    `Amount paid: RM ${payload.amountRm}`,
+    `Tokens added: ${payload.tokens}`,
+    '',
+    'Your C2 Token wallet has been updated.'
+  ].join('\n');
+
+  const info = await getTransporter().sendMail({
+    from: `"${env.EMAIL_FROM_NAME}" <${fromAddress}>`,
+    to: payload.to,
+    subject,
+    text,
+    html: `
+      <div style="max-width:600px;margin:auto;font-family:Arial,sans-serif;color:#1f2937;line-height:1.5">
+        <h1 style="font-size:24px;margin-bottom:4px">C2 Coffee &amp; Candle</h1>
+        <p style="margin-top:0;color:#4b5563">Token top-up payment confirmed</p>
+        <div style="padding:16px;background:#f3f4f6;border-radius:10px">
+          <div><strong>Top-up reference:</strong> ${escapeHtml(payload.topUpReference)}</div>
+          <div><strong>Billplz bill ID:</strong> ${escapeHtml(payload.providerBillId)}</div>
+          <div><strong>Payment method:</strong> ${escapeHtml(payload.paymentMethod)}</div>
+          <div><strong>Paid:</strong> ${escapeHtml(payload.paidAt)}</div>
+        </div>
+        <div style="margin-top:18px;text-align:right;font-size:17px"><strong>Amount paid: RM ${escapeHtml(payload.amountRm)}</strong><br><span style="color:#4b5563">Tokens added: ${escapeHtml(String(payload.tokens))}</span></div>
+        <p style="margin-top:28px">Your C2 Token wallet has been updated.</p>
       </div>`
   });
 

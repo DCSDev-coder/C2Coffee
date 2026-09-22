@@ -324,6 +324,7 @@ const flattenMenuData = (categories) =>
     .flatMap((category) =>
       (category.items || []).map((item) => ({
         ...item,
+        category_id: category.id,
         category_code: category.code,
         category_name: category.name,
         category_sort_order: category.sort_order,
@@ -369,7 +370,7 @@ const Menu = ({ onNavigate }) => {
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [isSubcategoryModalOpen, setIsSubcategoryModalOpen] = useState(false);
   const [isHomePicksOpen, setIsHomePicksOpen] = useState(false);
-  const [homePickIds, setHomePickIds] = useState({ featured_drinks: [], lifestyle_picks: [] });
+  const [homePickIds, setHomePickIds] = useState({});
   const [isSavingHomePicks, setIsSavingHomePicks] = useState(false);
   const [drinkGuides, setDrinkGuides] = useState([]);
   const [sopFile, setSopFile] = useState(null);
@@ -407,10 +408,11 @@ const Menu = ({ onNavigate }) => {
       setMenuSubcategories(subcategories);
       setOptionGroups(library.groups || []);
       const placements = homePicks.placements || [];
-      setHomePickIds({
-        featured_drinks: placements.filter((entry) => entry.section === 'featured_drinks').sort((a, b) => a.sortOrder - b.sortOrder).map((entry) => entry.itemId),
-        lifestyle_picks: placements.filter((entry) => entry.section === 'lifestyle_picks').sort((a, b) => a.sortOrder - b.sortOrder).map((entry) => entry.itemId)
-      });
+      setHomePickIds(placements.reduce((picks, entry) => {
+        const categoryId = String(entry.categoryId);
+        picks[categoryId] = [...(picks[categoryId] || []), entry.itemId];
+        return picks;
+      }, {}));
 
       if (selectedCategory !== 'All' && !categories.some((category) => category.code === selectedCategory)) {
         setSelectedCategory('All');
@@ -484,26 +486,23 @@ const Menu = ({ onNavigate }) => {
       await updateAdminOptionGroup(group.id, { ...group, menu_item_ids: menuItemIds });
     }
   };
-  const homePickItems = (section) => allMenuItems.filter((item) => {
-    const kind = String(item.product_kind_code || '').toLowerCase();
-    return item.is_active && (section === 'featured_drinks'
-      ? kind === 'drink'
-      : kind === 'merchandise' || kind === 'candle');
-  });
-  const toggleHomePick = (section, itemId) => {
+  const homePickItems = (categoryId) => allMenuItems.filter((item) => item.is_active && Number(item.category_id) === Number(categoryId));
+  const toggleHomePick = (categoryId, itemId) => {
+    const key = String(categoryId);
     setHomePickIds((current) => {
-      const existing = current[section] || [];
-      if (existing.includes(itemId)) return { ...current, [section]: existing.filter((id) => id !== itemId) };
+      const existing = current[key] || [];
+      if (existing.includes(itemId)) return { ...current, [key]: existing.filter((id) => id !== itemId) };
       if (existing.length >= 6) return current;
-      return { ...current, [section]: [...existing, itemId] };
+      return { ...current, [key]: [...existing, itemId] };
     });
   };
   const saveHomePicks = async () => {
     setIsSavingHomePicks(true);
     setErrorMessage('');
     try {
-      await saveAdminHomeFeatured('featured_drinks', homePickIds.featured_drinks);
-      await saveAdminHomeFeatured('lifestyle_picks', homePickIds.lifestyle_picks);
+      await Promise.all(menuCategories
+        .filter((category) => (category.items || []).some((item) => item.is_active))
+        .map((category) => saveAdminHomeFeatured(category.id, homePickIds[String(category.id)] || [])));
       setIsHomePicksOpen(false);
     } catch (error) {
       setErrorMessage(error.message || 'Unable to save Top Picks.');
@@ -1363,13 +1362,13 @@ const Menu = ({ onNavigate }) => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-2xl rounded-2xl bg-white shadow-xl">
             <div className="flex items-start justify-between border-b border-gray-100 px-6 py-5">
-              <div><h2 className="text-lg font-bold text-gray-900">Top Picks</h2><p className="mt-1 text-sm text-gray-500">Select up to six items per section. Empty slots use 30-day best sellers for the selected store.</p></div>
+              <div><h2 className="text-lg font-bold text-gray-900">Home featured items</h2><p className="mt-1 text-sm text-gray-500">Select up to six items per menu category. Empty slots use 30-day best sellers from that same category. Category names on Home always follow Menu.</p></div>
               <button onClick={() => setIsHomePicksOpen(false)} className="text-gray-400 hover:text-gray-700"><X size={20} /></button>
             </div>
             <div className="max-h-[60vh] space-y-6 overflow-y-auto px-6 py-5">
-              {[['featured_drinks', 'Featured Drinks'], ['lifestyle_picks', 'Lifestyle Picks']].map(([section, label]) => (
-                <div key={section}><div className="mb-2 flex items-center justify-between"><h3 className="font-bold text-gray-900">{label}</h3><span className="text-xs font-medium text-gray-500">{homePickIds[section].length}/6 selected</span></div>
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">{homePickItems(section).map((item) => <label key={item.id} className="flex cursor-pointer items-center gap-3 rounded-lg border border-gray-200 px-3 py-2 text-sm hover:bg-gray-50"><input type="checkbox" checked={homePickIds[section].includes(item.id)} onChange={() => toggleHomePick(section, item.id)} /><span className="min-w-0 truncate font-medium text-gray-800">{item.name}</span></label>)}</div>
+              {menuCategories.filter((category) => (category.items || []).some((item) => item.is_active)).map((category) => (
+                <div key={category.id}><div className="mb-2 flex items-center justify-between"><h3 className="font-bold text-gray-900">{category.name}</h3><span className="text-xs font-medium text-gray-500">{(homePickIds[String(category.id)] || []).length}/6 selected</span></div>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">{homePickItems(category.id).map((item) => <label key={item.id} className="flex cursor-pointer items-center gap-3 rounded-lg border border-gray-200 px-3 py-2 text-sm hover:bg-gray-50"><input type="checkbox" checked={(homePickIds[String(category.id)] || []).includes(item.id)} onChange={() => toggleHomePick(category.id, item.id)} /><span className="min-w-0 truncate font-medium text-gray-800">{item.name}</span></label>)}</div>
                 </div>
               ))}
             </div>

@@ -192,8 +192,8 @@ const VoucherArtworkField = ({ imageUrl, onChange }) => {
     <div className="rounded-xl border border-dashed border-[#BFD3CE] bg-[#F8FBFA] p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <label className="block font-bold text-gray-900">Voucher artwork</label>
-          <p className="mt-0.5 text-[11px] leading-relaxed text-gray-500">Optional. This appears at the top of this voucher in the customer app.</p>
+          <label className="block font-bold text-gray-900">Customer reward image</label>
+          <p className="mt-0.5 text-[11px] leading-relaxed text-gray-500">Optional. It appears on this voucher in My Rewards after an eligible customer receives it. It does not publish a menu poster.</p>
         </div>
         {imageUrl && (
           <button
@@ -212,7 +212,7 @@ const VoucherArtworkField = ({ imageUrl, onChange }) => {
           ) : (
             <div className="flex h-full flex-col items-center justify-center gap-1 px-3 text-center text-[11px] text-gray-400">
               <span className="font-bold text-[#5C7770]">2:1 preview</span>
-              <span>Voucher artwork</span>
+              <span>Reward image</span>
             </div>
           )}
         </div>
@@ -228,7 +228,7 @@ const VoucherArtworkField = ({ imageUrl, onChange }) => {
             />
           </label>
           <p className="mt-2 text-[11px] font-medium text-gray-700">Recommended: 1200 × 600 px (2:1 landscape)</p>
-          <p className="mt-1 text-[11px] leading-relaxed text-gray-500">PNG, JPEG, or WebP, up to 8 MB. The upload is optimized for the 2:1 customer-app banner.</p>
+          <p className="mt-1 text-[11px] leading-relaxed text-gray-500">PNG, JPEG, or WebP, up to 8 MB. To advertise this reward publicly, create a Voucher poster in Marketing.</p>
         </div>
       </div>
       {isUploading && <p className="mt-2 text-[11px] font-medium text-[#2E5E58]">Uploading and optimizing artwork...</p>}
@@ -238,6 +238,16 @@ const VoucherArtworkField = ({ imageUrl, onChange }) => {
 
 const formatAvailabilityMode = (value) =>
   AVAILABILITY_MODE_OPTIONS.find((option) => option.value === value)?.label || "Always Available";
+
+const VoucherFormSection = ({ number, title, description }) => (
+  <div className="flex items-start gap-3 border-t border-[#DDE9E5] pt-4 first:border-t-0 first:pt-0">
+    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#1E433A] text-[11px] font-bold text-white">{number}</span>
+    <div>
+      <h4 className="font-bold text-gray-900">{title}</h4>
+      <p className="mt-0.5 leading-relaxed text-gray-500">{description}</p>
+    </div>
+  </div>
+);
 
 const deriveMenuTaxonomy = (response) => {
   const categories = response?.categories || [];
@@ -1096,8 +1106,23 @@ const Vouchers = () => {
       <div className="shrink-0">
         <h1 className="text-2xl font-bold text-gray-900">Vouchers</h1>
         <p className="text-gray-500 text-sm mt-0.5">
-          Create, manage, and track voucher campaigns and redemption.
+          Define who can receive a reward, what it covers, and when it can be used.
         </p>
+      </div>
+
+      <div className="grid gap-3 rounded-2xl border border-[#D7E4E0] bg-[#F4F8F7] p-4 text-xs text-gray-700 md:grid-cols-3">
+        <div>
+          <p className="font-bold text-[#1F3A34]">1. Create the reward</p>
+          <p className="mt-1 leading-relaxed">Set the benefit, eligible customers, and menu items here.</p>
+        </div>
+        <div>
+          <p className="font-bold text-[#1F3A34]">2. Customers receive it</p>
+          <p className="mt-1 leading-relaxed">Only issued and redeemable vouchers appear in a customer&apos;s My Rewards.</p>
+        </div>
+        <div>
+          <p className="font-bold text-[#1F3A34]">3. Promote it separately</p>
+          <p className="mt-1 leading-relaxed">Use Marketing to create a public menu poster that opens the Rewards page.</p>
+        </div>
       </div>
 
       {/* 2. Stat Cards Row (key overview only) */}
@@ -1197,14 +1222,11 @@ const Vouchers = () => {
             <table className="min-w-full divide-y divide-gray-100 text-xs">
               <thead>
                 <tr className="bg-white text-gray-900 font-bold border-b border-gray-100">
-                  <th className="px-6 py-4 text-left">Voucher Name</th>
-                  <th className="px-6 py-4 text-left">Voucher Label</th>
-                  <th className="px-6 py-4 text-left">Benefit</th>
-                  <th className="px-6 py-4 text-left">Tier</th>
-                  <th className="px-6 py-4 text-left">Items</th>
+                  <th className="px-6 py-4 text-left">Voucher</th>
+                  <th className="px-6 py-4 text-left">Reward</th>
+                  <th className="px-6 py-4 text-left">Who can receive it</th>
                   <th className="px-6 py-4 text-left">Availability</th>
-                  <th className="px-6 py-4 text-left">Status</th>
-                  <th className="px-6 py-4 text-left">Usage</th>
+                  <th className="px-6 py-4 text-left">Status &amp; usage</th>
                   <th className="px-6 py-4 text-center">Actions</th>
                 </tr>
               </thead>
@@ -1234,23 +1256,16 @@ const Vouchers = () => {
                           </div>
                         </td>
 
-                        {/* Type */}
-                        <td className="px-6 py-3.5 whitespace-nowrap font-medium text-gray-700">
-                          {v.type}
+                        <td className="px-6 py-3.5 text-gray-700">
+                          <p className="font-semibold">{benefitTypeLabel(v.benefitType)}</p>
+                          <p className="mt-0.5 max-w-[180px] truncate text-[10px] text-gray-500" title={Array.isArray(v.eligibleItems) ? v.eligibleItems.join(', ') : "All Items"}>
+                            {formatVoucherEligibility(v, productKindLabels)}
+                          </p>
                         </td>
 
-                        <td className="px-6 py-3.5 whitespace-nowrap font-medium text-gray-700">
-                          {benefitTypeLabel(v.benefitType)}
-                        </td>
-
-                        {/* Tier */}
-                        <td className="px-6 py-3.5 whitespace-nowrap font-medium text-gray-700">
-                          {v.tier}
-                        </td>
-
-                        {/* Items */}
-                        <td className="px-6 py-3.5 font-medium text-gray-700 max-w-[150px] truncate" title={Array.isArray(v.eligibleItems) ? v.eligibleItems.join(', ') : "All Items"}>
-                          {formatVoucherEligibility(v, productKindLabels)}
+                        <td className="px-6 py-3.5 text-gray-700">
+                          <p className="font-medium">{audienceLabel(v.audience)}</p>
+                          <p className="mt-0.5 text-[10px] text-gray-500">{v.tier}</p>
                         </td>
 
                         {/* Availability */}
@@ -1258,23 +1273,18 @@ const Vouchers = () => {
                           {v.availabilityLabel || "-"}
                         </td>
 
-                        {/* Status */}
                         <td className="px-6 py-3.5 whitespace-nowrap">
-                          <span
-                            className={`px-3 py-1 rounded-md text-[10px] font-bold ${v.status === "Active"
-                              ? "bg-green-100 text-green-800"
-                              : v.status === "Expired"
-                                ? "bg-red-100 text-red-700"
-                                : "bg-gray-100 text-gray-700"
-                              }`}
-                          >
-                            {v.status}
-                          </span>
-                        </td>
-
-                        {/* Usage Progress Bar */}
-                        <td className="px-6 py-3.5 whitespace-nowrap">
-                          <div className="w-28">
+                          <div className="w-32">
+                            <span
+                              className={`inline-flex px-2 py-0.5 rounded-md text-[10px] font-bold ${v.status === "Active"
+                                ? "bg-green-100 text-green-800"
+                                : v.status === "Expired"
+                                  ? "bg-red-100 text-red-700"
+                                  : "bg-gray-100 text-gray-700"
+                                }`}
+                            >
+                              {v.status}
+                            </span>
                             <p className="text-[11px] font-bold text-gray-800 mb-1">
                               {(v.issued || 0).toLocaleString()} / {v.totalQty === null ? 'Unlimited' : (v.totalQty || 0).toLocaleString()}
                             </p>
@@ -1358,7 +1368,7 @@ const Vouchers = () => {
                   })
                 ) : (
                   <tr>
-                    <td colSpan="9" className="px-6 py-12 text-center text-gray-500">
+                    <td colSpan="6" className="px-6 py-12 text-center text-gray-500">
                       No vouchers found matching your filter criteria.
                     </td>
                   </tr>
@@ -1794,6 +1804,15 @@ const Vouchers = () => {
                 </div>
 
                 <form onSubmit={handleCreateVoucher} className="space-y-3.5 text-xs">
+                  <div className="rounded-xl border border-[#CDE0DA] bg-[#F4F8F7] p-3 text-[11px] text-[#355E55]">
+                    <strong className="block text-xs text-[#1E433A]">Set up a customer reward in four steps</strong>
+                    <span className="mt-1 block">Reward, eligible customers, eligible menu items, then availability and limits.</span>
+                  </div>
+                  <VoucherFormSection
+                    number="1"
+                    title="Reward"
+                    description="Name the reward, choose what it gives, and optionally add the image customers see in My Rewards."
+                  />
                   <div>
                     <label className="block font-bold text-gray-900 mb-1">Voucher Name</label>
                     <input
@@ -1813,7 +1832,7 @@ const Vouchers = () => {
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block font-bold text-gray-900 mb-1">Voucher Label</label>
+                      <label className="block font-bold text-gray-900 mb-1">Staff label</label>
                       <input
                         list="voucher-type-labels"
                         value={newVoucher.type}
@@ -1842,6 +1861,11 @@ const Vouchers = () => {
                     </div>
                   </div>
 
+                  <VoucherFormSection
+                    number="2"
+                    title="Who can receive it"
+                    description="Choose the customer group and member tier. Referral rewards are only for a referrer after a successful first order."
+                  />
                   <label className="flex gap-2 rounded-lg border border-[#D7E4E0] bg-[#F4F8F7] px-3 py-2 text-xs text-gray-700 cursor-pointer">
                     <input type="checkbox" checked={newVoucher.isReferralReward} onChange={(e) => setNewVoucher({ ...newVoucher, isReferralReward: e.target.checked })} />
                     <span><strong>Referral reward</strong><br />Issue this voucher to the referrer after their friend collects a first order. Selecting this replaces the current referral reward.</span>
@@ -1877,7 +1901,7 @@ const Vouchers = () => {
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block font-bold text-gray-900 mb-1">Promotion Type</label>
+                      <label className="block font-bold text-gray-900 mb-1">Reward rule</label>
                       <select
                         value={newVoucher.promotionKind}
                         onChange={(e) => setNewVoucher({
@@ -1924,7 +1948,7 @@ const Vouchers = () => {
                       </div>
                     ) : (
                       <div>
-                        <label className="block font-bold text-gray-900 mb-1">Benefit Quantity</label>
+                        <label className="block font-bold text-gray-900 mb-1">Items per redemption</label>
                         <p className="text-[10px] text-gray-500 mb-1">How many items this voucher gives per use.</p>
                         <input
                           type="number"
@@ -1939,7 +1963,7 @@ const Vouchers = () => {
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block font-bold text-gray-900 mb-1">Eligible Member Tier</label>
+                      <label className="block font-bold text-gray-900 mb-1">Member tier</label>
                       <select
                         value={newVoucher.tier}
                         onChange={(e) => setNewVoucher({ ...newVoucher, tier: e.target.value })}
@@ -1978,10 +2002,15 @@ const Vouchers = () => {
                     </div>
                   )}
 
+                  <VoucherFormSection
+                    number="3"
+                    title="Eligible menu items"
+                    description="Choose what this reward can be used on. Leave it as All Items for the simplest setup."
+                  />
                   <ScopeSelectionSection
-                    appliesToLabel="Applies To"
-                    menuTypesLabel="Menu Types"
-                    specificItemsLabel="Specific Items"
+                    appliesToLabel="Eligible menu items"
+                    menuTypesLabel="Choose menu types"
+                    specificItemsLabel="Choose specific items"
                     menuTaxonomy={menuTaxonomy}
                     selectedProductKinds={newVoucher.productKinds || []}
                     selectedSubcategoryCodes={newVoucher.subcategoryCodes || []}
@@ -1998,8 +2027,13 @@ const Vouchers = () => {
                   />
 
                   <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block font-bold text-gray-900 mb-1">Repeat Schedule</label>
+                    <div className="col-span-2">
+                      <VoucherFormSection
+                        number="4"
+                        title="Availability and limits"
+                        description="Choose when it can be used and how many times it is available."
+                      />
+                      <label className="block font-bold text-gray-900 mb-1 mt-3">Availability schedule</label>
                       <select
                         value={newVoucher.availabilityMode}
                         onChange={(e) => setNewVoucher({ ...newVoucher, availabilityMode: e.target.value, activeDays: [], annualDate: "", monthlyDay: "" })}
@@ -2090,7 +2124,7 @@ const Vouchers = () => {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <div className="flex justify-between items-center mb-1">
-                        <label className="block font-bold text-gray-900">Total Quantity</label>
+                        <label className="block font-bold text-gray-900">Total vouchers available</label>
                         <label className="flex items-center text-[10px] text-gray-500 cursor-pointer">
                           <input
                             type="checkbox"
@@ -2114,7 +2148,11 @@ const Vouchers = () => {
 
                     <div>
                       <label className="block font-bold text-gray-900 mb-1">{limitPerUserLabel}</label>
-                      <p className="text-[10px] text-gray-500 mb-1">The same customer can use this voucher only this many times.</p>
+                      <p className="text-[10px] text-gray-500 mb-1">
+                        {newVoucher.availabilityMode === 'daily'
+                          ? 'Each eligible customer can receive this many vouchers per day.'
+                          : 'The same customer can use this voucher only this many times.'}
+                      </p>
                       <input
                         type="number"
                         min="1"
@@ -2175,6 +2213,15 @@ const Vouchers = () => {
                 </div>
 
                 <form onSubmit={handleSaveEdit} className="space-y-3.5 text-xs">
+                  <div className="rounded-xl border border-[#CDE0DA] bg-[#F4F8F7] p-3 text-[11px] text-[#355E55]">
+                    <strong className="block text-xs text-[#1E433A]">Update this reward in four steps</strong>
+                    <span className="mt-1 block">Reward, eligible customers, eligible menu items, then availability and limits.</span>
+                  </div>
+                  <VoucherFormSection
+                    number="1"
+                    title="Reward"
+                    description="Update the reward name, benefit, and the image customers see in My Rewards."
+                  />
                   <div>
                     <label className="block font-bold text-gray-900 mb-1">Voucher Name</label>
                     <input
@@ -2191,6 +2238,11 @@ const Vouchers = () => {
                     onChange={(imageUrl) => setEditingVoucher({ ...editingVoucher, imageUrl })}
                   />
 
+                  <VoucherFormSection
+                    number="2"
+                    title="Who can receive it"
+                    description="Choose the customer group and member tier. Referral rewards are only for a referrer after a successful first order."
+                  />
                   <label className="flex gap-2 rounded-lg border border-[#D7E4E0] bg-[#F4F8F7] px-3 py-2 text-xs text-gray-700 cursor-pointer">
                     <input type="checkbox" checked={editingVoucher.isReferralReward} onChange={(e) => setEditingVoucher({ ...editingVoucher, isReferralReward: e.target.checked })} />
                     <span><strong>Referral reward</strong><br />Issue this voucher to the referrer after their friend collects a first order. Selecting this replaces the current referral reward.</span>
@@ -2198,7 +2250,7 @@ const Vouchers = () => {
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block font-bold text-gray-900 mb-1">Voucher Label</label>
+                      <label className="block font-bold text-gray-900 mb-1">Staff label</label>
                       <input
                         list="voucher-type-labels"
                         value={editingVoucher.type}
@@ -2251,7 +2303,7 @@ const Vouchers = () => {
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block font-bold text-gray-900 mb-1">Promotion Type</label>
+                      <label className="block font-bold text-gray-900 mb-1">Reward rule</label>
                       <select
                         value={editingVoucher.promotionKind}
                         onChange={(e) => setEditingVoucher({
@@ -2298,7 +2350,7 @@ const Vouchers = () => {
                       </div>
                     ) : (
                       <div>
-                        <label className="block font-bold text-gray-900 mb-1">Benefit Quantity</label>
+                        <label className="block font-bold text-gray-900 mb-1">Items per redemption</label>
                         <p className="text-[10px] text-gray-500 mb-1">How many items this voucher gives per use.</p>
                         <input
                           type="number"
@@ -2313,7 +2365,7 @@ const Vouchers = () => {
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block font-bold text-gray-900 mb-1">Eligible Member Tier</label>
+                      <label className="block font-bold text-gray-900 mb-1">Member tier</label>
                       <select
                         value={editingVoucher.tier}
                         onChange={(e) => setEditingVoucher({ ...editingVoucher, tier: e.target.value })}
@@ -2352,10 +2404,15 @@ const Vouchers = () => {
                     </div>
                   )}
 
+                  <VoucherFormSection
+                    number="3"
+                    title="Eligible menu items"
+                    description="Choose what this reward can be used on. Leave it as All Items for the simplest setup."
+                  />
                   <ScopeSelectionSection
-                    appliesToLabel="Applies To"
-                    menuTypesLabel="Menu Types"
-                    specificItemsLabel="Specific Items"
+                    appliesToLabel="Eligible menu items"
+                    menuTypesLabel="Choose menu types"
+                    specificItemsLabel="Choose specific items"
                     menuTaxonomy={menuTaxonomy}
                     selectedProductKinds={editingVoucher.productKinds || []}
                     selectedSubcategoryCodes={editingVoucher.subcategoryCodes || []}
@@ -2393,8 +2450,13 @@ const Vouchers = () => {
                   )}
 
                   <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block font-bold text-gray-900 mb-1">Repeat Schedule</label>
+                    <div className="col-span-2">
+                      <VoucherFormSection
+                        number="4"
+                        title="Availability and limits"
+                        description="Choose when it can be used and how many times it is available."
+                      />
+                      <label className="block font-bold text-gray-900 mb-1 mt-3">Availability schedule</label>
                       <select
                         value={editingVoucher.availabilityMode}
                         onChange={(e) => setEditingVoucher({ ...editingVoucher, availabilityMode: e.target.value, activeDays: [], annualDate: "", monthlyDay: "" })}
@@ -2485,7 +2547,7 @@ const Vouchers = () => {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <div className="flex justify-between items-center mb-1">
-                        <label className="block font-bold text-gray-900">Total Quantity</label>
+                        <label className="block font-bold text-gray-900">Total vouchers available</label>
                         <label className="flex items-center text-[10px] text-gray-500 cursor-pointer">
                           <input
                             type="checkbox"
@@ -2509,7 +2571,11 @@ const Vouchers = () => {
 
                     <div>
                       <label className="block font-bold text-gray-900 mb-1">{limitPerUserLabel}</label>
-                      <p className="text-[10px] text-gray-500 mb-1">The same customer can use this voucher only this many times.</p>
+                      <p className="text-[10px] text-gray-500 mb-1">
+                        {editingVoucher.availabilityMode === 'daily'
+                          ? 'Each eligible customer can receive this many vouchers per day.'
+                          : 'The same customer can use this voucher only this many times.'}
+                      </p>
                       <input
                         type="number"
                         min="1"

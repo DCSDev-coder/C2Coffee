@@ -1,4 +1,6 @@
 const PAGE_ROLES = {
+  'Barista Console': ['super_admin', 'operations_admin', 'barista'],
+  'Barista Workspace': ['super_admin', 'operations_admin', 'barista'],
   Dashboard: ['super_admin', 'operations_admin', 'marketing_admin', 'support_admin'],
   Orders: ['super_admin', 'operations_admin'],
   Refunds: ['super_admin', 'operations_admin', 'support_admin'],
@@ -27,7 +29,7 @@ export const ADMIN_ROLE_SECTIONS = {
   operations_admin: 'Orders, refunds, menu setup, barista operations, and staff guides',
   marketing_admin: 'Menu, campaigns, vouchers, tiers, and product reports',
   support_admin: 'Customer lookup and refund requests',
-  barista: 'Barista App only'
+  barista: 'Barista Console and workspace only'
 };
 
 export function canAccessAdminPage(roles, page) {

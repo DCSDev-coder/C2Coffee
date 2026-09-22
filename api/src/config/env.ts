@@ -45,6 +45,9 @@ const envSchema = z.object({
   TOPUP_GATEWAY_BASE_URL: z.string().trim().default(''),
   TOPUP_GATEWAY_API_KEY: z.string().trim().default(''),
   TOPUP_GATEWAY_WEBHOOK_SECRET: z.string().trim().default(''),
+  TOPUP_GATEWAY_COLLECTION_ID: z.string().trim().max(100).default(''),
+  // Approved customer top-up methods. The gateway adapter checks that each is
+  // active with Billplz before returning it to the customer app.
   TOPUP_GATEWAY_ALLOWED_METHODS: z.string().trim().default('touch_n_go,card,bank_transfer'),
   WHATSAPP_CLOUD_API_TOKEN: z.string().optional().default(''),
   WHATSAPP_PHONE_NUMBER_ID: z.string().optional().default(''),
@@ -106,8 +109,8 @@ if (topUpMethods.some((method) => !allowedTopUpMethods.has(method))) {
 }
 
 if (parsed.TOPUP_GATEWAY_ENABLED) {
-  if (!parsed.TOPUP_GATEWAY_PROVIDER || !parsed.TOPUP_GATEWAY_BASE_URL || !parsed.TOPUP_GATEWAY_API_KEY || !parsed.TOPUP_GATEWAY_WEBHOOK_SECRET) {
-    throw new Error('TOPUP_GATEWAY_ENABLED=true requires provider, HTTPS base URL, API key, and webhook secret.');
+  if (!parsed.TOPUP_GATEWAY_PROVIDER || !parsed.TOPUP_GATEWAY_BASE_URL || !parsed.TOPUP_GATEWAY_API_KEY || !parsed.TOPUP_GATEWAY_WEBHOOK_SECRET || !parsed.TOPUP_GATEWAY_COLLECTION_ID) {
+    throw new Error('TOPUP_GATEWAY_ENABLED=true requires provider, HTTPS base URL, API key, webhook secret, and collection ID.');
   }
   if (new URL(parsed.TOPUP_GATEWAY_BASE_URL).protocol !== 'https:') {
     throw new Error('TOPUP_GATEWAY_BASE_URL must use HTTPS.');

@@ -9,6 +9,18 @@ type PushTokenRow = RowDataPacket & {
   push_token: string;
 };
 
+type StaffPushTokenRow = PushTokenRow & {
+  platform: 'android' | 'ios' | 'web';
+};
+
+export type StaffPushDeliveryResult = {
+  attemptedTokens: number;
+  deliveredTokens: number;
+  invalidTokens: number;
+  failedTokens: number;
+  webTokens: number;
+};
+
 type PushDeliveryInput = {
   userId: number;
   title: string;
@@ -35,9 +47,18 @@ export type PushDeliveryResult = {
   attemptedTokens: number;
   deliveredTokens: number;
   invalidTokens: number;
+  failedTokens: number;
+  failureReasons: string[];
 };
 
-type FcmMessageInput = Pick<PushDeliveryInput, 'title' | 'body' | 'data'>;
+type FcmMessageInput = Pick<PushDeliveryInput, 'title' | 'body' | 'data'> & {
+  // Android order alerts are data-only so Firebase may start the Barista
+  // background isolate, which claims the durable print job before notifying.
+  backgroundDataDelivery?: boolean;
+  // Web FCM uses the standard notification payload, which FCM can display
+  // reliably while the Barista Console is backgrounded.
+  webPushDelivery?: boolean;
+};
 
 type FcmServiceAccount = {
   project_id: string;
@@ -85,10 +106,22 @@ async function sendFcmMessage(
     body: JSON.stringify({
       message: {
         token,
-        notification: { title: input.title, body: input.body },
-        data: input.data,
-        android: { priority: 'high', notification: { channel_id: 'c2_order_updates' } },
-        apns: { payload: { aps: { sound: 'default' } } }
+        ...(input.backgroundDataDelivery
+          ? {
+              data: {
+                ...input.data,
+                notification_title: input.title,
+                notification_body: input.body
+              },
+              android: { priority: 'HIGH' }
+            }
+          : {
+              notification: { title: input.title, body: input.body },
+              data: input.data,
+              android: { priority: 'HIGH', notification: { channel_id: 'c2_order_updates' } }
+            }),
+        apns: { payload: { aps: { sound: 'default' } } },
+        ...(input.webPushDelivery ? { webpush: { headers: { Urgency: 'high' } } } : {})
       }
     })
   });
@@ -99,7 +132,7 @@ async function sendFcmMessage(
   if (providerStatus === 'UNREGISTERED' || providerStatus === 'NOT_FOUND') {
     return { invalidToken: true };
   }
-  throw new Error(`FCM delivery failed with HTTP ${response.status}.`);
+  throw new Error(`FCM delivery failed with HTTP ${response.status} (${providerStatus || 'unknown'}).`);
 }
 
 /**
@@ -154,7 +187,7 @@ export async function deliverPushToCustomerTenant(
   input: CustomerTenantPushDeliveryInput
 ): Promise<PushDeliveryResult> {
   const configuration = fcmConfiguration();
-  if (!configuration) return { attemptedTokens: 0, deliveredTokens: 0, invalidTokens: 0 };
+  if (!configuration) return { attemptedTokens: 0, deliveredTokens: 0, invalidTokens: 0, failedTokens: 0, failureReasons: [] };
 
   const [tokens] = await mysqlPool.query<PushTokenRow[]>(
     `
@@ -171,10 +204,12 @@ export async function deliverPushToCustomerTenant(
     `,
     { tenantId: input.tenantId }
   );
-  if (tokens.length === 0) return { attemptedTokens: 0, deliveredTokens: 0, invalidTokens: 0 };
+  if (tokens.length === 0) return { attemptedTokens: 0, deliveredTokens: 0, invalidTokens: 0, failedTokens: 0, failureReasons: [] };
 
   const inactiveTokenIds: number[] = [];
   let deliveredTokens = 0;
+  let failedTokens = 0;
+  const failureReasons = new Set<string>();
   for (let index = 0; index < tokens.length; index += 20) {
     const batch = tokens.slice(index, index + 20);
     const outcomes = await Promise.allSettled(
@@ -187,6 +222,9 @@ export async function deliverPushToCustomerTenant(
         } else {
           deliveredTokens++;
         }
+      } else {
+        failedTokens++;
+        failureReasons.add(outcome.reason instanceof Error ? outcome.reason.message : 'Unknown FCM delivery failure.');
       }
     });
   }
@@ -203,7 +241,9 @@ export async function deliverPushToCustomerTenant(
   return {
     attemptedTokens: tokens.length,
     deliveredTokens,
-    invalidTokens: inactiveTokenIds.length
+    invalidTokens: inactiveTokenIds.length,
+    failedTokens,
+    failureReasons: [...failureReasons]
   };
 }
 
@@ -211,13 +251,15 @@ export async function deliverPushToCustomerTenant(
  * Sends operational alerts to staff in the same tenant. Payload text is
  * deliberately generic; the app reloads authorised queue data after receipt.
  */
-export async function deliverPushToStaff(input: StaffPushDeliveryInput): Promise<void> {
+export async function deliverPushToStaff(input: StaffPushDeliveryInput): Promise<StaffPushDeliveryResult> {
   const configuration = fcmConfiguration();
-  if (!configuration || input.roleCodes.length === 0) return;
+  if (!configuration || input.roleCodes.length === 0) {
+    return { attemptedTokens: 0, deliveredTokens: 0, invalidTokens: 0, failedTokens: 0, webTokens: 0 };
+  }
 
   const rolePlaceholders = input.roleCodes.map(() => '?').join(', ');
-  const [tokens] = await mysqlPool.query<PushTokenRow[]>(
-    `SELECT apt.id, apt.push_token
+  const [tokens] = await mysqlPool.query<StaffPushTokenRow[]>(
+    `SELECT apt.id, apt.push_token, apt.platform
      FROM admin_push_tokens apt
      JOIN admin_users au ON au.id = apt.admin_user_id
      JOIN admin_user_roles aur ON aur.admin_user_id = au.id
@@ -231,17 +273,33 @@ export async function deliverPushToStaff(input: StaffPushDeliveryInput): Promise
      LIMIT 500`,
     [input.tenantId, ...input.roleCodes]
   );
-  if (tokens.length === 0) return;
+  if (tokens.length === 0) {
+    return { attemptedTokens: 0, deliveredTokens: 0, invalidTokens: 0, failedTokens: 0, webTokens: 0 };
+  }
 
   const inactiveTokenIds: number[] = [];
+  let deliveredTokens = 0;
+  let failedTokens = 0;
   for (let index = 0; index < tokens.length; index += 20) {
     const batch = tokens.slice(index, index + 20);
     const outcomes = await Promise.allSettled(
-      batch.map((row) => sendFcmMessage(configuration.client, configuration.projectId, row.push_token, input))
+      batch.map((row) => sendFcmMessage(configuration.client, configuration.projectId, row.push_token, {
+        ...input,
+        // Android remains data-only to wake the native printing handler. Web
+        // and iOS receive FCM's standard notification presentation.
+        backgroundDataDelivery: row.platform === 'android',
+        webPushDelivery: row.platform === 'web'
+      }))
     );
     outcomes.forEach((outcome, batchIndex) => {
-      if (outcome.status === 'fulfilled' && outcome.value.invalidToken) {
-        inactiveTokenIds.push(batch[batchIndex].id);
+      if (outcome.status === 'fulfilled') {
+        if (outcome.value.invalidToken) {
+          inactiveTokenIds.push(batch[batchIndex].id);
+        } else {
+          deliveredTokens++;
+        }
+      } else {
+        failedTokens++;
       }
     });
   }
@@ -254,4 +312,12 @@ export async function deliverPushToStaff(input: StaffPushDeliveryInput): Promise
       inactiveTokenIds
     );
   }
+
+  return {
+    attemptedTokens: tokens.length,
+    deliveredTokens,
+    invalidTokens: inactiveTokenIds.length,
+    failedTokens,
+    webTokens: tokens.filter((token) => token.platform === 'web').length
+  };
 }

@@ -333,7 +333,7 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
 
     return _buildRewardsSection(
       title: 'Vouchers',
-      subtitle: 'Your available customer vouchers.',
+      subtitle: 'Your active vouchers, ready to use.',
       vouchers: sortedVouchers,
       accentColor: AppColors.deepTeal,
     );
@@ -480,7 +480,7 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Status: ${_capitalize(voucher.status)}',
+                      'Status: ${_voucherStatusLabel(voucher)}',
                       style: TextStyle(
                         fontFamily: 'Afacad',
                         fontSize: 13,
@@ -550,7 +550,23 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
   }
 
   String _voucherBadge(RewardVoucher voucher) {
-    return voucher.isActive ? '0/1' : '1/1';
+    if (voucher.isRedeemed) {
+      return 'Used';
+    }
+    return voucher.isActive ? 'Available' : _voucherStatusLabel(voucher);
+  }
+
+  String _voucherStatusLabel(RewardVoucher voucher) {
+    if (voucher.isRedeemed) {
+      return 'Used';
+    }
+    if (voucher.revokedAt != null || voucher.status == 'revoked') {
+      return 'Revoked';
+    }
+    if (!voucher.isActive) {
+      return 'Expired';
+    }
+    return _capitalize(voucher.status);
   }
 
   String _capitalize(String value) {

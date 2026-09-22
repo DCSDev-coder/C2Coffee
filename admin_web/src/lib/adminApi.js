@@ -238,14 +238,45 @@ export async function updateAdminMenuNutrition(itemId, baseCaloriesKcal) {
   );
 }
 
+export async function loadAdminNutritionIngredients() {
+  return adminRequest('/v1/admin/nutrition/ingredients');
+}
+
+export async function createAdminNutritionIngredient(payload) {
+  return adminRequest('/v1/admin/nutrition/ingredients', { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export async function updateAdminNutritionIngredient(ingredientId, payload) {
+  return adminRequest(`/v1/admin/nutrition/ingredients/${encodeURIComponent(ingredientId)}`, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+export async function loadAdminRecipeNutrition(itemId) {
+  return adminRequest(`/v1/admin/menu/items/${encodeURIComponent(itemId)}/recipe-nutrition`);
+}
+
+export async function saveAdminRecipeNutrition(itemId, payload) {
+  return adminRequest(`/v1/admin/menu/items/${encodeURIComponent(itemId)}/recipe-nutrition`, { method: 'PUT', body: JSON.stringify(payload) });
+}
+
+export async function saveAdminOptionNutritionOverrides(itemId, overrides) {
+  return adminRequest(`/v1/admin/menu/items/${encodeURIComponent(itemId)}/option-nutrition`, { method: 'PUT', body: JSON.stringify({ overrides }) });
+}
+
+export async function applyAdminOptionNutritionToDrinks(optionId, calorieDeltaKcal) {
+  return adminRequest(`/v1/admin/menu/options/${encodeURIComponent(optionId)}/nutrition/apply-to-drinks`, {
+    method: 'POST',
+    body: JSON.stringify({ calorie_delta_kcal: calorieDeltaKcal })
+  });
+}
+
 export async function loadAdminHomeFeatured() {
   return adminRequest("/v1/admin/home-featured");
 }
 
-export async function saveAdminHomeFeatured(section, itemIds) {
+export async function saveAdminHomeFeatured(categoryId, itemIds) {
   return adminRequest("/v1/admin/home-featured", {
     method: "PUT",
-    body: JSON.stringify({ section, itemIds }),
+    body: JSON.stringify({ category_id: categoryId, itemIds }),
   });
 }
 
@@ -256,8 +287,8 @@ export async function loadAdminProductReport(selectedDate = null) {
   return adminRequest(`/v1/admin/reports/products${query}`);
 }
 
-export async function loadAdminCustomers() {
-  return adminRequest("/v1/admin/customers");
+export async function loadAdminCustomers({ limit = 500 } = {}) {
+  return adminRequest(`/v1/admin/customers?limit=${encodeURIComponent(limit)}`);
 }
 
 export async function loadAdminOrders(params = {}) {
@@ -568,6 +599,13 @@ export async function saveAdminWeeklySchedule(entries) {
   });
 }
 
+export async function saveAdminShiftSchedule(entries) {
+  return adminRequest("/v1/admin/shift-schedule", {
+    method: "PUT",
+    body: JSON.stringify({ entries }),
+  });
+}
+
 export async function createAdminOperationalIntegration(payload) {
   return adminRequest("/v1/admin/operational-integrations", {
     method: "POST",
@@ -579,6 +617,12 @@ export async function createAdminPrinterTarget(payload) {
   return adminRequest("/v1/admin/printer-targets", {
     method: "POST",
     body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteAdminPrinterTarget(printerTargetId) {
+  return adminRequest(`/v1/admin/printer-targets/${printerTargetId}`, {
+    method: "DELETE",
   });
 }
 

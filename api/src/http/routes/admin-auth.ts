@@ -160,6 +160,32 @@ const adminRefreshSchema = z.object({
 
 const adminRefreshCookieName = 'c2_admin_refresh';
 
+function isTrustedAdminRefreshOrigin(origin: string | undefined): boolean {
+  if (!origin) return false;
+
+  let requestOrigin: URL;
+  try {
+    requestOrigin = new URL(origin);
+  } catch {
+    return false;
+  }
+
+  const apiOrigin = new URL(env.PUBLIC_API_BASE_URL).origin;
+  if (requestOrigin.origin === apiOrigin) return true;
+
+  return env.CORS_ALLOWED_ORIGINS.some((configuredOrigin) => {
+    try {
+      const configured = new URL(configuredOrigin);
+      if (configured.origin === requestOrigin.origin) return true;
+      return ['localhost', '127.0.0.1'].includes(configured.hostname)
+        && configured.protocol === requestOrigin.protocol
+        && configured.hostname === requestOrigin.hostname;
+    } catch {
+      return false;
+    }
+  });
+}
+
 function setAdminRefreshCookie(
   reply: { setCookie: (name: string, value: string, options: Record<string, unknown>) => unknown },
   refreshToken: string
@@ -351,6 +377,12 @@ export async function registerAdminAuthRoutes(app: FastifyInstance): Promise<voi
       throw new ApiError(401, 'invalid_refresh_token', 'Your sign-in session has expired. Please sign in again.');
     }
     const usesCookieSession = !payload.refresh_token && Boolean(cookieRefreshToken);
+    // CORS prevents a hostile site from reading the response but does not
+    // prevent it from sending a cookie-bearing request. Require a configured
+    // browser origin before rotating an HttpOnly refresh cookie.
+    if (usesCookieSession && !isTrustedAdminRefreshOrigin(request.headers.origin)) {
+      throw new ApiError(403, 'untrusted_refresh_origin', 'This browser session cannot be refreshed from this origin.');
+    }
     const refreshTokenHash = hashSha256(refreshToken);
 
     const [rows] = await mysqlPool.query<
@@ -389,20 +421,30 @@ export async function registerAdminAuthRoutes(app: FastifyInstance): Promise<voi
     const nextRefreshToken = generateOpaqueToken();
     const nextRefreshTokenHash = hashSha256(nextRefreshToken);
 
-    await mysqlPool.execute(
+    const [rotationResult] = await mysqlPool.execute<ResultSetHeader>(
       `
         UPDATE admin_sessions
         SET refresh_token_hash = :refreshTokenHash,
             issued_at = UTC_TIMESTAMP(),
             expires_at = DATE_ADD(UTC_TIMESTAMP(), INTERVAL :refreshDays DAY)
         WHERE id = :sessionId
+          AND refresh_token_hash = :currentRefreshTokenHash
+          AND revoked_at IS NULL
       `,
       {
         refreshTokenHash: nextRefreshTokenHash,
+        currentRefreshTokenHash: refreshTokenHash,
         refreshDays: env.REFRESH_TOKEN_TTL_DAYS,
         sessionId: session.id
       }
     );
+
+    // Only one concurrent refresh may consume a rotating token. Without this
+    // condition, two refreshes could both return usable access tokens and the
+    // last response would silently invalidate the other browser response.
+    if (rotationResult.affectedRows !== 1) {
+      throw new ApiError(401, 'invalid_refresh_token', 'Your sign-in session has expired. Please sign in again.');
+    }
 
     const accessToken = await signAdminAccessToken({
       adminUserId: session.admin_user_id,

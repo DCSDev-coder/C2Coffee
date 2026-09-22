@@ -5,7 +5,7 @@ import { authenticateAdminRequest } from '../../admin/guard.js';
 import { mysqlPool } from '../../db/mysql.js';
 
 const pushTokenSchema = z.object({
-  platform: z.enum(['android', 'ios']),
+  platform: z.enum(['android', 'ios', 'web']),
   push_token: z.string().trim().min(20).max(512)
 });
 

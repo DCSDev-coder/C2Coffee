@@ -13,8 +13,9 @@ import '../utils/global_state.dart';
 import '../widgets/catalog_product_image.dart';
 import '../widgets/voucher_modal.dart';
 import '../widgets/app_page_shell.dart';
-import 'orders_page.dart';
 import 'loading_order_page.dart';
+import 'order_status_detail_page.dart';
+import 'orders_page.dart';
 
 class OrderConfirmationPage extends StatefulWidget {
   const OrderConfirmationPage({super.key, this.initialQuantity = 1});
@@ -693,7 +694,10 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
       final accessToken =
           await SecureSessionService.instance.getValidAccessToken();
       if (accessToken == null || accessToken.isEmpty) {
-        throw Exception('Missing access token.');
+        throw ApiException(
+          'Your session has expired. Please sign in again.',
+          code: 'session_not_found',
+        );
       }
 
       final checkoutResult = await CheckoutApiService.instance.createTokenOrder(
@@ -708,6 +712,11 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
       _cart.clear();
       globalOrderStatusVisible.value = true;
 
+      final createdOrder = await _loadCreatedOrder(
+        accessToken: accessToken,
+        orderId: checkoutResult.order.id,
+      );
+
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         PageRouteBuilder(
@@ -715,7 +724,9 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
           pageBuilder: (context, animation, secondaryAnimation) =>
               FadeTransition(
             opacity: animation,
-            child: const OrdersPage(initialTabIndex: 0),
+            child: createdOrder == null
+                ? const OrdersPage(initialTabIndex: 0)
+                : OrderStatusDetailPage(order: createdOrder),
           ),
         ),
       );
@@ -735,6 +746,25 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
         });
       }
     }
+  }
+
+  Future<CustomerOrder?> _loadCreatedOrder({
+    required String accessToken,
+    required int orderId,
+  }) async {
+    try {
+      final orders = await CustomerDataService.instance.getOrders(
+        accessToken: accessToken,
+        limit: 20,
+      );
+      for (final order in orders.orders) {
+        if (order.id == orderId) return order;
+      }
+    } catch (_) {
+      // Checkout already succeeded. Fall back to My Orders if the status
+      // snapshot cannot be loaded immediately.
+    }
+    return null;
   }
 
   String _newCheckoutIdempotencyKey() {

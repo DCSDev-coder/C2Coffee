@@ -26,7 +26,10 @@ class SecureSessionService {
   Future<BaristaStoredSession?> read() async {
     final accessToken = await _storage.read(key: _accessTokenKey);
     final refreshToken = await _storage.read(key: _refreshTokenKey);
-    if (accessToken == null || accessToken.isEmpty || refreshToken == null || refreshToken.isEmpty) {
+    if (accessToken == null ||
+        accessToken.isEmpty ||
+        refreshToken == null ||
+        refreshToken.isEmpty) {
       return null;
     }
 
@@ -37,7 +40,11 @@ class SecureSessionService {
     );
   }
 
-  Future<void> clear() => _storage.deleteAll();
+  Future<void> clear() async {
+    await _storage.delete(key: _accessTokenKey);
+    await _storage.delete(key: _refreshTokenKey);
+    await _storage.delete(key: _tenantCodeKey);
+  }
 }
 
 class BaristaStoredSession {

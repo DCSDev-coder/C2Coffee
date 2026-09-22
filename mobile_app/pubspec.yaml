@@ -2,7 +2,7 @@ name: c2_coffee
 description: "A new Flutter project for C2 Coffee."
 publish_to: 'none'
 
-version: 1.0.0+13
+version: 1.0.0+16
 
 environment:
   sdk: ">=3.2.0 <4.0.0"
@@ -25,6 +25,7 @@ dependencies:
   flutter_secure_storage: ^9.2.4
   firebase_core: ^4.3.0
   firebase_messaging: ^16.1.0
+  flutter_local_notifications: ^19.5.0
   shared_preferences: ^2.5.5
   share_plus: ^10.1.4
   cached_network_image: ^3.4.1

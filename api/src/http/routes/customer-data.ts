@@ -22,6 +22,13 @@ const listQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional().default(20)
 });
 
+const rewardVoucherListQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).optional().default(20),
+  // Voucher history is requested explicitly so checkout continues to receive
+  // only vouchers that can still be redeemed.
+  include_history: z.enum(['1', 'true']).optional().transform((value) => value !== undefined)
+});
+
 const pushTokenSchema = z.object({
   device_fingerprint: z.string().trim().min(8).max(255),
   platform: z.enum(['android', 'ios']),
@@ -409,12 +416,27 @@ async function syncAutoVisibleVoucherTemplates(
       `
         SELECT
           COUNT(*) AS total_count,
-          SUM(CASE WHEN user_id = :userId THEN 1 ELSE 0 END) AS user_count
+          SUM(
+            CASE
+              WHEN user_id = :userId
+                AND (
+                  :isRecurringSchedule = 0
+                  OR issue_case_ref = :issueCaseRef
+                )
+              THEN 1
+              ELSE 0
+            END
+          ) AS user_count
         FROM user_vouchers
         WHERE voucher_template_id = :templateId
           AND status <> 'revoked'
       `,
-      { userId, templateId: template.id }
+      {
+        userId,
+        templateId: template.id,
+        issueCaseRef,
+        isRecurringSchedule: issueCaseRef === null ? 0 : 1
+      }
     );
     const issueCounts = issueCountRows[0];
     if (
@@ -562,6 +584,11 @@ export async function registerCustomerDataRoutes(
       }
     );
 
+    request.log.info(
+      { userId: request.auth.userId, deviceId: device.device_id, platform: payload.platform },
+      'Customer push token registered.'
+    );
+
     return { registered: true };
   });
 
@@ -677,7 +704,7 @@ export async function registerCustomerDataRoutes(
   });
 
   app.get('/v1/rewards/vouchers', { preHandler: authenticateRequest }, async (request) => {
-    const { limit } = listQuerySchema.parse(request.query);
+    const { limit, include_history: includeHistory } = rewardVoucherListQuerySchema.parse(request.query);
     const userId = request.auth.userId;
 
     const [welcomeRows] = await mysqlPool.query<
@@ -731,6 +758,18 @@ export async function registerCustomerDataRoutes(
 
     await syncAutoVisibleVoucherTemplates(userId);
 
+    const voucherVisibilityFilter = includeHistory
+      ? 'uv.user_id = :userId'
+      : `
+          uv.user_id = :userId
+          AND uv.status = 'active'
+          AND uv.redeemed_at IS NULL
+          AND uv.revoked_at IS NULL
+          AND uv.expires_at > UTC_TIMESTAMP()
+          AND vt.is_active = 1
+          AND (vt.valid_until IS NULL OR vt.valid_until > UTC_TIMESTAMP())
+        `;
+
     const [rows] = await mysqlPool.query<Array<VoucherRow>>(
       `
       SELECT
@@ -758,13 +797,7 @@ export async function registerCustomerDataRoutes(
         FROM user_vouchers uv
         JOIN voucher_templates vt
           ON vt.id = uv.voucher_template_id
-        WHERE uv.user_id = :userId
-          AND uv.status = 'active'
-          AND uv.redeemed_at IS NULL
-          AND uv.revoked_at IS NULL
-          AND uv.expires_at > UTC_TIMESTAMP()
-          AND vt.is_active = 1
-          AND (vt.valid_until IS NULL OR vt.valid_until > UTC_TIMESTAMP())
+        WHERE ${voucherVisibilityFilter}
         ORDER BY uv.issued_at DESC, uv.id DESC
         LIMIT :limit
       `,
@@ -777,7 +810,13 @@ export async function registerCustomerDataRoutes(
     return {
       vouchers: rows.map((row) => ({
         id: row.id,
-        status: row.status,
+        status: row.redeemed_at !== null
+          ? 'redeemed'
+          : row.revoked_at !== null
+            ? 'revoked'
+            : row.expires_at <= new Date()
+              ? 'expired'
+              : row.status,
         issued_reason: row.issued_reason,
         issue_case_ref: row.issue_case_ref,
         tier_at_issue: row.tier_at_issue,

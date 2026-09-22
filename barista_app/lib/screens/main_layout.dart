@@ -5,6 +5,7 @@ import '../widgets/floating_bottom_nav.dart';
 
 import 'settings_page.dart';
 import '../services/api_service.dart';
+import '../services/direct_printer_service.dart';
 import '../services/push_notification_service.dart';
 import '../widgets/order_card.dart';
 import '../main.dart';
@@ -21,6 +22,7 @@ class _MainLayoutState extends State<MainLayout> {
   int _currentIndex = 0;
   late final PageController _pageController;
   Timer? _refreshTimer;
+  bool _isRefreshingOrders = false;
 
   @override
   void initState() {
@@ -35,6 +37,8 @@ class _MainLayoutState extends State<MainLayout> {
   }
 
   Future<void> _loadInitialOrders() async {
+    if (_isRefreshingOrders) return;
+    _isRefreshingOrders = true;
     try {
       final result = await ApiService.fetchOrders();
       if (!result.isSuccess) {
@@ -54,8 +58,15 @@ class _MainLayoutState extends State<MainLayout> {
           .toList();
       globalOrderSyncError.value = null;
       globalLastOrderSync.value = DateTime.now();
+      final processedDirectJob =
+          await PushNotificationService.instance.processDirectPrintJobs();
+      if (!processedDirectJob) {
+        await DirectPrinterService.instance.printNewOrders(fetchedOrders);
+      }
     } catch (e) {
       debugPrint('Failed to fetch initial orders: $e');
+    } finally {
+      _isRefreshingOrders = false;
     }
   }
 

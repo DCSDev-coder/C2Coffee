@@ -1,6 +1,9 @@
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
 
+const tokenIssuer = 'c2coffee-api';
+const adminTokenAudience = 'c2coffee-admin-api';
+
 export interface AdminAccessTokenPayload {
   adminUserId: number;
   sessionId: number;
@@ -19,6 +22,8 @@ export async function signAdminAccessToken(
     {
       algorithm: 'HS256',
       subject: String(payload.adminUserId),
+      issuer: tokenIssuer,
+      audience: adminTokenAudience,
       expiresIn: `${env.ACCESS_TOKEN_TTL_MINUTES}m`
     }
   );
@@ -28,7 +33,9 @@ export async function verifyAdminAccessToken(
   token: string
 ): Promise<AdminAccessTokenPayload> {
   const payload = jwt.verify(token, env.ACCESS_TOKEN_SECRET, {
-    algorithms: ['HS256']
+    algorithms: ['HS256'],
+    issuer: tokenIssuer,
+    audience: adminTokenAudience
   }) as jwt.JwtPayload & {
     sid?: unknown;
     av?: unknown;

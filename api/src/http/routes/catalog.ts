@@ -79,6 +79,7 @@ type MenuModifierOption = {
   color_hex: string | null;
   gradient_end_hex: string | null;
   gradient_direction: string | null;
+  is_default: boolean;
 };
 
 type MenuModifierGroup = {
@@ -142,6 +143,7 @@ type LibraryModifierRow = RowDataPacket & {
   option_price_delta_rm: string;
   option_token_price_delta: number;
   option_calorie_delta_kcal: number;
+  option_is_default: number;
 };
 
 type MenuCategoryResponse = {
@@ -211,15 +213,23 @@ type CustomerAppearanceRow = RowDataPacket & {
   muted_text_color: string | null;
 };
 
-async function getCustomerAppearance(userId: number): Promise<CustomerAppearanceRow> {
+async function getCustomerAppearance(userId: number, tierCode: string): Promise<CustomerAppearanceRow> {
   const [rows] = await mysqlPool.query<CustomerAppearanceRow[]>(
-    `SELECT t.primary_color, t.secondary_color, t.text_color, t.background_color, t.muted_text_color
+    `SELECT
+       COALESCE(appearance.primary_color, t.primary_color) AS primary_color,
+       COALESCE(appearance.secondary_color, t.secondary_color) AS secondary_color,
+       COALESCE(appearance.text_color, t.text_color) AS text_color,
+       COALESCE(appearance.background_color, t.background_color) AS background_color,
+       COALESCE(appearance.muted_text_color, t.muted_text_color) AS muted_text_color
      FROM customer_tenant_memberships ctm
      INNER JOIN admin_tenants t ON t.id = ctm.tenant_id
+     LEFT JOIN loyalty_tiers lt ON lt.code = :tierCode AND lt.is_active = 1
+     LEFT JOIN tenant_loyalty_tier_appearances appearance
+       ON appearance.tenant_id = ctm.tenant_id AND appearance.loyalty_tier_id = lt.id
      WHERE ctm.user_id = :userId AND t.status = 'active'
      ORDER BY ctm.tenant_id ASC
      LIMIT 1`,
-    { userId }
+    { userId, tierCode }
   );
   return rows[0] ?? {
     primary_color: '#2E5E58',
@@ -300,11 +310,11 @@ function buildHomeBannerSelectClause(columns: Set<string>): string {
 
 export async function registerCatalogRoutes(app: FastifyInstance): Promise<void> {
   app.get('/v1/bootstrap', { preHandler: authenticateRequest }, async (request) => {
-    const [user, summary, appearance] = await Promise.all([
+    const [user, summary] = await Promise.all([
       getUserResponse(request.auth.userId),
-      getBootstrapForUser(request.auth.userId),
-      getCustomerAppearance(request.auth.userId)
+      getBootstrapForUser(request.auth.userId)
     ]);
+    const appearance = await getCustomerAppearance(request.auth.userId, summary.tier);
 
     return {
       user,
@@ -371,7 +381,7 @@ export async function registerCatalogRoutes(app: FastifyInstance): Promise<void>
           i.description AS item_description,
           CAST(i.base_price_rm AS CHAR) AS base_price_rm,
           i.base_price_token,
-          i.base_calories_kcal,
+          CAST(COALESCE(recipe.calculated_base_calories_kcal, i.base_calories_kcal) AS UNSIGNED) AS base_calories_kcal,
           i.image_url,
           COALESCE(a.is_available, 1) AS is_available,
           i.is_handcrafted_drink,
@@ -410,6 +420,14 @@ export async function registerCatalogRoutes(app: FastifyInstance): Promise<void>
         LEFT JOIN menu_item_store_availability a
           ON a.store_id = :storeId
          AND a.menu_item_id = i.id
+        LEFT JOIN (
+          SELECT r.menu_item_id, ROUND(SUM(c.quantity * ingredient.calories_per_100_units / 100)) AS calculated_base_calories_kcal
+          FROM menu_item_recipe_versions r
+          JOIN menu_item_recipe_components c ON c.recipe_version_id = r.id
+          JOIN nutrition_ingredients ingredient ON ingredient.id = c.ingredient_id
+          WHERE r.status = 'active'
+          GROUP BY r.menu_item_id
+        ) recipe ON recipe.menu_item_id = i.id
         LEFT JOIN menu_item_token_prices tp
           ON tp.menu_item_id = i.id
          AND tp.is_enabled = 1
@@ -539,6 +557,7 @@ export async function registerCatalogRoutes(app: FastifyInstance): Promise<void>
               color_hex: null,
               gradient_end_hex: null,
               gradient_direction: 'diagonal',
+              is_default: false,
             });
           }
         }
@@ -553,7 +572,8 @@ export async function registerCatalogRoutes(app: FastifyInstance): Promise<void>
       `SELECT g.id AS group_id, g.name AS group_name, g.selection_type, g.min_select, g.max_select, g.is_required, g.applies_to,
               a.menu_item_id, o.id AS option_id, o.name AS option_name, o.image_url AS option_image_url, o.color_hex AS option_color_hex, o.gradient_end_hex AS option_gradient_end_hex, o.gradient_direction AS option_gradient_direction,
               CAST(o.price_delta_rm AS CHAR) AS option_price_delta_rm, o.token_price_delta AS option_token_price_delta,
-              o.calorie_delta_kcal AS option_calorie_delta_kcal
+              o.calorie_delta_kcal AS option_calorie_delta_kcal,
+              o.is_default AS option_is_default
        FROM stores s
        JOIN menu_option_groups g ON g.tenant_id = s.tenant_id AND g.is_active = 1
        JOIN menu_option_group_options o ON o.option_group_id = g.id AND o.is_active = 1
@@ -562,6 +582,16 @@ export async function registerCatalogRoutes(app: FastifyInstance): Promise<void>
        ORDER BY g.sort_order, g.id, o.sort_order, o.id`,
       { storeId }
     );
+    const [optionNutritionRows] = await mysqlPool.query<Array<RowDataPacket>>(
+      `SELECT n.menu_item_id, n.option_group_option_id, n.calorie_delta_kcal
+       FROM menu_item_option_nutrition_overrides n
+       JOIN menu_items i ON i.id = n.menu_item_id
+       JOIN menu_categories c ON c.id = i.category_id
+       WHERE LOWER(COALESCE(c.product_kind_code, '')) = 'drink'`,
+      {}
+    );
+    const optionCaloriesByItem = new Map<string, number>();
+    for (const row of optionNutritionRows) optionCaloriesByItem.set(`${row.menu_item_id}:${row.option_group_option_id}`, Number(row.calorie_delta_kcal));
     const [exclusionRows] = await mysqlPool.query<Array<RowDataPacket>>(
       `SELECT e.menu_item_id, e.option_group_option_id
        FROM menu_item_option_exclusions e
@@ -608,7 +638,7 @@ export async function registerCatalogRoutes(app: FastifyInstance): Promise<void>
           item.modifier_groups.push(group);
         }
         if (!group.options.some((option) => option.id === row.option_id)) {
-          group.options.push({ id: row.option_id, code: `library-${row.option_id}`, name: row.option_name, image_url: _resolveImageUrl(row.option_image_url), color_hex: row.option_color_hex, gradient_end_hex: row.option_gradient_end_hex, gradient_direction: row.option_gradient_direction || 'diagonal', price_delta_rm: row.option_price_delta_rm, token_price_delta: row.option_token_price_delta, calorie_delta_kcal: row.option_calorie_delta_kcal });
+          group.options.push({ id: row.option_id, code: `library-${row.option_id}`, name: row.option_name, image_url: _resolveImageUrl(row.option_image_url), color_hex: row.option_color_hex, gradient_end_hex: row.option_gradient_end_hex, gradient_direction: row.option_gradient_direction || 'diagonal', price_delta_rm: row.option_price_delta_rm, token_price_delta: row.option_token_price_delta, calorie_delta_kcal: optionCaloriesByItem.get(`${item.id}:${row.option_id}`) ?? row.option_calorie_delta_kcal, is_default: row.option_is_default === 1 });
         }
       }
     }
