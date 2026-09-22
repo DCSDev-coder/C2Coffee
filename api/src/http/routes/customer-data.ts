@@ -166,6 +166,7 @@ type NotificationRow = RowDataPacket & {
   type: string;
   title: string;
   body: string;
+  data_json: unknown;
   sent_at: Date | null;
   read_at: Date | null;
   created_at: Date;
@@ -173,6 +174,14 @@ type NotificationRow = RowDataPacket & {
 
 const notificationListQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional().default(50)
+});
+
+const notificationIdParamsSchema = z.object({
+  notificationId: z.coerce.number().int().positive()
+});
+
+const notificationPreferencesSchema = z.object({
+  marketing_enabled: z.boolean()
 });
 
 function publicNotificationText(
@@ -197,6 +206,22 @@ function publicNotificationText(
   }
 
   return text.slice(0, maximumLength);
+}
+
+function publicNotificationData(value: unknown): Record<string, string> {
+  try {
+    const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    const data = parsed as Record<string, unknown>;
+    const safe: Record<string, string> = {};
+    for (const key of ['type', 'order_ref', 'voucher_id', 'banner_id']) {
+      const candidate = String(data[key] ?? '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 100);
+      if (candidate) safe[key] = candidate;
+    }
+    return safe;
+  } catch {
+    return {};
+  }
 }
 
 function parseVoucherScope(
@@ -624,6 +649,7 @@ export async function registerCustomerDataRoutes(
             type,
             title,
             body,
+            data_json,
             sent_at,
             read_at,
             created_at
@@ -658,10 +684,41 @@ export async function registerCustomerDataRoutes(
           'There is an update to your C2 Coffee account.',
           420
         ),
+        data: publicNotificationData(row.data_json),
         is_read: row.read_at !== null,
         created_at: row.created_at.toISOString()
       }))
     };
+  });
+
+  app.post('/v1/notifications/:notificationId/read', { preHandler: authenticateRequest }, async (request) => {
+    const { notificationId } = notificationIdParamsSchema.parse(request.params);
+    await mysqlPool.execute(
+      `UPDATE notifications
+       SET read_at = COALESCE(read_at, UTC_TIMESTAMP())
+       WHERE id = :notificationId AND user_id = :userId`,
+      { notificationId, userId: request.auth.userId }
+    );
+    return { updated: true };
+  });
+
+  app.get('/v1/notification-preferences', { preHandler: authenticateRequest }, async (request) => {
+    const [rows] = await mysqlPool.query<Array<RowDataPacket & { marketing_enabled: number }>>(
+      `SELECT marketing_enabled FROM customer_notification_preferences WHERE user_id = :userId LIMIT 1`,
+      { userId: request.auth.userId }
+    );
+    return { marketing_enabled: rows[0]?.marketing_enabled !== 0 };
+  });
+
+  app.put('/v1/notification-preferences', { preHandler: authenticateRequest }, async (request) => {
+    const payload = notificationPreferencesSchema.parse(request.body);
+    await mysqlPool.execute(
+      `INSERT INTO customer_notification_preferences (user_id, marketing_enabled)
+       VALUES (:userId, :marketingEnabled)
+       ON DUPLICATE KEY UPDATE marketing_enabled = VALUES(marketing_enabled), updated_at = UTC_TIMESTAMP()`,
+      { userId: request.auth.userId, marketingEnabled: payload.marketing_enabled ? 1 : 0 }
+    );
+    return { marketing_enabled: payload.marketing_enabled };
   });
 
   app.get('/v1/wallet/transactions', { preHandler: authenticateRequest }, async (request) => {

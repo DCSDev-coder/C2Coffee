@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import '../services/app_session_service.dart';
 import '../services/cart_service.dart';
@@ -162,7 +164,9 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
           .map((option) => Map<String, dynamic>.from(option))
           .toList();
       final defaults = _defaultLibraryOptions(group, options);
-      if (defaults.isNotEmpty) _librarySelections[group['id'] as int] = defaults;
+      if (defaults.isNotEmpty) {
+        _librarySelections[group['id'] as int] = defaults;
+      }
     }
 
     if (widget.isReorder) {
@@ -499,11 +503,11 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
           0,
           (sum, option) =>
               sum + ((option['tokenPriceDelta'] as num?)?.toInt() ?? 0));
-      return (_baseTokenPrice + adjustment) * quantity;
+      return math.max(0, _baseTokenPrice + adjustment) * quantity;
     }
     final modifierTokens = _cartModifiers.fold<int>(
         0, (sum, modifier) => sum + modifier.tokenPriceDelta);
-    return (_baseTokenPrice + modifierTokens) * quantity;
+    return math.max(0, _baseTokenPrice + modifierTokens) * quantity;
   }
 
   int get _baseTokenPrice {

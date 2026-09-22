@@ -6,6 +6,8 @@ import '../services/secure_session_service.dart';
 import '../utils/app_colors.dart';
 import '../widgets/app_page_shell.dart';
 import 'loading_order_page.dart';
+import 'my_rewards_page.dart';
+import 'orders_page.dart';
 
 class NotificationPage extends StatefulWidget {
   const NotificationPage({super.key});
@@ -209,81 +211,118 @@ class _NotificationPageState extends State<NotificationPage> {
           ),
         ],
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: isUnread ? AppColors.deepTeal : AppColors.surfaceLight,
-              shape: BoxShape.circle,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: () => _openNotification(notification),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: isUnread ? AppColors.deepTeal : AppColors.surfaceLight,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.coffee,
+                color: isUnread ? Colors.white : AppColors.deepTeal,
+                size: 22,
+              ),
             ),
-            child: Icon(
-              Icons.coffee,
-              color: isUnread ? Colors.white : AppColors.deepTeal,
-              size: 22,
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        notification.title,
-                        style: TextStyle(
-                          fontFamily: 'Recoleta',
-                          fontSize: 16,
-                          fontWeight:
-                              isUnread ? FontWeight.bold : FontWeight.w600,
-                          color: AppColors.deepTeal,
-                          height: 1.2,
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          notification.title,
+                          style: TextStyle(
+                            fontFamily: 'Recoleta',
+                            fontSize: 16,
+                            fontWeight:
+                                isUnread ? FontWeight.bold : FontWeight.w600,
+                            color: AppColors.deepTeal,
+                            height: 1.2,
+                          ),
                         ),
                       ),
+                      const SizedBox(width: 10),
+                      if (isUnread)
+                        Container(
+                          width: 10,
+                          height: 10,
+                          margin: const EdgeInsets.only(top: 4),
+                          decoration: BoxDecoration(
+                            color: AppColors.terracotta,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    dateLabel,
+                    style: TextStyle(
+                      fontFamily: 'Afacad',
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey.shade700,
                     ),
-                    const SizedBox(width: 10),
-                    if (isUnread)
-                      Container(
-                        width: 10,
-                        height: 10,
-                        margin: const EdgeInsets.only(top: 4),
-                        decoration: BoxDecoration(
-                          color: AppColors.terracotta,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  dateLabel,
-                  style: TextStyle(
-                    fontFamily: 'Afacad',
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey.shade700,
                   ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  notification.body,
-                  style: const TextStyle(
-                    fontFamily: 'Afacad',
-                    fontSize: 14,
-                    color: Colors.black87,
-                    height: 1.35,
+                  const SizedBox(height: 8),
+                  Text(
+                    notification.body,
+                    style: const TextStyle(
+                      fontFamily: 'Afacad',
+                      fontSize: 14,
+                      color: Colors.black87,
+                      height: 1.35,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
+  }
+
+  Future<void> _openNotification(InAppNotification notification) async {
+    try {
+      final accessToken =
+          await SecureSessionService.instance.getValidAccessToken();
+      if (accessToken != null &&
+          accessToken.isNotEmpty &&
+          !notification.isRead) {
+        await NotificationService.instance.markRead(
+          accessToken: accessToken,
+          notificationId: notification.id,
+        );
+      }
+    } catch (_) {
+      // Opening a destination must not depend on a read-state update.
+    }
+    if (!mounted) return;
+    switch (notification.type) {
+      case 'order_created':
+      case 'order_ready':
+      case 'order_pickup_reminder':
+      case 'order_collected':
+        Navigator.push(
+            context, MaterialPageRoute(builder: (_) => const OrdersPage()));
+      case 'tier_reward':
+      case 'referral_reward':
+      case 'voucher_expiring':
+        Navigator.push(
+            context, MaterialPageRoute(builder: (_) => const MyRewardsPage()));
+      default:
+        _retry();
+    }
   }
 }

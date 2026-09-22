@@ -427,7 +427,7 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
           iconColor: AppColors.deepTeal,
           title: 'Official Email Support',
           subtitle: 'support@c2coffeeandcandle.com',
-          badgeText: 'Response < 24h',
+          badgeText: 'Email support',
           onTap: () => _openSupportLink(
             Uri(
               scheme: 'mailto',
@@ -603,6 +603,26 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF6E8),
+                borderRadius: BorderRadius.circular(12),
+                border:
+                    Border.all(color: AppColors.gold.withValues(alpha: 0.35)),
+              ),
+              child: const Text(
+                'For your security, do not send passwords, one-time passwords, full card details, bank credentials, or other unnecessary sensitive information.',
+                style: TextStyle(
+                  fontFamily: 'Afacad',
+                  fontSize: 13,
+                  color: Colors.black87,
+                  height: 1.3,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
             // Category Selector
             const Text(
               'Issue Category',

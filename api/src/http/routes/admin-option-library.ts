@@ -20,7 +20,8 @@ const optionSchema = z.object({
   calorie_delta_kcal: z.coerce.number().int().min(-5000).max(5000).default(0),
   sort_order: z.coerce.number().int().min(0).default(0),
   is_active: z.coerce.boolean().default(true),
-  is_default: z.coerce.boolean().default(false)
+  is_default: z.coerce.boolean().default(false),
+  excluded_menu_item_ids: z.array(z.coerce.number().int().positive()).max(500).default([])
 });
 
 const optionImageUploadSchema = z.object({
@@ -460,14 +461,17 @@ async function saveGroup(tenantId: number, payload: z.infer<typeof groupSchema>,
       id = result.insertId;
     }
     const currentOptionIds = new Set<number>();
+    const optionIdsByIndex = new Map<number, number>();
     for (const [index, option] of payload.options.entries()) {
       if (option.id && groupId) {
         const [result] = await connection.execute<ResultSetHeader>(`UPDATE menu_option_group_options SET name=:name,image_url=:imageUrl,color_hex=:colorHex,gradient_end_hex=:gradientEndHex,gradient_direction=:gradientDirection,price_delta_rm=:rm,token_price_delta=:tokens,calorie_delta_kcal=:calories,sort_order=:sortOrder,is_active=:active,is_default=:isDefault WHERE id=:optionId AND option_group_id=:id`, { id, optionId: option.id, name: option.name, imageUrl: option.image_url || null, colorHex: option.color_hex || null, gradientEndHex: option.gradient_end_hex || null, gradientDirection: option.gradient_direction || 'diagonal', rm: option.price_delta_rm.toFixed(2), tokens: option.token_price_delta, calories: option.calorie_delta_kcal, sortOrder: option.sort_order ?? index, active: option.is_active ? 1 : 0, isDefault: option.is_default ? 1 : 0 });
         if (result.affectedRows === 0) throw new ApiError(400, 'invalid_option_choice', 'Option choice does not belong to this group.');
         currentOptionIds.add(option.id);
+        optionIdsByIndex.set(index, option.id);
       } else {
         const [result] = await connection.execute<ResultSetHeader>(`INSERT INTO menu_option_group_options (option_group_id,name,image_url,color_hex,gradient_end_hex,gradient_direction,price_delta_rm,token_price_delta,calorie_delta_kcal,sort_order,is_active,is_default) VALUES (:id,:name,:imageUrl,:colorHex,:gradientEndHex,:gradientDirection,:rm,:tokens,:calories,:sortOrder,:active,:isDefault)`, { id, name: option.name, imageUrl: option.image_url || null, colorHex: option.color_hex || null, gradientEndHex: option.gradient_end_hex || null, gradientDirection: option.gradient_direction || 'diagonal', rm: option.price_delta_rm.toFixed(2), tokens: option.token_price_delta, calories: option.calorie_delta_kcal, sortOrder: option.sort_order ?? index, active: option.is_active ? 1 : 0, isDefault: option.is_default ? 1 : 0 });
         currentOptionIds.add(result.insertId);
+        optionIdsByIndex.set(index, result.insertId);
       }
     }
     if (groupId) {
@@ -497,6 +501,40 @@ async function saveGroup(tenantId: number, payload: z.infer<typeof groupSchema>,
         );
         if (!items[0]) throw new ApiError(400, 'invalid_option_item', 'Options can only be assigned to drink items.');
         await connection.execute('INSERT INTO menu_option_group_items (option_group_id,menu_item_id) VALUES (:id,:menuItemId)', { id, menuItemId });
+      }
+    }
+
+    // Customer choice availability is managed with the group so menu-item
+    // editing cannot overwrite the same rules from a second screen.
+    await connection.execute(
+      `DELETE e FROM menu_item_option_exclusions e
+       JOIN menu_option_group_options o ON o.id = e.option_group_option_id
+       WHERE o.option_group_id = :id`,
+      { id }
+    );
+    const selectedItemIds = new Set(payload.menu_item_ids);
+    for (const [index, option] of payload.options.entries()) {
+      const optionId = optionIdsByIndex.get(index);
+      if (!optionId) continue;
+      const excludedItemIds = [...new Set(option.excluded_menu_item_ids)];
+      if (payload.applies_to === 'selected_items' && excludedItemIds.some((itemId) => !selectedItemIds.has(itemId))) {
+        throw new ApiError(400, 'invalid_option_exclusion', 'A choice can only be hidden from drinks in this option group.');
+      }
+      for (const menuItemId of excludedItemIds) {
+        const [items] = await connection.query<Array<RowDataPacket>>(
+          `SELECT i.id
+           FROM menu_items i
+           JOIN menu_categories c ON c.id = i.category_id
+           WHERE i.id = :menuItemId
+             AND LOWER(COALESCE(c.product_kind_code, '')) = 'drink'
+           LIMIT 1`,
+          { menuItemId }
+        );
+        if (!items[0]) throw new ApiError(400, 'invalid_option_exclusion', 'A choice can only be hidden from drink menu items.');
+        await connection.execute(
+          'INSERT INTO menu_item_option_exclusions (menu_item_id, option_group_option_id) VALUES (:menuItemId, :optionId)',
+          { menuItemId, optionId }
+        );
       }
     }
     const hiddenWhenOptionIds = [...new Set(payload.hidden_when_option_ids)];

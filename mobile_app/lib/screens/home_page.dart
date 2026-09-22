@@ -316,10 +316,17 @@ class _HomePageState extends State<HomePage> {
               SafeArea(
                 bottom: false,
                 child: RefreshIndicator(
+                  edgeOffset: 8,
+                  displacement: 40,
+                  triggerMode: RefreshIndicatorTriggerMode.onEdge,
                   onRefresh: () => _session.loadAuthenticatedState(force: true),
                   child: SingleChildScrollView(
                     controller: _scrollController,
-                    physics: const AlwaysScrollableScrollPhysics(),
+                    // Refresh starts at the top edge only. Clamping prevents
+                    // the large iOS-style bounce when a user drags mid-page.
+                    physics: const AlwaysScrollableScrollPhysics(
+                      parent: ClampingScrollPhysics(),
+                    ),
                     padding: const EdgeInsets.only(bottom: 220),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -812,6 +819,9 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildAdvertiseWithUs() {
+    final supportingText = AppColors.secondary.computeLuminance() > 0.42
+        ? AppColors.brandText
+        : Colors.white;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
       child: Container(
@@ -819,22 +829,18 @@ class _HomePageState extends State<HomePage> {
         padding: const EdgeInsets.all(22),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(24),
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF1F3A34), Color(0xFF315F56)],
-          ),
+          gradient: AppColors.headerGradient,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'PARTNER SPOTLIGHT',
               style: TextStyle(
                 fontFamily: 'Afacad',
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
-                color: Color(0xFFD4AF7A),
+                color: AppColors.supportingSurface,
                 letterSpacing: 1.4,
               ),
             ),
@@ -850,12 +856,12 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Feature your business, event, or exclusive offer in the C2 Coffee app.',
               style: TextStyle(
                 fontFamily: 'Afacad',
                 fontSize: 16,
-                color: Color(0xFFE8F1EE),
+                color: Colors.white.withValues(alpha: 0.84),
                 height: 1.25,
               ),
             ),
@@ -866,8 +872,8 @@ class _HomePageState extends State<HomePage> {
                 targetPage: const ContactSupportPage(),
               ),
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFFD4AF7A),
-                foregroundColor: const Color(0xFF1F3A34),
+                backgroundColor: AppColors.secondary,
+                foregroundColor: supportingText,
                 padding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 shape: RoundedRectangleBorder(

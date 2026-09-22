@@ -14,11 +14,11 @@ import RecipeNutrition from './RecipeNutrition';
 
 const emptyGroup = () => ({
   name: '',
-  applies_to: 'all_drinks',
+  applies_to: 'selected_items',
   selection_type: 'single',
-  min_select: 0,
+  min_select: 1,
   max_select: 1,
-  is_required: false,
+  is_required: true,
   sort_order: 0,
   is_active: true,
   menu_item_ids: [],
@@ -34,7 +34,8 @@ const emptyGroup = () => ({
       token_price_delta: 0,
       calorie_delta_kcal: 0,
       is_active: true,
-      is_default: false
+      is_default: true,
+      excluded_menu_item_ids: []
     }
   ]
 });
@@ -50,13 +51,27 @@ const emptyOption = () => ({
   token_price_delta: 0,
   calorie_delta_kcal: 0,
   is_active: true,
-  is_default: false
+  is_default: false,
+  excluded_menu_item_ids: []
 });
 
 const gradientDirectionToDeg = (dir) => {
   if (dir === 'horizontal') return '90deg';
   if (dir === 'vertical') return '180deg';
   return '135deg'; // diagonal (default)
+};
+
+const formatTokenAdjustment = (value) => {
+  const tokens = Number(value) || 0;
+  if (tokens === 0) return 'No token change';
+  return `${tokens > 0 ? '+' : ''}${tokens} ${Math.abs(tokens) === 1 ? 'token' : 'tokens'}`;
+};
+
+const tokenAdjustmentClass = (value) => {
+  const tokens = Number(value) || 0;
+  if (tokens > 0) return 'text-[#1F6B55]';
+  if (tokens < 0) return 'text-[#B45309]';
+  return 'text-gray-500';
 };
 
 export default function OptionsNutrition() {
@@ -114,6 +129,36 @@ export default function OptionsNutrition() {
     });
   }, [nutritionDrafts, initialNutrition]);
 
+  const allDrinkIds = useMemo(() => drinks.map((drink) => drink.id), [drinks]);
+
+  const openNewGroup = () => {
+    setForm({ ...emptyGroup(), menu_item_ids: [...allDrinkIds] });
+  };
+
+  const openExistingGroup = (group) => {
+    const selectedIds = group.applies_to === 'all_drinks'
+      ? allDrinkIds
+      : (group.menu_item_ids || []);
+    const defaultIndex = (group.options || []).findIndex((option) => option.is_active && option.is_default);
+    const firstActiveIndex = (group.options || []).findIndex((option) => option.is_active);
+    const options = (group.options || []).map((option, index) => ({
+      ...option,
+      // Existing data may predate the one-required-choice workflow. Keep the
+      // first available choice valid if there was no saved default.
+      is_default: index === (defaultIndex >= 0 ? defaultIndex : firstActiveIndex)
+    }));
+    setForm({
+      ...group,
+      applies_to: 'selected_items',
+      selection_type: 'single',
+      min_select: 1,
+      max_select: 1,
+      is_required: true,
+      menu_item_ids: [...selectedIds],
+      options
+    });
+  };
+
   const hasUnsavedNutrition = changedItemIds.length > 0;
 
   const saveAllBaseCalories = useCallback(async () => {
@@ -162,13 +207,23 @@ export default function OptionsNutrition() {
       }
     }
 
+    const selectedDrinkIds = [...new Set((formData.menu_item_ids || []).map(Number))]
+      .filter((itemId) => allDrinkIds.includes(itemId));
+    if (selectedDrinkIds.length === 0) {
+      throw new Error('Keep at least one drink selected for this option group.');
+    }
+
     setSaving(true);
     setMessage('');
     try {
       const payload = {
         ...formData,
-        min_select: Number(formData.min_select),
-        max_select: Number(formData.max_select),
+        applies_to: selectedDrinkIds.length === allDrinkIds.length ? 'all_drinks' : 'selected_items',
+        menu_item_ids: selectedDrinkIds.length === allDrinkIds.length ? [] : selectedDrinkIds,
+        selection_type: 'single',
+        min_select: 1,
+        max_select: 1,
+        is_required: true,
         sort_order: Number(formData.sort_order),
         options: formData.options.map((option, index) => ({
           ...option,
@@ -176,7 +231,9 @@ export default function OptionsNutrition() {
           gradient_direction: option.gradient_direction || 'diagonal',
           price_delta_rm: Number(option.price_delta_rm),
           token_price_delta: Number(option.token_price_delta),
-          calorie_delta_kcal: Number(option.calorie_delta_kcal)
+          calorie_delta_kcal: Number(option.calorie_delta_kcal),
+          excluded_menu_item_ids: (option.excluded_menu_item_ids || [])
+            .filter((itemId) => selectedDrinkIds.includes(Number(itemId)))
         }))
       };
       if (formData.id) {
@@ -195,7 +252,7 @@ export default function OptionsNutrition() {
     } finally {
       setSaving(false);
     }
-  }, [form]);
+  }, [allDrinkIds, form]);
 
   // Register unsaved changes guard for page navigation
   useEffect(() => {
@@ -234,8 +291,8 @@ export default function OptionsNutrition() {
     event.preventDefault();
     try {
       await saveOptionGroup(form);
-    } catch {
-      // message is set in saveOptionGroup
+    } catch (error) {
+      setMessage(error.message || 'Unable to save option group.');
     }
   };
 
@@ -245,14 +302,35 @@ export default function OptionsNutrition() {
     setForm({ ...form, options });
   };
 
-  const setOptionDefault = (index, isDefault) => {
+  const setOptionDefault = (index) => {
     const options = form.options.map((option, optionIndex) => ({
       ...option,
-      is_default: isDefault
-        ? (form.selection_type === 'single' ? optionIndex === index : optionIndex === index || option.is_default)
-        : (optionIndex === index ? false : option.is_default)
+      is_default: optionIndex === index
     }));
     setForm({ ...form, options });
+  };
+
+  const setChoiceAvailability = (optionIndex, drinkId, isAvailable) => {
+    const option = form.options[optionIndex];
+    if (!isAvailable && option.is_default) {
+      setMessage('The default choice must stay available for every drink in this group.');
+      return;
+    }
+    if (!isAvailable) {
+      const availableChoiceCount = form.options.filter((choice) =>
+        choice.is_active && !(choice.excluded_menu_item_ids || []).includes(drinkId)
+      ).length;
+      if (availableChoiceCount <= 1) {
+        setMessage('Keep at least one customer choice available for every selected drink.');
+        return;
+      }
+    }
+    const excluded = option.excluded_menu_item_ids || [];
+    updateOption(optionIndex, {
+      excluded_menu_item_ids: isAvailable
+        ? excluded.filter((itemId) => itemId !== drinkId)
+        : [...new Set([...excluded, drinkId])]
+    });
   };
 
   const uploadChoiceImage = async (file, index) => {
@@ -280,7 +358,7 @@ export default function OptionsNutrition() {
           </p>
         </div>
         <button
-          onClick={() => setForm(emptyGroup())}
+          onClick={openNewGroup}
           className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#1F3A34] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#2E5E58] shadow-sm transition-all active:scale-[0.98]"
         >
           <Plus size={16} /> New option group
@@ -293,8 +371,6 @@ export default function OptionsNutrition() {
           <span>{message}</span>
         </div>
       )}
-
-      <RecipeNutrition drinks={drinks} groups={groups} />
 
       {/* Option Groups Section */}
       <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
@@ -331,20 +407,12 @@ export default function OptionsNutrition() {
                       )}
                     </div>
                     <p className="mt-1 text-xs text-gray-500">
-                      {group.is_required ? 'Required' : 'Optional'} ·{' '}
-                      {group.selection_type === 'single'
-                        ? 'Choose one'
-                        : `Choose ${group.min_select}–${group.max_select}`}
+                      One customer choice per drink
                     </p>
                   </div>
                   <div className="flex gap-2">
                     <button
-                      onClick={() =>
-                        setForm({
-                          ...group,
-                          options: group.options.map((option) => ({ ...option }))
-                        })
-                      }
+                      onClick={() => openExistingGroup(group)}
                       className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-bold text-gray-700 hover:bg-gray-50"
                     >
                       <Pencil size={13} /> Edit
@@ -374,7 +442,12 @@ export default function OptionsNutrition() {
                         />
                         <span className="font-semibold text-gray-900 truncate">{option.name}</span>
                       </div>
-                      <span className="text-xs text-gray-500 shrink-0">RM {Number(option.price_delta_rm).toFixed(2)}</span>
+                      <div className="flex shrink-0 flex-col items-end gap-0.5 text-xs">
+                        <span className="text-gray-500">RM {Number(option.price_delta_rm).toFixed(2)}</span>
+                        <span className={`font-semibold ${tokenAdjustmentClass(option.token_price_delta)}`}>
+                          {formatTokenAdjustment(option.token_price_delta)}
+                        </span>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -383,6 +456,8 @@ export default function OptionsNutrition() {
           )}
         </div>
       </div>
+
+      <RecipeNutrition drinks={drinks} groups={groups} />
 
       {/* Base Calories Section */}
       <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
@@ -519,7 +594,7 @@ export default function OptionsNutrition() {
               </button>
             </div>
             <div className="flex-1 overflow-y-auto space-y-5 p-4 sm:p-6">
-              <div className="grid gap-4 md:grid-cols-2">
+              <div>
                 <label className="text-sm font-semibold text-gray-700">
                   Group name
                   <input
@@ -530,51 +605,33 @@ export default function OptionsNutrition() {
                     className="mt-1 w-full rounded-xl border border-gray-300 px-3.5 py-2 font-normal text-sm outline-none focus:border-[#2E5E58]"
                   />
                 </label>
-                <label className="text-sm font-semibold text-gray-700">
-                  Apply group to
-                  <select
-                    value={form.applies_to}
-                    onChange={(e) =>
-                      setForm({
-                        ...form,
-                        applies_to: e.target.value,
-                        menu_item_ids: e.target.value === 'all_drinks' ? [] : form.menu_item_ids
-                      })
-                    }
-                    className="mt-1 w-full rounded-xl border border-gray-300 px-3.5 py-2 font-normal text-sm outline-none focus:border-[#2E5E58] bg-white"
-                  >
-                    <option value="all_drinks">All drinks</option>
-                    <option value="selected_items">Selected menu items</option>
-                  </select>
-                </label>
               </div>
-              {form.applies_to === 'selected_items' && (
-                <fieldset>
-                  <legend className="text-sm font-semibold text-gray-700">Select drink items</legend>
-                  <div className="mt-2 grid max-h-44 gap-2 overflow-y-auto rounded-xl border p-3 sm:grid-cols-2">
-                    {drinks.map((item) => (
-                      <label key={item.id} className="flex items-center gap-2 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={form.menu_item_ids.includes(item.id)}
-                          onChange={(e) =>
-                            setForm({
-                              ...form,
-                              menu_item_ids: e.target.checked
-                                ? [...form.menu_item_ids, item.id]
-                                : form.menu_item_ids.filter((id) => id !== item.id)
-                            })
-                          }
-                        />
-                        <span className="font-medium text-gray-800">{item.name}</span>
-                        <span className="text-xs text-gray-400">{item.category_name}</span>
-                      </label>
-                    ))}
-                  </div>
-                </fieldset>
-              )}
+              <fieldset>
+                <legend className="text-sm font-semibold text-gray-700">Apply group to</legend>
+                <p className="mt-1 text-xs text-gray-500">All drinks are selected to start. Untick only the drinks that should not offer this choice.</p>
+                <div className="mt-2 grid max-h-44 gap-2 overflow-y-auto rounded-xl border p-3 sm:grid-cols-2">
+                  {drinks.map((item) => (
+                    <label key={item.id} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={form.menu_item_ids.includes(item.id)}
+                        onChange={(e) =>
+                          setForm({
+                            ...form,
+                            menu_item_ids: e.target.checked
+                              ? [...form.menu_item_ids, item.id]
+                              : form.menu_item_ids.filter((id) => id !== item.id)
+                          })
+                        }
+                      />
+                      <span className="font-medium text-gray-800">{item.name}</span>
+                      <span className="text-xs text-gray-400">{item.category_name}</span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
               <div className="rounded-xl border border-[#D7E7E2] bg-[#F6FBF9] p-3.5 text-sm text-[#31584F]">
-                <strong>Setup guide:</strong> use <em>Choose one</em> with minimum <strong>1</strong> and <strong>Required</strong> for Beans, Temperature, Milk, Sweetness, and Order Type. Set all adjustments to <strong>0</strong> when a choice does not change the price, tokens, or calories.
+                <strong>How it works:</strong> customers choose one option from this group. The first choice is selected by default; select another choice below if needed. Set price and token adjustments to <strong>0</strong> when a choice does not change them.
               </div>
               {form.id && (
                 <fieldset className="rounded-xl border border-[#D7E7E2] bg-[#F6FBF9] p-3.5">
@@ -602,54 +659,11 @@ export default function OptionsNutrition() {
                   </div>
                 </fieldset>
               )}
-              <div className="grid gap-4 sm:grid-cols-4">
-                <label className="text-sm font-semibold text-gray-700">
-                  Selection
-                  <select
-                    value={form.selection_type}
-                    onChange={(e) => setForm({ ...form, selection_type: e.target.value })}
-                    className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2 font-normal text-sm bg-white outline-none focus:border-[#2E5E58]"
-                  >
-                    <option value="single">Choose one</option>
-                    <option value="multi">Choose multiple</option>
-                  </select>
-                </label>
-                <label className="text-sm font-semibold text-gray-700">
-                  Minimum
-                  <input
-                    type="number"
-                    min="0"
-                    value={form.min_select}
-                    onChange={(e) => setForm({ ...form, min_select: e.target.value })}
-                    className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2 font-normal text-sm outline-none focus:border-[#2E5E58]"
-                  />
-                </label>
-                <label className="text-sm font-semibold text-gray-700">
-                  Maximum
-                  <input
-                    type="number"
-                    min="1"
-                    value={form.max_select}
-                    onChange={(e) => setForm({ ...form, max_select: e.target.value })}
-                    className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2 font-normal text-sm outline-none focus:border-[#2E5E58]"
-                  />
-                </label>
-                <label className="mt-6 flex items-center gap-2 text-sm font-semibold text-gray-700 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={form.is_required}
-                    onChange={(e) => setForm({ ...form, is_required: e.target.checked })}
-                    className="h-4 w-4 rounded text-[#2E5E58] focus:ring-[#2E5E58]"
-                  />
-                  Required
-                </label>
-              </div>
-
               <div>
                 <div className="mb-2.5 flex items-center justify-between">
                   <div>
                     <h3 className="font-bold text-gray-900">Customer choices</h3>
-                    <p className="text-xs text-gray-500">Mark the choices preselected for customers. The menu price includes their extra price and tokens.</p>
+                    <p className="text-xs text-gray-500">Customers choose one option. Select the default choice below; its price and token adjustment are included automatically.</p>
                   </div>
                   <button
                     type="button"
@@ -739,8 +753,8 @@ export default function OptionsNutrition() {
                         </label>
                       </div>
 
-                      {/* Row 2: Price, Tokens, Calories, Actions */}
-                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 items-end pt-1 border-t border-gray-200/60">
+                      {/* Row 2: Price, tokens, default, and actions */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 items-end pt-1 border-t border-gray-200/60">
                         <label className="text-xs font-bold text-gray-700">
                           Extra price (RM)
                           <input
@@ -752,43 +766,36 @@ export default function OptionsNutrition() {
                           />
                         </label>
                         <label className="text-xs font-bold text-gray-700">
-                          Extra tokens
+                          Token adjustment
                           <input
                             type="number"
+                            min="-999"
+                            max="999"
                             value={option.token_price_delta}
                             onChange={(e) => updateOption(index, { token_price_delta: e.target.value })}
                             className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm font-normal bg-white outline-none focus:border-[#2E5E58]"
                           />
-                        </label>
-                        <label className="text-xs font-bold text-gray-700">
-                          Legacy fallback calories
-                          <input
-                            type="number"
-                            value={option.calorie_delta_kcal}
-                            onChange={(e) => updateOption(index, { calorie_delta_kcal: e.target.value })}
-                            className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm font-normal bg-white outline-none focus:border-[#2E5E58]"
-                          />
-                          <span className="mt-1 block text-[11px] font-normal text-gray-500">Used only until a drink has its own nutrition value.</span>
+                          <span className="mt-1 block font-normal text-gray-500">Use a minus number to deduct tokens.</span>
                         </label>
                         <label className="flex min-h-10 items-center gap-2 rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-700">
                           <input
-                            type="checkbox"
+                            type="radio"
+                            name="default-customer-choice"
                             checked={option.is_default === true}
-                            onChange={(event) => setOptionDefault(index, event.target.checked)}
+                            onChange={() => setOptionDefault(index)}
                             className="h-4 w-4 rounded text-[#2E5E58] focus:ring-[#2E5E58]"
                           />
-                          Default for customers
+                          Default choice
                         </label>
                         <div className="flex items-center justify-end pb-1">
                           <button
                             type="button"
                             disabled={form.options.length === 1}
-                            onClick={() =>
-                              setForm({
-                                ...form,
-                                options: form.options.filter((_, optionIndex) => optionIndex !== index)
-                              })
-                            }
+                            onClick={() => {
+                              const options = form.options.filter((_, optionIndex) => optionIndex !== index);
+                              if (!options.some((option) => option.is_default)) options[0].is_default = true;
+                              setForm({ ...form, options });
+                            }}
                             className="inline-flex items-center gap-1 text-sm font-semibold text-red-600 hover:text-red-700 disabled:opacity-30 px-3 py-2 rounded-xl hover:bg-red-50 transition-colors"
                           >
                             <Trash2 size={15} />
@@ -796,6 +803,25 @@ export default function OptionsNutrition() {
                           </button>
                         </div>
                       </div>
+                      <details className="rounded-xl border border-gray-200 bg-white px-3 py-2.5">
+                        <summary className="cursor-pointer text-xs font-bold text-gray-700">
+                          Available for {form.menu_item_ids.filter((itemId) => !(option.excluded_menu_item_ids || []).includes(itemId)).length} of {form.menu_item_ids.length} selected drinks
+                        </summary>
+                        <p className="mt-2 text-xs text-gray-500">Untick drinks that should not offer this choice. The group default stays available everywhere.</p>
+                        <div className="mt-2 grid max-h-36 gap-2 overflow-y-auto sm:grid-cols-2">
+                          {drinks.filter((drink) => form.menu_item_ids.includes(drink.id)).map((drink) => (
+                            <label key={drink.id} className="flex items-center gap-2 text-xs text-gray-700">
+                              <input
+                                type="checkbox"
+                                checked={!(option.excluded_menu_item_ids || []).includes(drink.id)}
+                                disabled={option.is_default === true}
+                                onChange={(event) => setChoiceAvailability(index, drink.id, event.target.checked)}
+                              />
+                              {drink.name}
+                            </label>
+                          ))}
+                        </div>
+                      </details>
                       {isBeanGroup(form.name) && (
                         <p className="mt-2 text-xs text-gray-500">
                           Upload a square PNG, JPG, or WebP image. It appears bright when selected and dimmed when unselected in the mobile app.

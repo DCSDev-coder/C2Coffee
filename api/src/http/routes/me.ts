@@ -60,6 +60,12 @@ const confirmEmailChangeSchema = z.object({
   otp_code: z.string().trim().regex(/^\d{6}$/)
 });
 
+function isIsoBaseMediaFile(content: Buffer): boolean {
+  // MP4 and QuickTime use the ISO base media file format. This rejects arbitrary
+  // bytes disguised as a video before they are persisted as support evidence.
+  return content.length >= 12 && content.subarray(4, 8).equals(Buffer.from('ftyp'));
+}
+
 export async function registerMeRoutes(app: FastifyInstance): Promise<void> {
   app.get('/v1/me', { preHandler: authenticateRequest }, async (request) => {
     return {
@@ -277,6 +283,8 @@ export async function registerMeRoutes(app: FastifyInstance): Promise<void> {
         }
         mimeType = 'image/webp';
         fileName = `${fileName.replace(/\.[^.]+$/, '') || 'evidence'}.webp`;
+      } else if (!isIsoBaseMediaFile(content)) {
+        throw new ApiError(400, 'invalid_support_attachment', 'Please upload a valid MP4 or MOV video.');
       }
 
       const extension = mimeType === 'image/webp'

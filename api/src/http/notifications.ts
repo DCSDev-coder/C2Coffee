@@ -10,6 +10,7 @@ export type CreateUserNotificationInput = {
   title: string;
   body: string;
   data?: Record<string, unknown> | null;
+  deliveryKey?: string | null;
   readAt?: Date | null;
 };
 
@@ -26,6 +27,7 @@ export async function createUserNotification(
           title,
           body,
           data_json,
+          delivery_key,
           sent_at,
           read_at,
           created_at
@@ -36,10 +38,12 @@ export async function createUserNotification(
           :title,
           :body,
           :dataJson,
+          :deliveryKey,
           UTC_TIMESTAMP(),
           :readAt,
           UTC_TIMESTAMP()
         )
+        ON DUPLICATE KEY UPDATE id = id
       `,
       {
         userId: input.userId,
@@ -47,6 +51,7 @@ export async function createUserNotification(
         title: input.title,
         body: input.body,
         dataJson: input.data ? JSON.stringify(input.data) : null,
+        deliveryKey: input.deliveryKey ?? null,
         readAt: input.readAt ?? null
       }
     );

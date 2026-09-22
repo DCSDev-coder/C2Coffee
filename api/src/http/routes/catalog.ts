@@ -192,7 +192,7 @@ type HomeBannerRow = RowDataPacket & {
   image_source: string;
   media_type: 'image' | 'gif';
   animation_duration_ms: number;
-  banner_type: 'voucher' | 'event' | 'new_item' | 'general';
+  banner_type: 'voucher' | 'event' | 'new_item' | 'general' | 'partner';
   destination_type: 'reward_section' | 'menu' | 'calendar';
   secondary_destination_type: 'reward_section' | 'menu' | 'calendar' | null;
   target_value: string | null;
@@ -643,6 +643,12 @@ export async function registerCatalogRoutes(app: FastifyInstance): Promise<void>
       }
     }
     for (const item of itemsById.values()) {
+      // Checkout treats the centralized option library as authoritative once
+      // it applies to an item. Do not expose obsolete item-level choices that
+      // would be rejected during payment.
+      if (item.modifier_groups.some((group) => group.source === 'library')) {
+        item.modifier_groups = item.modifier_groups.filter((group) => group.source === 'library');
+      }
       item.modifier_groups = item.modifier_groups.filter((group) => group.options.length > 0);
     }
 

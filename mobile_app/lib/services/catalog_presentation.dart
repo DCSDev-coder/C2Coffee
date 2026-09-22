@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'catalog_api_service.dart';
 
 class CatalogPresentation {
@@ -20,11 +22,14 @@ class CatalogPresentation {
           0,
           (sum, option) => sum + (double.tryParse(option.priceDeltaRm) ?? 0),
         );
-    final startingTokenPrice = item.basePriceToken +
-        startingOptions.fold<int>(
-          0,
-          (sum, option) => sum + option.tokenPriceDelta,
-        );
+    final startingTokenPrice = math.max(
+      0,
+      item.basePriceToken +
+          startingOptions.fold<int>(
+            0,
+            (sum, option) => sum + option.tokenPriceDelta,
+          ),
+    );
 
     return {
       'id': item.id,
@@ -106,7 +111,8 @@ class CatalogPresentation {
     final selections = <int, List<CatalogModifierOption>>{};
 
     for (final group in groups) {
-      final selected = group.options.where((option) => option.isDefault).toList();
+      final selected =
+          group.options.where((option) => option.isDefault).toList();
       final requiredMinimum = group.isRequired
           ? (group.minSelect > 0 ? group.minSelect : 1)
           : group.minSelect;
@@ -118,8 +124,10 @@ class CatalogPresentation {
       selections[group.id] = selected.take(group.maxSelect).toList();
     }
 
-    final selectedOptionIds =
-        selections.values.expand((options) => options).map((option) => option.id).toSet();
+    final selectedOptionIds = selections.values
+        .expand((options) => options)
+        .map((option) => option.id)
+        .toSet();
     final temperatureGroups = groups
         .where((group) => group.name.toLowerCase().contains('temperature'))
         .toList();
@@ -127,7 +135,8 @@ class CatalogPresentation {
       (group) => selections.containsKey(group.id),
     );
     final isCold = temperatureGroups.any(
-      (group) => selections[group.id]
+      (group) =>
+          selections[group.id]
               ?.any((option) => option.name.trim().toLowerCase() == 'cold') ??
           false,
     );

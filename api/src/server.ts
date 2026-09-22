@@ -1,6 +1,7 @@
 import { buildApp } from './app.js';
 import { env } from './config/env.js';
 import { runPickupReminderSweep } from './services/pickup-reminders.js';
+import { runVoucherExpiryReminderSweep } from './services/voucher-expiry-reminders.js';
 
 const app = await buildApp();
 
@@ -19,10 +20,15 @@ async function runScheduledPickupReminders(): Promise<void> {
 // process is running. The first run also catches orders made ready before a
 // server restart.
 void runScheduledPickupReminders();
+void runVoucherExpiryReminderSweep();
 const pickupReminderTimer = setInterval(() => {
   void runScheduledPickupReminders();
 }, 60_000);
 pickupReminderTimer.unref();
+const voucherExpiryReminderTimer = setInterval(() => {
+  void runVoucherExpiryReminderSweep();
+}, 24 * 60 * 60 * 1000);
+voucherExpiryReminderTimer.unref();
 
 try {
   await app.listen({ host: env.HOST, port: env.PORT });

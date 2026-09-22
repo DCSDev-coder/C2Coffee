@@ -43,7 +43,8 @@ const bannerTypeOptions = [
   { value: 'general', label: 'General poster' },
   { value: 'voucher', label: 'Voucher poster' },
   { value: 'event', label: 'Event poster' },
-  { value: 'new_item', label: 'New item poster' }
+  { value: 'new_item', label: 'New item poster' },
+  { value: 'partner', label: 'Partner Spotlight' }
 ];
 
 const destinationLabelMap = {

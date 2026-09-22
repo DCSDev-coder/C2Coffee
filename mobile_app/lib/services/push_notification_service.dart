@@ -2,12 +2,16 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import 'auth_api_service.dart';
 import 'app_session_service.dart';
 import 'secure_session_service.dart';
 import '../utils/app_notification.dart';
+import '../screens/my_rewards_page.dart';
+import '../screens/notification_page.dart';
+import '../screens/orders_page.dart';
 
 const _customerNotificationChannelId = 'c2_order_updates';
 const _customerNotificationChannelName = 'C2 updates';
@@ -46,8 +50,14 @@ class PushNotificationService {
     _foregroundSubscription =
         FirebaseMessaging.onMessage.listen(_handleMessage);
     _openedSubscription = FirebaseMessaging.onMessageOpenedApp.listen(
-      (message) => _handleMessage(message, showSystemNotification: false),
+      (message) =>
+          _handleMessage(message, showSystemNotification: false, opened: true),
     );
+    FirebaseMessaging.instance.getInitialMessage().then((message) {
+      if (message != null) {
+        _handleMessage(message, showSystemNotification: false, opened: true);
+      }
+    });
     _initialized = true;
   }
 
@@ -144,20 +154,36 @@ class PushNotificationService {
   Future<void> _handleMessage(
     RemoteMessage message, {
     bool showSystemNotification = true,
+    bool opened = false,
   }) async {
     if (showSystemNotification) {
       await _showForegroundNotification(message);
     }
     switch (message.data['type']) {
       case 'order_ready':
+      case 'order_pickup_reminder':
         AppNotification.showInfo(null, 'Your order is ready for collection.');
         unawaited(AppSessionService.instance.pollActiveOrder());
+        if (opened) _openNotificationDestination(const OrdersPage());
+        break;
+      case 'voucher_expiring':
+        AppNotification.showInfo(null, 'A reward is expiring soon.');
+        if (opened) _openNotificationDestination(const MyRewardsPage());
+        break;
       case 'marketing_poster':
         // Marketing copy is available in the notification inbox. Keep the
         // foreground alert generic so no malformed remote payload is rendered.
         AppNotification.showInfo(
             null, 'A new C2 Coffee update is available in Notifications.');
+        if (opened) _openNotificationDestination(const NotificationPage());
+        break;
     }
+  }
+
+  void _openNotificationDestination(Widget page) {
+    final navigator = AppNotification.navigatorKey.currentState;
+    if (navigator == null) return;
+    navigator.push(MaterialPageRoute(builder: (_) => page));
   }
 
   Future<void> _showForegroundNotification(RemoteMessage message) async {
@@ -166,11 +192,15 @@ class PushNotificationService {
     final type = message.data['type'];
     final title = switch (type) {
       'order_ready' => 'Order ready for collection',
+      'order_pickup_reminder' => 'Pickup reminder',
+      'voucher_expiring' => 'Reward expiring soon',
       'marketing_poster' => 'New C2 Coffee update',
       _ => null,
     };
     final body = switch (type) {
       'order_ready' => 'Your order is ready to collect.',
+      'order_pickup_reminder' => 'Your order is still waiting at the counter.',
+      'voucher_expiring' => 'Open Rewards to use it before it expires.',
       'marketing_poster' => 'Open Notifications to see the latest update.',
       _ => null,
     };

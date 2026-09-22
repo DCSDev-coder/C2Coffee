@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:async';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../services/catalog_api_service.dart';
 import '../services/customer_data_service.dart';
 import '../services/secure_session_service.dart';
@@ -17,9 +18,7 @@ import 'top_up_wallet_page.dart';
 import 'notification_page.dart';
 import 'settings_page.dart';
 import 'rewards_page.dart';
-import 'my_rewards_page.dart';
 import 'news_page.dart';
-import 'referral_page.dart';
 import '../widgets/order_status_banner.dart';
 import '../widgets/catalog_product_image.dart';
 import '../utils/app_colors.dart';
@@ -53,10 +52,12 @@ class _ProfilePageState extends State<ProfilePage> {
   Map<DateTime, List<String>> _calendarOrderTitlesByDate = {};
   Map<DateTime, List<String>> _calendarEventTitlesByDate = {};
   bool _calendarLoading = true;
+  bool _activityLoading = true;
   File? _persistedPickedImage;
   String? _persistedPresetPath;
   String _username = 'C2 Member';
   bool _showAllOffers = false;
+  List<WalletTransaction> _recentActivity = const [];
 
   Color get orangeColor => AppColors.deepTeal;
   final Color bgColor = Colors.white;
@@ -70,13 +71,39 @@ class _ProfilePageState extends State<ProfilePage> {
       try {
         await _session.loadAuthenticatedState();
       } catch (_) {}
-      await _loadCalendarMarkers();
+      await Future.wait([
+        _loadCalendarMarkers(),
+        _loadRecentActivity(),
+      ]);
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (widget.initialScrollToCalendar) {
         _scrollToCalendarSection();
       }
     });
+  }
+
+  Future<void> _loadRecentActivity() async {
+    try {
+      final accessToken =
+          await SecureSessionService.instance.getValidAccessToken();
+      if (accessToken == null || accessToken.isEmpty) {
+        if (mounted) setState(() => _activityLoading = false);
+        return;
+      }
+
+      final activity = await CustomerDataService.instance.getWalletTransactions(
+        accessToken: accessToken,
+        limit: 3,
+      );
+      if (!mounted) return;
+      setState(() {
+        _recentActivity = activity;
+        _activityLoading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _activityLoading = false);
+    }
   }
 
   void _handleSessionChanged() {
@@ -546,121 +573,11 @@ class _ProfilePageState extends State<ProfilePage> {
                   ],
                 ),
               ),
-              const SizedBox(height: 16),
-              // Rewards & Referrals
-              Row(
-                children: [
-                  // My Reward
-                  Expanded(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: AppColors.border,
-                          width: 1,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.03),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2))
-                        ],
-                      ),
-                      child: Material(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(20),
-                          onTap: () {
-                            InteractiveFillingLoader.show(
-                              context,
-                              targetPage: const MyRewardsPage(),
-                            );
-                          },
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                                vertical: 20, horizontal: 16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                Text('My Reward',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                        fontFamily: 'Recoleta',
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                        color: AppColors.deepTeal)),
-                                const SizedBox(height: 16),
-                                Image.asset(
-                                    'assets/images/Surprise reward gift box with star popping out.png',
-                                    height: 95),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  // My Referrals
-                  Expanded(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: AppColors.border,
-                          width: 1,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.03),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2))
-                        ],
-                      ),
-                      child: Material(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(20),
-                          onTap: () {
-                            InteractiveFillingLoader.show(
-                              context,
-                              targetPage: const ReferralPage(),
-                            );
-                          },
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                                vertical: 20, horizontal: 16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                Text('My Referrals',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                        fontFamily: 'Recoleta',
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                        color: AppColors.deepTeal)),
-                                const SizedBox(height: 16),
-                                Image.asset(
-                                    'assets/images/Community friends laughing together waving hands and giving thumbs.png',
-                                    height: 95),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
             ],
           ),
+          const SizedBox(height: 24),
+
+          _buildRecentActivitySection(),
           const SizedBox(height: 24),
 
           // News Section
@@ -705,6 +622,128 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
           ),
           const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecentActivitySection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Recent activity',
+          style: TextStyle(
+            fontFamily: 'Recoleta',
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: AppColors.deepTeal,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: _activityLoading
+              ? const Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              : _recentActivity.isEmpty
+                  ? const Padding(
+                      padding: EdgeInsets.all(18),
+                      child: Text(
+                        'Your token and order activity will appear here.',
+                        style: TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 15,
+                          color: Colors.black54,
+                        ),
+                      ),
+                    )
+                  : Column(
+                      children: [
+                        for (var index = 0;
+                            index < _recentActivity.length;
+                            index++) ...[
+                          _buildActivityRow(_recentActivity[index]),
+                          if (index < _recentActivity.length - 1)
+                            const Divider(height: 1, indent: 16, endIndent: 16),
+                        ],
+                      ],
+                    ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActivityRow(WalletTransaction activity) {
+    final isCredit = activity.isCredit;
+    final label = activity.remarks?.trim().isNotEmpty == true
+        ? activity.remarks!.trim()
+        : (isCredit ? 'Token credit' : 'Token payment');
+    final timestamp =
+        DateFormat('d MMM, h:mm a').format(activity.createdAt.toLocal());
+    final amountLabel =
+        '${isCredit ? '+' : '-'}${activity.amount.abs()} tokens';
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: (isCredit ? AppColors.deepTeal : AppColors.accent)
+                  .withValues(alpha: 0.10),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              isCredit ? Icons.add_circle_outline : Icons.receipt_long_outlined,
+              size: 20,
+              color: isCredit ? AppColors.deepTeal : AppColors.accent,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontFamily: 'Afacad',
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  timestamp,
+                  style: const TextStyle(
+                    fontFamily: 'Afacad',
+                    fontSize: 13,
+                    color: Colors.black54,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            amountLabel,
+            style: TextStyle(
+              fontFamily: 'Afacad',
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: isCredit ? AppColors.deepTeal : AppColors.accent,
+            ),
+          ),
         ],
       ),
     );

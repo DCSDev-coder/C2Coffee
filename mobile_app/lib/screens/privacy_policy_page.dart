@@ -15,24 +15,24 @@ class PrivacyPolicyPage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildLastUpdated('September 4, 2026'),
+          _buildLastUpdated('September 22, 2026'),
           const SizedBox(height: 16),
           _buildSection(
             number: '1',
-            title: 'Introduction & PDPA Compliance',
+            title: 'About This Policy',
             body:
-                'C2 Coffee ("C2 Coffee + Candle", "we", "us", or "our") respects your privacy and is dedicated to protecting the personal data of our customers in accordance with the Malaysian Personal Data Protection Act 2010 ("PDPA"). This Privacy Policy explains how we collect, process, manage, store, and safeguard your personal information when you use our mobile application ("App") and visit our retail coffee stores.',
+                'C2 Coffee ("C2 Coffee + Candle", "we", "us", or "our") explains here how we handle personal data when you use our mobile application ("App") or contact us. This notice is intended to support our obligations under the Malaysian Personal Data Protection Act 2010 ("PDPA"). It does not limit rights that cannot be limited under applicable law.',
           ),
           _buildSection(
             number: '2',
             title: 'Personal Data We Collect',
             body:
-                'We collect personal data necessary to provide seamless coffee ordering, closed-loop token balances, and member rewards:\n\n'
-                '• Identity & Profile Data: Full name, username, preferred name, and date of birth (optional, used for annual birthday reward vouchers).\n\n'
+                'We collect the data needed to provide ordering, closed-loop token balances, rewards, account support, and security:\n\n'
+                '• Identity & Profile Data: Display name, mobile telephone number, email address, and an optional date of birth where you provide it for a birthday reward.\n\n'
                 '• Contact & Authentication Data: Email address, Malaysian mobile telephone number, and email One-Time Password (OTP) verification records. A new email address is applied only after its verification code is confirmed.\n\n'
-                '• Financial & Transaction Ledger: Transaction timestamps, payment intent references, store pickup orders, C2 Token top-up ledger entries, token debit history, applied voucher redemptions, and referral associations.\n\n'
+                '• Transaction Data: Store pickup orders, token top-up and debit ledger entries, payment references, voucher redemptions, referral associations, and transaction timestamps.\n\n'
                 '• Payment Card Notice: We do NOT collect, process, or store credit/debit card numbers (PAN), CVV codes, or banking credentials in the App.\n\n'
-                '• Device & App Telemetry: Device identifier, operating system version, push notification tokens, IP address, and app usage logs.',
+                '• Device & Security Data: Device and session records used for account authentication, push-notification tokens if you enable notifications, and security logs such as IP address and user-agent information where recorded by our services.',
           ),
           _buildSection(
             number: '3',
@@ -51,34 +51,33 @@ class PrivacyPolicyPage extends StatelessWidget {
             title: 'Disclosure to Third-Party Service Providers',
             body:
                 'We do not sell, rent, or lease your personal information to third parties. We may disclose personal data to trusted technical partners strictly on a need-to-know basis:\n\n'
-                '• Payment Gateway: an authorized provider for C2 Token top-up once online top-up is enabled.\n\n'
+                '• Payment Gateway: an authorized provider that processes an online C2 Token top-up when you choose that option.\n\n'
                 '• Email Delivery Service: authorized SMTP or transactional email infrastructure used to send account verification codes and service messages.\n\n'
-                '• Cloud Infrastructure & Hosting: Secure cloud hosting providers with end-to-end encryption and strict access controls.\n\n'
+                '• Cloud Infrastructure & Hosting: service providers that host or operate the systems needed to deliver the App.\n\n'
                 '• Legal & Regulatory Authorities: When required by applicable Malaysian law, court order, or governmental authority.',
           ),
           _buildSection(
             number: '5',
-            title: 'Data Retention & 7-Year Ledger Policy',
+            title: 'Data Retention',
             body:
-                '5.1 In compliance with financial audit, taxation, and statutory accounting standards, user-linked financial records, token-ledger transactions, refund logs, voucher issuance records, and order histories are retained for a minimum period of seven (7) years.\n\n'
-                '5.2 Ephemeral data such as temporary OTP authorization tokens and short-term session logs are regularly purged following verification.',
+                'We retain personal data only for as long as needed for the purposes in this policy, including legal, accounting, audit, dispute-resolution, and security requirements. When an account closure is requested, the current service sets a seven-year retention period for required financial and audit records. Temporary authentication records and revoked sessions are retained according to our operational security controls.',
           ),
           _buildSection(
             number: '6',
             title: 'Data Security & Storage Controls',
             body:
-                'We implement robust industry-standard physical, electronic, and procedural safeguards to secure your personal data:\n\n'
+                'We use technical and organisational controls designed to protect personal data. No internet service can guarantee absolute security.\n\n'
                 '• Encrypted Data Transmission: All data transferred between the App and our backend servers is encrypted using modern TLS/HTTPS protocols.\n\n'
-                '• Role-Based Access Control (RBAC): Internal access to user data is strictly limited to authorized operations and support personnel.\n\n'
-                '• Continuous Monitoring: Automated logging and anomaly detection systems protect against unauthorized login attempts or abnormal transaction spikes.',
+                '• Access Controls: Access to operational systems is restricted to authorised personnel for their work.\n\n'
+                '• Security Records: We keep security and audit records to investigate suspected unauthorised access, fraud, or service misuse.',
           ),
           _buildSection(
             number: '7',
             title: 'Account Closure & Data Deletion Workflow',
             body:
-                '7.1 You have the right to request the closure of your account at any time through the App settings or by contacting C2 Support.\n\n'
-                '7.2 Upon verified account closure, your active access credentials will be revoked immediately and your profile will be removed from standard marketing communications.\n\n'
-                '7.3 Required financial and ledger records will be retained in a secure, restricted archive for the duration of the statutory 7-year audit retention window.',
+                '7.1 You can request account closure in Profile > Settings > Close Account. The request requires confirmation and a reason.\n\n'
+                '7.2 When a closure request is accepted, active sessions are revoked and the account is marked for deletion. You will be signed out.\n\n'
+                '7.3 We retain data that we must keep for legal, accounting, audit, security, or dispute-resolution purposes. This can include financial and token-ledger records for the applicable retention period.',
           ),
           _buildSection(
             number: '8',
@@ -87,7 +86,8 @@ class PrivacyPolicyPage extends StatelessWidget {
                 'Under the Personal Data Protection Act 2010, you have the following rights regarding your personal data:\n\n'
                 '• Right to Access: Request a copy of your personal data held in our active systems.\n\n'
                 '• Right to Rectification: Request correction or updating of inaccurate or outdated personal details.\n\n'
-                '• Right to Withdraw Consent: Opt-out of non-essential promotional messages while continuing to receive transactional order notifications.',
+                '• Right to Withdraw Consent or Prevent Processing: Ask us to stop a particular non-essential processing activity, including direct marketing, subject to applicable law and our ability to provide the service.\n\n'
+                'To make a request, use Contact Support and select "Account & Personal Data", or email support@c2coffeeandcandle.com. We may need to verify your identity before acting on a request.',
           ),
           _buildSection(
             number: '9',
@@ -99,10 +99,10 @@ class PrivacyPolicyPage extends StatelessWidget {
             number: '10',
             title: 'Contact Us & Data Inquiries',
             body:
-                'If you have any questions, concerns, or requests regarding this Privacy Policy or how your personal data is handled, please contact our Data Protection and Support team:\n\n'
+                'If you have a privacy question or request, contact C2 Support:\n\n'
                 '• Email: support@c2coffeeandcandle.com\n'
-                '• In-App Support: Available under Profile > Settings > Contact Support. Submitted requests receive a ticket reference and are forwarded to C2 Support.\n'
-                '• Operating Location: C2 Coffee + Candle (Broga, Kajang, Semenyih, Selangor, Malaysia)',
+                '• In-App Support: Available under Profile > Settings > Contact Support. Submitted requests receive a ticket reference.\n\n'
+                'Do not include passwords, one-time passwords, full card details, bank credentials, or other unnecessary sensitive information in a support request.',
           ),
           const SizedBox(height: 24),
         ],

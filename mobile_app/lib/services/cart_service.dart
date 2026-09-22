@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 
 class CartModifier {
@@ -72,7 +74,8 @@ class CartItem {
 
   double get unitTotalRm => basePriceRm + modifierTotalRm;
 
-  int get unitTotalTokens => tokenPrice + modifierTotalTokens;
+  // A token deduction can make an item free, never a negative-priced credit.
+  int get unitTotalTokens => math.max(0, tokenPrice + modifierTotalTokens);
 
   double get lineTotalRm => unitTotalRm * quantity;
 
@@ -162,8 +165,7 @@ class CartSnapshot {
     required this.items,
   });
 
-  double get subtotalRm =>
-      items.fold(0, (sum, item) => sum + item.lineTotalRm);
+  double get subtotalRm => items.fold(0, (sum, item) => sum + item.lineTotalRm);
 
   int get subtotalTokens =>
       items.fold(0, (sum, item) => sum + item.lineTotalTokens);

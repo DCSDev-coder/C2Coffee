@@ -30,8 +30,6 @@ import {
   updateAdminMenuSubcategory,
   updateAdminMenuItem,
   loadAdminOptionLibrary,
-  updateAdminOptionGroup,
-  updateAdminMenuItemOptionExclusions,
   loadAdminHomeFeatured,
   saveAdminHomeFeatured
 } from '../lib/adminApi';
@@ -470,22 +468,6 @@ const Menu = ({ onNavigate }) => {
     group.applies_to === 'all_drinks' || group.menu_item_ids.includes(itemId)
   );
 
-  const syncOptionGroupAssignments = async (itemId, selectedGroupIds) => {
-    const selected = new Set(selectedGroupIds);
-    const affectedGroups = optionGroups.filter((group) =>
-      group.applies_to === 'selected_items' &&
-      (group.menu_item_ids.includes(itemId) || selected.has(group.id))
-    );
-
-    for (const group of affectedGroups) {
-      const currentlyAssigned = group.menu_item_ids.includes(itemId);
-      const shouldAssign = selected.has(group.id);
-      if (currentlyAssigned === shouldAssign) continue;
-      const menuItemIds = group.menu_item_ids.filter((id) => id !== itemId);
-      if (shouldAssign) menuItemIds.push(itemId);
-      await updateAdminOptionGroup(group.id, { ...group, menu_item_ids: menuItemIds });
-    }
-  };
   const homePickItems = (categoryId) => allMenuItems.filter((item) => item.is_active && Number(item.category_id) === Number(categoryId));
   const toggleHomePick = (categoryId, itemId) => {
     const key = String(categoryId);
@@ -743,25 +725,6 @@ const Menu = ({ onNavigate }) => {
       }
 
       const itemId = response.item?.id ?? editFormData.id;
-      await syncOptionGroupAssignments(itemId, editFormData.option_group_ids);
-      if (showDrinkControls) {
-        const enabledGroupIds = new Set([
-          ...editFormData.option_group_ids,
-          ...optionGroups
-            .filter((group) => group.applies_to === 'all_drinks')
-            .map((group) => group.id)
-        ]);
-        const enabledOptionIds = new Set(optionGroups.flatMap((group) =>
-          enabledGroupIds.has(group.id)
-            ? (group.options || []).filter((option) => option.is_active).map((option) => option.id)
-            : []
-        ));
-        await updateAdminMenuItemOptionExclusions(
-          itemId,
-          [...new Set(editFormData.excluded_option_ids)]
-            .filter((optionId) => enabledOptionIds.has(optionId))
-        );
-      }
 
       closeEditModal();
       await refreshAndSelect(itemId);
@@ -1646,69 +1609,6 @@ const Menu = ({ onNavigate }) => {
                         </label>
                       </div>
 
-                      <div className="mt-4 rounded-xl border border-[#D7E7E2] bg-[#F6FBF9] p-4">
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                          <div>
-                            <p className="text-sm font-bold text-[#1F3A34]">Customer choices</p>
-                            <p className="mt-1 text-[11px] text-[#31584F]">Choices, prices, tokens, calories, and bean images are managed centrally in Options &amp; Nutrition.</p>
-                          </div>
-                          <button type="button" onClick={() => onNavigate?.('Options & Nutrition')} className="shrink-0 rounded-lg border border-[#1F3A34] px-3 py-2 text-xs font-bold text-[#1F3A34] hover:bg-white">Manage groups</button>
-                        </div>
-                        <div className="mt-3 space-y-3">
-                          {optionGroups.filter((group) => group.applies_to === 'all_drinks' || editFormData.option_group_ids.includes(group.id)).map((group) => (
-                            <div key={group.id} className="rounded-lg bg-white px-3 py-3 text-sm text-gray-700">
-                              <div className="flex items-center justify-between gap-3">
-                                <span className="font-semibold">{group.name}</span>
-                                {group.applies_to === 'all_drinks' ? (
-                                  <span className="text-xs text-gray-500">Applied to all drinks</span>
-                                ) : (
-                                  <label className="flex cursor-pointer items-center gap-1.5 text-xs text-gray-600">
-                                    <input
-                                      type="checkbox"
-                                      checked
-                                      onChange={(event) => {
-                                        if (event.target.checked) return;
-                                        setEditFormData((current) => ({
-                                          ...current,
-                                          option_group_ids: current.option_group_ids.filter((id) => id !== group.id),
-                                          excluded_option_ids: current.excluded_option_ids.filter((id) => !(group.options || []).some((option) => option.id === id))
-                                        }));
-                                      }}
-                                    />
-                                    Applied to this drink
-                                  </label>
-                                )}
-                              </div>
-                              <p className="mt-1 text-[11px] text-gray-500">Untick choices this drink cannot offer. Keep at least one choice available.</p>
-                              <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                                {(group.options || []).filter((option) => option.is_active).map((option) => (
-                                  <label key={option.id} className="flex cursor-pointer items-center gap-2 rounded-md border border-gray-100 px-2.5 py-2 text-xs hover:border-[#A9C9C0]">
-                                    <input
-                                      type="checkbox"
-                                      checked={!editFormData.excluded_option_ids.includes(option.id)}
-                                      onChange={(event) => setEditFormData((current) => ({
-                                        ...current,
-                                        excluded_option_ids: event.target.checked
-                                          ? current.excluded_option_ids.filter((id) => id !== option.id)
-                                          : [...new Set([...current.excluded_option_ids, option.id])]
-                                      }))}
-                                    />
-                                    <span>{option.name}</span>
-                                  </label>
-                                ))}
-                              </div>
-                            </div>
-                          ))}
-                          {optionGroups.filter((group) => group.applies_to === 'selected_items' && !editFormData.option_group_ids.includes(group.id)).map((group) => (
-                            <label key={group.id} className="flex cursor-pointer items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm text-gray-700">
-                              <input type="checkbox" checked={false} onChange={(event) => setEditFormData((current) => ({ ...current, option_group_ids: event.target.checked ? [...current.option_group_ids, group.id] : current.option_group_ids.filter((id) => id !== group.id) }))} />
-                              <span className="font-semibold">{group.name}</span>
-                              <span className="text-xs text-gray-500">Add this choice group</span>
-                            </label>
-                          ))}
-                          {optionGroups.length === 0 && <p className="rounded-lg bg-white px-3 py-2 text-sm text-gray-600">No choice groups have been created yet. Create one in Options &amp; Nutrition before assigning it to this drink.</p>}
-                        </div>
-                      </div>
                     </>
                   ) : (
                     <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-4 text-sm text-gray-700">

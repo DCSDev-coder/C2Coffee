@@ -153,7 +153,7 @@ function formatAdminErrorMessage(body, response) {
     case "printer_not_ready":
       return "The receipt printer is not ready. Please check its connector.";
     case "validation_error":
-      return "Please review the information and try again.";
+      return body?.error?.message || "Please review the information and try again.";
     case "voucher_employee_only":
       return "This voucher is for employees only. In Customers, choose the customer menu, select Set employee, tick Employee account, then save with your admin password.";
     case "voucher_limit_per_user_reached":

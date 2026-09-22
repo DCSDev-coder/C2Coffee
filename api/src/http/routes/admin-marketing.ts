@@ -9,7 +9,7 @@ import { deliverPushToCustomerTenant } from '../../services/push-delivery.js';
 import { ApiError } from '../errors.js';
 import { saveMediaAsset } from '../../lib/media-assets.js';
 
-const bannerTypeSchema = z.enum(['voucher', 'event', 'new_item', 'general']);
+const bannerTypeSchema = z.enum(['voucher', 'event', 'new_item', 'general', 'partner']);
 const destinationTypeSchema = z.enum(['reward_section', 'menu', 'calendar']);
 const placementSchema = z.enum(['home', 'profile', 'both']);
 const mediaTypeSchema = z.enum(['image', 'gif']);
@@ -480,8 +480,10 @@ async function notifyCustomersAboutPoster(input: {
       SELECT ctm.user_id, 'marketing_poster', :title, :body, :dataJson, UTC_TIMESTAMP(), UTC_TIMESTAMP()
       FROM customer_tenant_memberships ctm
       JOIN users u ON u.id = ctm.user_id
+      LEFT JOIN customer_notification_preferences cnp ON cnp.user_id = ctm.user_id
       WHERE ctm.tenant_id = :tenantId
         AND u.status = 'active'
+        AND COALESCE(cnp.marketing_enabled, 1) = 1
     `,
     {
       tenantId: input.tenantId,

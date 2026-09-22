@@ -9,6 +9,7 @@ import '../services/auth_api_service.dart';
 import '../services/api_config.dart';
 import '../services/secure_session_service.dart';
 import '../services/session_lifecycle_service.dart';
+import '../services/notification_service.dart';
 import '../services/user_service.dart';
 import 'splash_screen.dart';
 import 'privacy_policy_page.dart';
@@ -40,6 +41,8 @@ class _SettingsPageState extends State<SettingsPage> {
   File? _pickedImage;
   String? _presetAvatarPath;
   String? _remoteAvatarPath;
+  bool _marketingNotifications = true;
+  bool _marketingPreferenceLoading = true;
 
   Map<String, String?> userProfile = {
     'username': '',
@@ -61,10 +64,48 @@ class _SettingsPageState extends State<SettingsPage> {
     super.initState();
     _session.addListener(_handleSessionChanged);
     _loadUserData();
+    _loadMarketingNotificationPreference();
   }
 
   void _handleSessionChanged() {
     _loadUserData();
+  }
+
+  Future<void> _loadMarketingNotificationPreference() async {
+    try {
+      final accessToken =
+          await SecureSessionService.instance.getValidAccessToken();
+      if (accessToken == null || accessToken.isEmpty) return;
+      final enabled = await NotificationService.instance.getMarketingPreference(
+        accessToken: accessToken,
+      );
+      if (mounted) setState(() => _marketingNotifications = enabled);
+    } catch (_) {
+      // Marketing defaults to enabled until a saved preference is available.
+    } finally {
+      if (mounted) setState(() => _marketingPreferenceLoading = false);
+    }
+  }
+
+  Future<void> _setMarketingNotificationPreference(bool enabled) async {
+    final previous = _marketingNotifications;
+    setState(() => _marketingNotifications = enabled);
+    try {
+      final accessToken =
+          await SecureSessionService.instance.getValidAccessToken();
+      if (accessToken == null || accessToken.isEmpty) {
+        throw ApiException('Sign in required.');
+      }
+      await NotificationService.instance.updateMarketingPreference(
+        accessToken: accessToken,
+        enabled: enabled,
+      );
+    } catch (_) {
+      if (mounted) {
+        setState(() => _marketingNotifications = previous);
+        _showSnackBar('Unable to update marketing notifications right now.');
+      }
+    }
   }
 
   @override
@@ -1027,6 +1068,24 @@ class _SettingsPageState extends State<SettingsPage> {
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       child: Column(
                         children: [
+                          SwitchListTile(
+                            title: const Text('Marketing updates',
+                                style: TextStyle(
+                                    fontFamily: 'Afacad',
+                                    fontSize: 16,
+                                    color: Colors.black87)),
+                            subtitle: const Text(
+                              'Offers and campaign announcements. Order, token, and account alerts stay on.',
+                              style:
+                                  TextStyle(fontFamily: 'Afacad', fontSize: 13),
+                            ),
+                            value: _marketingNotifications,
+                            onChanged: _marketingPreferenceLoading
+                                ? null
+                                : _setMarketingNotificationPreference,
+                            activeThumbColor: AppColors.deepTeal,
+                          ),
+                          const Divider(height: 1, indent: 16, endIndent: 16),
                           ListTile(
                             title: const Text('Contact Support',
                                 style: TextStyle(

@@ -507,7 +507,9 @@ export async function registerCheckoutRoutes(
         subtotalRm += basePriceRm * item.quantity;
         modifierTotalRm += modifierRm * item.quantity;
         if (isTokenCheckout) {
-          tokenAmountCharged += (tokenPrice + modifierTokens) * item.quantity;
+          // A configured deduction may make one item free, but it must never
+          // create negative spend or discount another item in the same order.
+          tokenAmountCharged += Math.max(0, tokenPrice + modifierTokens) * item.quantity;
         }
 
         normalizedItems.push({
@@ -645,7 +647,7 @@ export async function registerCheckoutRoutes(
           .sort(
             (a, b) =>
               (b.basePriceRm + b.modifierRm) - (a.basePriceRm + a.modifierRm) ||
-              (b.tokenPrice + b.modifierTokens) - (a.tokenPrice + a.modifierTokens)
+              Math.max(0, b.tokenPrice + b.modifierTokens) - Math.max(0, a.tokenPrice + a.modifierTokens)
           )
           .slice(0, promotionRule.reward_quantity);
 
@@ -682,7 +684,7 @@ export async function registerCheckoutRoutes(
         } else if (appliedVoucher.discount_mode === 'free_drink') {
           if (isTokenCheckout) {
             discountTokens = rewardableUnits.reduce(
-              (sum, unit) => sum + unit.tokenPrice + unit.modifierTokens,
+              (sum, unit) => sum + Math.max(0, unit.tokenPrice + unit.modifierTokens),
               0
             );
           } else {
@@ -785,7 +787,7 @@ export async function registerCheckoutRoutes(
       for (const item of normalizedItems) {
         const lineSubtotalRm = (item.basePriceRm + item.modifierRm) * item.payload.quantity;
         const lineTokenAmount = isTokenCheckout
-          ? (item.tokenPrice + item.modifierTokens) * item.payload.quantity
+          ? Math.max(0, item.tokenPrice + item.modifierTokens) * item.payload.quantity
           : null;
 
         const [itemResult] = await connection.execute<ResultSetHeader>(

@@ -196,8 +196,10 @@ export async function deliverPushToCustomerTenant(
       JOIN users u ON u.id = pt.user_id
       JOIN customer_tenant_memberships ctm
         ON ctm.user_id = u.id AND ctm.tenant_id = :tenantId
+      LEFT JOIN customer_notification_preferences cnp ON cnp.user_id = pt.user_id
       WHERE pt.status = 'active'
         AND u.status = 'active'
+        AND COALESCE(cnp.marketing_enabled, 1) = 1
       GROUP BY pt.id, pt.push_token
       ORDER BY pt.last_seen_at DESC
       LIMIT 5000
