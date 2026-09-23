@@ -30,6 +30,7 @@ import { registerAdminStoreRoutes } from './http/routes/admin-store.js';
 import { registerAdminPushRoutes } from './http/routes/admin-push.js';
 import { registerBaristaStaffRoutes } from './http/routes/barista-staff.js';
 import { registerTopUpRoutes } from './http/routes/topups.js';
+import { registerAdminReferralRoutes } from './http/routes/admin-referrals.js';
 
 function isAllowedCorsOrigin(origin: string, allowedOrigins: string[]): boolean {
   let requestUrl: URL;
@@ -130,6 +131,7 @@ export async function buildApp() {
   await registerAdminDashboardRoutes(app);
   await registerAdminCustomersRoutes(app);
   await registerAdminLoyaltyRoutes(app);
+  await registerAdminReferralRoutes(app);
   await registerAdminMenuRoutes(app);
   await registerAdminOptionLibraryRoutes(app);
   await registerAdminAuditRoutes(app);

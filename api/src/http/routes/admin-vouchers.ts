@@ -45,7 +45,6 @@ const voucherCreateUpdateSchema = z.object({
   endTime: z.string().trim().optional().nullable(),
   annualDate: z.string().trim().optional().nullable(),
   monthlyDay: z.coerce.number().int().min(1).max(28).optional().nullable()
-  ,isReferralReward: z.boolean().optional().default(false)
 });
 
 const customerSearchQuerySchema = z.object({
@@ -74,27 +73,6 @@ const revokeIssuedVoucherSchema = z.object({
 
 type VoucherPayload = z.infer<typeof voucherCreateUpdateSchema>;
 
-function validateReferralReward(payload: VoucherPayload): void {
-  if (!payload.isReferralReward) return;
-
-  if (payload.status !== 'Active') {
-    throw new ApiError(400, 'referral_reward_must_be_active', 'A referral reward must be active.');
-  }
-  if (payload.availabilityMode !== 'always') {
-    throw new ApiError(
-      400,
-      'referral_reward_must_be_always_available',
-      'A referral reward must be always available, not scheduled for a date or birthday.'
-    );
-  }
-  if (payload.totalQty != null) {
-    throw new ApiError(
-      400,
-      'referral_reward_must_be_unlimited',
-      'A referral reward must have unlimited quantity so earned rewards can always be issued.'
-    );
-  }
-}
 type ScopeSelection = {
   product_kind_codes: string[];
   subcategory_codes: string[];
@@ -148,7 +126,6 @@ type VoucherTemplateRow = RowDataPacket & {
   total_quantity?: number | null;
   limit_per_user?: number | null;
   is_active: number;
-  is_referral_reward?: number;
   created_at: string | Date;
   updated_at: string | Date;
   issued_count?: number;
@@ -396,10 +373,6 @@ function formatScopeLabel(value: string): string {
 }
 
 function voucherScopeLabel(payload: VoucherPayload): string {
-  const productKinds = normalizeScopeCodes(payload.productKinds).map((value) => value.toLowerCase());
-  const includesEveryCoreKind = ALL_MENU_PRODUCT_KINDS.every((kind) => productKinds.includes(kind));
-  if (includesEveryCoreKind) return 'All menu items';
-
   const items = normalizeEligibleItems(payload.eligibleItems).filter((item) => item !== 'All Items');
   if (items.length === 1) return items[0];
   if (items.length > 1) return 'Selected items';
@@ -407,6 +380,10 @@ function voucherScopeLabel(payload: VoucherPayload): string {
   const subcategories = normalizeScopeCodes(payload.subcategoryCodes);
   if (subcategories.length === 1) return formatScopeLabel(subcategories[0]);
   if (subcategories.length > 1) return 'Selected menu types';
+
+  const productKinds = normalizeScopeCodes(payload.productKinds).map((value) => value.toLowerCase());
+  const includesEveryCoreKind = ALL_MENU_PRODUCT_KINDS.every((kind) => productKinds.includes(kind));
+  if (includesEveryCoreKind) return 'All menu items';
 
   if (productKinds.length === 1) return formatScopeLabel(productKinds[0]);
   if (productKinds.length > 1) return 'Selected menu types';
@@ -827,12 +804,6 @@ function buildVoucherWriteBindings(
     values.limitPerUser = payload.limitPerUser ?? 1;
   }
 
-  if (hasColumn(columns, 'is_referral_reward')) {
-    columnsToWrite.push('is_referral_reward');
-    placeholders.push(':isReferralReward');
-    values.isReferralReward = payload.isReferralReward ? 1 : 0;
-  }
-
   if (hasColumn(columns, 'image_url')) {
     columnsToWrite.push('image_url');
     placeholders.push(':imageUrl');
@@ -963,9 +934,6 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
       'vt.created_at'
     ];
 
-    if (hasColumn(voucherColumns, 'is_referral_reward')) {
-      selectColumns.push('vt.is_referral_reward');
-    }
     if (hasColumn(voucherColumns, 'image_url')) {
       selectColumns.push('vt.image_url');
     }
@@ -1020,7 +988,6 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
         benefitType,
         promotionKind: promotionRule.kind,
         audience,
-        isReferralReward: Boolean(templateRow.is_referral_reward),
         tier: await voucherTierScopeLabel(scope.tier),
         reward: String(scope.reward || templateRow.name || ''),
         discountValue: templateRow.discount_mode === 'fixed_token' ? templateRow.token_value : templateRow.discount_value,
@@ -1192,7 +1159,6 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
     requireAdminRole(request, 'super_admin');
     const payload = voucherCreateUpdateSchema.parse(request.body);
     const voucherColumns = await getVoucherTemplateColumns();
-    validateReferralReward(payload);
     const tierScope = await normalizeVoucherTierScope(payload.tier);
     
     let discountMode = 'percent_rm';
@@ -1251,13 +1217,6 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
       audience: payload.audience,
       schedule
     });
-    if (payload.isReferralReward && hasColumn(voucherColumns, 'is_referral_reward')) {
-      await mysqlPool.execute(
-        'UPDATE voucher_templates SET is_referral_reward = 0 WHERE is_referral_reward = 1 AND tenant_id = :tenantId',
-        { tenantId: request.adminAuth.tenantId }
-      );
-    }
-
     for (let attempt = 0; attempt < 3; attempt += 1) {
       const code = await nextVoucherCode(request.adminAuth.tenantId);
       const writeBindings = buildVoucherWriteBindings(
@@ -1298,7 +1257,6 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
     const payload = voucherCreateUpdateSchema.parse(request.body);
     const voucherColumns = await getVoucherTemplateColumns();
     const code = request.params.id;
-    validateReferralReward(payload);
     const tierScope = await normalizeVoucherTierScope(payload.tier);
     
     let discountMode = 'percent_rm';
@@ -1388,18 +1346,8 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
     if (hasColumn(voucherColumns, 'limit_per_user')) {
       updateAssignments.push('limit_per_user = :limitPerUser');
     }
-    if (hasColumn(voucherColumns, 'is_referral_reward')) {
-      updateAssignments.push('is_referral_reward = :isReferralReward');
-    }
     if (hasColumn(voucherColumns, 'image_url')) {
       updateAssignments.push('image_url = :imageUrl');
-    }
-
-    if (payload.isReferralReward && hasColumn(voucherColumns, 'is_referral_reward')) {
-      await mysqlPool.execute(
-        'UPDATE voucher_templates SET is_referral_reward = 0 WHERE is_referral_reward = 1 AND code != :code AND tenant_id = :tenantId',
-        { code, tenantId: request.adminAuth.tenantId }
-      );
     }
 
     await mysqlPool.query(
@@ -1421,7 +1369,6 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
         validUntil: effectiveValidUntil,
         totalQty: payload.totalQty ?? null,
         limitPerUser: payload.limitPerUser ?? 1,
-        isReferralReward: payload.isReferralReward ? 1 : 0,
         imageUrl: payload.imageUrl || null
       }
     );

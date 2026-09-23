@@ -18,5 +18,5 @@ CREATE TABLE IF NOT EXISTS barista_dated_shifts (
   CONSTRAINT fk_barista_dated_shifts_store FOREIGN KEY (store_id) REFERENCES stores(id) ON DELETE CASCADE,
   CONSTRAINT fk_barista_dated_shifts_barista FOREIGN KEY (barista_id) REFERENCES baristas(id) ON DELETE CASCADE,
   CONSTRAINT fk_barista_dated_shifts_creator FOREIGN KEY (created_by_admin_user_id) REFERENCES admin_users(id) ON DELETE SET NULL,
-  CONSTRAINT chk_barista_dated_shift_time CHECK (ends_at > starts_at)
+  CONSTRAINT chk_barista_dated_shift_time CHECK (ends_at <> starts_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

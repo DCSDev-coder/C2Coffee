@@ -17,6 +17,7 @@ const Customers = lazy(() => import('./components/Customers'));
 const Orders = lazy(() => import('./components/Orders'));
 const Profile = lazy(() => import('./components/Profile'));
 const Vouchers = lazy(() => import('./components/Vouchers'));
+const ReferralProgram = lazy(() => import('./components/ReferralProgram'));
 const LoyaltyTokens = lazy(() => import('./components/LoyaltyTokens'));
 const Menu = lazy(() => import('./components/Menu'));
 const OptionsNutrition = lazy(() => import('./components/OptionsNutrition'));
@@ -68,6 +69,7 @@ function AppContent({
         )}
         {currentPage === 'Profile' && <Profile onBack={() => navigateWithPrompt(prevPage || 'Dashboard')} currentUser={currentUser} onUpdateUser={handleUpdateUser} />}
         {currentPage === 'Voucher' && <Vouchers onBack={() => navigateWithPrompt(prevPage || 'Dashboard')} />}
+        {currentPage === 'Referral Program' && <ReferralProgram />}
         {currentPage === 'Token Ledger' && <LoyaltyTokens onBack={() => navigateWithPrompt(prevPage || 'Dashboard')} onNavigate={navigateWithPrompt} />}
         {currentPage === 'Tier Management' && <TierManagement onBack={() => navigateWithPrompt('Token Ledger')} />}
         {currentPage === 'Menu' && <Menu onNavigate={navigateWithPrompt} />}

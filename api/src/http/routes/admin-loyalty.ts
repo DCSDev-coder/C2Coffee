@@ -143,17 +143,28 @@ function sourceDisplayLabel(sourceType: string): string {
   }
 }
 
+const tierRewardConfigSchema = z.union([
+  z.object({
+    voucherTemplateIds: z.array(z.coerce.number().int().positive()).min(1).max(10)
+  }),
+  // Accept the previous request shape while deployed admin clients update.
+  z.object({
+    voucherTemplateId: z.coerce.number().int().positive()
+  })
+]).transform((value) => ({
+  voucherTemplateIds: [...new Set(
+    'voucherTemplateIds' in value ? value.voucherTemplateIds : [value.voucherTemplateId]
+  )]
+}));
+
 const loyaltyTierUpsertSchema = z.object({
   code: z.string().trim().min(1).max(50),
   name: z.string().trim().min(1).max(255),
   minCups: z.coerce.number().int().min(0),
-  badgeColor: z.string().trim().max(32).optional().nullable(),
   imageUrl: z.string().trim().max(512).optional().nullable(),
   sortOrder: z.coerce.number().int().min(0).optional().default(0),
   isActive: z.coerce.boolean().optional().default(true),
-  rewardConfig: z.object({
-    voucherTemplateId: z.coerce.number().int().positive()
-  }).nullable().optional().default(null)
+  rewardConfig: tierRewardConfigSchema.nullable().optional().default(null)
 });
 
 const tierImageUploadSchema = z.object({
@@ -173,23 +184,32 @@ const tokenAdjustmentSchema = z.object({
 
 async function validateTierRewardVoucher(
   connection: typeof mysqlPool | PoolConnection,
-  rewardConfig: { voucherTemplateId: number } | null | undefined
+  tenantId: number,
+  rewardConfig: { voucherTemplateIds: number[] } | null | undefined
 ): Promise<void> {
-  if (!rewardConfig) return;
+  const voucherTemplateIds = rewardConfig?.voucherTemplateIds ?? [];
+  if (voucherTemplateIds.length === 0) return;
+
+  const bindings: Record<string, number> = { tenantId };
+  const placeholders = voucherTemplateIds.map((voucherTemplateId, index) => {
+    const key = `voucherTemplateId${index}`;
+    bindings[key] = voucherTemplateId;
+    return `:${key}`;
+  });
 
   const [rows] = await connection.query<Array<RowDataPacket & { id: number }>>(
     `
       SELECT id
       FROM voucher_templates
-      WHERE id = :voucherTemplateId
+      WHERE tenant_id = :tenantId
         AND is_active = 1
-      LIMIT 1
+        AND id IN (${placeholders.join(', ')})
     `,
-    { voucherTemplateId: rewardConfig.voucherTemplateId }
+    bindings
   );
 
-  if (!rows[0]) {
-    throw new ApiError(400, 'tier_reward_voucher_unavailable', 'Select an active voucher for the tier unlock reward.');
+  if (rows.length !== voucherTemplateIds.length) {
+    throw new ApiError(400, 'tier_reward_voucher_unavailable', 'Every tier unlock voucher must be active and belong to this tenant.');
   }
 }
 
@@ -495,7 +515,6 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
           percentage: Number(((memberCount / tierTotals) * 100).toFixed(1)),
           avgTokens: Number(avgTokens.toFixed(2)),
           minCups: tier?.minCups ?? 0,
-          badgeColor: tier?.badgeColor ?? null,
           isActive: tier?.isActive ?? false
         };
       });
@@ -562,7 +581,6 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
             memberId: `C2-${String(row.user_id).padStart(3, '0')}`,
             tier: tierName,
             tierCode,
-            badgeColor: tierConfig?.badgeColor ?? null,
             tokensBalance: Number(row.balance_after ?? 0).toLocaleString('en-US'),
             lifetimeEarned: Number(row.lifetime_earned ?? 0).toLocaleString('en-US'),
             lifetimeRedeemed: Number(row.lifetime_redeemed ?? 0).toLocaleString('en-US'),
@@ -593,7 +611,6 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
           memberId: `C2-${String(row.user_id).padStart(3, '0')}`,
           tier: tierName,
           tierCode,
-          badgeColor: tierConfig?.badgeColor ?? null,
           tokensBalance: Number(row.token_balance ?? 0).toLocaleString('en-US'),
           lifetimeEarned: Number(row.lifetime_earned ?? 0).toLocaleString('en-US'),
           lifetimeRedeemed: Number(row.lifetime_redeemed ?? 0).toLocaleString('en-US'),
@@ -819,14 +836,13 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
 
     try {
       const normalizedCode = payload.code.trim().toLowerCase();
-      await validateTierRewardVoucher(connection, payload.rewardConfig);
+      await validateTierRewardVoucher(connection, request.adminAuth.tenantId, payload.rewardConfig);
       const [insertResult] = await connection.execute<ResultSetHeader>(
         `
           INSERT INTO loyalty_tiers (
             code,
             name,
             min_cups,
-            badge_color,
             image_url,
             sort_order,
             is_active,
@@ -836,7 +852,6 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
             :code,
             :name,
             :minCups,
-            :badgeColor,
             :imageUrl,
             :sortOrder,
             :isActive,
@@ -874,7 +889,7 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
 
     try {
       if (Object.prototype.hasOwnProperty.call(payload, 'rewardConfig')) {
-        await validateTierRewardVoucher(connection, payload.rewardConfig);
+        await validateTierRewardVoucher(connection, request.adminAuth.tenantId, payload.rewardConfig);
       }
       const assignments = entries.map(([key]) => {
         if (key === 'code') {
@@ -883,8 +898,6 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
         switch (key) {
           case 'minCups':
             return 'min_cups = :minCups';
-          case 'badgeColor':
-            return 'badge_color = :badgeColor';
           case 'imageUrl':
             return 'image_url = :imageUrl';
           case 'sortOrder':

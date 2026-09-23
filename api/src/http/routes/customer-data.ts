@@ -17,6 +17,7 @@ import {
 } from '../../lib/kuala-lumpur-time.js';
 import { getActiveLoyaltyTiers, getTierByCode, loadLoyaltyTiers, type LoyaltyTierConfig } from '../../services/loyalty-tiers.js';
 import { deliverQueuedOrderReceiptEmail, queueOrderReceiptEmail } from '../../services/order-receipt-email.js';
+import type { ReferralProgramSnapshot } from '../../services/referrals.js';
 
 const listQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional().default(20)
@@ -91,6 +92,8 @@ type AutoSyncVoucherTemplateRow = RowDataPacket & {
   id: number;
   code: string;
   name: string;
+  // Legacy vouchers are retained only to avoid changing previously issued data.
+  // New referral rewards are excluded below through referral_programs instead.
   is_referral_reward?: number;
   expires_in_days: number | null;
   valid_until: Date | null;
@@ -387,6 +390,12 @@ async function syncAutoVisibleVoucherTemplates(
         ON ctm.tenant_id = vt.tenant_id AND ctm.user_id = :userId
       WHERE vt.is_active = 1
         AND (vt.valid_until IS NULL OR vt.valid_until > UTC_TIMESTAMP())
+        AND NOT EXISTS (
+          SELECT 1
+          FROM referral_programs rp
+          WHERE rp.tenant_id = vt.tenant_id
+            AND (rp.friend_voucher_template_id = vt.id OR rp.referrer_voucher_template_id = vt.id)
+        )
       ORDER BY vt.created_at DESC, vt.id DESC
     `,
     { userId }
@@ -408,7 +417,7 @@ async function syncAutoVisibleVoucherTemplates(
   );
 
   for (const template of templates) {
-    // Referral rewards are issued only after an invited customer collects.
+    // Do not auto-issue historical legacy referral vouchers.
     if (Number(template.is_referral_reward ?? 0) === 1) {
       continue;
     }
@@ -1304,6 +1313,29 @@ export async function registerCustomerDataRoutes(
   app.get('/v1/referrals', { preHandler: authenticateRequest }, async (request) => {
     const userId = request.auth.userId;
 
+    const [programRows] = await mysqlPool.query<Array<RowDataPacket & {
+      id: number; tenant_id: number; name: string; qualification_days: number; monthly_referrer_limit: number;
+      friend_reward_type: 'voucher' | 'token'; friend_voucher_template_id: number | null; friend_token_amount: number | null;
+      referrer_reward_type: 'voucher' | 'token'; referrer_voucher_template_id: number | null; referrer_token_amount: number | null;
+      friend_reward_label: string; referrer_reward_label: string;
+    }>>(
+      `SELECT rp.*,
+              CASE WHEN rp.friend_reward_type = 'token' THEN CONCAT(rp.friend_token_amount, ' free tokens')
+                   ELSE COALESCE(fv.name, 'a voucher') END AS friend_reward_label,
+              CASE WHEN rp.referrer_reward_type = 'token' THEN CONCAT(rp.referrer_token_amount, ' free tokens')
+                   ELSE COALESCE(rv.name, 'a voucher') END AS referrer_reward_label
+       FROM referral_programs rp
+       JOIN referral_active_programs rap ON rap.program_id = rp.id AND rap.tenant_id = rp.tenant_id
+       JOIN customer_tenant_memberships ctm ON ctm.tenant_id = rp.tenant_id
+       LEFT JOIN voucher_templates fv ON fv.id = rp.friend_voucher_template_id
+       LEFT JOIN voucher_templates rv ON rv.id = rp.referrer_voucher_template_id
+       WHERE ctm.user_id = :userId AND rp.status = 'active'
+       ORDER BY rp.updated_at DESC, rp.id DESC
+       LIMIT 1`,
+      { userId }
+    );
+    const activeProgram = programRows[0] ?? null;
+
     await mysqlPool.execute(
       `
         INSERT IGNORE INTO user_referral_codes (user_id, code)
@@ -1362,12 +1394,12 @@ export async function registerCustomerDataRoutes(
 
     const friendsInvited = referredRows.length;
     const rewardsClaimed = referredRows.filter(
-      (r) => r.status === 'rewarded' || r.status === 'qualified'
+      (r) => r.status === 'rewarded'
     ).length;
     const hasClaimedReferrer = claimedRows.length > 0;
     const claimedCode = claimedRows[0]?.referral_code_snapshot ?? null;
     const hasOrders = (pastOrders[0]?.count ?? 0) > 0;
-    const isEligibleToClaim = !hasClaimedReferrer && !hasOrders;
+    const isEligibleToClaim = !hasClaimedReferrer && !hasOrders && activeProgram !== null;
 
     return {
       referral_code: referralCode,
@@ -1377,6 +1409,14 @@ export async function registerCustomerDataRoutes(
       has_claimed_referrer: hasClaimedReferrer,
       is_eligible_to_claim: isEligibleToClaim,
       claimed_code: claimedCode,
+      active_program: activeProgram ? {
+        name: activeProgram.name,
+        qualification_days: activeProgram.qualification_days,
+        friend_reward_type: activeProgram.friend_reward_type,
+        friend_token_amount: activeProgram.friend_token_amount,
+        friend_reward_label: activeProgram.friend_reward_label,
+        referrer_reward_label: activeProgram.referrer_reward_label
+      } : null,
       referrals: referredRows.map((r) => ({
         id: r.id,
         status: r.status,
@@ -1395,21 +1435,27 @@ export async function registerCustomerDataRoutes(
     const userId = request.auth.userId;
     const cleanCode = code.trim().toUpperCase();
 
-    const [rewardTemplateRows] = await mysqlPool.query<Array<RowDataPacket & { id: number }>>(
+    const [programRows] = await mysqlPool.query<Array<RowDataPacket & {
+      id: number; tenant_id: number; name: string; qualification_days: number; monthly_referrer_limit: number;
+      friend_reward_type: 'voucher' | 'token'; friend_voucher_template_id: number | null; friend_token_amount: number | null;
+      referrer_reward_type: 'voucher' | 'token'; referrer_voucher_template_id: number | null; referrer_token_amount: number | null;
+    }>>(
       `
-        SELECT id
-        FROM voucher_templates
-        WHERE is_active = 1
-          AND is_referral_reward = 1
-          AND (valid_until IS NULL OR valid_until > UTC_TIMESTAMP())
+        SELECT rp.* FROM referral_programs rp
+        JOIN referral_active_programs rap ON rap.program_id = rp.id AND rap.tenant_id = rp.tenant_id
+        JOIN customer_tenant_memberships ctm ON ctm.tenant_id = rp.tenant_id
+        WHERE ctm.user_id = :userId AND rp.status = 'active'
+        ORDER BY rp.updated_at DESC, rp.id DESC
         LIMIT 1
-      `
+      `,
+      { userId }
     );
-    if (!rewardTemplateRows[0]) {
+    const program = programRows[0];
+    if (!program) {
       throw new ApiError(
         409,
         'referral_reward_unavailable',
-        'Referrals are temporarily unavailable while the referral reward is being configured.'
+        'Referrals are not available for this cafe right now.'
       );
     }
 
@@ -1453,10 +1499,16 @@ export async function registerCustomerDataRoutes(
       `
         SELECT urc.user_id AS id
         FROM user_referral_codes urc
+        JOIN customer_tenant_memberships referrer_membership
+          ON referrer_membership.user_id = urc.user_id
+        JOIN customer_tenant_memberships referred_membership
+          ON referred_membership.tenant_id = referrer_membership.tenant_id
+         AND referred_membership.user_id = :userId
         WHERE urc.code = :code
+          AND referrer_membership.tenant_id = :tenantId
         LIMIT 1
       `,
-      { code: cleanCode }
+      { code: cleanCode, userId, tenantId: program.tenant_id }
     );
 
     const referrer = referrerRows[0];
@@ -1476,27 +1528,45 @@ export async function registerCustomerDataRoutes(
       );
     }
 
+    const snapshot: ReferralProgramSnapshot = {
+      programId: program.id,
+      name: program.name,
+      qualificationDays: program.qualification_days,
+      monthlyReferrerLimit: program.monthly_referrer_limit,
+      friendReward: { type: program.friend_reward_type, voucherTemplateId: program.friend_voucher_template_id, tokenAmount: program.friend_token_amount },
+      referrerReward: { type: program.referrer_reward_type, voucherTemplateId: program.referrer_voucher_template_id, tokenAmount: program.referrer_token_amount }
+    };
+
     await mysqlPool.execute(
       `
         INSERT INTO referrals (
+          referral_program_id,
           referrer_user_id,
           referred_user_id,
           referral_code_snapshot,
           status,
+          program_snapshot_json,
+          qualification_expires_at,
           created_at
         )
         VALUES (
+          :programId,
           :referrerUserId,
           :referredUserId,
           :codeSnapshot,
           'pending',
+          :programSnapshot,
+          DATE_ADD(UTC_TIMESTAMP(), INTERVAL :qualificationDays DAY),
           UTC_TIMESTAMP()
         )
       `,
       {
+        programId: program.id,
         referrerUserId: referrer.id,
         referredUserId: userId,
-        codeSnapshot: cleanCode
+        codeSnapshot: cleanCode,
+        programSnapshot: JSON.stringify(snapshot),
+        qualificationDays: program.qualification_days
       }
     );
 

@@ -476,14 +476,6 @@ class RewardVoucherTemplate {
   }
 
   static String _scopeLabelFromMap(Map<String, dynamic> scope) {
-    final productKinds =
-        _scopeValues(scope, ['product_kind_codes', 'product_kinds']);
-    const allMenuProductKinds = {'drink', 'food', 'merchandise', 'candle'};
-    final normalizedKinds = productKinds.map(_normalizeScopeValue).toSet();
-    if (allMenuProductKinds.every(normalizedKinds.contains)) {
-      return 'All menu items';
-    }
-
     final items = _scopeValues(scope, ['items', 'item_codes']);
     if (items.isNotEmpty) {
       final labels = items.map(_formatScopeValue).toList();
@@ -491,6 +483,19 @@ class RewardVoucherTemplate {
         return '${labels.take(3).join(', ')} +${labels.length - 3} more';
       }
       return labels.join(', ');
+    }
+
+    final subcategories = _scopeValues(scope, ['subcategory_codes']);
+    if (subcategories.isNotEmpty) {
+      return subcategories.map(_formatScopeValue).join(', ');
+    }
+
+    final productKinds =
+        _scopeValues(scope, ['product_kind_codes', 'product_kinds']);
+    const allMenuProductKinds = {'drink', 'food', 'merchandise', 'candle'};
+    final normalizedKinds = productKinds.map(_normalizeScopeValue).toSet();
+    if (allMenuProductKinds.every(normalizedKinds.contains)) {
+      return 'All menu items';
     }
 
     final categories = _scopeValues(scope, ['category_codes', 'categories']);
@@ -542,11 +547,19 @@ class RewardVoucherTemplate {
       final categoryCode = _normalizeScopeValue(item.categoryCode ?? '');
       final subcategoryCode = _normalizeScopeValue(item.subcategoryCode ?? '');
       final itemCode = _normalizeScopeValue(item.menuItemCode);
+      final itemName = _normalizeScopeValue(item.name);
 
-      if (itemCodes.contains(itemCode) ||
-          subcategoryCodes.contains(subcategoryCode) ||
-          categoryCodes.contains(categoryCode) ||
-          productKindCodes.contains(productKind)) {
+      // Keep the cart preview consistent with checkout. A specific item is
+      // narrower than a menu type, and historic scopes may use item names.
+      final matches = itemCodes.isNotEmpty
+          ? itemCodes.contains(itemCode) || itemCodes.contains(itemName)
+          : subcategoryCodes.isNotEmpty
+              ? subcategoryCodes.contains(subcategoryCode)
+              : categoryCodes.isNotEmpty
+                  ? categoryCodes.contains(categoryCode)
+                  : productKindCodes.contains(productKind);
+
+      if (matches) {
         count += item.quantity;
       }
     }
@@ -974,6 +987,12 @@ class ReferralSnapshot {
   final bool hasClaimedReferrer;
   final bool isEligibleToClaim;
   final String? claimedCode;
+  final String? activeProgramName;
+  final int? qualificationDays;
+  final String? friendRewardType;
+  final int? friendTokenAmount;
+  final String? friendRewardLabel;
+  final String? referrerRewardLabel;
 
   const ReferralSnapshot({
     required this.referralCode,
@@ -983,6 +1002,12 @@ class ReferralSnapshot {
     required this.hasClaimedReferrer,
     this.isEligibleToClaim = true,
     this.claimedCode,
+    this.activeProgramName,
+    this.qualificationDays,
+    this.friendRewardType,
+    this.friendTokenAmount,
+    this.friendRewardLabel,
+    this.referrerRewardLabel,
   });
 
   factory ReferralSnapshot.fromApi(Map<String, dynamic> json) {
@@ -994,6 +1019,12 @@ class ReferralSnapshot {
       hasClaimedReferrer: (json['has_claimed_referrer'] as bool?) ?? false,
       isEligibleToClaim: (json['is_eligible_to_claim'] as bool?) ?? false,
       claimedCode: json['claimed_code'] as String?,
+      activeProgramName: (json['active_program'] as Map?)?['name'] as String?,
+      qualificationDays: ((json['active_program'] as Map?)?['qualification_days'] as num?)?.toInt(),
+      friendRewardType: (json['active_program'] as Map?)?['friend_reward_type'] as String?,
+      friendTokenAmount: ((json['active_program'] as Map?)?['friend_token_amount'] as num?)?.toInt(),
+      friendRewardLabel: (json['active_program'] as Map?)?['friend_reward_label'] as String?,
+      referrerRewardLabel: (json['active_program'] as Map?)?['referrer_reward_label'] as String?,
     );
   }
 }

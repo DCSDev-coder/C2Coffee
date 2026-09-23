@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Award, BarChart3, Edit3, MoreVertical, Plus, Save, Trash2, Users, X } from 'lucide-react';
+import { Award, BarChart3, Edit3, Gift, MoreVertical, Plus, Save, Trash2, Users, X } from 'lucide-react';
 import { BarChart, Bar, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import Pagination from './Pagination';
-import { createAdminTier, deleteAdminTier, getAdminApiBaseUrl, loadAdminLoyaltyOverview, loadAdminVouchers, updateAdminTier, uploadAdminTierImage } from '../lib/adminApi';
+import { adminRequest, createAdminTier, deleteAdminTier, getAdminApiBaseUrl, loadAdminLoyaltyOverview, loadAdminMenu, loadAdminVouchers, updateAdminTier, uploadAdminTierImage } from '../lib/adminApi';
 
 const DEFAULT_COLORS = ['#1F3A34', '#2E5E58', '#6F9F96', '#E07A5F', '#D4AF7A', '#9333EA'];
 
@@ -52,22 +52,10 @@ function formatTierStatus(value) {
   return value ? 'Active' : 'Inactive';
 }
 
-function formatTierRewards(tier, voucherOptions) {
-  const tierCode = String(tier?.code || '').trim().toLowerCase();
-  const targetedVouchers = voucherOptions.filter((voucher) =>
-    voucher.status === 'Active'
-      && String(voucher.tier || '').trim().toLowerCase() === tierCode
-  );
-  const configuredVoucherId = Number(tier?.rewardConfig?.voucherTemplateId || 0);
-  const configuredVoucher = configuredVoucherId
-    ? voucherOptions.find((voucher) => Number(voucher.db_id) === configuredVoucherId)
-    : null;
-  const vouchers = configuredVoucher && !targetedVouchers.some((voucher) => Number(voucher.db_id) === configuredVoucherId)
-    ? [configuredVoucher, ...targetedVouchers]
-    : targetedVouchers;
-
-  if (vouchers.length === 0) return 'No tier vouchers';
-  return vouchers.map((voucher) => voucher.name).join(', ');
+function tierRewardIds(tier) {
+  const configuredVoucherIds = tier?.rewardConfig?.voucherTemplateIds
+    ?? (tier?.rewardConfig?.voucherTemplateId ? [tier.rewardConfig.voucherTemplateId] : []);
+  return [...new Set(configuredVoucherIds.map(Number).filter((id) => Number.isInteger(id) && id > 0))];
 }
 
 function getStatusClass(isActive) {
@@ -77,7 +65,7 @@ function getStatusClass(isActive) {
 }
 
 function getTierBadgeStyle(color) {
-  const safeColor = typeof color === 'string' && color.trim() ? color.trim() : '#1F3A34';
+  const safeColor = color || '#1F3A34';
   return {
     backgroundColor: `${safeColor}14`,
     color: safeColor,
@@ -97,12 +85,36 @@ function emptyForm() {
     code: '',
     name: '',
     minCups: 0,
-    badgeColor: '#1F3A34',
     imageUrl: null,
     sortOrder: 0,
-    isActive: true,
-    rewardVoucherId: ''
+    isActive: true
   };
+}
+
+function emptyTierRewardForm(tiers = []) {
+  const firstEligibleTier = tiers.find((tier) => tier.isActive);
+  return {
+    tierId: firstEligibleTier ? String(firstEligibleTier.id) : '',
+    name: '',
+    benefitType: 'Free Drink',
+    discountValue: '',
+    productKinds: ['drink', 'food', 'merchandise', 'candle'],
+    subcategoryCodes: [],
+    eligibleItems: [],
+    rewardQuantity: 1,
+    limitPerUser: 1,
+    description: ''
+  };
+}
+
+function deriveTierRewardMenuItems(response) {
+  return (response?.categories || []).flatMap((category) => (category.items || []).map((item) => ({
+    id: item.id,
+    name: item.name,
+    productKindCode: item.product_kind_code || category.product_kind_code || 'other',
+    subcategoryCode: item.subcategory_code || '',
+    subcategoryName: item.subcategory_name || category.name || 'Other'
+  })));
 }
 
 const TierArtworkField = ({ imageUrl, onChange }) => {
@@ -161,7 +173,7 @@ const TierArtworkField = ({ imageUrl, onChange }) => {
   );
 };
 
-const TierModal = ({ open, title, form, voucherOptions, onChange, onClose, onSave, saving }) => {
+const TierModal = ({ open, title, form, onChange, onClose, onSave, saving }) => {
   if (!open) return null;
 
   return (
@@ -212,20 +224,9 @@ const TierModal = ({ open, title, form, voucherOptions, onChange, onClose, onSav
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Tier Unlock Voucher</label>
-              <select
-                value={form.rewardVoucherId}
-                onChange={(e) => onChange({ rewardVoucherId: e.target.value })}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34] bg-white"
-              >
-                <option value="">No automatic voucher</option>
-                {voucherOptions.map((voucher) => (
-                  <option key={voucher.db_id} value={voucher.db_id} disabled={voucher.status !== 'Active'}>
-                    {voucher.name} ({voucher.id}){voucher.status !== 'Active' ? ' - inactive' : ''}
-                  </option>
-                ))}
-              </select>
-              <p className="text-[11px] text-gray-400 mt-1">Issued once when a member first reaches this tier. The base tier at 0 cups does not unlock a voucher.</p>
+              <p className="rounded-lg border border-[#D7E4E0] bg-[#F8FBFA] px-3 py-2 text-[11px] leading-relaxed text-[#5C7770]">
+                Tier rewards are managed separately below. This keeps tier progress settings independent from reward setup.
+              </p>
             </div>
             <div className="flex items-end">
               <p className="text-[11px] text-gray-400 leading-snug">
@@ -236,36 +237,16 @@ const TierModal = ({ open, title, form, voucherOptions, onChange, onClose, onSav
 
           <TierArtworkField imageUrl={form.imageUrl} onChange={(imageUrl) => onChange({ imageUrl })} />
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Badge Color</label>
-              <div className="flex items-center gap-3">
-                <input
-                  type="color"
-                  value={form.badgeColor || '#1F3A34'}
-                  onChange={(e) => onChange({ badgeColor: e.target.value })}
-                  className="h-11 w-16 border border-gray-200 rounded-lg bg-white"
-                />
-                <input
-                  type="text"
-                  value={form.badgeColor || ''}
-                  onChange={(e) => onChange({ badgeColor: e.target.value })}
-                  className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34]"
-                  placeholder="#1F3A34"
-                />
-              </div>
-            </div>
-            <div className="flex items-center gap-3 pt-6">
-              <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-700">
-                <input
-                  type="checkbox"
-                  checked={Boolean(form.isActive)}
-                  onChange={(e) => onChange({ isActive: e.target.checked })}
-                  className="rounded border-gray-300 text-[#1F3A34] focus:ring-[#1F3A34]"
-                />
-                Active
-              </label>
-            </div>
+          <div className="flex items-center gap-3">
+            <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-700">
+              <input
+                type="checkbox"
+                checked={Boolean(form.isActive)}
+                onChange={(e) => onChange({ isActive: e.target.checked })}
+                className="rounded border-gray-300 text-[#1F3A34] focus:ring-[#1F3A34]"
+              />
+              Active
+            </label>
           </div>
 
           <div className="pt-4 flex justify-end gap-3 mt-2">
@@ -291,6 +272,165 @@ const TierModal = ({ open, title, form, voucherOptions, onChange, onClose, onSav
   );
 };
 
+const TierRewardModal = ({ open, form, tiers, menuItems, onChange, onClose, onSave, saving }) => {
+  if (!open) return null;
+
+  const eligibleTiers = tiers.filter((tier) => tier.isActive);
+  const allProductKinds = ['drink', 'food', 'merchandise', 'candle'];
+  const isDiscount = form.benefitType === 'Discount';
+  const scopedItems = menuItems.filter((item) =>
+    form.productKinds.includes(item.productKindCode)
+    && (form.subcategoryCodes.length === 0 || form.subcategoryCodes.includes(item.subcategoryCode))
+  );
+  const scopedSubcategories = [...new Map(menuItems
+    .filter((item) => form.productKinds.includes(item.productKindCode) && item.subcategoryCode)
+    .map((item) => [item.subcategoryCode, item.subcategoryName]))
+    .entries()];
+  const allScopedItemsSelected = scopedItems.length > 0 && scopedItems.every((item) => form.eligibleItems.includes(item.name));
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
+        <div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-6 py-4">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">New Tier Reward</h2>
+            <p className="mt-0.5 text-xs text-gray-500">Create a reward that customers receive once when they reach the selected tier.</p>
+          </div>
+          <button type="button" onClick={onClose} className="cursor-pointer text-gray-400 hover:text-gray-600" aria-label="Close tier reward form">
+            <X size={20} />
+          </button>
+        </div>
+
+        <form onSubmit={onSave} className="space-y-5 overflow-y-auto p-6">
+          <section className="rounded-xl border border-[#D7E4E0] bg-[#F8FBFA] p-4">
+            <h3 className="font-bold text-gray-900">1. Tier unlock</h3>
+            <p className="mt-0.5 text-xs text-gray-500">This reward is issued once on the selected tier event. The base tier is issued after the first completed drink.</p>
+            <label className="mt-3 block text-xs font-medium text-gray-500">Unlock tier</label>
+            <select
+              required
+              value={form.tierId}
+              onChange={(event) => onChange({ tierId: event.target.value })}
+              className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#1F3A34]"
+            >
+              <option value="">Choose a tier</option>
+              {eligibleTiers.map((tier) => <option key={tier.id} value={tier.id}>{Number(tier.minCups) === 0 ? `${tier.name} (after first completed drink)` : `${tier.name} (${formatCupsLabel(tier.minCups)})`}</option>)}
+            </select>
+          </section>
+
+          <section className="space-y-4">
+            <div>
+              <h3 className="font-bold text-gray-900">2. Reward</h3>
+              <p className="mt-0.5 text-xs text-gray-500">This creates a voucher template that can also be reviewed in Vouchers.</p>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="block text-xs font-medium text-gray-500">Reward name</label>
+                <input required value={form.name} onChange={(event) => onChange({ name: event.target.value })} placeholder="e.g. Brewer welcome drink" className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#1F3A34]" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500">Benefit</label>
+                <select value={form.benefitType} onChange={(event) => onChange({ benefitType: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#1F3A34]">
+                  <option value="Free Drink">Free Drink</option>
+                  <option value="Free Food">Free Food</option>
+                  <option value="Discount">Discount</option>
+                </select>
+              </div>
+              {isDiscount && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-500">Discount percent</label>
+                  <input required type="number" min="1" max="100" value={form.discountValue} onChange={(event) => onChange({ discountValue: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#1F3A34]" />
+                </div>
+              )}
+              <div>
+                <label className="block text-xs font-medium text-gray-500">Items per redemption</label>
+                <input required type="number" min="1" max="20" value={form.rewardQuantity} onChange={(event) => onChange({ rewardQuantity: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#1F3A34]" />
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-gray-500">Eligible menu items</p>
+              <div className="mt-1 grid grid-cols-2 gap-2 rounded-lg border border-gray-200 p-3 sm:grid-cols-4">
+                {allProductKinds.map((kind) => (
+                  <label key={kind} className="flex items-center gap-2 text-xs text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={form.productKinds.includes(kind)}
+                      onChange={() => onChange({
+                        productKinds: form.productKinds.includes(kind)
+                          ? form.productKinds.filter((value) => value !== kind)
+                          : [...form.productKinds, kind],
+                        subcategoryCodes: [],
+                        eligibleItems: []
+                      })}
+                      className="rounded text-[#1F3A34] focus:ring-[#1F3A34]"
+                    />
+                    {kind === 'drink' ? 'Drinks' : kind === 'food' ? 'Food' : kind === 'merchandise' ? 'Merchandise' : 'Candles'}
+                  </label>
+                ))}
+              </div>
+              <p className="mt-1 text-[11px] text-gray-400">Leave all selected to apply this reward to all menu items.</p>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-gray-500">Choose menu types</p>
+              {scopedSubcategories.length > 0 ? (
+                <div className="mt-1 grid max-h-28 grid-cols-2 gap-2 overflow-y-auto rounded-lg border border-gray-200 p-3">
+                  {scopedSubcategories.map(([code, name]) => (
+                    <label key={code} className="flex items-center gap-2 text-xs text-gray-700">
+                      <input type="checkbox" checked={form.subcategoryCodes.includes(code)} onChange={() => onChange({ subcategoryCodes: form.subcategoryCodes.includes(code) ? form.subcategoryCodes.filter((value) => value !== code) : [...form.subcategoryCodes, code], eligibleItems: [] })} className="rounded text-[#1F3A34] focus:ring-[#1F3A34]" />
+                      {name}
+                    </label>
+                  ))}
+                </div>
+              ) : <p className="mt-1 rounded-lg border border-dashed border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-500">Choose an eligible menu item type first.</p>}
+            </div>
+            <div>
+              <p className="text-xs font-medium text-gray-500">Choose specific items</p>
+              {scopedItems.length > 0 ? (
+                <div className="mt-1 max-h-44 overflow-y-auto rounded-lg border border-gray-200 p-3">
+                  <label className="mb-2 flex items-center gap-2 border-b border-gray-100 pb-2 text-xs font-bold text-gray-700">
+                    <input type="checkbox" checked={allScopedItemsSelected} onChange={() => onChange({ eligibleItems: allScopedItemsSelected ? [] : scopedItems.map((item) => item.name) })} className="rounded text-[#1F3A34] focus:ring-[#1F3A34]" />
+                    All matching items
+                  </label>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {scopedItems.map((item) => (
+                      <label key={item.id} className="flex items-center gap-2 text-xs text-gray-700">
+                        <input type="checkbox" checked={form.eligibleItems.includes(item.name)} onChange={() => onChange({ eligibleItems: form.eligibleItems.includes(item.name) ? form.eligibleItems.filter((value) => value !== item.name) : [...form.eligibleItems, item.name] })} className="rounded text-[#1F3A34] focus:ring-[#1F3A34]" />
+                        <span className="min-w-0 truncate">{item.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ) : <p className="mt-1 rounded-lg border border-dashed border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-500">No active menu items match this selection.</p>}
+              <p className="mt-1 text-[11px] text-gray-400">Leave this list unticked to apply the reward to every item in the selected scope.</p>
+            </div>
+          </section>
+
+          <section className="space-y-3 border-t border-[#DDE9E5] pt-4">
+            <div>
+              <h3 className="font-bold text-gray-900">3. Limits</h3>
+              <p className="mt-0.5 text-xs text-gray-500">Tier rewards are always available after being issued and are automatically limited to one grant per tier.</p>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="block text-xs font-medium text-gray-500">Uses per customer</label>
+                <input required type="number" min="1" max="20" value={form.limitPerUser} onChange={(event) => onChange({ limitPerUser: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#1F3A34]" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500">Description</label>
+                <input value={form.description} onChange={(event) => onChange({ description: event.target.value })} placeholder="Optional redemption instructions" className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#1F3A34]" />
+              </div>
+            </div>
+          </section>
+
+          <div className="flex justify-end gap-3 border-t border-gray-100 pt-4">
+            <button type="button" onClick={onClose} className="cursor-pointer rounded-lg border border-gray-200 px-4 py-2 text-sm font-bold text-gray-600 hover:bg-gray-50">Cancel</button>
+            <button type="submit" disabled={saving || eligibleTiers.length === 0} className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-[#1F3A34] px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-[#2E5E58] disabled:cursor-not-allowed disabled:opacity-60"><Gift size={16} />{saving ? 'Creating...' : 'Create Tier Reward'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 const TierManagement = () => {
   const [overview, setOverview] = useState(null);
   const [tiers, setTiers] = useState([]);
@@ -301,6 +441,10 @@ const TierManagement = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(emptyForm());
+  const [tierRewardModalOpen, setTierRewardModalOpen] = useState(false);
+  const [tierRewardSaving, setTierRewardSaving] = useState(false);
+  const [tierRewardForm, setTierRewardForm] = useState(emptyTierRewardForm());
+  const [tierRewardMenuItems, setTierRewardMenuItems] = useState([]);
   const [codeAutoGenerated, setCodeAutoGenerated] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
@@ -320,15 +464,17 @@ const TierManagement = () => {
           setIsLoading(true);
         }
         setLoadError('');
-        const [response, voucherResponse] = await Promise.all([
+        const [response, voucherResponse, menuResponse] = await Promise.all([
           loadAdminLoyaltyOverview(100),
-          loadAdminVouchers()
+          loadAdminVouchers(),
+          loadAdminMenu()
         ]);
         if (!isMounted) return;
 
         setOverview(response ?? null);
         setTiers(Array.isArray(response?.tiers) ? response.tiers : []);
         setVoucherOptions(Array.isArray(voucherResponse?.vouchers) ? voucherResponse.vouchers : []);
+        setTierRewardMenuItems(deriveTierRewardMenuItems(menuResponse));
       } catch (error) {
         console.error('Failed to load loyalty tiers', error);
         if (isMounted) {
@@ -382,12 +528,12 @@ const TierManagement = () => {
     ? topTierBreakdown.map((tier, index) => ({
         name: tier.tierName || tier.name || `Tier ${index + 1}`,
         members: parseNumber(tier.members ?? tier.count ?? tier.member_count),
-        color: tier.badgeColor || DEFAULT_COLORS[index % DEFAULT_COLORS.length]
+        color: DEFAULT_COLORS[index % DEFAULT_COLORS.length]
       }))
     : activeTiers.map((tier, index) => ({
         name: tier.name,
         members: 0,
-        color: tier.badgeColor || DEFAULT_COLORS[index % DEFAULT_COLORS.length]
+        color: DEFAULT_COLORS[index % DEFAULT_COLORS.length]
       }));
 
   const openAddModal = () => {
@@ -406,11 +552,9 @@ const TierManagement = () => {
       code: tier.code || '',
       name: tier.name || '',
       minCups: parseNumber(tier.minCups),
-      badgeColor: tier.badgeColor || '#1F3A34',
       imageUrl: tier.imageUrl || null,
       sortOrder: parseNumber(tier.sortOrder || tier.minCups),
-      isActive: Boolean(tier.isActive),
-      rewardVoucherId: tier.rewardConfig?.voucherTemplateId ? String(tier.rewardConfig.voucherTemplateId) : ''
+      isActive: Boolean(tier.isActive)
     });
     setCodeAutoGenerated(false);
     setModalOpen(true);
@@ -433,14 +577,111 @@ const TierManagement = () => {
   };
 
   const refreshTiers = async () => {
-    const [response, voucherResponse] = await Promise.all([
+    const [response, voucherResponse, menuResponse] = await Promise.all([
       loadAdminLoyaltyOverview(100),
-      loadAdminVouchers()
+      loadAdminVouchers(),
+      loadAdminMenu()
     ]);
     setOverview(response ?? null);
     setTiers(Array.isArray(response?.tiers) ? response.tiers : []);
     setVoucherOptions(Array.isArray(voucherResponse?.vouchers) ? voucherResponse.vouchers : []);
+    setTierRewardMenuItems(deriveTierRewardMenuItems(menuResponse));
     setCurrentPage(1);
+  };
+
+  const openTierRewardModal = (tierId = '') => {
+    setTierRewardForm({
+      ...emptyTierRewardForm(sortedTiers),
+      ...(tierId ? { tierId: String(tierId) } : {})
+    });
+    setTierRewardModalOpen(true);
+  };
+
+  const updateTierRewardForm = (patch) => {
+    setTierRewardForm((current) => ({ ...current, ...patch }));
+  };
+
+  const handleCreateTierReward = async (event) => {
+    event.preventDefault();
+    const tier = sortedTiers.find((entry) => Number(entry.id) === Number(tierRewardForm.tierId));
+    if (!tier || !tier.isActive) {
+      alert('Choose an active tier for this reward.');
+      return;
+    }
+    if (tierRewardForm.productKinds.length === 0) {
+      alert('Choose at least one eligible menu item type.');
+      return;
+    }
+
+    setTierRewardSaving(true);
+    let createdVoucher = null;
+    try {
+      createdVoucher = await adminRequest('/v1/admin/vouchers', {
+        method: 'POST',
+        body: JSON.stringify({
+          code: `TIER_${slugify(tierRewardForm.name) || 'REWARD'}`,
+          name: String(tierRewardForm.name || '').trim(),
+          type: 'Tier Reward',
+          benefitType: tierRewardForm.benefitType,
+          promotionKind: 'standard',
+          status: 'Active',
+          tier: 'All Tiers',
+          discountValue: Number(tierRewardForm.discountValue) || 0,
+          productKinds: tierRewardForm.productKinds,
+          subcategoryCodes: tierRewardForm.subcategoryCodes,
+          eligibleItems: tierRewardForm.eligibleItems.length > 0 ? tierRewardForm.eligibleItems : ['All Items'],
+          rewardProductKinds: tierRewardForm.productKinds,
+          rewardSubcategoryCodes: tierRewardForm.subcategoryCodes,
+          rewardItems: tierRewardForm.eligibleItems,
+          qualifyingQuantity: 1,
+          rewardQuantity: Number(tierRewardForm.rewardQuantity) || 1,
+          expiry: null,
+          totalQty: null,
+          limitPerUser: Number(tierRewardForm.limitPerUser) || 1,
+          description: tierRewardForm.description || `Tier reward: ${tierRewardForm.name}`,
+          imageUrl: null,
+          audience: 'all_customers',
+          availabilityMode: 'always',
+          activeDays: [],
+          startTime: null,
+          endTime: null,
+          annualDate: null,
+          monthlyDay: null,
+        })
+      });
+
+      await updateAdminTier(tier.id, {
+        rewardConfig: {
+          voucherTemplateIds: [...tierRewardIds(tier), Number(createdVoucher.db_id)]
+        }
+      });
+      await refreshTiers();
+      setTierRewardModalOpen(false);
+      setTierRewardForm(emptyTierRewardForm(sortedTiers));
+    } catch (error) {
+      // Do not leave an unlinked template behind if the tier link could not be saved.
+      if (createdVoucher?.id) {
+        await adminRequest(`/v1/admin/vouchers/${encodeURIComponent(createdVoucher.id)}`, { method: 'DELETE' }).catch(() => undefined);
+      }
+      alert(`Unable to create tier reward: ${error.message}`);
+    } finally {
+      setTierRewardSaving(false);
+    }
+  };
+
+  const handleUnlinkTierReward = async (tier, voucherTemplateId) => {
+    const voucher = voucherOptions.find((entry) => Number(entry.db_id) === Number(voucherTemplateId));
+    if (!window.confirm(`Remove ${voucher?.name || 'this reward'} from ${tier.name}? The voucher itself remains available in Vouchers.`)) return;
+
+    try {
+      const remainingIds = tierRewardIds(tier).filter((id) => id !== Number(voucherTemplateId));
+      await updateAdminTier(tier.id, {
+        rewardConfig: remainingIds.length > 0 ? { voucherTemplateIds: remainingIds } : null
+      });
+      await refreshTiers();
+    } catch (error) {
+      alert(`Unable to remove tier reward: ${error.message}`);
+    }
   };
 
   const handleSaveTier = async (event) => {
@@ -451,13 +692,9 @@ const TierManagement = () => {
       code: slugify(form.code || form.name),
       name: String(form.name || '').trim(),
       minCups: Number(form.minCups || 0),
-      badgeColor: String(form.badgeColor || '').trim() || null,
       imageUrl: form.imageUrl || null,
       sortOrder: Number(form.sortOrder || form.minCups || 0),
-      isActive: Boolean(form.isActive),
-      rewardConfig: form.rewardVoucherId
-        ? { voucherTemplateId: Number(form.rewardVoucherId) }
-        : null
+      isActive: Boolean(form.isActive)
     };
 
     try {
@@ -495,6 +732,11 @@ const TierManagement = () => {
 
   const totalPages = Math.max(1, Math.ceil(sortedTiers.length / itemsPerPage));
   const paginatedTiers = sortedTiers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const tierRewardRows = sortedTiers.flatMap((tier) => tierRewardIds(tier).map((voucherTemplateId) => ({
+    tier,
+    voucherTemplateId,
+    voucher: voucherOptions.find((voucher) => Number(voucher.db_id) === voucherTemplateId) || null
+  })));
 
   return (
     <div className="px-8 pb-8 pt-2 h-full flex flex-col space-y-6 overflow-y-auto bg-gray-50/30">
@@ -602,7 +844,6 @@ const TierManagement = () => {
                 <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Tier Name</th>
                 <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Code</th>
                 <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Cups Needed</th>
-                <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Tier Vouchers</th>
                 <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100 text-center">Status</th>
                 <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100 text-center">Actions</th>
               </tr>
@@ -610,13 +851,13 @@ const TierManagement = () => {
             <tbody className="divide-y divide-gray-50">
               {isLoading && paginatedTiers.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500 text-sm">
+                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500 text-sm">
                     Loading tiers...
                   </td>
                 </tr>
               ) : paginatedTiers.length > 0 ? (
                 paginatedTiers.map((tier, index) => {
-                  const badgeStyle = getTierBadgeStyle(tier.badgeColor || DEFAULT_COLORS[index % DEFAULT_COLORS.length]);
+                  const badgeStyle = getTierBadgeStyle(DEFAULT_COLORS[index % DEFAULT_COLORS.length]);
 
                   return (
                     <tr key={tier.id} className="hover:bg-gray-50/50 transition-colors">
@@ -635,7 +876,6 @@ const TierManagement = () => {
                       </td>
                       <td className="px-6 py-4 text-gray-600 font-medium">{tier.code}</td>
                       <td className="px-6 py-4 text-gray-600 font-medium">{formatCupsLabel(tier.minCups)}</td>
-                      <td className="px-6 py-4 text-gray-600 font-medium whitespace-normal min-w-52">{formatTierRewards(tier, voucherOptions)}</td>
                       <td className="px-6 py-4 text-center">
                         <span className={`inline-flex items-center px-2.5 py-1 rounded-md font-bold text-xs ${getStatusClass(Boolean(tier.isActive))}`}>
                           {formatTierStatus(Boolean(tier.isActive))}
@@ -683,7 +923,7 @@ const TierManagement = () => {
                 })
               ) : (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500 text-sm">
+                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500 text-sm">
                     No tiers found.
                   </td>
                 </tr>
@@ -704,11 +944,43 @@ const TierManagement = () => {
         </div>
       </div>
 
+      <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+        <div className="flex flex-col gap-3 border-b border-gray-100 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">Tier Rewards</h2>
+            <p className="mt-0.5 text-xs text-gray-500">Create and manage rewards independently from tier settings. Sipper rewards issue after the first completed drink.</p>
+          </div>
+          <button onClick={() => openTierRewardModal()} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-[#1F3A34] px-4 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#2E5E58]">
+            <Plus size={16} /> New Tier Reward
+          </button>
+        </div>
+        {tierRewardRows.length > 0 ? (
+          <div className="divide-y divide-gray-100">
+            {tierRewardRows.map(({ tier, voucherTemplateId, voucher }) => (
+              <div key={`${tier.id}-${voucherTemplateId}`} className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full bg-[#EAF4F1] px-2.5 py-1 text-xs font-bold text-[#1F3A34]">{tier.name}</span>
+                    <span className="text-sm font-bold text-gray-900">{voucher?.name || `Voucher #${voucherTemplateId}`}</span>
+                    {voucher?.status && <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${voucher.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{voucher.status}</span>}
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500">{Number(tier.minCups) === 0 ? 'Issued after the first completed drink.' : `Issued once when a member reaches ${formatCupsLabel(tier.minCups)}.`}{voucher?.benefitType ? ` ${voucher.benefitType}.` : ''}</p>
+                </div>
+                <button type="button" onClick={() => handleUnlinkTierReward(tier, voucherTemplateId)} className="inline-flex shrink-0 items-center justify-center gap-1 rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-600 hover:bg-red-50">
+                  <X size={14} /> Unlink
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="px-6 py-10 text-center text-sm text-gray-500">No tier rewards yet. Create one for a tier, including Sipper after a customer completes their first drink.</div>
+        )}
+      </section>
+
       <TierModal
         open={modalOpen}
         title={form.id ? 'Edit Tier' : 'New Tier'}
         form={form}
-        voucherOptions={voucherOptions}
         onChange={updateForm}
         onClose={() => {
           setModalOpen(false);
@@ -716,6 +988,19 @@ const TierManagement = () => {
         }}
         onSave={handleSaveTier}
         saving={saving}
+      />
+      <TierRewardModal
+        open={tierRewardModalOpen}
+        form={tierRewardForm}
+        tiers={sortedTiers}
+        menuItems={tierRewardMenuItems}
+        onChange={updateTierRewardForm}
+        onClose={() => {
+          setTierRewardModalOpen(false);
+          setTierRewardForm(emptyTierRewardForm(sortedTiers));
+        }}
+        onSave={handleCreateTierReward}
+        saving={tierRewardSaving}
       />
     </div>
   );

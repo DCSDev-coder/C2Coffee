@@ -9,6 +9,7 @@ const PAGE_ROLES = {
   'Options & Nutrition': ['super_admin', 'marketing_admin', 'operations_admin'],
   Marketing: ['super_admin', 'marketing_admin'],
   Voucher: ['super_admin', 'marketing_admin'],
+  'Referral Program': ['super_admin', 'marketing_admin'],
   'Token Ledger': ['super_admin'],
   'Tier Management': ['super_admin'],
   Finance: ['super_admin'],
@@ -27,7 +28,7 @@ const PAGE_ROLES = {
 export const ADMIN_ROLE_SECTIONS = {
   super_admin: 'All Admin Web sections',
   operations_admin: 'Orders, refunds, menu setup, barista operations, and staff guides',
-  marketing_admin: 'Menu, campaigns, vouchers, tiers, and product reports',
+  marketing_admin: 'Menu, campaigns, vouchers, referrals, and product reports',
   support_admin: 'Customer lookup and refund requests',
   barista: 'Barista Console and workspace only'
 };

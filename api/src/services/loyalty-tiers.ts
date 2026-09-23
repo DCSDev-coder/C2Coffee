@@ -6,7 +6,6 @@ export type LoyaltyTierConfig = {
   code: string;
   name: string;
   minCups: number;
-  badgeColor: string | null;
   primaryColor: string | null;
   secondaryColor: string | null;
   textColor: string | null;
@@ -19,7 +18,7 @@ export type LoyaltyTierConfig = {
 };
 
 export type LoyaltyTierRewardConfig = {
-  voucherTemplateId: number;
+  voucherTemplateIds: number[];
 };
 
 type LoyaltyTierRow = RowDataPacket & {
@@ -27,7 +26,6 @@ type LoyaltyTierRow = RowDataPacket & {
   code: string;
   name: string;
   min_cups: number | string;
-  badge_color: string | null;
   primary_color: string | null;
   secondary_color: string | null;
   text_color: string | null;
@@ -52,10 +50,17 @@ function parseRewardConfig(value: unknown): LoyaltyTierRewardConfig | null {
   }
 
   if (!parsed || typeof parsed !== 'object') return null;
-  const voucherTemplateId = Number((parsed as { voucherTemplateId?: unknown }).voucherTemplateId);
-  return Number.isInteger(voucherTemplateId) && voucherTemplateId > 0
-    ? { voucherTemplateId }
-    : null;
+
+  // Keep tiers saved before reward bundles backwards-compatible.
+  const rawConfig = parsed as { voucherTemplateIds?: unknown; voucherTemplateId?: unknown };
+  const rawIds = Array.isArray(rawConfig.voucherTemplateIds)
+    ? rawConfig.voucherTemplateIds
+    : [rawConfig.voucherTemplateId];
+  const voucherTemplateIds = [...new Set(rawIds
+    .map((value) => Number(value))
+    .filter((value) => Number.isInteger(value) && value > 0))];
+
+  return voucherTemplateIds.length > 0 ? { voucherTemplateIds } : null;
 }
 
 export type TierProgress = {
@@ -80,7 +85,6 @@ export async function loadLoyaltyTiers(
         code,
         name,
         min_cups,
-        badge_color,
         primary_color,
         secondary_color,
         text_color,
@@ -100,7 +104,6 @@ export async function loadLoyaltyTiers(
     code: String(row.code ?? '').trim().toLowerCase(),
     name: String(row.name ?? '').trim(),
     minCups: Number(row.min_cups ?? 0),
-    badgeColor: row.badge_color ? String(row.badge_color) : null,
     primaryColor: row.primary_color ? String(row.primary_color) : null,
     secondaryColor: row.secondary_color ? String(row.secondary_color) : null,
     textColor: row.text_color ? String(row.text_color) : null,

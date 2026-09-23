@@ -110,6 +110,17 @@ function formatCoverageTime(value) {
   return String(value || '').slice(0, 5) || '--:--';
 }
 
+function dateKey(value) {
+  const match = String(value || '').match(/^\d{4}-\d{2}-\d{2}/);
+  return match ? match[0] : '';
+}
+
+function formatCoverageShift(startsAt, endsAt) {
+  const start = formatCoverageTime(startsAt);
+  const end = formatCoverageTime(endsAt);
+  return `${start} - ${end}${end < start ? ' (next day)' : ''}`;
+}
+
 function formatAttendanceTime(value) {
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime())
@@ -124,7 +135,9 @@ function malaysiaDate(value = new Date()) {
 }
 
 function formatScheduleDate(value) {
-  return new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 'short', day: 'numeric' }).format(new Date(`${value}T12:00:00+08:00`));
+  const date = dateKey(value);
+  if (!date) return 'Date unavailable';
+  return new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 'short', day: 'numeric' }).format(new Date(`${date}T12:00:00+08:00`));
 }
 
 function normalizeGuideName(value) {
@@ -460,7 +473,9 @@ export default function BaristaConsole({ currentUser, view = 'orders' }) {
 
     if (attendanceResult.status === 'fulfilled') setAttendance(attendanceResult.value || null);
     if (scheduleResult.status === 'fulfilled') {
-      const datedShifts = Array.isArray(scheduleResult.value?.scheduled_shifts) ? scheduleResult.value.scheduled_shifts : [];
+      const datedShifts = Array.isArray(scheduleResult.value?.scheduled_shifts)
+        ? scheduleResult.value.scheduled_shifts.map((shift) => ({ ...shift, shift_date: dateKey(shift.shift_date) }))
+        : [];
       setWeeklySchedule(datedShifts.length > 0 ? datedShifts : (Array.isArray(scheduleResult.value?.weekly_schedule) ? scheduleResult.value.weekly_schedule : []));
     }
     if (guidesResult.status === 'fulfilled') setGuides(Array.isArray(guidesResult.value?.guides) ? guidesResult.value.guides : []);
@@ -756,8 +771,8 @@ export default function BaristaConsole({ currentUser, view = 'orders' }) {
                   if (!groups[date]) groups[date] = [];
                   groups[date].push(shift);
                   return groups;
-                }, {})).map(([date, shifts]) => <div key={date} className="rounded-xl bg-slate-50 p-4"><h3 className="text-sm font-extrabold text-slate-800">{formatScheduleDate(date)}</h3><div className="mt-3 space-y-2">{shifts.map((shift, index) => <p key={`${shift.barista_id}-${shift.starts_at}-${index}`} className="rounded-lg bg-white px-3 py-2 text-sm text-slate-700"><span className="font-bold">{shift.barista_name}</span><br /><span className="text-xs text-slate-500">{formatCoverageTime(shift.starts_at)} - {formatCoverageTime(shift.ends_at)}</span></p>)}</div></div>)}
-              </div> : <div className="mt-4 space-y-3"><p className="rounded-xl bg-slate-50 px-3 py-5 text-center text-sm text-slate-500">No dated timetable has been published yet.</p>{todayCoverage.length > 0 && <div className="rounded-xl border border-dashed border-slate-200 p-3 text-sm text-slate-600"><span className="font-bold text-slate-800">Today's legacy coverage:</span> {todayCoverage.map((shift) => `${shift.barista_name} ${formatCoverageTime(shift.starts_at)}-${formatCoverageTime(shift.ends_at)}`).join(', ')}</div>}</div>}
+                }, {})).map(([date, shifts]) => <div key={date} className="rounded-xl bg-slate-50 p-4"><h3 className="text-sm font-extrabold text-slate-800">{formatScheduleDate(date)}</h3><div className="mt-3 space-y-2">{shifts.map((shift, index) => <p key={`${shift.barista_id}-${shift.starts_at}-${index}`} className="rounded-lg bg-white px-3 py-2 text-sm text-slate-700"><span className="font-bold">{shift.barista_name}</span><br /><span className="text-xs text-slate-500">{formatCoverageShift(shift.starts_at, shift.ends_at)}</span></p>)}</div></div>)}
+              </div> : <div className="mt-4 space-y-3"><p className="rounded-xl bg-slate-50 px-3 py-5 text-center text-sm text-slate-500">No dated timetable has been published yet.</p>{todayCoverage.length > 0 && <div className="rounded-xl border border-dashed border-slate-200 p-3 text-sm text-slate-600"><span className="font-bold text-slate-800">Today's legacy coverage:</span> {todayCoverage.map((shift) => `${shift.barista_name} ${formatCoverageShift(shift.starts_at, shift.ends_at)}`).join(', ')}</div>}</div>}
             </article>
           </section>
         )}

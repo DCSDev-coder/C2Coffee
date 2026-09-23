@@ -8,6 +8,7 @@
     "build": "tsc -p tsconfig.json && node scripts/copy-sql.mjs",
     "start": "node dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test:referrals": "npm run build && node --test test/referrals.test.mjs",
     "migrate": "tsx src/db/migrate.ts",
     "migrate:prod": "node dist/db/migrate.js",
     "import:media": "tsx src/scripts/import-media-assets.ts",

@@ -85,7 +85,7 @@ CREATE TABLE IF NOT EXISTS barista_weekly_schedules (
   CONSTRAINT fk_barista_weekly_schedules_store FOREIGN KEY (store_id) REFERENCES stores(id) ON DELETE CASCADE,
   CONSTRAINT fk_barista_weekly_schedules_barista FOREIGN KEY (barista_id) REFERENCES baristas(id) ON DELETE CASCADE,
   CONSTRAINT chk_barista_weekly_schedule_weekday CHECK (weekday BETWEEN 1 AND 7),
-  CONSTRAINT chk_barista_weekly_schedule_time CHECK (ends_at > starts_at)
+  CONSTRAINT chk_barista_weekly_schedule_time CHECK (ends_at <> starts_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS workstation_sessions (

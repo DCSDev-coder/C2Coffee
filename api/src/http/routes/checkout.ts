@@ -352,6 +352,7 @@ function _parsePromotionRule(scope: Record<string, unknown>): VoucherPromotionRu
 
 function _scopeMatchesMenuItem(scope: VoucherScopeSelection, menuItem: MenuItemRow): boolean {
   const menuItemCode = _normalizeValue(menuItem.code);
+  const menuItemName = _normalizeValue(menuItem.name);
   const subcategoryCode = _normalizeValue(menuItem.subcategory_code ?? '');
   const categoryCode = _normalizeValue(menuItem.category_code);
   const productKindCode = _resolveProductKindForCategory(
@@ -374,12 +375,22 @@ function _scopeMatchesMenuItem(scope: VoucherScopeSelection, menuItem: MenuItemR
     return true;
   }
 
-  return (
-    itemCodes.has(menuItemCode) ||
-    subcategoryCodes.has(subcategoryCode) ||
-    categoryCodes.has(categoryCode) ||
-    productKindCodes.has(productKindCode)
-  );
+  // The admin UI progressively narrows a scope from menu kind to type to
+  // individual item. Honour the narrowest configured filter. Item names are
+  // accepted for existing admin-created vouchers; codes remain supported.
+  if (itemCodes.size > 0) {
+    return itemCodes.has(menuItemCode) || itemCodes.has(menuItemName);
+  }
+
+  if (subcategoryCodes.size > 0) {
+    return subcategoryCodes.has(subcategoryCode);
+  }
+
+  if (categoryCodes.size > 0) {
+    return categoryCodes.has(categoryCode);
+  }
+
+  return productKindCodes.has(productKindCode);
 }
 
 function _collectMatchedUnits(

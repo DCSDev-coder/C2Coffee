@@ -120,7 +120,7 @@ async function claimImportedMembership(
 
 type BootstrapTierConfig = Pick<
   LoyaltyTierConfig,
-  'code' | 'name' | 'minCups' | 'badgeColor' | 'imageUrl' | 'sortOrder' | 'isActive'
+  'code' | 'name' | 'minCups' | 'imageUrl' | 'sortOrder' | 'isActive'
 > & {
   hasTierUnlockVoucher: boolean;
   tierRewards: Array<{
@@ -1054,11 +1054,6 @@ export async function getBootstrapForUser(
   const allTiers = await loadLoyaltyTiers(connection);
   const rewardByTemplateId = new Map<number, BootstrapTierConfig['tierReward']>();
 
-  const tierRewardsByCode = new Map<
-    string,
-    Array<NonNullable<BootstrapTierConfig['tierReward']> & { id: number }>
-  >();
-
   if (allTiers.length > 0) {
     const [rewardRows] = await connection.query<
       Array<RowDataPacket & { id: number; name: string; eligible_scope_json: unknown }>
@@ -1089,40 +1084,30 @@ export async function getBootstrapForUser(
       };
       const templateId = Number(row.id);
       rewardByTemplateId.set(templateId, reward);
-
-      const tierCode = String(scope.tier ?? '').trim().toLowerCase();
-      if (tierCode && tierCode !== 'all tiers' && allTiers.some((tier) => tier.code === tierCode)) {
-        const tierRewards = tierRewardsByCode.get(tierCode) ?? [];
-        tierRewards.push({ id: templateId, ...reward });
-        tierRewardsByCode.set(tierCode, tierRewards);
-      }
     }
   }
 
-  const tiers = allTiers.map<BootstrapTierConfig>((tier) => ({
-    code: tier.code,
-    name: tier.name,
-    minCups: tier.minCups,
-    badgeColor: tier.badgeColor,
-    imageUrl: tier.imageUrl,
-    sortOrder: tier.sortOrder,
-    isActive: tier.isActive,
-    hasTierUnlockVoucher: Boolean(tier.rewardConfig?.voucherTemplateId),
-    tierRewards: (() => {
-      const targetedRewards = [...(tierRewardsByCode.get(tier.code) ?? [])];
-      const configuredTemplateId = tier.rewardConfig?.voucherTemplateId;
-      if (configuredTemplateId && !targetedRewards.some((reward) => reward.id === configuredTemplateId)) {
-        const configuredReward = rewardByTemplateId.get(configuredTemplateId);
-        if (configuredReward) {
-          targetedRewards.unshift({ id: configuredTemplateId, ...configuredReward });
-        }
-      }
-      return targetedRewards;
-    })(),
-    tierReward: tier.rewardConfig?.voucherTemplateId
-      ? rewardByTemplateId.get(tier.rewardConfig.voucherTemplateId) ?? null
-      : null
-  }));
+  const tiers = allTiers.map<BootstrapTierConfig>((tier) => {
+    const tierRewards = (tier.rewardConfig?.voucherTemplateIds ?? [])
+      .map((voucherTemplateId) => {
+        const reward = rewardByTemplateId.get(voucherTemplateId);
+        return reward ? { id: voucherTemplateId, ...reward } : null;
+      })
+      .filter((reward): reward is NonNullable<typeof reward> => reward !== null);
+
+    return {
+      code: tier.code,
+      name: tier.name,
+      minCups: tier.minCups,
+      imageUrl: tier.imageUrl,
+      sortOrder: tier.sortOrder,
+      isActive: tier.isActive,
+      hasTierUnlockVoucher: tierRewards.length > 0,
+      tierRewards,
+      // Retained for app versions that have not yet adopted tierRewards.
+      tierReward: tierRewards[0] ?? null
+    };
+  });
 
   return {
     token_balance: tokenRows[0]?.balance_available ?? 0,

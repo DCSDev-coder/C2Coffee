@@ -150,6 +150,8 @@ function formatAdminErrorMessage(body, response) {
       return "Too many sign-in attempts. Please wait a few minutes before trying again.";
     case "forbidden":
       return "Your account does not have permission for this action.";
+    case "referral_program_busy":
+      return "Referral Program data is temporarily locked. Please try again shortly.";
     case "printer_not_ready":
       return "The receipt printer is not ready. Please check its connector.";
     case "validation_error":

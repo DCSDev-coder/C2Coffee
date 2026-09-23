@@ -131,8 +131,9 @@ class _ReferralPageState extends State<ReferralPage> {
   }
 
   Future<void> _shareCode(String code) async {
+    final reward = _snapshot?.referrerRewardLabel ?? 'a referral reward';
     await Share.share(
-      'Join C2 Coffee and enter my referral code $code before your first order. Once you collect your first order, I receive a reward.',
+      'Join C2 Coffee and enter my referral code $code before your first order. Once you collect your first order, I receive $reward.',
       subject: 'Join me at C2 Coffee',
     );
   }
@@ -230,7 +231,7 @@ class _ReferralPageState extends State<ReferralPage> {
                                           children: [
                                             const TextSpan(text: 'When your friend collects their first order, you receive '),
                                             TextSpan(
-                                              text: '1 Free Drink Voucher 🔥',
+                                              text: _snapshot?.referrerRewardLabel ?? 'a referral reward',
                                               style: TextStyle(
                                                 color: AppColors.gold,
                                                 fontWeight: FontWeight.bold,
@@ -599,8 +600,10 @@ class _ReferralPageState extends State<ReferralPage> {
             ),
           ),
           const SizedBox(height: 6),
-          const Text(
-            'Enter your friend\'s referral code to link accounts.',
+          Text(
+            _snapshot?.qualificationDays != null
+                ? 'Enter a friend\'s code, then collect your first order within ${_snapshot!.qualificationDays} days to unlock the reward.'
+                : 'Enter your friend\'s referral code to link accounts.',
             style: TextStyle(
               fontFamily: 'Afacad',
               fontSize: 13,
@@ -704,7 +707,9 @@ class _ReferralPageState extends State<ReferralPage> {
         ),
         const SizedBox(height: 16),
         Text(
-          'Your referral reward is set by C2 Coffee.',
+          _snapshot?.activeProgramName != null
+              ? '${_snapshot!.activeProgramName}: collect your first order to unlock the referral reward.'
+              : 'Referral rewards are set by C2 Coffee.',
           style: TextStyle(
             fontFamily: 'Afacad',
             fontSize: 13,

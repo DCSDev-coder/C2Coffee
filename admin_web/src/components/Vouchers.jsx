@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { adminRequest, getAdminApiBaseUrl, loadAdminTierConfigs, uploadAdminVoucherImage } from '../lib/adminApi';
+import { adminRequest, getAdminApiBaseUrl, uploadAdminVoucherImage } from '../lib/adminApi';
 import {
   Search, ChevronDown, Download, Plus,
   Edit3, MoreVertical, X, Copy,
@@ -111,7 +111,6 @@ const createEmptyVoucherForm = () => ({
   endTime: "",
   annualDate: "",
   monthlyDay: ""
-  ,isReferralReward: false
 });
 
 const normalizeVoucherForm = (voucher) => ({
@@ -147,7 +146,6 @@ const normalizeVoucherForm = (voucher) => ({
   monthlyDay: voucher?.monthlyDay || "",
   audience: voucher?.audience || "all_customers",
   availabilityMode: voucher?.availabilityMode || "always"
-  ,isReferralReward: Boolean(voucher?.isReferralReward)
 });
 
 const audienceLabel = (value) =>
@@ -662,7 +660,6 @@ const ScopeSelectionSection = ({
 
 const Vouchers = () => {
   const [vouchers, setVouchers] = useState([]);
-  const [tiers, setTiers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [voucherIssuances, setVoucherIssuances] = useState([]);
@@ -709,17 +706,6 @@ const Vouchers = () => {
     setMenuTaxonomy(deriveMenuTaxonomy(response));
   };
 
-  const refreshTiers = async () => {
-    try {
-      const res = await loadAdminTierConfigs();
-      if (Array.isArray(res?.tiers)) {
-        setTiers(res.tiers);
-      }
-    } catch (err) {
-      console.error('Failed to load tier configs', err);
-    }
-  };
-
   const refreshVouchers = async ({
     selectedVoucherId = selectedVoucher?.id,
     keepSelection = true,
@@ -763,8 +749,7 @@ const Vouchers = () => {
       try {
         await Promise.all([
           refreshVouchers({ keepSelection: false, silent: false }),
-          refreshMenuTaxonomy(),
-          refreshTiers()
+          refreshMenuTaxonomy()
         ]);
       } catch (err) {
         console.error('Failed to fetch vouchers', err);
@@ -779,8 +764,7 @@ const Vouchers = () => {
     const refreshData = () => {
       void Promise.all([
         refreshVouchers({ keepSelection: true, silent: true }),
-        refreshMenuTaxonomy(),
-        refreshTiers()
+        refreshMenuTaxonomy()
       ]).catch((err) => {
         console.error('Failed to refresh vouchers', err);
       });
@@ -887,7 +871,7 @@ const Vouchers = () => {
       benefitType: newVoucher.benefitType,
       promotionKind: newVoucher.promotionKind,
       status: newVoucher.status,
-      tier: newVoucher.tier,
+      tier: 'All Tiers',
       discountValue: Number(newVoucher.discountValue) || 0,
       productKinds: newVoucher.productKinds,
       subcategoryCodes: newVoucher.subcategoryCodes,
@@ -909,7 +893,6 @@ const Vouchers = () => {
       endTime: newVoucher.endTime || null,
       annualDate: newVoucher.annualDate || null,
       monthlyDay: newVoucher.monthlyDay === "" ? null : Number(newVoucher.monthlyDay)
-      ,isReferralReward: Boolean(newVoucher.isReferralReward)
     };
 
     try {
@@ -936,7 +919,7 @@ const Vouchers = () => {
         benefitType: editingVoucher.benefitType,
         promotionKind: editingVoucher.promotionKind,
         status: editingVoucher.status,
-        tier: editingVoucher.tier,
+        tier: 'All Tiers',
         discountValue: Number(editingVoucher.discountValue) || 0,
         productKinds: editingVoucher.productKinds || [],
         subcategoryCodes: editingVoucher.subcategoryCodes || [],
@@ -958,7 +941,6 @@ const Vouchers = () => {
         endTime: editingVoucher.endTime || null,
         annualDate: editingVoucher.annualDate || null,
         monthlyDay: editingVoucher.monthlyDay === "" ? null : Number(editingVoucher.monthlyDay)
-        ,isReferralReward: Boolean(editingVoucher.isReferralReward)
       };
 
       const updatedVoucher = await adminRequest(`/v1/admin/vouchers/${editingVoucher.id}`, {
@@ -1265,7 +1247,6 @@ const Vouchers = () => {
 
                         <td className="px-6 py-3.5 text-gray-700">
                           <p className="font-medium">{audienceLabel(v.audience)}</p>
-                          <p className="mt-0.5 text-[10px] text-gray-500">{v.tier}</p>
                         </td>
 
                         {/* Availability */}
@@ -1495,10 +1476,6 @@ const Vouchers = () => {
                   <span className="font-bold text-gray-900">{audienceLabel(selectedVoucher.audience)}</span>
                 </div>
 
-                <div className="flex justify-between items-center py-1">
-                  <span className="text-gray-500">Tier</span>
-                  <span className="font-bold text-gray-900">{selectedVoucher.tier}</span>
-                </div>
 
                 <div className="flex justify-between items-center py-1">
                   <span className="text-gray-500">Items</span>
@@ -1864,12 +1841,8 @@ const Vouchers = () => {
                   <VoucherFormSection
                     number="2"
                     title="Who can receive it"
-                    description="Choose the customer group and member tier. Referral rewards are only for a referrer after a successful first order."
+                    description="Choose the customer group. Tier unlock rewards are linked from Tier Management. Referral campaigns are managed in Referral Program."
                   />
-                  <label className="flex gap-2 rounded-lg border border-[#D7E4E0] bg-[#F4F8F7] px-3 py-2 text-xs text-gray-700 cursor-pointer">
-                    <input type="checkbox" checked={newVoucher.isReferralReward} onChange={(e) => setNewVoucher({ ...newVoucher, isReferralReward: e.target.checked })} />
-                    <span><strong>Referral reward</strong><br />Issue this voucher to the referrer after their friend collects a first order. Selecting this replaces the current referral reward.</span>
-                  </label>
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
@@ -1961,33 +1934,6 @@ const Vouchers = () => {
                     )}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block font-bold text-gray-900 mb-1">Member tier</label>
-                      <select
-                        value={newVoucher.tier}
-                        onChange={(e) => setNewVoucher({ ...newVoucher, tier: e.target.value })}
-                        className="peer w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
-                      >
-                        <option value="All Tiers">All Tiers</option>
-                        {tiers.length > 0 ? (
-                          tiers.map((t) => (
-                            <option key={t.id || t.code} value={t.name}>
-                              {t.name}
-                            </option>
-                          ))
-                        ) : (
-                          <>
-                            <option value="Sipper">Sipper</option>
-                            <option value="Brewer">Brewer</option>
-                            <option value="Roaster">Roaster</option>
-                            <option value="Legendary">Legendary</option>
-                          </>
-                        )}
-                      </select>
-                      <p className="mt-1 text-[11px] text-gray-400">This limits who can receive the voucher. To set a tier reward, choose this voucher in Tier Management.</p>
-                    </div>
-                  </div>
 
                   {(newVoucher.benefitType !== "Free Drink" && newVoucher.benefitType !== "Free Food" && newVoucher.benefitType !== "Birthday Voucher") && (
                     <div className="w-1/2 pr-1.5">
@@ -2241,12 +2187,8 @@ const Vouchers = () => {
                   <VoucherFormSection
                     number="2"
                     title="Who can receive it"
-                    description="Choose the customer group and member tier. Referral rewards are only for a referrer after a successful first order."
+                    description="Choose the customer group. Tier unlock rewards are linked from Tier Management. Referral campaigns are managed in Referral Program."
                   />
-                  <label className="flex gap-2 rounded-lg border border-[#D7E4E0] bg-[#F4F8F7] px-3 py-2 text-xs text-gray-700 cursor-pointer">
-                    <input type="checkbox" checked={editingVoucher.isReferralReward} onChange={(e) => setEditingVoucher({ ...editingVoucher, isReferralReward: e.target.checked })} />
-                    <span><strong>Referral reward</strong><br />Issue this voucher to the referrer after their friend collects a first order. Selecting this replaces the current referral reward.</span>
-                  </label>
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
@@ -2363,33 +2305,6 @@ const Vouchers = () => {
                     )}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block font-bold text-gray-900 mb-1">Member tier</label>
-                      <select
-                        value={editingVoucher.tier}
-                        onChange={(e) => setEditingVoucher({ ...editingVoucher, tier: e.target.value })}
-                        className="peer w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
-                      >
-                        <option value="All Tiers">All Tiers</option>
-                        {tiers.length > 0 ? (
-                          tiers.map((t) => (
-                            <option key={t.id || t.code} value={t.name}>
-                              {t.name}
-                            </option>
-                          ))
-                        ) : (
-                          <>
-                            <option value="Sipper">Sipper</option>
-                            <option value="Brewer">Brewer</option>
-                            <option value="Roaster">Roaster</option>
-                            <option value="Legendary">Legendary</option>
-                          </>
-                        )}
-                      </select>
-                      <p className="mt-1 text-[11px] text-gray-400">This limits who can receive the voucher. To set a tier reward, choose this voucher in Tier Management.</p>
-                    </div>
-                  </div>
 
                   {(editingVoucher.benefitType !== "Free Drink" && editingVoucher.benefitType !== "Free Food" && editingVoucher.benefitType !== "Birthday Voucher") && (
                     <div className="w-1/2 pr-1.5">

@@ -1211,6 +1211,8 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
         return 'Promo Credit';
       case 'voucher_subsidy':
         return 'Voucher Subsidy';
+      case 'referral_reward':
+        return 'Referral Reward';
       default:
         return 'Wallet Transaction';
     }

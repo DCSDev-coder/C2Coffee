@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   LayoutDashboard, Users, ShoppingBag, Ticket, Coins, Crown, Package,
-  Coffee, Megaphone, LineChart, UserCog, ClipboardList, Settings, LogOut, UserCheck, Printer, SlidersHorizontal, BookOpen, RotateCcw, CalendarDays
+  Coffee, Megaphone, LineChart, UserCog, ClipboardList, Settings, LogOut, UserCheck, Printer, SlidersHorizontal, BookOpen, RotateCcw, CalendarDays, Share2
 } from 'lucide-react';
 
 import { canAccessAdminPage } from '../lib/adminPermissions';
@@ -20,6 +20,7 @@ const Sidebar = ({ currentPage, setCurrentPage, onLogout, currentTenant, current
     { name: 'Options & Nutrition', icon: SlidersHorizontal, section: 'Menu setup' },
     { name: 'Marketing', icon: Megaphone, section: 'Marketing & loyalty' },
     { name: 'Voucher', icon: Ticket, section: 'Marketing & loyalty' },
+    { name: 'Referral Program', icon: Share2, section: 'Marketing & loyalty' },
     { name: 'Token Ledger', icon: Coins, section: 'Marketing & loyalty' },
     { name: 'Tier Management', icon: Crown, section: 'Marketing & loyalty' },
     { name: 'Finance', icon: LineChart, section: 'Reports' },

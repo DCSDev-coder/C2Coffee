@@ -53,8 +53,8 @@ const weeklyScheduleSchema = z.object({
     weekday: z.coerce.number().int().min(1).max(7),
     starts_at: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Use HH:MM time.'),
     ends_at: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Use HH:MM time.')
-  }).refine((entry) => entry.ends_at > entry.starts_at, {
-    message: 'Shift end time must be after start time.',
+  }).refine((entry) => entry.ends_at !== entry.starts_at, {
+    message: 'Start and end time cannot be the same.',
     path: ['ends_at']
   })).max(200)
 });
@@ -64,10 +64,10 @@ const datedScheduleSchema = z.object({
     shift_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Choose a valid shift date.'),
     starts_at: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Use HH:MM time.'),
     ends_at: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Use HH:MM time.')
-  }).refine((entry) => entry.ends_at > entry.starts_at, {
-    message: 'Shift end time must be after start time.',
+  }).refine((entry) => entry.ends_at !== entry.starts_at, {
+    message: 'Start and end time cannot be the same.',
     path: ['ends_at']
-  })).max(400)
+  })).min(1, 'Add at least one shift before publishing.').max(400)
 });
 const attendanceQuerySchema = z.object({
   from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
@@ -96,6 +96,14 @@ function malaysiaTime(value: Date | string): string {
 function weekdayForDate(date: string): number {
   const day = new Date(`${date}T12:00:00+08:00`).getUTCDay();
   return day === 0 ? 7 : day;
+}
+
+function previousMalaysiaDate(date: string): string {
+  return malaysiaDate(new Date(new Date(`${date}T12:00:00+08:00`).getTime() - 86400000));
+}
+
+function isOvernightShift(startsAt: string, endsAt: string): boolean {
+  return endsAt.slice(0, 5) < startsAt.slice(0, 5);
 }
 
 function datesBetween(from: string, to: string): string[] {
@@ -197,9 +205,10 @@ export async function registerOperationalIntegrationRoutes(app: FastifyInstance)
         { tenantCode: request.adminAuth.tenantCode, baristaId: query.barista_id ?? null }
       ),
       mysqlPool.query<RowDataPacket[]>(
-        `SELECT s.barista_id, b.name AS barista_name, s.shift_date, s.starts_at, s.ends_at
+        `SELECT s.barista_id, b.name AS barista_name, DATE_FORMAT(s.shift_date, '%Y-%m-%d') AS shift_date, s.starts_at, s.ends_at
          FROM barista_dated_shifts s JOIN baristas b ON b.id = s.barista_id
-         WHERE s.tenant_code = :tenantCode AND s.shift_date BETWEEN :from AND :to
+         WHERE s.tenant_code = :tenantCode
+           AND s.shift_date BETWEEN DATE_SUB(:from, INTERVAL 1 DAY) AND :to
            AND (:baristaId IS NULL OR s.barista_id = :baristaId)`,
         { tenantCode: request.adminAuth.tenantCode, from, to, baristaId: query.barista_id ?? null }
       )
@@ -209,27 +218,49 @@ export async function registerOperationalIntegrationRoutes(app: FastifyInstance)
     const useDatedSchedules = datedSchedules.length > 0;
     const actualByKey = new Set<string>();
     const records: Array<Record<string, unknown>> = attendanceResult[0].map((row) => {
-      const date = malaysiaDate(new Date(row.clocked_in_at));
-      actualByKey.add(`${row.barista_id}:${date}`);
+      const clockInDate = malaysiaDate(new Date(row.clocked_in_at));
       const time = malaysiaTime(row.clocked_in_at);
+      const previousDate = previousMalaysiaDate(clockInDate);
       const candidates = useDatedSchedules
-        ? datedSchedules.filter((schedule) => Number(schedule.barista_id) === Number(row.barista_id) && schedule.shift_date === date)
-        : schedules.filter((schedule) =>
-          Number(schedule.barista_id) === Number(row.barista_id)
-          && Number(schedule.weekday) === weekdayForDate(date)
-          && malaysiaDate(new Date(schedule.created_at)) <= date
-        );
-      const planned = candidates.sort((left, right) => Math.abs(time.localeCompare(left.starts_at.slice(0, 5))) - Math.abs(time.localeCompare(right.starts_at.slice(0, 5))))[0];
-      const lateMinutes = planned && time > planned.starts_at.slice(0, 5)
-        ? Math.round((new Date(`${date}T${time}:00+08:00`).getTime() - new Date(`${date}T${planned.starts_at.slice(0, 5)}:00+08:00`).getTime()) / 60000)
+        ? datedSchedules
+          .filter((schedule) => Number(schedule.barista_id) === Number(row.barista_id))
+          .map((schedule) => ({ schedule, shiftDate: String(schedule.shift_date) }))
+          .filter(({ schedule, shiftDate }) => shiftDate === clockInDate || (
+            shiftDate === previousDate
+            && isOvernightShift(String(schedule.starts_at), String(schedule.ends_at))
+            && time <= String(schedule.ends_at).slice(0, 5)
+          ))
+        : schedules
+          .filter((schedule) => Number(schedule.barista_id) === Number(row.barista_id))
+          .map((schedule) => ({
+            schedule,
+            shiftDate: Number(schedule.weekday) === weekdayForDate(clockInDate)
+              ? clockInDate
+              : previousDate
+          }))
+          .filter(({ schedule, shiftDate }) => malaysiaDate(new Date(schedule.created_at)) <= shiftDate && (
+            shiftDate === clockInDate || (
+              Number(schedule.weekday) === weekdayForDate(previousDate)
+              && isOvernightShift(String(schedule.starts_at), String(schedule.ends_at))
+              && time <= String(schedule.ends_at).slice(0, 5)
+            )
+          ));
+      const planned = candidates.sort((left, right) => Math.abs(time.localeCompare(String(left.schedule.starts_at).slice(0, 5))) - Math.abs(time.localeCompare(String(right.schedule.starts_at).slice(0, 5))))[0];
+      const plannedStart = planned?.schedule.starts_at?.slice(0, 5);
+      const plannedEnd = planned?.schedule.ends_at?.slice(0, 5);
+      const lateMinutes = planned
+        ? Math.max(0, Math.round((new Date(`${clockInDate}T${time}:00+08:00`).getTime() - new Date(`${planned.shiftDate}T${plannedStart}:00+08:00`).getTime()) / 60000))
         : 0;
       const durationMinutes = row.clocked_out_at ? Math.round((new Date(row.clocked_out_at).getTime() - new Date(row.clocked_in_at).getTime()) / 60000) : null;
+      const shiftDate = planned?.shiftDate ?? clockInDate;
+      actualByKey.add(`${row.barista_id}:${shiftDate}`);
       return {
-        id: Number(row.id), barista_id: Number(row.barista_id), barista_name: row.barista_name, date,
-        planned_start: planned?.starts_at?.slice(0, 5) ?? null, planned_end: planned?.ends_at?.slice(0, 5) ?? null,
+        id: Number(row.id), barista_id: Number(row.barista_id), barista_name: row.barista_name, date: shiftDate,
+        planned_start: plannedStart ?? null, planned_end: plannedEnd ?? null,
+        planned_ends_next_day: planned ? isOvernightShift(String(planned.schedule.starts_at), String(planned.schedule.ends_at)) : false,
         clocked_in_at: row.clocked_in_at, clocked_out_at: row.clocked_out_at, late_minutes: lateMinutes, duration_minutes: durationMinutes,
         status: !row.clocked_out_at
-          ? date < today
+          ? clockInDate < today
             ? 'missing_clock_out'
             : lateMinutes > 0
               ? 'clocked_in_late'
@@ -252,7 +283,8 @@ export async function registerOperationalIntegrationRoutes(app: FastifyInstance)
       for (const shift of plannedShifts) {
         if (!actualByKey.has(`${shift.barista_id}:${date}`)) records.push({
           id: `missing-${shift.barista_id}-${date}`, barista_id: Number(shift.barista_id), barista_name: shift.barista_name, date,
-          planned_start: shift.starts_at.slice(0, 5), planned_end: shift.ends_at.slice(0, 5), clocked_in_at: null, clocked_out_at: null,
+          planned_start: shift.starts_at.slice(0, 5), planned_end: shift.ends_at.slice(0, 5),
+          planned_ends_next_day: isOvernightShift(String(shift.starts_at), String(shift.ends_at)), clocked_in_at: null, clocked_out_at: null,
           late_minutes: 0, duration_minutes: null, status: 'missed_clock_in'
         });
       }
@@ -295,7 +327,7 @@ export async function registerOperationalIntegrationRoutes(app: FastifyInstance)
         { tenantCode: request.adminAuth.tenantCode }
       ),
       mysqlPool.execute<RowDataPacket[]>(
-        `SELECT s.id, s.barista_id, b.name AS barista_name, s.shift_date, s.starts_at, s.ends_at
+        `SELECT s.id, s.barista_id, b.name AS barista_name, DATE_FORMAT(s.shift_date, '%Y-%m-%d') AS shift_date, s.starts_at, s.ends_at
          FROM barista_dated_shifts s
          JOIN baristas b ON b.id = s.barista_id
          WHERE s.tenant_code = :tenantCode
@@ -570,7 +602,7 @@ export async function registerOperationalIntegrationRoutes(app: FastifyInstance)
         { tenantCode: request.adminAuth.tenantCode, adminUserId: request.adminAuth.adminUserId, isBaristaOnly: request.adminAuth.isBaristaOnly ? 1 : 0 }
       ),
       mysqlPool.execute<RowDataPacket[]>(
-        `SELECT s.shift_date, s.starts_at, s.ends_at, b.id AS barista_id, b.name AS barista_name
+        `SELECT DATE_FORMAT(s.shift_date, '%Y-%m-%d') AS shift_date, s.starts_at, s.ends_at, b.id AS barista_id, b.name AS barista_name
          FROM barista_dated_shifts s
          JOIN baristas b ON b.id = s.barista_id
          WHERE s.tenant_code = :tenantCode AND s.shift_date BETWEEN :from AND :to

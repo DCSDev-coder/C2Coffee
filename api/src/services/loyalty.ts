@@ -160,63 +160,73 @@ export async function processOrderLoyalty(
 
     }
 
-    // Award every configured threshold crossed by this order. The unique
-    // issue-case key prevents reissuing if a member later drops and requalifies.
+    // Award thresholds crossed by this order. A base-tier reward is a first
+    // completed-drink reward, never an account-creation reward.
     const unlockedTiers = activeTiers.filter((tier) =>
-      tier.minCups > currentCups
-      && tier.minCups <= cupsLast180d
-      && Boolean(tier.rewardConfig?.voucherTemplateId)
+      ((tier.minCups === 0 && currentCups === 0 && cupsLast180d >= 1)
+        || (tier.minCups > currentCups && tier.minCups <= cupsLast180d))
+      && Boolean(tier.rewardConfig?.voucherTemplateIds.length)
     );
 
     for (const tier of unlockedTiers) {
-      const voucherTemplateId = tier.rewardConfig?.voucherTemplateId;
-      if (!voucherTemplateId) continue;
+      const issuedVoucherTemplateIds: number[] = [];
 
-      const [issueResult] = await connection.execute<ResultSetHeader>(
-        `
-          INSERT IGNORE INTO user_vouchers (
-            user_id,
-            voucher_template_id,
-            status,
-            issued_by_type,
-            issued_reason,
-            issue_case_ref,
-            tier_at_issue,
-            issued_at,
-            expires_at
-          )
-          SELECT
-            :userId,
-            vt.id,
-            'active',
-            'system',
-            :issuedReason,
-            :issueCaseRef,
-            :tierCode,
-            UTC_TIMESTAMP(),
-            DATE_ADD(UTC_TIMESTAMP(), INTERVAL COALESCE(vt.expires_in_days, 30) DAY)
-          FROM voucher_templates vt
-          WHERE vt.id = :voucherTemplateId
-            AND vt.is_active = 1
-        `,
-        {
-          userId,
-          voucherTemplateId,
-          issuedReason: `Tier unlock reward: ${tier.name}`,
-          issueCaseRef: `tier_unlock:${tier.code}`,
-          tierCode: tier.code
+      for (const voucherTemplateId of tier.rewardConfig?.voucherTemplateIds ?? []) {
+        const [issueResult] = await connection.execute<ResultSetHeader>(
+          `
+            INSERT IGNORE INTO user_vouchers (
+              user_id,
+              voucher_template_id,
+              status,
+              issued_by_type,
+              issued_reason,
+              issue_case_ref,
+              tier_at_issue,
+              issued_at,
+              expires_at
+            )
+            SELECT
+              :userId,
+              vt.id,
+              'active',
+              'system',
+              :issuedReason,
+              :issueCaseRef,
+              :tierCode,
+              UTC_TIMESTAMP(),
+              DATE_ADD(UTC_TIMESTAMP(), INTERVAL COALESCE(vt.expires_in_days, 30) DAY)
+            FROM voucher_templates vt
+            WHERE vt.id = :voucherTemplateId
+              AND vt.is_active = 1
+          `,
+          {
+            userId,
+            voucherTemplateId,
+            issuedReason: tier.minCups === 0
+              ? `First completed drink reward: ${tier.name}`
+              : `Tier unlock reward: ${tier.name}`,
+            // A member can receive each reward once for this tier, even after requalification.
+            issueCaseRef: `tier_unlock:${tier.code}:${voucherTemplateId}`,
+            tierCode: tier.code
+          }
+        );
+
+        if (issueResult.affectedRows > 0) {
+          issuedVoucherTemplateIds.push(voucherTemplateId);
         }
-      );
+      }
 
-      if (issueResult.affectedRows > 0) {
+      if (issuedVoucherTemplateIds.length > 0) {
         await createUserNotification(connection, {
           userId,
           type: 'tier_reward',
-          title: `${tier.name} reward unlocked`,
-          body: 'A tier reward voucher has been added to your account.',
+          title: tier.minCups === 0 ? 'First drink reward unlocked' : `${tier.name} reward unlocked`,
+          body: issuedVoucherTemplateIds.length === 1
+            ? 'A tier reward voucher has been added to your account.'
+            : `${issuedVoucherTemplateIds.length} tier reward vouchers have been added to your account.`,
           data: {
             tier_code: tier.code,
-            voucher_template_id: voucherTemplateId
+            voucher_template_ids: issuedVoucherTemplateIds
           }
         });
       }
