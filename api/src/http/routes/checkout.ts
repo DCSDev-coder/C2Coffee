@@ -133,8 +133,10 @@ type AppliedVoucherRow = RowDataPacket & {
   id: number;
   user_id: number;
   status: 'active' | 'redeemed' | 'expired' | 'revoked';
+  issue_case_ref: string | null;
   expires_at: Date;
   template_id: number;
+  template_tenant_id: number;
   template_code: string;
   template_name: string;
   voucher_type: string;
@@ -146,6 +148,7 @@ type AppliedVoucherRow = RowDataPacket & {
   eligible_scope_json: unknown;
   exclude_scope_json: unknown;
   template_is_active: number;
+  template_valid_until: Date | null;
 };
 
 function calculateTokenEquivalentDiscount(
@@ -547,8 +550,10 @@ export async function registerCheckoutRoutes(
               uv.id,
               uv.user_id,
               uv.status,
+              uv.issue_case_ref,
               uv.expires_at,
               vt.id AS template_id,
+              vt.tenant_id AS template_tenant_id,
               vt.code AS template_code,
               vt.name AS template_name,
               vt.voucher_type,
@@ -559,7 +564,8 @@ export async function registerCheckoutRoutes(
               vt.requires_drink_in_cart,
               vt.eligible_scope_json,
               vt.exclude_scope_json,
-              vt.is_active AS template_is_active
+              vt.is_active AS template_is_active,
+              vt.valid_until AS template_valid_until
             FROM user_vouchers uv
             JOIN voucher_templates vt ON vt.id = uv.voucher_template_id
             WHERE uv.id = :voucherId AND uv.user_id = :userId
@@ -589,6 +595,28 @@ export async function registerCheckoutRoutes(
           );
         }
 
+        // A customer can belong to more than one tenant. A voucher is only
+        // redeemable at the tenant that owns its template, never at another
+        // tenant's store.
+        if (Number(appliedVoucher.template_tenant_id) !== store.tenant_id) {
+          throw new ApiError(
+            400,
+            'voucher_store_mismatch',
+            'Selected voucher is not valid at this store.'
+          );
+        }
+
+        if (
+          appliedVoucher.template_valid_until !== null &&
+          new Date(appliedVoucher.template_valid_until).getTime() <= Date.now()
+        ) {
+          throw new ApiError(
+            400,
+            'voucher_expired',
+            'Selected voucher campaign has ended.'
+          );
+        }
+
         if (new Date(appliedVoucher.expires_at).getTime() < Date.now()) {
           throw new ApiError(
             400,
@@ -599,6 +627,7 @@ export async function registerCheckoutRoutes(
 
         const voucherScope = _parseVoucherScope(appliedVoucher.eligible_scope_json);
         const promotionRule = _parsePromotionRule(voucherScope);
+        const isTierBirthdayReward = appliedVoucher.issue_case_ref?.startsWith('tier_birthday:') ?? false;
         const voucherSchedule =
           voucherScope.schedule && typeof voucherScope.schedule === 'object'
             ? (voucherScope.schedule as Record<string, unknown>)
@@ -606,7 +635,7 @@ export async function registerCheckoutRoutes(
         const voucherMode = String(voucherSchedule?.mode || 'always').trim();
         let customerBirthdayMonthDay: string | null = null;
 
-        if (voucherMode === 'birthday') {
+        if (voucherMode === 'birthday' && !isTierBirthdayReward) {
           const [birthdayRows] = await connection.query<
             Array<RowDataPacket & { birthday_month_day: string | null }>
           >(
@@ -623,7 +652,11 @@ export async function registerCheckoutRoutes(
           customerBirthdayMonthDay = birthdayRows[0]?.birthday_month_day ?? null;
         }
 
-        if (!_isVoucherAvailableNow(voucherScope, new Date(), customerBirthdayMonthDay)) {
+        // A tier birthday voucher is issued only during the customer's
+        // birthday month and expires at that month's end. Its issued grant,
+        // rather than the reusable template's generic schedule, is the
+        // authoritative availability rule.
+        if (!isTierBirthdayReward && !_isVoucherAvailableNow(voucherScope, new Date(), customerBirthdayMonthDay)) {
           throw new ApiError(
             400,
             'voucher_not_available_now',

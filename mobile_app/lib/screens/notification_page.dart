@@ -18,6 +18,7 @@ class NotificationPage extends StatefulWidget {
 
 class _NotificationPageState extends State<NotificationPage> {
   late Future<List<InAppNotification>> _notificationsFuture;
+  bool _clearing = false;
 
   @override
   void initState() {
@@ -34,6 +35,7 @@ class _NotificationPageState extends State<NotificationPage> {
 
     return NotificationService.instance.getNotifications(
       accessToken: accessToken,
+      limit: 20,
     );
   }
 
@@ -41,6 +43,54 @@ class _NotificationPageState extends State<NotificationPage> {
     setState(() {
       _notificationsFuture = _loadNotifications();
     });
+  }
+
+  Future<void> _clearAll() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Clear notifications'),
+        content: const Text(
+          'This removes all current notifications from your inbox. New updates will still appear here.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Clear all'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _clearing = true);
+    try {
+      final accessToken =
+          await SecureSessionService.instance.getValidAccessToken();
+      if (accessToken == null || accessToken.isEmpty) {
+        throw Exception('Please sign in again to clear notifications.');
+      }
+      await NotificationService.instance.clearNotifications(
+        accessToken: accessToken,
+      );
+      if (!mounted) return;
+      setState(() {
+        _notificationsFuture = Future.value(const <InAppNotification>[]);
+      });
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('We could not clear notifications. Please try again.'),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _clearing = false);
+    }
   }
 
   @override
@@ -87,7 +137,7 @@ class _NotificationPageState extends State<NotificationPage> {
 
             return Column(
               children: [
-                _buildSectionHeader('Latest updates'),
+                _buildSectionHeader('Latest updates', notifications.length),
                 const SizedBox(height: 12),
                 ...notifications.asMap().entries.expand((entry) {
                   final index = entry.key;
@@ -106,18 +156,31 @@ class _NotificationPageState extends State<NotificationPage> {
     );
   }
 
-  Widget _buildSectionHeader(String text) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Text(
-        text,
-        style: TextStyle(
-          fontFamily: 'Recoleta',
-          fontSize: 18,
-          fontWeight: FontWeight.bold,
-          color: AppColors.deepTeal,
+  Widget _buildSectionHeader(String text, int count) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            '$text ($count)',
+            style: TextStyle(
+              fontFamily: 'Recoleta',
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: AppColors.deepTeal,
+            ),
+          ),
         ),
-      ),
+        TextButton(
+          onPressed: _clearing ? null : _clearAll,
+          child: _clearing
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Clear all'),
+        ),
+      ],
     );
   }
 

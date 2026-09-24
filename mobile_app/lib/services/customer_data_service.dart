@@ -673,6 +673,7 @@ class RewardVoucher {
   final String issuedReason;
   final String? issueCaseRef;
   final String? tierAtIssue;
+  final String rewardKind;
   final DateTime issuedAt;
   final DateTime expiresAt;
   final DateTime? redeemedAt;
@@ -686,6 +687,7 @@ class RewardVoucher {
     required this.issuedReason,
     required this.issueCaseRef,
     required this.tierAtIssue,
+    required this.rewardKind,
     required this.issuedAt,
     required this.expiresAt,
     required this.redeemedAt,
@@ -739,6 +741,7 @@ class RewardVoucher {
       issuedReason: json['issued_reason'] as String? ?? '',
       issueCaseRef: json['issue_case_ref'] as String?,
       tierAtIssue: json['tier_at_issue'] as String?,
+      rewardKind: json['reward_kind'] as String? ?? 'voucher',
       issuedAt: _parseApiDate(json['issued_at'] as String),
       expiresAt: _parseApiDate(json['expires_at'] as String),
       redeemedAt: _parseNullableDate(json['redeemed_at'] as String?),
@@ -1117,9 +1120,10 @@ class CustomerDataService {
     bool onlyActive = true,
     bool onlyTokenCheckoutEligible = false,
     bool includeHistory = false,
+    bool includeTierRewards = false,
   }) async {
     final response = await _get(
-      '/rewards/vouchers?limit=$limit${includeHistory ? '&include_history=true' : ''}',
+      '/rewards/vouchers?limit=$limit${includeHistory ? '&include_history=true' : ''}${includeTierRewards ? '&include_tier_rewards=true' : ''}',
       accessToken: accessToken,
     );
 

@@ -658,7 +658,7 @@ const ScopeSelectionSection = ({
   );
 };
 
-const Vouchers = () => {
+const Vouchers = ({ onNavigate }) => {
   const [vouchers, setVouchers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -1088,29 +1088,30 @@ const Vouchers = () => {
       <div className="shrink-0">
         <h1 className="text-2xl font-bold text-gray-900">Vouchers</h1>
         <p className="text-gray-500 text-sm mt-0.5">
-          Define who can receive a reward, what it covers, and when it can be used.
+          Create public or manually issued vouchers. Tier and birthday-tier rewards are managed separately.
         </p>
       </div>
 
-      <div className="grid gap-3 rounded-2xl border border-[#D7E4E0] bg-[#F4F8F7] p-4 text-xs text-gray-700 md:grid-cols-3">
+      <div className="flex flex-col gap-3 rounded-2xl border border-[#D7E4E0] bg-[#F4F8F7] p-4 text-xs text-gray-700 md:flex-row md:items-center md:justify-between">
         <div>
-          <p className="font-bold text-[#1F3A34]">1. Create the reward</p>
-          <p className="mt-1 leading-relaxed">Set the benefit, eligible customers, and menu items here.</p>
+          <p className="font-bold text-[#1F3A34]">Use this page for campaign vouchers</p>
+          <p className="mt-1 leading-relaxed">Customers see a voucher only after it is issued and while it remains redeemable.</p>
         </div>
         <div>
-          <p className="font-bold text-[#1F3A34]">2. Customers receive it</p>
-          <p className="mt-1 leading-relaxed">Only issued and redeemable vouchers appear in a customer&apos;s My Rewards.</p>
-        </div>
-        <div>
-          <p className="font-bold text-[#1F3A34]">3. Promote it separately</p>
-          <p className="mt-1 leading-relaxed">Use Marketing to create a public menu poster that opens the Rewards page.</p>
+          <button
+            type="button"
+            onClick={() => onNavigate?.('Tier Management')}
+            className="inline-flex items-center justify-center rounded-lg border border-[#9FBEB7] bg-white px-3 py-2 text-xs font-bold text-[#1F3A34] transition-colors hover:bg-[#EAF4F1]"
+          >
+            Manage tier and birthday rewards
+          </button>
         </div>
       </div>
 
       {/* 2. Stat Cards Row (key overview only) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <StatCard
-          title="Total Voucher"
+          title="Voucher templates"
           value={totalVouchersCount.toLocaleString()}
           change="Updated just now"
           icon={Percent}

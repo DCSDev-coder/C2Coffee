@@ -68,7 +68,7 @@ function AppContent({
           />
         )}
         {currentPage === 'Profile' && <Profile onBack={() => navigateWithPrompt(prevPage || 'Dashboard')} currentUser={currentUser} onUpdateUser={handleUpdateUser} />}
-        {currentPage === 'Voucher' && <Vouchers onBack={() => navigateWithPrompt(prevPage || 'Dashboard')} />}
+        {currentPage === 'Voucher' && <Vouchers onBack={() => navigateWithPrompt(prevPage || 'Dashboard')} onNavigate={navigateWithPrompt} />}
         {currentPage === 'Referral Program' && <ReferralProgram />}
         {currentPage === 'Token Ledger' && <LoyaltyTokens onBack={() => navigateWithPrompt(prevPage || 'Dashboard')} onNavigate={navigateWithPrompt} />}
         {currentPage === 'Tier Management' && <TierManagement onBack={() => navigateWithPrompt('Token Ledger')} />}

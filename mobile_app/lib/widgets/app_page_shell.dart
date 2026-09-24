@@ -144,21 +144,72 @@ class AppPageShell extends StatelessWidget {
       ],
     );
 
-    return Scaffold(
-      key: scaffoldKey,
-      backgroundColor: backgroundColor ?? AppColors.background,
-      extendBody: extendBody,
-      bottomNavigationBar: bottomNavigationBar,
-      endDrawer: endDrawer,
-      onEndDrawerChanged: onEndDrawerChanged,
-      body: overlay != null
-          ? Stack(
-              children: [
-                bodyColumn,
-                overlay!,
-              ],
-            )
-          : bodyColumn,
+    return _EdgeSwipeBack(
+      onBack: onBack,
+      child: Scaffold(
+        key: scaffoldKey,
+        backgroundColor: backgroundColor ?? AppColors.background,
+        extendBody: extendBody,
+        bottomNavigationBar: bottomNavigationBar,
+        endDrawer: endDrawer,
+        onEndDrawerChanged: onEndDrawerChanged,
+        body: overlay != null
+            ? Stack(
+                children: [bodyColumn, overlay!],
+              )
+            : bodyColumn,
+      ),
+    );
+  }
+}
+
+class _EdgeSwipeBack extends StatefulWidget {
+  final Widget child;
+  final VoidCallback onBack;
+
+  const _EdgeSwipeBack({required this.child, required this.onBack});
+
+  @override
+  State<_EdgeSwipeBack> createState() => _EdgeSwipeBackState();
+}
+
+class _EdgeSwipeBackState extends State<_EdgeSwipeBack> {
+  static const _edgeWidth = 28.0;
+  static const _minimumSwipeDistance = 72.0;
+  double? _startX;
+  double _dragDistance = 0;
+
+  bool get _canPop => Navigator.of(context).canPop();
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      onPointerDown: (event) {
+        _startX = event.position.dx;
+        _dragDistance = 0;
+      },
+      onPointerCancel: (_) {
+        _startX = null;
+        _dragDistance = 0;
+      },
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onHorizontalDragUpdate: (details) {
+          if (_startX == null || _startX! > _edgeWidth || !_canPop) return;
+          if (details.delta.dx > 0) _dragDistance += details.delta.dx;
+        },
+        onHorizontalDragEnd: (details) {
+          final shouldPop = _startX != null &&
+              _startX! <= _edgeWidth &&
+              _canPop &&
+              (_dragDistance >= _minimumSwipeDistance ||
+                  (details.primaryVelocity ?? 0) > 700);
+          _startX = null;
+          _dragDistance = 0;
+          if (shouldPop) widget.onBack();
+        },
+        child: widget.child,
+      ),
     );
   }
 }

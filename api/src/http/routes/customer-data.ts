@@ -27,7 +27,10 @@ const rewardVoucherListQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional().default(20),
   // Voucher history is requested explicitly so checkout continues to receive
   // only vouchers that can still be redeemed.
-  include_history: z.enum(['1', 'true']).optional().transform((value) => value !== undefined)
+  include_history: z.enum(['1', 'true']).optional().transform((value) => value !== undefined),
+  // Checkout asks for every redeemable voucher. The rewards page keeps tier
+  // achievement vouchers in the tier experience instead of the general list.
+  include_tier_rewards: z.enum(['1', 'true']).optional().transform((value) => value !== undefined)
 });
 
 const pushTokenSchema = z.object({
@@ -338,6 +341,129 @@ function recurringIssueCaseRef(
   }
 }
 
+function getKualaLumpurMonthEndUtc(now = new Date()): Date {
+  const parts = getKualaLumpurDateParts(now);
+  return new Date(
+    Date.UTC(Number(parts.year), Number(parts.month), 1) - 8 * 60 * 60 * 1000
+  );
+}
+
+async function syncCurrentTierAchievementRewards(
+  userId: number,
+  currentTier: string | null,
+  qualifyingCups: number
+): Promise<void> {
+  if (!currentTier) return;
+
+  const tiers = getActiveLoyaltyTiers(await loadLoyaltyTiers());
+  const tier = getTierByCode(tiers, currentTier);
+  const templateIds = tier?.rewardConfig?.voucherTemplateIds ?? [];
+  if (!tier || templateIds.length === 0) return;
+
+  // Achievement rewards are normally issued when a collected order crosses a
+  // threshold. This backfill covers rewards configured after a member has
+  // already reached their current tier, without granting lower or future tiers.
+  const hasReachedTier = tier.minCups === 0
+    ? qualifyingCups >= 1
+    : qualifyingCups >= tier.minCups;
+  if (!hasReachedTier) return;
+
+  for (const voucherTemplateId of templateIds) {
+    await mysqlPool.execute(
+      `
+        INSERT IGNORE INTO user_vouchers (
+          user_id, voucher_template_id, status, issued_by_type, issued_reason,
+          issue_case_ref, tier_at_issue, issued_at, expires_at
+        )
+        SELECT
+          :userId, vt.id, 'active', 'system', :issuedReason,
+          :issueCaseRef, :tierCode, UTC_TIMESTAMP(),
+          DATE_ADD(UTC_TIMESTAMP(), INTERVAL COALESCE(vt.expires_in_days, 30) DAY)
+        FROM voucher_templates vt
+        JOIN customer_tenant_memberships ctm
+          ON ctm.tenant_id = vt.tenant_id
+         AND ctm.user_id = :userId
+        WHERE vt.id = :voucherTemplateId
+          AND vt.is_active = 1
+          AND (vt.valid_until IS NULL OR vt.valid_until > UTC_TIMESTAMP())
+      `,
+      {
+        userId,
+        voucherTemplateId,
+        issuedReason: `Tier unlock reward: ${tier.name}`,
+        issueCaseRef: `tier_unlock:${tier.code}:${voucherTemplateId}`,
+        tierCode: tier.code
+      }
+    );
+  }
+}
+
+async function syncTierBirthdayRewards(
+  userId: number,
+  currentTier: string | null,
+  birthdayMonthDay: string | null,
+  currentDateParts: ReturnType<typeof getKualaLumpurDateParts>
+): Promise<void> {
+  if (!currentTier || !birthdayMonthDay || birthdayMonthDay.slice(0, 2) !== currentDateParts.month) {
+    return;
+  }
+
+  const tiers = getActiveLoyaltyTiers(await loadLoyaltyTiers());
+  const tier = getTierByCode(tiers, currentTier);
+  if (!tier) return;
+  const templateIds = tier.rewardConfig?.birthdayVoucherTemplateIds ?? [];
+
+  // A birthday benefit follows the member's current tier. If their tier
+  // changes during the month, retire the previous tier's unredeemed benefit.
+  await mysqlPool.execute(
+    `
+      UPDATE user_vouchers
+      SET status = 'revoked',
+          revoked_reason = 'Superseded by current birthday-month tier',
+          revoked_at = UTC_TIMESTAMP()
+      WHERE user_id = :userId
+        AND status = 'active'
+        AND issue_case_ref LIKE :issueCasePrefix
+        AND tier_at_issue <> :tierCode
+    `,
+    {
+      userId,
+      issueCasePrefix: `tier_birthday:${currentDateParts.year}:%`,
+      tierCode: tier.code
+    }
+  );
+
+  if (templateIds.length === 0) return;
+
+  for (const voucherTemplateId of templateIds) {
+    await mysqlPool.execute(
+      `
+        INSERT IGNORE INTO user_vouchers (
+          user_id, voucher_template_id, status, issued_by_type, issued_reason,
+          issue_case_ref, tier_at_issue, issued_at, expires_at
+        )
+        SELECT
+          :userId, vt.id, 'active', 'system', :issuedReason,
+          :issueCaseRef, :tierCode, UTC_TIMESTAMP(), :expiresAt
+        FROM voucher_templates vt
+        JOIN customer_tenant_memberships ctm
+          ON ctm.tenant_id = vt.tenant_id
+         AND ctm.user_id = :userId
+        WHERE vt.id = :voucherTemplateId
+          AND vt.is_active = 1
+      `,
+      {
+        userId,
+        voucherTemplateId,
+        issuedReason: `Birthday-month tier reward: ${tier.name}`,
+        issueCaseRef: `tier_birthday:${currentDateParts.year}:${tier.code}:${voucherTemplateId}`,
+        tierCode: tier.code,
+        expiresAt: getKualaLumpurMonthEndUtc()
+      }
+    );
+  }
+}
+
 async function syncAutoVisibleVoucherTemplates(
   userId: number
 ): Promise<void> {
@@ -355,10 +481,10 @@ async function syncAutoVisibleVoucherTemplates(
   );
 
   const [tierRows] = await mysqlPool.query<
-    Array<RowDataPacket & { tier_code: string | null }>
+    Array<RowDataPacket & { tier_code: string | null; qualifying_cups_last_180d: number }>
   >(
     `
-      SELECT tier_code
+      SELECT tier_code, qualifying_cups_last_180d
       FROM loyalty_tier_snapshots
       WHERE user_id = :userId
       ORDER BY effective_at DESC, id DESC
@@ -371,6 +497,18 @@ async function syncAutoVisibleVoucherTemplates(
   const snapshotTier = normalizeVoucherTierScope(tierRows[0]?.tier_code, activeTiers);
   const currentTier = snapshotTier ?? activeTiers[0]?.code ?? null;
   const currentDateParts = getKualaLumpurDateParts();
+
+  await syncCurrentTierAchievementRewards(
+    userId,
+    currentTier,
+    Number(tierRows[0]?.qualifying_cups_last_180d ?? 0)
+  );
+  await syncTierBirthdayRewards(userId, currentTier, currentBirthdayMonthDay, currentDateParts);
+
+  const tierManagedTemplateIds = new Set(activeTiers.flatMap((tier) => [
+    ...(tier.rewardConfig?.voucherTemplateIds ?? []),
+    ...(tier.rewardConfig?.birthdayVoucherTemplateIds ?? [])
+  ]));
 
   const [templates] = await mysqlPool.query<Array<AutoSyncVoucherTemplateRow & { is_employee: number }>>(
     `
@@ -419,6 +557,11 @@ async function syncAutoVisibleVoucherTemplates(
   for (const template of templates) {
     // Do not auto-issue historical legacy referral vouchers.
     if (Number(template.is_referral_reward ?? 0) === 1) {
+      continue;
+    }
+    // Tier-managed templates have their own controlled issuance paths. They
+    // must never be picked up as public campaigns by this generic synchronizer.
+    if (tierManagedTemplateIds.has(Number(template.id))) {
       continue;
     }
 
@@ -664,6 +807,7 @@ export async function registerCustomerDataRoutes(
             created_at
           FROM notifications
           WHERE user_id = :userId
+            AND cleared_at IS NULL
           ORDER BY read_at IS NULL DESC, created_at DESC, id DESC
           LIMIT :limit
         `,
@@ -709,6 +853,18 @@ export async function registerCustomerDataRoutes(
       { notificationId, userId: request.auth.userId }
     );
     return { updated: true };
+  });
+
+  app.delete('/v1/notifications', { preHandler: authenticateRequest }, async (request) => {
+    const [result] = await mysqlPool.execute<ResultSetHeader>(
+      `UPDATE notifications
+       SET cleared_at = UTC_TIMESTAMP()
+       WHERE user_id = :userId
+         AND cleared_at IS NULL`,
+      { userId: request.auth.userId }
+    );
+
+    return { cleared: result.affectedRows };
   });
 
   app.get('/v1/notification-preferences', { preHandler: authenticateRequest }, async (request) => {
@@ -770,7 +926,7 @@ export async function registerCustomerDataRoutes(
   });
 
   app.get('/v1/rewards/vouchers', { preHandler: authenticateRequest }, async (request) => {
-    const { limit, include_history: includeHistory } = rewardVoucherListQuerySchema.parse(request.query);
+    const { limit, include_history: includeHistory, include_tier_rewards: includeTierRewards } = rewardVoucherListQuerySchema.parse(request.query);
     const userId = request.auth.userId;
 
     const [welcomeRows] = await mysqlPool.query<
@@ -836,6 +992,10 @@ export async function registerCustomerDataRoutes(
           AND (vt.valid_until IS NULL OR vt.valid_until > UTC_TIMESTAMP())
         `;
 
+    const tierRewardFilter = includeTierRewards
+      ? ''
+      : "AND (uv.issue_case_ref IS NULL OR uv.issue_case_ref NOT LIKE 'tier_unlock:%')";
+
     const [rows] = await mysqlPool.query<Array<VoucherRow>>(
       `
       SELECT
@@ -864,6 +1024,7 @@ export async function registerCustomerDataRoutes(
         JOIN voucher_templates vt
           ON vt.id = uv.voucher_template_id
         WHERE ${voucherVisibilityFilter}
+          ${tierRewardFilter}
         ORDER BY uv.issued_at DESC, uv.id DESC
         LIMIT :limit
       `,
@@ -891,6 +1052,11 @@ export async function registerCustomerDataRoutes(
         redeemed_at: row.redeemed_at?.toISOString() ?? null,
         revoked_at: row.revoked_at?.toISOString() ?? null,
         revoked_reason: row.revoked_reason,
+        reward_kind: row.issue_case_ref?.startsWith('tier_birthday:')
+          ? 'tier_birthday'
+          : row.issue_case_ref?.startsWith('tier_unlock:')
+            ? 'tier_achievement'
+            : 'voucher',
         template: {
           code: row.template_code,
           name: row.template_name,

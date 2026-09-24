@@ -128,6 +128,7 @@ type BootstrapTierConfig = Pick<
     name: string;
     benefitLabel: string;
     description: string;
+    timing: 'achievement' | 'birthday_month';
   }>;
   tierReward: {
     name: string;
@@ -1062,7 +1063,14 @@ export async function getBootstrapForUser(
         SELECT id, name, eligible_scope_json
         FROM voucher_templates
         WHERE is_active = 1
-      `
+          AND EXISTS (
+            SELECT 1
+            FROM customer_tenant_memberships ctm
+            WHERE ctm.user_id = :userId
+              AND ctm.tenant_id = voucher_templates.tenant_id
+          )
+      `,
+      { userId }
     );
 
     for (const row of rewardRows) {
@@ -1088,12 +1096,20 @@ export async function getBootstrapForUser(
   }
 
   const tiers = allTiers.map<BootstrapTierConfig>((tier) => {
-    const tierRewards = (tier.rewardConfig?.voucherTemplateIds ?? [])
+    const buildTierRewards = (
+      voucherTemplateIds: number[],
+      timing: 'achievement' | 'birthday_month'
+    ) => voucherTemplateIds
       .map((voucherTemplateId) => {
         const reward = rewardByTemplateId.get(voucherTemplateId);
-        return reward ? { id: voucherTemplateId, ...reward } : null;
+        return reward ? { id: voucherTemplateId, ...reward, timing } : null;
       })
       .filter((reward): reward is NonNullable<typeof reward> => reward !== null);
+
+    const tierRewards = [
+      ...buildTierRewards(tier.rewardConfig?.voucherTemplateIds ?? [], 'achievement'),
+      ...buildTierRewards(tier.rewardConfig?.birthdayVoucherTemplateIds ?? [], 'birthday_month')
+    ];
 
     return {
       code: tier.code,

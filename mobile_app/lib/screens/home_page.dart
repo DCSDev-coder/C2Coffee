@@ -51,7 +51,7 @@ class _HomePageState extends State<HomePage> {
   File? _persistedPickedImage;
   String? _persistedPresetPath;
   bool _hasShownPoster = false;
-  final bool _showTokenPrice = false;
+  final bool _showTokenPrice = true;
   Timer? _carouselTimer;
   int _currentBannerIndex = 0;
 

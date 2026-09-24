@@ -453,12 +453,14 @@ class TierRewardSummary {
   final String name;
   final String benefitLabel;
   final String description;
+  final String timing;
 
   const TierRewardSummary({
     required this.id,
     required this.name,
     required this.benefitLabel,
     required this.description,
+    required this.timing,
   });
 
   factory TierRewardSummary.fromApi(Map<String, dynamic> json) {
@@ -467,6 +469,7 @@ class TierRewardSummary {
       name: json['name'] as String? ?? 'Tier reward',
       benefitLabel: json['benefitLabel'] as String? ?? 'Voucher reward',
       description: json['description'] as String? ?? '',
+      timing: json['timing'] as String? ?? 'achievement',
     );
   }
 }

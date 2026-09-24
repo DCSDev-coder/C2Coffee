@@ -13,7 +13,6 @@ import 'home_page.dart';
 import 'menu_page.dart';
 import 'loading_order_page.dart';
 import 'orders_page.dart';
-import 'order_details_page.dart';
 import 'top_up_wallet_page.dart';
 import 'notification_page.dart';
 import 'settings_page.dart';
@@ -1003,11 +1002,25 @@ class _CustomCalendarWidgetState extends State<CustomCalendarWidget> {
         const [];
   }
 
-  void _openOrderForDate(BuildContext context, CustomerOrder order) {
-    InteractiveFillingLoader.show(
-      context,
-      targetPage: OrderDetailsPage(order: order),
-    );
+  List<String> _purchasedItemsForDate(List<CustomerOrder> orders) {
+    final uniqueNames = <String>{};
+    final items = <String>[];
+
+    for (final order in orders) {
+      final names = order.items.isEmpty
+          ? <String>[
+              order.primaryItemName?.trim().isNotEmpty == true
+                  ? order.primaryItemName!.trim()
+                  : 'Order ${order.dailyOrderNumber}',
+            ]
+          : order.items.map((item) => item.name.trim()).toList();
+      for (final name in names) {
+        if (name.isEmpty || !uniqueNames.add(name.toLowerCase())) continue;
+        items.add(name);
+      }
+    }
+
+    return items;
   }
 
   @override
@@ -1117,6 +1130,8 @@ class _CustomCalendarWidgetState extends State<CustomCalendarWidget> {
                       .toList(),
                 ),
                 const SizedBox(height: 12),
+                const _CalendarMarkerLegend(),
+                const SizedBox(height: 10),
                 GridView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
@@ -1140,14 +1155,10 @@ class _CustomCalendarWidgetState extends State<CustomCalendarWidget> {
                     final bool showOrderMarker = hasOrder || hasEvent;
 
                     return GestureDetector(
-                      onTap: hasOrder
-                          ? () {
-                              final orders = _ordersForDate(date);
-                              if (orders.isEmpty) return;
-                              _openOrderForDate(context, orders.first);
-                            }
-                          : null,
-                      onLongPress: (hasOrder || hasEvent)
+                      // A date can contain several purchases as well as an
+                      // event. Show the complete daily view rather than
+                      // silently opening only the first order.
+                      onTap: (hasOrder || hasEvent)
                           ? () => _showDaySummary(context, date)
                           : null,
                       child: Container(
@@ -1296,12 +1307,10 @@ class _CustomCalendarWidgetState extends State<CustomCalendarWidget> {
                       if (orders.isNotEmpty) ...[
                         const SizedBox(height: 18),
                         _buildSummarySection(
-                          title: 'Orders',
-                          icon: Icons.receipt_long_outlined,
+                          title: 'Purchased',
+                          icon: Icons.shopping_bag_outlined,
                           color: AppColors.deepTeal,
-                          titles: orders.map(_buildOrderTitle).toList(),
-                          onTapTitle: (index) =>
-                              _openOrderForDate(context, orders[index]),
+                          titles: _purchasedItemsForDate(orders),
                         ),
                       ],
                       if (eventTitles.isNotEmpty) ...[
@@ -1399,34 +1408,77 @@ class _CustomCalendarWidgetState extends State<CustomCalendarWidget> {
               ),
             ),
           ],
-          if (onTapTitle != null) ...[
-            const SizedBox(height: 4),
-            Text(
-              'Tap an order to open details and reorder.',
-              style: TextStyle(
-                fontFamily: 'Afacad',
-                fontSize: 12,
-                color: Colors.grey.shade700,
-              ),
-            ),
-          ],
         ],
       ),
     );
   }
+}
 
-  String _buildOrderTitle(CustomerOrder order) {
-    final primaryTitle = order.primaryItemName?.trim();
-    if (primaryTitle != null && primaryTitle.isNotEmpty) {
-      return primaryTitle;
-    }
+class _CalendarMarkerLegend extends StatelessWidget {
+  const _CalendarMarkerLegend();
 
-    final itemTitle =
-        order.items.isNotEmpty ? order.items.first.name.trim() : '';
-    if (itemTitle.isNotEmpty) {
-      return itemTitle;
-    }
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 14,
+      runSpacing: 6,
+      alignment: WrapAlignment.center,
+      children: [
+        _CalendarLegendItem(
+          color: AppColors.deepTeal,
+          label: 'Your order',
+        ),
+        _CalendarLegendItem(
+          color: Color(0xFFE5A93C),
+          label: 'Event',
+        ),
+        _CalendarLegendItem(
+          color: Color(0xFFE5A93C),
+          label: 'Both',
+          showOutline: true,
+        ),
+      ],
+    );
+  }
+}
 
-    return order.orderRef.isNotEmpty ? order.orderRef : 'Order ${order.id}';
+class _CalendarLegendItem extends StatelessWidget {
+  final Color color;
+  final String label;
+  final bool showOutline;
+
+  const _CalendarLegendItem({
+    required this.color,
+    required this.label,
+    this.showOutline = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+            border: showOutline
+                ? Border.all(color: AppColors.deepTeal, width: 1.4)
+                : null,
+          ),
+        ),
+        const SizedBox(width: 5),
+        Text(
+          label,
+          style: const TextStyle(
+            fontFamily: 'Afacad',
+            fontSize: 12,
+            color: Colors.black54,
+          ),
+        ),
+      ],
+    );
   }
 }

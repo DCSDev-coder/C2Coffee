@@ -578,7 +578,19 @@ class _RewardsPageState extends State<RewardsPage> {
 
   List<String> _getTierDetails(LoyaltyTier tier) {
     return tier.tierRewards
-        .map((reward) => '${reward.name}: ${reward.benefitLabel}')
+        .map((reward) {
+          final description = reward.description.trim();
+          final generatedDescription = reward.timing == 'birthday_month'
+              ? 'birthday-month tier reward: ${reward.name}'.toLowerCase()
+              : 'tier achievement reward: ${reward.name}'.toLowerCase();
+          final additionalDescription =
+              description.toLowerCase() == generatedDescription ? '' : description;
+          final timingLabel = reward.timing == 'birthday_month'
+              ? 'Birthday month'
+              : 'Tier reward';
+          return '$timingLabel: ${reward.name} - ${reward.benefitLabel}'
+              '${additionalDescription.isEmpty ? '' : '. $additionalDescription'}';
+        })
         .toList();
   }
 
@@ -855,7 +867,7 @@ class _RewardsPageState extends State<RewardsPage> {
           if (details.isNotEmpty) ...[
             const SizedBox(height: 18),
             Text(
-              'Vouchers',
+              'Tier rewards',
               style: TextStyle(
                 fontFamily: 'Recoleta',
                 fontSize: 15,

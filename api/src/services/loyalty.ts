@@ -196,11 +196,19 @@ export async function processOrderLoyalty(
               UTC_TIMESTAMP(),
               DATE_ADD(UTC_TIMESTAMP(), INTERVAL COALESCE(vt.expires_in_days, 30) DAY)
             FROM voucher_templates vt
+            JOIN orders o
+              ON o.id = :orderId
+             AND o.user_id = :userId
+             AND o.store_id IS NOT NULL
+            JOIN stores s
+              ON s.id = o.store_id
+             AND s.tenant_id = vt.tenant_id
             WHERE vt.id = :voucherTemplateId
               AND vt.is_active = 1
           `,
           {
             userId,
+            orderId,
             voucherTemplateId,
             issuedReason: tier.minCups === 0
               ? `First completed drink reward: ${tier.name}`

@@ -19,6 +19,7 @@ export type LoyaltyTierConfig = {
 
 export type LoyaltyTierRewardConfig = {
   voucherTemplateIds: number[];
+  birthdayVoucherTemplateIds: number[];
 };
 
 type LoyaltyTierRow = RowDataPacket & {
@@ -52,7 +53,12 @@ function parseRewardConfig(value: unknown): LoyaltyTierRewardConfig | null {
   if (!parsed || typeof parsed !== 'object') return null;
 
   // Keep tiers saved before reward bundles backwards-compatible.
-  const rawConfig = parsed as { voucherTemplateIds?: unknown; voucherTemplateId?: unknown };
+  const rawConfig = parsed as {
+    voucherTemplateIds?: unknown;
+    voucherTemplateId?: unknown;
+    birthdayVoucherTemplateIds?: unknown;
+    birthdayVoucherTemplateId?: unknown;
+  };
   const rawIds = Array.isArray(rawConfig.voucherTemplateIds)
     ? rawConfig.voucherTemplateIds
     : [rawConfig.voucherTemplateId];
@@ -60,7 +66,18 @@ function parseRewardConfig(value: unknown): LoyaltyTierRewardConfig | null {
     .map((value) => Number(value))
     .filter((value) => Number.isInteger(value) && value > 0))];
 
-  return voucherTemplateIds.length > 0 ? { voucherTemplateIds } : null;
+  const rawBirthdayIds = Array.isArray(rawConfig.birthdayVoucherTemplateIds)
+    ? rawConfig.birthdayVoucherTemplateIds
+    : [rawConfig.birthdayVoucherTemplateId];
+  const birthdayVoucherTemplateIds = [...new Set(rawBirthdayIds
+    .map((value) => Number(value))
+    .filter((value) => Number.isInteger(value) && value > 0))];
+
+  if (voucherTemplateIds.length === 0 && birthdayVoucherTemplateIds.length === 0) {
+    return null;
+  }
+
+  return { voucherTemplateIds, birthdayVoucherTemplateIds };
 }
 
 export type TierProgress = {

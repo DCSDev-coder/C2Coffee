@@ -145,7 +145,8 @@ function sourceDisplayLabel(sourceType: string): string {
 
 const tierRewardConfigSchema = z.union([
   z.object({
-    voucherTemplateIds: z.array(z.coerce.number().int().positive()).min(1).max(10)
+    voucherTemplateIds: z.array(z.coerce.number().int().positive()).max(10).optional().default([]),
+    birthdayVoucherTemplateIds: z.array(z.coerce.number().int().positive()).max(10).optional().default([])
   }),
   // Accept the previous request shape while deployed admin clients update.
   z.object({
@@ -154,8 +155,14 @@ const tierRewardConfigSchema = z.union([
 ]).transform((value) => ({
   voucherTemplateIds: [...new Set(
     'voucherTemplateIds' in value ? value.voucherTemplateIds : [value.voucherTemplateId]
-  )]
-}));
+  )],
+  birthdayVoucherTemplateIds: 'birthdayVoucherTemplateIds' in value
+    ? [...new Set(value.birthdayVoucherTemplateIds)]
+    : []
+})).refine(
+  (value) => value.voucherTemplateIds.length > 0 || value.birthdayVoucherTemplateIds.length > 0,
+  { message: 'Configure at least one tier achievement or birthday-month reward.' }
+);
 
 const loyaltyTierUpsertSchema = z.object({
   code: z.string().trim().min(1).max(50),
@@ -185,9 +192,12 @@ const tokenAdjustmentSchema = z.object({
 async function validateTierRewardVoucher(
   connection: typeof mysqlPool | PoolConnection,
   tenantId: number,
-  rewardConfig: { voucherTemplateIds: number[] } | null | undefined
+  rewardConfig: { voucherTemplateIds: number[]; birthdayVoucherTemplateIds: number[] } | null | undefined
 ): Promise<void> {
-  const voucherTemplateIds = rewardConfig?.voucherTemplateIds ?? [];
+  const voucherTemplateIds = [
+    ...(rewardConfig?.voucherTemplateIds ?? []),
+    ...(rewardConfig?.birthdayVoucherTemplateIds ?? [])
+  ];
   if (voucherTemplateIds.length === 0) return;
 
   const bindings: Record<string, number> = { tenantId };

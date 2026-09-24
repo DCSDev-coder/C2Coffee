@@ -44,7 +44,7 @@ class _MenuPageState extends State<MenuPage> {
   final PageController _voucherBannerController = PageController();
 
   bool _isSearching = false;
-  bool _showTokenPrice = false;
+  bool _showTokenPrice = true;
   bool _isAutoScrolling = false;
   _MenuSortOrder _sortOrder = _MenuSortOrder.menuOrder;
   int _selectedCategoryIndex = 0;

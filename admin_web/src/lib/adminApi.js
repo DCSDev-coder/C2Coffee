@@ -351,8 +351,8 @@ export async function reviewAdminRefund(
   );
 }
 
-export async function loadAdminVouchers() {
-  return adminRequest("/v1/admin/vouchers");
+export async function loadAdminVouchers({ includeTierRewards = false } = {}) {
+  return adminRequest(`/v1/admin/vouchers${includeTierRewards ? '?include_tier_rewards=true' : ''}`);
 }
 
 export async function loadAdminAuditLogs(params = {}) {

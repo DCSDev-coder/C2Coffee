@@ -45,6 +45,7 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
   bool _isLoading = true;
   String? _error;
   List<RewardVoucher> _vouchers = [];
+  final Set<int> _expandedVoucherIds = <int>{};
 
   @override
   void initState() {
@@ -63,11 +64,15 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
       final list = await CustomerDataService.instance.getRewardVouchers(
         accessToken: accessToken,
         onlyActive: true,
+        includeTierRewards: true,
       );
 
       if (mounted) {
         setState(() {
           _vouchers = list;
+          _expandedVoucherIds.removeWhere(
+            (voucherId) => !list.any((voucher) => voucher.id == voucherId),
+          );
           _isLoading = false;
         });
       }
@@ -364,6 +369,7 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
     required bool enabled,
   }) {
     final isSelected = widget.selectedVoucherId == voucher.id;
+    final isExpanded = _expandedVoucherIds.contains(voucher.id);
     final canApply = enabled && voucher.isTokenCheckoutEligible;
     final isApplied = isSelected && canApply;
     final tileBackground =
@@ -387,6 +393,7 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
         ),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
             width: 50,
@@ -437,40 +444,58 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
                     color: metaColor,
                   ),
                 ),
-                if (voucher.template.minSpendRm != null)
-                  Text(
-                    'Min spend RM ${voucher.template.minSpendRm}',
-                    style: const TextStyle(
+                TextButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      if (isExpanded) {
+                        _expandedVoucherIds.remove(voucher.id);
+                      } else {
+                        _expandedVoucherIds.add(voucher.id);
+                      }
+                    });
+                  },
+                  icon: Icon(
+                    isExpanded
+                        ? Icons.keyboard_arrow_up_rounded
+                        : Icons.keyboard_arrow_down_rounded,
+                    size: 18,
+                  ),
+                  label: Text(isExpanded ? 'Hide details' : 'View details'),
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: const Size(0, 30),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    foregroundColor: AppColors.deepTeal,
+                    textStyle: const TextStyle(
                       fontFamily: 'Afacad',
-                      fontSize: 11,
-                      color: Colors.black45,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                const SizedBox(height: 4),
-                Text(
-                  'Applies to: ${voucher.template.eligibilityLabel}',
-                  style: const TextStyle(
-                    fontFamily: 'Afacad',
-                    fontSize: 11,
-                    color: Colors.black45,
-                  ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  'Benefit: ${voucher.template.benefitLabel}',
-                  style: const TextStyle(
-                    fontFamily: 'Afacad',
-                    fontSize: 11,
-                    color: Colors.black45,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Availability: ${voucher.template.availabilityLabel}',
-                  style: const TextStyle(
-                    fontFamily: 'Afacad',
-                    fontSize: 11,
-                    color: Colors.black45,
+                AnimatedCrossFade(
+                  duration: const Duration(milliseconds: 180),
+                  crossFadeState: isExpanded
+                      ? CrossFadeState.showSecond
+                      : CrossFadeState.showFirst,
+                  firstChild: const SizedBox.shrink(),
+                  secondChild: Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (voucher.template.minSpendRm != null)
+                          _detailText(
+                            'Min spend RM ${voucher.template.minSpendRm}',
+                          ),
+                        _detailText(
+                          'Applies to: ${voucher.template.eligibilityLabel}',
+                        ),
+                        _detailText(
+                          'Availability: ${voucher.template.availabilityLabel}',
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -505,6 +530,20 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _detailText(String value) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 3),
+      child: Text(
+        value,
+        style: const TextStyle(
+          fontFamily: 'Afacad',
+          fontSize: 11,
+          color: Colors.black45,
+        ),
       ),
     );
   }

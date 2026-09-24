@@ -24,6 +24,7 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
   bool _isRewardsLoading = true;
   String? _rewardsError;
   List<RewardVoucher> _vouchers = const [];
+  final Set<int> _expandedVoucherIds = <int>{};
 
   @override
   void initState() {
@@ -70,6 +71,9 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
       if (!mounted) return;
       setState(() {
         _vouchers = vouchers;
+        _expandedVoucherIds.removeWhere(
+          (voucherId) => !vouchers.any((voucher) => voucher.id == voucherId),
+        );
         _isRewardsLoading = false;
       });
     } on ApiException catch (error) {
@@ -224,7 +228,7 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'All active customer vouchers are shown here in one simple list.',
+                      'Your regular vouchers and birthday-tier reward are shown separately.',
                       style: TextStyle(
                         fontFamily: 'Afacad',
                         fontSize: 14,
@@ -323,7 +327,14 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
         return b.issuedAt.compareTo(a.issuedAt);
       });
 
-    if (sortedVouchers.isEmpty) {
+    final birthdayTierVouchers = sortedVouchers
+        .where((voucher) => voucher.rewardKind == 'tier_birthday')
+        .toList();
+    final regularVouchers = sortedVouchers
+        .where((voucher) => voucher.rewardKind != 'tier_birthday')
+        .toList();
+
+    if (regularVouchers.isEmpty && birthdayTierVouchers.isEmpty) {
       return _buildMessageCard(
         title: 'No rewards yet',
         message:
@@ -331,11 +342,26 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
       );
     }
 
-    return _buildRewardsSection(
-      title: 'Vouchers',
-      subtitle: 'Your active vouchers, ready to use.',
-      vouchers: sortedVouchers,
-      accentColor: AppColors.deepTeal,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (birthdayTierVouchers.isNotEmpty) ...[
+          _buildRewardsSection(
+            title: 'Birthday tier reward',
+            subtitle: 'Available this month for your current loyalty tier.',
+            vouchers: birthdayTierVouchers,
+            accentColor: AppColors.gold,
+          ),
+          if (regularVouchers.isNotEmpty) const SizedBox(height: 24),
+        ],
+        if (regularVouchers.isNotEmpty)
+          _buildRewardsSection(
+            title: 'Vouchers',
+            subtitle: 'Your active vouchers, ready to use.',
+            vouchers: regularVouchers,
+            accentColor: AppColors.deepTeal,
+          ),
+      ],
     );
   }
 
@@ -384,6 +410,7 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
     final isActive = voucher.isActive;
     final statusColor = isActive ? AppColors.deepTeal : Colors.grey.shade600;
     final cardAccentColor = isActive ? accentColor : Colors.grey.shade400;
+    final isExpanded = _expandedVoucherIds.contains(voucher.id);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
@@ -488,30 +515,78 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
                       ),
                     ),
                     const SizedBox(height: 10),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        _buildInfoChip('Code', voucher.template.code),
-                        _buildInfoChip('Redeem by', expiryLabel),
-                        _buildInfoChip(
-                          'Availability',
-                          voucher.template.availabilityLabel,
+                    Text(
+                      'Redeem by $expiryLabel',
+                      style: const TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black54,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    TextButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          if (isExpanded) {
+                            _expandedVoucherIds.remove(voucher.id);
+                          } else {
+                            _expandedVoucherIds.add(voucher.id);
+                          }
+                        });
+                      },
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        minimumSize: const Size(0, 32),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        foregroundColor: cardAccentColor,
+                      ),
+                      icon: Icon(
+                        isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                        size: 18,
+                      ),
+                      label: Text(
+                        isExpanded ? 'Hide details' : 'Show details',
+                        style: const TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
                         ),
-                        _buildInfoChip(
-                          'Benefit',
-                          voucher.template.benefitLabel,
+                      ),
+                    ),
+                    AnimatedCrossFade(
+                      duration: const Duration(milliseconds: 180),
+                      crossFadeState: isExpanded
+                          ? CrossFadeState.showSecond
+                          : CrossFadeState.showFirst,
+                      firstChild: const SizedBox.shrink(),
+                      secondChild: Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            _buildInfoChip('Code', voucher.template.code),
+                            _buildInfoChip(
+                              'Availability',
+                              voucher.template.availabilityLabel,
+                            ),
+                            _buildInfoChip(
+                              'Benefit',
+                              voucher.template.benefitLabel,
+                            ),
+                            _buildInfoChip(
+                              'Applies to',
+                              voucher.template.eligibilityLabel,
+                            ),
+                            if (voucher.template.minSpendRm != null)
+                              _buildInfoChip(
+                                'Min spend',
+                                'RM ${voucher.template.minSpendRm}',
+                              ),
+                          ],
                         ),
-                        _buildInfoChip(
-                          'Applies to',
-                          voucher.template.eligibilityLabel,
-                        ),
-                        if (voucher.template.minSpendRm != null)
-                          _buildInfoChip(
-                            'Min spend',
-                            'RM ${voucher.template.minSpendRm}',
-                          ),
-                      ],
+                      ),
                     ),
                   ],
                 ),

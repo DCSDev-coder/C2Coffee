@@ -72,6 +72,14 @@ class NotificationService {
     );
   }
 
+  Future<void> clearNotifications({required String accessToken}) {
+    return _write(
+      'DELETE',
+      '/notifications',
+      accessToken: accessToken,
+    );
+  }
+
   Future<bool> getMarketingPreference({required String accessToken}) async {
     final response =
         await _get('/notification-preferences', accessToken: accessToken);

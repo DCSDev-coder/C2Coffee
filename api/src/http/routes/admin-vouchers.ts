@@ -52,6 +52,10 @@ const customerSearchQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(25).optional().default(10)
 });
 
+const voucherListQuerySchema = z.object({
+  include_tier_rewards: z.enum(['1', 'true']).optional().transform((value) => value !== undefined)
+});
+
 const voucherIssueSchema = z.object({
   userId: z.coerce.number().int().positive().optional(),
   phone: z.string().trim().min(3).max(30).optional(),
@@ -918,6 +922,7 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
   // GET /v1/admin/vouchers
   app.get('/v1/admin/vouchers', { preHandler: [authenticateAdminRequest] }, async (request) => {
     requireAdminRole(request, 'super_admin');
+    const { include_tier_rewards: includeTierRewards } = voucherListQuerySchema.parse(request.query);
     const voucherColumns = await getVoucherTemplateColumns();
     const selectColumns = [
       'vt.id',
@@ -949,6 +954,9 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
     }
 
     const whereClauses = ['vt.tenant_id = :tenantId'];
+    if (!includeTierRewards) {
+      whereClauses.push("vt.voucher_type <> 'tier_reward'");
+    }
     if (hasColumn(voucherColumns, 'deleted_at')) {
       whereClauses.push('vt.deleted_at IS NULL');
     }
@@ -1187,6 +1195,9 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
       discountValue = 1;
       voucherType = 'birthday_treat';
     }
+    if (payload.type === 'Tier Reward') {
+      voucherType = 'tier_reward';
+    }
 
     const eligibleItems = normalizeEligibleItems(payload.eligibleItems);
     const productKinds = normalizeScopeCodes(payload.productKinds);
@@ -1284,6 +1295,9 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
       discountMode = 'free_drink';
       discountValue = 1;
       voucherType = 'birthday_treat';
+    }
+    if (payload.type === 'Tier Reward') {
+      voucherType = 'tier_reward';
     }
 
     const eligibleItems = normalizeEligibleItems(payload.eligibleItems);
