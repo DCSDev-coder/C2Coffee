@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../services/app_session_service.dart';
 import '../services/catalog_presentation.dart';
@@ -521,101 +522,165 @@ class _MenuPageState extends State<MenuPage> {
           title: 'MENU',
           onBack: () {},
           showBackButton: false,
-          customHeader: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 300),
-            child: _isSearching
-                ? Row(
-                    key: const ValueKey('searchBar'),
-                    children: [
-                      Expanded(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: TextField(
-                            controller: _searchController,
-                            textAlignVertical: TextAlignVertical.center,
-                            style: TextStyle(
-                              fontFamily: 'Afacad',
-                              fontSize: 15,
-                              color: AppColors.deepTeal,
-                            ),
-                            decoration: const InputDecoration(
-                              hintText: 'Search menu',
-                              border: InputBorder.none,
-                              isDense: true,
-                              contentPadding: EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 8,
-                              ),
-                            ),
-                          ),
-                        ),
+          customHeader: SizedBox(
+            height: 44,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                // Left-aligned Filter Button
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: GestureDetector(
+                    onTap: _showMenuFilters,
+                    behavior: HitTestBehavior.opaque,
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.close,
-                            color: Colors.white, size: 20),
-                        onPressed: () {
-                          setState(() {
-                            _isSearching = false;
-                            _searchController.clear();
-                          });
-                        },
+                      child: const Icon(
+                        Icons.tune,
+                        color: Colors.white,
+                        size: 20,
                       ),
-                    ],
-                  )
-                : Stack(
-                    key: const ValueKey('menuHeader'),
-                    alignment: Alignment.center,
-                    children: [
-                      const Text(
-                        'MENU',
-                        style: TextStyle(
-                          fontFamily: 'Recoleta',
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                          letterSpacing: 1,
-                        ),
-                      ),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            GestureDetector(
-                              onTap: _showMenuFilters,
-                              child: const Padding(
-                                padding: EdgeInsets.all(6),
-                                child: Icon(
-                                  Icons.tune,
-                                  color: Colors.white,
-                                  size: 21,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            GestureDetector(
-                              onTap: () => setState(() => _isSearching = true),
-                              child: const Padding(
-                                padding: EdgeInsets.all(6),
-                                child: Icon(
-                                  Icons.search,
-                                  color: Colors.white,
-                                  size: 22,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
+                ),
+
+                // Center Title "MENU" that fades out & scales as search expands
+                AnimatedOpacity(
+                  opacity: _isSearching ? 0.0 : 1.0,
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeInOut,
+                  child: AnimatedScale(
+                    scale: _isSearching ? 0.85 : 1.0,
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeInOut,
+                    child: const Text(
+                      'MENU',
+                      style: TextStyle(
+                        fontFamily: 'Recoleta',
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Search Bar that morphs and expands from right side towards center
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 280),
+                    curve: Curves.easeOutCubic,
+                    width: _isSearching
+                        ? MediaQuery.sizeOf(context).width - 80
+                        : 36,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: _isSearching
+                          ? Colors.white
+                          : Colors.white.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(22),
+                      boxShadow: _isSearching
+                          ? [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.15),
+                                blurRadius: 10,
+                                offset: const Offset(0, 2),
+                              )
+                            ]
+                          : null,
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 200),
+                      child: _isSearching
+                          ? Row(
+                              key: const ValueKey('expandedSearch'),
+                              children: [
+                                const Padding(
+                                  padding: EdgeInsets.only(left: 12, right: 6),
+                                  child: Icon(
+                                    Icons.search,
+                                    color: Color(0xFF6B7280),
+                                    size: 18,
+                                  ),
+                                ),
+                                Expanded(
+                                  child: TextField(
+                                    controller: _searchController,
+                                    autofocus: true,
+                                    textAlignVertical: TextAlignVertical.center,
+                                    style: TextStyle(
+                                      fontFamily: 'Afacad',
+                                      fontSize: 15,
+                                      color: AppColors.brandText,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                    decoration: const InputDecoration(
+                                      hintText: 'Search menu items...',
+                                      hintStyle: TextStyle(
+                                        fontFamily: 'Afacad',
+                                        fontSize: 14,
+                                        color: Color(0xFF9CA3AF),
+                                      ),
+                                      border: InputBorder.none,
+                                      isDense: true,
+                                      contentPadding: EdgeInsets.symmetric(
+                                        vertical: 8,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                GestureDetector(
+                                  onTap: () {
+                                    setState(() {
+                                      _isSearching = false;
+                                      _searchController.clear();
+                                    });
+                                  },
+                                  behavior: HitTestBehavior.opaque,
+                                  child: const Padding(
+                                    padding: EdgeInsets.symmetric(horizontal: 10),
+                                    child: Icon(
+                                      Icons.close,
+                                      color: Color(0xFF6B7280),
+                                      size: 18,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            )
+                          : GestureDetector(
+                              key: const ValueKey('collapsedSearch'),
+                              onTap: () => setState(() => _isSearching = true),
+                              behavior: HitTestBehavior.opaque,
+                              child: const SizedBox(
+                                width: 36,
+                                height: 38,
+                                child: Center(
+                                  child: Icon(
+                                    Icons.search,
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
+                                ),
+                              ),
+                            ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
           backgroundColor: Colors.white,
           scrollable: false,
           extendBody: true,
+          resizeToAvoidBottomInset: false,
           bodyPadding: EdgeInsets.zero,
           bottomNavigationBar: CustomBottomNav(
             selectedIndex: 1,
@@ -854,42 +919,252 @@ class _MenuPageState extends State<MenuPage> {
   }
 
   Widget _buildStoreBar() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      color: Colors.white,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _session.selectedStore?.name ?? 'No store selected',
+    return _buildStoreHeader();
+  }
+
+  void _openStoreDirection() {
+    final storeName = _session.selectedStore?.name ?? 'C2 Coffee Eco Forest';
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return Container(
+          margin: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.12),
+                blurRadius: 20,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: AppColors.secondary.withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.near_me_rounded,
+                          color: AppColors.deepTeal,
+                          size: 22,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Get Directions',
+                              style: TextStyle(
+                                fontFamily: 'Recoleta',
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.brandText,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              storeName,
+                              style: const TextStyle(
+                                fontFamily: 'Afacad',
+                                fontSize: 13,
+                                color: Colors.black54,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  ListTile(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    tileColor: const Color(0xFFF7F8F9),
+                    leading: const Icon(
+                      Icons.map_rounded,
+                      color: Color(0xFF4285F4),
+                      size: 28,
+                    ),
+                    title: const Text(
+                      'Google Maps',
                       style: TextStyle(
-                        fontFamily: 'Recoleta',
-                        fontWeight: FontWeight.bold,
+                        fontFamily: 'Afacad',
+                        fontWeight: FontWeight.w600,
                         fontSize: 16,
-                        color: AppColors.deepTeal,
                       ),
                     ),
-                    Text(
-                      _session.selectedStore != null
-                          ? '${_session.selectedStore!.pickupLeadMinutes} min pickup lead'
-                          : 'Live store data will appear here',
-                      style: const TextStyle(
+                    trailing: const Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      size: 14,
+                      color: Colors.black45,
+                    ),
+                    onTap: () async {
+                      Navigator.pop(sheetContext);
+                      final googleMapsUri = Uri.parse(
+                        'https://share.google/vxhKkaQTBIOH0iO3C',
+                      );
+                      if (await canLaunchUrl(googleMapsUri)) {
+                        await launchUrl(
+                          googleMapsUri,
+                          mode: LaunchMode.externalApplication,
+                        );
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  ListTile(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    tileColor: const Color(0xFFF7F8F9),
+                    leading: const Icon(
+                      Icons.navigation_rounded,
+                      color: Color(0xFF33CCFF),
+                      size: 28,
+                    ),
+                    title: const Text(
+                      'Waze',
+                      style: TextStyle(
+                        fontFamily: 'Afacad',
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                      ),
+                    ),
+                    trailing: const Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      size: 14,
+                      color: Colors.black45,
+                    ),
+                    onTap: () async {
+                      Navigator.pop(sheetContext);
+                      final encodedName = Uri.encodeComponent(storeName);
+                      final wazeAppUri = Uri.parse('waze://?q=$encodedName&navigate=yes');
+                      final wazeWebUri = Uri.parse('https://www.waze.com/ul?q=$encodedName&navigate=yes');
+
+                      if (await canLaunchUrl(wazeAppUri)) {
+                        await launchUrl(
+                          wazeAppUri,
+                          mode: LaunchMode.externalApplication,
+                        );
+                      } else if (await canLaunchUrl(wazeWebUri)) {
+                        await launchUrl(
+                          wazeWebUri,
+                          mode: LaunchMode.externalApplication,
+                        );
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildStoreHeader() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      color: Colors.white,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  _session.selectedStore?.name ?? 'C2 Coffee Eco Forest',
+                  style: TextStyle(
+                    fontFamily: 'Recoleta',
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: AppColors.deepTeal,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    Container(
+                      width: 7,
+                      height: 7,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF10B981),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 5),
+                    const Text(
+                      'Open for Store Pickup',
+                      style: TextStyle(
                         fontFamily: 'Afacad',
                         fontSize: 13,
+                        fontWeight: FontWeight.w500,
                         color: Colors.black54,
                       ),
                     ),
                   ],
                 ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          InkWell(
+            onTap: _openStoreDirection,
+            borderRadius: BorderRadius.circular(20),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              decoration: BoxDecoration(
+                color: AppColors.secondary.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: AppColors.secondary.withValues(alpha: 0.35),
+                  width: 0.8,
+                ),
               ),
-            ],
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.directions_outlined,
+                    size: 16,
+                    color: AppColors.deepTeal,
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    'Direction',
+                    style: TextStyle(
+                      fontFamily: 'Afacad',
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.deepTeal,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       ),

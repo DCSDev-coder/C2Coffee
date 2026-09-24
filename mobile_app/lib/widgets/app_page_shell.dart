@@ -22,6 +22,7 @@ class AppPageShell extends StatelessWidget {
   final void Function(bool)? onEndDrawerChanged;
   final GlobalKey<ScaffoldState>? scaffoldKey;
   final bool scrollable;
+  final bool? resizeToAvoidBottomInset;
 
   const AppPageShell({
     super.key,
@@ -45,6 +46,7 @@ class AppPageShell extends StatelessWidget {
     this.onEndDrawerChanged,
     this.scaffoldKey,
     this.scrollable = true,
+    this.resizeToAvoidBottomInset,
   });
 
   @override
@@ -150,6 +152,7 @@ class AppPageShell extends StatelessWidget {
         key: scaffoldKey,
         backgroundColor: backgroundColor ?? AppColors.background,
         extendBody: extendBody,
+        resizeToAvoidBottomInset: resizeToAvoidBottomInset,
         bottomNavigationBar: bottomNavigationBar,
         endDrawer: endDrawer,
         onEndDrawerChanged: onEndDrawerChanged,
