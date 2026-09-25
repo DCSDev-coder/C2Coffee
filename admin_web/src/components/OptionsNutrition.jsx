@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { ImagePlus, Plus, Pencil, X, Save, Sparkles, Trash2 } from 'lucide-react';
 import {
   createAdminOptionGroup,
@@ -575,10 +576,10 @@ export default function OptionsNutrition() {
       )}
 
       {/* Option Group Modal */}
-      {form && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 backdrop-blur-xs p-3 sm:p-4">
-          <form onSubmit={handleGroupFormSubmit} className="mx-auto my-auto w-full max-w-5xl max-h-[calc(100vh-2rem)] flex flex-col rounded-3xl bg-white shadow-2xl border border-gray-100 overflow-hidden">
-            <div className="flex shrink-0 items-center justify-between border-b p-4 sm:p-5 bg-gray-50/50">
+      {form && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-9999 flex items-center justify-center overflow-y-auto bg-slate-900/35 backdrop-blur-md p-3 sm:p-4 animate-in fade-in duration-200">
+          <form onSubmit={handleGroupFormSubmit} className="mx-auto my-auto w-full max-w-5xl max-h-[calc(100vh-2rem)] flex flex-col rounded-3xl bg-white shadow-2xl border border-gray-100 overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="flex shrink-0 items-center justify-between border-b border-gray-100 p-4 sm:p-5 bg-white/80 backdrop-blur-xs">
               <div>
                 <h2 className="text-lg font-bold text-gray-900">
                   {form.id ? 'Edit option group' : 'New option group'}
@@ -848,7 +849,8 @@ export default function OptionsNutrition() {
               </button>
             </div>
           </form>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

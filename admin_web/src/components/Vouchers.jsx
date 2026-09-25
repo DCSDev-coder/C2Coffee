@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { adminRequest, getAdminApiBaseUrl, uploadAdminVoucherImage } from '../lib/adminApi';
 import {
   Search, ChevronDown, Download, Plus,
@@ -238,11 +239,13 @@ const formatAvailabilityMode = (value) =>
   AVAILABILITY_MODE_OPTIONS.find((option) => option.value === value)?.label || "Always Available";
 
 const VoucherFormSection = ({ number, title, description }) => (
-  <div className="flex items-start gap-3 border-t border-[#DDE9E5] pt-4 first:border-t-0 first:pt-0">
-    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#1E433A] text-[11px] font-bold text-white">{number}</span>
-    <div>
-      <h4 className="font-bold text-gray-900">{title}</h4>
-      <p className="mt-0.5 leading-relaxed text-gray-500">{description}</p>
+  <div className="flex items-start gap-3.5 border-t border-gray-100 pt-5 first:border-t-0 first:pt-0">
+    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-[#1E433A] text-[11px] font-bold text-white shadow-xs">
+      {number}
+    </span>
+    <div className="min-w-0 flex-1">
+      <h4 className="text-sm font-bold text-gray-900 tracking-tight">{title}</h4>
+      <p className="mt-0.5 text-xs leading-relaxed text-gray-500">{description}</p>
     </div>
   </div>
 );
@@ -1652,29 +1655,31 @@ const Vouchers = ({ onNavigate }) => {
         )}
       </div>
 
-      {showIssueModal && issuingVoucher && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="p-6 space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-base font-bold text-gray-900">Issue Voucher</h3>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Assign <span className="font-semibold text-gray-700">{issuingVoucher.name}</span> to a customer.
-                  </p>
-                </div>
-                <button
-                  onClick={() => {
-                    setShowIssueModal(false);
-                    setIssuingVoucher(null);
-                  }}
-                  className="text-gray-400 hover:text-gray-700 cursor-pointer"
-                >
-                  <X size={18} />
-                </button>
+      {showIssueModal && issuingVoucher && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 sm:p-6 bg-slate-900/35 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between px-6 py-4.5 border-b border-gray-100 bg-white/80 backdrop-blur-xs">
+              <div>
+                <h3 className="text-base font-bold text-gray-900 tracking-tight">Issue Voucher</h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Assign <span className="font-semibold text-gray-700">{issuingVoucher.name}</span> to a customer.
+                </p>
               </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowIssueModal(false);
+                  setIssuingVoucher(null);
+                }}
+                className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer"
+                aria-label="Close modal"
+              >
+                <X size={18} />
+              </button>
+            </div>
 
-              <form onSubmit={handleIssueVoucher} className="space-y-4">
+            <form onSubmit={handleIssueVoucher}>
+              <div className="p-6 space-y-4">
                 <div>
                   <label className="block font-bold text-gray-900 mb-1 text-xs">Employee / Customer Phone Number</label>
                   <input
@@ -1736,61 +1741,71 @@ const Vouchers = ({ onNavigate }) => {
                 </div>
 
                 {selectedCustomer && (
-                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-3 text-xs text-gray-600">
+                  <div className="rounded-lg border border-emerald-100 bg-emerald-50/50 px-3.5 py-3 text-xs text-emerald-900">
                     Selected customer: <span className="font-bold text-gray-900">{selectedCustomer.displayName}</span>
                   </div>
                 )}
+              </div>
 
-                <div className="pt-2 flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowIssueModal(false);
-                      setIssuingVoucher(null);
-                    }}
-                    className="flex-1 py-2 border border-gray-300 rounded-lg font-bold text-gray-700 hover:bg-gray-50 cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="flex-1 py-2 bg-[#2E5E58] text-white rounded-lg font-bold hover:bg-[#1F3A34] transition-colors cursor-pointer"
-                  >
-                    Issue Voucher
-                  </button>
-                </div>
-              </form>
-            </div>
+              <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50/70">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowIssueModal(false);
+                    setIssuingVoucher(null);
+                  }}
+                  className="px-5 py-2.5 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 shadow-2xs transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 bg-[#1E433A] text-white rounded-xl text-xs font-bold hover:bg-[#16342D] shadow-xs transition-all cursor-pointer"
+                >
+                  Issue Voucher
+                </button>
+              </div>
+            </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Create New Voucher Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-lg flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150 max-h-[90vh]">
-            <div className="overflow-y-auto overflow-x-hidden w-full custom-scrollbar">
-              <div className="p-6">
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-base font-bold text-gray-900">Create New Voucher</h3>
-                  <button
-                    onClick={() => setShowCreateModal(false)}
-                    className="text-gray-400 hover:text-gray-700 cursor-pointer"
-                  >
-                    <X size={18} />
-                  </button>
-                </div>
+      {showCreateModal && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 sm:p-6 bg-slate-900/35 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 w-full max-w-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4.5 border-b border-gray-100 bg-white/80 backdrop-blur-xs shrink-0">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 tracking-tight">Create New Voucher</h3>
+                <p className="text-xs text-gray-500 mt-0.5">Configure reward details, audience eligibility, and usage rules.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCreateModal(false)}
+                className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer"
+                aria-label="Close modal"
+              >
+                <X size={19} />
+              </button>
+            </div>
 
-                <form onSubmit={handleCreateVoucher} className="space-y-3.5 text-xs">
-                  <div className="rounded-xl border border-[#CDE0DA] bg-[#F4F8F7] p-3 text-[11px] text-[#355E55]">
-                    <strong className="block text-xs text-[#1E433A]">Set up a customer reward in four steps</strong>
-                    <span className="mt-1 block">Reward, eligible customers, eligible menu items, then availability and limits.</span>
+            {/* Modal Form Scrollable Body */}
+            <form onSubmit={handleCreateVoucher} className="flex flex-col flex-1 min-h-0">
+              <div className="overflow-y-auto px-6 py-5 space-y-4 custom-scrollbar text-xs flex-1">
+                <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-3.5 text-[11px] text-emerald-900/80 flex items-start gap-2.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-[#1E433A] mt-1 shrink-0" />
+                  <div>
+                    <strong className="block text-xs font-semibold text-[#1E433A]">Set up a customer reward in four steps</strong>
+                    <span className="mt-0.5 block text-gray-600">Reward, eligible customers, eligible menu items, then availability and limits.</span>
                   </div>
-                  <VoucherFormSection
-                    number="1"
-                    title="Reward"
-                    description="Name the reward, choose what it gives, and optionally add the image customers see in My Rewards."
-                  />
+                </div>
+                <VoucherFormSection
+                  number="1"
+                  title="Reward"
+                  description="Name the reward, choose what it gives, and optionally add the image customers see in My Rewards."
+                />
                   <div>
                     <label className="block font-bold text-gray-900 mb-1">Voucher Name</label>
                     <input
@@ -2110,65 +2125,80 @@ const Vouchers = ({ onNavigate }) => {
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block font-bold text-gray-900 mb-1">Description</label>
-                    <textarea
-                      rows="2"
-                      placeholder="Terms and redemption instructions..."
-                      value={newVoucher.description}
-                      onChange={(e) => setNewVoucher({ ...newVoucher, description: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
-                    ></textarea>
+                    <div>
+                      <label className="block font-bold text-gray-900 mb-1">Description</label>
+                      <textarea
+                        rows="2"
+                        placeholder="Terms and redemption instructions..."
+                        value={newVoucher.description}
+                        onChange={(e) => setNewVoucher({ ...newVoucher, description: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
+                      ></textarea>
+                    </div>
                   </div>
 
-                  <div className="pt-3 flex gap-3">
+                  {/* Modal Sticky Footer */}
+                  <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50/70 shrink-0">
                     <button
                       type="button"
                       onClick={() => setShowCreateModal(false)}
-                      className="flex-1 py-2 border border-gray-300 rounded-lg font-bold text-gray-700 hover:bg-gray-50 cursor-pointer"
+                      className="px-5 py-2.5 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 shadow-2xs transition-all cursor-pointer"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
-                      className="flex-1 py-2 bg-[#2E5E58] text-white rounded-lg font-bold hover:bg-[#1F3A34] transition-colors cursor-pointer"
+                      className="px-6 py-2.5 bg-[#1E433A] text-white rounded-xl text-xs font-bold hover:bg-[#16342D] shadow-xs transition-all cursor-pointer"
                     >
                       Create Voucher
                     </button>
                   </div>
                 </form>
-              </div>
-            </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/*Edit Voucher Modal*/}
-      {editingVoucher && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-lg flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150 max-h-[90vh]">
-            <div className="overflow-y-auto overflow-x-hidden w-full custom-scrollbar">
-              <div className="p-6">
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-base font-bold text-gray-900">Edit Voucher ({editingVoucher.id})</h3>
-                  <button
-                    onClick={() => setEditingVoucher(null)}
-                    className="text-gray-400 hover:text-gray-700 cursor-pointer"
-                  >
-                    <X size={18} />
-                  </button>
+      {editingVoucher && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 sm:p-6 bg-slate-900/35 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 w-full max-w-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4.5 border-b border-gray-100 bg-white/80 backdrop-blur-xs shrink-0">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-lg font-bold text-gray-900 tracking-tight">Edit Voucher</h3>
+                  <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-[11px] font-bold text-[#1E433A] border border-emerald-100">
+                    {editingVoucher.id}
+                  </span>
                 </div>
+                <p className="text-xs text-gray-500 mt-0.5">Modify voucher settings, customer eligibility, or redemption rules.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingVoucher(null)}
+                className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer"
+                aria-label="Close modal"
+              >
+                <X size={19} />
+              </button>
+            </div>
 
-                <form onSubmit={handleSaveEdit} className="space-y-3.5 text-xs">
-                  <div className="rounded-xl border border-[#CDE0DA] bg-[#F4F8F7] p-3 text-[11px] text-[#355E55]">
-                    <strong className="block text-xs text-[#1E433A]">Update this reward in four steps</strong>
-                    <span className="mt-1 block">Reward, eligible customers, eligible menu items, then availability and limits.</span>
+            {/* Modal Form Scrollable Body */}
+            <form onSubmit={handleSaveEdit} className="flex flex-col flex-1 min-h-0">
+              <div className="overflow-y-auto px-6 py-5 space-y-4 custom-scrollbar text-xs flex-1">
+                <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-3.5 text-[11px] text-emerald-900/80 flex items-start gap-2.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-[#1E433A] mt-1 shrink-0" />
+                  <div>
+                    <strong className="block text-xs font-semibold text-[#1E433A]">Update this reward in four steps</strong>
+                    <span className="mt-0.5 block text-gray-600">Reward, eligible customers, eligible menu items, then availability and limits.</span>
                   </div>
-                  <VoucherFormSection
-                    number="1"
-                    title="Reward"
-                    description="Update the reward name, benefit, and the image customers see in My Rewards."
-                  />
+                </div>
+                <VoucherFormSection
+                  number="1"
+                  title="Reward"
+                  description="Update the reward name, benefit, and the image customers see in My Rewards."
+                />
                   <div>
                     <label className="block font-bold text-gray-900 mb-1">Voucher Name</label>
                     <input
@@ -2502,36 +2532,37 @@ const Vouchers = ({ onNavigate }) => {
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block font-bold text-gray-900 mb-1">Description</label>
-                    <textarea
-                      rows="2"
-                      value={editingVoucher.description}
-                      onChange={(e) => setEditingVoucher({ ...editingVoucher, description: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
-                    ></textarea>
+                    <div>
+                      <label className="block font-bold text-gray-900 mb-1">Description</label>
+                      <textarea
+                        rows="2"
+                        value={editingVoucher.description}
+                        onChange={(e) => setEditingVoucher({ ...editingVoucher, description: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
+                      ></textarea>
+                    </div>
                   </div>
 
-                  <div className="pt-3 flex gap-3">
+                  {/* Modal Sticky Footer */}
+                  <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50/70 shrink-0">
                     <button
                       type="button"
                       onClick={() => setEditingVoucher(null)}
-                      className="flex-1 py-2 border border-gray-300 rounded-lg font-bold text-gray-700 hover:bg-gray-50 cursor-pointer"
+                      className="px-5 py-2.5 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 shadow-2xs transition-all cursor-pointer"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
-                      className="flex-1 py-2 bg-[#2E5E58] text-white rounded-lg font-bold hover:bg-[#1F3A34] transition-colors cursor-pointer"
+                      className="px-6 py-2.5 bg-[#1E433A] text-white rounded-xl text-xs font-bold hover:bg-[#16342D] shadow-xs transition-all cursor-pointer"
                     >
                       Save Changes
                     </button>
                   </div>
                 </form>
-              </div>
-            </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

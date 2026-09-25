@@ -247,6 +247,12 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
         excludeUserId: importedMembership.userId
       });
       resolvedEmail = providedEmail.toLowerCase();
+    } else if (payload.purpose === 'signup') {
+      if (!providedEmail) {
+        throw new ApiError(400, 'otp_email_required', 'Email address is required to complete Sign Up.');
+      }
+      await ensureSignupIdentityAvailable({ phone, email: providedEmail });
+      resolvedEmail = providedEmail.toLowerCase();
     } else {
       resolvedEmail = await resolveOtpEmail({
         phone,
@@ -792,6 +798,7 @@ async function findOrCreateUserForPhone(
       FROM users u
       LEFT JOIN user_profiles up ON up.user_id = u.id
       WHERE u.phone_e164 = :phone
+        AND u.deleted_at IS NULL
       LIMIT 1
       FOR UPDATE
     `,

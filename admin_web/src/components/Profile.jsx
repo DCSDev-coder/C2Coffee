@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ArrowLeft, KeyRound, ShieldCheck, X } from 'lucide-react';
 import {
   clearAdminTokens,
@@ -83,7 +84,59 @@ const Profile = ({ onBack, currentUser }) => {
         <section className="mt-4 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm"><div className="flex items-start justify-between gap-5"><div><div className="flex items-center gap-2"><ShieldCheck size={20} className="text-[#1F3A34]" /><h2 className="text-lg font-bold text-gray-900">Password</h2></div><p className="mt-2 text-sm text-gray-500">Changing your password requires your current password and a six-digit code sent to your admin email. All devices will need to sign in again.</p></div><button onClick={() => setOpen(true)} className="shrink-0 rounded-lg bg-[#1F3A34] px-4 py-2 text-sm font-bold text-white hover:bg-[#2E5E58]">Change Password</button></div></section>
       </div>
 
-      {open && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"><div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl"><div className="mb-5 flex items-center justify-between"><h2 className="flex items-center gap-2 text-lg font-bold text-gray-900"><KeyRound size={19} className="text-[#1F3A34]" /> Change Password</h2><button onClick={close} className="text-gray-400 hover:text-gray-700"><X size={20} /></button></div>{message && <div className={`mb-4 rounded-lg px-3 py-2 text-sm ${message.startsWith('A six') || message.startsWith('Password changed') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>{message}</div>}{step === 'details' ? <form onSubmit={requestCode} className="space-y-4"><label className="block text-sm font-medium text-gray-700">Current password<input required type="password" value={form.currentPassword} onChange={(event) => setForm({ ...form, currentPassword: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" /></label><label className="block text-sm font-medium text-gray-700">New password<input required minLength="8" type="password" value={form.newPassword} onChange={(event) => setForm({ ...form, newPassword: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" /></label><label className="block text-sm font-medium text-gray-700">Confirm new password<input required minLength="8" type="password" value={form.confirmPassword} onChange={(event) => setForm({ ...form, confirmPassword: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" /></label><button disabled={busy || !email} className="w-full rounded-lg bg-[#1F3A34] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">{busy ? 'Sending code...' : 'Send Verification Code'}</button>{!email && <p className="text-sm text-red-600">An admin email is required before you can change the password.</p>}</form> : <form onSubmit={confirmCode} className="space-y-4"><p className="text-sm text-gray-600">Enter the code sent to <span className="font-semibold">{email}</span>. It expires after 10 minutes.</p><label className="block text-sm font-medium text-gray-700">Verification code<input required inputMode="numeric" pattern="[0-9]{6}" maxLength="6" value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value.replace(/\D/g, '') })} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-center text-xl tracking-[0.4em]" /></label><button disabled={busy || form.code.length !== 6} className="w-full rounded-lg bg-[#1F3A34] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">{busy ? 'Confirming...' : 'Confirm and Change Password'}</button></form>}</div></div>}
+      {open && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-slate-900/35 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-gray-100 animate-in zoom-in-95 duration-200">
+            <div className="mb-5 flex items-center justify-between">
+              <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900">
+                <KeyRound size={19} className="text-[#1F3A34]" /> Change Password
+              </h2>
+              <button onClick={close} className="p-1.5 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer">
+                <X size={20} />
+              </button>
+            </div>
+            {message && (
+              <div className={`mb-4 rounded-lg px-3 py-2 text-sm ${message.startsWith('A six') || message.startsWith('Password changed') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                {message}
+              </div>
+            )}
+            {step === 'details' ? (
+              <form onSubmit={requestCode} className="space-y-4">
+                <label className="block text-sm font-medium text-gray-700">
+                  Current password
+                  <input required type="password" value={form.currentPassword} onChange={(event) => setForm({ ...form, currentPassword: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-[#2E5E58] focus:ring-[#2E5E58] outline-none" />
+                </label>
+                <label className="block text-sm font-medium text-gray-700">
+                  New password
+                  <input required minLength="8" type="password" value={form.newPassword} onChange={(event) => setForm({ ...form, newPassword: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-[#2E5E58] focus:ring-[#2E5E58] outline-none" />
+                </label>
+                <label className="block text-sm font-medium text-gray-700">
+                  Confirm new password
+                  <input required minLength="8" type="password" value={form.confirmPassword} onChange={(event) => setForm({ ...form, confirmPassword: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-[#2E5E58] focus:ring-[#2E5E58] outline-none" />
+                </label>
+                <button disabled={busy || !email} className="w-full rounded-lg bg-[#1F3A34] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#2E5E58] disabled:opacity-50 transition-colors shadow-sm cursor-pointer">
+                  {busy ? 'Sending code...' : 'Send Verification Code'}
+                </button>
+                {!email && <p className="text-sm text-red-600">An admin email is required before you can change the password.</p>}
+              </form>
+            ) : (
+              <form onSubmit={confirmCode} className="space-y-4">
+                <p className="text-sm text-gray-600">
+                  Enter the code sent to <span className="font-semibold">{email}</span>. It expires after 10 minutes.
+                </p>
+                <label className="block text-sm font-medium text-gray-700">
+                  Verification code
+                  <input required inputMode="numeric" pattern="[0-9]{6}" maxLength="6" value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value.replace(/\D/g, '') })} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-center text-xl tracking-[0.4em] focus:border-[#2E5E58] focus:ring-[#2E5E58] outline-none" />
+                </label>
+                <button disabled={busy || form.code.length !== 6} className="w-full rounded-lg bg-[#1F3A34] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#2E5E58] disabled:opacity-50 transition-colors shadow-sm cursor-pointer">
+                  {busy ? 'Confirming...' : 'Confirm and Change Password'}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 };

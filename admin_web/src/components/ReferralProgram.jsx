@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Gift, Pencil, Plus, RefreshCw, Share2, Trash2, Users, X } from 'lucide-react';
 import { adminRequest, loadAdminVouchers } from '../lib/adminApi';
 
@@ -130,8 +131,8 @@ function ProgramForm({ initial, vouchers, onClose, onSaved }) {
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm">
+  return typeof document !== 'undefined' ? createPortal(
+    <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-slate-900/35 backdrop-blur-md animate-in fade-in duration-200">
       <form onSubmit={save} className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
         <div className="sticky top-0 flex items-start justify-between border-b border-gray-100 bg-white px-6 py-5">
           <div><h2 className="text-xl font-bold text-[#1F3A34]">{form.id ? 'Edit Referral Program' : 'New Referral Program'}</h2><p className="mt-1 text-sm text-gray-500">Set what both people receive when a referral completes.</p></div>
@@ -169,8 +170,9 @@ function ProgramForm({ initial, vouchers, onClose, onSaved }) {
         </div>
         <div className="sticky bottom-0 flex justify-end gap-3 border-t border-gray-100 bg-white px-6 py-4"><button type="button" onClick={onClose} className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700">Cancel</button><button disabled={saving} className="rounded-lg bg-[#1F3A34] px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">{saving ? 'Saving...' : 'Save referral program'}</button></div>
       </form>
-    </div>
-  );
+    </div>,
+    document.body
+  ) : null;
 }
 
 export default function ReferralProgram() {

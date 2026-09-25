@@ -44,8 +44,8 @@ const statusTone = (status) => {
 };
 
 const StatCard = ({ title, value, detail, icon: Icon, iconColor }) => (
-  <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center gap-4 min-w-0">
-    <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 text-white shadow-sm ${iconColor}`}>
+  <div className="bg-white p-5 rounded-2xl border border-gray-200/80 shadow-sm flex items-center gap-4 min-w-0 card-reveal hover-lift cursor-default">
+    <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 text-white shadow-sm transition-transform duration-200 group-hover:scale-105 ${iconColor}`}>
       <Icon size={26} strokeWidth={2.2} />
     </div>
     <div className="min-w-0">
@@ -57,7 +57,7 @@ const StatCard = ({ title, value, detail, icon: Icon, iconColor }) => (
 );
 
 const ChartCard = ({ title, value, subtitle, data, dataKey, color, gradientId, formatter }) => (
-  <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex flex-col h-72">
+  <div className="bg-white p-5 rounded-xl border border-gray-200/80 shadow-sm flex flex-col h-72 card-reveal hover-lift">
     <h2 className="text-lg font-bold text-gray-900">{title}</h2>
     <div className="mt-2 flex items-end gap-3">
       <p className="text-2xl font-bold text-gray-900">{value}</p>

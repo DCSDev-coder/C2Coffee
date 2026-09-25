@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { CalendarDays, Check, CircleAlert, Clock3, Plus, RefreshCw, Save, Trash2, X } from 'lucide-react';
 import {
   adminRequest,
@@ -274,15 +275,49 @@ export default function Operations() {
               </div>)}
             </div>}
           </div>
-          {selectedDate && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4" role="dialog" aria-modal="true" aria-labelledby="add-shift-title">
-            <form onSubmit={addShift} className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
-              <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-[0.18em] text-[#5C867F]">Timetable</p><h2 id="add-shift-title" className="mt-1 text-xl font-bold text-slate-900">Add shift for {displayDate(selectedDate)}</h2><p className="mt-1 text-sm text-slate-500">An earlier end time means the shift finishes the next day.</p></div><button type="button" onClick={() => setSelectedDate(null)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label="Close add shift"><X size={20} /></button></div>
-              {error && <p role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
-              <label className="mt-6 block text-sm font-bold text-slate-700">Barista<select value={shiftForm.barista_id} onChange={(event) => setShiftForm((current) => ({ ...current, barista_id: event.target.value }))} className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#2E5E58]" required><option value="">Choose barista</option>{baristas.map((barista) => <option key={barista.id} value={barista.id}>{barista.name}</option>)}</select></label>
-              <div className="mt-4 grid grid-cols-2 gap-3"><label className="block text-sm font-bold text-slate-700">Starts<input type="time" value={shiftForm.starts_at} onChange={(event) => setShiftForm((current) => ({ ...current, starts_at: event.target.value }))} className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-[#2E5E58]" required /></label><label className="block text-sm font-bold text-slate-700">Ends<input type="time" value={shiftForm.ends_at} onChange={(event) => setShiftForm((current) => ({ ...current, ends_at: event.target.value }))} className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-[#2E5E58]" required /></label></div>
-              <div className="mt-6 flex justify-end gap-3"><button type="button" onClick={() => setSelectedDate(null)} className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50">Close</button><button type="submit" className="inline-flex items-center gap-2 rounded-xl bg-[#2E5E58] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#244B46]"><Plus size={17} /> Add shift</button></div>
-            </form>
-          </div>}
+          {selectedDate && typeof document !== 'undefined' && createPortal(
+            <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-slate-900/35 backdrop-blur-md animate-in fade-in duration-200" role="dialog" aria-modal="true" aria-labelledby="add-shift-title">
+              <form onSubmit={addShift} className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl border border-gray-100 animate-in zoom-in-95 duration-200">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#5C867F]">Timetable</p>
+                    <h2 id="add-shift-title" className="mt-1 text-xl font-bold text-slate-900">Add shift for {displayDate(selectedDate)}</h2>
+                    <p className="mt-1 text-sm text-slate-500">An earlier end time means the shift finishes the next day.</p>
+                  </div>
+                  <button type="button" onClick={() => setSelectedDate(null)} className="p-1.5 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer" aria-label="Close add shift">
+                    <X size={20} />
+                  </button>
+                </div>
+                {error && <p role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+                <label className="mt-6 block text-sm font-bold text-slate-700">
+                  Barista
+                  <select value={shiftForm.barista_id} onChange={(event) => setShiftForm((current) => ({ ...current, barista_id: event.target.value }))} className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#2E5E58]" required>
+                    <option value="">Choose barista</option>
+                    {baristas.map((barista) => <option key={barista.id} value={barista.id}>{barista.name}</option>)}
+                  </select>
+                </label>
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <label className="block text-sm font-bold text-slate-700">
+                    Starts
+                    <input type="time" value={shiftForm.starts_at} onChange={(event) => setShiftForm((current) => ({ ...current, starts_at: event.target.value }))} className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-[#2E5E58]" required />
+                  </label>
+                  <label className="block text-sm font-bold text-slate-700">
+                    Ends
+                    <input type="time" value={shiftForm.ends_at} onChange={(event) => setShiftForm((current) => ({ ...current, ends_at: event.target.value }))} className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-[#2E5E58]" required />
+                  </label>
+                </div>
+                <div className="mt-6 flex justify-end gap-3">
+                  <button type="button" onClick={() => setSelectedDate(null)} className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 cursor-pointer">
+                    Close
+                  </button>
+                  <button type="submit" className="inline-flex items-center gap-2 rounded-xl bg-[#2E5E58] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#244B46] shadow-sm cursor-pointer">
+                    <Plus size={17} /> Add shift
+                  </button>
+                </div>
+              </form>
+            </div>,
+            document.body
+          )}
         </section>}
 
         {activeTab === 'attendance' && <section className="mt-6 space-y-5">

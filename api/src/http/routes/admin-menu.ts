@@ -146,7 +146,7 @@ type AdminMenuRow = RowDataPacket & {
   subcategory_name: string | null;
   subcategory_sort_order: number | null;
   subcategory_is_active: number | null;
-  item_id: number;
+  item_id: number | null;
   item_code: string;
   item_name: string;
   item_description: string | null;
@@ -318,13 +318,13 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
           c.id AS category_id,
           c.code AS category_code,
           c.name AS category_name,
-          CASE
+          COALESCE(NULLIF(LOWER(c.product_kind_code), ''), CASE
             WHEN LOWER(c.code) IN ('coffee', 'non_coffee') THEN 'drink'
             WHEN LOWER(c.code) = 'food' THEN 'food'
             WHEN LOWER(c.code) = 'merchandise' THEN 'merchandise'
             WHEN LOWER(c.code) = 'candles' THEN 'candle'
             ELSE 'other'
-          END AS category_product_kind_code,
+          END) AS category_product_kind_code,
           c.sort_order AS category_sort_order,
           c.is_active AS category_is_active,
           sc.id AS subcategory_id,
@@ -376,7 +376,7 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
           imo.sort_order AS modifier_option_sort_order,
           imo.is_active AS modifier_option_is_active
         FROM menu_categories c
-        JOIN menu_items i
+        LEFT JOIN menu_items i
           ON i.category_id = c.id
         LEFT JOIN menu_subcategories sc
           ON sc.id = i.subcategory_id
@@ -1178,6 +1178,10 @@ function buildMenuResponse(rows: Array<AdminMenuRow>): AdminMenuResponse {
       };
       subcategories.set(row.subcategory_id, subcategory);
       category.subcategories.push(subcategory);
+    }
+
+    if (row.item_id === null) {
+      continue;
     }
 
     let item = category.items.find((candidate) => candidate.id === row.item_id);

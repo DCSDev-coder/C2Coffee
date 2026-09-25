@@ -1,4 +1,5 @@
 import React, { useState, useEffect, forwardRef } from "react";
+import { createPortal } from "react-dom";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import {
@@ -571,12 +572,12 @@ const LoyaltyTokens = ({ onBack, onNavigate }) => {
       </div>
 
       {/* Wallet adjustment modal */}
-      {isEditTokensOpen && selectedCustomer && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl w-[400px] shadow-xl overflow-hidden">
-            <div className="flex justify-between items-center p-5 border-b border-gray-100">
+      {isEditTokensOpen && selectedCustomer && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-slate-900/35 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl w-full max-w-[420px] shadow-2xl border border-gray-100 overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-center px-6 py-4.5 border-b border-gray-100 bg-white/80 backdrop-blur-xs">
               <h2 className="text-lg font-bold text-gray-900">Adjust Wallet Tokens</h2>
-              <button onClick={() => setIsEditTokensOpen(false)} className="text-gray-400 hover:text-gray-900 transition-colors">
+              <button onClick={() => setIsEditTokensOpen(false)} className="p-1.5 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer">
                 <X size={20} />
               </button>
             </div>
@@ -688,7 +689,8 @@ const LoyaltyTokens = ({ onBack, onNavigate }) => {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

@@ -70,9 +70,13 @@ const Sidebar = ({ currentPage, setCurrentPage, onLogout, currentTenant, current
                     setCurrentPage(item.name);
                   }
                 }}
-                className={`flex items-center space-x-3 px-4 py-2.5 rounded-lg transition-colors text-sm ${isActive ? 'bg-[#1F3A34] font-medium' : 'hover:bg-[#1F3A34] text-white/90'}`}
+                className={`flex items-center space-x-3 px-4 py-2.5 rounded-lg transition-all duration-200 text-sm group ${
+                  isActive
+                    ? 'bg-[#1F3A34] font-medium shadow-sm translate-x-1'
+                    : 'hover:bg-[#1F3A34]/80 text-white/85 hover:text-white hover:translate-x-1'
+                }`}
               >
-                <div className="w-5 h-5 flex items-center justify-center">
+                <div className={`w-5 h-5 flex items-center justify-center transition-transform duration-200 ${isActive ? 'scale-110 text-emerald-300' : 'group-hover:scale-105'}`}>
                   <Icon size={18} strokeWidth={2.5} className="opacity-90" />
                 </div>
                 <span>{item.name}</span>
@@ -95,8 +99,8 @@ const Sidebar = ({ currentPage, setCurrentPage, onLogout, currentTenant, current
           <span className="font-medium">Log Out</span>
         </a>
       </div>
-      {showLogoutModal && createPortal(
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200" style={{ fontFamily: 'Recoleta, serif' }}>
+      {showLogoutModal && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-9999 flex items-center justify-center bg-slate-900/35 backdrop-blur-md p-4 animate-in fade-in duration-200" style={{ fontFamily: 'Recoleta, serif' }}>
           <div className="bg-white rounded-3xl p-8 shadow-2xl max-w-sm w-full border border-gray-100 flex flex-col items-center text-center">
             <div className="w-14 h-14 rounded-full bg-red-100 text-red-600 flex items-center justify-center mb-5 ring-4 ring-red-50">
               <LogOut size={28} strokeWidth={2.5} />

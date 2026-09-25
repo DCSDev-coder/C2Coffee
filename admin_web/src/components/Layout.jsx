@@ -17,7 +17,9 @@ const Layout = ({ children, currentPage, setCurrentPage, onLogout, currentTenant
           <Header setCurrentPage={setCurrentPage} currentPage={currentPage} currentTenant={currentTenant} currentUser={currentUser} />
         </div>
         <main className="flex-1 flex flex-col">
-          {children}
+          <div key={currentPage} className="flex-1 flex flex-col page-reveal">
+            {children}
+          </div>
         </main>
       </div>
     </div>

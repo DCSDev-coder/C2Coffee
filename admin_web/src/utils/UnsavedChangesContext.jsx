@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 
 const UnsavedChangesContext = createContext(null);
 
@@ -103,9 +104,9 @@ export const UnsavedChangesProvider = ({ children, onNavigate }) => {
       }}
     >
       {children}
-      {modalState.isOpen && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-2xl max-w-md w-full border border-gray-100 flex flex-col">
+      {modalState.isOpen && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-9999 flex items-center justify-center bg-slate-900/35 backdrop-blur-md p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-2xl max-w-md w-full border border-gray-100 flex flex-col animate-in zoom-in-95 duration-200">
             <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mb-4 ring-4 ring-amber-50/50">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
@@ -127,7 +128,7 @@ export const UnsavedChangesProvider = ({ children, onNavigate }) => {
                 type="button"
                 onClick={handleCancelModal}
                 disabled={modalState.isSaving}
-                className="px-4 py-2.5 rounded-xl text-sm font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors disabled:opacity-50"
+                className="px-4 py-2.5 rounded-xl text-sm font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors disabled:opacity-50 cursor-pointer"
               >
                 Keep Editing
               </button>
@@ -135,7 +136,7 @@ export const UnsavedChangesProvider = ({ children, onNavigate }) => {
                 type="button"
                 onClick={handleDiscardAndLeave}
                 disabled={modalState.isSaving}
-                className="px-4 py-2.5 rounded-xl text-sm font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 transition-colors disabled:opacity-50"
+                className="px-4 py-2.5 rounded-xl text-sm font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 transition-colors disabled:opacity-50 cursor-pointer"
               >
                 Discard &amp; Leave
               </button>
@@ -143,13 +144,14 @@ export const UnsavedChangesProvider = ({ children, onNavigate }) => {
                 type="button"
                 onClick={handleSaveAndLeave}
                 disabled={modalState.isSaving}
-                className="px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-[#1F3A34] hover:bg-[#2E5E58] transition-colors disabled:opacity-60 flex items-center justify-center gap-2 shadow-sm"
+                className="px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-[#1F3A34] hover:bg-[#2E5E58] transition-colors disabled:opacity-60 flex items-center justify-center gap-2 shadow-sm cursor-pointer"
               >
                 {modalState.isSaving ? 'Saving...' : 'Save & Leave'}
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </UnsavedChangesContext.Provider>
   );

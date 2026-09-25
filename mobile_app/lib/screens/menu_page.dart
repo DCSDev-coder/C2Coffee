@@ -596,82 +596,88 @@ class _MenuPageState extends State<MenuPage> {
                           : null,
                     ),
                     clipBehavior: Clip.antiAlias,
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 200),
-                      child: _isSearching
-                          ? Row(
-                              key: const ValueKey('expandedSearch'),
-                              children: [
-                                const Padding(
-                                  padding: EdgeInsets.only(left: 12, right: 6),
-                                  child: Icon(
-                                    Icons.search,
-                                    color: Color(0xFF6B7280),
-                                    size: 18,
-                                  ),
-                                ),
-                                Expanded(
-                                  child: TextField(
-                                    controller: _searchController,
-                                    autofocus: true,
-                                    textAlignVertical: TextAlignVertical.center,
-                                    style: TextStyle(
-                                      fontFamily: 'Afacad',
-                                      fontSize: 15,
-                                      color: AppColors.brandText,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                    decoration: const InputDecoration(
-                                      hintText: 'Search menu items...',
-                                      hintStyle: TextStyle(
-                                        fontFamily: 'Afacad',
-                                        fontSize: 14,
-                                        color: Color(0xFF9CA3AF),
-                                      ),
-                                      border: InputBorder.none,
-                                      isDense: true,
-                                      contentPadding: EdgeInsets.symmetric(
-                                        vertical: 8,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                GestureDetector(
-                                  onTap: () {
-                                    setState(() {
-                                      _isSearching = false;
-                                      _searchController.clear();
-                                    });
-                                  },
-                                  behavior: HitTestBehavior.opaque,
-                                  child: const Padding(
-                                    padding: EdgeInsets.symmetric(horizontal: 10),
+                    child: _isSearching
+                        ? SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            physics: const NeverScrollableScrollPhysics(),
+                            child: SizedBox(
+                              width: MediaQuery.sizeOf(context).width - 80,
+                              height: 38,
+                              child: Row(
+                                children: [
+                                  const Padding(
+                                    padding: EdgeInsets.only(left: 12, right: 6),
                                     child: Icon(
-                                      Icons.close,
+                                      Icons.search,
                                       color: Color(0xFF6B7280),
                                       size: 18,
                                     ),
                                   ),
-                                ),
-                              ],
-                            )
-                          : GestureDetector(
-                              key: const ValueKey('collapsedSearch'),
-                              onTap: () => setState(() => _isSearching = true),
-                              behavior: HitTestBehavior.opaque,
-                              child: const SizedBox(
-                                width: 36,
-                                height: 38,
-                                child: Center(
-                                  child: Icon(
-                                    Icons.search,
-                                    color: Colors.white,
-                                    size: 20,
+                                  Expanded(
+                                    child: TextField(
+                                      controller: _searchController,
+                                      autofocus: true,
+                                      textAlignVertical:
+                                          TextAlignVertical.center,
+                                      style: TextStyle(
+                                        fontFamily: 'Afacad',
+                                        fontSize: 15,
+                                        color: AppColors.brandText,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                      decoration: const InputDecoration(
+                                        hintText: 'Search menu items...',
+                                        hintStyle: TextStyle(
+                                          fontFamily: 'Afacad',
+                                          fontSize: 14,
+                                          color: Color(0xFF9CA3AF),
+                                        ),
+                                        border: InputBorder.none,
+                                        isDense: true,
+                                        contentPadding: EdgeInsets.symmetric(
+                                          vertical: 8,
+                                        ),
+                                      ),
+                                    ),
                                   ),
+                                  GestureDetector(
+                                    onTap: () {
+                                      FocusScope.of(context).unfocus();
+                                      setState(() {
+                                        _isSearching = false;
+                                        _searchController.clear();
+                                      });
+                                    },
+                                    behavior: HitTestBehavior.opaque,
+                                    child: const Padding(
+                                      padding:
+                                          EdgeInsets.symmetric(horizontal: 10),
+                                      child: Icon(
+                                        Icons.close,
+                                        color: Color(0xFF6B7280),
+                                        size: 18,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        : GestureDetector(
+                            onTap: () => setState(() => _isSearching = true),
+                            behavior: HitTestBehavior.opaque,
+                            child: const SizedBox(
+                              width: 36,
+                              height: 38,
+                              child: Center(
+                                child: Icon(
+                                  Icons.search,
+                                  color: Colors.white,
+                                  size: 20,
                                 ),
                               ),
                             ),
-                    ),
+                          ),
                   ),
                 ),
               ],

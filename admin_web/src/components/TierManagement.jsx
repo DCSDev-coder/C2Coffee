@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Award, BarChart3, Edit3, Gift, MoreVertical, Plus, Save, Trash2, Users, X } from 'lucide-react';
 import { BarChart, Bar, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import Pagination from './Pagination';
@@ -181,17 +182,17 @@ const TierArtworkField = ({ imageUrl, onChange }) => {
 };
 
 const TierModal = ({ open, title, form, onChange, onClose, onSave, saving }) => {
-  if (!open) return null;
+  if (!open || typeof document === 'undefined') return null;
 
-  return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
+  return createPortal(
+    <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-slate-900/35 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 w-full max-w-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+        <div className="px-6 py-4.5 border-b border-gray-100 bg-white/80 backdrop-blur-xs flex items-center justify-between shrink-0">
           <div>
             <h2 className="text-lg font-bold text-gray-900">{title}</h2>
             <p className="text-xs text-gray-500 mt-0.5">Live tier settings used by customer progress, menu pricing, and tier state.</p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 cursor-pointer">
+          <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer">
             <X size={20} />
           </button>
         </div>
@@ -269,12 +270,13 @@ const TierModal = ({ open, title, form, onChange, onClose, onSave, saving }) => 
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
 const TierRewardModal = ({ open, form, tiers, menuItems, onChange, onClose, onSave, saving, isEditing = false }) => {
-  if (!open) return null;
+  if (!open || typeof document === 'undefined') return null;
 
   const eligibleTiers = tiers.filter((tier) => tier.isActive);
   const allProductKinds = ['drink', 'food', 'merchandise', 'candle'];
@@ -289,15 +291,15 @@ const TierRewardModal = ({ open, form, tiers, menuItems, onChange, onClose, onSa
     .entries()];
   const allScopedItemsSelected = scopedItems.length > 0 && scopedItems.every((item) => form.eligibleItems.includes(item.name));
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
-        <div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-6 py-4">
+  return createPortal(
+    <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-slate-900/35 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl border border-gray-100 animate-in zoom-in-95 duration-200">
+        <div className="flex shrink-0 items-center justify-between border-b border-gray-100 bg-white/80 backdrop-blur-xs px-6 py-4.5">
           <div>
             <h2 className="text-lg font-bold text-gray-900">{isEditing ? 'Edit Tier Reward' : 'New Tier Reward'}</h2>
             <p className="mt-0.5 text-xs text-gray-500">{isEditing ? 'Update this tier voucher without changing which tier it belongs to.' : 'Create an achievement reward or a birthday-month reward for one tier.'}</p>
           </div>
-          <button type="button" onClick={onClose} className="cursor-pointer text-gray-400 hover:text-gray-600" aria-label="Close tier reward form">
+          <button type="button" onClick={onClose} className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer" aria-label="Close tier reward form">
             <X size={20} />
           </button>
         </div>
@@ -434,7 +436,8 @@ const TierRewardModal = ({ open, form, tiers, menuItems, onChange, onClose, onSa
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

@@ -1,4 +1,5 @@
 import React, { useState, forwardRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Wallet, Users, Megaphone, Search, ChevronDown, Download, Upload, Plus,
   MoreVertical, X, Crown, ChevronRight, User, ClipboardList, Coins, Ticket, BarChart3, Trash2, Pencil
@@ -939,16 +940,16 @@ const Customers = ({ currentUser }) => {
         )}
       </div>
 
-      {isImportModalOpen && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-4">
-          <div className="flex min-h-full items-start justify-center py-4 sm:items-center">
-            <form onSubmit={submitImport} className="my-auto w-full max-w-2xl max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-2xl bg-white p-6 shadow-xl">
+      {isImportModalOpen && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-slate-900/35 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="flex min-h-full items-start justify-center py-4 sm:items-center w-full">
+            <form onSubmit={submitImport} className="my-auto w-full max-w-2xl max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-2xl bg-white p-6 shadow-2xl border border-gray-100 animate-in zoom-in-95 duration-200">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-xl font-bold text-gray-900">Import Customers</h2>
                 <p className="mt-1 text-sm text-gray-500">Import up to 500 existing POS customers from a CSV file.</p>
               </div>
-              <button type="button" onClick={resetImport} className="text-gray-400 hover:text-gray-900" aria-label="Close customer import">
+              <button type="button" onClick={resetImport} className="p-1.5 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer" aria-label="Close customer import">
                 <X size={20} />
               </button>
             </div>
@@ -1014,8 +1015,8 @@ const Customers = ({ currentUser }) => {
                   />
                 </label>
                 <div className="mt-6 flex justify-end gap-3">
-                  <button type="button" onClick={resetImport} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
-                  <button type="submit" disabled={!importRows.length || !importPassword || isImporting} className="rounded-lg bg-[#1F3A34] px-4 py-2 text-sm font-medium text-white hover:bg-[#2E5E58] disabled:cursor-not-allowed disabled:opacity-50">
+                  <button type="button" onClick={resetImport} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 cursor-pointer">Cancel</button>
+                  <button type="submit" disabled={!importRows.length || !importPassword || isImporting} className="rounded-lg bg-[#1F3A34] px-4 py-2 text-sm font-medium text-white hover:bg-[#2E5E58] disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer">
                     {isImporting ? 'Importing...' : `Import ${importRows.length || ''} customer${importRows.length === 1 ? '' : 's'}`}
                   </button>
                 </div>
@@ -1038,23 +1039,24 @@ const Customers = ({ currentUser }) => {
                   </div>
                 )}
                 <p className="mt-4 text-sm text-gray-500">New customers must complete Sign Up in the mobile app before they can log in.</p>
-                <div className="mt-6 flex justify-end"><button type="button" onClick={resetImport} className="rounded-lg bg-[#1F3A34] px-4 py-2 text-sm font-medium text-white hover:bg-[#2E5E58]">Done</button></div>
+                <div className="mt-6 flex justify-end"><button type="button" onClick={resetImport} className="rounded-lg bg-[#1F3A34] px-4 py-2 text-sm font-medium text-white hover:bg-[#2E5E58] cursor-pointer">Done</button></div>
               </div>
             )}
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Add/Edit Customer Modal */}
-      {(isAddModalOpen || editingCustomer) && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-xl">
+      {(isAddModalOpen || editingCustomer) && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-slate-900/35 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl border border-gray-100 animate-in zoom-in-95 duration-200">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-bold text-gray-900">
                 {editingCustomer ? 'Edit Customer' : 'Add New Customer'}
               </h2>
-              <button onClick={() => { setIsAddModalOpen(false); setEditingCustomer(null); }} className="text-gray-400 hover:text-gray-900">
+              <button onClick={() => { setIsAddModalOpen(false); setEditingCustomer(null); }} className="p-1.5 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer">
                 <X size={20} />
               </button>
             </div>
@@ -1109,24 +1111,25 @@ const Customers = ({ currentUser }) => {
                 <button
                   type="button"
                   onClick={() => { setIsAddModalOpen(false); setEditingCustomer(null); }}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 text-sm font-medium text-white bg-[#2E5E58] border border-transparent rounded-lg hover:bg-[#1F3A34]"
+                  className="px-4 py-2 text-sm font-medium text-white bg-[#2E5E58] border border-transparent rounded-lg hover:bg-[#1F3A34] cursor-pointer"
                 >
                   Save Customer
                 </button>
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
-      {customerConfirmation && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+      {customerConfirmation && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-slate-900/35 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-gray-100 animate-in zoom-in-95 duration-200">
             <h2 className="text-xl font-bold text-gray-900">
               {customerConfirmation.type === 'delete'
                 ? 'Delete customer?'
@@ -1167,7 +1170,7 @@ const Customers = ({ currentUser }) => {
                   setCustomerConfirmation(null);
                   setConfirmationPassword('');
                 }}
-                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 cursor-pointer"
               >
                 Go Back
               </button>
@@ -1175,13 +1178,14 @@ const Customers = ({ currentUser }) => {
                 type="button"
                 disabled={isConfirming || !confirmationPassword}
                 onClick={submitCustomerConfirmation}
-                className={`rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-50 ${customerConfirmation.type === 'delete' ? 'bg-red-600 hover:bg-red-700' : 'bg-[#2E5E58] hover:bg-[#1F3A34]'}`}
+                className={`rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-50 cursor-pointer ${customerConfirmation.type === 'delete' ? 'bg-red-600 hover:bg-red-700' : 'bg-[#2E5E58] hover:bg-[#1F3A34]'}`}
               >
                 {isConfirming ? 'Confirming...' : customerConfirmation.type === 'delete' ? 'Delete' : 'Confirm'}
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

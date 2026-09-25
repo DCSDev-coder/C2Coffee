@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { ArrowLeft, Check, Mail, Search, X } from "lucide-react";
 import Pagination from "./Pagination";
 import {
@@ -432,14 +433,14 @@ const RefundDetails = ({ onBack, currentUser }) => {
           </aside>
         )}
       </div>
-      {isCreateOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      {isCreateOpen && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-slate-900/35 backdrop-blur-md animate-in fade-in duration-200">
           <form
             onSubmit={(event) => {
               event.preventDefault();
               setPendingConfirmation({ type: "create" });
             }}
-            className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl"
+            className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-gray-100 animate-in zoom-in-95 duration-200"
           >
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -453,7 +454,7 @@ const RefundDetails = ({ onBack, currentUser }) => {
               <button
                 type="button"
                 onClick={() => setIsCreateOpen(false)}
-                className="text-gray-400 hover:text-gray-700"
+                className="p-1.5 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
               >
                 <X size={20} />
               </button>
@@ -465,7 +466,7 @@ const RefundDetails = ({ onBack, currentUser }) => {
                 value={orderReference}
                 onChange={(event) => setOrderReference(event.target.value)}
                 placeholder="C2-260904-JUQTQL"
-                className="mt-1.5 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal"
+                className="mt-1.5 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal focus:border-[#2E5E58] focus:ring-[#2E5E58] outline-none"
               />
             </label>
             <label className="mt-4 block text-sm font-bold text-gray-700">
@@ -477,33 +478,34 @@ const RefundDetails = ({ onBack, currentUser }) => {
                 value={refundReason}
                 onChange={(event) => setRefundReason(event.target.value)}
                 placeholder="Reason provided by the customer"
-                className="mt-1.5 min-h-28 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal"
+                className="mt-1.5 min-h-28 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal focus:border-[#2E5E58] focus:ring-[#2E5E58] outline-none"
               />
             </label>
             <div className="mt-6 flex justify-end gap-3">
               <button
                 type="button"
                 onClick={() => setIsCreateOpen(false)}
-                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-bold text-gray-700"
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 disabled={isCreating}
                 type="submit"
-                className="rounded-lg bg-[#1F3A34] px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+                className="rounded-lg bg-[#1F3A34] px-4 py-2 text-sm font-bold text-white hover:bg-[#2E5E58] disabled:opacity-50 transition-colors shadow-sm cursor-pointer"
               >
                 Create request
               </button>
             </div>
           </form>
-        </div>
+        </div>,
+        document.body
       )}
-      {pendingConfirmation && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+      {pendingConfirmation && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-slate-900/35 backdrop-blur-md animate-in fade-in duration-200">
           <form
             onSubmit={confirmAction}
-            className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl"
+            className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-gray-100 animate-in zoom-in-95 duration-200"
           >
             <h2 className="text-lg font-bold text-gray-900">
               {pendingConfirmation.type === "create"
@@ -524,7 +526,7 @@ const RefundDetails = ({ onBack, currentUser }) => {
                 onChange={(event) =>
                   setConfirmationPassword(event.target.value)
                 }
-                className="mt-1.5 w-full rounded-lg border border-gray-300 px-3 py-2 font-normal"
+                className="mt-1.5 w-full rounded-lg border border-gray-300 px-3 py-2 font-normal focus:border-[#2E5E58] focus:ring-[#2E5E58] outline-none"
               />
             </label>
             <div className="mt-6 flex justify-end gap-3">
@@ -534,19 +536,20 @@ const RefundDetails = ({ onBack, currentUser }) => {
                   setPendingConfirmation(null);
                   setConfirmationPassword("");
                 }}
-                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-bold text-gray-700"
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
               >
                 Go back
               </button>
               <button
                 type="submit"
-                className="rounded-lg bg-[#1F3A34] px-4 py-2 text-sm font-bold text-white"
+                className="rounded-lg bg-[#1F3A34] px-4 py-2 text-sm font-bold text-white hover:bg-[#2E5E58] transition-colors shadow-sm cursor-pointer"
               >
                 Confirm
               </button>
             </div>
           </form>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

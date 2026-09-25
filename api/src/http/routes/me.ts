@@ -492,11 +492,12 @@ export async function registerMeRoutes(app: FastifyInstance): Promise<void> {
 
     await mysqlPool.execute(
       `
-        UPDATE users
-        SET status = 'deletion_requested',
-            deletion_requested_at = UTC_TIMESTAMP(),
-            closed_at = UTC_TIMESTAMP(),
-            retention_until = DATE_ADD(UTC_TIMESTAMP(), INTERVAL :retentionYears YEAR),
+      UPDATE users
+      SET status = 'deletion_requested',
+          deletion_requested_at = UTC_TIMESTAMP(),
+          closed_at = UTC_TIMESTAMP(),
+          deletion_source = 'user',
+          retention_until = DATE_ADD(UTC_TIMESTAMP(), INTERVAL :retentionYears YEAR),
             updated_at = UTC_TIMESTAMP()
         WHERE id = :userId
       `,

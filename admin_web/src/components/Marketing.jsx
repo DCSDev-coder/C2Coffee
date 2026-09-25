@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ChevronDown,
   Bell,
@@ -663,15 +664,15 @@ const Marketing = () => {
         </div>
       </div>
 
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[92vh] overflow-hidden flex flex-col">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
+      {isModalOpen && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-slate-900/35 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 w-full max-w-3xl max-h-[92vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+            <div className="px-6 py-4.5 border-b border-gray-100 bg-white/80 backdrop-blur-xs flex items-center justify-between shrink-0">
               <div>
                 <h2 className="text-lg font-bold text-gray-900">{editingBanner ? 'Edit Poster' : 'Create Poster'}</h2>
-            <p className="text-xs text-gray-500 mt-1">Preview uses the same 4:5 portrait framing as the customer app.</p>
+                <p className="text-xs text-gray-500 mt-0.5">Preview uses the same 4:5 portrait framing as the customer app.</p>
               </div>
-              <button type="button" onClick={closeModal} className="text-gray-400 hover:text-gray-600">
+              <button type="button" onClick={closeModal} className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer">
                 <X size={20} />
               </button>
             </div>
@@ -969,7 +970,8 @@ const Marketing = () => {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {error && (

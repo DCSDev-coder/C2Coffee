@@ -11,7 +11,8 @@ import { formatTierName, getTierByCode, getTierProgress, loadLoyaltyTiers } from
 const listQuerySchema = z.object({
   // Customer imports support up to 500 rows. Keep the list aligned so older
   // registered members are not hidden behind newly imported records.
-  limit: z.coerce.number().int().min(1).max(500).optional().default(500)
+  limit: z.coerce.number().int().min(1).max(500).optional().default(500),
+  includeDeleted: z.coerce.boolean().optional().default(false)
 });
 
 const createCustomerSchema = z.object({
@@ -81,6 +82,8 @@ const customerListQueryRowSchema = z.object({
   refund_count: z.number().nullable(),
   tier_code: z.string().nullable(),
   cups_last_180d: z.number().nullable()
+  ,deletion_source: z.string().nullable()
+  ,deleted_at: z.union([z.string(), z.date()]).nullable()
 });
 
 type CustomerListRow = z.infer<typeof customerListQueryRowSchema>;
@@ -138,7 +141,9 @@ function mapCustomerRow(row: CustomerListRow, tiers: Awaited<ReturnType<typeof l
     userStatus: row.user_status,
     isEmployee: Number(row.is_employee) === 1,
     registrationStatus: row.registration_status,
-    refundCount
+    refundCount,
+    deletionSource: row.deletion_source,
+    deletedAt: row.deleted_at ? formatDisplayDate(row.deleted_at) : null
   };
 }
 
@@ -175,7 +180,7 @@ async function requireAdminActionConfirmation(
 export async function registerAdminCustomersRoutes(app: FastifyInstance): Promise<void> {
   app.get('/v1/admin/customers', { preHandler: [authenticateAdminRequest] }, async (request) => {
     requireAnyAdminRole(request, ['super_admin', 'support_admin']);
-    const { limit } = listQuerySchema.parse(request.query);
+    const { limit, includeDeleted } = listQuerySchema.parse(request.query);
     const connection = await mysqlPool.getConnection();
 
   try {
@@ -186,6 +191,8 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
             u.id,
             u.phone_e164,
             u.status AS user_status,
+            u.deletion_source,
+            u.deleted_at,
             ctm.is_employee,
             ctm.registration_status,
             u.created_at AS joined_at,
@@ -231,11 +238,11 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
             JOIN stores os_store ON os_store.id = o.store_id AND os_store.tenant_id = :tenantId
             GROUP BY o.user_id
           ) os ON os.user_id = u.id
-          WHERE u.deleted_at IS NULL
+          WHERE (:includeDeleted = 1 OR u.deleted_at IS NULL)
           ORDER BY u.created_at DESC, u.id DESC
           LIMIT :limit
         `,
-        { limit, tenantId: request.adminAuth.tenantId }
+        { includeDeleted: includeDeleted ? 1 : 0, limit, tenantId: request.adminAuth.tenantId }
       );
 
       return {
@@ -688,6 +695,44 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
       await connection.execute(
         `DELETE FROM customer_tenant_memberships WHERE tenant_id = :tenantId AND user_id = :userId`,
         { tenantId: request.adminAuth.tenantId, userId }
+      );
+      await connection.execute(
+        `
+          UPDATE users
+          SET status = 'deleted',
+              closed_at = COALESCE(closed_at, UTC_TIMESTAMP()),
+              deleted_at = UTC_TIMESTAMP(),
+              deletion_source = 'admin',
+              deletion_actor_admin_user_id = :adminUserId,
+              updated_at = UTC_TIMESTAMP()
+          WHERE id = :userId
+            AND NOT EXISTS (
+              SELECT 1 FROM customer_tenant_memberships
+              WHERE user_id = :userId
+            )
+        `,
+        { adminUserId: request.adminAuth.adminUserId, userId }
+      );
+      await connection.execute(
+        `
+          INSERT INTO admin_audit_logs (
+            admin_user_id, effective_roles_json, action_code, target_type, target_id,
+            before_json, after_json, reason_code, reason_note, ip_address, user_agent, created_at
+          )
+          VALUES (
+            :adminUserId, :roles, 'customer_deleted', 'customer', :userId,
+            JSON_OBJECT('status', 'active'),
+            JSON_OBJECT('status', 'deleted', 'deletion_source', 'admin'),
+            'admin_customer_delete', 'Customer deleted from Admin Web', :ipAddress, :userAgent, UTC_TIMESTAMP()
+          )
+        `,
+        {
+          adminUserId: request.adminAuth.adminUserId,
+          ipAddress: request.ip,
+          roles: JSON.stringify(request.adminAuth.roles ?? []),
+          userAgent: request.headers['user-agent'] ?? null,
+          userId
+        }
       );
       await connection.commit();
     } catch (error) {

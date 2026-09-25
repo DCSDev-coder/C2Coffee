@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Search,
   ChevronDown,
@@ -1321,12 +1322,12 @@ const Menu = ({ onNavigate }) => {
         )}
       </div>
 
-      {isHomePicksOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-2xl rounded-2xl bg-white shadow-xl">
-            <div className="flex items-start justify-between border-b border-gray-100 px-6 py-5">
+      {isHomePicksOpen && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-slate-900/35 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl border border-gray-100 overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="flex items-start justify-between border-b border-gray-100 bg-white/80 backdrop-blur-xs px-6 py-5">
               <div><h2 className="text-lg font-bold text-gray-900">Home featured items</h2><p className="mt-1 text-sm text-gray-500">Select up to six items per menu category. Empty slots use 30-day best sellers from that same category. Category names on Home always follow Menu.</p></div>
-              <button onClick={() => setIsHomePicksOpen(false)} className="text-gray-400 hover:text-gray-700"><X size={20} /></button>
+              <button onClick={() => setIsHomePicksOpen(false)} className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer"><X size={20} /></button>
             </div>
             <div className="max-h-[60vh] space-y-6 overflow-y-auto px-6 py-5">
               {menuCategories.filter((category) => (category.items || []).some((item) => item.is_active)).map((category) => (
@@ -1335,19 +1336,23 @@ const Menu = ({ onNavigate }) => {
                 </div>
               ))}
             </div>
-            <div className="flex justify-end gap-3 border-t border-gray-100 px-6 py-4"><button onClick={() => setIsHomePicksOpen(false)} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium">Cancel</button><button disabled={isSavingHomePicks} onClick={saveHomePicks} className="rounded-lg bg-[#1F3A34] px-4 py-2 text-sm font-bold text-white disabled:opacity-60">{isSavingHomePicks ? 'Saving...' : 'Save Top Picks'}</button></div>
+            <div className="flex justify-end gap-3 border-t border-gray-100 bg-gray-50/70 px-6 py-4">
+              <button onClick={() => setIsHomePicksOpen(false)} className="px-5 py-2.5 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 shadow-2xs transition-all cursor-pointer">Cancel</button>
+              <button disabled={isSavingHomePicks} onClick={saveHomePicks} className="px-6 py-2.5 bg-[#1E433A] text-white rounded-xl text-xs font-bold hover:bg-[#16342D] shadow-xs transition-all cursor-pointer disabled:opacity-60">{isSavingHomePicks ? 'Saving...' : 'Save Top Picks'}</button>
+            </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {isEditModalOpen && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
+      {isEditModalOpen && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-slate-900/35 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+            <div className="px-6 py-4.5 border-b border-gray-100 bg-white/80 backdrop-blur-xs flex items-center justify-between shrink-0">
               <h2 className="text-lg font-bold text-gray-900">
                 {editMode === 'create' ? 'Create New Menu Item' : 'Edit Menu Item'}
               </h2>
-              <button onClick={closeEditModal} className="text-gray-400 hover:text-gray-600">
+              <button onClick={closeEditModal} className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer">
                 <X size={20} />
               </button>
             </div>
@@ -1636,15 +1641,16 @@ const Menu = ({ onNavigate }) => {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {isSubcategoryModalOpen && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
+      {isSubcategoryModalOpen && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-slate-900/35 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+            <div className="px-6 py-4.5 border-b border-gray-100 bg-white/80 backdrop-blur-xs flex items-center justify-between shrink-0">
               <h2 className="text-lg font-bold text-gray-900">Manage Subcategories</h2>
-              <button onClick={() => setIsSubcategoryModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => setIsSubcategoryModalOpen(false)} className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer">
                 <X size={20} />
               </button>
             </div>
@@ -1757,15 +1763,16 @@ const Menu = ({ onNavigate }) => {
               </form>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {isCategoryModalOpen && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
+      {isCategoryModalOpen && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-slate-900/35 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+            <div className="px-6 py-4.5 border-b border-gray-100 bg-white/80 backdrop-blur-xs flex items-center justify-between shrink-0">
               <h2 className="text-lg font-bold text-gray-900">Manage Menu Categories</h2>
-              <button onClick={() => setIsCategoryModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => setIsCategoryModalOpen(false)} className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer">
                 <X size={20} />
               </button>
             </div>
@@ -1878,7 +1885,8 @@ const Menu = ({ onNavigate }) => {
               </form>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
