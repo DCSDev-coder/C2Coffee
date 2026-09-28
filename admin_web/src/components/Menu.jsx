@@ -1841,6 +1841,22 @@ const Menu = ({ onNavigate }) => {
                   </p>
                 </div>
 
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Sidebar order</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="10"
+                    value={categoryForm.sort_order}
+                    onChange={(event) => setCategoryForm({ ...categoryForm, sort_order: event.target.value })}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34]"
+                    required
+                  />
+                  <p className="mt-1 text-[11px] text-gray-500">
+                    Lower numbers appear first in the customer menu sidebar. Use gaps such as 10, 20, and 30.
+                  </p>
+                </div>
+
                 <div className="flex items-center gap-2 pt-2">
                   <input
                     id="category-active"
