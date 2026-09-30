@@ -295,7 +295,9 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
       { phone }
     );
 
-    const otpCode = generateOtpCode();
+    const isReviewAccount =
+      Boolean(env.REVIEW_ACCOUNT_PHONE_E164) && phone === env.REVIEW_ACCOUNT_PHONE_E164;
+    const otpCode = isReviewAccount ? env.REVIEW_ACCOUNT_OTP_CODE : generateOtpCode();
     const [insertResult] = await mysqlPool.execute<ResultSetHeader>(
       `
         INSERT INTO auth_otps (

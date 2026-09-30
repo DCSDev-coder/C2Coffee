@@ -27,6 +27,9 @@ const envSchema = z.object({
   OTP_EXPIRY_SECONDS: z.coerce.number().int().positive().default(300),
   OTP_RESEND_SECONDS: z.coerce.number().int().positive().default(45),
   OTP_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),
+  // Optional App Store review account. Keep empty in normal deployments.
+  REVIEW_ACCOUNT_PHONE_E164: z.string().trim().default(''),
+  REVIEW_ACCOUNT_OTP_CODE: z.string().trim().default(''),
   ACCOUNT_RETENTION_YEARS: z.coerce.number().int().positive().default(7),
   PUBLIC_API_BASE_URL: z.string().url(),
   CORS_ALLOWED_ORIGINS: z.string().default(''),
@@ -87,6 +90,11 @@ if (parsed.NODE_ENV === 'production') {
 
   if (!parsed.EMAIL_SMTP_HOST || !parsed.EMAIL_SMTP_USER || !parsed.EMAIL_SMTP_PASSWORD || !parsed.EMAIL_FROM_ADDRESS) {
     throw new Error('Production requires complete SMTP configuration for OTP delivery.');
+  }
+
+  const reviewAccountConfigured = Boolean(parsed.REVIEW_ACCOUNT_PHONE_E164 || parsed.REVIEW_ACCOUNT_OTP_CODE);
+  if (reviewAccountConfigured && (!/^\+\d{8,15}$/.test(parsed.REVIEW_ACCOUNT_PHONE_E164) || !/^\d{6}$/.test(parsed.REVIEW_ACCOUNT_OTP_CODE))) {
+    throw new Error('Review account requires an E.164 phone number and a six-digit OTP code.');
   }
 
   if (parsed.FCM_DELIVERY_ENABLED && !parsed.FCM_SERVICE_ACCOUNT_JSON) {
