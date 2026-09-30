@@ -22,6 +22,7 @@ import '../widgets/order_status_banner.dart';
 import '../widgets/catalog_product_image.dart';
 import '../utils/app_colors.dart';
 import '../widgets/app_page_shell.dart';
+import '../widgets/profile_avatar_style.dart';
 
 class ProfilePage extends StatefulWidget {
   final File? initialPickedImage;
@@ -352,7 +353,10 @@ class _ProfilePageState extends State<ProfilePage> {
     return CircleAvatar(
       radius: 28,
       backgroundImage: AssetImage(presetPath),
-      backgroundColor: orangeColor,
+      backgroundColor: profilePlaceholderBackground(
+        gender: _session.user?.gender,
+        presetPath: presetPath,
+      ),
     );
   }
 

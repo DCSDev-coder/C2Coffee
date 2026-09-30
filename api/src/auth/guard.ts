@@ -1,6 +1,7 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { RowDataPacket } from 'mysql2';
 import { mysqlPool } from '../db/mysql.js';
+import { env } from '../config/env.js';
 import { ApiError } from '../http/errors.js';
 import { verifyAccessToken } from './tokens.js';
 
@@ -51,6 +52,8 @@ export async function authenticateRequest(
         u.status
       FROM sessions s
       JOIN users u ON u.id = s.user_id
+      JOIN customer_tenant_memberships ctm ON ctm.user_id = u.id AND ctm.registration_status = 'registered'
+      JOIN admin_tenants t ON t.id = ctm.tenant_id AND t.code = :tenantCode AND t.status = 'active'
       WHERE s.id = :sessionId
         AND s.user_id = :userId
         AND s.revoked_at IS NULL
@@ -59,7 +62,8 @@ export async function authenticateRequest(
     `,
     {
       sessionId: payload.sessionId,
-      userId: payload.userId
+      userId: payload.userId,
+      tenantCode: env.DEPLOYMENT_TENANT_CODE
     }
   );
 

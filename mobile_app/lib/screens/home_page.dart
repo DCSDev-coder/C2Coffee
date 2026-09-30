@@ -14,6 +14,8 @@ import '../widgets/catalog_product_image.dart';
 import '../widgets/custom_bottom_nav.dart';
 import '../widgets/order_status_banner.dart';
 import '../widgets/poster_popup.dart';
+import '../widgets/app_tutorial.dart';
+import '../widgets/profile_avatar_style.dart';
 import 'loading_order_page.dart';
 import 'contact_support_page.dart';
 import 'menu_page.dart';
@@ -73,8 +75,13 @@ class _HomePageState extends State<HomePage> {
         await _session.loadAuthenticatedState();
       } catch (_) {}
       if (!mounted) return;
-      WidgetsBinding.instance
-          .addPostFrameCallback((_) => _showPosterIfNeeded());
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        final userId = _session.user?.id;
+        if (userId != null) {
+          await AppTutorial.showIfNeeded(context, userId: userId);
+        }
+        if (mounted) _showPosterIfNeeded();
+      });
     });
     _restartCarouselTimer();
   }
@@ -166,7 +173,15 @@ class _HomePageState extends State<HomePage> {
           : Image.file(_persistedPickedImage!,
               width: 45, height: 45, fit: BoxFit.cover);
     }
-    return Image.asset(presetPath, width: 45, height: 45, fit: BoxFit.cover);
+    return Container(
+      width: 45,
+      height: 45,
+      color: profilePlaceholderBackground(
+        gender: _session.user?.gender,
+        presetPath: presetPath,
+      ),
+      child: Image.asset(presetPath, fit: BoxFit.cover),
+    );
   }
 
   void _showPosterIfNeeded() {

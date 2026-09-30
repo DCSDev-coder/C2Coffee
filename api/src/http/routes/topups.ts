@@ -9,6 +9,7 @@ import { getUtcConnection, mysqlPool } from '../../db/mysql.js';
 import { ApiError } from '../errors.js';
 import { createUserNotification } from '../notifications.js';
 import { deliverQueuedTopUpReceiptEmail, queueTopUpReceiptEmail } from '../../services/topup-receipt-email.js';
+import { isTrustedBillplzCheckoutUrl } from '../../payments/billplz-security.js';
 
 const topUpRequestSchema = z.object({
   package_id: z.coerce.number().int().positive(),
@@ -382,10 +383,14 @@ export async function registerTopUpRoutes(app: FastifyInstance): Promise<void> {
     const bill = await billResponse.json().catch(() => null) as { id?: unknown; url?: unknown; error?: unknown } | null;
     const billId = typeof bill?.id === 'string' ? bill.id : '';
     const billUrl = typeof bill?.url === 'string' ? bill.url : '';
-    if (!billResponse.ok || !billId || !billUrl) {
+    if (!billResponse.ok || !billId || !billUrl ||
+        !isTrustedBillplzCheckoutUrl(billUrl, billplzBaseUrl())) {
       await mysqlPool.execute(`UPDATE token_topups SET status = 'failed' WHERE id = :topupId AND status = 'pending_payment'`, { topupId });
       await mysqlPool.execute(`UPDATE payments SET status = 'failed', failed_at = UTC_TIMESTAMP() WHERE topup_id = :topupId AND status = 'pending'`, { topupId });
-      request.log.error({ topupRef, status: billResponse.status, bill }, 'Billplz rejected bill creation');
+      request.log.error(
+        { topupRef, status: billResponse.status, billError: bill?.error ?? null },
+        'Billplz rejected bill creation'
+      );
       throw new ApiError(502, 'topup_gateway_error', 'Unable to start the payment. Please try again.');
     }
 

@@ -4,7 +4,7 @@ import { Eye, EyeOff } from 'lucide-react';
 
 const Login = ({ onLoginSuccess }) => {
   const [mode, setMode] = useState('login');
-  const [tenantCode, setTenantCode] = useState('c2coffee');
+  const [tenantCode, setTenantCode] = useState('');
   const [tenants, setTenants] = useState([]);
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
@@ -23,11 +23,10 @@ const Login = ({ onLoginSuccess }) => {
       try {
         const tenantList = await loadAdminTenants();
         setTenants(tenantList);
-        if (tenantList.length > 0 && !tenantList.some((tenant) => tenant.code === tenantCode)) {
-          setTenantCode(tenantList[0].code);
-        }
+        setTenantCode(tenantList[0]?.code || '');
       } catch {
         setTenants([]);
+        setErrorMessage('Cafe deployment information could not be loaded. Please try again.');
       }
     };
 
@@ -173,9 +172,7 @@ const Login = ({ onLoginSuccess }) => {
                         {tenant.display_name}
                       </option>
                     ))
-                  ) : (
-                    <option value="c2coffee">C2 Coffee & Candle</option>
-                  )}
+                  ) : <option value="">Cafe unavailable</option>}
                 </select>
               </label>
               <label className="block">
@@ -268,7 +265,7 @@ const Login = ({ onLoginSuccess }) => {
 
         <button
           type="submit"
-          disabled={isSubmitting}
+          disabled={isSubmitting || (mode === 'login' && !tenantCode)}
           className="w-full mt-6 bg-white text-[#0f211d] font-semibold text-lg py-3.5 px-4 rounded-2xl transition-all shadow-lg hover:shadow-2xl hover:-translate-y-1 hover:bg-gray-50 flex items-center justify-center space-x-2 disabled:opacity-60 disabled:hover:translate-y-0"
         >
           <span>{isSubmitting ? 'Please wait...' : mode === 'login' ? 'Sign In' : 'Finish Setup'}</span>

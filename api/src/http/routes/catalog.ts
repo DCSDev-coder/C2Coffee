@@ -19,6 +19,11 @@ type StoreRow = RowDataPacket & {
   status: 'active' | 'inactive';
   supports_pickup: number;
   pickup_lead_minutes: number;
+  address_line_1: string | null;
+  address_line_2: string | null;
+  city: string | null;
+  state: string | null;
+  postcode: string | null;
 };
 
 type MenuRow = RowDataPacket & {
@@ -344,16 +349,16 @@ export async function registerCatalogRoutes(app: FastifyInstance): Promise<void>
     };
   });
 
-  app.get('/v1/stores', { preHandler: authenticateRequest }, async () => {
+  app.get('/v1/stores', { preHandler: authenticateRequest }, async (request) => {
     return {
-      stores: await listActiveStores()
+      stores: await listActiveStores(request.auth.userId)
     };
   });
 
   app.get('/v1/menu', { preHandler: authenticateRequest }, async (request) => {
     const { store_id: storeId } = menuQuerySchema.parse(request.query);
 
-    const stores = await listActiveStores();
+    const stores = await listActiveStores(request.auth.userId);
     if (!stores.some((store) => store.id === storeId)) {
       throw new ApiError(404, 'store_not_found', 'Store was not found.');
     }
@@ -677,13 +682,18 @@ function _resolveImageUrl(imageUrl: string | null): string | null {
   return `${baseOrigin}/${imageUrl}`;
 }
 
-async function listActiveStores(): Promise<
+async function listActiveStores(userId: number): Promise<
   Array<{
     id: number;
     code: string;
     name: string;
     supports_pickup: boolean;
     pickup_lead_minutes: number;
+    address_line_1: string | null;
+    address_line_2: string | null;
+    city: string | null;
+    state: string | null;
+    postcode: string | null;
     is_open_now: null;
     status: 'active' | 'inactive';
   }>
@@ -691,16 +701,24 @@ async function listActiveStores(): Promise<
   const [rows] = await mysqlPool.query<Array<StoreRow>>(
     `
       SELECT
-        id,
-        code,
-        name,
-        status,
-        supports_pickup,
-        pickup_lead_minutes
-      FROM stores
-      WHERE status = 'active' AND is_customer_facing = 1
-      ORDER BY name ASC, id ASC
-    `
+        s.id,
+        s.code,
+        s.name,
+        s.status,
+        s.supports_pickup,
+        s.pickup_lead_minutes,
+        s.address_line_1,
+        s.address_line_2,
+        s.city,
+        s.state,
+        s.postcode
+      FROM stores s
+      JOIN customer_tenant_memberships ctm ON ctm.tenant_id = s.tenant_id
+      JOIN admin_tenants t ON t.id = s.tenant_id AND t.status = 'active'
+      WHERE s.status = 'active' AND s.is_customer_facing = 1 AND ctm.user_id = :userId
+      ORDER BY s.name ASC, s.id ASC
+    `,
+    { userId }
   );
 
   return rows.map((row) => ({
@@ -709,6 +727,11 @@ async function listActiveStores(): Promise<
     name: row.name,
     supports_pickup: row.supports_pickup === 1,
     pickup_lead_minutes: row.pickup_lead_minutes,
+    address_line_1: row.address_line_1,
+    address_line_2: row.address_line_2,
+    city: row.city,
+    state: row.state,
+    postcode: row.postcode,
     is_open_now: null,
     status: row.status
   }));

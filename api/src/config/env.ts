@@ -14,6 +14,7 @@ const envBoolean = (defaultValue: boolean) => z.preprocess((value) => {
 }, z.boolean());
 
 const envSchema = z.object({
+  DEPLOYMENT_TENANT_CODE: z.string().trim().regex(/^[a-z0-9][a-z0-9-]{2,79}$/).default('c2coffee'),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(8080),
   HOST: z.string().default('0.0.0.0'),
@@ -49,9 +50,9 @@ const envSchema = z.object({
   TOPUP_GATEWAY_API_KEY: z.string().trim().default(''),
   TOPUP_GATEWAY_WEBHOOK_SECRET: z.string().trim().default(''),
   TOPUP_GATEWAY_COLLECTION_ID: z.string().trim().max(100).default(''),
-  // Approved customer top-up methods. The gateway adapter checks that each is
-  // active with Billplz before returning it to the customer app.
-  TOPUP_GATEWAY_ALLOWED_METHODS: z.string().trim().default('touch_n_go,card,bank_transfer'),
+  // Start with FPX online banking only. Add card or Touch 'n Go only after
+  // Billplz activates that method for the deployment's collection.
+  TOPUP_GATEWAY_ALLOWED_METHODS: z.string().trim().default('bank_transfer'),
   WHATSAPP_CLOUD_API_TOKEN: z.string().optional().default(''),
   WHATSAPP_PHONE_NUMBER_ID: z.string().optional().default(''),
   SMS_PROVIDER_BASE_URL: z.string().optional().default(''),

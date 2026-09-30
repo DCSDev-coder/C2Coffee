@@ -7,6 +7,7 @@ import Pagination from './Pagination';
 import { getAdminApiBaseUrl, loadAdminProductReport } from '../lib/adminApi';
 import { formatReportMoney, formatReportTokens } from '../utils/reporting';
 import { exportToCSV } from '../utils/exportToCSV';
+import OutletFilter from './OutletFilter';
 
 const REFRESH_INTERVAL_MS = 60_000;
 const COLORS = ['#1F3A34', '#2E5E58', '#6F9F96', '#A8C4A2', '#E07A5F', '#D4AF7A'];
@@ -83,6 +84,7 @@ const ReportByProduct = ({ onBack }) => {
   const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDate, setSelectedDate] = useState(null);
+  const [selectedStoreId, setSelectedStoreId] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
 
@@ -92,7 +94,7 @@ const ReportByProduct = ({ onBack }) => {
     const loadReport = async () => {
       try {
         setError('');
-        const response = await loadAdminProductReport(selectedDate);
+        const response = await loadAdminProductReport(selectedDate, selectedStoreId);
         if (!active) return;
         setReportResponse(response || EMPTY_REPORT);
         setLastUpdatedAt(new Date());
@@ -115,7 +117,7 @@ const ReportByProduct = ({ onBack }) => {
       active = false;
       window.clearInterval(timer);
     };
-  }, [selectedDate]);
+  }, [selectedDate, selectedStoreId]);
 
   const overview = reportResponse || EMPTY_REPORT;
   const products = Array.isArray(overview.products) ? overview.products : [];
@@ -154,7 +156,7 @@ const ReportByProduct = ({ onBack }) => {
 
   const refreshReport = async () => {
     try {
-      const response = await loadAdminProductReport(selectedDate);
+      const response = await loadAdminProductReport(selectedDate, selectedStoreId);
       setReportResponse(response || EMPTY_REPORT);
       setLastUpdatedAt(new Date());
       setError('');
@@ -185,6 +187,7 @@ const ReportByProduct = ({ onBack }) => {
           </div>
 
           <div className="flex items-center gap-3">
+            <OutletFilter value={selectedStoreId} onChange={setSelectedStoreId} />
             <button
               type="button"
               onClick={() => void refreshReport()}

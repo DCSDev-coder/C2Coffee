@@ -16,6 +16,7 @@ import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'rec
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { loadAdminDashboard } from '../lib/adminApi';
+import OutletFilter from './OutletFilter';
 
 const REFRESH_INTERVAL_MS = 30000;
 
@@ -93,6 +94,7 @@ const EmptyState = ({ children }) => (
 const DashboardHome = ({ setCurrentPage }) => {
   const [selectedRange, setSelectedRange] = useState([null, null]);
   const [selectedPeriod, setSelectedPeriod] = useState('this_month');
+  const [selectedStoreId, setSelectedStoreId] = useState(null);
   const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -107,7 +109,8 @@ const DashboardHome = ({ setCurrentPage }) => {
       const response = await loadAdminDashboard({
         startDate: selectedPeriod === 'custom' ? rangeStartDate : null,
         endDate: selectedPeriod === 'custom' ? (rangeEndDate || rangeStartDate) : null,
-        period: selectedPeriod
+        period: selectedPeriod,
+        storeId: selectedStoreId
       });
       setDashboard(response);
       setError('');
@@ -122,7 +125,7 @@ const DashboardHome = ({ setCurrentPage }) => {
     fetchDashboard({ showLoading: true });
     const interval = window.setInterval(() => fetchDashboard(), REFRESH_INTERVAL_MS);
     return () => window.clearInterval(interval);
-  }, [rangeStartDate, rangeEndDate, selectedPeriod]);
+  }, [rangeStartDate, rangeEndDate, selectedPeriod, selectedStoreId]);
 
   const periodLabel = selectedPeriod === 'this_month'
     ? 'This month'
@@ -182,6 +185,7 @@ const DashboardHome = ({ setCurrentPage }) => {
   const recentOrders = dashboard?.recentOrders || [];
   const recentActivity = dashboard?.recentActivity || [];
   const topItems = dashboard?.topItems || [];
+  const outletBreakdown = dashboard?.outletBreakdown || [];
 
   return (
     <div className="px-8 pb-8 mt-0" style={{ fontFamily: '"DM Sans", sans-serif' }}>
@@ -191,6 +195,7 @@ const DashboardHome = ({ setCurrentPage }) => {
           <p className="text-sm text-gray-500 mt-1">Live tenant data{dashboard?.timeZone ? ` in ${dashboard.timeZone}` : ''}</p>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
+          <OutletFilter value={selectedStoreId} onChange={setSelectedStoreId} />
           <select
             value={selectedPeriod}
             onChange={handlePeriodChange}
@@ -251,6 +256,31 @@ const DashboardHome = ({ setCurrentPage }) => {
         </div>
       </div>
 
+      <section className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm mb-6">
+        <div className="mb-4">
+          <h2 className="text-lg font-bold text-gray-900">Outlet Performance</h2>
+          <p className="text-xs text-gray-500 mt-1">Sales, orders, customers, and average order value for {periodLabel.toLowerCase()}.</p>
+        </div>
+        {loading && !dashboard ? <EmptyState>Loading outlet performance...</EmptyState> : outletBreakdown.length === 0 ? <EmptyState>No outlet sales for this period yet.</EmptyState> : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm min-w-[640px]">
+              <thead><tr className="border-b border-gray-100">
+                {['Outlet', 'Sales', 'Orders', 'Customers', 'Average Order Value'].map((heading) => <th key={heading} className="pb-3 pr-4 font-bold text-gray-900">{heading}</th>)}
+              </tr></thead>
+              <tbody>{outletBreakdown.map((outlet) => (
+                <tr key={outlet.storeId} className="border-b border-gray-50 last:border-0">
+                  <td className="py-3 pr-4 font-semibold text-gray-900">{outlet.storeName}</td>
+                  <td className="py-3 pr-4 font-semibold text-[#2E5E58]">{formatRm(outlet.sales)}</td>
+                  <td className="py-3 pr-4 text-gray-700">{formatNumber(outlet.orders)}</td>
+                  <td className="py-3 pr-4 text-gray-700">{formatNumber(outlet.customers)}</td>
+                  <td className="py-3 pr-4 text-gray-700">{formatRm(outlet.averageOrderValue)}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 mb-6">
         <section className="xl:col-span-8 bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
           <div className="flex justify-between items-center mb-4">
@@ -266,6 +296,7 @@ const DashboardHome = ({ setCurrentPage }) => {
                   <tr className="border-b border-gray-100">
                     <th className="pb-3 font-bold text-gray-900">Order ID</th>
                     <th className="pb-3 font-bold text-gray-900">Customer</th>
+                    <th className="pb-3 font-bold text-gray-900">Outlet</th>
                     <th className="pb-3 font-bold text-gray-900">City</th>
                     <th className="pb-3 font-bold text-gray-900">Total</th>
                     <th className="pb-3 font-bold text-gray-900">Status</th>
@@ -277,6 +308,7 @@ const DashboardHome = ({ setCurrentPage }) => {
                     <tr key={order.id} className="border-b border-gray-50 last:border-0">
                       <td className="py-3 text-[#2E5E58] font-semibold">{order.id}</td>
                       <td className="py-3 font-medium text-gray-800">{order.customer}</td>
+                      <td className="py-3 text-gray-600">{order.storeName || '-'}</td>
                       <td className="py-3 text-gray-600">{order.city}</td>
                       <td className="py-3 font-semibold text-gray-800">{formatRm(order.total)}</td>
                       <td className="py-3"><span className={`px-2 py-1 rounded text-[10px] font-bold ${statusTone(order.status)}`}>{order.status}</span></td>

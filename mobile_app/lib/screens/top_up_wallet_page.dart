@@ -6,6 +6,7 @@ import '../services/app_session_service.dart';
 import '../services/auth_api_service.dart';
 import '../services/customer_data_service.dart';
 import '../services/secure_session_service.dart';
+import '../services/payment_security.dart';
 
 import '../utils/app_colors.dart';
 import 'loading_order_page.dart';
@@ -367,7 +368,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
         paymentMethod: _paymentMethodApiValue!,
         bankCode: _selectedBank?.code,
       );
-      if (topup.checkoutUrl.isEmpty ||
+      if (!isTrustedPaymentCheckoutUrl(topup.checkoutUrl) ||
           !await launchUrl(Uri.parse(topup.checkoutUrl),
               mode: LaunchMode.externalApplication)) {
         throw ApiException('Unable to open the payment page.');

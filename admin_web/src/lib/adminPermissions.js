@@ -19,6 +19,8 @@ const PAGE_ROLES = {
   'Staff Guides': ['super_admin', 'operations_admin'],
   Operations: ['super_admin', 'operations_admin'],
   'Admin Management': ['super_admin'],
+  Outlets: ['super_admin', 'operations_admin'],
+  Deployment: ['super_admin'],
   'Audit Logs': ['super_admin'],
   Settings: ['super_admin', 'operations_admin', 'marketing_admin', 'support_admin']
 };

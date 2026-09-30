@@ -20,6 +20,7 @@ import {
 import { exportToCSV } from '../utils/exportToCSV';
 import { loadAdminFinanceOverview } from '../lib/adminApi';
 import { formatPaymentLabel, formatReportMoney, formatReportTokens } from '../utils/reporting';
+import OutletFilter from './OutletFilter';
 
 const REFRESH_INTERVAL_MS = 60_000;
 
@@ -81,6 +82,7 @@ const Finance = ({ setCurrentPage }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
+  const [selectedStoreId, setSelectedStoreId] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -88,7 +90,7 @@ const Finance = ({ setCurrentPage }) => {
     const loadOverview = async () => {
       try {
         setError('');
-        const nextOverview = await loadAdminFinanceOverview();
+        const nextOverview = await loadAdminFinanceOverview({ storeId: selectedStoreId });
         if (!active) return;
         setOverview(nextOverview || EMPTY_OVERVIEW);
         setLastUpdatedAt(new Date());
@@ -111,7 +113,7 @@ const Finance = ({ setCurrentPage }) => {
       active = false;
       window.clearInterval(timer);
     };
-  }, []);
+  }, [selectedStoreId]);
 
   const summary = overview.summary || EMPTY_OVERVIEW.summary;
   const monthlyRevenue = Array.isArray(overview.monthlyRevenue) ? overview.monthlyRevenue : [];
@@ -130,12 +132,13 @@ const Finance = ({ setCurrentPage }) => {
 
   const exportRows = useMemo(() => {
     return [
-      ['Date', 'Time', 'Type', 'Description', 'RM Amount', 'Token Amount', 'Status', 'Payment'],
+      ['Date', 'Time', 'Type', 'Description', 'Outlet', 'RM Amount', 'Token Amount', 'Status', 'Payment'],
       ...recentTransactions.map((transaction) => [
         `"${transaction.date}"`,
         `"${transaction.time}"`,
         `"${transaction.type}"`,
         `"${transaction.description}"`,
+        `"${transaction.storeName || ''}"`,
         Number(transaction.amountRm || 0).toFixed(2),
         Number(transaction.amountTokens || 0).toFixed(0),
         `"${transaction.status}"`,
@@ -172,7 +175,7 @@ const Finance = ({ setCurrentPage }) => {
   const topTransactions = recentTransactions.slice(0, 8);
   const refreshOverview = async () => {
     try {
-      const nextOverview = await loadAdminFinanceOverview();
+      const nextOverview = await loadAdminFinanceOverview({ storeId: selectedStoreId });
       setOverview(nextOverview || EMPTY_OVERVIEW);
       setLastUpdatedAt(new Date());
       setError('');
@@ -196,6 +199,7 @@ const Finance = ({ setCurrentPage }) => {
           </div>
 
           <div className="flex items-center gap-3">
+            <OutletFilter value={selectedStoreId} onChange={setSelectedStoreId} />
             <button
               type="button"
               onClick={() => void refreshOverview()}
@@ -246,6 +250,7 @@ const Finance = ({ setCurrentPage }) => {
             <div>
               <h3 className="text-lg font-bold text-gray-900">Top-up Payment Methods</h3>
               <p className="mt-1 text-sm text-gray-500">Paid token top-ups by the method selected at checkout.</p>
+              {selectedStoreId && <p className="mt-1 text-xs font-medium text-amber-700">Top-ups are tenant-wide wallet transactions. The outlet filter applies to orders and refunds, not this section.</p>}
             </div>
             <div className="rounded-full bg-[#EEF6F3] px-3 py-1 text-xs font-semibold text-[#1F5A4D]">
               {mostUsedTopUpMethod ? `Most used: ${topUpMethodLabel(mostUsedTopUpMethod.method)}` : 'No paid top-ups yet'}
@@ -374,6 +379,7 @@ const Finance = ({ setCurrentPage }) => {
                   <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Date & Time</th>
                   <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Type</th>
                   <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Description</th>
+                  <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Outlet</th>
                   <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100 text-right">Tokens</th>
                   <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Status</th>
                   <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Payment</th>
@@ -388,6 +394,7 @@ const Finance = ({ setCurrentPage }) => {
                     </td>
                     <td className="px-6 py-4 text-gray-600 font-medium">{transaction.type}</td>
                     <td className="px-6 py-4 text-gray-700 font-medium max-w-[360px] truncate">{transaction.description}</td>
+                    <td className="px-6 py-4 text-gray-600 font-medium">{transaction.storeName || '-'}</td>
                     <td className={`px-6 py-4 text-right font-bold ${Number(transaction.amountTokens || 0) < 0 ? 'text-red-700' : 'text-gray-900'}`}>
                       <div>{formatReportTokens(transaction.amountTokens)}</div>
                       <div className="text-xs font-semibold text-gray-500">{formatReportMoney(transaction.amountRm)}</div>
@@ -405,7 +412,7 @@ const Finance = ({ setCurrentPage }) => {
                   </tr>
                 )) : (
                   <tr>
-                    <td colSpan="6" className="py-12 text-center text-gray-500">
+                    <td colSpan="7" className="py-12 text-center text-gray-500">
                       No finance transactions available yet.
                     </td>
                   </tr>

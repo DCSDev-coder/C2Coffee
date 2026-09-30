@@ -4,6 +4,7 @@ import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import Fastify from 'fastify';
 import { env } from './config/env.js';
+import { assertSingleCafeDeployment } from './admin/deployment.js';
 import { errorHandler } from './http/errors.js';
 import { registerAuthRoutes } from './http/routes/auth.js';
 import { registerAssetRoutes } from './http/routes/assets.js';
@@ -31,6 +32,9 @@ import { registerAdminPushRoutes } from './http/routes/admin-push.js';
 import { registerBaristaStaffRoutes } from './http/routes/barista-staff.js';
 import { registerTopUpRoutes } from './http/routes/topups.js';
 import { registerAdminReferralRoutes } from './http/routes/admin-referrals.js';
+import { registerAdminCounterDeviceRoutes } from './http/routes/admin-counter-devices.js';
+import { registerCounterRoutes } from './http/routes/counter.js';
+import { registerAdminTenantStoreRoutes } from './http/routes/admin-tenants-stores.js';
 
 function isAllowedCorsOrigin(origin: string, allowedOrigins: string[]): boolean {
   let requestUrl: URL;
@@ -70,6 +74,7 @@ function isAllowedCorsOrigin(origin: string, allowedOrigins: string[]): boolean 
 }
 
 export async function buildApp() {
+  await assertSingleCafeDeployment();
   const app = Fastify({
     logger: {
       level: env.LOG_LEVEL,
@@ -132,12 +137,14 @@ export async function buildApp() {
   await registerAdminCustomersRoutes(app);
   await registerAdminLoyaltyRoutes(app);
   await registerAdminReferralRoutes(app);
+  await registerAdminCounterDeviceRoutes(app);
   await registerAdminMenuRoutes(app);
   await registerAdminOptionLibraryRoutes(app);
   await registerAdminAuditRoutes(app);
   await registerAdminMarketingRoutes(app);
   await registerAdminBaristasRoutes(app);
   await registerAdminStoreRoutes(app);
+  await registerAdminTenantStoreRoutes(app);
   await registerAdminPushRoutes(app);
   await registerBaristaStaffRoutes(app);
   await registerOperationalIntegrationRoutes(app);
@@ -148,6 +155,7 @@ export async function buildApp() {
   await registerCheckoutRoutes(app);
   await registerCustomerDataRoutes(app);
   await registerTopUpRoutes(app);
+  await registerCounterRoutes(app);
 
   return app;
 }

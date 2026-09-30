@@ -8,6 +8,7 @@ const dashboardQuerySchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  store_id: z.coerce.number().int().positive().optional(),
   period: z.enum(['today', 'this_month', 'last_month', '3m', '6m', '1y', 'custom']).optional().default('this_month')
 }).superRefine((value, context) => {
   if (value.start_date && value.end_date && value.start_date > value.end_date) {
@@ -32,6 +33,8 @@ type DashboardOrderRow = RowDataPacket & {
   final_total_rm: string | number;
   token_amount_charged: number;
   created_at: Date;
+  store_id: number;
+  store_name: string;
 };
 
 function formatDateInTimeZone(date: Date, timeZone: string): string {
@@ -146,7 +149,7 @@ function getSafeTimeZone(value: string | null | undefined): string {
 export async function registerAdminDashboardRoutes(app: FastifyInstance): Promise<void> {
   app.get('/v1/admin/dashboard', { preHandler: authenticateAdminRequest }, async (request) => {
     requireAnyAdminRole(request, ['super_admin', 'operations_admin', 'marketing_admin', 'support_admin']);
-    const { date, start_date: startDate, end_date: endDate, period } = dashboardQuerySchema.parse(request.query);
+    const { date, start_date: startDate, end_date: endDate, period, store_id: storeId } = dashboardQuerySchema.parse(request.query);
     const tenantCode = request.adminAuth.tenantCode;
 
     const [storeRows] = await mysqlPool.query<Array<RowDataPacket & { timezone: string | null }>>(
@@ -155,8 +158,9 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance): Promis
         FROM stores s
         JOIN admin_tenants t ON t.id = s.tenant_id
         WHERE t.code = :tenantCode
+          AND (:storeId IS NULL OR s.id = :storeId)
       `,
-      { tenantCode }
+      { tenantCode, storeId: storeId ?? null }
     );
 
     const timeZone = getSafeTimeZone(storeRows[0]?.timezone);
@@ -172,6 +176,7 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance): Promis
     const trendIncludesYear = rangeStartDate.slice(0, 4) !== rangeEndDate.slice(0, 4);
     const queryParams = {
       tenantCode,
+      storeId: storeId ?? null,
       start: toMysqlDateTime(start),
       end: toMysqlDateTime(end)
     };
@@ -188,12 +193,15 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance): Promis
           o.payment_mode,
           o.final_total_rm,
           o.token_amount_charged,
-          o.created_at
+          o.created_at,
+          s.id AS store_id,
+          s.name AS store_name
         FROM orders o
         JOIN stores s ON s.id = o.store_id
         JOIN admin_tenants t ON t.id = s.tenant_id
         LEFT JOIN user_profiles up ON up.user_id = o.user_id
         WHERE t.code = :tenantCode
+          AND (:storeId IS NULL OR s.id = :storeId)
           AND o.created_at >= :start
           AND o.created_at < :end
         ORDER BY o.created_at DESC, o.id DESC
@@ -208,6 +216,7 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance): Promis
         JOIN stores s ON s.id = o.store_id
         JOIN admin_tenants t ON t.id = s.tenant_id
         WHERE t.code = :tenantCode
+          AND (:storeId IS NULL OR s.id = :storeId)
           AND o.status IN ('paid', 'accepted', 'preparing', 'ready_for_pickup', 'collected')
           AND o.created_at >= :start
           AND o.created_at < :end
@@ -223,6 +232,7 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance): Promis
         JOIN stores s ON s.id = o.store_id
         JOIN admin_tenants t ON t.id = s.tenant_id
         WHERE t.code = :tenantCode
+          AND (:storeId IS NULL OR s.id = :storeId)
           AND r.status = 'pending'
           AND r.created_at >= :start
           AND r.created_at < :end
@@ -247,6 +257,7 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance): Promis
         JOIN stores s ON s.id = o.store_id
         JOIN admin_tenants t ON t.id = s.tenant_id
         WHERE t.code = :tenantCode
+          AND (:storeId IS NULL OR s.id = :storeId)
           AND osh.created_at >= :start
           AND osh.created_at < :end
         ORDER BY osh.created_at DESC, osh.id DESC
@@ -270,6 +281,7 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance): Promis
         JOIN stores s ON s.id = o.store_id
         JOIN admin_tenants t ON t.id = s.tenant_id
         WHERE t.code = :tenantCode
+          AND (:storeId IS NULL OR s.id = :storeId)
           AND o.created_at >= :start
           AND o.created_at < :end
           AND o.status IN ('paid', 'accepted', 'preparing', 'ready_for_pickup', 'collected')
@@ -291,6 +303,13 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance): Promis
     let ordersToday = 0;
     let awaitingPreparation = 0;
     let preparing = 0;
+    const outletBreakdown = new Map<number, {
+      storeId: number;
+      storeName: string;
+      sales: number;
+      orders: number;
+      customers: Set<number>;
+    }>();
     const daily = new Map<string, { label: string; revenue: number; orders: number }>();
     if (!isSingleDay) {
       for (let dateKey = rangeStartDate; dateKey <= rangeEndDate; dateKey = nextDateKey(dateKey)) {
@@ -308,6 +327,17 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance): Promis
       if (isRevenueOrder) {
         salesToday += Number(order.final_total_rm || 0);
         ordersToday += 1;
+        const outlet = outletBreakdown.get(order.store_id) ?? {
+          storeId: order.store_id,
+          storeName: order.store_name,
+          sales: 0,
+          orders: 0,
+          customers: new Set<number>()
+        };
+        outlet.sales += Number(order.final_total_rm || 0);
+        outlet.orders += 1;
+        if (order.user_id) outlet.customers.add(order.user_id);
+        outletBreakdown.set(order.store_id, outlet);
         if (isSingleDay) {
           const localHour = Number(new Intl.DateTimeFormat('en-US', {
             timeZone,
@@ -341,6 +371,7 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance): Promis
       rangeEndDate,
       isSingleDay,
       timeZone,
+      selectedStoreId: storeId ?? null,
       generatedAt: new Date().toISOString(),
       summary: {
         salesToday,
@@ -357,6 +388,16 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance): Promis
         revenue: Number(bucket.revenue.toFixed(2)),
         orders: bucket.orders
       })),
+      outletBreakdown: Array.from(outletBreakdown.values())
+        .sort((left, right) => right.sales - left.sales || left.storeName.localeCompare(right.storeName))
+        .map((outlet) => ({
+          storeId: outlet.storeId,
+          storeName: outlet.storeName,
+          sales: Number(outlet.sales.toFixed(2)),
+          orders: outlet.orders,
+          customers: outlet.customers.size,
+          averageOrderValue: outlet.orders > 0 ? Number((outlet.sales / outlet.orders).toFixed(2)) : 0
+        })),
       recentOrders: rangeOrders.slice(0, 5).map((order) => ({
         id: order.order_ref,
         customer: order.customer_name || 'Customer',
@@ -366,7 +407,9 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance): Promis
         status: titleCase(String(order.status || '')),
         paymentMode: titleCase(String(order.payment_mode || '')),
         time: formatDisplayTime(new Date(order.created_at), timeZone),
-        createdAt: new Date(order.created_at).toISOString()
+        createdAt: new Date(order.created_at).toISOString(),
+        storeId: Number(order.store_id),
+        storeName: order.store_name
       })),
       recentActivity: activityRows.map((activity) => ({
         title: `Order ${activity.order_ref} moved to ${titleCase(activity.to_status)}`,

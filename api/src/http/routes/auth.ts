@@ -57,12 +57,12 @@ async function findImportedMembership(phone: string): Promise<ImportedMembership
     `
       SELECT ctm.user_id
       FROM customer_tenant_memberships ctm
-      JOIN admin_tenants tenant ON tenant.id = ctm.tenant_id AND tenant.code = 'c2coffee'
+      JOIN admin_tenants tenant ON tenant.id = ctm.tenant_id AND tenant.code = :tenantCode AND tenant.status = 'active'
       JOIN users u ON u.id = ctm.user_id AND u.phone_e164 = :phone AND u.deleted_at IS NULL
       WHERE ctm.registration_status = 'imported'
       LIMIT 1
     `,
-    { phone }
+    { phone, tenantCode: env.DEPLOYMENT_TENANT_CODE }
   );
 
   const row = rows[0];
@@ -78,14 +78,14 @@ async function claimImportedMembership(
   const [result] = await connection.execute<ResultSetHeader>(
     `
       UPDATE customer_tenant_memberships ctm
-      JOIN admin_tenants tenant ON tenant.id = ctm.tenant_id AND tenant.code = 'c2coffee'
+      JOIN admin_tenants tenant ON tenant.id = ctm.tenant_id AND tenant.code = :tenantCode AND tenant.status = 'active'
       SET ctm.registration_status = 'registered',
           ctm.registered_at = UTC_TIMESTAMP()
       WHERE ctm.user_id = :userId
         AND ctm.registration_status = 'imported'
         AND :otpPurpose = 'signup'
     `,
-    { userId, otpPurpose }
+    { userId, otpPurpose, tenantCode: env.DEPLOYMENT_TENANT_CODE }
   );
 
   if (result.affectedRows > 0) {
@@ -105,12 +105,12 @@ async function claimImportedMembership(
     `
       SELECT ctm.user_id
       FROM customer_tenant_memberships ctm
-      JOIN admin_tenants tenant ON tenant.id = ctm.tenant_id AND tenant.code = 'c2coffee'
+      JOIN admin_tenants tenant ON tenant.id = ctm.tenant_id AND tenant.code = :tenantCode AND tenant.status = 'active'
       WHERE ctm.user_id = :userId AND ctm.registration_status = 'imported'
       LIMIT 1
       FOR UPDATE
     `,
-    { userId }
+    { userId, tenantCode: env.DEPLOYMENT_TENANT_CODE }
   );
 
   if (pendingRows[0]) {
@@ -910,10 +910,10 @@ async function findOrCreateUserForPhone(
       INSERT IGNORE INTO customer_tenant_memberships (tenant_id, user_id)
       SELECT id, :userId
       FROM admin_tenants
-      WHERE code = 'c2coffee'
+      WHERE code = :tenantCode AND status = 'active'
       LIMIT 1
     `,
-    { userId: userInsert.insertId }
+    { userId: userInsert.insertId, tenantCode: env.DEPLOYMENT_TENANT_CODE }
   );
 
   await connection.execute(

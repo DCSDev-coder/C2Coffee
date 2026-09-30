@@ -41,6 +41,11 @@ class StoreSummary {
   final bool supportsPickup;
   final int pickupLeadMinutes;
   final String status;
+  final String addressLine1;
+  final String addressLine2;
+  final String city;
+  final String state;
+  final String postcode;
 
   const StoreSummary({
     required this.id,
@@ -49,7 +54,19 @@ class StoreSummary {
     required this.supportsPickup,
     required this.pickupLeadMinutes,
     required this.status,
+    this.addressLine1 = '',
+    this.addressLine2 = '',
+    this.city = '',
+    this.state = '',
+    this.postcode = '',
   });
+
+  String get addressLabel => [
+        addressLine1,
+        addressLine2,
+        [postcode, city].where((part) => part.trim().isNotEmpty).join(' '),
+        state,
+      ].where((part) => part.trim().isNotEmpty).join(', ');
 
   factory StoreSummary.fromApi(Map<String, dynamic> json) {
     return StoreSummary(
@@ -59,6 +76,11 @@ class StoreSummary {
       supportsPickup: json['supports_pickup'] as bool? ?? false,
       pickupLeadMinutes: (json['pickup_lead_minutes'] as num?)?.toInt() ?? 0,
       status: json['status'] as String? ?? 'active',
+      addressLine1: json['address_line_1'] as String? ?? '',
+      addressLine2: json['address_line_2'] as String? ?? '',
+      city: json['city'] as String? ?? '',
+      state: json['state'] as String? ?? '',
+      postcode: json['postcode'] as String? ?? '',
     );
   }
 }

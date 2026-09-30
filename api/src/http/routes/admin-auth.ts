@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { z } from 'zod';
 import { authenticateAdminRequest, requireAdminRole } from '../../admin/guard.js';
+import { assertTenantAccountEditable, assertTenantRoleAssignment } from '../../admin/role-policy.js';
 import { signAdminAccessToken } from '../../admin/tokens.js';
 import { env } from '../../config/env.js';
 import { mysqlPool } from '../../db/mysql.js';
@@ -241,9 +242,10 @@ export async function registerAdminAuthRoutes(app: FastifyInstance): Promise<voi
           primary_color,
           secondary_color
         FROM admin_tenants
-        WHERE status = 'active'
+        WHERE status = 'active' AND code = :tenantCode
         ORDER BY display_name ASC
-      `
+      `,
+      { tenantCode: env.DEPLOYMENT_TENANT_CODE }
     );
 
     return {
@@ -269,6 +271,9 @@ export async function registerAdminAuthRoutes(app: FastifyInstance): Promise<voi
     }
   }, async (request, reply) => {
     const payload = adminLoginSchema.parse(request.body);
+    if (payload.tenant_code !== env.DEPLOYMENT_TENANT_CODE) {
+      throw new ApiError(401, 'invalid_admin_credentials', 'Admin username or password is incorrect.');
+    }
 
     const [rows] = await mysqlPool.query<
       Array<
@@ -305,6 +310,7 @@ export async function registerAdminAuthRoutes(app: FastifyInstance): Promise<voi
         FROM admin_users u
         JOIN admin_tenants t ON t.id = u.tenant_id
         WHERE t.code = :tenantCode
+          AND t.status = 'active'
           AND (u.username = :identifier OR u.email = :identifier)
         LIMIT 1
       `,
@@ -405,6 +411,7 @@ export async function registerAdminAuthRoutes(app: FastifyInstance): Promise<voi
           u.status
         FROM admin_sessions s
         JOIN admin_users u ON u.id = s.admin_user_id
+        JOIN admin_tenants t ON t.id = s.tenant_id AND t.id = u.tenant_id AND t.status = 'active'
         WHERE s.refresh_token_hash = :refreshTokenHash
           AND s.revoked_at IS NULL
           AND s.expires_at > UTC_TIMESTAMP()
@@ -665,6 +672,7 @@ export async function registerAdminAuthRoutes(app: FastifyInstance): Promise<voi
       new Set((payload.role_codes?.length ? payload.role_codes : ['support_admin']).map((role) => role.trim()))
     );
     const isBaristaAccount = roleCodes.length === 1 && roleCodes[0] === 'barista';
+    assertTenantRoleAssignment(roleCodes);
     const setupRequired = !isBaristaAccount && !payload.email;
 
     const connection = await mysqlPool.getConnection();
@@ -904,6 +912,8 @@ export async function registerAdminAuthRoutes(app: FastifyInstance): Promise<voi
         { adminUserId }
       );
       const existingRoleCodes = existingRoleRows.map((row) => row.code);
+      assertTenantAccountEditable(existingRoleCodes);
+      if (payload.role_codes) assertTenantRoleAssignment(payload.role_codes);
       const nextRoleCodes = payload.role_codes
         ? Array.from(new Set(payload.role_codes.map((role) => role.trim())))
         : existingRoleCodes;
@@ -1073,6 +1083,7 @@ export async function registerAdminAuthRoutes(app: FastifyInstance): Promise<voi
         { adminUserId }
       );
       const roleCodes = roleRows.map((row) => row.code);
+      assertTenantAccountEditable(roleCodes);
       if (existing.status === 'active' && roleCodes.includes('super_admin')) {
         await requireAnotherActiveSuperAdmin(connection, request.adminAuth.tenantId, adminUserId);
       }
@@ -1223,10 +1234,10 @@ async function getAdminUserResponse(adminUserId: number): Promise<{
         u.must_set_email
       FROM admin_users u
       JOIN admin_tenants t ON t.id = u.tenant_id
-      WHERE u.id = :adminUserId
+      WHERE u.id = :adminUserId AND t.code = :tenantCode AND t.status = 'active'
       LIMIT 1
     `,
-    { adminUserId }
+    { adminUserId, tenantCode: env.DEPLOYMENT_TENANT_CODE }
   );
 
   const admin = rows[0];

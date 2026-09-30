@@ -34,6 +34,8 @@ const AuditLogs = lazy(() => import('./components/AuditLogs'));
 const Settings = lazy(() => import('./components/Settings'));
 const Operations = lazy(() => import('./components/Operations'));
 const StaffGuides = lazy(() => import('./components/StaffGuides'));
+const Outlets = lazy(() => import('./components/Outlets'));
+const PlatformTenants = lazy(() => import('./components/PlatformTenants'));
 
 function AppContent({
   layoutCurrentPage,
@@ -82,10 +84,12 @@ function AppContent({
         {currentPage === 'Product Report' && <ReportByProduct onBack={() => navigateWithPrompt('Finance')} />}
         {currentPage === 'Admin Management' && <AdminManagement currentUser={currentUser} />}
         {currentPage === 'Barista Management' && <BaristaManagement />}
+        {currentPage === 'Outlets' && <Outlets currentUser={currentUser} />}
         {currentPage === 'Operations' && <Operations />}
         {currentPage === 'Staff Guides' && <StaffGuides />}
         {currentPage === 'Audit Logs' && <AuditLogs onNavigate={navigateWithPrompt} currentUser={currentUser} />}
         {currentPage === 'Settings' && <Settings setCurrentPage={navigateWithPrompt} currentUser={currentUser} />}
+        {currentPage === 'Deployment' && <PlatformTenants currentUser={currentUser} />}
       </Suspense>
     </Layout>
   );

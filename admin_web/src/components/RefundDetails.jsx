@@ -8,6 +8,7 @@ import {
   reviewAdminRefund,
 } from "../lib/adminApi";
 import ViewProfile from "./ViewProfile";
+import OutletFilter from './OutletFilter';
 
 const ITEMS_PER_PAGE = 10;
 const STATUSES = ["All Status", "Pending", "Approved", "Rejected"];
@@ -35,7 +36,7 @@ const formatAmount = (refund) => {
   return `RM ${Number(refund.amountRm || 0).toFixed(2)}`;
 };
 
-const RefundDetails = ({ onBack, currentUser }) => {
+const RefundDetails = ({ onBack, currentUser, selectedStoreId = null, onStoreChange }) => {
   const [refunds, setRefunds] = useState([]);
   const [selectedRefund, setSelectedRefund] = useState(null);
   const [search, setSearch] = useState("");
@@ -59,7 +60,7 @@ const RefundDetails = ({ onBack, currentUser }) => {
     setLoading(true);
     setError("");
     try {
-      const response = await loadAdminRefunds();
+      const response = await loadAdminRefunds({ storeId: selectedStoreId });
       setRefunds(Array.isArray(response?.refunds) ? response.refunds : []);
     } catch (requestError) {
       setError(requestError.message || "Unable to load refund requests.");
@@ -70,7 +71,7 @@ const RefundDetails = ({ onBack, currentUser }) => {
 
   useEffect(() => {
     void loadRefunds();
-  }, []);
+  }, [selectedStoreId]);
 
   const reviewRefund = async (refund, decision, password) => {
     if (refund.status !== "Pending") return;
@@ -191,6 +192,9 @@ const RefundDetails = ({ onBack, currentUser }) => {
           Create refund request
         </button>
       </div>
+      <div className="mb-4 flex justify-end">
+        <OutletFilter value={selectedStoreId} onChange={onStoreChange} />
+      </div>
       {error && (
         <div className="mb-5 flex items-center justify-between gap-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           <span>{error}</span>
@@ -254,6 +258,7 @@ const RefundDetails = ({ onBack, currentUser }) => {
                     "Refund ID",
                     "Order ID",
                     "Customer",
+                    "Outlet",
                     "Amount",
                     "Reason",
                     "Status",
@@ -291,6 +296,7 @@ const RefundDetails = ({ onBack, currentUser }) => {
                       <td className="px-5 py-3 text-sm font-medium text-gray-900">
                         {refund.customer}
                       </td>
+                      <td className="px-5 py-3 text-sm text-gray-700">{refund.storeName || '-'}</td>
                       <td className="px-5 py-3 text-sm font-semibold text-gray-900">
                         {formatAmount(refund)}
                       </td>
@@ -366,6 +372,10 @@ const RefundDetails = ({ onBack, currentUser }) => {
                 <p className="font-semibold text-gray-900">
                   {selectedRefund.customerNotes || selectedRefund.reason}
                 </p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Outlet</p>
+                <p className="font-semibold text-gray-900">{selectedRefund.storeName || 'Not recorded'}</p>
               </div>
               <div>
                 <p className="text-xs text-gray-500">Decision status</p>

@@ -69,7 +69,12 @@ const createRefundSchema = z.object({
 });
 
 const adminListQuerySchema = z.object({
-  limit: z.coerce.number().int().min(1).max(10000).optional().default(50)
+  limit: z.coerce.number().int().min(1).max(10000).optional().default(50),
+  store_id: z.coerce.number().int().positive().optional()
+});
+
+const financeQuerySchema = z.object({
+  store_id: z.coerce.number().int().positive().optional()
 });
 
 export async function registerAdminOrdersRoutes(app: FastifyInstance) {
@@ -176,7 +181,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
 
   app.get('/v1/admin/orders', { preHandler: authenticateAdminRequest }, async (request, reply) => {
     requireOrderAccess(request);
-    const { limit } = adminListQuerySchema.parse(request.query);
+    const { limit, store_id: storeId } = adminListQuerySchema.parse(request.query);
 
     const connection = await mysqlPool.getConnection();
     try {
@@ -207,7 +212,9 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           p.provider_payment_ref as txnId,
           COALESCE(ready_barista.name, preparing_barista.name) as baristaName,
           o.ready_at,
-          o.created_at
+          o.created_at,
+          s.id as storeId,
+          s.name as storeName
         FROM orders o
         JOIN users u ON o.user_id = u.id
         JOIN user_profiles up ON u.id = up.user_id
@@ -217,6 +224,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
         LEFT JOIN baristas preparing_barista ON preparing_barista.id = o.preparing_by_barista_id
         LEFT JOIN baristas ready_barista ON ready_barista.id = o.ready_by_barista_id
         WHERE t.code = :tenantCode
+          AND (:storeId IS NULL OR s.id = :storeId)
           AND (
             :isBaristaOnly = 0
             OR EXISTS (
@@ -229,6 +237,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
         LIMIT :limit
       `, {
         tenantCode: request.adminAuth.tenantCode,
+        storeId: storeId ?? null,
         adminUserId: request.adminAuth.adminUserId,
         isBaristaOnly: request.adminAuth.isBaristaOnly ? 1 : 0,
         limit
@@ -344,6 +353,8 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           readyAt: o.ready_at ? new Date(o.ready_at).toISOString() : null,
           time: formatDisplayTime(d),
           date: formatDisplayDate(d)
+          ,storeId: Number(o.storeId)
+          ,storeName: o.storeName
         };
       });
 
@@ -357,6 +368,8 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
     requireFinanceAccess(request);
 
     const tenantCode = request.adminAuth.tenantCode;
+    const { store_id: storeId } = financeQuerySchema.parse(request.query);
+    const queryParams = { tenantCode, storeId: storeId ?? null };
     const revenueStatusClause = "o.status NOT IN ('draft', 'pending_payment', 'payment_failed', 'cancelled')";
     const completedRefundStatusClause = "r.status NOT IN ('pending', 'failed', 'cancelled', 'rejected', 'under_review', 'reviewing')";
     const connection = await mysqlPool.getConnection();
@@ -378,8 +391,9 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
          FROM orders o
          JOIN stores s ON s.id = o.store_id
          JOIN admin_tenants t ON t.id = s.tenant_id
-         WHERE t.code = :tenantCode`,
-        { tenantCode }
+         WHERE t.code = :tenantCode
+           AND (:storeId IS NULL OR s.id = :storeId)`,
+        queryParams
       );
       const [refundSummaryRows] = await connection.query<Array<RowDataPacket & {
         refunded_orders: number;
@@ -394,8 +408,9 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
          JOIN orders o ON o.id = r.order_id
          JOIN stores s ON s.id = o.store_id
          JOIN admin_tenants t ON t.id = s.tenant_id
-         WHERE t.code = :tenantCode`,
-        { tenantCode }
+         WHERE t.code = :tenantCode
+           AND (:storeId IS NULL OR s.id = :storeId)`,
+        queryParams
       );
       const [monthlyOrderRows] = await connection.query<Array<RowDataPacket & {
         month_key: string;
@@ -412,8 +427,9 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
          JOIN stores s ON s.id = o.store_id
          JOIN admin_tenants t ON t.id = s.tenant_id
          WHERE t.code = :tenantCode
+           AND (:storeId IS NULL OR s.id = :storeId)
          GROUP BY month_key`,
-        { tenantCode }
+        queryParams
       );
       const [monthlyRefundRows] = await connection.query<Array<RowDataPacket & {
         month_key: string;
@@ -429,8 +445,9 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
          JOIN stores s ON s.id = o.store_id
          JOIN admin_tenants t ON t.id = s.tenant_id
          WHERE t.code = :tenantCode
+           AND (:storeId IS NULL OR s.id = :storeId)
          GROUP BY month_key`,
-        { tenantCode }
+        queryParams
       );
       const [statusRows] = await connection.query<Array<RowDataPacket & {
         status: string;
@@ -442,9 +459,10 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
          JOIN stores s ON s.id = o.store_id
          JOIN admin_tenants t ON t.id = s.tenant_id
          WHERE t.code = :tenantCode
+           AND (:storeId IS NULL OR s.id = :storeId)
          GROUP BY o.status
          ORDER BY value DESC, o.status ASC`,
-        { tenantCode }
+        queryParams
       );
       const [topUpMethodRows] = await connection.query<Array<RowDataPacket & {
         payment_method: string | null;
@@ -479,6 +497,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
         payment_status: string;
         payment_mode: string | null;
         reference_id: string;
+        store_name: string;
       }>>(
         `SELECT * FROM (
            SELECT
@@ -491,7 +510,8 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
              o.status,
              COALESCE(p.status, '') AS payment_status,
              o.payment_mode,
-             COALESCE(p.provider_payment_ref, o.order_ref) AS reference_id
+             COALESCE(p.provider_payment_ref, o.order_ref) AS reference_id,
+             s.name AS store_name
            FROM orders o
            JOIN users u ON u.id = o.user_id
            JOIN user_profiles up ON up.user_id = u.id
@@ -499,6 +519,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
            JOIN admin_tenants t ON t.id = s.tenant_id
            LEFT JOIN payments p ON p.order_id = o.id
            WHERE t.code = :tenantCode
+             AND (:storeId IS NULL OR s.id = :storeId)
            UNION ALL
            SELECT
              CONCAT('REFUND-', r.refund_ref) AS id,
@@ -510,16 +531,18 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
              r.status,
              r.status AS payment_status,
              r.payment_mode,
-             r.refund_ref AS reference_id
+             r.refund_ref AS reference_id,
+             s.name AS store_name
            FROM refunds r
            JOIN orders o ON o.id = r.order_id
            JOIN stores s ON s.id = o.store_id
            JOIN admin_tenants t ON t.id = s.tenant_id
            WHERE t.code = :tenantCode
+             AND (:storeId IS NULL OR s.id = :storeId)
          ) AS transactions
          ORDER BY created_at DESC
          LIMIT 50`,
-        { tenantCode }
+        queryParams
       );
 
       const monthMap = new Map<string, {
@@ -564,6 +587,8 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
       const totalRefundTokens = Number(refunds.total_refund_tokens || 0);
 
       return {
+        selectedStoreId: storeId ?? null,
+        topUpScope: 'tenant',
         summary: {
           totalRevenueRm,
           totalTokensCharged,
@@ -613,6 +638,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           paymentStatus: capitalizeWords(row.payment_status || ''),
           paymentMode: row.payment_mode || '',
           reference: row.reference_id
+          ,storeName: row.store_name
         }))
       };
     } finally {
@@ -622,7 +648,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
 
   app.get('/v1/admin/refunds', { preHandler: authenticateAdminRequest }, async (request, reply) => {
     requireRefundRequestAccess(request);
-    const { limit } = adminListQuerySchema.parse(request.query);
+    const { limit, store_id: storeId } = adminListQuerySchema.parse(request.query);
     const connection = await mysqlPool.getConnection();
     try {
       const [refundRows] = await connection.query<RowDataPacket[]>(`
@@ -649,6 +675,8 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
             LIMIT 1
           ), 'kawan') AS tier_code,
           r.reason as customerNotes
+          ,s.id as storeId
+          ,s.name as storeName
         FROM refunds r
         JOIN orders o ON r.order_id = o.id
         JOIN users u ON o.user_id = u.id
@@ -656,9 +684,10 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
         JOIN stores s ON s.id = o.store_id
         JOIN admin_tenants t ON t.id = s.tenant_id
         WHERE t.code = :tenantCode
+          AND (:storeId IS NULL OR s.id = :storeId)
         ORDER BY r.created_at DESC
         LIMIT :limit
-      `, { tenantCode: request.adminAuth.tenantCode, limit });
+      `, { tenantCode: request.adminAuth.tenantCode, storeId: storeId ?? null, limit });
 
       if (refundRows.length === 0) {
         return reply.send({ refunds: [] });
@@ -684,6 +713,8 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           requestedAt: `${formatDisplayDate(reqDate)} ${formatDisplayTime(reqDate)}`,
           orderDate: `${formatDisplayDate(ordDate)} – ${formatDisplayTime(ordDate)}`,
           customerNotes: r.customerNotes || '',
+          storeId: Number(r.storeId),
+          storeName: r.storeName,
           timeline: [
             { label: "Refund Requested", date: `${formatDisplayDate(reqDate)} ${formatDisplayTime(reqDate)}`, done: true },
             { label: "Refund Review", date: r.reviewedAt ? `${formatDisplayDate(new Date(r.reviewedAt))} ${formatDisplayTime(new Date(r.reviewedAt))}` : '', done: r.status !== 'pending' },

@@ -14,6 +14,7 @@ import RefundDetails from "./RefundDetails";
 import ViewProfile from "./ViewProfile";
 import { adminRequest } from '../lib/adminApi';
 import { formatPaymentLabel } from '../utils/reporting';
+import OutletFilter from './OutletFilter';
 
 //Custom Icons for Timeline 
 
@@ -311,6 +312,11 @@ const OrderDetailPanel = ({ order, onClose, onViewProfile }) => {
         )}
       </div>
 
+      <div>
+        <p className="text-xs font-bold text-gray-900 mb-1">Outlet</p>
+        <p className="text-sm font-semibold text-[#1F3A34]">{order.storeName || 'Not recorded'}</p>
+      </div>
+
       {/* Order Items Section */}
       <div>
         <p className="text-xs font-bold text-gray-900 mb-2.5">Order Items</p>
@@ -509,6 +515,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All Status");
   const [paymentFilter, setPaymentFilter] = useState("All Payment Status");
+  const [selectedStoreId, setSelectedStoreId] = useState(null);
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showRefundsView, setShowRefundsView] = useState(initialShowRefunds);
@@ -530,7 +537,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
         if (!silent) {
           setIsLoading(true);
         }
-        const response = await adminRequest('/v1/admin/orders');
+        const response = await adminRequest(`/v1/admin/orders${selectedStoreId ? `?store_id=${encodeURIComponent(selectedStoreId)}` : ''}`);
         if (!isMounted) return;
 
         const nextOrders = Array.isArray(response?.orders) ? response.orders : [];
@@ -577,7 +584,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, []);
+  }, [selectedStoreId]);
 
   useEffect(() => {
     const handleClickOutside = () => setMenuOpenId(null);
@@ -589,6 +596,8 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
     return (
       <RefundDetails
         currentUser={currentUser}
+        selectedStoreId={selectedStoreId}
+        onStoreChange={setSelectedStoreId}
         onBack={() => {
           if (onBackToOrders) {
             onBackToOrders();
@@ -697,6 +706,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
 
       {/* Filters and Actions Bar */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-6 gap-4 shrink-0">
+        <OutletFilter value={selectedStoreId} onChange={(value) => { setSelectedStoreId(value); resetPage(); }} />
         {/* Search */}
         <div className="relative w-full max-w-[400px]">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -776,7 +786,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-white">
                 <tr>
-                  {["Order ID", "Username", "Items", "Total", "Barista", "Status", "Payment", "Time"].map((h) => (
+                  {["Order ID", "Username", "Outlet", "Items", "Total", "Barista", "Status", "Payment", "Time"].map((h) => (
                     <th key={h} className="px-6 py-4 text-left text-xs font-bold text-gray-900">
                       {h}
                     </th>
@@ -810,6 +820,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
                             </div>
                           </div>
                         </td>
+                        <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-700 font-medium">{order.storeName || '-'}</td>
                         <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-900 font-medium">
                           {itemsLabel}
                         </td>
@@ -833,7 +844,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
                   })
                 ) : (
                   <tr>
-                    <td colSpan="8" className="px-6 py-8 text-center text-gray-500 text-sm">
+                    <td colSpan="9" className="px-6 py-8 text-center text-gray-500 text-sm">
                       No orders found matching your criteria.
                     </td>
                   </tr>
@@ -855,12 +866,12 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
             <button
               onClick={() => {
                 const rows = [
-                  ["Order ID", "Username", "Email", "Barista", "Status", "Payment Status", "Date", "Time", "Total (Tokens)", "Total (RM)"],
+                  ["Order ID", "Username", "Email", "Outlet", "Barista", "Status", "Payment Status", "Date", "Time", "Total (Tokens)", "Total (RM)"],
                   ...filtered.map(o => {
                     const subtotal = o.items.reduce((s, i) => s + i.unitPrice * i.qty, 0);
                     const rmTotal = Number(o.total ?? (subtotal - Number(o.discount || 0)));
                     const tokenTotal = o.tokenAmountCharged ?? rmTotal;
-                    return [`"${o.id}"`, `"${o.customer}"`, `"${o.email}"`, `"${o.baristaName || ''}"`, `"${o.status}"`, `"${o.paymentStatus}"`, `"${o.date}"`, `"${o.time}"`, `"${formatTokens(tokenTotal)}"`, `"${formatRm(rmTotal)}"`];
+                    return [`"${o.id}"`, `"${o.customer}"`, `"${o.email}"`, `"${o.storeName || ''}"`, `"${o.baristaName || ''}"`, `"${o.status}"`, `"${o.paymentStatus}"`, `"${o.date}"`, `"${o.time}"`, `"${formatTokens(tokenTotal)}"`, `"${formatRm(rmTotal)}"`];
                   })
                 ];
                 exportToCSV(rows, "orders.csv");

@@ -606,7 +606,8 @@ class _MenuPageState extends State<MenuPage> {
                               child: Row(
                                 children: [
                                   const Padding(
-                                    padding: EdgeInsets.only(left: 12, right: 6),
+                                    padding:
+                                        EdgeInsets.only(left: 12, right: 6),
                                     child: Icon(
                                       Icons.search,
                                       color: Color(0xFF6B7280),
@@ -928,8 +929,81 @@ class _MenuPageState extends State<MenuPage> {
     return _buildStoreHeader();
   }
 
+  Future<void> _showStorePicker() async {
+    final selected = await showModalBottomSheet<StoreSummary>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const ListTile(
+              title: Text('Choose pickup outlet',
+                  style: TextStyle(
+                      fontFamily: 'Recoleta', fontWeight: FontWeight.bold)),
+              subtitle: Text('Your menu and order will use this outlet.'),
+            ),
+            ..._session.stores.map((store) => ListTile(
+                  leading: Icon(
+                    store.id == _session.selectedStore?.id
+                        ? Icons.radio_button_checked
+                        : Icons.radio_button_off,
+                    color: AppColors.deepTeal,
+                  ),
+                  title: Text(store.name),
+                  subtitle: Text(store.addressLabel.isEmpty
+                      ? '${store.pickupLeadMinutes} min pickup estimate'
+                      : store.addressLabel),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.pop(sheetContext, store),
+                )),
+          ],
+        ),
+      ),
+    );
+    if (!mounted ||
+        selected == null ||
+        selected.id == _session.selectedStore?.id) {
+      return;
+    }
+
+    if (!_cart.isEmpty && _cart.storeId != selected.id) {
+      final confirmed = await showDialog<bool>(
+            context: context,
+            builder: (dialogContext) => AlertDialog(
+              title: const Text('Change pickup outlet?'),
+              content: const Text(
+                  'Your bag contains items from another outlet. Changing outlet will clear the bag.'),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(dialogContext, false),
+                    child: const Text('Keep current outlet')),
+                FilledButton(
+                    onPressed: () => Navigator.pop(dialogContext, true),
+                    child: const Text('Clear bag and change')),
+              ],
+            ),
+          ) ??
+          false;
+      if (!confirmed || !mounted) return;
+      _cart.clear();
+    }
+
+    await _session.selectStore(selected);
+    if (!mounted) return;
+    _sectionKeys.clear();
+    setState(() => _selectedCategoryIndex = 0);
+    if (_scrollController.hasClients) {
+      _scrollController.jumpTo(0);
+    }
+  }
+
   void _openStoreDirection() {
-    final storeName = _session.selectedStore?.name ?? 'C2 Coffee Eco Forest';
+    final store = _session.selectedStore;
+    final storeName = store?.name ?? 'C2 Coffee';
+    final destination = store?.addressLabel.isNotEmpty == true
+        ? store!.addressLabel
+        : storeName;
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
@@ -1024,8 +1098,10 @@ class _MenuPageState extends State<MenuPage> {
                     ),
                     onTap: () async {
                       Navigator.pop(sheetContext);
-                      final googleMapsUri = Uri.parse(
-                        'https://share.google/vxhKkaQTBIOH0iO3C',
+                      final googleMapsUri = Uri.https(
+                        'www.google.com',
+                        '/maps/search/',
+                        {'api': '1', 'query': destination},
                       );
                       if (await canLaunchUrl(googleMapsUri)) {
                         await launchUrl(
@@ -1061,9 +1137,12 @@ class _MenuPageState extends State<MenuPage> {
                     ),
                     onTap: () async {
                       Navigator.pop(sheetContext);
-                      final encodedName = Uri.encodeComponent(storeName);
-                      final wazeAppUri = Uri.parse('waze://?q=$encodedName&navigate=yes');
-                      final wazeWebUri = Uri.parse('https://www.waze.com/ul?q=$encodedName&navigate=yes');
+                      final encodedDestination =
+                          Uri.encodeComponent(destination);
+                      final wazeAppUri = Uri.parse(
+                          'waze://?q=$encodedDestination&navigate=yes');
+                      final wazeWebUri = Uri.parse(
+                          'https://www.waze.com/ul?q=$encodedDestination&navigate=yes');
 
                       if (await canLaunchUrl(wazeAppUri)) {
                         await launchUrl(
@@ -1099,16 +1178,30 @@ class _MenuPageState extends State<MenuPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  _session.selectedStore?.name ?? 'C2 Coffee Eco Forest',
-                  style: TextStyle(
-                    fontFamily: 'Recoleta',
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    color: AppColors.deepTeal,
+                InkWell(
+                  onTap: _showStorePicker,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          _session.selectedStore?.name ?? 'Choose an outlet',
+                          style: TextStyle(
+                            fontFamily: 'Recoleta',
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            color: AppColors.deepTeal,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 3),
+                      Icon(Icons.keyboard_arrow_down_rounded,
+                          size: 20, color: AppColors.deepTeal),
+                    ],
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 2),
                 Row(
@@ -1116,14 +1209,18 @@ class _MenuPageState extends State<MenuPage> {
                     Container(
                       width: 7,
                       height: 7,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF10B981),
+                      decoration: BoxDecoration(
+                        color: _session.selectedStore?.supportsPickup == true
+                            ? const Color(0xFF10B981)
+                            : Colors.grey,
                         shape: BoxShape.circle,
                       ),
                     ),
                     const SizedBox(width: 5),
-                    const Text(
-                      'Open for Store Pickup',
+                    Text(
+                      _session.selectedStore?.supportsPickup == true
+                          ? 'Available for Store Pickup'
+                          : 'Store Pickup Unavailable',
                       style: TextStyle(
                         fontFamily: 'Afacad',
                         fontSize: 13,

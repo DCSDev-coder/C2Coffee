@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   LayoutDashboard, Users, ShoppingBag, Ticket, Coins, Crown, Package,
-  Coffee, Megaphone, LineChart, UserCog, ClipboardList, Settings, LogOut, UserCheck, Printer, SlidersHorizontal, BookOpen, RotateCcw, CalendarDays, Share2
+  Coffee, Megaphone, LineChart, UserCog, ClipboardList, Settings, LogOut, UserCheck, Printer, SlidersHorizontal, BookOpen, CalendarDays, Share2, MapPin, Building2
 } from 'lucide-react';
 
 import { canAccessAdminPage } from '../lib/adminPermissions';
@@ -14,7 +14,6 @@ const Sidebar = ({ currentPage, setCurrentPage, onLogout, currentTenant, current
     { name: 'Barista Workspace', icon: CalendarDays, section: 'Daily work' },
     { name: 'Dashboard', icon: LayoutDashboard, section: 'Daily work' },
     { name: 'Orders', icon: ShoppingBag, section: 'Daily work' },
-    { name: 'Refunds', icon: RotateCcw, section: 'Daily work' },
     { name: 'Customers', icon: Users, section: 'Daily work' },
     { name: 'Menu', icon: Coffee, section: 'Menu setup' },
     { name: 'Options & Nutrition', icon: SlidersHorizontal, section: 'Menu setup' },
@@ -26,9 +25,11 @@ const Sidebar = ({ currentPage, setCurrentPage, onLogout, currentTenant, current
     { name: 'Finance', icon: LineChart, section: 'Reports' },
     { name: 'Product Report', icon: Package, section: 'Reports' },
     { name: 'Barista Management', icon: UserCheck, section: 'Staff & store' },
+    { name: 'Outlets', icon: MapPin, section: 'Staff & store' },
     { name: 'Staff Guides', icon: BookOpen, section: 'Staff & store' },
     { name: 'Operations', icon: Printer, section: 'Staff & store' },
     { name: 'Admin Management', icon: UserCog, section: 'Administration' },
+    { name: 'Deployment', icon: Building2, section: 'Administration' },
     { name: 'Audit Logs', icon: ClipboardList, section: 'Administration' },
     { name: 'Settings', icon: Settings, section: 'Administration' }
   ];

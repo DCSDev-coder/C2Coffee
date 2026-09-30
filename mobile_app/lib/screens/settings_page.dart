@@ -21,6 +21,8 @@ import '../utils/app_colors.dart';
 import '../utils/app_notification.dart';
 import '../widgets/app_page_shell.dart';
 import '../widgets/catalog_product_image.dart';
+import '../widgets/app_tutorial.dart';
+import '../widgets/profile_avatar_style.dart';
 
 class SettingsPage extends StatefulWidget {
   final VoidCallback? onProfileUpdated;
@@ -471,6 +473,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Widget _buildAvatar() {
     ImageProvider imageProvider;
+    final isPlaceholder = _remoteAvatarPath == null && _pickedImage == null;
     if (_remoteAvatarPath != null && _remoteAvatarPath!.isNotEmpty) {
       final apiOrigin = ApiConfig.baseUrl.replaceFirst(RegExp(r'/v1/?$'), '');
       final remotePath = _remoteAvatarPath!;
@@ -496,7 +499,12 @@ class _SettingsPageState extends State<SettingsPage> {
         height: 100,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: orangeColor,
+          color: isPlaceholder
+              ? profilePlaceholderBackground(
+                  gender: userProfile['gender'],
+                  presetPath: _presetAvatarPath,
+                )
+              : orangeColor,
           border: Border.all(color: bgColor, width: 4),
         ),
         child: ClipOval(
@@ -1084,6 +1092,27 @@ class _SettingsPageState extends State<SettingsPage> {
                                 ? null
                                 : _setMarketingNotificationPreference,
                             activeThumbColor: AppColors.deepTeal,
+                          ),
+                          const Divider(height: 1, indent: 16, endIndent: 16),
+                          ListTile(
+                            title: const Text('App Tutorial',
+                                style: TextStyle(
+                                    fontFamily: 'Afacad',
+                                    fontSize: 16,
+                                    color: Colors.black87)),
+                            subtitle: const Text(
+                              'Replay the wallet, outlet, ordering and rewards guide.',
+                              style:
+                                  TextStyle(fontFamily: 'Afacad', fontSize: 13),
+                            ),
+                            trailing: const Icon(Icons.play_circle_outline,
+                                color: Colors.grey),
+                            onTap: () {
+                              final userId = _session.user?.id;
+                              if (userId != null) {
+                                AppTutorial.show(context, userId: userId);
+                              }
+                            },
                           ),
                           const Divider(height: 1, indent: 16, endIndent: 16),
                           ListTile(

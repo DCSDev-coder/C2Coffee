@@ -1,6 +1,7 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { RowDataPacket } from 'mysql2';
 import { mysqlPool } from '../db/mysql.js';
+import { env } from '../config/env.js';
 import { ApiError } from '../http/errors.js';
 import { verifyAdminAccessToken } from './tokens.js';
 
@@ -81,7 +82,7 @@ export async function authenticateAdminRequest(
         u.must_set_email
       FROM admin_sessions s
       JOIN admin_users u ON u.id = s.admin_user_id
-      JOIN admin_tenants t ON t.id = s.tenant_id
+      JOIN admin_tenants t ON t.id = s.tenant_id AND t.id = u.tenant_id AND t.status = 'active' AND t.code = :tenantCode
       WHERE s.id = :sessionId
         AND s.admin_user_id = :adminUserId
         AND s.revoked_at IS NULL
@@ -90,7 +91,8 @@ export async function authenticateAdminRequest(
     `,
     {
       sessionId: payload.sessionId,
-      adminUserId: payload.adminUserId
+      adminUserId: payload.adminUserId,
+      tenantCode: env.DEPLOYMENT_TENANT_CODE
     }
   );
 
@@ -139,6 +141,14 @@ export async function authenticateAdminRequest(
   };
 
   enforceBaristaRouteAccess(request);
+
+  const path = request.url.split('?')[0];
+  if (!request.adminAuth.isBaristaOnly && (request.adminAuth.mustChangePassword || request.adminAuth.mustSetEmail) && ![
+    '/v1/admin/auth/complete-setup', '/v1/admin/auth/me', '/v1/admin/auth/logout',
+    '/v1/admin/auth/password-change/request', '/v1/admin/auth/password-change/confirm'
+  ].includes(path)) {
+    throw new ApiError(403, 'admin_setup_required', 'Complete account setup before using the admin platform.');
+  }
 }
 
 function enforceBaristaRouteAccess(request: FastifyRequest): void {

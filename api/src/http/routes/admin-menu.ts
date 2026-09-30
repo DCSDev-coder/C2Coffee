@@ -410,11 +410,14 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
 
   app.get('/v1/admin/reports/products', { preHandler: authenticateAdminRequest }, async (request) => {
     requireAnyAdminRole(request, ['super_admin', 'marketing_admin', 'operations_admin']);
-    const selectedDateRaw = typeof request.query === 'object' && request.query !== null
-      ? (request.query as { selected_date?: string }).selected_date
-      : undefined;
+    const reportQuery = z.object({
+      selected_date: z.string().datetime().optional(),
+      store_id: z.coerce.number().int().positive().optional()
+    }).parse(request.query);
+    const selectedDateRaw = reportQuery.selected_date;
     const selectedDate = selectedDateRaw ? new Date(selectedDateRaw) : null;
     const safeSelectedDate = selectedDate && !Number.isNaN(selectedDate.getTime()) ? selectedDate : null;
+    const selectedDateEnd = safeSelectedDate ? new Date(safeSelectedDate.getTime() + 24 * 60 * 60 * 1000) : null;
 
     const [rows] = await mysqlPool.query<Array<AdminMenuRow>>(
       `
@@ -492,7 +495,12 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
             MAX(o.created_at) AS last_ordered_at
           FROM order_items oi
           JOIN orders o ON o.id = oi.order_id
-          WHERE o.status IN ('paid', 'accepted', 'preparing', 'ready_for_pickup', 'collected')
+          JOIN stores report_store ON report_store.id = o.store_id
+          JOIN admin_tenants report_tenant ON report_tenant.id = report_store.tenant_id
+          WHERE report_tenant.code = :tenantCode
+            AND (:storeId IS NULL OR report_store.id = :storeId)
+            AND (:selectedDate IS NULL OR (o.created_at >= :selectedDate AND o.created_at < :selectedDateEnd))
+            AND o.status IN ('paid', 'accepted', 'preparing', 'ready_for_pickup', 'collected')
           GROUP BY oi.menu_item_id
         ) sales
           ON sales.menu_item_id = i.id
@@ -506,10 +514,19 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
         LEFT JOIN item_modifier_options imo
           ON imo.modifier_group_id = img.id
         ORDER BY c.sort_order ASC, c.id ASC, i.name ASC, i.id ASC, tp.tier_code ASC
-      `
+      `,
+      {
+        tenantCode: request.adminAuth.tenantCode,
+        storeId: reportQuery.store_id ?? null,
+        selectedDate: safeSelectedDate,
+        selectedDateEnd
+      }
     );
 
-    return buildProductReportResponse(buildMenuResponse(rows), safeSelectedDate);
+    return {
+      ...buildProductReportResponse(buildMenuResponse(rows)),
+      selectedStoreId: reportQuery.store_id ?? null
+    };
   });
 
   app.post('/v1/admin/menu/items', { preHandler: authenticateAdminRequest }, async (request) => {
@@ -1314,7 +1331,7 @@ type ProductReportResponse = {
   };
 };
 
-function buildProductReportResponse(menuResponse: AdminMenuResponse, selectedDate: Date | null = null): ProductReportResponse {
+function buildProductReportResponse(menuResponse: AdminMenuResponse): ProductReportResponse {
   const categories = Array.isArray(menuResponse?.categories) ? menuResponse.categories : [];
 
   const products = categories.flatMap((category) => {
@@ -1339,15 +1356,7 @@ function buildProductReportResponse(menuResponse: AdminMenuResponse, selectedDat
     });
   });
 
-  const filteredProducts = products.filter((product) => {
-    if (!selectedDate || !product.lastOrderedAt) {
-      return true;
-    }
-
-    return product.lastOrderedAt.getTime() >= selectedDate.getTime();
-  });
-
-  const sortedProducts = filteredProducts.sort((a, b) =>
+  const sortedProducts = products.sort((a, b) =>
     b.quantitySold - a.quantitySold
       || b.revenueRm - a.revenueRm
       || a.name.localeCompare(b.name)

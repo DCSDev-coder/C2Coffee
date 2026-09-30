@@ -12,6 +12,7 @@ import 'otp_verification.dart';
 import '../services/auth_api_service.dart';
 import '../services/user_service.dart';
 import '../utils/app_colors.dart';
+import '../widgets/profile_avatar_style.dart';
 
 class Signup2 extends StatefulWidget {
   final File? initialPickedImage;
@@ -212,8 +213,7 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                     offset: Offset(0, 4)),
               ],
               border: Border.all(
-                  color: primaryColor.withValues(alpha: 0.2),
-                  width: 1),
+                  color: primaryColor.withValues(alpha: 0.2), width: 1),
             ),
             child: Padding(
               padding: const EdgeInsets.all(24),
@@ -230,12 +230,10 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                           color: primaryColor.withValues(alpha: 0.1),
                           shape: BoxShape.circle,
                           border: Border.all(
-                              color: primaryColor
-                                  .withValues(alpha: 0.2),
+                              color: primaryColor.withValues(alpha: 0.2),
                               width: 1),
                         ),
-                        child: Icon(Icons.close,
-                            color: primaryColor, size: 18),
+                        child: Icon(Icons.close, color: primaryColor, size: 18),
                       ),
                     ),
                   ),
@@ -294,8 +292,8 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                                   boxShadow: isSelected
                                       ? [
                                           BoxShadow(
-                                              color: primaryColor
-                                                  .withValues(alpha: 0.3),
+                                              color: primaryColor.withValues(
+                                                  alpha: 0.3),
                                               blurRadius: 8,
                                               offset: const Offset(0, 2))
                                         ]
@@ -303,7 +301,9 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                                 ),
                                 child: CircleAvatar(
                                   radius: 40,
-                                  backgroundColor: primaryColor,
+                                  backgroundColor: profilePlaceholderBackground(
+                                    presetPath: _avatarOptions[index]['path'],
+                                  ),
                                   backgroundImage:
                                       AssetImage(_avatarOptions[index]['path']),
                                 ),
@@ -348,8 +348,7 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                               borderRadius: BorderRadius.circular(12),
                               boxShadow: [
                                 BoxShadow(
-                                    color: primaryColor
-                                        .withValues(alpha: 0.3),
+                                    color: primaryColor.withValues(alpha: 0.3),
                                     blurRadius: 8,
                                     offset: const Offset(0, 4))
                               ],
@@ -538,7 +537,8 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                                       color: Colors.white,
                                       shape: BoxShape.circle,
                                       border: Border.all(
-                                          color: secondaryColor.withValues(alpha: 0.3),
+                                          color: secondaryColor.withValues(
+                                              alpha: 0.3),
                                           width: 2),
                                       boxShadow: const [
                                         BoxShadow(
@@ -650,7 +650,8 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                                     ),
                                     const SizedBox(height: 10),
                                     Row(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Expanded(
                                           child: _buildFieldShake(
@@ -713,8 +714,7 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                                             child: _buildGenderButton(
                                               'Male',
                                               Icons.male,
-                                              hasError:
-                                                  _errorFields.contains(
+                                              hasError: _errorFields.contains(
                                                 _Signup2ErrorField.gender,
                                               ),
                                             ),
@@ -724,8 +724,7 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                                             child: _buildGenderButton(
                                               'Female',
                                               Icons.female,
-                                              hasError:
-                                                  _errorFields.contains(
+                                              hasError: _errorFields.contains(
                                                 _Signup2ErrorField.gender,
                                               ),
                                             ),

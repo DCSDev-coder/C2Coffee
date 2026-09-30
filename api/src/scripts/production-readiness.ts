@@ -21,26 +21,68 @@ async function requireHealthy(url: string): Promise<void> {
   }
 }
 
-async function requireBillplzApprovedMethods(): Promise<void> {
+type BillplzItem = Record<string, unknown>;
+
+async function fetchBillplzList(path: string, property: string): Promise<BillplzItem[]> {
   const baseUrl = env.TOPUP_GATEWAY_BASE_URL.replace(/\/+$/, '');
   const authorization = `Basic ${Buffer.from(`${env.TOPUP_GATEWAY_API_KEY}:`).toString('base64')}`;
-  const response = await fetch(`${baseUrl}/v4/payment_gateways`, {
+  const response = await fetch(`${baseUrl}${path}`, {
     headers: { authorization },
     signal: AbortSignal.timeout(10_000)
   });
-  const body = await response.json().catch(() => null) as { payment_gateways?: unknown } | null;
-  if (!response.ok || !Array.isArray(body?.payment_gateways)) {
-    throw new Error(`Billplz payment-gateway lookup returned HTTP ${response.status}.`);
+  const body = await response.json().catch(() => null) as Record<string, unknown> | null;
+  const items = body?.[property];
+  if (!response.ok || !Array.isArray(items)) {
+    throw new Error(`Billplz ${property.replaceAll('_', ' ')} lookup returned HTTP ${response.status}.`);
   }
-  const activeCodes = new Set(
-    body.payment_gateways
-      .filter((gateway): gateway is Record<string, unknown> => Boolean(gateway) && typeof gateway === 'object')
+  return items.filter((item): item is BillplzItem => Boolean(item) && typeof item === 'object');
+}
+
+async function requireBillplzApprovedMethods(): Promise<void> {
+  const collectionId = encodeURIComponent(env.TOPUP_GATEWAY_COLLECTION_ID);
+  const collectionMethods = await fetchBillplzList(
+    `/v3/collections/${collectionId}/payment_methods`,
+    'payment_methods'
+  );
+  const activeCollectionCodes = new Set(
+    collectionMethods
+      .filter((method) => method.active === true)
+      .map((method) => String(method.code ?? ''))
+  );
+  const requiredCollectionCode: Record<string, string> = {
+    touch_n_go: 'touchngo',
+    card: 'billplz',
+    bank_transfer: 'fpx'
+  } as const;
+
+  for (const method of env.TOPUP_GATEWAY_ALLOWED_METHODS) {
+    const collectionCode = requiredCollectionCode[method];
+    if (!activeCollectionCodes.has(collectionCode)) {
+      throw new Error(`Billplz method ${method} is allowed by the API but is not active for this collection.`);
+    }
+  }
+
+  if (env.TOPUP_GATEWAY_ALLOWED_METHODS.includes('bank_transfer')) {
+    const banks = await fetchBillplzList('/v3/fpx_banks', 'banks');
+    if (!banks.some((bank) => bank.active === true)) {
+      throw new Error('Billplz online banking is active for the collection, but no FPX bank is currently available.');
+    }
+  }
+
+  const requiredGatewayCodes = new Set<string>();
+  if (env.TOPUP_GATEWAY_ALLOWED_METHODS.includes('touch_n_go')) requiredGatewayCodes.add('BP-TNG01');
+  if (env.TOPUP_GATEWAY_ALLOWED_METHODS.includes('card')) requiredGatewayCodes.add('BP-BILLPLZ1');
+  if (requiredGatewayCodes.size === 0) return;
+
+  const gateways = await fetchBillplzList('/v4/payment_gateways', 'payment_gateways');
+  const activeGatewayCodes = new Set(
+    gateways
       .filter((gateway) => gateway.active === true)
       .map((gateway) => String(gateway.code ?? ''))
   );
-  for (const requiredCode of ['BP-TNG01', 'BP-BILLPLZ1']) {
-    if (!activeCodes.has(requiredCode)) {
-      throw new Error(`Billplz approved payment method ${requiredCode} is not active.`);
+  for (const requiredCode of requiredGatewayCodes) {
+    if (!activeGatewayCodes.has(requiredCode)) {
+      throw new Error(`Billplz gateway ${requiredCode} is required by the API allowlist but is not active.`);
     }
   }
 }
@@ -51,7 +93,7 @@ async function main(): Promise<void> {
     ? 'FCM delivery is enabled and the service-account secret has the required fields; a physical device test remains required.'
     : 'FCM delivery is disabled. Set FCM_DELIVERY_ENABLED=true and install the service-account secret before testing notifications.';
   const topUpReadinessDetail = env.TOPUP_GATEWAY_ENABLED
-    ? `Top-up gateway ${env.TOPUP_GATEWAY_PROVIDER} is configured for ${env.TOPUP_GATEWAY_ALLOWED_METHODS.join(', ')}. Provider sandbox callback testing is still required before production activation.`
+    ? `Top-up gateway ${env.TOPUP_GATEWAY_PROVIDER} allowlist is ${env.TOPUP_GATEWAY_ALLOWED_METHODS.join(', ')}. Collection-level activation is verified for every allowed method.`
     : 'Online token top-up is intentionally disabled. Counter/admin token credits remain the only available top-up route.';
   const checks: Check[] = [
     {
@@ -154,7 +196,15 @@ async function main(): Promise<void> {
     }
   }
 
-  console.log('MANUAL  Verify one OTP email, Admin Web login/refresh/logout, a real device notification, a physical printer receipt, and gateway sandbox callbacks before enabling online top-up.');
+  console.log('MANUAL  Verify one OTP email, Admin Web login/refresh/logout, and a real device notification.');
+  if (env.PRINT_CONNECTOR_SHARED_SECRET) {
+    console.log('MANUAL  A print connector is configured; verify one physical receipt using the connected printer hardware.');
+  } else {
+    console.log('INFO    Receipt printing is not configured in this deployment; no physical-printer test is required.');
+  }
+  if (env.TOPUP_GATEWAY_ENABLED) {
+    console.log(`MANUAL  Complete one end-to-end ${env.TOPUP_GATEWAY_ALLOWED_METHODS.join('/')} payment and signed callback in the configured Billplz environment before customer launch.`);
+  }
   if (failed) process.exitCode = 1;
 }
 

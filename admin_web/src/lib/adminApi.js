@@ -282,11 +282,11 @@ export async function saveAdminHomeFeatured(categoryId, itemIds) {
   });
 }
 
-export async function loadAdminProductReport(selectedDate = null) {
-  const query = selectedDate
-    ? `?selected_date=${encodeURIComponent(selectedDate.toISOString())}`
-    : "";
-  return adminRequest(`/v1/admin/reports/products${query}`);
+export async function loadAdminProductReport(selectedDate = null, storeId = null) {
+  const params = new URLSearchParams();
+  if (selectedDate) params.set('selected_date', selectedDate.toISOString());
+  if (storeId) params.set('store_id', String(storeId));
+  return adminRequest(`/v1/admin/reports/products${params.size ? `?${params}` : ''}`);
 }
 
 export async function loadAdminCustomers({ limit = 500 } = {}) {
@@ -294,16 +294,17 @@ export async function loadAdminCustomers({ limit = 500 } = {}) {
 }
 
 export async function loadAdminOrders(params = {}) {
-  const query = params.limit
-    ? `?limit=${encodeURIComponent(params.limit)}`
-    : "";
-  return adminRequest(`/v1/admin/orders${query}`);
+  const query = new URLSearchParams();
+  if (params.limit) query.set('limit', String(params.limit));
+  if (params.storeId) query.set('store_id', String(params.storeId));
+  return adminRequest(`/v1/admin/orders${query.size ? `?${query}` : ''}`);
 }
 
 export async function loadAdminDashboard({
   startDate = null,
   endDate = null,
   period = "this_month",
+  storeId = null,
 } = {}) {
   const searchParams = new URLSearchParams({ period });
   if (startDate) {
@@ -312,15 +313,16 @@ export async function loadAdminDashboard({
   if (endDate) {
     searchParams.set("end_date", endDate);
   }
+  if (storeId) searchParams.set('store_id', String(storeId));
   const query = searchParams.toString() ? `?${searchParams.toString()}` : "";
   return adminRequest(`/v1/admin/dashboard${query}`);
 }
 
 export async function loadAdminRefunds(params = {}) {
-  const query = params.limit
-    ? `?limit=${encodeURIComponent(params.limit)}`
-    : "";
-  return adminRequest(`/v1/admin/refunds${query}`);
+  const query = new URLSearchParams();
+  if (params.limit) query.set('limit', String(params.limit));
+  if (params.storeId) query.set('store_id', String(params.storeId));
+  return adminRequest(`/v1/admin/refunds${query.size ? `?${query}` : ''}`);
 }
 
 export async function createAdminRefund(orderId, reason, confirmationPassword) {
@@ -444,8 +446,8 @@ export async function adjustAdminCustomerTokens(customerId, payload) {
   });
 }
 
-export async function loadAdminFinanceOverview() {
-  return adminRequest("/v1/admin/finance/overview");
+export async function loadAdminFinanceOverview({ storeId = null } = {}) {
+  return adminRequest(`/v1/admin/finance/overview${storeId ? `?store_id=${encodeURIComponent(storeId)}` : ''}`);
 }
 
 export async function loadAdminTierConfigs() {
@@ -581,6 +583,22 @@ export async function updateAdminStoreName(name) {
     method: "PATCH",
     body: JSON.stringify({ name }),
   });
+}
+
+export async function loadAdminStores() {
+  return adminRequest('/v1/admin/stores');
+}
+
+export async function createAdminStore(payload) {
+  return adminRequest('/v1/admin/stores', { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export async function updateAdminStore(storeId, payload) {
+  return adminRequest(`/v1/admin/stores/${storeId}`, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+export async function loadPlatformTenants() {
+  return adminRequest('/v1/admin/platform/tenants');
 }
 
 export async function loadAdminAppearance() {

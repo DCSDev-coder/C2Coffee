@@ -9,6 +9,7 @@
     "start": "node dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test:referrals": "npm run build && node --test test/referrals.test.mjs",
+    "test:admin-isolation": "npm run build && node --test test/admin-isolation.test.mjs",
     "migrate": "tsx src/db/migrate.ts",
     "migrate:prod": "node dist/db/migrate.js",
     "import:media": "tsx src/scripts/import-media-assets.ts",
@@ -21,7 +22,11 @@
     "reset:qa:prod": "node dist/db/reset-qa.js",
     "seed:demo": "tsx src/db/migrate.ts --seed-demo",
     "seed:demo:prod": "node dist/db/migrate.js --seed-demo",
-    "production-readiness:prod": "node dist/scripts/production-readiness.js"
+    "production-readiness:prod": "node dist/scripts/production-readiness.js",
+    "preflight:admin": "tsx src/scripts/admin-deployment-preflight.ts",
+    "preflight:admin:prod": "node dist/scripts/admin-deployment-preflight.js",
+    "initialize:cafe": "tsx src/scripts/initialize-cafe-deployment.ts",
+    "initialize:cafe:prod": "node dist/scripts/initialize-cafe-deployment.js"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.2",
