@@ -50,6 +50,20 @@ class SessionManager {
     }
   }
 
+  /// Starts a guest session without hitting the API
+  void startGuestSession() {
+    _currentSession = CustomerSession(
+      phone: 'Guest',
+      sessionToken: '',
+      customerSummary: {
+        'customer_name': 'Walk-in Guest',
+        'loyalty_tier': 'None',
+        'token_balance': 0,
+      },
+    );
+    _resetIdleTimer();
+  }
+
   void _resetIdleTimer() {
     _idleTimer?.cancel();
     _idleTimer = Timer(_idleTimeout, () {

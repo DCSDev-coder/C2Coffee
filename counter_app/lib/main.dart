@@ -202,6 +202,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
   final TextEditingController _phoneController = TextEditingController();
 
   bool _isLoading = false;
+  String? _errorMessage;
   List<dynamic> _menuItems = [];
   final Map<String, int> _cart = {}; // key: item ID, value: quantity
 
@@ -214,20 +215,19 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
   Future<void> _loadMenu() async {
     final token = await widget.authService.getToken();
     if (token == null) return;
-
+    
     try {
       final response = await _apiClient.get('/v1/counter/menu', token: token);
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (mounted) {
           setState(() {
-            // Assume data is a list of items or has an 'items' key
             _menuItems = data is List ? data : (data['items'] ?? []);
           });
         }
       }
     } catch (e) {
-      // Menu load failed, ignore for demo
+      // Keep empty if failed
     }
   }
 
@@ -237,6 +237,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
 
     setState(() {
       _isLoading = true;
+      _errorMessage = null;
     });
 
     final deviceToken = await widget.authService.getToken();
@@ -244,9 +245,9 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
       final success = await _sessionManager.startSession(phone, deviceToken);
       if (!success) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to look up customer.')),
-          );
+          setState(() {
+            _errorMessage = 'Number not found. Please try again or continue as a guest.';
+          });
         }
       } else {
         _phoneController.clear();
@@ -258,6 +259,12 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  void _startGuestSession() {
+    _sessionManager.startGuestSession();
+    _phoneController.clear();
+    setState(() {});
   }
 
   Future<void> _endSession() async {
@@ -310,21 +317,25 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
       behavior: HitTestBehavior.translucent,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text(
-            'Counter POS',
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
+          title: Image.asset('assets/images/c2_logo.png', height: 32),
           actions: [
             if (_sessionManager.currentSession != null)
               Padding(
                 padding: const EdgeInsets.only(right: 16.0),
                 child: Center(
-                  child: Text(
-                    _sessionManager.currentSession!.phone,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        _sessionManager.currentSession!.customerSummary['customer_name'] ?? _sessionManager.currentSession!.phone,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      ),
+                      Text(
+                        'Tier: ${_sessionManager.currentSession!.customerSummary['loyalty_tier'] ?? 'None'}',
+                        style: const TextStyle(fontSize: 12, color: Colors.white70),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -340,55 +351,121 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
   Widget _buildSessionStartForm() {
     return Center(
       child: Container(
-        width: 400,
-        padding: const EdgeInsets.all(32.0),
+        width: 420,
+        padding: const EdgeInsets.symmetric(horizontal: 40.0, vertical: 48.0),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: const [
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
             BoxShadow(
-              color: Colors.black12,
-              blurRadius: 10,
-              offset: Offset(0, 4),
+              color: AppColors.primary.withOpacity(0.08),
+              blurRadius: 24,
+              offset: const Offset(0, 12),
             ),
           ],
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.person_search, size: 64, color: AppColors.primary),
-            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceLight,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.account_circle_outlined, size: 56, color: AppColors.primary),
+            ),
+            const SizedBox(height: 24),
             const Text(
-              'Customer Lookup',
+              'Member Login',
               style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
+                fontSize: 28,
+                fontWeight: FontWeight.w800,
                 color: AppColors.primary,
+                letterSpacing: -0.5,
               ),
             ),
             const SizedBox(height: 8),
-            const Text('Enter phone number to start a session.'),
-            const SizedBox(height: 24),
+            const Text(
+              'Enter your registered phone number to access your account.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.black54, fontSize: 15, height: 1.4),
+            ),
+            if (_errorMessage != null) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  _errorMessage!,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.red.shade700, fontWeight: FontWeight.w600, fontSize: 14),
+                ),
+              ),
+            ],
+            const SizedBox(height: 32),
             TextField(
               controller: _phoneController,
               keyboardType: TextInputType.phone,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
               decoration: InputDecoration(
+                filled: true,
+                fillColor: AppColors.surfaceLight,
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide.none,
                 ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: const BorderSide(color: AppColors.secondary, width: 2),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
                 labelText: 'Phone Number (e.g. +601...)',
-                prefixIcon: const Icon(Icons.phone),
+                labelStyle: const TextStyle(color: Colors.black54),
+                prefixIcon: const Icon(Icons.phone_outlined, color: AppColors.primary),
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 32),
             SizedBox(
               width: double.infinity,
+              height: 56,
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : ElevatedButton(
                       onPressed: _startSession,
-                      child: const Text('Start Session'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: const Text(
+                        'Login',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
                     ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: TextButton(
+                onPressed: _isLoading ? null : _startGuestSession,
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.charcoal,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                child: const Text(
+                  'Continue as Guest',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                ),
+              ),
             ),
           ],
         ),
@@ -581,7 +658,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                           padding: const EdgeInsets.symmetric(vertical: 16),
                         ),
                         child: const Text(
-                          'Checkout (End Session)',
+                          'Checkout using Cash',
                           style: TextStyle(fontSize: 16),
                         ),
                       ),
