@@ -363,6 +363,11 @@ export async function registerCatalogRoutes(app: FastifyInstance): Promise<void>
       throw new ApiError(404, 'store_not_found', 'Store was not found.');
     }
 
+    return loadCatalogMenu(storeId);
+  });
+}
+
+export async function loadCatalogMenu(storeId: number) {
     const [rows] = await mysqlPool.query<Array<MenuRow>>(
       `
         SELECT
@@ -665,7 +670,6 @@ export async function registerCatalogRoutes(app: FastifyInstance): Promise<void>
       store_id: storeId,
       categories: [...categories.values()]
     };
-  });
 }
 
 function _resolveImageUrl(imageUrl: string | null): string | null {

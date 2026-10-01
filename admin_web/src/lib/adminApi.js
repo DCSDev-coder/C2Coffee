@@ -597,6 +597,31 @@ export async function updateAdminStore(storeId, payload) {
   return adminRequest(`/v1/admin/stores/${storeId}`, { method: 'PATCH', body: JSON.stringify(payload) });
 }
 
+export async function loadAdminCounterDevices() {
+  return adminRequest('/v1/admin/counter-devices');
+}
+
+export async function createAdminCounterDevice(payload) {
+  return adminRequest('/v1/admin/counter-devices', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateAdminCounterDevice(deviceId, payload) {
+  return adminRequest(`/v1/admin/counter-devices/${encodeURIComponent(deviceId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function reissueAdminCounterDeviceActivation(deviceId, confirmationPassword) {
+  return adminRequest(`/v1/admin/counter-devices/${encodeURIComponent(deviceId)}/rotate-token`, {
+    method: 'POST',
+    body: JSON.stringify({ confirmation_password: confirmationPassword }),
+  });
+}
+
 export async function loadPlatformTenants() {
   return adminRequest('/v1/admin/platform/tenants');
 }

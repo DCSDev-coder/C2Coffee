@@ -5,6 +5,7 @@ import { assertDeploymentTenants } from '../dist/admin/deployment-policy.js';
 import { assertOutletPublication } from '../dist/admin/outlet-policy.js';
 import { assertTenantAccountEditable, assertTenantRoleAssignment } from '../dist/admin/role-policy.js';
 import { isTrustedBillplzCheckoutUrl } from '../dist/payments/billplz-security.js';
+import { generateDeviceActivationCode } from '../dist/lib/crypto.js';
 
 test('deployment accepts exactly one configured active cafe', () => {
   assert.doesNotThrow(() => assertDeploymentTenants([{ code: 'c2coffee', status: 'active' }], 'c2coffee'));
@@ -47,4 +48,11 @@ test('Billplz checkout redirects stay on the configured HTTPS gateway host', () 
   assert.equal(isTrustedBillplzCheckoutUrl('http://www.billplz-sandbox.com/bills/abc', gateway), false);
   assert.equal(isTrustedBillplzCheckoutUrl('https://billplz-sandbox.com.evil.test/bills/abc', gateway), false);
   assert.equal(isTrustedBillplzCheckoutUrl('https://user:pass@www.billplz-sandbox.com/bills/abc', gateway), false);
+});
+
+test('counter activation codes are human-readable and carry sufficient random data', () => {
+  const first = generateDeviceActivationCode();
+  const second = generateDeviceActivationCode();
+  assert.match(first, /^C2-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}$/);
+  assert.notEqual(first, second);
 });

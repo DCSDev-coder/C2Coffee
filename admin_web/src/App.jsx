@@ -35,6 +35,7 @@ const Settings = lazy(() => import('./components/Settings'));
 const Operations = lazy(() => import('./components/Operations'));
 const StaffGuides = lazy(() => import('./components/StaffGuides'));
 const Outlets = lazy(() => import('./components/Outlets'));
+const CounterDevices = lazy(() => import('./components/CounterDevices'));
 const PlatformTenants = lazy(() => import('./components/PlatformTenants'));
 
 function AppContent({
@@ -85,6 +86,7 @@ function AppContent({
         {currentPage === 'Admin Management' && <AdminManagement currentUser={currentUser} />}
         {currentPage === 'Barista Management' && <BaristaManagement />}
         {currentPage === 'Outlets' && <Outlets currentUser={currentUser} />}
+        {currentPage === 'Counter Devices' && <CounterDevices currentUser={currentUser} />}
         {currentPage === 'Operations' && <Operations />}
         {currentPage === 'Staff Guides' && <StaffGuides />}
         {currentPage === 'Audit Logs' && <AuditLogs onNavigate={navigateWithPrompt} currentUser={currentUser} />}

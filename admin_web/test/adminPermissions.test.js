@@ -13,3 +13,10 @@ test('outlet management is restricted to operations and super admins', () => {
   assert.equal(canAccessAdminPage(['operations_admin'], 'Outlets'), true);
   assert.equal(canAccessAdminPage(['marketing_admin'], 'Outlets'), false);
 });
+
+test('counter device management is restricted to operations and super admins', () => {
+  assert.equal(canAccessAdminPage(['super_admin'], 'Counter Devices'), true);
+  assert.equal(canAccessAdminPage(['operations_admin'], 'Counter Devices'), true);
+  assert.equal(canAccessAdminPage(['marketing_admin'], 'Counter Devices'), false);
+  assert.equal(canAccessAdminPage(['barista'], 'Counter Devices'), false);
+});

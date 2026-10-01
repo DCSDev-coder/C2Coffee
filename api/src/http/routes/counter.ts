@@ -8,9 +8,15 @@ import { generateOpaqueToken, hashSha256 } from '../../lib/crypto.js';
 import { normalizePhoneE164 } from '../../lib/phone.js';
 import { ApiError } from '../errors.js';
 import { getBootstrapForUser } from './auth.js';
+import { env } from '../../config/env.js';
+import { loadCatalogMenu } from './catalog.js';
 
 const lookupCustomerSchema = z.object({
   phone: z.string().trim().min(1).max(32)
+});
+
+const activateDeviceSchema = z.object({
+  activation_code: z.string().trim().toUpperCase().min(8).max(64)
 });
 
 type CounterSession = RowDataPacket & {
@@ -96,6 +102,58 @@ async function getCounterCustomerSummary(tenantId: number, userId: number) {
 }
 
 export async function registerCounterRoutes(app: FastifyInstance): Promise<void> {
+  app.post('/v1/counter/activate', {
+    config: { rateLimit: { max: 10, timeWindow: '15 minutes' } }
+  }, async (request) => {
+    const { activation_code: activationCode } = activateDeviceSchema.parse(request.body);
+    const deviceToken = generateOpaqueToken();
+    const connection = await mysqlPool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [devices] = await connection.query<RowDataPacket[]>(
+        `SELECT cd.id, cd.label, cd.tenant_id, cd.store_id
+         FROM counter_devices cd
+         JOIN admin_tenants tenant
+           ON tenant.id = cd.tenant_id AND tenant.status = 'active'
+          AND tenant.code = :tenantCode
+         JOIN stores store
+           ON store.id = cd.store_id AND store.tenant_id = cd.tenant_id AND store.status = 'active'
+         WHERE cd.activation_code_hash = :activationCodeHash
+           AND cd.activation_expires_at > UTC_TIMESTAMP()
+           AND cd.status = 'active'
+         LIMIT 1 FOR UPDATE`,
+        { activationCodeHash: hashSha256(activationCode), tenantCode: env.DEPLOYMENT_TENANT_CODE }
+      );
+      const device = devices[0];
+      if (!device) {
+        throw new ApiError(401, 'invalid_counter_activation', 'The activation code is invalid or has expired.');
+      }
+      await connection.execute(
+        `UPDATE counter_devices
+         SET token_hash = :tokenHash, activation_code_hash = NULL,
+             activation_expires_at = NULL, activated_at = UTC_TIMESTAMP(),
+             updated_at = UTC_TIMESTAMP()
+         WHERE id = :deviceId`,
+        { deviceId: device.id, tokenHash: hashSha256(deviceToken) }
+      );
+      await connection.commit();
+      return {
+        device_token: deviceToken,
+        device: {
+          id: device.id,
+          label: device.label,
+          tenant_id: device.tenant_id,
+          store_id: device.store_id
+        }
+      };
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  });
+
   app.get('/v1/counter/device', { preHandler: authenticateCounterDevice }, async (request) => ({
     device: {
       id: request.counterAuth.deviceId,
@@ -104,6 +162,10 @@ export async function registerCounterRoutes(app: FastifyInstance): Promise<void>
       tenant_id: request.counterAuth.tenantId
     }
   }));
+
+  app.get('/v1/counter/menu', { preHandler: authenticateCounterDevice }, async (request) => {
+    return loadCatalogMenu(request.counterAuth.storeId);
+  });
 
   app.post('/v1/counter/customer-sessions', {
     preHandler: authenticateCounterDevice,
