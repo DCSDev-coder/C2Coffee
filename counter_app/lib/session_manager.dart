@@ -18,6 +18,7 @@ class SessionManager {
   final ApiClient _apiClient = ApiClient();
   CustomerSession? _currentSession;
   Timer? _idleTimer;
+  void Function()? onSessionEnded;
 
   static const Duration _idleTimeout = Duration(minutes: 10);
 
@@ -82,7 +83,7 @@ class SessionManager {
     final sessionToken = _currentSession?.sessionToken;
     _currentSession = null;
     _idleTimer?.cancel();
-    // TODO: Clear the cart here as well when the cart service is implemented.
+    onSessionEnded?.call();
 
     if (sessionToken != null) {
       try {

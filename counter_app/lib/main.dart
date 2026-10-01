@@ -209,6 +209,13 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
   @override
   void initState() {
     super.initState();
+    _sessionManager.onSessionEnded = () {
+      if (mounted) {
+        setState(() {
+          _clearCart();
+        });
+      }
+    };
     _loadMenu();
   }
 
@@ -223,11 +230,24 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
         if (mounted) {
           setState(() {
             _menuItems = data is List ? data : (data['items'] ?? []);
+            _errorMessage = null;
+          });
+        }
+      } else {
+        print('Error fetching menu, status code: ${response.statusCode}, body: ${response.body}');
+        if (mounted) {
+          setState(() {
+            _errorMessage = 'Failed to load menu (${response.statusCode})';
           });
         }
       }
-    } catch (e) {
-      // Keep empty if failed
+    } catch (e, st) {
+      print('Exception fetching menu: $e\n$st');
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Network error fetching menu';
+        });
+      }
     }
   }
 
@@ -269,8 +289,6 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
 
   Future<void> _endSession() async {
     await _sessionManager.endSession();
-    _clearCart();
-    setState(() {}); // Rebuild UI to show login form
   }
 
   void _clearCart() {
@@ -638,7 +656,14 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
     return Container(
       color: AppColors.surfaceLight,
       padding: const EdgeInsets.all(16.0),
-      child: _menuItems.isEmpty
+      child: _errorMessage != null 
+          ? Center(
+              child: Text(
+                _errorMessage!,
+                style: const TextStyle(color: Colors.red, fontSize: 16),
+              ),
+            )
+          : _menuItems.isEmpty
           ? const Center(
               child: Text("No items on menu, or unable to fetch."),
             )
