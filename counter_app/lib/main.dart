@@ -1361,28 +1361,45 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Padding(
-                  padding: const EdgeInsets.only(left: 16.0, right: 16.0, top: 16.0),
+                  padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 8.0),
                   child: Container(
-                    height: 48,
+                    height: 54,
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(27),
+                      border: Border.all(color: AppColors.primary.withValues(alpha: 0.15), width: 1.5),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.04),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
+                          color: AppColors.primary.withValues(alpha: 0.06),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
                         ),
                       ],
                     ),
-                    child: TextField(
-                      controller: _searchController,
-                      decoration: const InputDecoration(
-                        hintText: 'Search menu items...',
-                        hintStyle: TextStyle(fontFamily: 'Afacad', fontSize: 18),
-                        prefixIcon: Icon(Icons.search, color: Colors.black54),
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    child: Center(
+                      child: TextField(
+                        controller: _searchController,
+                        textAlignVertical: TextAlignVertical.center,
+                        decoration: InputDecoration(
+                          hintText: 'Search for your favorite drinks...',
+                          hintStyle: TextStyle(fontFamily: 'Afacad', fontSize: 17, color: Colors.grey.shade500),
+                          prefixIcon: const Padding(
+                            padding: EdgeInsets.only(left: 16.0, right: 8.0),
+                            child: Icon(Icons.search, color: AppColors.primary, size: 24),
+                          ),
+                          suffixIcon: _searchQuery.isNotEmpty 
+                              ? IconButton(
+                                  icon: const Icon(Icons.cancel, color: Colors.grey, size: 20),
+                                  onPressed: () {
+                                    _searchController.clear();
+                                  },
+                                )
+                              : null,
+                          border: InputBorder.none,
+                          isCollapsed: true,
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                        style: const TextStyle(fontFamily: 'Afacad', fontSize: 18, color: Colors.black87),
                       ),
                     ),
                   ),
