@@ -155,7 +155,7 @@ class _ActivationScreenState extends State<ActivationScreen> {
               const Text(
                 'Enter the activation code from Admin Web.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.charcoal),
+                style: TextStyle(fontFamily: 'Afacad', color: AppColors.charcoal),
               ),
               const SizedBox(height: 24),
               TextField(
@@ -170,7 +170,7 @@ class _ActivationScreenState extends State<ActivationScreen> {
               ),
               const SizedBox(height: 16),
               if (_errorMessage != null) ...[
-                Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
+                Text(_errorMessage!, style: const TextStyle(fontFamily: 'Afacad', color: Colors.red)),
                 const SizedBox(height: 16),
               ],
               SizedBox(
@@ -218,6 +218,9 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
   String? _orderType; // 'Dine In' or 'Take Away'
   Map<String, dynamic>? _selectedVoucher;
 
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
   @override
   void initState() {
     super.initState();
@@ -226,9 +229,15 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
       if (mounted) {
         setState(() {
           _clearCart();
+          _searchController.clear();
         });
       }
     };
+    _searchController.addListener(() {
+      setState(() {
+        _searchQuery = _searchController.text;
+      });
+    });
     _loadMenu();
   }
 
@@ -237,6 +246,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     _selectedCategory.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -467,7 +477,11 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
       behavior: HitTestBehavior.translucent,
       child: Scaffold(
         appBar: AppBar(
-          title: Image.asset('assets/images/c2_logo.png', height: 32),
+          title: Row(
+            children: [
+              Image.asset('assets/images/c2_logo.png', height: 32),
+            ],
+          ),
           actions: [
             if (_sessionManager.currentSession != null)
               Padding(
@@ -479,7 +493,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                     children: [
                       Text(
                         _sessionManager.currentSession!.customerSummary['username'] ?? _sessionManager.currentSession!.customerSummary['customer_name'] ?? _sessionManager.currentSession!.phone,
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                        style: const TextStyle(fontFamily: 'Afacad', fontWeight: FontWeight.bold, fontSize: 16),
                       ),
                       Text(
                         'Tier: ${_sessionManager.currentSession!.customerSummary['loyalty_tier'] ?? 'None'}',
@@ -526,8 +540,8 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                             alignment: Alignment.center,
                             child: Text(
                               '${_cart.fold<int>(0, (sum, item) => sum + (item['quantity'] as int? ?? 1))}',
-                              style: const TextStyle(
-                                fontSize: 11,
+                              style: const TextStyle(fontFamily: 'Afacad', 
+                                fontSize: 13,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.white,
                                 height: 1,
@@ -557,8 +571,8 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
           width: double.infinity,
           child: const Text(
             'Your Basket',
-            style: TextStyle(
-              fontSize: 20,
+            style: TextStyle(fontFamily: 'Recoleta', 
+              fontSize: 22,
               fontWeight: FontWeight.bold,
               color: AppColors.primary,
             ),
@@ -587,13 +601,13 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                     return ListTile(
                       title: Text(
                         item.name,
-                        style: const TextStyle(fontWeight: FontWeight.bold),
+                        style: const TextStyle(fontFamily: 'Afacad', fontWeight: FontWeight.bold),
                       ),
                       subtitle: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (mods.isNotEmpty) Text(mods.join(', '), style: const TextStyle(fontSize: 12)),
-                          Text('RM ${(price * qty).toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
+                          if (mods.isNotEmpty) Text(mods.join(', '), style: const TextStyle(fontFamily: 'Afacad', fontSize: 14)),
+                          Text('RM ${(price * qty).toStringAsFixed(2)}', style: const TextStyle(fontFamily: 'Afacad', fontWeight: FontWeight.bold, color: AppColors.primary)),
                         ],
                       ),
                       trailing: Row(
@@ -612,7 +626,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                             },
                             color: Colors.red,
                           ),
-                          Text('$qty', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                          Text('$qty', style: const TextStyle(fontFamily: 'Afacad', fontSize: 18, fontWeight: FontWeight.bold)),
                           IconButton(
                             icon: const Icon(Icons.add_circle_outline),
                             onPressed: () {
@@ -655,18 +669,18 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Discount (${_selectedVoucher!['name']})', style: const TextStyle(fontSize: 14, color: Colors.green)),
-                    Text('- RM ${(_getSubtotal() - _getCartTotal()).toStringAsFixed(2)}', style: const TextStyle(fontSize: 14, color: Colors.green)),
+                    Text('Discount (${_selectedVoucher!['name']})', style: const TextStyle(fontFamily: 'Afacad', fontSize: 16, color: Colors.green)),
+                    Text('- RM ${(_getSubtotal() - _getCartTotal()).toStringAsFixed(2)}', style: const TextStyle(fontFamily: 'Afacad', fontSize: 16, color: Colors.green)),
                   ],
                 ),
               const SizedBox(height: 4),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Total', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const Text('Total', style: TextStyle(fontFamily: 'Recoleta', fontSize: 20, fontWeight: FontWeight.bold)),
                   Text(
                     'RM ${_getCartTotal().toStringAsFixed(2)}',
-                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.accent),
+                    style: const TextStyle(fontFamily: 'Recoleta', fontSize: 26, fontWeight: FontWeight.bold, color: AppColors.accent),
                   ),
                 ],
               ),
@@ -683,7 +697,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
-                  child: const Text('Checkout', style: TextStyle(fontSize: 16)),
+                  child: const Text('Checkout', style: TextStyle(fontFamily: 'Afacad', fontSize: 18)),
                 ),
               ),
               const SizedBox(height: 8),
@@ -715,13 +729,13 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
         context: context,
         builder: (context) {
           return AlertDialog(
-            title: const Text('Select Customer Account', style: TextStyle(fontWeight: FontWeight.bold)),
+            title: const Text('Select Customer Account', style: TextStyle(fontFamily: 'Afacad', fontWeight: FontWeight.bold)),
             content: SizedBox(
               width: 300,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('Select an account to apply their vouchers to this guest order:', style: TextStyle(color: Colors.black54)),
+                  const Text('Select an account to apply their vouchers to this guest order:', style: TextStyle(fontFamily: 'Afacad', color: Colors.black54)),
                   const SizedBox(height: 16),
                   ListView.builder(
                     shrinkWrap: true,
@@ -730,7 +744,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                       final u = mockUsers[index];
                       return ListTile(
                         leading: const CircleAvatar(child: Icon(Icons.person)),
-                        title: Text(u['name']!, style: const TextStyle(fontWeight: FontWeight.w600)),
+                        title: Text(u['name']!, style: const TextStyle(fontFamily: 'Afacad', fontWeight: FontWeight.w600)),
                         subtitle: Text(u['phone']!),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         onTap: () {
@@ -781,7 +795,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                       'Available Vouchers',
                       style: TextStyle(
                         fontFamily: 'Recoleta',
-                        fontSize: 28,
+                        fontSize: 30,
                         fontWeight: FontWeight.bold,
                         color: AppColors.primary,
                       ),
@@ -797,7 +811,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                   'Select a voucher to apply to this order.',
                   style: TextStyle(
                     fontFamily: 'Afacad',
-                    fontSize: 16,
+                    fontSize: 18,
                     color: Colors.black54,
                   ),
                 ),
@@ -847,7 +861,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                                     v['name'] as String,
                                     style: TextStyle(
                                       fontFamily: 'Recoleta',
-                                      fontSize: 20,
+                                      fontSize: 22,
                                       fontWeight: FontWeight.bold,
                                       color: isSelected ? AppColors.primary : Colors.black87,
                                     ),
@@ -859,7 +873,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                                       : 'Enjoy RM ${v['discount_amount']} off your order.',
                                     style: const TextStyle(
                                       fontFamily: 'Afacad',
-                                      fontSize: 16,
+                                      fontSize: 18,
                                       color: Colors.black54,
                                     ),
                                   ),
@@ -886,7 +900,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                         Navigator.pop(context);
                       },
                       icon: const Icon(Icons.delete_outline, color: Colors.red),
-                      label: const Text('Remove Current Voucher', style: TextStyle(color: Colors.red, fontSize: 16, fontFamily: 'Afacad', fontWeight: FontWeight.bold)),
+                      label: const Text('Remove Current Voucher', style: TextStyle(color: Colors.red, fontSize: 18, fontFamily: 'Afacad', fontWeight: FontWeight.bold)),
                       style: TextButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -908,14 +922,14 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
       barrierDismissible: false,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Order Confirmation', style: TextStyle(fontWeight: FontWeight.bold)),
+          title: const Text('Order Confirmation', style: TextStyle(fontFamily: 'Afacad', fontWeight: FontWeight.bold)),
           content: SizedBox(
             width: 400,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text('Please review the order details before proceeding.', style: TextStyle(color: Colors.black54)),
+                const Text('Please review the order details before proceeding.', style: TextStyle(fontFamily: 'Afacad', color: Colors.black54)),
                 const SizedBox(height: 16),
                 ConstrainedBox(
                   constraints: const BoxConstraints(maxHeight: 300),
@@ -941,17 +955,17 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('${qty}x ', style: const TextStyle(fontWeight: FontWeight.bold)),
+                            Text('${qty}x ', style: const TextStyle(fontFamily: 'Afacad', fontWeight: FontWeight.bold)),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(item.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                                  Text(item.name, style: const TextStyle(fontFamily: 'Afacad', fontWeight: FontWeight.bold)),
                                   if (mods.isNotEmpty) ...[
                                     const SizedBox(height: 2),
                                     Text(
                                       mods.join(', '),
-                                      style: const TextStyle(fontSize: 12, color: Colors.black54),
+                                      style: const TextStyle(fontFamily: 'Afacad', fontSize: 14, color: Colors.black54),
                                     ),
                                   ],
                                 ],
@@ -968,8 +982,8 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Subtotal', style: TextStyle(fontSize: 16)),
-                    Text('RM ${_getSubtotal().toStringAsFixed(2)}', style: const TextStyle(fontSize: 16)),
+                    const Text('Subtotal', style: TextStyle(fontFamily: 'Afacad', fontSize: 18)),
+                    Text('RM ${_getSubtotal().toStringAsFixed(2)}', style: const TextStyle(fontFamily: 'Afacad', fontSize: 18)),
                   ],
                 ),
                 if (_selectedVoucher != null) ...[
@@ -977,8 +991,8 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('Discount (${_selectedVoucher!['name']})', style: const TextStyle(fontSize: 16, color: Colors.green)),
-                      Text('- RM ${(_getSubtotal() - _getCartTotal()).toStringAsFixed(2)}', style: const TextStyle(fontSize: 16, color: Colors.green)),
+                      Text('Discount (${_selectedVoucher!['name']})', style: const TextStyle(fontFamily: 'Afacad', fontSize: 18, color: Colors.green)),
+                      Text('- RM ${(_getSubtotal() - _getCartTotal()).toStringAsFixed(2)}', style: const TextStyle(fontFamily: 'Afacad', fontSize: 18, color: Colors.green)),
                     ],
                   ),
                 ],
@@ -986,8 +1000,8 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Total Amount', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                    Text('RM ${_getCartTotal().toStringAsFixed(2)}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.primary)),
+                    const Text('Total Amount', style: TextStyle(fontFamily: 'Recoleta', fontSize: 20, fontWeight: FontWeight.bold)),
+                    Text('RM ${_getCartTotal().toStringAsFixed(2)}', style: const TextStyle(fontFamily: 'Recoleta', fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.primary)),
                   ],
                 ),
               ],
@@ -996,7 +1010,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Back to Cart', style: TextStyle(color: Colors.black54)),
+              child: const Text('Back to Cart', style: TextStyle(fontFamily: 'Afacad', color: Colors.black54)),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -1004,7 +1018,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                 _showSuccessDialog(_getCartTotal());
               },
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-              child: const Text('Confirm & Pay', style: TextStyle(color: Colors.white)),
+              child: const Text('Confirm & Pay', style: TextStyle(fontFamily: 'Afacad', color: Colors.white)),
             ),
           ],
         );
@@ -1055,8 +1069,8 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
             const SizedBox(height: 24),
             const Text(
               'Member Login',
-              style: TextStyle(
-                fontSize: 28,
+              style: TextStyle(fontFamily: 'Recoleta', 
+                fontSize: 30,
                 fontWeight: FontWeight.w800,
                 color: AppColors.primary,
                 letterSpacing: -0.5,
@@ -1066,7 +1080,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
             const Text(
               'Enter your registered phone number to access your account.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.black54, fontSize: 15, height: 1.4),
+              style: TextStyle(fontFamily: 'Afacad', color: Colors.black54, fontSize: 17, height: 1.4),
             ),
             if (_errorMessage != null) ...[
               const SizedBox(height: 16),
@@ -1079,7 +1093,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                 child: Text(
                   _errorMessage!,
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.red.shade700, fontWeight: FontWeight.w600, fontSize: 14),
+                  style: TextStyle(fontFamily: 'Afacad', color: Colors.red.shade700, fontWeight: FontWeight.w600, fontSize: 16),
                 ),
               ),
             ],
@@ -1087,7 +1101,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
             TextField(
               controller: _phoneController,
               keyboardType: TextInputType.phone,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+              style: const TextStyle(fontFamily: 'Afacad', fontSize: 18, fontWeight: FontWeight.w500),
               decoration: InputDecoration(
                 filled: true,
                 fillColor: AppColors.surfaceLight,
@@ -1101,7 +1115,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                 ),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
                 labelText: 'Phone Number (e.g. +601...)',
-                labelStyle: const TextStyle(color: Colors.black54),
+                labelStyle: const TextStyle(fontFamily: 'Afacad', color: Colors.black54),
                 prefixIcon: const Icon(Icons.phone_outlined, color: AppColors.primary),
               ),
             ),
@@ -1122,7 +1136,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                       ),
                       child: const Text(
                         'Login',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        style: TextStyle(fontFamily: 'Afacad', fontSize: 18, fontWeight: FontWeight.bold),
                       ),
                     ),
             ),
@@ -1140,7 +1154,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                 ),
                 child: const Text(
                   'Continue as Guest',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                  style: TextStyle(fontFamily: 'Afacad', fontSize: 17, fontWeight: FontWeight.w600),
                 ),
               ),
             ),
@@ -1174,7 +1188,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
               'Order Type',
               style: TextStyle(
                 fontFamily: 'Recoleta',
-                fontSize: 32,
+                fontSize: 34,
                 fontWeight: FontWeight.bold,
                 color: AppColors.primary,
               ),
@@ -1184,7 +1198,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
               'Is this order for Dine In or Take Away?',
               style: TextStyle(
                 fontFamily: 'Afacad',
-                fontSize: 18,
+                fontSize: 20,
                 color: Colors.black54,
               ),
             ),
@@ -1210,7 +1224,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                         children: const [
                           Icon(Icons.restaurant, size: 64, color: AppColors.primary),
                           SizedBox(height: 16),
-                          Text('Dine In', style: TextStyle(fontFamily: 'Recoleta', fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.primary)),
+                          Text('Dine In', style: TextStyle(fontFamily: 'Recoleta', fontSize: 26, fontWeight: FontWeight.bold, color: AppColors.primary)),
                         ],
                       ),
                     ),
@@ -1236,7 +1250,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                         children: const [
                           Icon(Icons.shopping_bag_outlined, size: 64, color: AppColors.primary),
                           SizedBox(height: 16),
-                          Text('Take Away', style: TextStyle(fontFamily: 'Recoleta', fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.primary)),
+                          Text('Take Away', style: TextStyle(fontFamily: 'Recoleta', fontSize: 26, fontWeight: FontWeight.bold, color: AppColors.primary)),
                         ],
                       ),
                     ),
@@ -1257,7 +1271,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
         child: Center(
           child: Text(
             _errorMessage!,
-            style: const TextStyle(color: Colors.red, fontSize: 16),
+            style: const TextStyle(fontFamily: 'Afacad', color: Colors.red, fontSize: 18),
           ),
         ),
       );
@@ -1272,7 +1286,11 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
       );
     }
 
-    final categories = _menuItems.map((e) => e.categoryName ?? 'Other').toSet().toList();
+    final filteredItems = _searchQuery.isEmpty 
+        ? _menuItems 
+        : _menuItems.where((item) => item.name.toLowerCase().contains(_searchQuery.toLowerCase())).toList();
+
+    final categories = filteredItems.map((e) => e.categoryName ?? 'Other').toSet().toList();
     if (_selectedCategory.value == null && categories.isNotEmpty) {
       _selectedCategory.value = categories.first;
     }
@@ -1322,7 +1340,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontFamily: 'Afacad',
-                          fontSize: 12,
+                          fontSize: 14,
                           fontWeight: FontWeight.bold,
                           color: isSelected ? Colors.white : Colors.black87,
                           height: 1.1,
@@ -1339,13 +1357,44 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
         Expanded(
           child: Container(
             color: const Color(0xFFF6F5F2), // Light beige background
-            child: SingleChildScrollView(
-              controller: _scrollController,
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: categories.map((category) {
-                  final categoryItems = _menuItems.where((e) => (e.categoryName ?? 'Other') == category).toList();
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(left: 16.0, right: 16.0, top: 16.0),
+                  child: Container(
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.04),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: TextField(
+                      controller: _searchController,
+                      decoration: const InputDecoration(
+                        hintText: 'Search menu items...',
+                        hintStyle: TextStyle(fontFamily: 'Afacad', fontSize: 18),
+                        prefixIcon: Icon(Icons.search, color: Colors.black54),
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      ),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: SingleChildScrollView(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: categories.map((category) {
+                  final categoryItems = filteredItems.where((e) => (e.categoryName ?? 'Other') == category).toList();
                   if (categoryItems.isEmpty) return const SizedBox.shrink();
                   
                   return Container(
@@ -1359,7 +1408,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                             category.toUpperCase(),
                             style: const TextStyle(
                               fontFamily: 'Recoleta',
-                              fontSize: 18,
+                              fontSize: 20,
                               fontWeight: FontWeight.bold,
                               color: AppColors.primary,
                             ),
@@ -1448,7 +1497,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                                             overflow: TextOverflow.ellipsis,
                                             style: const TextStyle(
                                               fontFamily: 'Recoleta',
-                                              fontSize: 14,
+                                              fontSize: 16,
                                               fontWeight: FontWeight.bold,
                                               color: Colors.black87,
                                               height: 1.1,
@@ -1461,7 +1510,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                                           textAlign: TextAlign.center,
                                           style: const TextStyle(
                                             fontFamily: 'Afacad',
-                                            fontSize: 13,
+                                            fontSize: 15,
                                             fontWeight: FontWeight.bold,
                                             color: Colors.black87,
                                           ),
@@ -1483,7 +1532,10 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
               ),
             ),
           ),
+          ],
+         ),
         ),
+       ),
       ],
     );
   }
@@ -1579,8 +1631,8 @@ class _SuccessDialogState extends State<SuccessDialog> with SingleTickerProvider
               child: const Text(
                 'Thank you for your order!',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 24,
+                style: TextStyle(fontFamily: 'Recoleta', 
+                  fontSize: 26,
                   fontWeight: FontWeight.bold,
                   color: Colors.black87,
                 ),
@@ -1593,8 +1645,8 @@ class _SuccessDialogState extends State<SuccessDialog> with SingleTickerProvider
               child: Text(
                 'Total: RM ${widget.totalAmount.toStringAsFixed(2)}\n\nPlease proceed to pay at the counter.',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 16,
+                style: TextStyle(fontFamily: 'Afacad', 
+                  fontSize: 18,
                   color: Colors.grey.shade700,
                   height: 1.4,
                 ),
@@ -1614,8 +1666,8 @@ class _SuccessDialogState extends State<SuccessDialog> with SingleTickerProvider
                 ),
                 child: const Text(
                   'DONE',
-                  style: TextStyle(
-                    fontSize: 18,
+                  style: TextStyle(fontFamily: 'Recoleta', 
+                    fontSize: 20,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                   ),

@@ -281,7 +281,6 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
     return Scaffold(
       backgroundColor: const Color(0xFFEFEBE3), // Beige background!
       appBar: AppBar(
-        title: Text(widget.item.name),
         backgroundColor: const Color(0xFFEFEBE3),
         foregroundColor: Colors.black87,
         elevation: 0,

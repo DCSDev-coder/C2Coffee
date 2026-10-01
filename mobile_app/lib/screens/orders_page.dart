@@ -275,10 +275,9 @@ class _OrdersPageState extends State<OrdersPage>
                 labelColor: AppColors.deepTeal,
                 unselectedLabelColor: Colors.grey.shade500,
                 indicatorSize: TabBarIndicatorSize.label,
-                labelStyle: const TextStyle(
-                  fontFamily: 'Afacad',
+                labelStyle: const TextStyle(fontFamily: 'Afacad',
                   fontWeight: FontWeight.bold,
-                  fontSize: 16,
+                  fontSize: 18,
                 ),
                 tabs: const [
                   Tab(text: 'Active Orders'),
@@ -329,9 +328,8 @@ class _OrdersPageState extends State<OrdersPage>
         children: [
           Text(
             '${activeOrders.length} active order${activeOrders.length == 1 ? '' : 's'}',
-            style: TextStyle(
-              fontFamily: 'Afacad',
-              fontSize: 13,
+            style: TextStyle(fontFamily: 'Afacad',
+              fontSize: 15,
               fontWeight: FontWeight.bold,
               color: AppColors.deepTeal,
             ),
@@ -386,8 +384,7 @@ class _OrdersPageState extends State<OrdersPage>
               onPressed: _loadOlderHistory,
               child: Text(
                 'Load older orders (${_totalHistoryOrderCount - historyOrders.length} more)',
-                style: TextStyle(
-                  fontFamily: 'Afacad',
+                style: TextStyle(fontFamily: 'Afacad',
                   fontWeight: FontWeight.bold,
                   color: AppColors.deepTeal,
                 ),
@@ -444,9 +441,8 @@ class _OrdersPageState extends State<OrdersPage>
                   children: [
                     Text(
                       orderTitle,
-                      style: TextStyle(
-                        fontFamily: 'Recoleta',
-                        fontSize: 20,
+                      style: TextStyle(fontFamily: 'Recoleta',
+                        fontSize: 22,
                         fontWeight: FontWeight.bold,
                         color: AppColors.deepTeal,
                       ),
@@ -454,9 +450,8 @@ class _OrdersPageState extends State<OrdersPage>
                     const SizedBox(height: 6),
                     Text(
                       order.store.name,
-                      style: const TextStyle(
-                        fontFamily: 'Afacad',
-                        fontSize: 14,
+                      style: const TextStyle(fontFamily: 'Afacad',
+                        fontSize: 16,
                         color: Colors.black87,
                       ),
                     ),
@@ -474,9 +469,8 @@ class _OrdersPageState extends State<OrdersPage>
                 ),
                 child: Text(
                   _formatStatus(order.status),
-                  style: TextStyle(
-                    fontFamily: 'Afacad',
-                    fontSize: 12,
+                  style: TextStyle(fontFamily: 'Afacad',
+                    fontSize: 14,
                     fontWeight: FontWeight.bold,
                     color: AppColors.deepTeal,
                   ),
@@ -487,9 +481,8 @@ class _OrdersPageState extends State<OrdersPage>
           const SizedBox(height: 14),
           Text(
             'Order Ref: ${order.orderRef}',
-            style: const TextStyle(
-              fontFamily: 'Afacad',
-              fontSize: 14,
+            style: const TextStyle(fontFamily: 'Afacad',
+              fontSize: 16,
               color: Colors.black54,
             ),
           ),
@@ -497,9 +490,8 @@ class _OrdersPageState extends State<OrdersPage>
             const SizedBox(height: 4),
             Text(
               'Prepared by: ${order.baristaName!.trim()}',
-              style: const TextStyle(
-                fontFamily: 'Afacad',
-                fontSize: 14,
+              style: const TextStyle(fontFamily: 'Afacad',
+                fontSize: 16,
                 color: Colors.black54,
               ),
             ),
@@ -507,9 +499,8 @@ class _OrdersPageState extends State<OrdersPage>
           const SizedBox(height: 4),
           Text(
             'Created: $createdLabel',
-            style: const TextStyle(
-              fontFamily: 'Afacad',
-              fontSize: 14,
+            style: const TextStyle(fontFamily: 'Afacad',
+              fontSize: 16,
               color: Colors.black54,
             ),
           ),
@@ -517,9 +508,8 @@ class _OrdersPageState extends State<OrdersPage>
           if (!isActive)
             Text(
               'Pickup: $pickupLabel',
-              style: const TextStyle(
-                fontFamily: 'Afacad',
-                fontSize: 14,
+              style: const TextStyle(fontFamily: 'Afacad',
+                fontSize: 16,
                 color: Colors.black54,
               ),
             ),
@@ -528,9 +518,8 @@ class _OrdersPageState extends State<OrdersPage>
           const SizedBox(height: 12),
           Text(
             '${order.itemCount} item(s)',
-            style: TextStyle(
-              fontFamily: 'Afacad',
-              fontSize: 14,
+            style: TextStyle(fontFamily: 'Afacad',
+              fontSize: 16,
               fontWeight: FontWeight.bold,
               color: AppColors.deepTeal,
             ),
@@ -541,9 +530,8 @@ class _OrdersPageState extends State<OrdersPage>
                   padding: const EdgeInsets.only(bottom: 6),
                   child: Text(
                     '${item.quantity}x ${item.name}',
-                    style: const TextStyle(
-                      fontFamily: 'Afacad',
-                      fontSize: 14,
+                    style: const TextStyle(fontFamily: 'Afacad',
+                      fontSize: 16,
                       color: Colors.black87,
                     ),
                   ),
@@ -556,18 +544,16 @@ class _OrdersPageState extends State<OrdersPage>
               children: [
                 Text(
                   'Progress',
-                  style: TextStyle(
-                    fontFamily: 'Afacad',
-                    fontSize: 12,
+                  style: TextStyle(fontFamily: 'Afacad',
+                    fontSize: 14,
                     fontWeight: FontWeight.bold,
                     color: AppColors.deepTeal,
                   ),
                 ),
                 Text(
                   progressLabel,
-                  style: TextStyle(
-                    fontFamily: 'Afacad',
-                    fontSize: 12,
+                  style: TextStyle(fontFamily: 'Afacad',
+                    fontSize: 14,
                     fontWeight: FontWeight.bold,
                     color: progressColor,
                   ),
@@ -594,9 +580,8 @@ class _OrdersPageState extends State<OrdersPage>
                   order.paymentMode == 'token'
                       ? '${order.tokenAmountCharged} tokens'
                       : 'RM ${order.finalTotalRm}',
-                  style: TextStyle(
-                    fontFamily: 'Recoleta',
-                    fontSize: 18,
+                  style: TextStyle(fontFamily: 'Recoleta',
+                    fontSize: 20,
                     fontWeight: FontWeight.bold,
                     color: AppColors.gold,
                   ),
@@ -604,9 +589,8 @@ class _OrdersPageState extends State<OrdersPage>
                 if (order.paymentMode == 'token')
                   Text(
                     'RM ${order.finalTotalRm}',
-                    style: const TextStyle(
-                      fontFamily: 'Afacad',
-                      fontSize: 14,
+                    style: const TextStyle(fontFamily: 'Afacad',
+                      fontSize: 16,
                       color: Colors.black54,
                     ),
                   ),
@@ -618,9 +602,8 @@ class _OrdersPageState extends State<OrdersPage>
                 const Spacer(),
                 Text(
                   '${order.tokenAmountCharged} tokens',
-                  style: TextStyle(
-                    fontFamily: 'Recoleta',
-                    fontSize: 18,
+                  style: TextStyle(fontFamily: 'Recoleta',
+                    fontSize: 20,
                     fontWeight: FontWeight.bold,
                     color: AppColors.gold,
                   ),
@@ -642,8 +625,7 @@ class _OrdersPageState extends State<OrdersPage>
                 ),
                 child: const Text(
                   'Manage Order',
-                  style: TextStyle(
-                    fontFamily: 'Recoleta',
+                  style: TextStyle(fontFamily: 'Recoleta',
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                   ),
@@ -669,8 +651,7 @@ class _OrdersPageState extends State<OrdersPage>
                 ),
                 child: Text(
                   'Collected',
-                  style: TextStyle(
-                    fontFamily: 'Recoleta',
+                  style: TextStyle(fontFamily: 'Recoleta',
                     fontWeight: FontWeight.bold,
                     color: AppColors.deepTeal,
                   ),
@@ -692,8 +673,7 @@ class _OrdersPageState extends State<OrdersPage>
                 ),
                 child: const Text(
                   'Reorder',
-                  style: TextStyle(
-                    fontFamily: 'Recoleta',
+                  style: TextStyle(fontFamily: 'Recoleta',
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                   ),
@@ -749,8 +729,7 @@ class _OrdersPageState extends State<OrdersPage>
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: Text(
           'Confirm pickup?',
-          style: TextStyle(
-            fontFamily: 'Recoleta',
+          style: TextStyle(fontFamily: 'Recoleta',
             fontWeight: FontWeight.bold,
             color: AppColors.deepTeal,
           ),
@@ -764,8 +743,7 @@ class _OrdersPageState extends State<OrdersPage>
             onPressed: () => Navigator.of(context).pop(false),
             child: Text(
               'Cancel',
-              style: TextStyle(
-                fontFamily: 'Afacad',
+              style: TextStyle(fontFamily: 'Afacad',
                 color: AppColors.deepTeal,
               ),
             ),
@@ -885,9 +863,8 @@ class _OrdersPageState extends State<OrdersPage>
           const SizedBox(height: 16),
           Text(
             label,
-            style: TextStyle(
-              fontFamily: 'Afacad',
-              fontSize: 14,
+            style: TextStyle(fontFamily: 'Afacad',
+              fontSize: 16,
               color: AppColors.deepTeal,
             ),
           ),
@@ -930,9 +907,8 @@ class _OrdersPageState extends State<OrdersPage>
               Text(
                 title,
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontFamily: 'Recoleta',
-                  fontSize: 22,
+                style: TextStyle(fontFamily: 'Recoleta',
+                  fontSize: 24,
                   fontWeight: FontWeight.bold,
                   color: AppColors.deepTeal,
                 ),
@@ -941,9 +917,8 @@ class _OrdersPageState extends State<OrdersPage>
               Text(
                 message,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontFamily: 'Afacad',
-                  fontSize: 15,
+                style: const TextStyle(fontFamily: 'Afacad',
+                  fontSize: 17,
                   color: Colors.black54,
                   height: 1.35,
                 ),
@@ -963,8 +938,7 @@ class _OrdersPageState extends State<OrdersPage>
                     ),
                     child: Text(
                       actionLabel,
-                      style: const TextStyle(
-                        fontFamily: 'Recoleta',
+                      style: const TextStyle(fontFamily: 'Recoleta',
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
                       ),
@@ -979,3 +953,6 @@ class _OrdersPageState extends State<OrdersPage>
     );
   }
 }
+
+
+
