@@ -54,11 +54,9 @@ class _SplashOrLoginScreenState extends State<SplashOrLoginScreen> {
   @override
   Widget build(BuildContext context) {
     if (_isChecking) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
-    
+
     if (_isLoggedIn) {
       return CounterHomeScreen(authService: _authService);
     } else {
@@ -100,17 +98,19 @@ class _ActivationScreenState extends State<ActivationScreen> {
       _errorMessage = null;
     });
 
-    final success = await widget.authService.activateDevice(_codeController.text.trim());
-    
+    final result = await widget.authService.activateDevice(
+      _codeController.text.trim(),
+    );
+
     if (mounted) {
       setState(() {
         _isLoading = false;
       });
-      if (success) {
+      if (result.success) {
         widget.onActivated();
       } else {
         setState(() {
-          _errorMessage = 'Invalid activation code or network error.';
+          _errorMessage = result.message ?? 'Device activation failed.';
         });
       }
     }
@@ -129,8 +129,12 @@ class _ActivationScreenState extends State<ActivationScreen> {
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
             boxShadow: const [
-              BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, 4))
-            ]
+              BoxShadow(
+                color: Colors.black12,
+                blurRadius: 10,
+                offset: Offset(0, 4),
+              ),
+            ],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -154,7 +158,9 @@ class _ActivationScreenState extends State<ActivationScreen> {
               TextField(
                 controller: _codeController,
                 decoration: InputDecoration(
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                   labelText: 'Activation Code',
                   prefixIcon: const Icon(Icons.key),
                 ),
@@ -194,10 +200,10 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
   final SessionManager _sessionManager = SessionManager();
   final ApiClient _apiClient = ApiClient();
   final TextEditingController _phoneController = TextEditingController();
-  
+
   bool _isLoading = false;
   List<dynamic> _menuItems = [];
-  Map<String, int> _cart = {}; // key: item ID, value: quantity
+  final Map<String, int> _cart = {}; // key: item ID, value: quantity
 
   @override
   void initState() {
@@ -208,7 +214,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
   Future<void> _loadMenu() async {
     final token = await widget.authService.getToken();
     if (token == null) return;
-    
+
     try {
       final response = await _apiClient.get('/v1/counter/menu', token: token);
       if (response.statusCode == 200) {
@@ -246,7 +252,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
         _phoneController.clear();
       }
     }
-    
+
     if (mounted) {
       setState(() {
         _isLoading = false;
@@ -283,9 +289,14 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
   double _getCartTotal() {
     double total = 0.0;
     for (var entry in _cart.entries) {
-      final item = _menuItems.firstWhere((i) => i['id'] == entry.key, orElse: () => null);
+      final item = _menuItems.firstWhere(
+        (i) => i['id'] == entry.key,
+        orElse: () => null,
+      );
       if (item != null) {
-        final price = item['price'] != null ? (item['price'] as num).toDouble() : 0.0;
+        final price = item['price'] != null
+            ? (item['price'] as num).toDouble()
+            : 0.0;
         total += price * entry.value;
       }
     }
@@ -299,7 +310,10 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
       behavior: HitTestBehavior.translucent,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Counter POS', style: TextStyle(fontWeight: FontWeight.bold)),
+          title: const Text(
+            'Counter POS',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
           actions: [
             if (_sessionManager.currentSession != null)
               Padding(
@@ -307,7 +321,10 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                 child: Center(
                   child: Text(
                     _sessionManager.currentSession!.phone,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
                   ),
                 ),
               ),
@@ -329,8 +346,12 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           boxShadow: const [
-            BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, 4))
-          ]
+            BoxShadow(
+              color: Colors.black12,
+              blurRadius: 10,
+              offset: Offset(0, 4),
+            ),
+          ],
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -339,7 +360,11 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
             const SizedBox(height: 16),
             const Text(
               'Customer Lookup',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.primary),
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: AppColors.primary,
+              ),
             ),
             const SizedBox(height: 8),
             const Text('Enter phone number to start a session.'),
@@ -348,7 +373,9 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
               controller: _phoneController,
               keyboardType: TextInputType.phone,
               decoration: InputDecoration(
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
                 labelText: 'Phone Number (e.g. +601...)',
                 prefixIcon: const Icon(Icons.phone),
               ),
@@ -379,22 +406,29 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
             color: AppColors.surfaceLight,
             padding: const EdgeInsets.all(16.0),
             child: _menuItems.isEmpty
-                ? const Center(child: Text("No items on menu, or unable to fetch."))
+                ? const Center(
+                    child: Text("No items on menu, or unable to fetch."),
+                  )
                 : GridView.builder(
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 3,
-                      childAspectRatio: 1.0,
-                      crossAxisSpacing: 16,
-                      mainAxisSpacing: 16,
-                    ),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 3,
+                          childAspectRatio: 1.0,
+                          crossAxisSpacing: 16,
+                          mainAxisSpacing: 16,
+                        ),
                     itemCount: _menuItems.length,
                     itemBuilder: (context, index) {
                       final item = _menuItems[index];
                       final itemId = item['id'].toString();
-                      final price = item['price'] != null ? (item['price'] as num).toDouble() : 0.0;
+                      final price = item['price'] != null
+                          ? (item['price'] as num).toDouble()
+                          : 0.0;
                       return Card(
                         elevation: 4,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                         child: InkWell(
                           onTap: () => _addToCart(itemId),
                           borderRadius: BorderRadius.circular(12),
@@ -403,17 +437,26 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Icon(Icons.coffee, size: 48, color: AppColors.secondary),
+                                const Icon(
+                                  Icons.coffee,
+                                  size: 48,
+                                  color: AppColors.secondary,
+                                ),
                                 const SizedBox(height: 8),
                                 Text(
                                   item['name'] ?? 'Unknown Item',
                                   textAlign: TextAlign.center,
-                                  style: const TextStyle(fontWeight: FontWeight.bold),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
                                   'RM ${price.toStringAsFixed(2)}',
-                                  style: const TextStyle(color: AppColors.accent, fontWeight: FontWeight.bold),
+                                  style: const TextStyle(
+                                    color: AppColors.accent,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ],
                             ),
@@ -432,11 +475,15 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
             children: [
               Container(
                 padding: const EdgeInsets.all(16.0),
-                color: AppColors.secondary.withOpacity(0.1),
+                color: AppColors.secondary.withValues(alpha: 0.1),
                 width: double.infinity,
                 child: const Text(
                   'Current Order',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.primary),
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primary,
+                  ),
                 ),
               ),
               Expanded(
@@ -444,17 +491,30 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                     ? const Center(child: Text('Cart is empty'))
                     : ListView.separated(
                         itemCount: _cart.length,
-                        separatorBuilder: (context, index) => const Divider(height: 1),
+                        separatorBuilder: (context, index) =>
+                            const Divider(height: 1),
                         itemBuilder: (context, index) {
                           final itemId = _cart.keys.elementAt(index);
                           final count = _cart[itemId]!;
-                          final item = _menuItems.firstWhere((i) => i['id'] == itemId, orElse: () => null);
+                          final item = _menuItems.firstWhere(
+                            (i) => i['id'] == itemId,
+                            orElse: () => null,
+                          );
                           final itemName = item != null ? item['name'] : 'Item';
-                          final price = item != null && item['price'] != null ? (item['price'] as num).toDouble() : 0.0;
-                          
+                          final price = item != null && item['price'] != null
+                              ? (item['price'] as num).toDouble()
+                              : 0.0;
+
                           return ListTile(
-                            title: Text(itemName, style: const TextStyle(fontWeight: FontWeight.bold)),
-                            subtitle: Text('RM ${(price * count).toStringAsFixed(2)}'),
+                            title: Text(
+                              itemName,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            subtitle: Text(
+                              'RM ${(price * count).toStringAsFixed(2)}',
+                            ),
                             trailing: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
@@ -463,7 +523,10 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                                   color: AppColors.accent,
                                   onPressed: () => _removeFromCart(itemId),
                                 ),
-                                Text('$count', style: const TextStyle(fontSize: 16)),
+                                Text(
+                                  '$count',
+                                  style: const TextStyle(fontSize: 16),
+                                ),
                                 IconButton(
                                   icon: const Icon(Icons.add_circle_outline),
                                   color: AppColors.primary,
@@ -486,10 +549,20 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Total', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                        const Text(
+                          'Total',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                         Text(
                           'RM ${_getCartTotal().toStringAsFixed(2)}',
-                          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.accent),
+                          style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.accent,
+                          ),
                         ),
                       ],
                     ),
@@ -497,15 +570,20 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: _cart.isEmpty ? null : () async {
-                          // Note: According to API constraints, checkout is purely local clearing
-                          // until the payment provider is fully implemented.
-                          await _endSession();
-                        },
+                        onPressed: _cart.isEmpty
+                            ? null
+                            : () async {
+                                // Note: According to API constraints, checkout is purely local clearing
+                                // until the payment provider is fully implemented.
+                                await _endSession();
+                              },
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
                         ),
-                        child: const Text('Checkout (End Session)', style: TextStyle(fontSize: 16)),
+                        child: const Text(
+                          'Checkout (End Session)',
+                          style: TextStyle(fontSize: 16),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -521,7 +599,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                     ),
                   ],
                 ),
-              )
+              ),
             ],
           ),
         ),

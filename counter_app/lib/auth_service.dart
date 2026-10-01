@@ -1,11 +1,24 @@
+import 'dart:async';
 import 'dart:convert';
+
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
 import 'api_client.dart';
+
+class DeviceActivationResult {
+  final bool success;
+  final String? message;
+
+  const DeviceActivationResult._(this.success, this.message);
+
+  const DeviceActivationResult.success() : this._(true, null);
+  const DeviceActivationResult.failure(String message) : this._(false, message);
+}
 
 class AuthService {
   final ApiClient _apiClient = ApiClient();
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
-  
+
   static const String _tokenKey = 'device_token';
 
   Future<String?> getToken() async {
@@ -36,23 +49,71 @@ class AuthService {
   }
 
   // Activate the device using a one-time activation code
-  Future<bool> activateDevice(String activationCode) async {
+  Future<DeviceActivationResult> activateDevice(String activationCode) async {
+    late final dynamic response;
     try {
-      final response = await _apiClient.post(
-        '/v1/counter/activate', 
-        {'activation_code': activationCode}
+      response = await _apiClient.post('/v1/counter/activate', {
+        'activation_code': activationCode.trim().toUpperCase(),
+      });
+    } on TimeoutException {
+      return const DeviceActivationResult.failure(
+        'The server took too long to respond. Check the internet connection and try again.',
       );
+    } catch (_) {
+      return DeviceActivationResult.failure(
+        'Cannot reach ${ApiClient.baseUrl}. Check this device\'s internet connection and API configuration.',
+      );
+    }
 
+    try {
       if (response.statusCode == 200) {
-        final jsonResponse = jsonDecode(response.body);
+        final jsonResponse = jsonDecode(response.body) as Map<String, dynamic>;
         final token = jsonResponse['device_token'];
-        
-        await _storage.write(key: _tokenKey, value: token);
-        return true;
+        if (token is! String || token.isEmpty) {
+          return const DeviceActivationResult.failure(
+            'The server returned an invalid device credential.',
+          );
+        }
+        try {
+          await _storage.write(key: _tokenKey, value: token);
+        } catch (_) {
+          return const DeviceActivationResult.failure(
+            'The server activated this device, but iOS/Android secure storage could not save its credential. Rebuild the app with Keychain/Keystore configuration, then reissue activation.',
+          );
+        }
+        return const DeviceActivationResult.success();
       }
-      return false;
-    } catch (e) {
-      return false;
+
+      try {
+        final payload = jsonDecode(response.body) as Map<String, dynamic>;
+        final error = payload['error'];
+        final message = error is Map<String, dynamic>
+            ? error['message']
+            : payload['message'];
+        if (message is String && message.isNotEmpty) {
+          return DeviceActivationResult.failure(message);
+        }
+      } catch (_) {
+        // Fall back to a status-specific message below.
+      }
+
+      if (response.statusCode == 401) {
+        return const DeviceActivationResult.failure(
+          'This activation code is invalid, expired, or has already been used.',
+        );
+      }
+      if (response.statusCode == 429) {
+        return const DeviceActivationResult.failure(
+          'Too many attempts. Wait 15 minutes before trying again.',
+        );
+      }
+      return DeviceActivationResult.failure(
+        'Activation failed (server response ${response.statusCode}).',
+      );
+    } catch (_) {
+      return const DeviceActivationResult.failure(
+        'The server returned an unreadable activation response.',
+      );
     }
   }
 

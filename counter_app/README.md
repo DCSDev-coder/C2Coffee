@@ -8,6 +8,17 @@ Build one Flutter project and produce Android and iOS variants from that shared
 codebase. Android can be released first when the selected kiosk, printer, and
 payment-terminal hardware is Android-based.
 
+The default API is `https://api.c2coffeeandcandle.com`. Override it for a
+different cafe deployment at build or run time, for example:
+
+```bash
+flutter run --dart-define=API_BASE_URL=https://api.example-cafe.com
+flutter build apk --release --dart-define=API_BASE_URL=https://api.example-cafe.com
+```
+
+Use HTTPS for every production deployment. Do not point a physical device at
+`localhost`; that address refers to the device itself.
+
 ## First-install login
 
 1. A Super Admin or Operations Admin creates a device in Admin Web under
