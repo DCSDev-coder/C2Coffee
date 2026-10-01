@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'auth_service.dart';
+import 'counter_menu.dart';
 import 'session_manager.dart';
 import 'api_client.dart';
 import 'app_colors.dart';
@@ -200,10 +201,26 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
   final SessionManager _sessionManager = SessionManager();
   final ApiClient _apiClient = ApiClient();
   final TextEditingController _phoneController = TextEditingController();
+  String _selectedCountryCode = '+60';
+
+  static const _countryCodes = <String, String>{
+    '+60': 'Malaysia (+60)',
+    '+65': 'Singapore (+65)',
+    '+62': 'Indonesia (+62)',
+    '+66': 'Thailand (+66)',
+    '+61': 'Australia (+61)',
+    '+44': 'United Kingdom (+44)',
+    '+1': 'United States / Canada (+1)',
+    '+81': 'Japan (+81)',
+    '+82': 'South Korea (+82)',
+    '+86': 'China (+86)',
+  };
 
   bool _isLoading = false;
   String? _errorMessage;
-  List<dynamic> _menuItems = [];
+  List<CounterMenuItem> _menuItems = [];
+  bool _isMenuLoading = true;
+  String? _menuError;
   final Map<String, int> _cart = {}; // key: item ID, value: quantity
 
   @override
@@ -214,26 +231,59 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
 
   Future<void> _loadMenu() async {
     final token = await widget.authService.getToken();
-    if (token == null) return;
-    
+    if (token == null) {
+      if (mounted) {
+        setState(() {
+          _isMenuLoading = false;
+          _menuError = 'This counter device is not activated.';
+        });
+      }
+      return;
+    }
+
+    if (mounted) {
+      setState(() {
+        _isMenuLoading = true;
+        _menuError = null;
+      });
+    }
+
     try {
       final response = await _apiClient.get('/v1/counter/menu', token: token);
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+        final items = parseCounterMenu(jsonDecode(response.body));
         if (mounted) {
           setState(() {
-            _menuItems = data is List ? data : (data['items'] ?? []);
+            _menuItems = items;
+            _isMenuLoading = false;
+            _menuError = items.isEmpty
+                ? 'No available items are configured for this outlet.'
+                : null;
           });
         }
+      } else if (mounted) {
+        setState(() {
+          _isMenuLoading = false;
+          _menuError = 'Unable to load the menu (${response.statusCode}).';
+        });
       }
-    } catch (e) {
-      // Keep empty if failed
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _isMenuLoading = false;
+          _menuError = 'Unable to reach the menu service. Please retry.';
+        });
+      }
     }
   }
 
   Future<void> _startSession() async {
-    final phone = _phoneController.text.trim();
-    if (phone.isEmpty) return;
+    final localNumber = _phoneController.text.trim();
+    if (localNumber.isEmpty) return;
+    final digits = localNumber.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.isEmpty) return;
+    final phone =
+        '$_selectedCountryCode${digits.startsWith('0') ? digits.substring(1) : digits}';
 
     setState(() {
       _isLoading = true;
@@ -246,7 +296,8 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
       if (!success) {
         if (mounted) {
           setState(() {
-            _errorMessage = 'Number not found. Please try again or continue as a guest.';
+            _errorMessage =
+                'Number not found. Please try again or continue as a guest.';
           });
         }
       } else {
@@ -297,15 +348,10 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
     double total = 0.0;
     for (var entry in _cart.entries) {
       final item = _menuItems.firstWhere(
-        (i) => i['id'] == entry.key,
-        orElse: () => null,
+        (item) => item.id == entry.key,
+        orElse: () => throw StateError('Cart item is missing from the menu.'),
       );
-      if (item != null) {
-        final price = item['price'] != null
-            ? (item['price'] as num).toDouble()
-            : 0.0;
-        total += price * entry.value;
-      }
+      total += item.priceRm * entry.value;
     }
     return total;
   }
@@ -328,12 +374,21 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
-                        _sessionManager.currentSession!.customerSummary['customer_name'] ?? _sessionManager.currentSession!.phone,
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                        _sessionManager
+                                .currentSession!
+                                .customerSummary['customer_name'] ??
+                            _sessionManager.currentSession!.phone,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
                       ),
                       Text(
                         'Tier: ${_sessionManager.currentSession!.customerSummary['loyalty_tier'] ?? 'None'}',
-                        style: const TextStyle(fontSize: 12, color: Colors.white70),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.white70,
+                        ),
                       ),
                     ],
                   ),
@@ -358,7 +413,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
-              color: AppColors.primary.withOpacity(0.08),
+              color: AppColors.primary.withValues(alpha: 0.08),
               blurRadius: 24,
               offset: const Offset(0, 12),
             ),
@@ -373,7 +428,11 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                 color: AppColors.surfaceLight,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.account_circle_outlined, size: 56, color: AppColors.primary),
+              child: const Icon(
+                Icons.account_circle_outlined,
+                size: 56,
+                color: AppColors.primary,
+              ),
             ),
             const SizedBox(height: 24),
             const Text(
@@ -389,12 +448,19 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
             const Text(
               'Enter your registered phone number to access your account.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.black54, fontSize: 15, height: 1.4),
+              style: TextStyle(
+                color: Colors.black54,
+                fontSize: 15,
+                height: 1.4,
+              ),
             ),
             if (_errorMessage != null) ...[
               const SizedBox(height: 16),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.red.shade50,
                   borderRadius: BorderRadius.circular(12),
@@ -402,31 +468,88 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                 child: Text(
                   _errorMessage!,
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.red.shade700, fontWeight: FontWeight.w600, fontSize: 14),
+                  style: TextStyle(
+                    color: Colors.red.shade700,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
                 ),
               ),
             ],
             const SizedBox(height: 32),
-            TextField(
-              controller: _phoneController,
-              keyboardType: TextInputType.phone,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-              decoration: InputDecoration(
-                filled: true,
-                fillColor: AppColors.surfaceLight,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide.none,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 148,
+                  child: DropdownButtonFormField<String>(
+                    initialValue: _selectedCountryCode,
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: AppColors.surfaceLight,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide.none,
+                      ),
+                      labelText: 'Country',
+                    ),
+                    items: _countryCodes.entries
+                        .map(
+                          (entry) => DropdownMenuItem<String>(
+                            value: entry.key,
+                            child: Text(
+                              entry.value,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) {
+                      if (value != null) {
+                        setState(() => _selectedCountryCode = value);
+                      }
+                    },
+                  ),
                 ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: const BorderSide(color: AppColors.secondary, width: 2),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: TextField(
+                    controller: _phoneController,
+                    keyboardType: TextInputType.phone,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: AppColors.surfaceLight,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide.none,
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: const BorderSide(
+                          color: AppColors.secondary,
+                          width: 2,
+                        ),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 20,
+                      ),
+                      labelText: 'Phone number',
+                      hintText: 'e.g. 013 860 1915',
+                      labelStyle: const TextStyle(color: Colors.black54),
+                      prefixIcon: const Icon(
+                        Icons.phone_outlined,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ),
                 ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-                labelText: 'Phone Number (e.g. +601...)',
-                labelStyle: const TextStyle(color: Colors.black54),
-                prefixIcon: const Icon(Icons.phone_outlined, color: AppColors.primary),
-              ),
+              ],
             ),
             const SizedBox(height: 32),
             SizedBox(
@@ -445,7 +568,10 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                       ),
                       child: const Text(
                         'Login',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
             ),
@@ -482,9 +608,22 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
           child: Container(
             color: AppColors.surfaceLight,
             padding: const EdgeInsets.all(16.0),
-            child: _menuItems.isEmpty
-                ? const Center(
-                    child: Text("No items on menu, or unable to fetch."),
+            child: _isMenuLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _menuItems.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(_menuError ?? 'No menu items are available.'),
+                        const SizedBox(height: 12),
+                        OutlinedButton.icon(
+                          onPressed: _loadMenu,
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Retry menu'),
+                        ),
+                      ],
+                    ),
                   )
                 : GridView.builder(
                     gridDelegate:
@@ -497,10 +636,8 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                     itemCount: _menuItems.length,
                     itemBuilder: (context, index) {
                       final item = _menuItems[index];
-                      final itemId = item['id'].toString();
-                      final price = item['price'] != null
-                          ? (item['price'] as num).toDouble()
-                          : 0.0;
+                      final itemId = item.id;
+                      final price = item.priceRm;
                       return Card(
                         elevation: 4,
                         shape: RoundedRectangleBorder(
@@ -514,14 +651,42 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Icon(
-                                  Icons.coffee,
-                                  size: 48,
-                                  color: AppColors.secondary,
+                                SizedBox(
+                                  height: 96,
+                                  width: double.infinity,
+                                  child: item.imageUrl == null
+                                      ? const Icon(
+                                          Icons.coffee,
+                                          size: 48,
+                                          color: AppColors.secondary,
+                                        )
+                                      : Image.network(
+                                          item.imageUrl!,
+                                          fit: BoxFit.contain,
+                                          errorBuilder: (_, _, _) => const Icon(
+                                            Icons.coffee,
+                                            size: 48,
+                                            color: AppColors.secondary,
+                                          ),
+                                          loadingBuilder:
+                                              (
+                                                context,
+                                                child,
+                                                loadingProgress,
+                                              ) {
+                                                if (loadingProgress == null) {
+                                                  return child;
+                                                }
+                                                return const Center(
+                                                  child:
+                                                      CircularProgressIndicator(),
+                                                );
+                                              },
+                                        ),
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
-                                  item['name'] ?? 'Unknown Item',
+                                  item.name,
                                   textAlign: TextAlign.center,
                                   style: const TextStyle(
                                     fontWeight: FontWeight.bold,
@@ -574,13 +739,13 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                           final itemId = _cart.keys.elementAt(index);
                           final count = _cart[itemId]!;
                           final item = _menuItems.firstWhere(
-                            (i) => i['id'] == itemId,
-                            orElse: () => null,
+                            (item) => item.id == itemId,
+                            orElse: () => throw StateError(
+                              'Cart item is missing from the menu.',
+                            ),
                           );
-                          final itemName = item != null ? item['name'] : 'Item';
-                          final price = item != null && item['price'] != null
-                              ? (item['price'] as num).toDouble()
-                              : 0.0;
+                          final itemName = item.name;
+                          final price = item.priceRm;
 
                           return ListTile(
                             title: Text(

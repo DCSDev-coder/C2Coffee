@@ -3,8 +3,10 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../services/app_session_service.dart';
+import '../services/api_config.dart';
 import '../services/auth_api_service.dart';
 import '../services/customer_data_service.dart';
+import '../services/pending_top_up_service.dart';
 import '../services/secure_session_service.dart';
 import '../services/payment_security.dart';
 
@@ -64,7 +66,15 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
       _loadWalletData();
       _loadPaymentMethods();
       _loadPackages();
+      _restorePendingTopUp();
     });
+  }
+
+  Future<void> _restorePendingTopUp() async {
+    final topUpRef = await PendingTopUpService.instance.read();
+    if (!mounted || topUpRef == null || topUpRef.isEmpty) return;
+    setState(() => _pendingTopUpRef = topUpRef);
+    await _refreshReturnedTopUp();
   }
 
   Future<void> _loadPackages() async {
@@ -105,6 +115,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
         topupRef: topupRef,
       );
       if (!mounted || topup.status != 'paid') return;
+      await PendingTopUpService.instance.clear();
       setState(() => _pendingTopUpRef = null);
       await _loadWalletData(forceSessionReload: true);
       if (mounted) {
@@ -368,13 +379,23 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
         paymentMethod: _paymentMethodApiValue!,
         bankCode: _selectedBank?.code,
       );
-      if (!isTrustedPaymentCheckoutUrl(topup.checkoutUrl) ||
-          !await launchUrl(Uri.parse(topup.checkoutUrl),
-              mode: LaunchMode.externalApplication)) {
+      if (!isTrustedPaymentCheckoutUrl(
+        topup.checkoutUrl,
+        allowSandbox: ApiConfig.allowBillplzSandbox,
+      )) {
+        throw ApiException('The payment provider returned an untrusted URL.');
+      }
+      await PendingTopUpService.instance.save(topup.topupRef);
+      if (mounted) {
+        setState(() => _pendingTopUpRef = topup.topupRef);
+      }
+      if (!await launchUrl(Uri.parse(topup.checkoutUrl),
+          mode: LaunchMode.externalApplication)) {
+        await PendingTopUpService.instance.clear();
+        if (mounted) setState(() => _pendingTopUpRef = null);
         throw ApiException('Unable to open the payment page.');
       }
       if (mounted) {
-        setState(() => _pendingTopUpRef = topup.topupRef);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
               content: Text(

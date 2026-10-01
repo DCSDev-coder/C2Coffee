@@ -132,9 +132,12 @@ class _ReferralPageState extends State<ReferralPage> {
 
   Future<void> _shareCode(String code) async {
     final reward = _snapshot?.referrerRewardLabel ?? 'a referral reward';
-    await Share.share(
-      'Join C2 Coffee and enter my referral code $code before your first order. Once you collect your first order, I receive $reward.',
-      subject: 'Join me at C2 Coffee',
+    await SharePlus.instance.share(
+      ShareParams(
+        text:
+            'Join C2 Coffee and enter my referral code $code before your first order. Once you collect your first order, I receive $reward.',
+        subject: 'Join me at C2 Coffee',
+      ),
     );
   }
 
