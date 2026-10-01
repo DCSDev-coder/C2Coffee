@@ -244,15 +244,22 @@ class _HomePageState extends State<HomePage> {
   }
 
   List<Map<String, dynamic>> _featuredItemsFor(HomeFeaturedSection section) {
-    final category = _session.menuCategories
-        .where((candidate) => candidate.id == section.categoryId)
-        .firstOrNull;
-    if (category == null) return const [];
     final itemsById = <int, Map<String, dynamic>>{};
-    for (final item in category.items) {
-      if (item.isAvailable) {
-        itemsById[item.id] = CatalogPresentation.toLegacyItem(
-            item, category.code, category.name);
+    for (final category in _session.menuCategories) {
+      if (section.categoryIds.isNotEmpty &&
+          !section.categoryIds.contains(category.id)) {
+        continue;
+      }
+      if (section.categoryIds.isEmpty &&
+          section.categoryId > 0 &&
+          category.id != section.categoryId) {
+        continue;
+      }
+      for (final item in category.items) {
+        if (item.isAvailable) {
+          itemsById[item.id] = CatalogPresentation.toLegacyItem(
+              item, category.code, category.name);
+        }
       }
     }
     return section.itemIds
@@ -368,7 +375,7 @@ class _HomePageState extends State<HomePage> {
                         else ...[
                           for (final featured in featuredSections) ...[
                             _buildProductSection(
-                              title: featured.section.categoryName,
+                              title: featured.section.title,
                               items: featured.items,
                               onSeeAll: () => InteractiveFillingLoader.show(
                                 context,

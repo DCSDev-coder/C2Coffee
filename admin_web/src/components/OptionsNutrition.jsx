@@ -95,6 +95,7 @@ export default function OptionsNutrition() {
       const [library, menu] = await Promise.all([loadAdminOptionLibrary(), loadAdminMenu()]);
       setGroups(library.groups || []);
       const menuItems = (menu.categories || [])
+        .filter((category) => category.is_active)
         .flatMap((category) =>
           (category.items || [])
             .filter((item) => item.is_active)

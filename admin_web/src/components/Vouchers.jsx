@@ -251,7 +251,7 @@ const VoucherFormSection = ({ number, title, description }) => (
 );
 
 const deriveMenuTaxonomy = (response) => {
-  const categories = response?.categories || [];
+  const categories = (response?.categories || []).filter((category) => category.is_active);
   const subcategories = response?.subcategories || [];
   const items = [];
   const productKinds = [];

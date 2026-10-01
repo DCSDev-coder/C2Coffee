@@ -282,6 +282,13 @@ export async function saveAdminHomeFeatured(categoryId, itemIds) {
   });
 }
 
+export async function saveAdminHomeFeaturedGroups(groups) {
+  return adminRequest('/v1/admin/home-featured/groups', {
+    method: 'PUT',
+    body: JSON.stringify({ groups })
+  });
+}
+
 export async function loadAdminProductReport(selectedDate = null, storeId = null) {
   const params = new URLSearchParams();
   if (selectedDate) params.set('selected_date', selectedDate.toISOString());

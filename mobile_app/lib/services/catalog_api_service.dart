@@ -497,24 +497,38 @@ class TierRewardSummary {
 }
 
 class HomeFeaturedSection {
+  final int groupId;
+  final String title;
   final int categoryId;
   final String categoryCode;
   final String categoryName;
   final List<int> itemIds;
+  final List<int> categoryIds;
 
   const HomeFeaturedSection({
+    required this.groupId,
+    required this.title,
     required this.categoryId,
     required this.categoryCode,
     required this.categoryName,
     required this.itemIds,
+    required this.categoryIds,
   });
 
   factory HomeFeaturedSection.fromApi(Map<String, dynamic> json) {
     return HomeFeaturedSection(
+      groupId: (json['group_id'] as num?)?.toInt() ?? 0,
+      title: json['title'] as String? ??
+          json['category_name'] as String? ??
+          'Featured',
       categoryId: (json['category_id'] as num?)?.toInt() ?? 0,
       categoryCode: json['category_code'] as String? ?? '',
       categoryName: json['category_name'] as String? ?? 'Menu',
       itemIds: (json['item_ids'] as List? ?? const [])
+          .whereType<num>()
+          .map((value) => value.toInt())
+          .toList(),
+      categoryIds: (json['category_ids'] as List? ?? const [])
           .whereType<num>()
           .map((value) => value.toInt())
           .toList(),
@@ -578,7 +592,7 @@ class CatalogApiService {
           .whereType<Map>()
           .map((section) =>
               HomeFeaturedSection.fromApi(Map<String, dynamic>.from(section)))
-          .where((section) => section.categoryId > 0)
+          .where((section) => section.groupId > 0 || section.categoryId > 0)
           .toList(),
     );
   }

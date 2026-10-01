@@ -32,7 +32,7 @@ import {
   updateAdminMenuItem,
   loadAdminOptionLibrary,
   loadAdminHomeFeatured,
-  saveAdminHomeFeatured
+  saveAdminHomeFeaturedGroups
 } from '../lib/adminApi';
 import { adminRequest } from '../lib/adminApi';
 
@@ -369,7 +369,7 @@ const Menu = ({ onNavigate }) => {
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [isSubcategoryModalOpen, setIsSubcategoryModalOpen] = useState(false);
   const [isHomePicksOpen, setIsHomePicksOpen] = useState(false);
-  const [homePickIds, setHomePickIds] = useState({});
+  const [homeGroups, setHomeGroups] = useState([]);
   const [isSavingHomePicks, setIsSavingHomePicks] = useState(false);
   const [drinkGuides, setDrinkGuides] = useState([]);
   const [sopFile, setSopFile] = useState(null);
@@ -406,12 +406,15 @@ const Menu = ({ onNavigate }) => {
       setMenuCategories(categories);
       setMenuSubcategories(subcategories);
       setOptionGroups(library.groups || []);
-      const placements = homePicks.placements || [];
-      setHomePickIds(placements.reduce((picks, entry) => {
-        const categoryId = String(entry.categoryId);
-        picks[categoryId] = [...(picks[categoryId] || []), entry.itemId];
-        return picks;
-      }, {}));
+      const activeCategoryIds = new Set(categories.filter((category) => category.is_active).map((category) => category.id));
+      const activeItemIds = new Set(categories.flatMap((category) => category.is_active
+        ? (category.items || []).filter((item) => item.is_active).map((item) => item.id)
+        : []));
+      setHomeGroups((homePicks.groups || []).map((group) => ({
+        ...group,
+        category_ids: (group.category_ids || []).filter((id) => activeCategoryIds.has(id)),
+        item_ids: (group.item_ids || []).filter((id) => activeItemIds.has(id))
+      })));
 
       if (selectedCategory !== 'All' && !categories.some((category) => category.code === selectedCategory)) {
         setSelectedCategory('All');
@@ -456,36 +459,31 @@ const Menu = ({ onNavigate }) => {
     void loadDrinkGuides();
   }, []);
 
+  const activeMenuCategories = menuCategories.filter((category) => category.is_active);
   const categoryOptions = [
     { value: 'All', label: 'All Categories' },
-    ...menuCategories.map((category) => ({
+    ...activeMenuCategories.map((category) => ({
       value: category.code,
       label: category.name
     }))
   ];
 
   const allMenuItems = flattenMenuData(menuCategories);
+  const activeHomeItems = flattenMenuData(activeMenuCategories).filter((item) => item.is_active);
   const optionGroupsForItem = (itemId) => optionGroups.filter((group) =>
     group.applies_to === 'all_drinks' || group.menu_item_ids.includes(itemId)
   );
 
-  const homePickItems = (categoryId) => allMenuItems.filter((item) => item.is_active && Number(item.category_id) === Number(categoryId));
-  const toggleHomePick = (categoryId, itemId) => {
-    const key = String(categoryId);
-    setHomePickIds((current) => {
-      const existing = current[key] || [];
-      if (existing.includes(itemId)) return { ...current, [key]: existing.filter((id) => id !== itemId) };
-      if (existing.length >= 6) return current;
-      return { ...current, [key]: [...existing, itemId] };
-    });
-  };
   const saveHomePicks = async () => {
     setIsSavingHomePicks(true);
     setErrorMessage('');
     try {
-      await Promise.all(menuCategories
-        .filter((category) => (category.items || []).some((item) => item.is_active))
-        .map((category) => saveAdminHomeFeatured(category.id, homePickIds[String(category.id)] || [])));
+      await saveAdminHomeFeaturedGroups(homeGroups.map((group, index) => ({
+        ...group,
+        sort_order: index + 1,
+        category_ids: group.category_ids || [],
+        item_ids: group.item_ids || []
+      })));
       setIsHomePicksOpen(false);
     } catch (error) {
       setErrorMessage(error.message || 'Unable to save Top Picks.');
@@ -493,6 +491,12 @@ const Menu = ({ onNavigate }) => {
       setIsSavingHomePicks(false);
     }
   };
+  const addHomeGroup = () => setHomeGroups((groups) => [...groups, {
+    title: 'New featured group', selection_mode: 'automatic', category_ids: [], item_ids: [],
+    display_limit: 6, sort_order: groups.length + 1, is_active: true
+  }]);
+  const updateHomeGroup = (index, changes) => setHomeGroups((groups) =>
+    groups.map((group, groupIndex) => groupIndex === index ? { ...group, ...changes } : group));
   const selectedCategoryRecord = menuCategories.find((category) => category.code === editFormData.category_code) || null;
   const selectedProductKind = selectedCategoryRecord?.product_kind_code || 'drink';
   const showDrinkControls = selectedProductKind === 'drink';
@@ -1326,19 +1330,22 @@ const Menu = ({ onNavigate }) => {
         <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-slate-900/35 backdrop-blur-md animate-in fade-in duration-200">
           <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl border border-gray-100 overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="flex items-start justify-between border-b border-gray-100 bg-white/80 backdrop-blur-xs px-6 py-5">
-              <div><h2 className="text-lg font-bold text-gray-900">Home featured items</h2><p className="mt-1 text-sm text-gray-500">Select up to six items per menu category. Empty slots use 30-day best sellers from that same category. Category names on Home always follow Menu.</p></div>
+              <div><h2 className="text-lg font-bold text-gray-900">Home featured groups</h2><p className="mt-1 text-sm text-gray-500">Create promotional groups from several categories, selected products, or both.</p></div>
               <button onClick={() => setIsHomePicksOpen(false)} className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer"><X size={20} /></button>
             </div>
             <div className="max-h-[60vh] space-y-6 overflow-y-auto px-6 py-5">
-              {menuCategories.filter((category) => (category.items || []).some((item) => item.is_active)).map((category) => (
-                <div key={category.id}><div className="mb-2 flex items-center justify-between"><h3 className="font-bold text-gray-900">{category.name}</h3><span className="text-xs font-medium text-gray-500">{(homePickIds[String(category.id)] || []).length}/6 selected</span></div>
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">{homePickItems(category.id).map((item) => <label key={item.id} className="flex cursor-pointer items-center gap-3 rounded-lg border border-gray-200 px-3 py-2 text-sm hover:bg-gray-50"><input type="checkbox" checked={(homePickIds[String(category.id)] || []).includes(item.id)} onChange={() => toggleHomePick(category.id, item.id)} /><span className="min-w-0 truncate font-medium text-gray-800">{item.name}</span></label>)}</div>
-                </div>
-              ))}
+              {homeGroups.map((group, index) => <div key={group.id || index} className="rounded-xl border border-gray-200 p-4 space-y-3">
+                <div className="flex gap-3"><input value={group.title} onChange={(event) => updateHomeGroup(index, { title: event.target.value })} className="flex-1 rounded-lg border border-gray-200 px-3 py-2 font-bold" placeholder="Group title" /><button onClick={() => setHomeGroups((groups) => groups.filter((_, itemIndex) => itemIndex !== index))} className="text-red-600"><Trash2 size={18} /></button></div>
+                <div className="grid grid-cols-2 gap-3"><select value={group.selection_mode} onChange={(event) => updateHomeGroup(index, { selection_mode: event.target.value })} className="rounded-lg border border-gray-200 px-3 py-2"><option value="automatic">Automatic best sellers</option><option value="manual">Manual products</option><option value="mixed">Pinned + automatic</option></select><input type="number" min="1" max="12" value={group.display_limit} onChange={(event) => updateHomeGroup(index, { display_limit: Number(event.target.value) })} className="rounded-lg border border-gray-200 px-3 py-2" /></div>
+                {group.selection_mode !== 'manual' && <div><p className="mb-2 text-xs font-bold text-gray-600">Source categories</p><div className="grid grid-cols-2 gap-2">{activeMenuCategories.map((category) => <label key={category.id} className="flex gap-2 text-sm"><input type="checkbox" checked={(group.category_ids || []).includes(category.id)} onChange={() => updateHomeGroup(index, { category_ids: (group.category_ids || []).includes(category.id) ? group.category_ids.filter((id) => id !== category.id) : [...(group.category_ids || []), category.id] })} />{category.name}</label>)}</div></div>}
+                {group.selection_mode !== 'automatic' && <div><p className="mb-2 text-xs font-bold text-gray-600">{group.selection_mode === 'mixed' ? 'Pinned products' : 'Products'}</p><div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">{activeHomeItems.map((item) => <label key={item.id} className="flex gap-2 text-sm"><input type="checkbox" checked={(group.item_ids || []).includes(item.id)} onChange={() => updateHomeGroup(index, { item_ids: (group.item_ids || []).includes(item.id) ? group.item_ids.filter((id) => id !== item.id) : [...(group.item_ids || []), item.id] })} />{item.name}</label>)}</div></div>}
+                <label className="flex gap-2 text-sm"><input type="checkbox" checked={group.is_active} onChange={(event) => updateHomeGroup(index, { is_active: event.target.checked })} />Active on Home</label>
+              </div>)}
+              <button onClick={addHomeGroup} className="w-full rounded-xl border border-dashed border-gray-300 py-3 text-sm font-bold text-[#1E433A]">+ Add featured group</button>
             </div>
             <div className="flex justify-end gap-3 border-t border-gray-100 bg-gray-50/70 px-6 py-4">
               <button onClick={() => setIsHomePicksOpen(false)} className="px-5 py-2.5 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 shadow-2xs transition-all cursor-pointer">Cancel</button>
-              <button disabled={isSavingHomePicks} onClick={saveHomePicks} className="px-6 py-2.5 bg-[#1E433A] text-white rounded-xl text-xs font-bold hover:bg-[#16342D] shadow-xs transition-all cursor-pointer disabled:opacity-60">{isSavingHomePicks ? 'Saving...' : 'Save Top Picks'}</button>
+              <button disabled={isSavingHomePicks} onClick={saveHomePicks} className="px-6 py-2.5 bg-[#1E433A] text-white rounded-xl text-xs font-bold hover:bg-[#16342D] shadow-xs transition-all cursor-pointer disabled:opacity-60">{isSavingHomePicks ? 'Saving...' : 'Save Home Groups'}</button>
             </div>
           </div>
         </div>,
@@ -1451,7 +1458,7 @@ const Menu = ({ onNavigate }) => {
                       className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34]"
                       required
                     >
-                      {menuCategories.map((category) => (
+                      {activeMenuCategories.map((category) => (
                         <option key={category.code} value={category.code}>
                           {category.name}
                         </option>
@@ -1690,7 +1697,7 @@ const Menu = ({ onNavigate }) => {
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34]"
                     required
                   >
-                    {menuCategories.map((category) => (
+                    {activeMenuCategories.map((category) => (
                       <option key={category.code} value={category.code}>
                         {category.name}
                       </option>
