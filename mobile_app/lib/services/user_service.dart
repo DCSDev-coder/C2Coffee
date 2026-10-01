@@ -1,6 +1,9 @@
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class UserService {
+  static const FlutterSecureStorage _storage = FlutterSecureStorage();
+  static const String _securePrefix = 'profile_v2_';
   static const String _presetKey = 'preset_avatar_path';
   static const String _pickedImageKey = 'picked_image_path';
 
@@ -14,99 +17,117 @@ class UserService {
 
   static Future<void> saveAvatar(
       {String? presetPath, String? pickedImagePath}) async {
-    final prefs = await SharedPreferences.getInstance();
     if (presetPath != null) {
-      await prefs.setString(_presetKey, presetPath);
-      await prefs.remove(_pickedImageKey); // clear picked if preset selected
+      await _storage.write(key: _secureKey(_presetKey), value: presetPath);
+      await _storage.delete(key: _secureKey(_pickedImageKey));
     } else if (pickedImagePath != null) {
-      await prefs.setString(_pickedImageKey, pickedImagePath);
-      await prefs.remove(_presetKey); // clear preset if picked selected
+      await _storage.write(
+          key: _secureKey(_pickedImageKey), value: pickedImagePath);
+      await _storage.delete(key: _secureKey(_presetKey));
     }
+    await _removeLegacyValues({_presetKey, _pickedImageKey});
   }
 
   static Future<Map<String, String?>> getAvatar() async {
-    final prefs = await SharedPreferences.getInstance();
+    await _migrateLegacyValues({_presetKey, _pickedImageKey});
     return {
-      'presetPath': prefs.getString(_presetKey),
-      'pickedImagePath': prefs.getString(_pickedImageKey),
+      'presetPath': await _storage.read(key: _secureKey(_presetKey)),
+      'pickedImagePath': await _storage.read(key: _secureKey(_pickedImageKey)),
     };
   }
 
   static Future<void> saveUserProfile(Map<String, String> data) async {
-    final prefs = await SharedPreferences.getInstance();
-    if (data.containsKey('username')) {
-      await prefs.setString(_usernameKey, data['username']!);
+    for (final entry in data.entries) {
+      final key = _profileKeyFor(entry.key);
+      if (key != null) {
+        await _storage.write(key: _secureKey(key), value: entry.value);
+      }
     }
-    if (data.containsKey('email')) {
-      await prefs.setString(_emailKey, data['email']!);
-    }
-    if (data.containsKey('phone')) {
-      await prefs.setString(_phoneKey, data['phone']!);
-    }
-    if (data.containsKey('birthday')) {
-      await prefs.setString(_birthdayKey, data['birthday']!);
-    }
-    if (data.containsKey('gender')) {
-      await prefs.setString(_genderKey, data['gender']!);
-    }
-    if (data.containsKey('address')) {
-      await prefs.setString(_addressKey, data['address']!);
-    }
-    if (data.containsKey('state')) {
-      await prefs.setString(_stateKey, data['state']!);
-    }
+    await _removeLegacyValues(_profileKeys);
   }
 
   static Future<void> overwriteUserProfile(Map<String, String?> data) async {
-    final prefs = await SharedPreferences.getInstance();
-    await _writeNullable(prefs, _usernameKey, data['username']);
-    await _writeNullable(prefs, _emailKey, data['email']);
-    await _writeNullable(prefs, _phoneKey, data['phone']);
-    await _writeNullable(prefs, _birthdayKey, data['birthday']);
-    await _writeNullable(prefs, _genderKey, data['gender']);
-    await _writeNullable(prefs, _addressKey, data['address']);
-    await _writeNullable(prefs, _stateKey, data['state']);
+    for (final key in _profileKeys) {
+      await _writeNullable(key, data[_profileFieldFor(key)]);
+    }
+    await _removeLegacyValues(_profileKeys);
   }
 
   static Future<Map<String, String?>> getUserProfile() async {
-    final prefs = await SharedPreferences.getInstance();
+    await _migrateLegacyValues(_profileKeys);
     return {
-      'username': prefs.getString(_usernameKey),
-      'email': prefs.getString(_emailKey),
-      'phone': prefs.getString(_phoneKey),
-      'birthday': prefs.getString(_birthdayKey),
-      'gender': prefs.getString(_genderKey),
-      'address': prefs.getString(_addressKey),
-      'state': prefs.getString(_stateKey),
+      'username': await _storage.read(key: _secureKey(_usernameKey)),
+      'email': await _storage.read(key: _secureKey(_emailKey)),
+      'phone': await _storage.read(key: _secureKey(_phoneKey)),
+      'birthday': await _storage.read(key: _secureKey(_birthdayKey)),
+      'gender': await _storage.read(key: _secureKey(_genderKey)),
+      'address': await _storage.read(key: _secureKey(_addressKey)),
+      'state': await _storage.read(key: _secureKey(_stateKey)),
     };
   }
 
   static Future<void> clearUserProfile() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_usernameKey);
-    await prefs.remove(_emailKey);
-    await prefs.remove(_phoneKey);
-    await prefs.remove(_birthdayKey);
-    await prefs.remove(_genderKey);
-    await prefs.remove(_addressKey);
-    await prefs.remove(_stateKey);
+    for (final key in _profileKeys) {
+      await _storage.delete(key: _secureKey(key));
+    }
+    await _removeLegacyValues(_profileKeys);
   }
 
   static Future<void> clearAvatar() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_presetKey);
-    await prefs.remove(_pickedImageKey);
+    await _storage.delete(key: _secureKey(_presetKey));
+    await _storage.delete(key: _secureKey(_pickedImageKey));
+    await _removeLegacyValues({_presetKey, _pickedImageKey});
   }
 
-  static Future<void> _writeNullable(
-    SharedPreferences prefs,
-    String key,
-    String? value,
-  ) async {
+  static const Set<String> _profileKeys = {
+    _usernameKey,
+    _emailKey,
+    _phoneKey,
+    _birthdayKey,
+    _genderKey,
+    _addressKey,
+    _stateKey,
+  };
+
+  static String _secureKey(String key) => '$_securePrefix$key';
+
+  static String? _profileKeyFor(String field) => switch (field) {
+        'username' => _usernameKey,
+        'email' => _emailKey,
+        'phone' => _phoneKey,
+        'birthday' => _birthdayKey,
+        'gender' => _genderKey,
+        'address' => _addressKey,
+        'state' => _stateKey,
+        _ => null,
+      };
+
+  static String _profileFieldFor(String key) => key;
+
+  static Future<void> _writeNullable(String key, String? value) async {
     if (value == null || value.isEmpty) {
-      await prefs.remove(key);
+      await _storage.delete(key: _secureKey(key));
     } else {
-      await prefs.setString(key, value);
+      await _storage.write(key: _secureKey(key), value: value);
+    }
+  }
+
+  static Future<void> _migrateLegacyValues(Set<String> keys) async {
+    final prefs = await SharedPreferences.getInstance();
+    for (final key in keys) {
+      final legacy = prefs.getString(key);
+      if (legacy != null &&
+          await _storage.read(key: _secureKey(key)) == null) {
+        await _storage.write(key: _secureKey(key), value: legacy);
+      }
+      await prefs.remove(key);
+    }
+  }
+
+  static Future<void> _removeLegacyValues(Set<String> keys) async {
+    final prefs = await SharedPreferences.getInstance();
+    for (final key in keys) {
+      await prefs.remove(key);
     }
   }
 }

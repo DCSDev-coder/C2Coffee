@@ -22,18 +22,11 @@ class AuthService {
   static const String _tokenKey = 'device_token';
 
   Future<String?> getToken() async {
-    final token = await _storage.read(key: _tokenKey);
-    // DEV BYPASS: Return a mock token if none exists so the app doesn't block UI dev
-    return token ?? 'mock_device_token_for_development';
+    return _storage.read(key: _tokenKey);
   }
 
-  // Attempt to load the token. If it exists, call GET /v1/counter/device to verify it.
   Future<bool> verifyDevice() async {
-    // DEV BYPASS: Always return true for UI development
-    return true;
-    
-    /* Original logic commented out for UI dev
-    final token = await _storage.read(key: _tokenKey);
+    final token = await getToken();
     if (token == null) {
       return false;
     }
@@ -52,7 +45,6 @@ class AuthService {
       // Network error, you might want to handle this differently in a real app
       return false;
     }
-    */
   }
 
   // Activate the device using a one-time activation code

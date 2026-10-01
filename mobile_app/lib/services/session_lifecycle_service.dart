@@ -2,6 +2,7 @@ import 'app_session_service.dart';
 import 'auth_api_service.dart';
 import 'secure_session_service.dart';
 import 'push_notification_service.dart';
+import 'pending_top_up_service.dart';
 import 'session_restore_policy.dart';
 import 'user_service.dart';
 
@@ -95,5 +96,6 @@ class SessionLifecycleService {
     AppSessionService.instance.clear();
     await UserService.clearUserProfile();
     await UserService.clearAvatar();
+    await PendingTopUpService.instance.clear();
   }
 }

@@ -8,6 +8,12 @@ void main() {
     expect(
         isTrustedPaymentCheckoutUrl(
             'https://www.billplz-sandbox.com/bills/abc'),
+        isFalse);
+    expect(
+        isTrustedPaymentCheckoutUrl(
+          'https://www.billplz-sandbox.com/bills/abc',
+          allowSandbox: true,
+        ),
         isTrue);
     expect(isTrustedPaymentCheckoutUrl('http://www.billplz.com/bills/abc'),
         isFalse);

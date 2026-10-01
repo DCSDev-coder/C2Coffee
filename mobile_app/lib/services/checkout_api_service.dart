@@ -69,11 +69,14 @@ class CheckoutResult {
 }
 
 class CheckoutApiService {
-  CheckoutApiService._();
+  CheckoutApiService({http.Client? client, String? baseUrl})
+      : _client = client ?? http.Client(),
+        _baseUrl = baseUrl ?? ApiConfig.baseUrl;
 
-  static final CheckoutApiService instance = CheckoutApiService._();
+  static final CheckoutApiService instance = CheckoutApiService();
 
-  final http.Client _client = http.Client();
+  final http.Client _client;
+  final String _baseUrl;
 
   Future<CheckoutResult> createTokenOrder({
     required String accessToken,
@@ -96,7 +99,7 @@ class CheckoutApiService {
   }) async {
     final response = await _client
         .post(
-          Uri.parse('${ApiConfig.baseUrl}/orders/$orderId/collect'),
+          Uri.parse('$_baseUrl/orders/$orderId/collect'),
           headers: {
             'Content-Type': 'application/json',
             'Authorization': 'Bearer $accessToken',
@@ -133,7 +136,7 @@ class CheckoutApiService {
   }) async {
     final response = await _client
         .post(
-          Uri.parse('${ApiConfig.baseUrl}/orders/$orderId/receipt-email'),
+          Uri.parse('$_baseUrl/orders/$orderId/receipt-email'),
           headers: {
             'Content-Type': 'application/json',
             'Authorization': 'Bearer $accessToken',
@@ -177,7 +180,7 @@ class CheckoutApiService {
 
     final response = await _client
         .post(
-          Uri.parse('${ApiConfig.baseUrl}/orders'),
+          Uri.parse('$_baseUrl/orders'),
           headers: {
             'Content-Type': 'application/json',
             'Authorization': 'Bearer $accessToken',

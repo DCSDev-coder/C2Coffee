@@ -9,7 +9,7 @@ class SecureSessionService {
   static final SecureSessionService instance = SecureSessionService._();
 
   static const _storage = FlutterSecureStorage(
-    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+    aOptions: AndroidOptions(),
   );
 
   static const _accessTokenKey = 'access_token';
