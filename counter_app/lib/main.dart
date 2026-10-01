@@ -333,18 +333,179 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                       ),
                       Text(
                         'Tier: ${_sessionManager.currentSession!.customerSummary['loyalty_tier'] ?? 'None'}',
-                        style: const TextStyle(fontSize: 12, color: Colors.white70),
                       ),
                     ],
                   ),
                 ),
               ),
+            const SizedBox(width: 8),
           ],
         ),
+        endDrawer: Drawer(
+          width: 350,
+          child: _buildCartUI(),
+        ),
+        floatingActionButton: _sessionManager.currentSession == null
+            ? null
+            : Builder(
+                builder: (context) => FloatingActionButton(
+                  onPressed: () => Scaffold.of(context).openEndDrawer(),
+                  backgroundColor: AppColors.primary,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      const Center(
+                        child: Icon(
+                          Icons.shopping_bag_outlined,
+                          color: Colors.white,
+                          size: 28,
+                        ),
+                      ),
+                      if (_cart.isNotEmpty)
+                        Positioned(
+                          top: -4,
+                          right: -4,
+                          child: Container(
+                            width: 22,
+                            height: 22,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE5A93C),
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 1.5),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              '${_cart.values.fold(0, (sum, count) => sum + count)}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                                height: 1,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
         body: _sessionManager.currentSession == null
             ? _buildSessionStartForm()
             : _buildPOSView(),
       ),
+    );
+  }
+
+  Widget _buildCartUI() {
+    return Column(
+      children: [
+        Container(
+          padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top + 16, bottom: 16, left: 16, right: 16),
+          color: AppColors.secondary.withValues(alpha: 0.1),
+          width: double.infinity,
+          child: const Text(
+            'Your Basket',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: AppColors.primary,
+            ),
+          ),
+        ),
+        Expanded(
+          child: _cart.isEmpty
+              ? const Center(child: Text('Basket is empty'))
+              : ListView.separated(
+                  itemCount: _cart.length,
+                  separatorBuilder: (context, index) => const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final itemId = _cart.keys.elementAt(index);
+                    final count = _cart[itemId]!;
+                    final item = _menuItems.firstWhere(
+                      (i) => i['id'] == itemId,
+                      orElse: () => null,
+                    );
+                    final itemName = item != null ? item['name'] : 'Item';
+                    final price = item != null && item['price'] != null
+                        ? (item['price'] as num).toDouble()
+                        : 0.0;
+
+                    return ListTile(
+                      title: Text(
+                        itemName,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Text('RM ${(price * count).toStringAsFixed(2)}'),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.remove_circle_outline),
+                            color: AppColors.accent,
+                            onPressed: () => _removeFromCart(itemId),
+                          ),
+                          Text('$count', style: const TextStyle(fontSize: 16)),
+                          IconButton(
+                            icon: const Icon(Icons.add_circle_outline),
+                            color: AppColors.primary,
+                            onPressed: () => _addToCart(itemId),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+        ),
+        Container(
+          padding: const EdgeInsets.all(16.0),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            border: Border(top: BorderSide(color: Colors.black12)),
+          ),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Total', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text(
+                    'RM ${_getCartTotal().toStringAsFixed(2)}',
+                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.accent),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _cart.isEmpty
+                      ? null
+                      : () async {
+                          Navigator.pop(context); // close drawer
+                          await _endSession();
+                        },
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  child: const Text('Checkout', style: TextStyle(fontSize: 16)),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _endSession();
+                  },
+                  style: TextButton.styleFrom(foregroundColor: Colors.red),
+                  child: const Text('Cancel Order'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -474,213 +635,76 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
   }
 
   Widget _buildPOSView() {
-    return Row(
-      children: [
-        // Menu Area
-        Expanded(
-          flex: 2,
-          child: Container(
-            color: AppColors.surfaceLight,
-            padding: const EdgeInsets.all(16.0),
-            child: _menuItems.isEmpty
-                ? const Center(
-                    child: Text("No items on menu, or unable to fetch."),
-                  )
-                : GridView.builder(
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 3,
-                          childAspectRatio: 1.0,
-                          crossAxisSpacing: 16,
-                          mainAxisSpacing: 16,
-                        ),
-                    itemCount: _menuItems.length,
-                    itemBuilder: (context, index) {
-                      final item = _menuItems[index];
-                      final itemId = item['id'].toString();
-                      final price = item['price'] != null
-                          ? (item['price'] as num).toDouble()
-                          : 0.0;
-                      return Card(
-                        elevation: 4,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: InkWell(
-                          onTap: () => _addToCart(itemId),
-                          borderRadius: BorderRadius.circular(12),
-                          child: Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(
-                                  Icons.coffee,
-                                  size: 48,
-                                  color: AppColors.secondary,
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  item['name'] ?? 'Unknown Item',
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'RM ${price.toStringAsFixed(2)}',
-                                  style: const TextStyle(
-                                    color: AppColors.accent,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+    return Container(
+      color: AppColors.surfaceLight,
+      padding: const EdgeInsets.all(16.0),
+      child: _menuItems.isEmpty
+          ? const Center(
+              child: Text("No items on menu, or unable to fetch."),
+            )
+          : GridView.builder(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 4,
+                childAspectRatio: 1.0,
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
+              ),
+              itemCount: _menuItems.length,
+              itemBuilder: (context, index) {
+                final item = _menuItems[index];
+                final itemId = item['id'].toString();
+                final price = item['price'] != null
+                    ? (item['price'] as num).toDouble()
+                    : 0.0;
+                return Card(
+                  elevation: 4,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: InkWell(
+                    onTap: () {
+                      _addToCart(itemId);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('${item['name']} added to basket'),
+                          duration: const Duration(seconds: 1),
                         ),
                       );
                     },
-                  ),
-          ),
-        ),
-        // Cart Area
-        Container(
-          width: 350,
-          color: Colors.white,
-          child: Column(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(16.0),
-                color: AppColors.secondary.withValues(alpha: 0.1),
-                width: double.infinity,
-                child: const Text(
-                  'Current Order',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.primary,
-                  ),
-                ),
-              ),
-              Expanded(
-                child: _cart.isEmpty
-                    ? const Center(child: Text('Cart is empty'))
-                    : ListView.separated(
-                        itemCount: _cart.length,
-                        separatorBuilder: (context, index) =>
-                            const Divider(height: 1),
-                        itemBuilder: (context, index) {
-                          final itemId = _cart.keys.elementAt(index);
-                          final count = _cart[itemId]!;
-                          final item = _menuItems.firstWhere(
-                            (i) => i['id'] == itemId,
-                            orElse: () => null,
-                          );
-                          final itemName = item != null ? item['name'] : 'Item';
-                          final price = item != null && item['price'] != null
-                              ? (item['price'] as num).toDouble()
-                              : 0.0;
-
-                          return ListTile(
-                            title: Text(
-                              itemName,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            subtitle: Text(
-                              'RM ${(price * count).toStringAsFixed(2)}',
-                            ),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                IconButton(
-                                  icon: const Icon(Icons.remove_circle_outline),
-                                  color: AppColors.accent,
-                                  onPressed: () => _removeFromCart(itemId),
-                                ),
-                                Text(
-                                  '$count',
-                                  style: const TextStyle(fontSize: 16),
-                                ),
-                                IconButton(
-                                  icon: const Icon(Icons.add_circle_outline),
-                                  color: AppColors.primary,
-                                  onPressed: () => _addToCart(itemId),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-              ),
-              Container(
-                padding: const EdgeInsets.all(16.0),
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  border: Border(top: BorderSide(color: Colors.black12)),
-                ),
-                child: Column(
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Total',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
+                    borderRadius: BorderRadius.circular(12),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.coffee,
+                            size: 48,
+                            color: AppColors.secondary,
                           ),
-                        ),
-                        Text(
-                          'RM ${_getCartTotal().toStringAsFixed(2)}',
-                          style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.accent,
+                          const SizedBox(height: 8),
+                          Text(
+                            item['name'] ?? 'Unknown Item',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _cart.isEmpty
-                            ? null
-                            : () async {
-                                // Note: According to API constraints, checkout is purely local clearing
-                                // until the payment provider is fully implemented.
-                                await _endSession();
-                              },
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                        ),
-                        child: const Text(
-                          'Checkout using Cash',
-                          style: TextStyle(fontSize: 16),
-                        ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'RM ${price.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                              color: AppColors.accent,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      width: double.infinity,
-                      child: TextButton(
-                        onPressed: _endSession,
-                        style: TextButton.styleFrom(
-                          foregroundColor: Colors.red,
-                        ),
-                        child: const Text('Cancel Order'),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
+                  ),
+                );
+              },
+            ),
     );
   }
 }
