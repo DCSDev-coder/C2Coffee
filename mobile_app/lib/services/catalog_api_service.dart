@@ -333,6 +333,7 @@ class MenuCategoryGroup {
 }
 
 class HomeBanner {
+  final int id;
   final String code;
   final String title;
   final String subtitle;
@@ -340,6 +341,11 @@ class HomeBanner {
   final String mediaType;
   final int animationDurationMs;
   final String bannerType;
+  final String? partnerName;
+  final bool sponsoredLabel;
+  final String? ctaLabel;
+  final String actionType;
+  final String? actionValue;
   final String destinationType;
   final String? secondaryDestinationType;
   final String? targetValue;
@@ -351,6 +357,7 @@ class HomeBanner {
   final DateTime? createdAt;
 
   const HomeBanner({
+    required this.id,
     required this.code,
     required this.title,
     required this.subtitle,
@@ -358,6 +365,11 @@ class HomeBanner {
     required this.mediaType,
     required this.animationDurationMs,
     required this.bannerType,
+    required this.partnerName,
+    required this.sponsoredLabel,
+    required this.ctaLabel,
+    required this.actionType,
+    required this.actionValue,
     required this.destinationType,
     required this.secondaryDestinationType,
     required this.targetValue,
@@ -402,6 +414,7 @@ class HomeBanner {
 
   factory HomeBanner.fromApi(Map<String, dynamic> json) {
     return HomeBanner(
+      id: (json['id'] as num?)?.toInt() ?? 0,
       code: json['code'] as String? ?? '',
       title: json['title'] as String? ?? '',
       subtitle: json['subtitle'] as String? ?? '',
@@ -410,6 +423,11 @@ class HomeBanner {
       animationDurationMs:
           (json['animation_duration_ms'] as num?)?.toInt() ?? 0,
       bannerType: json['banner_type'] as String? ?? 'general',
+      partnerName: json['partner_name'] as String?,
+      sponsoredLabel: readCatalogInt(json['sponsored_label'], fallback: 1) == 1,
+      ctaLabel: json['cta_label'] as String?,
+      actionType: json['action_type'] as String? ?? 'none',
+      actionValue: json['action_value'] as String?,
       destinationType: json['destination_type'] as String? ?? 'menu',
       secondaryDestinationType: json['secondary_destination_type'] as String?,
       targetValue: json['target_value'] as String?,
@@ -698,6 +716,42 @@ class CatalogApiService {
             ))
         .toList();
     return categories;
+  }
+
+  Future<void> recordBannerEngagement({
+    required String accessToken,
+    required String bannerCode,
+    required String eventType,
+  }) async {
+    http.Response response = await _client
+        .post(
+          Uri.parse(
+              '${ApiConfig.baseUrl}/marketing/banners/${Uri.encodeComponent(bannerCode)}/engagement'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $accessToken',
+          },
+          body: jsonEncode({'event_type': eventType}),
+        )
+        .timeout(const Duration(seconds: 10));
+
+    if (response.statusCode == 401) {
+      final refreshed =
+          await SecureSessionService.instance.refreshTokenSilently();
+      if (refreshed != null && refreshed.isNotEmpty) {
+        response = await _client
+            .post(
+              Uri.parse(
+                  '${ApiConfig.baseUrl}/marketing/banners/${Uri.encodeComponent(bannerCode)}/engagement'),
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer $refreshed'
+              },
+              body: jsonEncode({'event_type': eventType}),
+            )
+            .timeout(const Duration(seconds: 10));
+      }
+    }
   }
 
   Future<Map<String, dynamic>> _get(

@@ -16,7 +16,7 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
 
   // Customization state
   String _bean = 'Dato Blend';
-  int _espressoShots = 1;
+  final int _espressoShots = 1;
   String _temperature = 'Cold';
   String _milk = 'Fresh Milk';
   String _sweetness = 'Regular Sweet';
@@ -30,7 +30,10 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
     super.initState();
     if (widget.item.modifierGroups.isNotEmpty) {
       for (final group in widget.item.modifierGroups) {
-        final defaultOptions = group.options.where((o) => o.isDefault).map((o) => o.id).toList();
+        final defaultOptions = group.options
+            .where((o) => o.isDefault)
+            .map((o) => o.id)
+            .toList();
         if (defaultOptions.isNotEmpty) {
           _librarySelections[group.id] = defaultOptions;
         } else if (group.options.isNotEmpty && group.minSelect > 0) {
@@ -42,10 +45,9 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
     }
   }
 
-  String get _itemName => widget.item.name;
-
   String get _itemDescription {
-    if (widget.item.source['desc'] != null && widget.item.source['desc'].toString().isNotEmpty) {
+    if (widget.item.source['desc'] != null &&
+        widget.item.source['desc'].toString().isNotEmpty) {
       return widget.item.source['desc'].toString();
     }
     return 'Specialty handcrafted drink prepared fresh to order.';
@@ -74,7 +76,11 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
     return basePrice * _quantity;
   }
 
-  Widget _buildSectionTitle(String title, {bool required = true, String subtitle = ''}) {
+  Widget _buildSectionTitle(
+    String title, {
+    bool required = true,
+    String subtitle = '',
+  }) {
     return Padding(
       padding: const EdgeInsets.only(top: 24, bottom: 12),
       child: Column(
@@ -93,7 +99,13 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
               ),
               if (required) ...[
                 const SizedBox(width: 4),
-                const Text('*', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                const Text(
+                  '*',
+                  style: TextStyle(
+                    color: Colors.red,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ],
             ],
           ),
@@ -148,9 +160,12 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
         boxShadow: [
           if (isSelected)
             BoxShadow(
-                color: (isGradient ? gradientColors!.first : color).withValues(alpha: 0.25),
-                blurRadius: 6,
-                offset: const Offset(0, 3))
+              color: (isGradient ? gradientColors!.first : color).withValues(
+                alpha: 0.25,
+              ),
+              blurRadius: 6,
+              offset: const Offset(0, 3),
+            ),
         ],
       ),
       child: Column(
@@ -178,18 +193,17 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
                 fontFamily: 'Afacad',
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
-                color: isSelected ? textColor.withValues(alpha: 0.9) : Colors.grey.shade400,
+                color: isSelected
+                    ? textColor.withValues(alpha: 0.9)
+                    : Colors.grey.shade400,
               ),
             ),
-          ]
+          ],
         ],
       ),
     );
 
-    return GestureDetector(
-      onTap: () => onChanged(value),
-      child: cardChild,
-    );
+    return GestureDetector(onTap: () => onChanged(value), child: cardChild);
   }
 
   Widget _buildLibraryGroup(CounterModifierGroup group) {
@@ -201,16 +215,21 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
           spacing: 12,
           runSpacing: 12,
           children: group.options.map((option) {
-            final isSelected = _librarySelections[group.id]?.contains(option.id) ?? false;
-            final subtitle = option.priceDeltaRm == '0.00' ? '+ 0.00' : '+ \${option.priceDeltaRm}';
-            
+            final isSelected =
+                _librarySelections[group.id]?.contains(option.id) ?? false;
+            final subtitle = option.priceDeltaRm == '0.00'
+                ? '+ 0.00'
+                : '+ \${option.priceDeltaRm}';
+
             return GestureDetector(
               onTap: () {
                 setState(() {
                   if (group.selectionType == 'single') {
                     _librarySelections[group.id] = [option.id];
                   } else {
-                    final current = List<int>.from(_librarySelections[group.id] ?? []);
+                    final current = List<int>.from(
+                      _librarySelections[group.id] ?? [],
+                    );
                     if (isSelected) {
                       current.remove(option.id);
                     } else if (current.length < group.maxSelect) {
@@ -229,15 +248,18 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
                   color: isSelected ? AppColors.primary : Colors.white,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: isSelected ? AppColors.primary : Colors.grey.shade300,
+                    color: isSelected
+                        ? AppColors.primary
+                        : Colors.grey.shade300,
                     width: 1.5,
                   ),
                   boxShadow: [
                     if (isSelected)
                       BoxShadow(
-                          color: AppColors.primary.withValues(alpha: 0.25),
-                          blurRadius: 6,
-                          offset: const Offset(0, 3))
+                        color: AppColors.primary.withValues(alpha: 0.25),
+                        blurRadius: 6,
+                        offset: const Offset(0, 3),
+                      ),
                   ],
                 ),
                 child: Column(
@@ -263,7 +285,9 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
                         fontFamily: 'Afacad',
                         fontSize: 11,
                         fontWeight: FontWeight.bold,
-                        color: isSelected ? Colors.white.withValues(alpha: 0.9) : Colors.grey.shade400,
+                        color: isSelected
+                            ? Colors.white.withValues(alpha: 0.9)
+                            : Colors.grey.shade400,
                       ),
                     ),
                   ],
@@ -301,11 +325,12 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
               height: 200, // Smaller image
               child: Center(
                 child: widget.item.imageUrl != null
-                    ? Image.network(
-                        widget.item.imageUrl!,
-                        fit: BoxFit.contain,
-                      )
-                    : const Icon(Icons.coffee, size: 80, color: AppColors.secondary),
+                    ? Image.network(widget.item.imageUrl!, fit: BoxFit.contain)
+                    : const Icon(
+                        Icons.coffee,
+                        size: 80,
+                        color: AppColors.secondary,
+                      ),
               ),
             ),
             Container(
@@ -364,7 +389,10 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
                           color: Colors.transparent,
                           textColor: Colors.white,
                           isGradient: true,
-                          gradientColors: [const Color(0xFFE91E63), const Color(0xFF009624)],
+                          gradientColors: [
+                            const Color(0xFFE91E63),
+                            const Color(0xFF009624),
+                          ],
                         ),
                       ],
                     ),
@@ -525,10 +553,11 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
                   const Text(
                     'Total',
                     style: TextStyle(
-                        fontFamily: 'Recoleta',
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87),
+                      fontFamily: 'Recoleta',
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
                   ),
                   Text(
                     'RM ${totalPrice.toStringAsFixed(2)}',
@@ -553,7 +582,10 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
                       children: [
                         IconButton(
                           icon: const Icon(Icons.remove, size: 18),
-                          constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                          constraints: const BoxConstraints(
+                            minWidth: 36,
+                            minHeight: 36,
+                          ),
                           padding: EdgeInsets.zero,
                           color: Colors.black54,
                           onPressed: () {
@@ -565,14 +597,18 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
                           child: Text(
                             _quantity.toString(),
                             style: const TextStyle(
-                                fontFamily: 'Recoleta',
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold),
+                              fontFamily: 'Recoleta',
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                         IconButton(
                           icon: const Icon(Icons.add, size: 18),
-                          constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                          constraints: const BoxConstraints(
+                            minWidth: 36,
+                            minHeight: 36,
+                          ),
                           padding: EdgeInsets.zero,
                           color: Colors.black54,
                           onPressed: () {
@@ -589,10 +625,16 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
                         final customization = {
                           'quantity': _quantity,
                           'bean': widget.item.allowChoiceOfBeans ? _bean : null,
-                          'temperature': widget.item.allowTemperature ? _temperature : null,
+                          'temperature': widget.item.allowTemperature
+                              ? _temperature
+                              : null,
                           'milk': widget.item.allowChoiceOfMilk ? _milk : null,
-                          'sweetness': widget.item.allowChoiceOfSweetness ? _sweetness : null,
-                          'iceLevel': widget.item.allowIceLevel ? _iceLevel : null,
+                          'sweetness': widget.item.allowChoiceOfSweetness
+                              ? _sweetness
+                              : null,
+                          'iceLevel': widget.item.allowIceLevel
+                              ? _iceLevel
+                              : null,
                           'librarySelections': _librarySelections,
                         };
                         Navigator.of(context).pop(customization);

@@ -4,11 +4,13 @@ import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../services/app_session_service.dart';
 import '../services/catalog_api_service.dart';
 import '../services/catalog_presentation.dart';
 import '../services/user_service.dart';
+import '../services/secure_session_service.dart';
 import '../utils/app_colors.dart';
 import '../widgets/catalog_product_image.dart';
 import '../widgets/custom_bottom_nav.dart';
@@ -56,12 +58,23 @@ class _HomePageState extends State<HomePage> {
   final bool _showTokenPrice = true;
   Timer? _carouselTimer;
   int _currentBannerIndex = 0;
+  final Set<String> _recordedPartnerImpressions = <String>{};
 
   static const _carouselInterval = Duration(seconds: 4);
 
   List<HomeBanner> get _sortedHomeBanners {
-    final banners = _session.homeBanners.toList();
+    final banners = _session.homeBanners
+        .where((banner) => banner.bannerType != 'partner')
+        .toList();
     banners.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    return banners;
+  }
+
+  List<HomeBanner> get _partnerBanners {
+    final banners = _session.homeBanners
+        .where((banner) => banner.bannerType == 'partner')
+        .toList()
+      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
     return banners;
   }
 
@@ -387,6 +400,10 @@ class _HomePageState extends State<HomePage> {
                             ),
                             const SizedBox(height: 24),
                           ],
+                          if (_partnerBanners.isNotEmpty) ...[
+                            _buildPartnerSpotlightSection(_partnerBanners),
+                            const SizedBox(height: 24),
+                          ],
                           _buildAdvertiseWithUs(),
                         ],
                       ],
@@ -694,6 +711,10 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _handleBannerTap(HomeBanner banner) {
+    if (banner.bannerType == 'partner') {
+      unawaited(_openPartnerCampaign(banner));
+      return;
+    }
     if (banner.bannerType == 'event') {
       if (banner.isEventLive) {
         CustomBottomNav.switchTab(context, const MenuPage());
@@ -743,6 +764,58 @@ class _HomePageState extends State<HomePage> {
         CustomBottomNav.switchTab(context, const MenuPage());
         break;
     }
+  }
+
+  Future<void> _recordPartnerEngagement(
+      HomeBanner banner, String eventType) async {
+    try {
+      final token = await SecureSessionService.instance.getValidAccessToken();
+      if (token == null || token.isEmpty) return;
+      await CatalogApiService.instance.recordBannerEngagement(
+        accessToken: token,
+        bannerCode: banner.code,
+        eventType: eventType,
+      );
+    } catch (_) {
+      // Analytics must never block customer navigation.
+    }
+  }
+
+  Future<void> _openPartnerCampaign(HomeBanner banner) async {
+    unawaited(_recordPartnerEngagement(banner, 'click'));
+    final value = banner.actionValue?.trim() ?? '';
+    if (banner.actionType == 'none' || value.isEmpty) return;
+
+    final uri = banner.actionType == 'email'
+        ? Uri(scheme: 'mailto', path: value, queryParameters: {
+            'subject': 'C2 Coffee Partner Spotlight: ${banner.title}',
+          })
+        : Uri.tryParse(value);
+    if (uri == null ||
+        (banner.actionType == 'external_url' && uri.scheme != 'https')) {
+      return;
+    }
+
+    if (banner.actionType == 'external_url' && mounted) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Open partner website?'),
+          content:
+              Text('You are leaving the C2 Coffee app to visit ${uri.host}.'),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Cancel')),
+            FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text('Continue')),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+    }
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
   Map<String, dynamic>? _findLegacyMenuItemByCode(String? code) {
@@ -915,6 +988,116 @@ class _HomePageState extends State<HomePage> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildPartnerSpotlightSection(List<HomeBanner> banners) {
+    for (final banner in banners) {
+      if (_recordedPartnerImpressions.add(banner.code)) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          unawaited(_recordPartnerEngagement(banner, 'impression'));
+        });
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Text(
+            'Partner Spotlight',
+            style: TextStyle(
+              fontFamily: 'Recoleta',
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: AppColors.brandText,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 230,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: banners.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 14),
+            itemBuilder: (context, index) {
+              final banner = banners[index];
+              return GestureDetector(
+                onTap: () => _handleBannerTap(banner),
+                child: SizedBox(
+                  width: MediaQuery.sizeOf(context).width.clamp(280, 420) - 40,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(22),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        _buildBannerImage(banner.imageSource),
+                        const DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [Colors.transparent, Color(0xB3000000)],
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          left: 18,
+                          right: 18,
+                          bottom: 16,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (banner.sponsoredLabel)
+                                const Text('SPONSORED',
+                                    style: TextStyle(
+                                        fontFamily: 'Afacad',
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.white70,
+                                        letterSpacing: 1.2)),
+                              if ((banner.partnerName ?? '').trim().isNotEmpty)
+                                Text(banner.partnerName!,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                        fontFamily: 'Afacad',
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.white)),
+                              Text(banner.title,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                      fontFamily: 'Recoleta',
+                                      fontSize: 21,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white)),
+                              if (banner.actionType != 'none')
+                                Text(
+                                    banner.ctaLabel?.trim().isNotEmpty == true
+                                        ? banner.ctaLabel!
+                                        : 'Learn more',
+                                    style: const TextStyle(
+                                        fontFamily: 'Afacad',
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.white)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 

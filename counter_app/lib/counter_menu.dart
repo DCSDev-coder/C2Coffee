@@ -47,9 +47,11 @@ class CounterModifierGroup {
 
   factory CounterModifierGroup.fromApi(Map<String, dynamic> json) {
     final options = (json['options'] as List? ?? const [])
-        .map((option) => CounterModifierOption.fromApi(
-              Map<String, dynamic>.from(option as Map),
-            ))
+        .map(
+          (option) => CounterModifierOption.fromApi(
+            Map<String, dynamic>.from(option as Map),
+          ),
+        )
         .toList();
 
     return CounterModifierGroup(
@@ -100,7 +102,10 @@ class CounterMenuItem {
     required this.source,
   });
 
-  factory CounterMenuItem.fromApi(Map<String, dynamic> json, {String? categoryName}) {
+  factory CounterMenuItem.fromApi(
+    Map<String, dynamic> json, {
+    String? categoryName,
+  }) {
     final id = json['id'];
     final rawPrice = json['base_price_rm'] ?? json['price'];
     final price = rawPrice is num
@@ -120,16 +125,24 @@ class CounterMenuItem {
           ? json['image_url'].toString().trim()
           : null,
       isAvailable: json['is_available'] != false,
-      categoryName: categoryName ?? json['product_kind_name']?.toString() ?? json['subcategory_name']?.toString(),
+      categoryName:
+          categoryName ??
+          json['product_kind_name']?.toString() ??
+          json['subcategory_name']?.toString(),
       isHandcraftedDrink: json['is_handcrafted_drink'] as bool? ?? false,
       allowChoiceOfBeans: json['allow_choice_of_beans'] as bool? ?? false,
       allowEspressoShot: json['allow_espresso_shot'] as bool? ?? false,
       allowChoiceOfMilk: json['allow_choice_of_milk'] as bool? ?? false,
-      allowChoiceOfSweetness: json['allow_choice_of_sweetness'] as bool? ?? false,
+      allowChoiceOfSweetness:
+          json['allow_choice_of_sweetness'] as bool? ?? false,
       allowIceLevel: json['allow_ice_level'] as bool? ?? false,
       allowTemperature: json['allow_temperature'] as bool? ?? false,
       modifierGroups: (json['modifier_groups'] as List? ?? const [])
-          .map((group) => CounterModifierGroup.fromApi(Map<String, dynamic>.from(group as Map)))
+          .map(
+            (group) => CounterModifierGroup.fromApi(
+              Map<String, dynamic>.from(group as Map),
+            ),
+          )
           .toList(),
       source: Map<String, dynamic>.from(json),
     );
@@ -142,9 +155,13 @@ List<CounterMenuItem> parseCounterMenu(Object? decoded) {
     for (final rawItem in decoded) {
       if (rawItem is! Map) continue;
       try {
-        final item = CounterMenuItem.fromApi(Map<String, dynamic>.from(rawItem));
+        final item = CounterMenuItem.fromApi(
+          Map<String, dynamic>.from(rawItem),
+        );
         if (item.isAvailable) parsed.add(item);
-      } on FormatException {}
+      } on FormatException {
+        // Ignore malformed products while keeping the remaining menu usable.
+      }
     }
   } else if (decoded is Map) {
     final root = Map<String, dynamic>.from(decoded);
@@ -152,9 +169,13 @@ List<CounterMenuItem> parseCounterMenu(Object? decoded) {
       for (final rawItem in root['items'] as List) {
         if (rawItem is! Map) continue;
         try {
-          final item = CounterMenuItem.fromApi(Map<String, dynamic>.from(rawItem));
+          final item = CounterMenuItem.fromApi(
+            Map<String, dynamic>.from(rawItem),
+          );
           if (item.isAvailable) parsed.add(item);
-        } on FormatException {}
+        } on FormatException {
+          // Ignore malformed products while keeping the remaining menu usable.
+        }
       }
     }
     if (root['categories'] is List) {
@@ -166,9 +187,14 @@ List<CounterMenuItem> parseCounterMenu(Object? decoded) {
           for (final rawItem in items) {
             if (rawItem is! Map) continue;
             try {
-              final item = CounterMenuItem.fromApi(Map<String, dynamic>.from(rawItem), categoryName: categoryName);
+              final item = CounterMenuItem.fromApi(
+                Map<String, dynamic>.from(rawItem),
+                categoryName: categoryName,
+              );
               if (item.isAvailable) parsed.add(item);
-            } on FormatException {}
+            } on FormatException {
+              // Ignore malformed products while keeping the remaining menu usable.
+            }
           }
         }
       }

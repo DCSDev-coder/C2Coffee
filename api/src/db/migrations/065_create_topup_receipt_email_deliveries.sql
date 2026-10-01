@@ -1,0 +1,21 @@
+-- A verified Billplz callback must credit the wallet even if SMTP is unavailable.
+
+CREATE TABLE IF NOT EXISTS topup_receipt_email_deliveries (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  topup_id BIGINT UNSIGNED NOT NULL,
+  recipient_email VARCHAR(255) NOT NULL,
+  payment_method VARCHAR(64) NOT NULL,
+  provider_bill_id VARCHAR(255) NOT NULL,
+  status ENUM('queued', 'sending', 'sent', 'failed') NOT NULL DEFAULT 'queued',
+  attempt_count INT UNSIGNED NOT NULL DEFAULT 0,
+  provider_message_id VARCHAR(255) NULL,
+  last_error_code VARCHAR(100) NULL,
+  queued_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  sent_at DATETIME NULL,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_topup_receipt_email_topup (topup_id),
+  KEY idx_topup_receipt_email_status (status, updated_at),
+  CONSTRAINT fk_topup_receipt_email_topup
+    FOREIGN KEY (topup_id) REFERENCES token_topups(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

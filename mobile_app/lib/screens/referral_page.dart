@@ -100,7 +100,7 @@ class _ReferralPageState extends State<ReferralPage> {
       if (!mounted) return;
       AppNotification.showSuccess(
         context,
-        'Referral code claimed successfully!',
+        'Referral code claimed. Your friend reward is now available!',
       );
     } catch (error) {
       if (!mounted) return;
@@ -605,7 +605,7 @@ class _ReferralPageState extends State<ReferralPage> {
           const SizedBox(height: 6),
           Text(
             _snapshot?.qualificationDays != null
-                ? 'Enter a friend\'s code, then collect your first order within ${_snapshot!.qualificationDays} days to unlock the reward.'
+                ? 'Enter a friend\'s code to receive your reward now, then collect your first order within ${_snapshot!.qualificationDays} days so your friend receives theirs.'
                 : 'Enter your friend\'s referral code to link accounts.',
             style: TextStyle(
               fontFamily: 'Afacad',
@@ -711,7 +711,7 @@ class _ReferralPageState extends State<ReferralPage> {
         const SizedBox(height: 16),
         Text(
           _snapshot?.activeProgramName != null
-              ? '${_snapshot!.activeProgramName}: collect your first order to unlock the referral reward.'
+              ? '${_snapshot!.activeProgramName}: claim a code for your reward; the referrer reward unlocks after collection.'
               : 'Referral rewards are set by C2 Coffee.',
           style: TextStyle(
             fontFamily: 'Afacad',
