@@ -6,6 +6,7 @@ import { requireAdminActionConfirmation } from '../../admin/action-confirmation.
 import { mysqlPool } from '../../db/mysql.js';
 import { processOrderLoyalty } from '../../services/loyalty.js';
 import { awardReferralForCollectedOrder } from '../../services/referrals.js';
+import { issueRefundReplacementVoucher } from '../../services/voucher-replacement.js';
 import { deliverPushToUser } from '../../services/push-delivery.js';
 import { ApiError } from '../errors.js';
 import { createUserNotification } from '../notifications.js';
@@ -820,6 +821,12 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           `UPDATE orders SET status = 'refunded', updated_at = UTC_TIMESTAMP() WHERE id = :orderId`,
           { orderId: refund.order_id }
         );
+        const replacementVoucherIssued = await issueRefundReplacementVoucher(connection, {
+          orderId: refund.order_id,
+          userId: refund.user_id,
+          issueCaseRef: `refund:${refundRef}`,
+          reason: `Replacement voucher for refunded order ${refund.order_ref}`
+        });
         await connection.execute(
           `
             INSERT INTO order_status_history (
@@ -840,7 +847,9 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           userId: refund.user_id,
           type: 'refund_completed',
           title: 'Refund approved',
-        body: 'The applicable tokens have been returned to your C2 Coffee account.'
+        body: replacementVoucherIssued
+          ? 'Your tokens were returned and an equivalent voucher was added back to your account.'
+          : 'The applicable tokens have been returned to your C2 Coffee account.'
         });
       }
 

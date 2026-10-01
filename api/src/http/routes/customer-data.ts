@@ -17,7 +17,8 @@ import {
 } from '../../lib/kuala-lumpur-time.js';
 import { getActiveLoyaltyTiers, getTierByCode, loadLoyaltyTiers, type LoyaltyTierConfig } from '../../services/loyalty-tiers.js';
 import { deliverQueuedOrderReceiptEmail, queueOrderReceiptEmail } from '../../services/order-receipt-email.js';
-import type { ReferralProgramSnapshot } from '../../services/referrals.js';
+import { issueFriendRewardAtClaim, type ReferralProgramSnapshot } from '../../services/referrals.js';
+import { issueRefundReplacementVoucher } from '../../services/voucher-replacement.js';
 
 const listQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional().default(20)
@@ -568,7 +569,7 @@ async function syncAutoVisibleVoucherTemplates(
     const scope = parseVoucherScope(template.eligible_scope_json);
     const scheduleMode = getVoucherScheduleMode(scope);
     const schedule = getVoucherSchedule(scope);
-    const issueCaseRef = recurringIssueCaseRef(scheduleMode, currentDateParts);
+    const issueCaseRef = recurringIssueCaseRef(scheduleMode, currentDateParts) ?? `campaign:${template.id}`;
 
     if (!isScheduleActiveNow(schedule, currentBirthdayMonthDay)) {
       continue;
@@ -957,6 +958,7 @@ export async function registerCustomerDataRoutes(
             status,
             issued_by_type,
             issued_reason,
+            issue_case_ref,
             issued_at,
             expires_at
           )
@@ -966,6 +968,7 @@ export async function registerCustomerDataRoutes(
             'active',
             'system',
             'Welcome Gift Voucher',
+            CONCAT('welcome:', :templateId),
             UTC_TIMESTAMP(),
             DATE_ADD(UTC_TIMESTAMP(), INTERVAL :days DAY)
           )
@@ -1166,6 +1169,12 @@ export async function registerCustomerDataRoutes(
         { orderId: order.id }
       );
       const refundRef = `RFD-${new Date().toISOString().slice(0, 10).replaceAll('-', '')}-${crypto.randomUUID().slice(0, 6).toUpperCase()}`;
+      const replacementVoucherIssued = await issueRefundReplacementVoucher(connection, {
+        orderId: order.id,
+        userId: request.auth.userId,
+        issueCaseRef: `refund:${refundRef}`,
+        reason: `Replacement voucher for cancelled order ${order.order_ref}`
+      });
       await connection.execute(
         `
           INSERT INTO refunds (
@@ -1200,7 +1209,9 @@ export async function registerCustomerDataRoutes(
         userId: request.auth.userId,
         type: 'order_cancelled',
         title: 'Order cancelled',
-        body: 'The applicable tokens have been returned to your C2 Coffee account.'
+        body: replacementVoucherIssued
+          ? 'Your tokens were returned and an equivalent voucher was added back to your account.'
+          : 'The applicable tokens have been returned to your C2 Coffee account.'
       });
       await connection.commit();
       committed = true;
@@ -1208,7 +1219,8 @@ export async function registerCustomerDataRoutes(
       return {
         status: 'cancelled',
         returned_tokens: tokenAmount,
-        token_balance: balanceAfter
+        token_balance: balanceAfter,
+        replacement_voucher_issued: replacementVoucherIssued
       };
     } catch (error) {
       if (!committed) await connection.rollback();
@@ -1601,7 +1613,11 @@ export async function registerCustomerDataRoutes(
     const userId = request.auth.userId;
     const cleanCode = code.trim().toUpperCase();
 
-    const [programRows] = await mysqlPool.query<Array<RowDataPacket & {
+    const connection = await getUtcConnection();
+    let committed = false;
+    try {
+      await connection.beginTransaction();
+    const [programRows] = await connection.query<Array<RowDataPacket & {
       id: number; tenant_id: number; name: string; qualification_days: number; monthly_referrer_limit: number;
       friend_reward_type: 'voucher' | 'token'; friend_voucher_template_id: number | null; friend_token_amount: number | null;
       referrer_reward_type: 'voucher' | 'token'; referrer_voucher_template_id: number | null; referrer_token_amount: number | null;
@@ -1625,7 +1641,7 @@ export async function registerCustomerDataRoutes(
       );
     }
 
-    const [pastOrders] = await mysqlPool.query<Array<RowDataPacket & { count: number }>>(
+    const [pastOrders] = await connection.query<Array<RowDataPacket & { count: number }>>(
       `
         SELECT COUNT(*) AS count
         FROM orders
@@ -1643,7 +1659,7 @@ export async function registerCustomerDataRoutes(
       );
     }
 
-    const [existingClaim] = await mysqlPool.query<Array<RowDataPacket & { id: number }>>(
+    const [existingClaim] = await connection.query<Array<RowDataPacket & { id: number }>>(
       `
         SELECT id
         FROM referrals
@@ -1661,7 +1677,7 @@ export async function registerCustomerDataRoutes(
       );
     }
 
-    const [referrerRows] = await mysqlPool.query<Array<RowDataPacket & { id: number }>>(
+    const [referrerRows] = await connection.query<Array<RowDataPacket & { id: number }>>(
       `
         SELECT urc.user_id AS id
         FROM user_referral_codes urc
@@ -1703,7 +1719,7 @@ export async function registerCustomerDataRoutes(
       referrerReward: { type: program.referrer_reward_type, voucherTemplateId: program.referrer_voucher_template_id, tokenAmount: program.referrer_token_amount }
     };
 
-    await mysqlPool.execute(
+    const [referralResult] = await connection.execute<ResultSetHeader>(
       `
         INSERT INTO referrals (
           referral_program_id,
@@ -1736,19 +1752,42 @@ export async function registerCustomerDataRoutes(
       }
     );
 
-    await createUserNotification(mysqlPool, {
+    const friendReward = await issueFriendRewardAtClaim(connection, {
+      id: referralResult.insertId,
+      referrer_user_id: referrer.id,
+      referred_user_id: userId,
+      tenant_id: program.tenant_id
+    }, snapshot);
+
+    await createUserNotification(connection, {
       userId,
       type: 'referral_claimed',
       title: 'Referral code applied',
-      body: 'Your referral code has been saved. Collect your first order to unlock your friend\'s referral reward.',
+      body: friendReward.issued
+        ? 'Your referral code was applied and your friend reward is ready.'
+        : 'Your referral code was applied. Your reward is being reviewed.',
       data: {
         referral_code: cleanCode
       }
     });
 
+    await connection.commit();
+    committed = true;
+
     return {
       success: true,
-      message: 'Referral code claimed successfully!'
+      message: friendReward.issued
+        ? 'Referral code claimed and reward issued successfully!'
+        : 'Referral code claimed. Reward issuance is pending review.'
     };
+    } catch (error) {
+      if (!committed) await connection.rollback();
+      if ((error as { code?: string }).code === 'ER_DUP_ENTRY') {
+        throw new ApiError(409, 'referral_already_claimed', 'You have already claimed a referral code.');
+      }
+      throw error;
+    } finally {
+      connection.release();
+    }
   });
 }

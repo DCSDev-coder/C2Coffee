@@ -62,7 +62,7 @@ class TermsOfUsePage extends StatelessWidget {
             body:
                 '6.1 Every qualifying handcrafted beverage collected records 1 Cup toward your lifetime membership progression, unlocking higher tiers (Kawan -> Dilamun -> Ketagih -> Legend) and deeper token pricing discounts.\n\n'
                 '6.2 Vouchers (including Welcome Drink Vouchers, Tier Progression Rewards, Referral Drink Rewards, and Promotional Campaign Vouchers) are subject to explicit validity periods, single-use checkout rules, primary non-stacking conditions, and specified drink category eligibility.\n\n'
-                '6.3 Referral rewards are credited only after the new user collects their first qualifying order. Any automated abuse, multi-account farming, or fraudulent referral attempts will result in immediate forfeiture of rewards and account suspension.',
+                '6.3 An eligible new customer may receive the configured friend reward after claiming a referral code. The referrer reward is credited only after the new customer collects their first qualifying order. Any automated abuse, multi-account farming, or fraudulent referral attempts will result in immediate forfeiture of rewards and account suspension.',
           ),
           _buildSection(
             number: '7',

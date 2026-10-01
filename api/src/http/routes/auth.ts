@@ -937,6 +937,7 @@ async function findOrCreateUserForPhone(
         status,
         issued_by_type,
         issued_reason,
+        issue_case_ref,
         issued_at,
         expires_at
       )
@@ -946,6 +947,7 @@ async function findOrCreateUserForPhone(
         'active',
         'system',
         'Welcome drink voucher upon registration',
+        CONCAT('welcome:', vt.id),
         UTC_TIMESTAMP(),
         DATE_ADD(UTC_TIMESTAMP(), INTERVAL vt.expires_in_days DAY)
       FROM voucher_templates vt

@@ -299,12 +299,17 @@ export async function registerTopUpRoutes(app: FastifyInstance): Promise<void> {
       const account = accounts[0];
       if (!account) throw new ApiError(409, 'token_account_not_found', 'Your token account was not found.');
 
+      await connection.execute(
+        `UPDATE token_wallet_cap_reservations
+         SET status = 'released', release_reason = 'checkout_abandoned', released_at = UTC_TIMESTAMP()
+         WHERE user_id = :userId AND status = 'active' AND expires_at <= UTC_TIMESTAMP()`,
+        { userId: request.auth.userId }
+      );
+
       const [pendingRows] = await connection.execute<Array<RowDataPacket & { pending_tokens: number }>>(
         `SELECT COALESCE(SUM(token_amount), 0) AS pending_tokens
-         FROM token_topups
-         WHERE user_id = :userId
-           AND status = 'pending_payment'
-           AND (expires_at IS NULL OR expires_at > UTC_TIMESTAMP())
+         FROM token_wallet_cap_reservations
+         WHERE user_id = :userId AND status = 'active'
          FOR UPDATE`,
         { userId: request.auth.userId }
       );
@@ -331,6 +336,12 @@ export async function registerTopUpRoutes(app: FastifyInstance): Promise<void> {
         { userId: request.auth.userId, packageId: topUpPackage.id, topupRef, tokenAmount, rmAmount: rmAmount.toFixed(2) }
       );
       topupId = topupResult.insertId;
+
+      await connection.execute(
+        `INSERT INTO token_wallet_cap_reservations (user_id, topup_id, token_amount, status, expires_at, created_at)
+         VALUES (:userId, :topupId, :tokenAmount, 'active', DATE_ADD(UTC_TIMESTAMP(), INTERVAL 30 MINUTE), UTC_TIMESTAMP())`,
+        { userId: request.auth.userId, topupId, tokenAmount }
+      );
 
       await connection.execute(
         `INSERT INTO payments (topup_id, provider, payment_method, provider_payment_ref, amount_rm, status, created_at)
@@ -376,6 +387,12 @@ export async function registerTopUpRoutes(app: FastifyInstance): Promise<void> {
         `UPDATE payments SET status = 'failed', failed_at = UTC_TIMESTAMP() WHERE topup_id = :topupId AND status = 'pending'`,
         { topupId }
       );
+      await mysqlPool.execute(
+        `UPDATE token_wallet_cap_reservations
+         SET status = 'released', release_reason = 'bill_creation_failed', released_at = UTC_TIMESTAMP()
+         WHERE topup_id = :topupId AND status = 'active'`,
+        { topupId }
+      );
       request.log.error({ err: error, topupRef }, 'Billplz bill creation request failed');
       throw new ApiError(502, 'topup_gateway_error', 'Unable to start the payment. Please try again.');
     }
@@ -387,6 +404,12 @@ export async function registerTopUpRoutes(app: FastifyInstance): Promise<void> {
         !isTrustedBillplzCheckoutUrl(billUrl, billplzBaseUrl())) {
       await mysqlPool.execute(`UPDATE token_topups SET status = 'failed' WHERE id = :topupId AND status = 'pending_payment'`, { topupId });
       await mysqlPool.execute(`UPDATE payments SET status = 'failed', failed_at = UTC_TIMESTAMP() WHERE topup_id = :topupId AND status = 'pending'`, { topupId });
+      await mysqlPool.execute(
+        `UPDATE token_wallet_cap_reservations
+         SET status = 'released', release_reason = 'bill_creation_rejected', released_at = UTC_TIMESTAMP()
+         WHERE topup_id = :topupId AND status = 'active'`,
+        { topupId }
+      );
       request.log.error(
         { topupRef, status: billResponse.status, billError: bill?.error ?? null },
         'Billplz rejected bill creation'
@@ -396,6 +419,11 @@ export async function registerTopUpRoutes(app: FastifyInstance): Promise<void> {
 
     await mysqlPool.execute(
       `UPDATE payments SET provider_bill_id = :billId WHERE topup_id = :topupId AND provider = 'billplz' AND status = 'pending'`,
+      { billId, topupId }
+    );
+    await mysqlPool.execute(
+      `UPDATE token_wallet_cap_reservations SET provider_bill_id = :billId
+       WHERE topup_id = :topupId AND status = 'active'`,
       { billId, topupId }
     );
 
@@ -492,26 +520,70 @@ export async function registerTopUpRoutes(app: FastifyInstance): Promise<void> {
         return { received: true, duplicate: true };
       }
 
-      const [accounts] = await connection.execute<Array<RowDataPacket & { balance_available: number }>>(
-        `SELECT balance_available FROM token_accounts WHERE user_id = :userId LIMIT 1 FOR UPDATE`,
+      const [accounts] = await connection.execute<Array<RowDataPacket & { balance_available: number; balance_cap: number }>>(
+        `SELECT balance_available, balance_cap FROM token_accounts WHERE user_id = :userId LIMIT 1 FOR UPDATE`,
         { userId: payment.user_id }
       );
       const account = accounts[0];
       if (!account) throw new ApiError(409, 'token_account_not_found', 'Token account was not found.');
+      const [reservationRows] = await connection.execute<Array<RowDataPacket & {
+        id: number;
+        token_amount: number;
+        status: 'active' | 'consumed' | 'released' | 'needs_review';
+      }>>(
+        `SELECT id, token_amount, status FROM token_wallet_cap_reservations
+         WHERE topup_id = :topupId LIMIT 1 FOR UPDATE`,
+        { topupId: payment.topup_id }
+      );
+      const reservation = reservationRows[0];
+      if (!reservation || !['active', 'released'].includes(reservation.status) || Number(reservation.token_amount) !== Number(payment.token_amount)) {
+        if (reservation && reservation.status === 'consumed') {
+          await connection.commit();
+          committed = true;
+          return { received: true, duplicate: true };
+        }
+        throw new ApiError(409, 'wallet_capacity_reservation_unavailable', 'This paid top-up requires staff reconciliation.');
+      }
+      const [otherReservations] = await connection.execute<Array<RowDataPacket & { reserved_tokens: number }>>(
+        `SELECT COALESCE(SUM(token_amount), 0) AS reserved_tokens
+         FROM token_wallet_cap_reservations
+         WHERE user_id = :userId AND status = 'active' AND id != :reservationId
+           AND expires_at > UTC_TIMESTAMP()
+         FOR UPDATE`,
+        { userId: payment.user_id, reservationId: reservation.id }
+      );
+      const reservedTokens = Number(otherReservations[0]?.reserved_tokens ?? 0);
+      if (Number(account.balance_available) + reservedTokens + Number(payment.token_amount) > Number(account.balance_cap)) {
+        await connection.execute(
+          `UPDATE token_wallet_cap_reservations
+           SET status = 'needs_review', release_reason = 'wallet_cap_conflict'
+           WHERE id = :reservationId`,
+          { reservationId: reservation.id }
+        );
+        await connection.execute(
+          `INSERT INTO payment_events (payment_id, provider_event_id, event_type, event_payload_hash, processed_at, process_result, created_at)
+           VALUES (:paymentId, :eventRef, 'bill_paid', :payloadHash, UTC_TIMESTAMP(), 'needs_review', UTC_TIMESTAMP())`,
+          { paymentId: payment.payment_id, eventRef, payloadHash: eventPayloadHash }
+        );
+        await connection.commit();
+        committed = true;
+        return { received: true, credited: false, needs_review: true };
+      }
       const balanceAfter = Number(account.balance_available) + Number(payment.token_amount);
 
       await connection.execute(`UPDATE token_accounts SET balance_available = :balanceAfter, updated_at = UTC_TIMESTAMP() WHERE user_id = :userId`, { balanceAfter, userId: payment.user_id });
       await connection.execute(`UPDATE token_topups SET status = 'paid', paid_at = UTC_TIMESTAMP() WHERE id = :topupId AND status = 'pending_payment'`, { topupId: payment.topup_id });
       await connection.execute(`UPDATE payments SET status = 'paid', paid_at = UTC_TIMESTAMP() WHERE id = :paymentId AND status = 'pending'`, { paymentId: payment.payment_id });
-      const [lotResult] = await connection.execute<ResultSetHeader>(
-        `INSERT INTO token_lots (user_id, source_topup_id, original_amount, remaining_amount, expires_at, status, created_at)
-         VALUES (:userId, :topupId, :amount, :amount, DATE_ADD(UTC_TIMESTAMP(), INTERVAL 365 DAY), 'active', UTC_TIMESTAMP())`,
-        { userId: payment.user_id, topupId: payment.topup_id, amount: payment.token_amount }
-      );
       await connection.execute(
         `INSERT INTO token_ledger (user_id, token_lot_id, direction, source_type, source_id, amount, balance_after, remarks, created_at)
-         VALUES (:userId, :lotId, 'credit', 'topup_paid', :topupId, :amount, :balanceAfter, :remarks, UTC_TIMESTAMP())`,
-        { userId: payment.user_id, lotId: lotResult.insertId, topupId: payment.topup_id, amount: payment.token_amount, balanceAfter, remarks: `Billplz top-up ${payment.topup_ref}` }
+         VALUES (:userId, NULL, 'credit', 'topup_paid', :topupId, :amount, :balanceAfter, :remarks, UTC_TIMESTAMP())`,
+        { userId: payment.user_id, topupId: payment.topup_id, amount: payment.token_amount, balanceAfter, remarks: `Billplz top-up ${payment.topup_ref}` }
+      );
+      await connection.execute(
+        `UPDATE token_wallet_cap_reservations
+         SET status = 'consumed', consumed_at = UTC_TIMESTAMP()
+         WHERE id = :reservationId AND status = 'active'`,
+        { reservationId: reservation.id }
       );
       await connection.execute(
         `INSERT INTO payment_events (payment_id, provider_event_id, event_type, event_payload_hash, processed_at, process_result, created_at)

@@ -1,4 +1,4 @@
-import { isTerminalAdminSessionFailure } from './adminSessionPolicy';
+import { isTerminalAdminSessionFailure } from "./adminSessionPolicy";
 
 const ADMIN_REFRESH_PATH = "/v1/admin/auth/refresh";
 const ADMIN_API_BASE_URL = (
@@ -93,8 +93,10 @@ async function refreshAdminSession() {
       if (!response.ok) {
         const code =
           body?.error?.code ||
-          (response.status === 401 ? "invalid_refresh_token" : "unexpected_error");
-        const error = buildAdminError('', code, response.status);
+          (response.status === 401
+            ? "invalid_refresh_token"
+            : "unexpected_error");
+        const error = buildAdminError("", code, response.status);
         const terminal = isTerminalAdminSessionFailure(error);
         const message = terminal
           ? "Your admin session has expired. Please sign in again."
@@ -155,7 +157,9 @@ function formatAdminErrorMessage(body, response) {
     case "printer_not_ready":
       return "The receipt printer is not ready. Please check its connector.";
     case "validation_error":
-      return body?.error?.message || "Please review the information and try again.";
+      return (
+        body?.error?.message || "Please review the information and try again."
+      );
     case "voucher_employee_only":
       return "This voucher is for employees only. In Customers, choose the customer menu, select Set employee, tick Employee account, then save with your admin password.";
     case "voucher_limit_per_user_reached":
@@ -241,34 +245,54 @@ export async function updateAdminMenuNutrition(itemId, baseCaloriesKcal) {
 }
 
 export async function loadAdminNutritionIngredients() {
-  return adminRequest('/v1/admin/nutrition/ingredients');
+  return adminRequest("/v1/admin/nutrition/ingredients");
 }
 
 export async function createAdminNutritionIngredient(payload) {
-  return adminRequest('/v1/admin/nutrition/ingredients', { method: 'POST', body: JSON.stringify(payload) });
+  return adminRequest("/v1/admin/nutrition/ingredients", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function updateAdminNutritionIngredient(ingredientId, payload) {
-  return adminRequest(`/v1/admin/nutrition/ingredients/${encodeURIComponent(ingredientId)}`, { method: 'PATCH', body: JSON.stringify(payload) });
+  return adminRequest(
+    `/v1/admin/nutrition/ingredients/${encodeURIComponent(ingredientId)}`,
+    { method: "PATCH", body: JSON.stringify(payload) },
+  );
 }
 
 export async function loadAdminRecipeNutrition(itemId) {
-  return adminRequest(`/v1/admin/menu/items/${encodeURIComponent(itemId)}/recipe-nutrition`);
+  return adminRequest(
+    `/v1/admin/menu/items/${encodeURIComponent(itemId)}/recipe-nutrition`,
+  );
 }
 
 export async function saveAdminRecipeNutrition(itemId, payload) {
-  return adminRequest(`/v1/admin/menu/items/${encodeURIComponent(itemId)}/recipe-nutrition`, { method: 'PUT', body: JSON.stringify(payload) });
+  return adminRequest(
+    `/v1/admin/menu/items/${encodeURIComponent(itemId)}/recipe-nutrition`,
+    { method: "PUT", body: JSON.stringify(payload) },
+  );
 }
 
 export async function saveAdminOptionNutritionOverrides(itemId, overrides) {
-  return adminRequest(`/v1/admin/menu/items/${encodeURIComponent(itemId)}/option-nutrition`, { method: 'PUT', body: JSON.stringify({ overrides }) });
+  return adminRequest(
+    `/v1/admin/menu/items/${encodeURIComponent(itemId)}/option-nutrition`,
+    { method: "PUT", body: JSON.stringify({ overrides }) },
+  );
 }
 
-export async function applyAdminOptionNutritionToDrinks(optionId, calorieDeltaKcal) {
-  return adminRequest(`/v1/admin/menu/options/${encodeURIComponent(optionId)}/nutrition/apply-to-drinks`, {
-    method: 'POST',
-    body: JSON.stringify({ calorie_delta_kcal: calorieDeltaKcal })
-  });
+export async function applyAdminOptionNutritionToDrinks(
+  optionId,
+  calorieDeltaKcal,
+) {
+  return adminRequest(
+    `/v1/admin/menu/options/${encodeURIComponent(optionId)}/nutrition/apply-to-drinks`,
+    {
+      method: "POST",
+      body: JSON.stringify({ calorie_delta_kcal: calorieDeltaKcal }),
+    },
+  );
 }
 
 export async function loadAdminHomeFeatured() {
@@ -283,17 +307,22 @@ export async function saveAdminHomeFeatured(categoryId, itemIds) {
 }
 
 export async function saveAdminHomeFeaturedGroups(groups) {
-  return adminRequest('/v1/admin/home-featured/groups', {
-    method: 'PUT',
-    body: JSON.stringify({ groups })
+  return adminRequest("/v1/admin/home-featured/groups", {
+    method: "PUT",
+    body: JSON.stringify({ groups }),
   });
 }
 
-export async function loadAdminProductReport(selectedDate = null, storeId = null) {
+export async function loadAdminProductReport(
+  selectedDate = null,
+  storeId = null,
+) {
   const params = new URLSearchParams();
-  if (selectedDate) params.set('selected_date', selectedDate.toISOString());
-  if (storeId) params.set('store_id', String(storeId));
-  return adminRequest(`/v1/admin/reports/products${params.size ? `?${params}` : ''}`);
+  if (selectedDate) params.set("selected_date", selectedDate.toISOString());
+  if (storeId) params.set("store_id", String(storeId));
+  return adminRequest(
+    `/v1/admin/reports/products${params.size ? `?${params}` : ""}`,
+  );
 }
 
 export async function loadAdminCustomers({ limit = 500 } = {}) {
@@ -302,9 +331,9 @@ export async function loadAdminCustomers({ limit = 500 } = {}) {
 
 export async function loadAdminOrders(params = {}) {
   const query = new URLSearchParams();
-  if (params.limit) query.set('limit', String(params.limit));
-  if (params.storeId) query.set('store_id', String(params.storeId));
-  return adminRequest(`/v1/admin/orders${query.size ? `?${query}` : ''}`);
+  if (params.limit) query.set("limit", String(params.limit));
+  if (params.storeId) query.set("store_id", String(params.storeId));
+  return adminRequest(`/v1/admin/orders${query.size ? `?${query}` : ""}`);
 }
 
 export async function loadAdminDashboard({
@@ -320,16 +349,16 @@ export async function loadAdminDashboard({
   if (endDate) {
     searchParams.set("end_date", endDate);
   }
-  if (storeId) searchParams.set('store_id', String(storeId));
+  if (storeId) searchParams.set("store_id", String(storeId));
   const query = searchParams.toString() ? `?${searchParams.toString()}` : "";
   return adminRequest(`/v1/admin/dashboard${query}`);
 }
 
 export async function loadAdminRefunds(params = {}) {
   const query = new URLSearchParams();
-  if (params.limit) query.set('limit', String(params.limit));
-  if (params.storeId) query.set('store_id', String(params.storeId));
-  return adminRequest(`/v1/admin/refunds${query.size ? `?${query}` : ''}`);
+  if (params.limit) query.set("limit", String(params.limit));
+  if (params.storeId) query.set("store_id", String(params.storeId));
+  return adminRequest(`/v1/admin/refunds${query.size ? `?${query}` : ""}`);
 }
 
 export async function createAdminRefund(orderId, reason, confirmationPassword) {
@@ -361,7 +390,9 @@ export async function reviewAdminRefund(
 }
 
 export async function loadAdminVouchers({ includeTierRewards = false } = {}) {
-  return adminRequest(`/v1/admin/vouchers${includeTierRewards ? '?include_tier_rewards=true' : ''}`);
+  return adminRequest(
+    `/v1/admin/vouchers${includeTierRewards ? "?include_tier_rewards=true" : ""}`,
+  );
 }
 
 export async function loadAdminAuditLogs(params = {}) {
@@ -454,7 +485,9 @@ export async function adjustAdminCustomerTokens(customerId, payload) {
 }
 
 export async function loadAdminFinanceOverview({ storeId = null } = {}) {
-  return adminRequest(`/v1/admin/finance/overview${storeId ? `?store_id=${encodeURIComponent(storeId)}` : ''}`);
+  return adminRequest(
+    `/v1/admin/finance/overview${storeId ? `?store_id=${encodeURIComponent(storeId)}` : ""}`,
+  );
 }
 
 export async function loadAdminTierConfigs() {
@@ -575,10 +608,12 @@ export async function loadAdminOperationalSetup() {
 
 export async function loadAdminAttendance({ from, to, baristaId } = {}) {
   const query = new URLSearchParams();
-  if (from) query.set('from', from);
-  if (to) query.set('to', to);
-  if (baristaId) query.set('barista_id', baristaId);
-  return adminRequest(`/v1/admin/operations/attendance${query.size ? `?${query}` : ''}`);
+  if (from) query.set("from", from);
+  if (to) query.set("to", to);
+  if (baristaId) query.set("barista_id", baristaId);
+  return adminRequest(
+    `/v1/admin/operations/attendance${query.size ? `?${query}` : ""}`,
+  );
 }
 
 export async function loadAdminStore() {
@@ -593,44 +628,59 @@ export async function updateAdminStoreName(name) {
 }
 
 export async function loadAdminStores() {
-  return adminRequest('/v1/admin/stores');
+  return adminRequest("/v1/admin/stores");
 }
 
 export async function createAdminStore(payload) {
-  return adminRequest('/v1/admin/stores', { method: 'POST', body: JSON.stringify(payload) });
+  return adminRequest("/v1/admin/stores", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function updateAdminStore(storeId, payload) {
-  return adminRequest(`/v1/admin/stores/${storeId}`, { method: 'PATCH', body: JSON.stringify(payload) });
+  return adminRequest(`/v1/admin/stores/${storeId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function loadAdminCounterDevices() {
-  return adminRequest('/v1/admin/counter-devices');
+  return adminRequest("/v1/admin/counter-devices");
 }
 
 export async function createAdminCounterDevice(payload) {
-  return adminRequest('/v1/admin/counter-devices', {
-    method: 'POST',
+  return adminRequest("/v1/admin/counter-devices", {
+    method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
 export async function updateAdminCounterDevice(deviceId, payload) {
-  return adminRequest(`/v1/admin/counter-devices/${encodeURIComponent(deviceId)}`, {
-    method: 'PATCH',
-    body: JSON.stringify(payload),
-  });
+  return adminRequest(
+    `/v1/admin/counter-devices/${encodeURIComponent(deviceId)}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    },
+  );
 }
 
-export async function reissueAdminCounterDeviceActivation(deviceId, confirmationPassword) {
-  return adminRequest(`/v1/admin/counter-devices/${encodeURIComponent(deviceId)}/rotate-token`, {
-    method: 'POST',
-    body: JSON.stringify({ confirmation_password: confirmationPassword }),
-  });
+export async function reissueAdminCounterDeviceActivation(
+  deviceId,
+  confirmationPassword,
+) {
+  return adminRequest(
+    `/v1/admin/counter-devices/${encodeURIComponent(deviceId)}/rotate-token`,
+    {
+      method: "POST",
+      body: JSON.stringify({ confirmation_password: confirmationPassword }),
+    },
+  );
 }
 
 export async function loadPlatformTenants() {
-  return adminRequest('/v1/admin/platform/tenants');
+  return adminRequest("/v1/admin/platform/tenants");
 }
 
 export async function loadAdminAppearance() {
@@ -690,7 +740,10 @@ export async function uploadAdminMenuImage(file) {
   });
 }
 
-export async function uploadAdminMarketingPoster(file) {
+export async function uploadAdminMarketingPoster(
+  file,
+  posterKind = "standard",
+) {
   const dataUrl = await readFileAsDataUrl(file);
   return adminRequest("/v1/admin/marketing/uploads", {
     method: "POST",
@@ -698,6 +751,7 @@ export async function uploadAdminMarketingPoster(file) {
       file_name: file.name,
       mime_type: file.type || "image/png",
       data_url: dataUrl,
+      poster_kind: posterKind,
     }),
   });
 }

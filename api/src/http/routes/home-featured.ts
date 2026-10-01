@@ -27,6 +27,32 @@ const groupsSchema = z.object({ groups: z.array(groupSchema).max(30) });
 
 type LegacyHomeSection = 'featured_drinks' | 'lifestyle_picks';
 
+function parseIdArray(value: unknown): number[] {
+  if (Array.isArray(value)) {
+    return value
+      .map((id) => Number(id))
+      .filter((id) => Number.isInteger(id) && id > 0);
+  }
+
+  const text = Buffer.isBuffer(value)
+    ? value.toString('utf8')
+    : typeof value === 'string'
+      ? value.trim()
+      : '';
+  if (!text) return [];
+
+  try {
+    return parseIdArray(JSON.parse(text));
+  } catch {
+    // Older rows may contain comma-separated IDs instead of valid JSON.
+    return text
+      .replace(/^[\[({]|[\])}]$/g, '')
+      .split(',')
+      .map((id) => Number(id.trim()))
+      .filter((id) => Number.isInteger(id) && id > 0);
+  }
+}
+
 function legacySectionCondition(section: LegacyHomeSection): string {
   return section === 'featured_drinks'
     ? "(LOWER(COALESCE(c.product_kind_code, '')) = 'drink' OR LOWER(c.code) IN ('coffee', 'non_coffee'))"
@@ -91,8 +117,8 @@ async function loadCategoryItemIds(storeId: number, categoryId: number): Promise
 }
 
 async function loadGroupItemIds(storeId: number, group: RowDataPacket): Promise<number[]> {
-  const categoryIds = JSON.parse(group.category_ids_json || '[]') as number[];
-  const pinnedIds = JSON.parse(group.item_ids_json || '[]') as number[];
+  const categoryIds = parseIdArray(group.category_ids_json);
+  const pinnedIds = parseIdArray(group.item_ids_json);
   const limit = Number(group.display_limit);
   const result: number[] = [];
   if (group.selection_mode !== 'automatic' && pinnedIds.length > 0) {
@@ -147,7 +173,7 @@ export async function registerHomeFeaturedRoutes(app: FastifyInstance): Promise<
       group_id: Number(group.id),
       title: group.title,
       selection_mode: group.selection_mode,
-      category_ids: JSON.parse(group.category_ids_json || '[]'),
+      category_ids: parseIdArray(group.category_ids_json),
       item_ids: await loadGroupItemIds(storeId, group)
     })));
     return {
@@ -170,7 +196,7 @@ export async function registerHomeFeaturedRoutes(app: FastifyInstance): Promise<
     const [groups] = await mysqlPool.query<RowDataPacket[]>('SELECT * FROM home_featured_groups ORDER BY sort_order, id');
     return {
       groups: groups.map((group) => ({ id: Number(group.id), title: group.title, selection_mode: group.selection_mode,
-        category_ids: JSON.parse(group.category_ids_json || '[]'), item_ids: JSON.parse(group.item_ids_json || '[]'),
+        category_ids: parseIdArray(group.category_ids_json), item_ids: parseIdArray(group.item_ids_json),
         display_limit: Number(group.display_limit), sort_order: Number(group.sort_order), is_active: group.is_active === 1 })),
       placements: rows.map((row) => ({ categoryId: Number(row.category_id), itemId: Number(row.menu_item_id), sortOrder: Number(row.sort_order) }))
     };

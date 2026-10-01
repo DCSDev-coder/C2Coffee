@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { createPortal } from 'react-dom';
+import React, { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   ChevronDown,
   Bell,
@@ -7,9 +7,9 @@ import {
   RefreshCw,
   Search,
   Trash2,
-  X
-} from 'lucide-react';
-import Pagination from './Pagination';
+  X,
+} from "lucide-react";
+import Pagination from "./Pagination";
 import {
   createAdminMarketingBanner,
   deleteAdminMarketingBanner,
@@ -19,95 +19,110 @@ import {
   loadAdminVouchers,
   notifyAdminMarketingBanner,
   updateAdminMarketingBanner,
-  uploadAdminMarketingPoster
-} from '../lib/adminApi';
+  uploadAdminMarketingPoster,
+} from "../lib/adminApi";
 
 const ITEMS_PER_PAGE = 8;
 
 const DEFAULT_FORM = {
-  title: '',
-  subtitle: '',
-  imageSource: '',
-  mediaType: 'image',
+  title: "",
+  subtitle: "",
+  imageSource: "",
+  mediaType: "image",
   animationDurationMs: 0,
-  bannerType: 'general',
-  destinationType: 'menu',
-  targetValue: '',
-  startsAt: '',
-  endsAt: '',
-  placement: 'both',
+  bannerType: "general",
+  partnerName: "",
+  sponsoredLabel: true,
+  ctaLabel: "",
+  actionType: "none",
+  actionValue: "",
+  destinationType: "menu",
+  targetValue: "",
+  startsAt: "",
+  endsAt: "",
+  placement: "both",
   floatingPriority: false,
-  isActive: true
+  isActive: true,
 };
 
 const bannerTypeOptions = [
-  { value: 'general', label: 'General poster' },
-  { value: 'voucher', label: 'Voucher poster' },
-  { value: 'event', label: 'Event poster' },
-  { value: 'new_item', label: 'New item poster' },
-  { value: 'partner', label: 'Partner Spotlight' }
+  { value: "general", label: "General poster" },
+  { value: "voucher", label: "Voucher poster" },
+  { value: "event", label: "Event poster" },
+  { value: "new_item", label: "New item poster" },
+  { value: "partner", label: "Partner Spotlight" },
 ];
 
 const destinationLabelMap = {
-  reward_section: 'Reward section',
-  menu: 'Menu',
-  calendar: 'Calendar'
+  reward_section: "Reward section",
+  menu: "Menu",
+  calendar: "Calendar",
 };
 
+const partnerActionOptions = [
+  { value: "none", label: "Display only" },
+  { value: "external_url", label: "Open HTTPS website" },
+  { value: "email", label: "Open email inquiry" },
+];
+
 const statusClassMap = {
-  Active: 'bg-[#D1FADF] text-[#039855]',
-  Live: 'bg-[#D1FADF] text-[#039855]',
-  Scheduled: 'bg-[#FEF0C7] text-[#B54708]',
-  Ended: 'bg-[#FEE4E2] text-[#D92D20]',
-  Inactive: 'bg-[#E5E7EB] text-[#4B5563]'
+  Active: "bg-[#D1FADF] text-[#039855]",
+  Live: "bg-[#D1FADF] text-[#039855]",
+  Scheduled: "bg-[#FEF0C7] text-[#B54708]",
+  Ended: "bg-[#FEE4E2] text-[#D92D20]",
+  Inactive: "bg-[#E5E7EB] text-[#4B5563]",
 };
 
 function resolveImageUrl(imageSource) {
-  const value = String(imageSource ?? '').trim();
+  const value = String(imageSource ?? "").trim();
   if (!value) {
-    return '/c2_logo.png';
+    return "/c2_logo.png";
   }
 
-  if (/^data:/i.test(value) || /^blob:/i.test(value) || /^https?:\/\//i.test(value)) {
+  if (
+    /^data:/i.test(value) ||
+    /^blob:/i.test(value) ||
+    /^https?:\/\//i.test(value)
+  ) {
     return value;
   }
 
-  const normalized = value.startsWith('/') ? value : `/${value}`;
+  const normalized = value.startsWith("/") ? value : `/${value}`;
   return `${getAdminApiBaseUrl()}${normalized}`;
 }
 
 function formatDateTimeLabel(value) {
   if (!value) {
-    return '';
+    return "";
   }
 
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
-    return '';
+    return "";
   }
 
-  return new Intl.DateTimeFormat('en-MY', {
-    dateStyle: 'medium',
-    timeStyle: 'short'
+  return new Intl.DateTimeFormat("en-MY", {
+    dateStyle: "medium",
+    timeStyle: "short",
   }).format(date);
 }
 
 function toDateTimeLocalValue(value) {
   if (!value) {
-    return '';
+    return "";
   }
 
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
-    return '';
+    return "";
   }
 
-  const pad = (input) => String(input).padStart(2, '0');
-  return [
-    date.getFullYear(),
-    pad(date.getMonth() + 1),
-    pad(date.getDate())
-  ].join('-') + `T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  const pad = (input) => String(input).padStart(2, "0");
+  return (
+    [date.getFullYear(), pad(date.getMonth() + 1), pad(date.getDate())].join(
+      "-",
+    ) + `T${pad(date.getHours())}:${pad(date.getMinutes())}`
+  );
 }
 
 function toIsoOrNull(value) {
@@ -120,14 +135,16 @@ function toIsoOrNull(value) {
 }
 
 function flattenMenuItems(menuResponse) {
-  const categories = Array.isArray(menuResponse?.categories) ? menuResponse.categories : [];
+  const categories = Array.isArray(menuResponse?.categories)
+    ? menuResponse.categories
+    : [];
   return categories.flatMap((category) => {
     const items = Array.isArray(category.items) ? category.items : [];
     return items.map((item) => ({
       code: item.code,
       name: item.name,
       categoryName: category.name,
-      isActive: item.is_active ?? item.isAvailable ?? true
+      isActive: item.is_active ?? item.isAvailable ?? true,
     }));
   });
 }
@@ -138,65 +155,72 @@ function makeEmptyForm() {
 
 function bannerStatusLabel(banner) {
   if (!banner.isActive) {
-    return 'Inactive';
+    return "Inactive";
   }
 
-  if (banner.bannerType !== 'event' || !banner.startsAt || !banner.endsAt) {
-    return 'Active';
+  if (!banner.startsAt && !banner.endsAt) {
+    return "Active";
   }
 
   const now = Date.now();
-  const startsAt = new Date(banner.startsAt).getTime();
-  const endsAt = new Date(banner.endsAt).getTime();
+  const startsAt = banner.startsAt
+    ? new Date(banner.startsAt).getTime()
+    : Number.NaN;
+  const endsAt = banner.endsAt ? new Date(banner.endsAt).getTime() : Number.NaN;
 
-  if (Number.isNaN(startsAt) || Number.isNaN(endsAt)) {
-    return 'Active';
+  if (!Number.isNaN(startsAt) && now < startsAt) {
+    return "Scheduled";
   }
-  if (now < startsAt) {
-    return 'Scheduled';
+  if (!Number.isNaN(endsAt) && now > endsAt) {
+    return "Ended";
   }
-  if (now > endsAt) {
-    return 'Ended';
-  }
-  return 'Live';
+  return "Live";
 }
 
 function routeLabel(banner) {
-  if (banner.bannerType === 'event') {
-    return 'Calendar before start · Menu during event';
+  if (banner.bannerType === "event") {
+    return "Calendar before start · Menu during event";
   }
-  if (banner.bannerType === 'voucher') {
-    return banner.destinationType === 'reward_section' ? 'Reward section' : 'Menu';
+  if (banner.bannerType === "voucher") {
+    return banner.destinationType === "reward_section"
+      ? "Reward section"
+      : "Menu";
   }
-  if (banner.bannerType === 'new_item') {
-    return 'Menu · specific item';
+  if (banner.bannerType === "new_item") {
+    return "Menu · specific item";
   }
-  return destinationLabelMap[banner.destinationType] || 'Menu';
+  if (banner.bannerType === "partner") {
+    return (
+      partnerActionOptions.find((option) => option.value === banner.actionType)
+        ?.label || "Display only"
+    );
+  }
+  return destinationLabelMap[banner.destinationType] || "Menu";
 }
 
 const Marketing = () => {
   const [banners, setBanners] = useState([]);
   const [menuItems, setMenuItems] = useState([]);
   const [voucherTemplates, setVoucherTemplates] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedType, setSelectedType] = useState('');
-  const [selectedPlacement, setSelectedPlacement] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedType, setSelectedType] = useState("");
+  const [selectedPlacement, setSelectedPlacement] = useState("");
+  const [selectedStatus, setSelectedStatus] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [notifyingBannerId, setNotifyingBannerId] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingBanner, setEditingBanner] = useState(null);
   const [selectedImageFile, setSelectedImageFile] = useState(null);
-  const [selectedImagePreview, setSelectedImagePreview] = useState('');
+  const [selectedImagePreview, setSelectedImagePreview] = useState("");
   const [formData, setFormData] = useState(makeEmptyForm());
 
   useEffect(() => {
     if (!selectedImageFile) {
-      setSelectedImagePreview('');
+      setSelectedImagePreview("");
       return undefined;
     }
 
@@ -210,19 +234,23 @@ const Marketing = () => {
 
   const loadPageData = async () => {
     try {
-      setError('');
+      setError("");
       setLoading(true);
-      const [bannerResponse, menuResponse, voucherResponse] = await Promise.all([
-        loadAdminMarketingBanners(),
-        loadAdminMenu(),
-        loadAdminVouchers()
-      ]);
+      const [bannerResponse, menuResponse, voucherResponse] = await Promise.all(
+        [loadAdminMarketingBanners(), loadAdminMenu(), loadAdminVouchers()],
+      );
 
-      setBanners(Array.isArray(bannerResponse?.banners) ? bannerResponse.banners : []);
+      setBanners(
+        Array.isArray(bannerResponse?.banners) ? bannerResponse.banners : [],
+      );
       setMenuItems(flattenMenuItems(menuResponse));
-      setVoucherTemplates(Array.isArray(voucherResponse?.vouchers) ? voucherResponse.vouchers : []);
+      setVoucherTemplates(
+        Array.isArray(voucherResponse?.vouchers)
+          ? voucherResponse.vouchers
+          : [],
+      );
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to load posters.');
+      setError(err instanceof Error ? err.message : "Unable to load posters.");
     } finally {
       setLoading(false);
     }
@@ -235,15 +263,34 @@ const Marketing = () => {
   const filteredBanners = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
     return banners.filter((banner) => {
-      const matchesSearch = !q
-        || String(banner.title ?? '').toLowerCase().includes(q)
-        || String(banner.subtitle ?? '').toLowerCase().includes(q)
-        || String(banner.targetLabel ?? '').toLowerCase().includes(q)
-        || String(banner.bannerType ?? '').toLowerCase().includes(q);
+      const matchesSearch =
+        !q ||
+        String(banner.title ?? "")
+          .toLowerCase()
+          .includes(q) ||
+        String(banner.subtitle ?? "")
+          .toLowerCase()
+          .includes(q) ||
+        String(banner.partnerName ?? "")
+          .toLowerCase()
+          .includes(q) ||
+        String(banner.targetLabel ?? "")
+          .toLowerCase()
+          .includes(q) ||
+        String(banner.bannerType ?? "")
+          .toLowerCase()
+          .includes(q);
 
-      const matchesType = selectedType ? banner.bannerType === selectedType : true;
-      const matchesPlacement = selectedPlacement ? banner.placement === selectedPlacement : true;
-      const matchesStatus = selectedStatus ? bannerStatusLabel(banner).toLowerCase() === selectedStatus.toLowerCase() : true;
+      const matchesType = selectedType
+        ? banner.bannerType === selectedType
+        : true;
+      const matchesPlacement = selectedPlacement
+        ? banner.placement === selectedPlacement
+        : true;
+      const matchesStatus = selectedStatus
+        ? bannerStatusLabel(banner).toLowerCase() ===
+          selectedStatus.toLowerCase()
+        : true;
 
       return matchesSearch && matchesType && matchesPlacement && matchesStatus;
     });
@@ -252,19 +299,35 @@ const Marketing = () => {
   const summaryCards = useMemo(() => {
     const activeCount = banners.filter((banner) => {
       const status = bannerStatusLabel(banner);
-      return status === 'Active' || status === 'Live';
+      return status === "Active" || status === "Live";
     }).length;
-    const scheduledCount = banners.filter((banner) => bannerStatusLabel(banner) === 'Scheduled').length;
+    const scheduledCount = banners.filter(
+      (banner) => bannerStatusLabel(banner) === "Scheduled",
+    ).length;
 
     return [
-      { label: 'Total posters', value: banners.length, note: 'Configured in Marketing' },
-      { label: 'Active now', value: activeCount, note: 'Visible or live to users' },
-      { label: 'Scheduled', value: scheduledCount, note: 'Future event posters' }
+      {
+        label: "Total posters",
+        value: banners.length,
+        note: "Configured in Marketing",
+      },
+      {
+        label: "Active now",
+        value: activeCount,
+        note: "Visible or live to users",
+      },
+      { label: "Scheduled", value: scheduledCount, note: "Future campaigns" },
     ];
   }, [banners]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredBanners.length / ITEMS_PER_PAGE));
-  const currentRows = filteredBanners.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredBanners.length / ITEMS_PER_PAGE),
+  );
+  const currentRows = filteredBanners.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE,
+  );
 
   const openCreateModal = () => {
     setEditingBanner(null);
@@ -276,19 +339,27 @@ const Marketing = () => {
   const openEditModal = (banner) => {
     setEditingBanner(banner);
     setFormData({
-      title: banner.title || '',
-      subtitle: banner.subtitle || '',
-      imageSource: banner.imageSource || '',
-      mediaType: banner.mediaType || 'image',
+      title: banner.title || "",
+      subtitle: banner.subtitle || "",
+      imageSource: banner.imageSource || "",
+      mediaType: banner.mediaType || "image",
       animationDurationMs: Number(banner.animationDurationMs || 0),
-      bannerType: banner.bannerType === 'event' || banner.destinationType === 'calendar' ? 'event' : (banner.bannerType || 'general'),
-      destinationType: banner.destinationType || 'menu',
-      targetValue: banner.targetValue || '',
+      bannerType:
+        banner.bannerType === "event" || banner.destinationType === "calendar"
+          ? "event"
+          : banner.bannerType || "general",
+      partnerName: banner.partnerName || "",
+      sponsoredLabel: banner.sponsoredLabel !== false,
+      ctaLabel: banner.ctaLabel || "",
+      actionType: banner.actionType || "none",
+      actionValue: banner.actionValue || "",
+      destinationType: banner.destinationType || "menu",
+      targetValue: banner.targetValue || "",
       startsAt: toDateTimeLocalValue(banner.startsAt),
       endsAt: toDateTimeLocalValue(banner.endsAt),
-      placement: banner.placement || 'both',
+      placement: banner.placement || "both",
       floatingPriority: Boolean(banner.floatingPriority),
-      isActive: Boolean(banner.isActive)
+      isActive: Boolean(banner.isActive),
     });
     setSelectedImageFile(null);
     setIsModalOpen(true);
@@ -306,19 +377,31 @@ const Marketing = () => {
       const next = {
         ...current,
         bannerType,
-        targetValue: '',
-        startsAt: bannerType === 'event' ? current.startsAt : '',
-        endsAt: bannerType === 'event' ? current.endsAt : ''
+        targetValue: "",
+        startsAt: ["event", "partner"].includes(bannerType)
+          ? current.startsAt
+          : "",
+        endsAt: ["event", "partner"].includes(bannerType) ? current.endsAt : "",
       };
 
-      if (bannerType === 'event') {
-        next.destinationType = 'calendar';
-      } else if (bannerType === 'new_item') {
-        next.destinationType = 'menu';
-      } else if (bannerType === 'voucher' && !['reward_section', 'menu'].includes(current.destinationType)) {
-        next.destinationType = 'reward_section';
-      } else if (bannerType === 'general' && !['reward_section', 'menu'].includes(current.destinationType)) {
-        next.destinationType = 'menu';
+      if (bannerType === "event") {
+        next.destinationType = "calendar";
+      } else if (bannerType === "new_item") {
+        next.destinationType = "menu";
+      } else if (
+        bannerType === "voucher" &&
+        !["reward_section", "menu"].includes(current.destinationType)
+      ) {
+        next.destinationType = "reward_section";
+      } else if (
+        bannerType === "general" &&
+        !["reward_section", "menu"].includes(current.destinationType)
+      ) {
+        next.destinationType = "menu";
+      } else if (bannerType === "partner") {
+        next.destinationType = "menu";
+        next.placement = "home";
+        next.floatingPriority = false;
       }
 
       return next;
@@ -328,34 +411,61 @@ const Marketing = () => {
   const submitBanner = async (event) => {
     event.preventDefault();
 
-    const needsTarget = formData.bannerType === 'voucher' || formData.bannerType === 'new_item';
-    const needsSchedule = formData.bannerType === 'event' || formData.destinationType === 'calendar';
-    const resolvedBannerType = formData.destinationType === 'calendar' ? 'event' : formData.bannerType;
-    const resolvedDestinationType = resolvedBannerType === 'event' ? 'calendar' : formData.destinationType;
-    const bannerTarget = String(formData.targetValue ?? '').trim();
+    const needsTarget =
+      formData.bannerType === "voucher" || formData.bannerType === "new_item";
+    const needsSchedule =
+      formData.bannerType === "event" ||
+      formData.destinationType === "calendar";
+    const resolvedBannerType =
+      formData.destinationType === "calendar" ? "event" : formData.bannerType;
+    const resolvedDestinationType =
+      resolvedBannerType === "event" ? "calendar" : formData.destinationType;
+    const bannerTarget = String(formData.targetValue ?? "").trim();
 
     if (needsTarget && !bannerTarget) {
-      setError('Select a target voucher or menu item.');
+      setError("Select a target voucher or menu item.");
       return;
     }
     if (needsSchedule && (!formData.startsAt || !formData.endsAt)) {
-      setError('Event posters need both start and end date.');
+      setError("Event posters need both start and end date.");
       return;
     }
-    if (selectedImageFile && !['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(selectedImageFile.type)) {
-      setError('Upload a PNG, JPG, WEBP, or GIF poster. Video files are not supported.');
+    if (formData.bannerType === "partner" && !formData.partnerName.trim()) {
+      setError("Enter the partner or business name.");
+      return;
+    }
+    if (
+      formData.bannerType === "partner" &&
+      formData.actionType !== "none" &&
+      !formData.actionValue.trim()
+    ) {
+      setError("Enter the website or email address for the partner action.");
+      return;
+    }
+    if (
+      selectedImageFile &&
+      !["image/png", "image/jpeg", "image/webp", "image/gif"].includes(
+        selectedImageFile.type,
+      )
+    ) {
+      setError(
+        "Upload a PNG, JPG, WEBP, or GIF poster. Video files are not supported.",
+      );
       return;
     }
 
     try {
       setSaving(true);
-      setError('');
+      setError("");
 
-      let imageSource = String(formData.imageSource ?? '').trim();
+      let imageSource = String(formData.imageSource ?? "").trim();
       let mediaType = formData.mediaType;
       let animationDurationMs = formData.animationDurationMs;
       if (selectedImageFile) {
-        const uploadResponse = await uploadAdminMarketingPoster(selectedImageFile);
+        const uploadResponse = await uploadAdminMarketingPoster(
+          selectedImageFile,
+          formData.bannerType === "partner" ? "partner" : "standard",
+        );
         imageSource = uploadResponse.image_url;
         mediaType = uploadResponse.media_type;
         animationDurationMs = Number(uploadResponse.animation_duration_ms || 0);
@@ -368,13 +478,35 @@ const Marketing = () => {
         mediaType,
         animationDurationMs,
         bannerType: resolvedBannerType,
+        partnerName:
+          resolvedBannerType === "partner" ? formData.partnerName.trim() : null,
+        sponsoredLabel:
+          resolvedBannerType === "partner"
+            ? Boolean(formData.sponsoredLabel)
+            : false,
+        ctaLabel:
+          resolvedBannerType === "partner" && formData.actionType !== "none"
+            ? formData.ctaLabel.trim()
+            : null,
+        actionType:
+          resolvedBannerType === "partner" ? formData.actionType : "none",
+        actionValue:
+          resolvedBannerType === "partner" && formData.actionType !== "none"
+            ? formData.actionValue.trim()
+            : null,
         destinationType: resolvedDestinationType,
         targetValue: needsTarget ? bannerTarget : null,
-        startsAt: needsSchedule ? toIsoOrNull(formData.startsAt) : null,
-        endsAt: needsSchedule ? toIsoOrNull(formData.endsAt) : null,
+        startsAt:
+          needsSchedule || resolvedBannerType === "partner"
+            ? toIsoOrNull(formData.startsAt)
+            : null,
+        endsAt:
+          needsSchedule || resolvedBannerType === "partner"
+            ? toIsoOrNull(formData.endsAt)
+            : null,
         placement: formData.placement,
         floatingPriority: Boolean(formData.floatingPriority),
-        isActive: Boolean(formData.isActive)
+        isActive: Boolean(formData.isActive),
       };
 
       if (editingBanner) {
@@ -383,14 +515,16 @@ const Marketing = () => {
         const response = await createAdminMarketingBanner(payload);
         const recipients = Number(response?.notification?.recipients || 0);
         if (response?.notification) {
-          setNotice(`Poster created and added to notifications for ${recipients} customer${recipients === 1 ? '' : 's'}.`);
+          setNotice(
+            `Poster created and added to notifications for ${recipients} customer${recipients === 1 ? "" : "s"}.`,
+          );
         }
       }
 
       await loadPageData();
       closeModal();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to save poster.');
+      setError(err instanceof Error ? err.message : "Unable to save poster.");
     } finally {
       setSaving(false);
     }
@@ -406,47 +540,67 @@ const Marketing = () => {
       await deleteAdminMarketingBanner(banner.id);
       await loadPageData();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to delete poster.');
+      setError(err instanceof Error ? err.message : "Unable to delete poster.");
     } finally {
       setSaving(false);
     }
   };
 
   const notifyCustomers = async (banner) => {
-    if (!window.confirm(`Send "${banner.title}" to all active customers again?`)) {
+    if (
+      !window.confirm(`Send "${banner.title}" to all active customers again?`)
+    ) {
       return;
     }
 
     try {
-      setError('');
-      setNotice('');
+      setError("");
+      setNotice("");
       setNotifyingBannerId(banner.id);
       const response = await notifyAdminMarketingBanner(banner.id);
       const recipients = Number(response?.notification?.recipients || 0);
-      const attemptedDevices = Number(response?.notification?.attemptedDevices || 0);
-      const deliveredDevices = Number(response?.notification?.deliveredDevices || 0);
+      const attemptedDevices = Number(
+        response?.notification?.attemptedDevices || 0,
+      );
+      const deliveredDevices = Number(
+        response?.notification?.deliveredDevices || 0,
+      );
       const failedDevices = Number(response?.notification?.failedDevices || 0);
-      setNotice(`Notification added for ${recipients} customer${recipients === 1 ? '' : 's'}; push attempted on ${attemptedDevices} device${attemptedDevices === 1 ? '' : 's'}, delivered to ${deliveredDevices}, failed on ${failedDevices}.`);
+      setNotice(
+        `Notification added for ${recipients} customer${recipients === 1 ? "" : "s"}; push attempted on ${attemptedDevices} device${attemptedDevices === 1 ? "" : "s"}, delivered to ${deliveredDevices}, failed on ${failedDevices}.`,
+      );
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to send the poster notification.');
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to send the poster notification.",
+      );
     } finally {
       setNotifyingBannerId(null);
     }
   };
 
-  const bannerTypeLabel = (value) => bannerTypeOptions.find((option) => option.value === value)?.label || value;
+  const bannerTypeLabel = (value) =>
+    bannerTypeOptions.find((option) => option.value === value)?.label || value;
   const previewIsGif =
-    selectedImageFile?.type === 'image/gif' || formData.mediaType === 'gif';
+    selectedImageFile?.type === "image/gif" || formData.mediaType === "gif";
 
   return (
     <div className="flex-1 overflow-x-hidden overflow-y-auto bg-[#F9FAFB]">
       <div className="px-6 py-5 lg:px-8 lg:py-6 w-full h-full flex flex-col gap-4">
         <div className="shrink-0 flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
           <div className="space-y-0.5">
-            <h1 className="text-[1.55rem] leading-tight font-bold text-gray-900">Marketing</h1>
-            <p className="text-sm text-gray-500">Manage the posters shown in the mobile app home and profile surfaces.</p>
+            <h1 className="text-[1.55rem] leading-tight font-bold text-gray-900">
+              Marketing
+            </h1>
+            <p className="text-sm text-gray-500">
+              Manage the posters shown in the mobile app home and profile
+              surfaces.
+            </p>
             <p className="text-xs text-gray-400">
-              Voucher posters can route to rewards or menu. Event posters can point to calendar before start and to menu during the event. New item posters can link to a specific menu item.
+              Voucher posters route to rewards or menu, events switch from
+              calendar to menu, new-item posters deep-link to a product, and
+              Partner Spotlight supports safe website or email actions.
             </p>
           </div>
 
@@ -470,9 +624,16 @@ const Marketing = () => {
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 shrink-0">
           {summaryCards.map((card) => (
-            <div key={card.label} className="bg-white rounded-2xl border border-gray-200 shadow-sm px-4 py-3">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">{card.label}</p>
-              <p className="mt-2 text-2xl font-bold text-gray-900">{card.value}</p>
+            <div
+              key={card.label}
+              className="bg-white rounded-2xl border border-gray-200 shadow-sm px-4 py-3"
+            >
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">
+                {card.label}
+              </p>
+              <p className="mt-2 text-2xl font-bold text-gray-900">
+                {card.value}
+              </p>
               <p className="mt-1 text-xs text-gray-500">{card.note}</p>
             </div>
           ))}
@@ -481,7 +642,10 @@ const Marketing = () => {
         <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm flex flex-col flex-1 min-h-[440px]">
           <div className="px-5 py-4 border-b border-gray-100 flex flex-col xl:flex-row justify-between gap-3 shrink-0">
             <div className="relative w-full xl:w-96">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+              <Search
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                size={18}
+              />
               <input
                 type="text"
                 placeholder="Search poster title, target, or type..."
@@ -506,10 +670,15 @@ const Marketing = () => {
                 >
                   <option value="">All types</option>
                   {bannerTypeOptions.map((option) => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
                   ))}
                 </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" size={16} />
+                <ChevronDown
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"
+                  size={16}
+                />
               </div>
 
               <div className="relative">
@@ -526,7 +695,10 @@ const Marketing = () => {
                   <option value="profile">Profile</option>
                   <option value="both">Both</option>
                 </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" size={16} />
+                <ChevronDown
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"
+                  size={16}
+                />
               </div>
 
               <div className="relative">
@@ -545,7 +717,10 @@ const Marketing = () => {
                   <option value="Ended">Ended</option>
                   <option value="Inactive">Inactive</option>
                 </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" size={16} />
+                <ChevronDown
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"
+                  size={16}
+                />
               </div>
             </div>
           </div>
@@ -554,96 +729,168 @@ const Marketing = () => {
             <table className="w-full text-left text-sm whitespace-nowrap">
               <thead className="bg-gray-50 sticky top-0 z-10">
                 <tr>
-                  <th className="px-6 py-3 font-semibold text-[13px] text-gray-900 border-b border-gray-100 leading-tight">Poster</th>
-                  <th className="px-6 py-3 font-semibold text-[13px] text-gray-900 border-b border-gray-100 leading-tight">Type</th>
-                  <th className="px-6 py-3 font-semibold text-[13px] text-gray-900 border-b border-gray-100 leading-tight">Route</th>
-                  <th className="px-6 py-3 font-semibold text-[13px] text-gray-900 border-b border-gray-100 leading-tight">Placement</th>
-                  <th className="px-6 py-3 font-semibold text-[13px] text-gray-900 border-b border-gray-100 leading-tight">Status</th>
-                  <th className="px-6 py-3 font-semibold text-[13px] text-gray-900 border-b border-gray-100 leading-tight">Floating</th>
-                  <th className="px-6 py-3 font-semibold text-[13px] text-gray-900 border-b border-gray-100 leading-tight text-center">Actions</th>
+                  <th className="px-6 py-3 font-semibold text-[13px] text-gray-900 border-b border-gray-100 leading-tight">
+                    Poster
+                  </th>
+                  <th className="px-6 py-3 font-semibold text-[13px] text-gray-900 border-b border-gray-100 leading-tight">
+                    Type
+                  </th>
+                  <th className="px-6 py-3 font-semibold text-[13px] text-gray-900 border-b border-gray-100 leading-tight">
+                    Route
+                  </th>
+                  <th className="px-6 py-3 font-semibold text-[13px] text-gray-900 border-b border-gray-100 leading-tight">
+                    Placement
+                  </th>
+                  <th className="px-6 py-3 font-semibold text-[13px] text-gray-900 border-b border-gray-100 leading-tight">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 font-semibold text-[13px] text-gray-900 border-b border-gray-100 leading-tight">
+                    Floating
+                  </th>
+                  <th className="px-6 py-3 font-semibold text-[13px] text-gray-900 border-b border-gray-100 leading-tight">
+                    Engagement
+                  </th>
+                  <th className="px-6 py-3 font-semibold text-[13px] text-gray-900 border-b border-gray-100 leading-tight text-center">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {currentRows.length > 0 ? currentRows.map((banner) => (
-                  <tr key={banner.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <img
-                          src={resolveImageUrl(banner.imageSource)}
-                          alt={banner.title}
-                          className="w-12 h-12 rounded-xl object-cover border border-gray-200 shrink-0 bg-gray-50"
-                        />
-                        <div className="min-w-0">
-                          <p className="font-semibold text-gray-900 truncate">{banner.title}</p>
-                          <p className="text-xs text-gray-500 truncate">{banner.subtitle}</p>
+                {currentRows.length > 0 ? (
+                  currentRows.map((banner) => (
+                    <tr
+                      key={banner.id}
+                      className="hover:bg-gray-50 transition-colors"
+                    >
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <img
+                            src={resolveImageUrl(banner.imageSource)}
+                            alt={banner.title}
+                            className="w-12 h-12 rounded-xl object-cover border border-gray-200 shrink-0 bg-gray-50"
+                          />
+                          <div className="min-w-0">
+                            <p className="font-semibold text-gray-900 truncate">
+                              {banner.title}
+                            </p>
+                            <p className="text-xs text-gray-500 truncate">
+                              {banner.subtitle}
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="inline-flex px-2.5 py-1 rounded-md text-xs font-bold bg-[#EAF2EF] text-[#1F3A34]">
-                        {bannerTypeLabel(banner.bannerType)}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-gray-700">
-                      <div>
-                        <p className="font-medium text-gray-900">{routeLabel(banner)}</p>
-                        {banner.targetLabel ? (
-                          <p className="text-xs text-gray-500 mt-0.5 truncate max-w-[280px]">{banner.targetLabel}</p>
-                        ) : null}
-                        {banner.bannerType === 'event' && banner.scheduleLabel ? (
-                          <p className="text-xs text-gray-500 mt-0.5">{banner.scheduleLabel}</p>
-                        ) : null}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-gray-700">{destinationLabelMap[banner.destinationType] || banner.destinationType}</td>
-                    <td className="px-6 py-4">
-                      <span className={`px-2.5 py-1 text-xs font-bold rounded-md ${statusClassMap[bannerStatusLabel(banner)] || statusClassMap.Active}`}>
-                        {bannerStatusLabel(banner)}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      {banner.floatingPriority ? (
-                        <span className="inline-flex px-2.5 py-1 rounded-md text-xs font-bold bg-[#D1FADF] text-[#039855]">
-                          Floating banner
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="inline-flex px-2.5 py-1 rounded-md text-xs font-bold bg-[#EAF2EF] text-[#1F3A34]">
+                          {bannerTypeLabel(banner.bannerType)}
                         </span>
-                      ) : (
-                        <span className="inline-flex px-2.5 py-1 rounded-md text-xs font-semibold bg-gray-100 text-gray-500">
-                          Not priority
+                      </td>
+                      <td className="px-6 py-4 text-gray-700">
+                        <div>
+                          <p className="font-medium text-gray-900">
+                            {routeLabel(banner)}
+                          </p>
+                          {banner.targetLabel ? (
+                            <p className="text-xs text-gray-500 mt-0.5 truncate max-w-[280px]">
+                              {banner.targetLabel}
+                            </p>
+                          ) : null}
+                          {["event", "partner"].includes(banner.bannerType) &&
+                          banner.scheduleLabel ? (
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              {banner.scheduleLabel}
+                            </p>
+                          ) : null}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-gray-700 capitalize">
+                        {banner.placement || "both"}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span
+                          className={`px-2.5 py-1 text-xs font-bold rounded-md ${statusClassMap[bannerStatusLabel(banner)] || statusClassMap.Active}`}
+                        >
+                          {bannerStatusLabel(banner)}
                         </span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <div className="inline-flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => void notifyCustomers(banner)}
-                          disabled={notifyingBannerId === banner.id || !['Active', 'Live'].includes(bannerStatusLabel(banner))}
-                          title="Send this poster to customers again"
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#1F3A34] text-sm font-semibold text-[#1F3A34] bg-white hover:bg-[#EAF2EF] disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                          <Bell size={15} /> {notifyingBannerId === banner.id ? 'Sending...' : 'Notify'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => openEditModal(banner)}
-                          className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm font-semibold text-gray-700 bg-white hover:bg-gray-50"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void removeBanner(banner)}
-                          className="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-gray-300 text-gray-500 bg-white hover:bg-red-50 hover:text-red-600"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                )) : (
+                      </td>
+                      <td className="px-6 py-4">
+                        {banner.floatingPriority ? (
+                          <span className="inline-flex px-2.5 py-1 rounded-md text-xs font-bold bg-[#D1FADF] text-[#039855]">
+                            Floating banner
+                          </span>
+                        ) : (
+                          <span className="inline-flex px-2.5 py-1 rounded-md text-xs font-semibold bg-gray-100 text-gray-500">
+                            Not priority
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-gray-700">
+                        {banner.bannerType === "partner" ? (
+                          <div>
+                            <p className="font-medium text-gray-900">
+                              {Number(banner.clicks || 0)} clicks
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {Number(banner.impressions || 0)} views ·{" "}
+                              {Number(banner.impressions || 0) > 0
+                                ? (
+                                    (Number(banner.clicks || 0) /
+                                      Number(banner.impressions)) *
+                                    100
+                                  ).toFixed(1)
+                                : "0.0"}
+                              % CTR
+                            </p>
+                          </div>
+                        ) : (
+                          <span className="text-gray-400">—</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <div className="inline-flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => void notifyCustomers(banner)}
+                            disabled={
+                              notifyingBannerId === banner.id ||
+                              !["Active", "Live"].includes(
+                                bannerStatusLabel(banner),
+                              )
+                            }
+                            title="Send this poster to customers again"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#1F3A34] text-sm font-semibold text-[#1F3A34] bg-white hover:bg-[#EAF2EF] disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            <Bell size={15} />{" "}
+                            {notifyingBannerId === banner.id
+                              ? "Sending..."
+                              : "Notify"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(banner)}
+                            className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm font-semibold text-gray-700 bg-white hover:bg-gray-50"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void removeBanner(banner)}
+                            className="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-gray-300 text-gray-500 bg-white hover:bg-red-50 hover:text-red-600"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
                   <tr>
-                    <td colSpan="7" className="px-6 py-12 text-center text-gray-500">
-                      {loading ? 'Loading posters...' : 'No posters configured yet.'}
+                    <td
+                      colSpan="8"
+                      className="px-6 py-12 text-center text-gray-500"
+                    >
+                      {loading
+                        ? "Loading posters..."
+                        : "No posters configured yet."}
                     </td>
                   </tr>
                 )}
@@ -664,323 +911,633 @@ const Marketing = () => {
         </div>
       </div>
 
-      {isModalOpen && typeof document !== 'undefined' && createPortal(
-        <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-slate-900/35 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 w-full max-w-3xl max-h-[92vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
-            <div className="px-6 py-4.5 border-b border-gray-100 bg-white/80 backdrop-blur-xs flex items-center justify-between shrink-0">
-              <div>
-                <h2 className="text-lg font-bold text-gray-900">{editingBanner ? 'Edit Poster' : 'Create Poster'}</h2>
-                <p className="text-xs text-gray-500 mt-0.5">Preview uses the same 4:5 portrait framing as the customer app.</p>
-              </div>
-              <button type="button" onClick={closeModal} className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer">
-                <X size={20} />
-              </button>
-            </div>
-
-            <form onSubmit={submitBanner} className="p-6 overflow-y-auto flex-1">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                <div className="space-y-5">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Poster Title</label>
-                    <input
-                      type="text"
-                      value={formData.title}
-                      onChange={(event) => setFormData((current) => ({ ...current, title: event.target.value }))}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34]"
-                      placeholder="e.g. Free Drink Voucher"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Subtitle</label>
-                    <textarea
-                      value={formData.subtitle}
-                      onChange={(event) => setFormData((current) => ({ ...current, subtitle: event.target.value }))}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34] min-h-[92px]"
-                      placeholder="A short line for the poster"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Poster Type</label>
-                    <div className="relative">
-                      <select
-                        value={formData.bannerType}
-                        onChange={(event) => updateBannerType(event.target.value)}
-                        className="peer appearance-none w-full border border-gray-200 rounded-lg px-3 py-2 pr-10 text-sm outline-none focus:border-[#1F3A34] bg-white"
-                      >
-                        {bannerTypeOptions.map((option) => (
-                          <option key={option.value} value={option.value}>{option.label}</option>
-                        ))}
-                      </select>
-                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" size={16} />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Placement</label>
-                    <div className="relative">
-                      <select
-                        value={formData.placement}
-                        onChange={(event) => setFormData((current) => ({ ...current, placement: event.target.value }))}
-                        className="peer appearance-none w-full border border-gray-200 rounded-lg px-3 py-2 pr-10 text-sm outline-none focus:border-[#1F3A34] bg-white"
-                      >
-                        <option value="home">Home</option>
-                        <option value="profile">Profile</option>
-                        <option value="both">Both</option>
-                      </select>
-                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" size={16} />
-                    </div>
-                  </div>
-
-                  <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-3">
-                    <label className="flex items-start gap-3 text-sm text-gray-700 font-medium cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={formData.floatingPriority}
-                        onChange={(event) => setFormData((current) => ({ ...current, floatingPriority: event.target.checked }))}
-                        className="mt-0.5 h-4 w-4 rounded border-gray-300 text-[#1F3A34] focus:ring-[#1F3A34]"
-                      />
-                      <span>
-                        Use as floating banner
-                        <span className="block mt-1 text-xs font-normal text-gray-500">
-                          Mark any posters you want to appear as floating ads. Multiple posters can be selected.
-                        </span>
-                      </span>
-                    </label>
-                  </div>
-
-                  <div className="flex items-end">
-                    <label className="flex items-center gap-2 text-sm text-gray-700 font-medium">
-                      <input
-                        type="checkbox"
-                        checked={formData.isActive}
-                        onChange={(event) => setFormData((current) => ({ ...current, isActive: event.target.checked }))}
-                        className="h-4 w-4 rounded border-gray-300 text-[#1F3A34] focus:ring-[#1F3A34]"
-                      />
-                      Publish now
-                    </label>
-                  </div>
+      {isModalOpen &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-slate-900/35 backdrop-blur-md animate-in fade-in duration-200">
+            <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 w-full max-w-3xl max-h-[92vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+              <div className="px-6 py-4.5 border-b border-gray-100 bg-white/80 backdrop-blur-xs flex items-center justify-between shrink-0">
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900">
+                    {editingBanner ? "Edit Poster" : "Create Poster"}
+                  </h2>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Preview uses the same 4:5 portrait framing as the customer
+                    app.
+                  </p>
                 </div>
+                <button
+                  type="button"
+                  onClick={closeModal}
+                  className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer"
+                >
+                  <X size={20} />
+                </button>
+              </div>
 
-                <div className="space-y-5">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Poster Media</label>
-                    <div className="border-2 border-dashed border-gray-200 rounded-xl p-4 bg-gray-50">
+              <form
+                onSubmit={submitBanner}
+                className="p-6 overflow-y-auto flex-1"
+              >
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                  <div className="space-y-5">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                        Poster Title
+                      </label>
                       <input
-                        type="file"
-                        accept="image/png,image/jpeg,image/webp,image/gif"
-                        onChange={(event) => setSelectedImageFile(event.target.files?.[0] || null)}
-                        className="block w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-[#1F3A34] file:text-white hover:file:bg-[#162A26]"
+                        type="text"
+                        value={formData.title}
+                        onChange={(event) =>
+                          setFormData((current) => ({
+                            ...current,
+                            title: event.target.value,
+                          }))
+                        }
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34]"
+                        placeholder="e.g. Free Drink Voucher"
+                        required
                       />
-                      <p className="text-[10px] text-gray-500 mt-2">PNG, JPG, WEBP, or GIF only. Static posters are prepared as 1080 × 1350 (4:5). GIFs must already be 4:5 and no longer than 30 seconds.</p>
-                      {(selectedImageFile || formData.imageSource) && (
-                        <div className="mt-4 flex items-center gap-3">
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                        Subtitle
+                      </label>
+                      <textarea
+                        value={formData.subtitle}
+                        onChange={(event) =>
+                          setFormData((current) => ({
+                            ...current,
+                            subtitle: event.target.value,
+                          }))
+                        }
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34] min-h-[92px]"
+                        placeholder="A short line for the poster"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                        Poster Type
+                      </label>
+                      <div className="relative">
+                        <select
+                          value={formData.bannerType}
+                          onChange={(event) =>
+                            updateBannerType(event.target.value)
+                          }
+                          className="peer appearance-none w-full border border-gray-200 rounded-lg px-3 py-2 pr-10 text-sm outline-none focus:border-[#1F3A34] bg-white"
+                        >
+                          {bannerTypeOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"
+                          size={16}
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                        Placement
+                      </label>
+                      <div className="relative">
+                        <select
+                          value={formData.placement}
+                          disabled={formData.bannerType === "partner"}
+                          onChange={(event) =>
+                            setFormData((current) => ({
+                              ...current,
+                              placement: event.target.value,
+                            }))
+                          }
+                          className="peer appearance-none w-full border border-gray-200 rounded-lg px-3 py-2 pr-10 text-sm outline-none focus:border-[#1F3A34] bg-white disabled:bg-gray-100 disabled:text-gray-500"
+                        >
+                          <option value="home">Home</option>
+                          <option value="profile">Profile</option>
+                          <option value="both">Both</option>
+                        </select>
+                        <ChevronDown
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"
+                          size={16}
+                        />
+                      </div>
+                      {formData.bannerType === "partner" && (
+                        <p className="mt-1 text-xs text-gray-500">
+                          Partner Spotlight appears in its dedicated Home
+                          section.
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-3">
+                      <label className="flex items-start gap-3 text-sm text-gray-700 font-medium cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formData.floatingPriority}
+                          disabled={formData.bannerType === "partner"}
+                          onChange={(event) =>
+                            setFormData((current) => ({
+                              ...current,
+                              floatingPriority: event.target.checked,
+                            }))
+                          }
+                          className="mt-0.5 h-4 w-4 rounded border-gray-300 text-[#1F3A34] focus:ring-[#1F3A34]"
+                        />
+                        <span>
+                          Use as floating banner
+                          <span className="block mt-1 text-xs font-normal text-gray-500">
+                            Mark any posters you want to appear as floating ads.
+                            Multiple posters can be selected.
+                          </span>
+                        </span>
+                      </label>
+                    </div>
+
+                    <div className="flex items-end">
+                      <label className="flex items-center gap-2 text-sm text-gray-700 font-medium">
+                        <input
+                          type="checkbox"
+                          checked={formData.isActive}
+                          onChange={(event) =>
+                            setFormData((current) => ({
+                              ...current,
+                              isActive: event.target.checked,
+                            }))
+                          }
+                          className="h-4 w-4 rounded border-gray-300 text-[#1F3A34] focus:ring-[#1F3A34]"
+                        />
+                        Publish now
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="space-y-5">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                        Poster Media
+                      </label>
+                      <div className="border-2 border-dashed border-gray-200 rounded-xl p-4 bg-gray-50">
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp,image/gif"
+                          onChange={(event) =>
+                            setSelectedImageFile(
+                              event.target.files?.[0] || null,
+                            )
+                          }
+                          className="block w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-[#1F3A34] file:text-white hover:file:bg-[#162A26]"
+                        />
+                        <p className="text-[10px] text-gray-500 mt-2">
+                          {formData.bannerType === "partner"
+                            ? "PNG, JPG, WEBP, or GIF. Partner artwork is prepared as 1200 × 675 (16:9). GIFs must already be 16:9 and no longer than 30 seconds."
+                            : "PNG, JPG, WEBP, or GIF. Posters are prepared as 1080 × 1350 (4:5). GIFs must already be 4:5 and no longer than 30 seconds."}
+                        </p>
+                        {(selectedImageFile || formData.imageSource) && (
+                          <div className="mt-4 flex items-center gap-3">
+                            <img
+                              src={
+                                selectedImagePreview ||
+                                resolveImageUrl(formData.imageSource)
+                              }
+                              alt="Poster preview"
+                              className="w-20 h-20 object-cover rounded-xl border border-gray-200 bg-white"
+                            />
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-gray-900 truncate">
+                                {selectedImageFile
+                                  ? selectedImageFile.name
+                                  : "Current image"}
+                              </p>
+                              <p className="text-xs text-gray-500 truncate">
+                                {formData.imageSource || "Ready to upload"}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="text-xs font-medium text-gray-500 mb-2">
+                        Customer app preview ·{" "}
+                        {formData.bannerType === "partner"
+                          ? "16:9 landscape"
+                          : "4:5 portrait"}
+                      </p>
+                      <div
+                        className={`mx-auto w-full ${formData.bannerType === "partner" ? "max-w-[420px] aspect-video" : "max-w-[280px] aspect-[4/5]"} overflow-hidden rounded-[24px] border border-gray-200 bg-gray-100 shadow-sm`}
+                      >
+                        {selectedImagePreview || formData.imageSource ? (
                           <img
-                            src={selectedImagePreview || resolveImageUrl(formData.imageSource)}
-                            alt="Poster preview"
-                            className="w-20 h-20 object-cover rounded-xl border border-gray-200 bg-white"
+                            src={
+                              selectedImagePreview ||
+                              resolveImageUrl(formData.imageSource)
+                            }
+                            alt="Customer poster preview"
+                            className="h-full w-full object-cover"
                           />
-                          <div className="min-w-0">
-                            <p className="text-sm font-semibold text-gray-900 truncate">
-                              {selectedImageFile ? selectedImageFile.name : 'Current image'}
-                            </p>
-                            <p className="text-xs text-gray-500 truncate">{formData.imageSource || 'Ready to upload'}</p>
+                        ) : (
+                          <div className="flex h-full items-center justify-center px-8 text-center text-sm text-gray-400">
+                            Your{" "}
+                            {formData.bannerType === "partner"
+                              ? "16:9 partner artwork"
+                              : "4:5 poster"}{" "}
+                            preview appears here.
+                          </div>
+                        )}
+                      </div>
+                      {previewIsGif && (
+                        <p className="mt-2 text-xs font-medium text-[#1F3A34]">
+                          {selectedImageFile
+                            ? "GIF: its animation duration is detected when the poster is uploaded."
+                            : `GIF: the customer carousel waits ${Math.max(1, Math.ceil(formData.animationDurationMs / 1000))} seconds for one full animation cycle.`}
+                        </p>
+                      )}
+                    </div>
+
+                    {formData.bannerType === "voucher" && (
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">
+                            Route on Click
+                          </label>
+                          <div className="relative">
+                            <select
+                              value={formData.destinationType}
+                              onChange={(event) =>
+                                setFormData((current) => ({
+                                  ...current,
+                                  destinationType: event.target.value,
+                                }))
+                              }
+                              className="peer appearance-none w-full border border-gray-200 rounded-lg px-3 py-2 pr-10 text-sm outline-none focus:border-[#1F3A34] bg-white"
+                            >
+                              <option value="reward_section">
+                                Reward section
+                              </option>
+                              <option value="menu">Menu</option>
+                            </select>
+                            <ChevronDown
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"
+                              size={16}
+                            />
                           </div>
                         </div>
-                      )}
-                    </div>
-                  </div>
 
-                  <div>
-                    <p className="text-xs font-medium text-gray-500 mb-2">Customer app preview · 4:5 portrait</p>
-                    <div className="mx-auto w-full max-w-[280px] overflow-hidden rounded-[24px] border border-gray-200 bg-gray-100 shadow-sm aspect-[4/5]">
-                      {(selectedImagePreview || formData.imageSource) ? (
-                        <img
-                          src={selectedImagePreview || resolveImageUrl(formData.imageSource)}
-                          alt="Customer poster preview"
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-full items-center justify-center px-8 text-center text-sm text-gray-400">
-                          Your 4:5 poster preview appears here.
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">
+                            Target Voucher
+                          </label>
+                          <div className="relative">
+                            <select
+                              value={formData.targetValue}
+                              onChange={(event) =>
+                                setFormData((current) => ({
+                                  ...current,
+                                  targetValue: event.target.value,
+                                }))
+                              }
+                              className="peer appearance-none w-full border border-gray-200 rounded-lg px-3 py-2 pr-10 text-sm outline-none focus:border-[#1F3A34] bg-white"
+                            >
+                              <option value="">Select a voucher</option>
+                              {voucherTemplates.map((voucher) => (
+                                <option key={voucher.id} value={voucher.id}>
+                                  {voucher.name} · {voucher.id}
+                                </option>
+                              ))}
+                            </select>
+                            <ChevronDown
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"
+                              size={16}
+                            />
+                          </div>
                         </div>
-                      )}
-                    </div>
-                    {previewIsGif && (
-                      <p className="mt-2 text-xs font-medium text-[#1F3A34]">
-                        {selectedImageFile
-                          ? 'GIF: its animation duration is detected when the poster is uploaded.'
-                          : `GIF: the customer carousel waits ${Math.max(1, Math.ceil(formData.animationDurationMs / 1000))} seconds for one full animation cycle.`}
-                      </p>
+                      </div>
                     )}
-                  </div>
 
-                  {formData.bannerType === 'voucher' && (
-                    <div className="space-y-4">
+                    {formData.bannerType === "new_item" && (
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">
+                            Route on Click
+                          </label>
+                          <div className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 bg-gray-50">
+                            Menu
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">
+                            Target Menu Item
+                          </label>
+                          <div className="relative">
+                            <select
+                              value={formData.targetValue}
+                              onChange={(event) =>
+                                setFormData((current) => ({
+                                  ...current,
+                                  targetValue: event.target.value,
+                                }))
+                              }
+                              className="peer appearance-none w-full border border-gray-200 rounded-lg px-3 py-2 pr-10 text-sm outline-none focus:border-[#1F3A34] bg-white"
+                            >
+                              <option value="">Select a menu item</option>
+                              {menuItems.map((item) => (
+                                <option key={item.code} value={item.code}>
+                                  {item.name} · {item.code}
+                                </option>
+                              ))}
+                            </select>
+                            <ChevronDown
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"
+                              size={16}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {formData.bannerType === "event" && (
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">
+                            Event Route
+                          </label>
+                          <div className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 bg-gray-50">
+                            Calendar before start · Menu during the event
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs font-medium text-gray-500 mb-1">
+                              Starts At
+                            </label>
+                            <input
+                              type="datetime-local"
+                              value={formData.startsAt}
+                              onChange={(event) =>
+                                setFormData((current) => ({
+                                  ...current,
+                                  startsAt: event.target.value,
+                                }))
+                              }
+                              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34]"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-500 mb-1">
+                              Ends At
+                            </label>
+                            <input
+                              type="datetime-local"
+                              value={formData.endsAt}
+                              onChange={(event) =>
+                                setFormData((current) => ({
+                                  ...current,
+                                  endsAt: event.target.value,
+                                }))
+                              }
+                              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34]"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {formData.bannerType === "partner" && (
+                      <div className="space-y-4 rounded-xl border border-[#D7E4E0] bg-[#F5FAF8] p-4">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">
+                            Partner or Business Name
+                          </label>
+                          <input
+                            type="text"
+                            value={formData.partnerName}
+                            onChange={(event) =>
+                              setFormData((current) => ({
+                                ...current,
+                                partnerName: event.target.value,
+                              }))
+                            }
+                            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34] bg-white"
+                            placeholder="e.g. Local Artisan Market"
+                            required
+                          />
+                        </div>
+                        <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                          <input
+                            type="checkbox"
+                            checked={formData.sponsoredLabel}
+                            onChange={(event) =>
+                              setFormData((current) => ({
+                                ...current,
+                                sponsoredLabel: event.target.checked,
+                              }))
+                            }
+                            className="h-4 w-4 rounded border-gray-300 text-[#1F3A34] focus:ring-[#1F3A34]"
+                          />
+                          Show Sponsored disclosure
+                        </label>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">
+                            Customer Action
+                          </label>
+                          <select
+                            value={formData.actionType}
+                            onChange={(event) =>
+                              setFormData((current) => ({
+                                ...current,
+                                actionType: event.target.value,
+                                actionValue: "",
+                                ctaLabel: "",
+                              }))
+                            }
+                            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34] bg-white"
+                          >
+                            {partnerActionOptions.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        {formData.actionType !== "none" && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-xs font-medium text-gray-500 mb-1">
+                                Button Label
+                              </label>
+                              <input
+                                type="text"
+                                value={formData.ctaLabel}
+                                onChange={(event) =>
+                                  setFormData((current) => ({
+                                    ...current,
+                                    ctaLabel: event.target.value,
+                                  }))
+                                }
+                                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34] bg-white"
+                                placeholder="Learn more"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-500 mb-1">
+                                {formData.actionType === "email"
+                                  ? "Email Address"
+                                  : "HTTPS Website"}
+                              </label>
+                              <input
+                                type={
+                                  formData.actionType === "email"
+                                    ? "email"
+                                    : "url"
+                                }
+                                value={formData.actionValue}
+                                onChange={(event) =>
+                                  setFormData((current) => ({
+                                    ...current,
+                                    actionValue: event.target.value,
+                                  }))
+                                }
+                                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34] bg-white"
+                                placeholder={
+                                  formData.actionType === "email"
+                                    ? "partner@example.com"
+                                    : "https://partner.example.com"
+                                }
+                                required
+                              />
+                            </div>
+                          </div>
+                        )}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs font-medium text-gray-500 mb-1">
+                              Starts At (optional)
+                            </label>
+                            <input
+                              type="datetime-local"
+                              value={formData.startsAt}
+                              onChange={(event) =>
+                                setFormData((current) => ({
+                                  ...current,
+                                  startsAt: event.target.value,
+                                }))
+                              }
+                              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-500 mb-1">
+                              Ends At (optional)
+                            </label>
+                            <input
+                              type="datetime-local"
+                              value={formData.endsAt}
+                              onChange={(event) =>
+                                setFormData((current) => ({
+                                  ...current,
+                                  endsAt: event.target.value,
+                                }))
+                              }
+                              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {formData.bannerType === "general" && (
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Route on Click</label>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">
+                          Route on Click
+                        </label>
                         <div className="relative">
                           <select
                             value={formData.destinationType}
-                            onChange={(event) => setFormData((current) => ({ ...current, destinationType: event.target.value }))}
+                            onChange={(event) => {
+                              const destinationType = event.target.value;
+                              setFormData((current) => ({
+                                ...current,
+                                destinationType,
+                                bannerType:
+                                  destinationType === "calendar"
+                                    ? "event"
+                                    : current.bannerType,
+                              }));
+                            }}
                             className="peer appearance-none w-full border border-gray-200 rounded-lg px-3 py-2 pr-10 text-sm outline-none focus:border-[#1F3A34] bg-white"
                           >
-                            <option value="reward_section">Reward section</option>
                             <option value="menu">Menu</option>
+                            <option value="reward_section">
+                              Reward section
+                            </option>
+                            <option value="calendar">Calendar</option>
                           </select>
-                          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" size={16} />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Target Voucher</label>
-                        <div className="relative">
-                          <select
-                            value={formData.targetValue}
-                            onChange={(event) => setFormData((current) => ({ ...current, targetValue: event.target.value }))}
-                            className="peer appearance-none w-full border border-gray-200 rounded-lg px-3 py-2 pr-10 text-sm outline-none focus:border-[#1F3A34] bg-white"
-                          >
-                            <option value="">Select a voucher</option>
-                            {voucherTemplates.map((voucher) => (
-                              <option key={voucher.id} value={voucher.id}>
-                                {voucher.name} · {voucher.id}
-                              </option>
-                            ))}
-                          </select>
-                          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" size={16} />
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {formData.bannerType === 'new_item' && (
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Route on Click</label>
-                        <div className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 bg-gray-50">
-                          Menu
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Target Menu Item</label>
-                        <div className="relative">
-                          <select
-                            value={formData.targetValue}
-                            onChange={(event) => setFormData((current) => ({ ...current, targetValue: event.target.value }))}
-                            className="peer appearance-none w-full border border-gray-200 rounded-lg px-3 py-2 pr-10 text-sm outline-none focus:border-[#1F3A34] bg-white"
-                          >
-                            <option value="">Select a menu item</option>
-                            {menuItems.map((item) => (
-                              <option key={item.code} value={item.code}>
-                                {item.name} · {item.code}
-                              </option>
-                            ))}
-                          </select>
-                          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" size={16} />
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {formData.bannerType === 'event' && (
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Event Route</label>
-                        <div className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 bg-gray-50">
-                          Calendar before start · Menu during the event
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-xs font-medium text-gray-500 mb-1">Starts At</label>
-                          <input
-                            type="datetime-local"
-                            value={formData.startsAt}
-                            onChange={(event) => setFormData((current) => ({ ...current, startsAt: event.target.value }))}
-                            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34]"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-500 mb-1">Ends At</label>
-                          <input
-                            type="datetime-local"
-                            value={formData.endsAt}
-                            onChange={(event) => setFormData((current) => ({ ...current, endsAt: event.target.value }))}
-                            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34]"
+                          <ChevronDown
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"
+                            size={16}
                           />
                         </div>
                       </div>
-                    </div>
-                  )}
-
-                  {formData.bannerType === 'general' && (
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Route on Click</label>
-                      <div className="relative">
-                        <select
-                          value={formData.destinationType}
-                          onChange={(event) => {
-                            const destinationType = event.target.value;
-                            setFormData((current) => ({
-                              ...current,
-                              destinationType,
-                              bannerType: destinationType === 'calendar' ? 'event' : current.bannerType
-                            }));
-                          }}
-                          className="peer appearance-none w-full border border-gray-200 rounded-lg px-3 py-2 pr-10 text-sm outline-none focus:border-[#1F3A34] bg-white"
-                        >
-                          <option value="menu">Menu</option>
-                          <option value="reward_section">Reward section</option>
-                          <option value="calendar">Calendar</option>
-                        </select>
-                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" size={16} />
-                      </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
-              </div>
 
-              <div className="pt-6 flex items-center justify-between gap-3">
-                <p className="text-xs text-gray-400">
-                  {formData.bannerType === 'event'
-                    ? 'Event posters route to calendar before they start and to menu while active.'
-                    : 'Use short copy and let the image carry the promotion. The floating banner is chosen manually.'}
-                </p>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={closeModal}
-                    className="px-4 py-2 rounded-lg border border-gray-300 text-sm font-semibold text-gray-700 bg-white hover:bg-gray-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={saving}
-                    className="px-5 py-2 rounded-lg bg-[#1F3A34] text-white text-sm font-semibold hover:bg-[#162A26] disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    {saving ? 'Saving...' : editingBanner ? 'Save Changes' : 'Create Poster'}
-                  </button>
+                <div className="pt-6 flex items-center justify-between gap-3">
+                  <p className="text-xs text-gray-400">
+                    {formData.bannerType === "event"
+                      ? "Event posters route to calendar before they start and to menu while active."
+                      : "Use short copy and let the image carry the promotion. The floating banner is chosen manually."}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={closeModal}
+                      className="px-4 py-2 rounded-lg border border-gray-300 text-sm font-semibold text-gray-700 bg-white hover:bg-gray-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={saving}
+                      className="px-5 py-2 rounded-lg bg-[#1F3A34] text-white text-sm font-semibold hover:bg-[#162A26] disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {saving
+                        ? "Saving..."
+                        : editingBanner
+                          ? "Save Changes"
+                          : "Create Poster"}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            </form>
-          </div>
-        </div>,
-        document.body
-      )}
+              </form>
+            </div>
+          </div>,
+          document.body,
+        )}
 
       {error && (
-        <div role="alert" className="fixed top-5 left-1/2 z-[60] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow-lg">
+        <div
+          role="alert"
+          className="fixed top-5 left-1/2 z-[60] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow-lg"
+        >
           {error}
         </div>
       )}
       {notice && (
-        <div role="status" className="fixed top-5 left-1/2 z-[60] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-xl border border-[#B7D7CC] bg-[#EAF2EF] px-4 py-3 text-sm text-[#1F3A34] shadow-lg">
+        <div
+          role="status"
+          className="fixed top-5 left-1/2 z-[60] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-xl border border-[#B7D7CC] bg-[#EAF2EF] px-4 py-3 text-sm text-[#1F3A34] shadow-lg"
+        >
           {notice}
         </div>
       )}

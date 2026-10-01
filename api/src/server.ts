@@ -3,6 +3,7 @@ import { env } from './config/env.js';
 import { assertSingleCafeDeployment } from './admin/deployment.js';
 import { runPickupReminderSweep } from './services/pickup-reminders.js';
 import { runVoucherExpiryReminderSweep } from './services/voucher-expiry-reminders.js';
+import { runReferralRewardRetrySweep } from './services/referrals.js';
 
 const app = await buildApp();
 
@@ -39,6 +40,21 @@ const voucherExpiryReminderTimer = setInterval(() => {
   void runScheduledVoucherReminders();
 }, 24 * 60 * 60 * 1000);
 voucherExpiryReminderTimer.unref();
+
+async function runScheduledReferralRewardRetries(): Promise<void> {
+  try {
+    await assertSingleCafeDeployment();
+    const result = await runReferralRewardRetrySweep();
+    if (result.processed > 0) app.log.info(result, 'completed referral reward retry sweep');
+  } catch (error) {
+    app.log.error(error, 'referral reward retry sweep failed');
+  }
+}
+void runScheduledReferralRewardRetries();
+const referralRewardRetryTimer = setInterval(() => {
+  void runScheduledReferralRewardRetries();
+}, 5 * 60_000);
+referralRewardRetryTimer.unref();
 
 try {
   await app.listen({ host: env.HOST, port: env.PORT });

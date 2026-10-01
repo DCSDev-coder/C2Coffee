@@ -1,22 +1,22 @@
-import type { FastifyInstance } from 'fastify';
-import type { RowDataPacket } from 'mysql2/promise';
-import { z } from 'zod';
-import { authenticateRequest } from '../../auth/guard.js';
-import { env } from '../../config/env.js';
-import { mysqlPool } from '../../db/mysql.js';
-import { ApiError } from '../errors.js';
-import { getBootstrapForUser } from './auth.js';
-import { getUserResponse } from './me.js';
+import type { FastifyInstance } from "fastify";
+import type { RowDataPacket } from "mysql2/promise";
+import { z } from "zod";
+import { authenticateRequest } from "../../auth/guard.js";
+import { env } from "../../config/env.js";
+import { mysqlPool } from "../../db/mysql.js";
+import { ApiError } from "../errors.js";
+import { getBootstrapForUser } from "./auth.js";
+import { getUserResponse } from "./me.js";
 
 const menuQuerySchema = z.object({
-  store_id: z.coerce.number().int().positive()
+  store_id: z.coerce.number().int().positive(),
 });
 
 type StoreRow = RowDataPacket & {
   id: number;
   code: string;
   name: string;
-  status: 'active' | 'inactive';
+  status: "active" | "inactive";
   supports_pickup: number;
   pickup_lead_minutes: number;
   address_line_1: string | null;
@@ -55,12 +55,12 @@ type MenuRow = RowDataPacket & {
   allow_sparkling_mixer: number;
   allow_order_type: number;
   allow_remarks: number;
-  tier_code: 'kawan' | 'dilamun' | 'ketagih' | 'legend' | null;
+  tier_code: "kawan" | "dilamun" | "ketagih" | "legend" | null;
   token_price: number | null;
   modifier_group_id: number | null;
   modifier_group_code: string | null;
   modifier_group_name: string | null;
-  modifier_selection_type: 'single' | 'multi' | null;
+  modifier_selection_type: "single" | "multi" | null;
   modifier_min_select: number | null;
   modifier_max_select: number | null;
   modifier_is_required: number | null;
@@ -91,11 +91,11 @@ type MenuModifierGroup = {
   id: number;
   code: string;
   name: string;
-  selection_type: 'single' | 'multi';
+  selection_type: "single" | "multi";
   min_select: number;
   max_select: number;
   is_required: boolean;
-  source: 'item' | 'library';
+  source: "item" | "library";
   hidden_when_option_ids: number[];
   options: Array<MenuModifierOption>;
 };
@@ -133,11 +133,11 @@ type MenuItemResponse = {
 type LibraryModifierRow = RowDataPacket & {
   group_id: number;
   group_name: string;
-  selection_type: 'single' | 'multi';
+  selection_type: "single" | "multi";
   min_select: number;
   max_select: number;
   is_required: number;
-  applies_to: 'all_drinks' | 'selected_items';
+  applies_to: "all_drinks" | "selected_items";
   menu_item_id: number | null;
   option_id: number;
   option_name: string;
@@ -161,49 +161,66 @@ type MenuCategoryResponse = {
   items: Array<MenuItemResponse>;
 };
 
-function resolveProductKind(productKindCode: string | null | undefined, categoryCode?: string): { code: string; name: string } {
-  switch (String(productKindCode ?? '').trim().toLowerCase()) {
-    case 'drink':
-      return { code: 'drink', name: 'Drinks' };
-    case 'food':
-      return { code: 'food', name: 'Food' };
-    case 'merchandise':
-      return { code: 'merchandise', name: 'Merchandise' };
-    case 'candle':
-      return { code: 'candle', name: 'Candles' };
-    case 'other':
-      return { code: 'other', name: 'Other' };
+function resolveProductKind(
+  productKindCode: string | null | undefined,
+  categoryCode?: string,
+): { code: string; name: string } {
+  switch (
+    String(productKindCode ?? "")
+      .trim()
+      .toLowerCase()
+  ) {
+    case "drink":
+      return { code: "drink", name: "Drinks" };
+    case "food":
+      return { code: "food", name: "Food" };
+    case "merchandise":
+      return { code: "merchandise", name: "Merchandise" };
+    case "candle":
+      return { code: "candle", name: "Candles" };
+    case "other":
+      return { code: "other", name: "Other" };
     default:
-      switch (String(categoryCode ?? '').trim().toLowerCase()) {
-        case 'coffee':
-        case 'non_coffee':
-          return { code: 'drink', name: 'Drinks' };
-        case 'food':
-          return { code: 'food', name: 'Food' };
-        case 'merchandise':
-          return { code: 'merchandise', name: 'Merchandise' };
-        case 'candles':
-          return { code: 'candle', name: 'Candles' };
+      switch (
+        String(categoryCode ?? "")
+          .trim()
+          .toLowerCase()
+      ) {
+        case "coffee":
+        case "non_coffee":
+          return { code: "drink", name: "Drinks" };
+        case "food":
+          return { code: "food", name: "Food" };
+        case "merchandise":
+          return { code: "merchandise", name: "Merchandise" };
+        case "candles":
+          return { code: "candle", name: "Candles" };
         default:
-          return { code: 'other', name: 'Other' };
+          return { code: "other", name: "Other" };
       }
   }
 }
 
 type HomeBannerRow = RowDataPacket & {
+  id: number;
   code: string;
   title: string;
   subtitle: string;
   image_source: string;
-  media_type: 'image' | 'gif';
+  media_type: "image" | "gif";
   animation_duration_ms: number;
-  banner_type: 'voucher' | 'event' | 'new_item' | 'general' | 'partner';
-  destination_type: 'reward_section' | 'menu' | 'calendar';
-  secondary_destination_type: 'reward_section' | 'menu' | 'calendar' | null;
+  banner_type: "voucher" | "event" | "new_item" | "general" | "partner";
+  partner_name: string | null;
+  sponsored_label: number;
+  cta_label: string | null;
+  action_type: "none" | "external_url" | "email";
+  action_value: string | null;
+  destination_type: "reward_section" | "menu" | "calendar";
+  secondary_destination_type: "reward_section" | "menu" | "calendar" | null;
   target_value: string | null;
   starts_at: Date | string | null;
   ends_at: Date | string | null;
-  placement: 'home' | 'profile' | 'both';
+  placement: "home" | "profile" | "both";
   sort_order: number;
   floating_priority: number;
   created_at: Date | string;
@@ -218,7 +235,10 @@ type CustomerAppearanceRow = RowDataPacket & {
   muted_text_color: string | null;
 };
 
-async function getCustomerAppearance(userId: number, tierCode: string): Promise<CustomerAppearanceRow> {
+async function getCustomerAppearance(
+  userId: number,
+  tierCode: string,
+): Promise<CustomerAppearanceRow> {
   const [rows] = await mysqlPool.query<CustomerAppearanceRow[]>(
     `SELECT
        COALESCE(appearance.primary_color, t.primary_color) AS primary_color,
@@ -234,15 +254,17 @@ async function getCustomerAppearance(userId: number, tierCode: string): Promise<
      WHERE ctm.user_id = :userId AND t.status = 'active'
      ORDER BY ctm.tenant_id ASC
      LIMIT 1`,
-    { userId, tierCode }
+    { userId, tierCode },
   );
-  return rows[0] ?? {
-    primary_color: '#2E5E58',
-    secondary_color: '#D4AF7A',
-    text_color: '#2C2C2C',
-    background_color: '#FFFFFF',
-    muted_text_color: '#6B7280'
-  };
+  return (
+    rows[0] ?? {
+      primary_color: "#2E5E58",
+      secondary_color: "#D4AF7A",
+      text_color: "#2C2C2C",
+      background_color: "#FFFFFF",
+      muted_text_color: "#6B7280",
+    }
+  );
 }
 
 let homeBannerColumnsPromise: Promise<Set<string>> | null = null;
@@ -250,8 +272,17 @@ let homeBannerColumnsPromise: Promise<Set<string>> | null = null;
 async function getHomeBannerColumns(): Promise<Set<string>> {
   if (!homeBannerColumnsPromise) {
     homeBannerColumnsPromise = mysqlPool
-      .query<Array<RowDataPacket>>('SHOW COLUMNS FROM home_banners')
-      .then(([rows]) => new Set(rows.map((row) => String((row as { Field?: string }).Field ?? '').trim()).filter(Boolean)));
+      .query<Array<RowDataPacket>>("SHOW COLUMNS FROM home_banners")
+      .then(
+        ([rows]) =>
+          new Set(
+            rows
+              .map((row) =>
+                String((row as { Field?: string }).Field ?? "").trim(),
+              )
+              .filter(Boolean),
+          ),
+      );
   }
 
   return homeBannerColumnsPromise;
@@ -259,117 +290,205 @@ async function getHomeBannerColumns(): Promise<Set<string>> {
 
 function supportsHomeBannerTargeting(columns: Set<string>): boolean {
   return [
-    'banner_type',
-    'destination_type',
-    'secondary_destination_type',
-    'target_value',
-    'starts_at',
-    'ends_at'
+    "banner_type",
+    "destination_type",
+    "secondary_destination_type",
+    "target_value",
+    "starts_at",
+    "ends_at",
   ].every((column) => columns.has(column));
 }
 
 function buildHomeBannerSelectClause(columns: Set<string>): string {
   const selects = [
-    'hb.code',
-    'hb.title',
-    'hb.subtitle',
-    'hb.image_source',
-    columns.has('media_type') ? 'hb.media_type' : "'image' AS media_type",
-    columns.has('animation_duration_ms')
-      ? 'hb.animation_duration_ms'
-      : '0 AS animation_duration_ms'
+    "hb.id",
+    "hb.code",
+    "hb.title",
+    "hb.subtitle",
+    "hb.image_source",
+    columns.has("media_type") ? "hb.media_type" : "'image' AS media_type",
+    columns.has("animation_duration_ms")
+      ? "hb.animation_duration_ms"
+      : "0 AS animation_duration_ms",
   ];
 
   if (supportsHomeBannerTargeting(columns)) {
     selects.push(
-      'hb.banner_type',
-      'hb.destination_type',
-      'hb.secondary_destination_type',
-      'hb.target_value',
-      'hb.starts_at',
-      'hb.ends_at'
+      "hb.banner_type",
+      "hb.destination_type",
+      "hb.secondary_destination_type",
+      "hb.target_value",
+      "hb.starts_at",
+      "hb.ends_at",
     );
   } else {
     selects.push(
       "'general' AS banner_type",
       "'menu' AS destination_type",
-      'NULL AS secondary_destination_type',
-      'NULL AS target_value',
-      'NULL AS starts_at',
-      'NULL AS ends_at'
+      "NULL AS secondary_destination_type",
+      "NULL AS target_value",
+      "NULL AS starts_at",
+      "NULL AS ends_at",
+    );
+  }
+
+  if (
+    [
+      "partner_name",
+      "sponsored_label",
+      "cta_label",
+      "action_type",
+      "action_value",
+    ].every((column) => columns.has(column))
+  ) {
+    selects.push(
+      "hb.partner_name",
+      "hb.sponsored_label",
+      "hb.cta_label",
+      "hb.action_type",
+      "hb.action_value",
+    );
+  } else {
+    selects.push(
+      "NULL AS partner_name",
+      "1 AS sponsored_label",
+      "NULL AS cta_label",
+      "'none' AS action_type",
+      "NULL AS action_value",
     );
   }
 
   selects.push(
-    'hb.placement',
-    'hb.sort_order',
-    columns.has('floating_priority')
-      ? 'hb.floating_priority'
-      : '0 AS floating_priority',
-    'hb.is_active',
-    'hb.created_at'
+    "hb.placement",
+    "hb.sort_order",
+    columns.has("floating_priority")
+      ? "hb.floating_priority"
+      : "0 AS floating_priority",
+    "hb.is_active",
+    "hb.created_at",
   );
 
-  return selects.join(',\n          ');
+  return selects.join(",\n          ");
 }
 
-export async function registerCatalogRoutes(app: FastifyInstance): Promise<void> {
-  app.get('/v1/bootstrap', { preHandler: authenticateRequest }, async (request) => {
-    const [user, summary] = await Promise.all([
-      getUserResponse(request.auth.userId),
-      getBootstrapForUser(request.auth.userId)
-    ]);
-    const appearance = await getCustomerAppearance(request.auth.userId, summary.tier);
+export async function registerCatalogRoutes(
+  app: FastifyInstance,
+): Promise<void> {
+  app.get(
+    "/v1/bootstrap",
+    { preHandler: authenticateRequest },
+    async (request) => {
+      const [user, summary] = await Promise.all([
+        getUserResponse(request.auth.userId),
+        getBootstrapForUser(request.auth.userId),
+      ]);
+      const appearance = await getCustomerAppearance(
+        request.auth.userId,
+        summary.tier,
+      );
 
-    return {
-      user,
-      token: {
-        balance_available: summary.token_balance,
-        balance_reserved: summary.token_reserved,
-        balance_cap: summary.token_cap
-      },
-      loyalty: {
+      return {
+        user,
+        token: {
+          balance_available: summary.token_balance,
+          balance_reserved: summary.token_reserved,
+          balance_cap: summary.token_cap,
+        },
+        loyalty: {
+          tier: summary.tier,
+          cups_last_180d: summary.cups_last_180d,
+          next_tier: null,
+          tiers: summary.tiers,
+        },
+        active_order: null,
+        appearance,
+        home_banners: await listActiveHomeBanners(request.auth.userId),
+      };
+    },
+  );
+
+  app.get(
+    "/v1/loyalty/tiers",
+    { preHandler: authenticateRequest },
+    async (request) => {
+      const summary = await getBootstrapForUser(request.auth.userId);
+      return {
         tier: summary.tier,
         cups_last_180d: summary.cups_last_180d,
-        next_tier: null,
-        tiers: summary.tiers
-      },
-      active_order: null,
-      appearance,
-      home_banners: await listActiveHomeBanners()
-    };
-  });
+        tiers: summary.tiers,
+      };
+    },
+  );
 
-  app.get('/v1/loyalty/tiers', { preHandler: authenticateRequest }, async (request) => {
-    const summary = await getBootstrapForUser(request.auth.userId);
-    return {
-      tier: summary.tier,
-      cups_last_180d: summary.cups_last_180d,
-      tiers: summary.tiers
-    };
-  });
+  app.get(
+    "/v1/stores",
+    { preHandler: authenticateRequest },
+    async (request) => {
+      return {
+        stores: await listActiveStores(request.auth.userId),
+      };
+    },
+  );
 
-  app.get('/v1/stores', { preHandler: authenticateRequest }, async (request) => {
-    return {
-      stores: await listActiveStores(request.auth.userId)
-    };
-  });
-
-  app.get('/v1/menu', { preHandler: authenticateRequest }, async (request) => {
+  app.get("/v1/menu", { preHandler: authenticateRequest }, async (request) => {
     const { store_id: storeId } = menuQuerySchema.parse(request.query);
 
     const stores = await listActiveStores(request.auth.userId);
     if (!stores.some((store) => store.id === storeId)) {
-      throw new ApiError(404, 'store_not_found', 'Store was not found.');
+      throw new ApiError(404, "store_not_found", "Store was not found.");
     }
 
     return loadCatalogMenu(storeId);
   });
+
+  app.post(
+    "/v1/marketing/banners/:code/engagement",
+    { preHandler: authenticateRequest },
+    async (request) => {
+      const code = z
+        .string()
+        .trim()
+        .min(1)
+        .max(80)
+        .parse((request.params as { code: string }).code);
+      const { event_type: eventType } = z
+        .object({
+          event_type: z.enum(["impression", "click"]),
+        })
+        .parse(request.body);
+
+      const [result] = await mysqlPool.execute(
+        `INSERT INTO home_banner_engagements (tenant_id, banner_id, user_id, event_type, occurred_at)
+       SELECT hb.tenant_id, hb.id, :userId, :eventType, UTC_TIMESTAMP()
+       FROM home_banners hb
+       JOIN customer_tenant_memberships ctm
+         ON ctm.tenant_id = hb.tenant_id AND ctm.user_id = :userId
+       WHERE hb.code = :code AND hb.banner_type = 'partner' AND hb.is_active = 1
+         AND (hb.starts_at IS NULL OR hb.starts_at <= UTC_TIMESTAMP())
+         AND (hb.ends_at IS NULL OR hb.ends_at > UTC_TIMESTAMP())
+         AND NOT EXISTS (
+           SELECT 1
+           FROM home_banner_engagements recent
+           WHERE recent.banner_id = hb.id
+             AND recent.user_id = :userId
+             AND recent.event_type = :eventType
+             AND recent.occurred_at >= UTC_TIMESTAMP() - INTERVAL 10 MINUTE
+         )
+       LIMIT 1`,
+        { userId: request.auth.userId, eventType, code },
+      );
+      return {
+        recorded:
+          Number((result as { affectedRows?: number })?.affectedRows ?? 0) ===
+          1,
+      };
+    },
+  );
 }
 
 export async function loadCatalogMenu(storeId: number) {
-    const [rows] = await mysqlPool.query<Array<MenuRow>>(
-      `
+  const [rows] = await mysqlPool.query<Array<MenuRow>>(
+    `
         SELECT
           c.id AS category_id,
           c.code AS category_code,
@@ -460,126 +579,132 @@ export async function loadCatalogMenu(storeId: number) {
           imo.sort_order,
           imo.id
       `,
-      { storeId }
-    );
+    { storeId },
+  );
 
-    const categories = new Map<number, MenuCategoryResponse>();
+  const categories = new Map<number, MenuCategoryResponse>();
 
-    const itemsByCategory = new Map<string, number>();
+  const itemsByCategory = new Map<string, number>();
 
-    for (const row of rows) {
-      const category =
-        categories.get(row.category_id) ??
-        (() => {
-          const productKind = resolveProductKind(row.category_product_kind_code, row.category_code);
-          return {
-            id: row.category_id,
-            code: row.category_code,
-            name: row.category_name,
-            sort_order: row.category_sort_order,
-            product_kind_code: productKind.code,
-            product_kind_name: productKind.name,
-            items: [],
-          } satisfies MenuCategoryResponse;
-        })();
-
-      if (!categories.has(row.category_id)) {
-        categories.set(row.category_id, category);
-      }
-
-      const itemKey = `${row.category_id}:${row.item_id}`;
-      let itemIndex = itemsByCategory.get(itemKey);
-      if (itemIndex === undefined) {
-        const productKind = resolveProductKind(row.category_product_kind_code, row.category_code);
-        category.items.push({
-          id: row.item_id,
-          code: row.item_code,
-          name: row.item_name,
-          description: row.item_description,
-          base_price_rm: row.base_price_rm,
-          base_price_token: row.base_price_token,
-          base_calories_kcal: row.base_calories_kcal,
-          image_url: _resolveImageUrl(row.image_url),
-          is_available: row.is_available === 1,
-          is_handcrafted_drink: row.is_handcrafted_drink === 1,
-          is_qualifying_cup: row.is_qualifying_cup === 1,
-          allow_choice_of_beans: row.allow_choice_of_beans === 1,
-          allow_espresso_shot: row.allow_espresso_shot === 1,
-          allow_choice_of_milk: row.allow_choice_of_milk === 1,
-          allow_choice_of_sweetness: row.allow_choice_of_sweetness === 1,
-          allow_ice_level: row.allow_ice_level === 1,
-          allow_temperature: row.allow_temperature === 1,
-          allow_sparkling_mixer: row.allow_sparkling_mixer === 1,
-          allow_order_type: row.allow_order_type === 1,
-          allow_remarks: row.allow_remarks === 1,
-          subcategory_id: row.subcategory_id,
-          subcategory_code: row.subcategory_code,
-          subcategory_name: row.subcategory_name,
+  for (const row of rows) {
+    const category =
+      categories.get(row.category_id) ??
+      (() => {
+        const productKind = resolveProductKind(
+          row.category_product_kind_code,
+          row.category_code,
+        );
+        return {
+          id: row.category_id,
+          code: row.category_code,
+          name: row.category_name,
+          sort_order: row.category_sort_order,
           product_kind_code: productKind.code,
           product_kind_name: productKind.name,
-          token_prices: {},
-          modifier_groups: []
-        });
-        itemIndex = category.items.length - 1;
-        itemsByCategory.set(itemKey, itemIndex);
+          items: [],
+        } satisfies MenuCategoryResponse;
+      })();
+
+    if (!categories.has(row.category_id)) {
+      categories.set(row.category_id, category);
+    }
+
+    const itemKey = `${row.category_id}:${row.item_id}`;
+    let itemIndex = itemsByCategory.get(itemKey);
+    if (itemIndex === undefined) {
+      const productKind = resolveProductKind(
+        row.category_product_kind_code,
+        row.category_code,
+      );
+      category.items.push({
+        id: row.item_id,
+        code: row.item_code,
+        name: row.item_name,
+        description: row.item_description,
+        base_price_rm: row.base_price_rm,
+        base_price_token: row.base_price_token,
+        base_calories_kcal: row.base_calories_kcal,
+        image_url: _resolveImageUrl(row.image_url),
+        is_available: row.is_available === 1,
+        is_handcrafted_drink: row.is_handcrafted_drink === 1,
+        is_qualifying_cup: row.is_qualifying_cup === 1,
+        allow_choice_of_beans: row.allow_choice_of_beans === 1,
+        allow_espresso_shot: row.allow_espresso_shot === 1,
+        allow_choice_of_milk: row.allow_choice_of_milk === 1,
+        allow_choice_of_sweetness: row.allow_choice_of_sweetness === 1,
+        allow_ice_level: row.allow_ice_level === 1,
+        allow_temperature: row.allow_temperature === 1,
+        allow_sparkling_mixer: row.allow_sparkling_mixer === 1,
+        allow_order_type: row.allow_order_type === 1,
+        allow_remarks: row.allow_remarks === 1,
+        subcategory_id: row.subcategory_id,
+        subcategory_code: row.subcategory_code,
+        subcategory_name: row.subcategory_name,
+        product_kind_code: productKind.code,
+        product_kind_name: productKind.name,
+        token_prices: {},
+        modifier_groups: [],
+      });
+      itemIndex = category.items.length - 1;
+      itemsByCategory.set(itemKey, itemIndex);
+    }
+
+    const item = category.items[itemIndex];
+
+    if (row.tier_code && row.token_price !== null) {
+      item.token_prices[row.tier_code] = row.token_price;
+    }
+
+    if (row.modifier_group_id !== null) {
+      let modifierGroup = item.modifier_groups.find(
+        (group) => group.id === row.modifier_group_id,
+      );
+
+      if (!modifierGroup) {
+        modifierGroup = {
+          id: row.modifier_group_id,
+          code: row.modifier_group_code ?? "",
+          name: row.modifier_group_name ?? "",
+          selection_type: row.modifier_selection_type ?? "single",
+          min_select: row.modifier_min_select ?? 0,
+          max_select: row.modifier_max_select ?? 1,
+          is_required: row.modifier_is_required === 1,
+          source: "item",
+          hidden_when_option_ids: [],
+          options: [],
+        };
+        item.modifier_groups.push(modifierGroup);
       }
 
-      const item = category.items[itemIndex];
-
-      if (row.tier_code && row.token_price !== null) {
-        item.token_prices[row.tier_code] = row.token_price;
-      }
-
-      if (row.modifier_group_id !== null) {
-        let modifierGroup = item.modifier_groups.find(
-          (group) => group.id === row.modifier_group_id,
+      if (row.modifier_option_id !== null) {
+        const alreadyExists = modifierGroup.options.some(
+          (option) => option.id === row.modifier_option_id,
         );
-
-        if (!modifierGroup) {
-          modifierGroup = {
-            id: row.modifier_group_id,
-            code: row.modifier_group_code ?? '',
-            name: row.modifier_group_name ?? '',
-            selection_type: row.modifier_selection_type ?? 'single',
-            min_select: row.modifier_min_select ?? 0,
-            max_select: row.modifier_max_select ?? 1,
-            is_required: row.modifier_is_required === 1,
-            source: 'item',
-            hidden_when_option_ids: [],
-            options: [],
-          };
-          item.modifier_groups.push(modifierGroup);
-        }
-
-        if (row.modifier_option_id !== null) {
-          const alreadyExists = modifierGroup.options.some(
-            (option) => option.id === row.modifier_option_id,
-          );
-          if (!alreadyExists) {
-            modifierGroup.options.push({
-              id: row.modifier_option_id,
-              code: row.modifier_option_code ?? '',
-              name: row.modifier_option_name ?? '',
-              price_delta_rm: row.modifier_option_price_delta_rm ?? '0.00',
-              token_price_delta: row.modifier_option_token_price_delta ?? 0,
-              calorie_delta_kcal: 0,
-              image_url: null,
-              color_hex: null,
-              gradient_end_hex: null,
-              gradient_direction: 'diagonal',
-              is_default: false,
-            });
-          }
+        if (!alreadyExists) {
+          modifierGroup.options.push({
+            id: row.modifier_option_id,
+            code: row.modifier_option_code ?? "",
+            name: row.modifier_option_name ?? "",
+            price_delta_rm: row.modifier_option_price_delta_rm ?? "0.00",
+            token_price_delta: row.modifier_option_token_price_delta ?? 0,
+            calorie_delta_kcal: 0,
+            image_url: null,
+            color_hex: null,
+            gradient_end_hex: null,
+            gradient_direction: "diagonal",
+            is_default: false,
+          });
         }
       }
     }
+  }
 
-    const itemsById = new Map<number, MenuItemResponse>();
-    for (const category of categories.values()) {
-      for (const item of category.items) itemsById.set(item.id, item);
-    }
-    const [libraryRows] = await mysqlPool.query<Array<LibraryModifierRow>>(
-      `SELECT g.id AS group_id, g.name AS group_name, g.selection_type, g.min_select, g.max_select, g.is_required, g.applies_to,
+  const itemsById = new Map<number, MenuItemResponse>();
+  for (const category of categories.values()) {
+    for (const item of category.items) itemsById.set(item.id, item);
+  }
+  const [libraryRows] = await mysqlPool.query<Array<LibraryModifierRow>>(
+    `SELECT g.id AS group_id, g.name AS group_name, g.selection_type, g.min_select, g.max_select, g.is_required, g.applies_to,
               a.menu_item_id, o.id AS option_id, o.name AS option_name, o.image_url AS option_image_url, o.color_hex AS option_color_hex, o.gradient_end_hex AS option_gradient_end_hex, o.gradient_direction AS option_gradient_direction,
               CAST(o.price_delta_rm AS CHAR) AS option_price_delta_rm, o.token_price_delta AS option_token_price_delta,
               o.calorie_delta_kcal AS option_calorie_delta_kcal,
@@ -590,20 +715,24 @@ export async function loadCatalogMenu(storeId: number) {
        LEFT JOIN menu_option_group_items a ON a.option_group_id = g.id
        WHERE s.id = :storeId
        ORDER BY g.sort_order, g.id, o.sort_order, o.id`,
-      { storeId }
-    );
-    const [optionNutritionRows] = await mysqlPool.query<Array<RowDataPacket>>(
-      `SELECT n.menu_item_id, n.option_group_option_id, n.calorie_delta_kcal
+    { storeId },
+  );
+  const [optionNutritionRows] = await mysqlPool.query<Array<RowDataPacket>>(
+    `SELECT n.menu_item_id, n.option_group_option_id, n.calorie_delta_kcal
        FROM menu_item_option_nutrition_overrides n
        JOIN menu_items i ON i.id = n.menu_item_id
        JOIN menu_categories c ON c.id = i.category_id
        WHERE LOWER(COALESCE(c.product_kind_code, '')) = 'drink'`,
-      {}
+    {},
+  );
+  const optionCaloriesByItem = new Map<string, number>();
+  for (const row of optionNutritionRows)
+    optionCaloriesByItem.set(
+      `${row.menu_item_id}:${row.option_group_option_id}`,
+      Number(row.calorie_delta_kcal),
     );
-    const optionCaloriesByItem = new Map<string, number>();
-    for (const row of optionNutritionRows) optionCaloriesByItem.set(`${row.menu_item_id}:${row.option_group_option_id}`, Number(row.calorie_delta_kcal));
-    const [exclusionRows] = await mysqlPool.query<Array<RowDataPacket>>(
-      `SELECT e.menu_item_id, e.option_group_option_id
+  const [exclusionRows] = await mysqlPool.query<Array<RowDataPacket>>(
+    `SELECT e.menu_item_id, e.option_group_option_id
        FROM menu_item_option_exclusions e
        JOIN menu_items i ON i.id = e.menu_item_id AND i.is_active = 1
        WHERE EXISTS (
@@ -612,74 +741,119 @@ export async function loadCatalogMenu(storeId: number) {
          JOIN stores s ON s.tenant_id = g.tenant_id AND s.id = :storeId
          WHERE o.id = e.option_group_option_id
        )`,
-      { storeId }
-    );
-    const [visibilityRows] = await mysqlPool.query<Array<RowDataPacket>>(
-      `SELECT r.option_group_id, r.trigger_option_id
+    { storeId },
+  );
+  const [visibilityRows] = await mysqlPool.query<Array<RowDataPacket>>(
+    `SELECT r.option_group_id, r.trigger_option_id
        FROM menu_option_group_visibility_rules r
        JOIN menu_option_groups g ON g.id = r.option_group_id
        JOIN stores s ON s.tenant_id = g.tenant_id
        WHERE s.id = :storeId`,
-      { storeId }
+    { storeId },
+  );
+  const hiddenWhenByGroup = new Map<number, number[]>();
+  for (const row of visibilityRows) {
+    const groupId = Number(row.option_group_id);
+    hiddenWhenByGroup.set(groupId, [
+      ...(hiddenWhenByGroup.get(groupId) ?? []),
+      Number(row.trigger_option_id),
+    ]);
+  }
+  const excludedOptionIdsByItem = new Map<number, Set<number>>();
+  for (const row of exclusionRows) {
+    const excludedIds =
+      excludedOptionIdsByItem.get(Number(row.menu_item_id)) ??
+      new Set<number>();
+    excludedIds.add(Number(row.option_group_option_id));
+    excludedOptionIdsByItem.set(Number(row.menu_item_id), excludedIds);
+  }
+  for (const row of libraryRows) {
+    const targets =
+      row.applies_to === "all_drinks"
+        ? [...itemsById.values()].filter(
+            (item) => item.product_kind_code === "drink",
+          )
+        : row.menu_item_id
+          ? ([itemsById.get(row.menu_item_id)].filter(
+              Boolean,
+            ) as MenuItemResponse[])
+          : [];
+    for (const item of targets) {
+      if (excludedOptionIdsByItem.get(item.id)?.has(Number(row.option_id)))
+        continue;
+      let group = item.modifier_groups.find(
+        (candidate) =>
+          candidate.source === "library" && candidate.id === row.group_id,
+      );
+      if (!group) {
+        group = {
+          id: row.group_id,
+          code: `library-${row.group_id}`,
+          name: row.group_name,
+          selection_type: row.selection_type,
+          min_select: row.min_select,
+          max_select: row.max_select,
+          is_required: row.is_required === 1,
+          source: "library",
+          hidden_when_option_ids:
+            hiddenWhenByGroup.get(Number(row.group_id)) ?? [],
+          options: [],
+        };
+        item.modifier_groups.push(group);
+      }
+      if (!group.options.some((option) => option.id === row.option_id)) {
+        group.options.push({
+          id: row.option_id,
+          code: `library-${row.option_id}`,
+          name: row.option_name,
+          image_url: _resolveImageUrl(row.option_image_url),
+          color_hex: row.option_color_hex,
+          gradient_end_hex: row.option_gradient_end_hex,
+          gradient_direction: row.option_gradient_direction || "diagonal",
+          price_delta_rm: row.option_price_delta_rm,
+          token_price_delta: row.option_token_price_delta,
+          calorie_delta_kcal:
+            optionCaloriesByItem.get(`${item.id}:${row.option_id}`) ??
+            row.option_calorie_delta_kcal,
+          is_default: row.option_is_default === 1,
+        });
+      }
+    }
+  }
+  for (const item of itemsById.values()) {
+    // Checkout treats the centralized option library as authoritative once
+    // it applies to an item. Do not expose obsolete item-level choices that
+    // would be rejected during payment.
+    if (item.modifier_groups.some((group) => group.source === "library")) {
+      item.modifier_groups = item.modifier_groups.filter(
+        (group) => group.source === "library",
+      );
+    }
+    item.modifier_groups = item.modifier_groups.filter(
+      (group) => group.options.length > 0,
     );
-    const hiddenWhenByGroup = new Map<number, number[]>();
-    for (const row of visibilityRows) {
-      const groupId = Number(row.option_group_id);
-      hiddenWhenByGroup.set(groupId, [
-        ...(hiddenWhenByGroup.get(groupId) ?? []),
-        Number(row.trigger_option_id)
-      ]);
-    }
-    const excludedOptionIdsByItem = new Map<number, Set<number>>();
-    for (const row of exclusionRows) {
-      const excludedIds = excludedOptionIdsByItem.get(Number(row.menu_item_id)) ?? new Set<number>();
-      excludedIds.add(Number(row.option_group_option_id));
-      excludedOptionIdsByItem.set(Number(row.menu_item_id), excludedIds);
-    }
-    for (const row of libraryRows) {
-      const targets = row.applies_to === 'all_drinks'
-        ? [...itemsById.values()].filter((item) => item.product_kind_code === 'drink')
-        : row.menu_item_id ? [itemsById.get(row.menu_item_id)].filter(Boolean) as MenuItemResponse[] : [];
-      for (const item of targets) {
-        if (excludedOptionIdsByItem.get(item.id)?.has(Number(row.option_id))) continue;
-        let group = item.modifier_groups.find((candidate) => candidate.source === 'library' && candidate.id === row.group_id);
-        if (!group) {
-          group = { id: row.group_id, code: `library-${row.group_id}`, name: row.group_name, selection_type: row.selection_type, min_select: row.min_select, max_select: row.max_select, is_required: row.is_required === 1, source: 'library', hidden_when_option_ids: hiddenWhenByGroup.get(Number(row.group_id)) ?? [], options: [] };
-          item.modifier_groups.push(group);
-        }
-        if (!group.options.some((option) => option.id === row.option_id)) {
-          group.options.push({ id: row.option_id, code: `library-${row.option_id}`, name: row.option_name, image_url: _resolveImageUrl(row.option_image_url), color_hex: row.option_color_hex, gradient_end_hex: row.option_gradient_end_hex, gradient_direction: row.option_gradient_direction || 'diagonal', price_delta_rm: row.option_price_delta_rm, token_price_delta: row.option_token_price_delta, calorie_delta_kcal: optionCaloriesByItem.get(`${item.id}:${row.option_id}`) ?? row.option_calorie_delta_kcal, is_default: row.option_is_default === 1 });
-        }
-      }
-    }
-    for (const item of itemsById.values()) {
-      // Checkout treats the centralized option library as authoritative once
-      // it applies to an item. Do not expose obsolete item-level choices that
-      // would be rejected during payment.
-      if (item.modifier_groups.some((group) => group.source === 'library')) {
-        item.modifier_groups = item.modifier_groups.filter((group) => group.source === 'library');
-      }
-      item.modifier_groups = item.modifier_groups.filter((group) => group.options.length > 0);
-    }
+  }
 
-    for (const category of categories.values()) {
-      category.items.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
-    }
+  for (const category of categories.values()) {
+    category.items.sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
+    );
+  }
 
-    return {
-      store_id: storeId,
-      categories: [...categories.values()]
-    };
+  return {
+    store_id: storeId,
+    categories: [...categories.values()],
+  };
 }
 
 function _resolveImageUrl(imageUrl: string | null): string | null {
   if (!imageUrl) return null;
-  if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+  if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) {
     return imageUrl;
   }
 
-  const baseOrigin = env.PUBLIC_API_BASE_URL.replace(/\/v1\/?$/, '');
-  if (imageUrl.startsWith('/')) {
+  const baseOrigin = env.PUBLIC_API_BASE_URL.replace(/\/v1\/?$/, "");
+  if (imageUrl.startsWith("/")) {
     return `${baseOrigin}${imageUrl}`;
   }
 
@@ -699,7 +873,7 @@ async function listActiveStores(userId: number): Promise<
     state: string | null;
     postcode: string | null;
     is_open_now: null;
-    status: 'active' | 'inactive';
+    status: "active" | "inactive";
   }>
 > {
   const [rows] = await mysqlPool.query<Array<StoreRow>>(
@@ -722,7 +896,7 @@ async function listActiveStores(userId: number): Promise<
       WHERE s.status = 'active' AND s.is_customer_facing = 1 AND ctm.user_id = :userId
       ORDER BY s.name ASC, s.id ASC
     `,
-    { userId }
+    { userId },
   );
 
   return rows.map((row) => ({
@@ -737,19 +911,20 @@ async function listActiveStores(userId: number): Promise<
     state: row.state,
     postcode: row.postcode,
     is_open_now: null,
-    status: row.status
+    status: row.status,
   }));
 }
 
-async function listActiveHomeBanners(): Promise<
+async function listActiveHomeBanners(userId: number): Promise<
   Array<{
+    id: number;
     code: string;
     title: string;
     subtitle: string;
     image_source: string;
-    media_type: 'image' | 'gif';
+    media_type: "image" | "gif";
     animation_duration_ms: number;
-    placement: 'home' | 'profile' | 'both';
+    placement: "home" | "profile" | "both";
     sort_order: number;
     floating_priority: number;
     created_at: string;
@@ -758,10 +933,13 @@ async function listActiveHomeBanners(): Promise<
   const columns = await getHomeBannerColumns();
   const supportsTargeting = supportsHomeBannerTargeting(columns);
   const selectClause = buildHomeBannerSelectClause(columns);
-  const whereClauses = ['hb.is_active = 1'];
+  const whereClauses = ["hb.is_active = 1"];
 
   if (supportsTargeting) {
-    whereClauses.push("(hb.banner_type <> 'event' OR hb.ends_at IS NULL OR hb.ends_at > UTC_TIMESTAMP())");
+    whereClauses.push(
+      "(hb.starts_at IS NULL OR hb.starts_at <= UTC_TIMESTAMP())",
+    );
+    whereClauses.push("(hb.ends_at IS NULL OR hb.ends_at > UTC_TIMESTAMP())");
   }
 
   const [rows] = await mysqlPool.query<Array<HomeBannerRow>>(
@@ -769,14 +947,18 @@ async function listActiveHomeBanners(): Promise<
       SELECT
         ${selectClause}
       FROM home_banners hb
-      WHERE ${whereClauses.join(' AND ')}
+      JOIN customer_tenant_memberships ctm
+        ON ctm.tenant_id = hb.tenant_id AND ctm.user_id = :userId
+      WHERE ${whereClauses.join(" AND ")}
       ORDER BY hb.floating_priority DESC, hb.sort_order ASC, hb.id ASC
-    `
+    `,
+    { userId },
   );
 
   return rows
     .filter((row) => row.is_active === 1)
     .map((row) => ({
+      id: row.id,
       code: row.code,
       title: row.title,
       subtitle: row.subtitle,
@@ -784,6 +966,11 @@ async function listActiveHomeBanners(): Promise<
       media_type: row.media_type,
       animation_duration_ms: row.animation_duration_ms,
       banner_type: row.banner_type,
+      partner_name: row.partner_name,
+      sponsored_label: row.sponsored_label,
+      cta_label: row.cta_label,
+      action_type: row.action_type,
+      action_value: row.action_value,
       destination_type: row.destination_type,
       secondary_destination_type: row.secondary_destination_type,
       target_value: row.target_value,
@@ -792,6 +979,6 @@ async function listActiveHomeBanners(): Promise<
       placement: row.placement,
       sort_order: row.sort_order,
       floating_priority: row.floating_priority,
-      created_at: new Date(row.created_at).toISOString()
+      created_at: new Date(row.created_at).toISOString(),
     }));
 }

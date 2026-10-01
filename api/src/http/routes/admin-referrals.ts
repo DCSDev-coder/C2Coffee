@@ -4,6 +4,8 @@ import { z } from 'zod';
 import { authenticateAdminRequest, requireAdminRole, requireAnyAdminRole } from '../../admin/guard.js';
 import { getUtcConnection, mysqlPool } from '../../db/mysql.js';
 import { ApiError } from '../errors.js';
+import { requireAdminActionConfirmation } from '../../admin/action-confirmation.js';
+import { retryReferralRewardJob } from '../../services/referrals.js';
 
 const rewardSchema = z.object({
   type: z.enum(['voucher', 'token']),
@@ -88,6 +90,74 @@ async function syncActiveProgram(
 }
 
 export async function registerAdminReferralRoutes(app: FastifyInstance): Promise<void> {
+  app.get('/v1/admin/referral-reward-jobs', { preHandler: authenticateAdminRequest }, async (request, reply) => {
+    requireAnyAdminRole(request, ['super_admin', 'marketing_admin']);
+    const [rows] = await runReferralQuery<Array<RowDataPacket>>(
+      `SELECT j.id, j.referral_id, j.reward_side, j.status, j.attempt_count,
+              j.next_attempt_at, j.last_failure_reason, j.last_error_message,
+              j.resolution_note, j.created_at, j.updated_at,
+              rp.name AS program_name, referrer_profile.display_name AS referrer_name,
+              friend_profile.display_name AS friend_name
+       FROM referral_reward_jobs j
+       JOIN referrals r ON r.id = j.referral_id
+       LEFT JOIN referral_programs rp ON rp.id = r.referral_program_id
+       LEFT JOIN user_profiles referrer_profile ON referrer_profile.user_id = r.referrer_user_id
+       LEFT JOIN user_profiles friend_profile ON friend_profile.user_id = r.referred_user_id
+       WHERE j.tenant_id = :tenantId AND j.status IN ('pending','retrying','needs_review')
+       ORDER BY (j.status = 'needs_review') DESC, j.created_at ASC`,
+      { tenantId: request.adminAuth.tenantId }
+    );
+    return reply.send({ jobs: rows });
+  });
+
+  app.post('/v1/admin/referral-reward-jobs/:id/retry', { preHandler: authenticateAdminRequest }, async (request, reply) => {
+    requireAnyAdminRole(request, ['super_admin', 'marketing_admin']);
+    const id = z.coerce.number().int().positive().parse((request.params as { id: string }).id);
+    const connection = await getUtcConnection();
+    try {
+      await connection.beginTransaction();
+      const outcome = await retryReferralRewardJob(connection, id, request.adminAuth.tenantId);
+      await connection.commit();
+      return reply.send(outcome);
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  });
+
+  app.post('/v1/admin/referral-reward-jobs/:id/waive', { preHandler: authenticateAdminRequest }, async (request, reply) => {
+    requireAdminRole(request, 'super_admin');
+    const id = z.coerce.number().int().positive().parse((request.params as { id: string }).id);
+    const payload = z.object({ confirmation_password: z.string().min(8).max(200), note: z.string().trim().min(10).max(500) }).parse(request.body);
+    const connection = await getUtcConnection();
+    try {
+      await connection.beginTransaction();
+      await requireAdminActionConfirmation(connection, request.adminAuth.adminUserId, payload.confirmation_password);
+      const [result] = await connection.execute<ResultSetHeader>(
+        `UPDATE referral_reward_jobs
+         SET status = 'waived', resolved_by_admin_id = :adminUserId,
+             resolution_note = :note, resolved_at = UTC_TIMESTAMP(), next_attempt_at = NULL
+         WHERE id = :id AND tenant_id = :tenantId AND status IN ('pending','retrying','needs_review')`,
+        { id, tenantId: request.adminAuth.tenantId, adminUserId: request.adminAuth.adminUserId, note: payload.note }
+      );
+      if (!result.affectedRows) throw new ApiError(404, 'referral_reward_job_not_found', 'Unresolved referral reward was not found.');
+      await connection.execute(
+        `INSERT INTO admin_audit_logs (admin_user_id, effective_roles_json, action_code, target_type, target_id, ip_address, user_agent, created_at)
+         VALUES (:adminUserId, :roles, 'referral_reward_waived', 'referral_reward_job', :id, :ipAddress, :userAgent, UTC_TIMESTAMP())`,
+        { adminUserId: request.adminAuth.adminUserId, roles: JSON.stringify(request.adminAuth.roles), id, ipAddress: request.ip, userAgent: request.headers['user-agent'] ?? null }
+      );
+      await connection.commit();
+      return reply.send({ success: true });
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  });
+
   app.get('/v1/admin/referral-programs', { preHandler: authenticateAdminRequest }, async (request, reply) => {
     requireAnyAdminRole(request, ['super_admin', 'marketing_admin']);
     request.log.info({ tenantId: request.adminAuth.tenantId }, 'Listing referral programs');
