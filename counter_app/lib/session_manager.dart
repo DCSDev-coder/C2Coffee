@@ -5,13 +5,23 @@ import 'api_client.dart';
 class CustomerSession {
   final String phone;
   final String sessionToken;
+  final String deviceToken;
   final Map<String, dynamic> customerSummary;
 
   CustomerSession({
     required this.phone,
     required this.sessionToken,
+    required this.deviceToken,
     required this.customerSummary,
   });
+
+  bool get isGuest => sessionToken.isEmpty;
+
+  List<Map<String, dynamic>> get activeVouchers {
+    final value = customerSummary['active_vouchers'];
+    if (value is! List) return const [];
+    return value.whereType<Map>().map(Map<String, dynamic>.from).toList();
+  }
 }
 
 class SessionManager {
@@ -27,20 +37,21 @@ class SessionManager {
   /// Starts a session by communicating with the backend API
   Future<bool> startSession(String phone, String deviceToken) async {
     try {
-      final response = await _apiClient.post(
-        '/v1/counter/customer-sessions',
-        {'phone': phone},
-        token: deviceToken,
-      );
+      final response = await _apiClient.post('/v1/counter/customer-sessions', {
+        'phone': phone,
+      }, token: deviceToken);
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        final jsonResponse = jsonDecode(response.body);
+        final jsonResponse = jsonDecode(response.body) as Map<String, dynamic>;
         final sessionToken = jsonResponse['customer_session_token'] as String;
-        
+        final customer = jsonResponse['customer'];
+        if (customer is! Map) return false;
+
         _currentSession = CustomerSession(
           phone: phone,
           sessionToken: sessionToken,
-          customerSummary: jsonResponse, // Store full payload safely
+          deviceToken: deviceToken,
+          customerSummary: Map<String, dynamic>.from(customer),
         );
         _resetIdleTimer();
         return true;
@@ -56,6 +67,7 @@ class SessionManager {
     _currentSession = CustomerSession(
       phone: 'Guest',
       sessionToken: '',
+      deviceToken: '',
       customerSummary: {
         'customer_name': 'Walk-in Guest',
         'loyalty_tier': 'None',
@@ -80,16 +92,17 @@ class SessionManager {
 
   /// Ends the session, communicating the DELETE request to the backend
   Future<void> endSession() async {
-    final sessionToken = _currentSession?.sessionToken;
+    final session = _currentSession;
     _currentSession = null;
     _idleTimer?.cancel();
     onSessionEnded?.call();
 
-    if (sessionToken != null) {
+    if (session != null && !session.isGuest) {
       try {
         await _apiClient.delete(
           '/v1/counter/customer-session',
-          headers: {'X-Counter-Customer-Session': sessionToken},
+          token: session.deviceToken,
+          headers: {'X-Counter-Customer-Session': session.sessionToken},
         );
       } catch (e) {
         // Just fail silently for now if network fails on cleanup

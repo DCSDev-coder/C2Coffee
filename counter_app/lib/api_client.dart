@@ -15,16 +15,20 @@ class ApiClient {
     String path,
     Map<String, dynamic> body, {
     String? token,
+    Map<String, String>? headers,
   }) async {
-    final headers = {'Content-Type': 'application/json'};
+    final requestHeaders = {'Content-Type': 'application/json'};
     if (token != null) {
-      headers['Authorization'] = 'Bearer $token';
+      requestHeaders['Authorization'] = 'Bearer $token';
+    }
+    if (headers != null) {
+      requestHeaders.addAll(headers);
     }
 
     return http
         .post(
           Uri.parse('$baseUrl$path'),
-          headers: headers,
+          headers: requestHeaders,
           body: jsonEncode(body),
         )
         .timeout(_requestTimeout);
@@ -43,9 +47,13 @@ class ApiClient {
 
   Future<http.Response> delete(
     String path, {
+    String? token,
     Map<String, String>? headers,
   }) async {
     final requestHeaders = {'Content-Type': 'application/json'};
+    if (token != null) {
+      requestHeaders['Authorization'] = 'Bearer $token';
+    }
     if (headers != null) {
       requestHeaders.addAll(headers);
     }

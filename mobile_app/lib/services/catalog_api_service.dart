@@ -46,6 +46,9 @@ class StoreSummary {
   final String city;
   final String state;
   final String postcode;
+  final double? latitude;
+  final double? longitude;
+  final bool isOpenNow;
 
   const StoreSummary({
     required this.id,
@@ -59,6 +62,9 @@ class StoreSummary {
     this.city = '',
     this.state = '',
     this.postcode = '',
+    this.latitude,
+    this.longitude,
+    this.isOpenNow = true,
   });
 
   String get addressLabel => [
@@ -81,6 +87,9 @@ class StoreSummary {
       city: json['city'] as String? ?? '',
       state: json['state'] as String? ?? '',
       postcode: json['postcode'] as String? ?? '',
+      latitude: (json['latitude'] as num?)?.toDouble(),
+      longitude: (json['longitude'] as num?)?.toDouble(),
+      isOpenNow: json['is_open_now'] as bool? ?? true,
     );
   }
 }

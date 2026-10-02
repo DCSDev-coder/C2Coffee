@@ -80,6 +80,8 @@ String friendlyCustomerErrorMessage(
       return 'This order is already being prepared and can no longer be cancelled in the app.';
     case 'refund_already_in_progress':
       return 'A token return is already being processed for this order. Please check your wallet shortly.';
+    case 'store_closed':
+      return 'This outlet is currently closed. Choose an open outlet before ordering.';
     default:
       return fallback;
   }

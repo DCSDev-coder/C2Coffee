@@ -20,6 +20,7 @@ import { resolveOrderLifecycleStatus } from '../order-lifecycle.js';
 import { getKualaLumpurDateParts } from '../../lib/kuala-lumpur-time.js';
 import { deliverPushToStaff } from '../../services/push-delivery.js';
 import { deliverQueuedOrderReceiptEmail, queueOrderReceiptEmail } from '../../services/order-receipt-email.js';
+import { isStoreOpenNow } from '../../services/store-availability.js';
 
 const createOrderSchema = z.object({
   store_id: z.coerce.number().int().positive(),
@@ -58,6 +59,9 @@ type StoreRow = RowDataPacket & {
   pickup_lead_minutes: number;
   supports_pickup: number;
   status: 'active' | 'inactive';
+  timezone: string;
+  temporarily_closed: number;
+  weekly_hours_json: unknown;
 };
 
 type LibraryOptionRow = RowDataPacket & {
@@ -74,7 +78,7 @@ type LibraryOptionRow = RowDataPacket & {
   calorie_delta_kcal: number;
 };
 
-type MenuItemRow = RowDataPacket & {
+export type MenuItemRow = RowDataPacket & {
   id: number;
   code: string;
   name: string;
@@ -129,7 +133,7 @@ type OrderCollectRow = RowDataPacket & {
   collected_at: Date | null;
 };
 
-type AppliedVoucherRow = RowDataPacket & {
+export type AppliedVoucherRow = RowDataPacket & {
   id: number;
   user_id: number;
   status: 'active' | 'redeemed' | 'expired' | 'revoked';
@@ -181,7 +185,7 @@ type VoucherPromotionRule = {
   reward_scope: VoucherScopeSelection;
 };
 
-function _parseVoucherScope(value: unknown): Record<string, unknown> {
+export function parseVoucherScope(value: unknown): Record<string, unknown> {
   if (!value) return {};
   if (typeof value === 'object') return value as Record<string, unknown>;
   if (typeof value === 'string') {
@@ -196,7 +200,7 @@ function _parseVoucherScope(value: unknown): Record<string, unknown> {
   return {};
 }
 
-function _isVoucherAvailableNow(
+export function isVoucherAvailableNow(
   scope: Record<string, unknown>,
   now = new Date(),
   birthdayMonthDay: string | null = null
@@ -321,7 +325,7 @@ function _scopeSelectionFromRaw(value: unknown): VoucherScopeSelection {
   };
 }
 
-function _parsePromotionRule(scope: Record<string, unknown>): VoucherPromotionRule {
+export function parsePromotionRule(scope: Record<string, unknown>): VoucherPromotionRule {
   const rawRule =
     scope.promotion_rule && typeof scope.promotion_rule === 'object'
       ? (scope.promotion_rule as Record<string, unknown>)
@@ -396,7 +400,7 @@ function _scopeMatchesMenuItem(scope: VoucherScopeSelection, menuItem: MenuItemR
   return productKindCodes.has(productKindCode);
 }
 
-function _collectMatchedUnits(
+export function collectMatchedUnits(
   scope: VoucherScopeSelection,
   normalizedItems: Array<{
     payload: z.infer<typeof createOrderSchema>['items'][number];
@@ -454,9 +458,12 @@ export async function registerCheckoutRoutes(
       if (!store || store.status !== 'active' || store.supports_pickup !== 1) {
         throw new ApiError(404, 'store_not_found', 'Store was not found.');
       }
+      if (!isStoreOpenNow(store)) {
+        throw new ApiError(409, 'store_closed', 'This outlet is currently closed and cannot accept orders.');
+      }
 
       const bootstrap = await getBootstrapForUser(request.auth.userId, connection);
-      const menuItems = await _loadMenuItems(
+      const menuItems = await loadCheckoutMenuItems(
         connection,
         payload.store_id,
         payload.items.map((item) => item.menu_item_id),
@@ -503,10 +510,10 @@ export async function registerCheckoutRoutes(
           );
         }
 
-        const verifiedModifiers = await _verifyLibraryModifiers(connection, store.tenant_id, menuItem.id, item.modifiers);
+        const verifiedModifiers = await verifyCheckoutModifiers(connection, store.tenant_id, menuItem.id, item.modifiers);
         const normalizedPayload = { ...item, modifiers: verifiedModifiers };
         const modifierRm = verifiedModifiers.reduce(
-          (sum, modifier) => sum + _normalizeMoney(modifier.price_delta_rm),
+          (sum, modifier) => sum + normalizeMoney(modifier.price_delta_rm),
           0
         );
         const modifierTokens = verifiedModifiers.reduce(
@@ -625,8 +632,8 @@ export async function registerCheckoutRoutes(
           );
         }
 
-        const voucherScope = _parseVoucherScope(appliedVoucher.eligible_scope_json);
-        const promotionRule = _parsePromotionRule(voucherScope);
+        const voucherScope = parseVoucherScope(appliedVoucher.eligible_scope_json);
+        const promotionRule = parsePromotionRule(voucherScope);
         const isTierBirthdayReward = appliedVoucher.issue_case_ref?.startsWith('tier_birthday:') ?? false;
         const voucherSchedule =
           voucherScope.schedule && typeof voucherScope.schedule === 'object'
@@ -656,7 +663,7 @@ export async function registerCheckoutRoutes(
         // birthday month and expires at that month's end. Its issued grant,
         // rather than the reusable template's generic schedule, is the
         // authoritative availability rule.
-        if (!isTierBirthdayReward && !_isVoucherAvailableNow(voucherScope, new Date(), customerBirthdayMonthDay)) {
+        if (!isTierBirthdayReward && !isVoucherAvailableNow(voucherScope, new Date(), customerBirthdayMonthDay)) {
           throw new ApiError(
             400,
             'voucher_not_available_now',
@@ -664,8 +671,8 @@ export async function registerCheckoutRoutes(
           );
         }
 
-        const qualifyingUnits = _collectMatchedUnits(promotionRule.qualifying_scope, normalizedItems);
-        const rewardUnits = _collectMatchedUnits(promotionRule.reward_scope, normalizedItems);
+        const qualifyingUnits = collectMatchedUnits(promotionRule.qualifying_scope, normalizedItems);
+        const rewardUnits = collectMatchedUnits(promotionRule.reward_scope, normalizedItems);
 
         if (qualifyingUnits.length < promotionRule.qualifying_quantity || rewardUnits.length === 0) {
           throw new ApiError(
@@ -752,7 +759,11 @@ export async function registerCheckoutRoutes(
         );
       }
 
-      const finalTotalRm = Math.max(0, totalBeforeDiscountRm - discountRm);
+      discountRm = normalizeMoney(discountRm);
+      const finalTotalRm = Math.max(
+        0,
+        normalizeMoney(totalBeforeDiscountRm - discountRm)
+      );
 
       const dailyOrderNumber = await _allocateDailyOrderNumber(
         connection,
@@ -899,7 +910,7 @@ export async function registerCheckoutRoutes(
               orderItemId: itemResult.insertId,
               groupName: modifier.group_name,
               optionName: modifier.option_name,
-              priceDeltaRm: _normalizeMoney(modifier.price_delta_rm).toFixed(2),
+              priceDeltaRm: normalizeMoney(modifier.price_delta_rm).toFixed(2),
               tokenPriceDelta: modifier.token_price_delta
               ,calorieDeltaKcal: modifier.calorie_delta_kcal
             }
@@ -1451,7 +1462,10 @@ async function _loadStore(
         name,
         pickup_lead_minutes,
         supports_pickup,
-        status
+        status,
+        timezone,
+        temporarily_closed,
+        weekly_hours_json
       FROM stores
       WHERE id = :storeId
         AND status = 'active'
@@ -1464,7 +1478,7 @@ async function _loadStore(
   return rows[0] ?? null;
 }
 
-async function _loadMenuItems(
+export async function loadCheckoutMenuItems(
   connection: PoolConnection,
   storeId: number,
   menuItemIds: number[],
@@ -1526,7 +1540,7 @@ async function _loadMenuItems(
   return rows;
 }
 
-async function _verifyLibraryModifiers(
+export async function verifyCheckoutModifiers(
   connection: PoolConnection,
   tenantId: number,
   menuItemId: number,
@@ -1669,7 +1683,7 @@ async function _allocateDailyOrderNumber(
   return rows[0]?.allocated_number ?? 0;
 }
 
-function _normalizeMoney(value: number): number {
+export function normalizeMoney(value: number): number {
   return Number(value.toFixed(2));
 }
 

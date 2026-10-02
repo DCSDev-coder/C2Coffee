@@ -51,3 +51,9 @@ headers.
 Counter orders use RM. Mobile orders use customer tokens. QR/card checkout must
 not be enabled until the payment provider supplies a server-verifiable payment
 callback. The counter client must never be trusted to declare a payment paid.
+
+The current app can activate a device, load its outlet menu, identify a member,
+and display that member's active RM-compatible vouchers. It deliberately does
+not calculate a voucher discount, create a paid order, redeem a voucher, or show
+a successful payment. Those actions require the server-side counter quote,
+voucher reservation, pending-order, and verified payment-callback workflow.

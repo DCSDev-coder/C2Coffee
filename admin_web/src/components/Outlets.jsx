@@ -2,15 +2,27 @@ import React, { useEffect, useState } from 'react';
 import { Archive, MapPin, Plus, RotateCcw, Save } from 'lucide-react';
 import { createAdminStore, loadAdminStores, updateAdminStore } from '../lib/adminApi';
 
+const dayRows = [
+  ['mon', 'Monday'], ['tue', 'Tuesday'], ['wed', 'Wednesday'], ['thu', 'Thursday'],
+  ['fri', 'Friday'], ['sat', 'Saturday'], ['sun', 'Sunday'],
+];
+const defaultWeeklyHours = Object.fromEntries(dayRows.map(([key]) => [key, { closed: false, open: '08:00', close: '22:00' }]));
+
 const emptyOutlet = {
   code: '', name: '', address_line_1: '', address_line_2: '', city: '', state: '', postcode: '',
-  timezone: 'Asia/Kuala_Lumpur', supports_pickup: true, pickup_lead_minutes: 15, is_customer_facing: false
+  timezone: 'Asia/Kuala_Lumpur', supports_pickup: true, pickup_lead_minutes: 15, is_customer_facing: false,
+  latitude: null, longitude: null, temporarily_closed: false, weekly_hours: defaultWeeklyHours
 };
 
 function OutletForm({ initialValue = emptyOutlet, onSave, saving, actionLabel, password, setPassword }) {
-  const [form, setForm] = useState(initialValue);
-  useEffect(() => setForm(initialValue), [initialValue]);
+  const withSchedule = (value) => ({ ...value, weekly_hours: value.weekly_hours || defaultWeeklyHours });
+  const [form, setForm] = useState(withSchedule(initialValue));
+  useEffect(() => setForm(withSchedule(initialValue)), [initialValue]);
   const change = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+  const changeHours = (day, key, value) => setForm((current) => ({
+    ...current,
+    weekly_hours: { ...(current.weekly_hours || defaultWeeklyHours), [day]: { ...(current.weekly_hours?.[day] || defaultWeeklyHours[day]), [key]: value } },
+  }));
   const routingLocked = Boolean(initialValue.id && initialValue.is_customer_facing);
   return <form className="grid gap-4 md:grid-cols-2" onSubmit={(event) => { event.preventDefault(); onSave(form); }}>
     <label className="text-sm font-semibold text-gray-700">Outlet code<input required value={form.code || ''} disabled={Boolean(initialValue.id)} onChange={(e) => change('code', e.target.value.toUpperCase())} placeholder="C2-BANGI" className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 disabled:bg-gray-100" /></label>
@@ -22,8 +34,11 @@ function OutletForm({ initialValue = emptyOutlet, onSave, saving, actionLabel, p
     <label className="text-sm font-semibold text-gray-700">Postcode<input required value={form.postcode || ''} onChange={(e) => change('postcode', e.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" /></label>
     <label className="text-sm font-semibold text-gray-700">Pickup lead time (minutes)<input required min="0" max="240" type="number" value={form.pickup_lead_minutes ?? 15} onChange={(e) => change('pickup_lead_minutes', Number(e.target.value))} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" /></label>
     <label className="text-sm font-semibold text-gray-700">Timezone<input required value={form.timezone || ''} onChange={(e) => change('timezone', e.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" /></label>
+    <label className="text-sm font-semibold text-gray-700">Latitude<input required type="number" min="-90" max="90" step="0.0000001" value={form.latitude ?? ''} onChange={(e) => change('latitude', e.target.value === '' ? null : Number(e.target.value))} placeholder="2.9381000" className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" /></label>
+    <label className="text-sm font-semibold text-gray-700">Longitude<input required type="number" min="-180" max="180" step="0.0000001" value={form.longitude ?? ''} onChange={(e) => change('longitude', e.target.value === '' ? null : Number(e.target.value))} placeholder="101.7875000" className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" /></label>
     {initialValue.id && <label className="text-sm font-semibold text-gray-700">Status<select value={form.status || 'active'} disabled={routingLocked} onChange={(e) => change('status', e.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 disabled:bg-gray-100"><option value="active">Active</option><option value="inactive">Archived</option></select></label>}
-    <div className="md:col-span-2 flex flex-wrap gap-5 text-sm font-medium text-gray-700"><label className="flex items-center gap-2"><input type="checkbox" checked={Boolean(form.supports_pickup)} onChange={(e) => change('supports_pickup', e.target.checked)} /> Supports pickup</label><label className="flex items-center gap-2"><input type="checkbox" checked={Boolean(form.is_customer_facing)} onChange={(e) => change('is_customer_facing', e.target.checked)} /> Available in customer app</label></div>
+    <div className="md:col-span-2 flex flex-wrap gap-5 text-sm font-medium text-gray-700"><label className="flex items-center gap-2"><input type="checkbox" checked={Boolean(form.supports_pickup)} onChange={(e) => change('supports_pickup', e.target.checked)} /> Supports pickup</label><label className="flex items-center gap-2"><input type="checkbox" checked={Boolean(form.is_customer_facing)} onChange={(e) => change('is_customer_facing', e.target.checked)} /> Available in customer app</label><label className="flex items-center gap-2 text-red-700"><input type="checkbox" checked={Boolean(form.temporarily_closed)} onChange={(e) => change('temporarily_closed', e.target.checked)} /> Temporarily closed</label></div>
+    <fieldset className="md:col-span-2 rounded-xl border border-gray-200 p-4"><legend className="px-2 text-sm font-bold text-gray-800">Opening hours</legend><div className="space-y-3">{dayRows.map(([key, label]) => { const hours = form.weekly_hours?.[key] || defaultWeeklyHours[key]; return <div key={key} className="grid grid-cols-[92px_1fr_1fr] items-center gap-3"><label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={!hours.closed} onChange={(event) => changeHours(key, 'closed', !event.target.checked)} /> {label}</label><input aria-label={`${label} opening time`} disabled={hours.closed} required={!hours.closed} type="time" value={hours.open || ''} onChange={(event) => changeHours(key, 'open', event.target.value)} className="rounded-lg border border-gray-300 px-3 py-2 disabled:bg-gray-100" /><input aria-label={`${label} closing time`} disabled={hours.closed} required={!hours.closed} type="time" value={hours.close || ''} onChange={(event) => changeHours(key, 'close', event.target.value)} className="rounded-lg border border-gray-300 px-3 py-2 disabled:bg-gray-100" /></div>; })}</div><p className="mt-3 text-xs text-gray-500">Untick a day when the outlet is closed. Closing times earlier than opening times are treated as overnight hours.</p></fieldset>
     {routingLocked && <p className="md:col-span-2 text-xs text-amber-700">Turn off customer-app availability before archiving this outlet.</p>}
     <label className="text-sm font-semibold text-gray-700 md:col-span-2">Confirm with current password<input required minLength="8" autoComplete="current-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" /></label>
     <button disabled={saving} className="inline-flex w-fit items-center gap-2 rounded-lg bg-[#1F3A34] px-4 py-2 text-sm font-bold text-white disabled:opacity-60"><Save size={16} />{saving ? 'Saving...' : actionLabel}</button>
