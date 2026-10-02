@@ -277,7 +277,7 @@ class _OrdersPageState extends State<OrdersPage>
                 indicatorSize: TabBarIndicatorSize.label,
                 labelStyle: const TextStyle(fontFamily: 'Afacad',
                   fontWeight: FontWeight.bold,
-                  fontSize: 18,
+                  fontSize: 22,
                 ),
                 tabs: const [
                   Tab(text: 'Active Orders'),
@@ -329,7 +329,7 @@ class _OrdersPageState extends State<OrdersPage>
           Text(
             '${activeOrders.length} active order${activeOrders.length == 1 ? '' : 's'}',
             style: TextStyle(fontFamily: 'Afacad',
-              fontSize: 15,
+              fontSize: 19,
               fontWeight: FontWeight.bold,
               color: AppColors.deepTeal,
             ),
@@ -442,7 +442,7 @@ class _OrdersPageState extends State<OrdersPage>
                     Text(
                       orderTitle,
                       style: TextStyle(fontFamily: 'Recoleta',
-                        fontSize: 22,
+                        fontSize: 26,
                         fontWeight: FontWeight.bold,
                         color: AppColors.deepTeal,
                       ),
@@ -451,7 +451,7 @@ class _OrdersPageState extends State<OrdersPage>
                     Text(
                       order.store.name,
                       style: const TextStyle(fontFamily: 'Afacad',
-                        fontSize: 16,
+                        fontSize: 20,
                         color: Colors.black87,
                       ),
                     ),
@@ -470,7 +470,7 @@ class _OrdersPageState extends State<OrdersPage>
                 child: Text(
                   _formatStatus(order.status),
                   style: TextStyle(fontFamily: 'Afacad',
-                    fontSize: 14,
+                    fontSize: 18,
                     fontWeight: FontWeight.bold,
                     color: AppColors.deepTeal,
                   ),
@@ -482,7 +482,7 @@ class _OrdersPageState extends State<OrdersPage>
           Text(
             'Order Ref: ${order.orderRef}',
             style: const TextStyle(fontFamily: 'Afacad',
-              fontSize: 16,
+              fontSize: 20,
               color: Colors.black54,
             ),
           ),
@@ -491,7 +491,7 @@ class _OrdersPageState extends State<OrdersPage>
             Text(
               'Prepared by: ${order.baristaName!.trim()}',
               style: const TextStyle(fontFamily: 'Afacad',
-                fontSize: 16,
+                fontSize: 20,
                 color: Colors.black54,
               ),
             ),
@@ -500,7 +500,7 @@ class _OrdersPageState extends State<OrdersPage>
           Text(
             'Created: $createdLabel',
             style: const TextStyle(fontFamily: 'Afacad',
-              fontSize: 16,
+              fontSize: 20,
               color: Colors.black54,
             ),
           ),
@@ -509,7 +509,7 @@ class _OrdersPageState extends State<OrdersPage>
             Text(
               'Pickup: $pickupLabel',
               style: const TextStyle(fontFamily: 'Afacad',
-                fontSize: 16,
+                fontSize: 20,
                 color: Colors.black54,
               ),
             ),
@@ -519,7 +519,7 @@ class _OrdersPageState extends State<OrdersPage>
           Text(
             '${order.itemCount} item(s)',
             style: TextStyle(fontFamily: 'Afacad',
-              fontSize: 16,
+              fontSize: 20,
               fontWeight: FontWeight.bold,
               color: AppColors.deepTeal,
             ),
@@ -531,7 +531,7 @@ class _OrdersPageState extends State<OrdersPage>
                   child: Text(
                     '${item.quantity}x ${item.name}',
                     style: const TextStyle(fontFamily: 'Afacad',
-                      fontSize: 16,
+                      fontSize: 20,
                       color: Colors.black87,
                     ),
                   ),
@@ -545,7 +545,7 @@ class _OrdersPageState extends State<OrdersPage>
                 Text(
                   'Progress',
                   style: TextStyle(fontFamily: 'Afacad',
-                    fontSize: 14,
+                    fontSize: 18,
                     fontWeight: FontWeight.bold,
                     color: AppColors.deepTeal,
                   ),
@@ -553,7 +553,7 @@ class _OrdersPageState extends State<OrdersPage>
                 Text(
                   progressLabel,
                   style: TextStyle(fontFamily: 'Afacad',
-                    fontSize: 14,
+                    fontSize: 18,
                     fontWeight: FontWeight.bold,
                     color: progressColor,
                   ),
@@ -581,7 +581,7 @@ class _OrdersPageState extends State<OrdersPage>
                       ? '${order.tokenAmountCharged} tokens'
                       : 'RM ${order.finalTotalRm}',
                   style: TextStyle(fontFamily: 'Recoleta',
-                    fontSize: 20,
+                    fontSize: 24,
                     fontWeight: FontWeight.bold,
                     color: AppColors.gold,
                   ),
@@ -590,7 +590,7 @@ class _OrdersPageState extends State<OrdersPage>
                   Text(
                     'RM ${order.finalTotalRm}',
                     style: const TextStyle(fontFamily: 'Afacad',
-                      fontSize: 16,
+                      fontSize: 20,
                       color: Colors.black54,
                     ),
                   ),
@@ -603,7 +603,7 @@ class _OrdersPageState extends State<OrdersPage>
                 Text(
                   '${order.tokenAmountCharged} tokens',
                   style: TextStyle(fontFamily: 'Recoleta',
-                    fontSize: 20,
+                    fontSize: 24,
                     fontWeight: FontWeight.bold,
                     color: AppColors.gold,
                   ),
@@ -864,7 +864,7 @@ class _OrdersPageState extends State<OrdersPage>
           Text(
             label,
             style: TextStyle(fontFamily: 'Afacad',
-              fontSize: 16,
+              fontSize: 20,
               color: AppColors.deepTeal,
             ),
           ),
@@ -908,7 +908,7 @@ class _OrdersPageState extends State<OrdersPage>
                 title,
                 textAlign: TextAlign.center,
                 style: TextStyle(fontFamily: 'Recoleta',
-                  fontSize: 24,
+                  fontSize: 28,
                   fontWeight: FontWeight.bold,
                   color: AppColors.deepTeal,
                 ),
@@ -918,7 +918,7 @@ class _OrdersPageState extends State<OrdersPage>
                 message,
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontFamily: 'Afacad',
-                  fontSize: 17,
+                  fontSize: 21,
                   color: Colors.black54,
                   height: 1.35,
                 ),

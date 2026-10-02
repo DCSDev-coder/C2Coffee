@@ -122,7 +122,7 @@ class TermsOfUsePage extends StatelessWidget {
             'Last Updated: $date',
             style: TextStyle(
               fontFamily: 'Afacad',
-              fontSize: 13,
+              fontSize: 15,
               fontWeight: FontWeight.bold,
               color: AppColors.deepTeal,
             ),
@@ -170,7 +170,7 @@ class TermsOfUsePage extends StatelessWidget {
                   number,
                   style: const TextStyle(
                     fontFamily: 'Afacad',
-                    fontSize: 14,
+                    fontSize: 16,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                   ),
@@ -182,7 +182,7 @@ class TermsOfUsePage extends StatelessWidget {
                   title,
                   style: const TextStyle(
                     fontFamily: 'Recoleta',
-                    fontSize: 16,
+                    fontSize: 18,
                     fontWeight: FontWeight.bold,
                     color: Colors.black87,
                     height: 1.2,
@@ -196,7 +196,7 @@ class TermsOfUsePage extends StatelessWidget {
             body,
             style: const TextStyle(
               fontFamily: 'Afacad',
-              fontSize: 14.5,
+              fontSize: 16.5,
               color: Colors.black87,
               height: 1.45,
             ),

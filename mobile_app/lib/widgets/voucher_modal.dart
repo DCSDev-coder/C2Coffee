@@ -166,7 +166,7 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
                       'Select Voucher',
                       style: TextStyle(
                         fontFamily: 'Recoleta',
-                        fontSize: 18,
+                        fontSize: 20,
                         fontWeight: FontWeight.bold,
                         color: brandColor,
                       ),
@@ -175,7 +175,7 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
                       'Only eligible vouchers for this order are shown here.',
                       style: TextStyle(
                         fontFamily: 'Afacad',
-                        fontSize: 13,
+                        fontSize: 15,
                         color: Colors.black54,
                       ),
                     ),
@@ -216,7 +216,7 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
             _error!,
             style: const TextStyle(
               fontFamily: 'Afacad',
-              fontSize: 14,
+              fontSize: 16,
               color: Colors.black54,
             ),
           ),
@@ -296,7 +296,7 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
                       style: TextStyle(
                         fontFamily: 'Afacad',
                         fontWeight: FontWeight.bold,
-                        fontSize: 14,
+                        fontSize: 16,
                         color: Colors.red.shade700,
                       ),
                     ),
@@ -340,7 +340,7 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
           title,
           style: TextStyle(
             fontFamily: 'Recoleta',
-            fontSize: 16,
+            fontSize: 18,
             fontWeight: FontWeight.bold,
             color: AppColors.deepTeal,
           ),
@@ -350,7 +350,7 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
           subtitle,
           style: const TextStyle(
             fontFamily: 'Afacad',
-            fontSize: 12,
+            fontSize: 14,
             color: Colors.black54,
             height: 1.3,
           ),
@@ -419,7 +419,7 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
                   voucher.template.displayLabel,
                   style: TextStyle(
                     fontFamily: 'Afacad',
-                    fontSize: 15,
+                    fontSize: 17,
                     fontWeight: FontWeight.bold,
                     color: titleColor,
                   ),
@@ -429,7 +429,7 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
                   _formatDiscount(voucher),
                   style: TextStyle(
                     fontFamily: 'Afacad',
-                    fontSize: 13,
+                    fontSize: 15,
                     fontWeight: FontWeight.bold,
                     color: discountColor,
                   ),
@@ -439,7 +439,7 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
                   voucher.visibilityLabel,
                   style: TextStyle(
                     fontFamily: 'Afacad',
-                    fontSize: 11,
+                    fontSize: 13,
                     fontWeight: FontWeight.w600,
                     color: metaColor,
                   ),
@@ -468,7 +468,7 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
                     foregroundColor: AppColors.deepTeal,
                     textStyle: const TextStyle(
                       fontFamily: 'Afacad',
-                      fontSize: 12,
+                      fontSize: 14,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -524,7 +524,7 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
               style: TextStyle(
                 fontFamily: 'Afacad',
                 fontWeight: FontWeight.bold,
-                fontSize: 13,
+                fontSize: 15,
                 color: isApplied ? Colors.white : Colors.white,
               ),
             ),
@@ -541,7 +541,7 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
         value,
         style: const TextStyle(
           fontFamily: 'Afacad',
-          fontSize: 11,
+          fontSize: 13,
           color: Colors.black45,
         ),
       ),
@@ -567,7 +567,7 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
             title,
             style: TextStyle(
               fontFamily: 'Recoleta',
-              fontSize: 16,
+              fontSize: 18,
               fontWeight: FontWeight.bold,
               color: AppColors.deepTeal,
             ),
@@ -577,7 +577,7 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
             message,
             style: const TextStyle(
               fontFamily: 'Afacad',
-              fontSize: 13,
+              fontSize: 15,
               color: Colors.black54,
               height: 1.35,
             ),
@@ -607,7 +607,7 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
               title,
               style: const TextStyle(
                 fontFamily: 'Recoleta',
-                fontSize: 16,
+                fontSize: 18,
                 fontWeight: FontWeight.bold,
                 color: Colors.black87,
               ),
@@ -618,7 +618,7 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
               message,
               style: const TextStyle(
                 fontFamily: 'Afacad',
-                fontSize: 13,
+                fontSize: 15,
                 color: Colors.black54,
               ),
               textAlign: TextAlign.center,

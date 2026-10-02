@@ -173,7 +173,7 @@ class _ReferralPageState extends State<ReferralPage> {
                               _error!,
                               style: const TextStyle(
                                 fontFamily: 'Afacad',
-                                fontSize: 15,
+                                fontSize: 17,
                                 color: Colors.black54,
                               ),
                             ),
@@ -215,7 +215,7 @@ class _ReferralPageState extends State<ReferralPage> {
                                         'INVITE A FRIEND',
                                         style: TextStyle(
                                           fontFamily: 'Recoleta',
-                                          fontSize: 30,
+                                          fontSize: 32,
                                           fontWeight: FontWeight.w900,
                                           color: brandColor,
                                           letterSpacing: 1.5,
@@ -227,7 +227,7 @@ class _ReferralPageState extends State<ReferralPage> {
                                         text: TextSpan(
                                           style: TextStyle(
                                             fontFamily: 'Afacad',
-                                            fontSize: 15,
+                                            fontSize: 17,
                                             color: brandColor,
                                             fontWeight: FontWeight.w500,
                                           ),
@@ -276,7 +276,7 @@ class _ReferralPageState extends State<ReferralPage> {
                                         'YOUR UNIQUE CODE',
                                         style: TextStyle(
                                           fontFamily: 'Recoleta',
-                                          fontSize: 18,
+                                          fontSize: 20,
                                           fontWeight: FontWeight.w900,
                                           color: brandColor,
                                         ),
@@ -305,7 +305,7 @@ class _ReferralPageState extends State<ReferralPage> {
                                                 referralCode,
                                                 style: TextStyle(
                                                   fontFamily: 'Afacad',
-                                                  fontSize: 24,
+                                                  fontSize: 26,
                                                   fontWeight: FontWeight.bold,
                                                   color: brandColor,
                                                   letterSpacing: 2,
@@ -342,7 +342,7 @@ class _ReferralPageState extends State<ReferralPage> {
                                                 'Share Code',
                                                 style: TextStyle(
                                                   fontFamily: 'Afacad',
-                                                  fontSize: 18,
+                                                  fontSize: 20,
                                                   fontWeight: FontWeight.bold,
                                                   color: Colors.white,
                                                 ),
@@ -374,7 +374,7 @@ class _ReferralPageState extends State<ReferralPage> {
                                         'How It Works',
                                         style: TextStyle(
                                           fontFamily: 'Recoleta',
-                                          fontSize: 16,
+                                          fontSize: 18,
                                           fontWeight: FontWeight.bold,
                                           color: brandColor,
                                         ),
@@ -424,7 +424,7 @@ class _ReferralPageState extends State<ReferralPage> {
                                         'My Achievements',
                                         style: TextStyle(
                                           fontFamily: 'Recoleta',
-                                          fontSize: 16,
+                                          fontSize: 18,
                                           fontWeight: FontWeight.bold,
                                           color: brandColor,
                                         ),
@@ -464,7 +464,7 @@ class _ReferralPageState extends State<ReferralPage> {
                                               'Friends Invited',
                                               style: TextStyle(
                                                 fontFamily: 'Recoleta',
-                                                fontSize: 16,
+                                                fontSize: 18,
                                                 fontWeight: FontWeight.bold,
                                                 color: Colors.white,
                                               ),
@@ -474,7 +474,7 @@ class _ReferralPageState extends State<ReferralPage> {
                                               '${_snapshot?.friendsInvited ?? 0}',
                                               style: const TextStyle(
                                                 fontFamily: 'Afacad',
-                                                fontSize: 44,
+                                                fontSize: 46,
                                                 fontWeight: FontWeight.bold,
                                                 color: Colors.white,
                                                 height: 1.0,
@@ -496,7 +496,7 @@ class _ReferralPageState extends State<ReferralPage> {
                                               'Rewards Earned',
                                               style: TextStyle(
                                                 fontFamily: 'Recoleta',
-                                                fontSize: 16,
+                                                fontSize: 18,
                                                 fontWeight: FontWeight.bold,
                                                 color: Colors.white,
                                               ),
@@ -506,7 +506,7 @@ class _ReferralPageState extends State<ReferralPage> {
                                               '${_snapshot?.rewardsClaimed ?? 0}',
                                               style: TextStyle(
                                                 fontFamily: 'Afacad',
-                                                fontSize: 44,
+                                                fontSize: 46,
                                                 fontWeight: FontWeight.bold,
                                                 color: AppColors.gold,
                                                 height: 1.0,
@@ -550,7 +550,7 @@ class _ReferralPageState extends State<ReferralPage> {
                     'Referred by a friend',
                     style: TextStyle(
                       fontFamily: 'Recoleta',
-                      fontSize: 15,
+                      fontSize: 17,
                       fontWeight: FontWeight.bold,
                       color: Colors.green.shade900,
                     ),
@@ -559,7 +559,7 @@ class _ReferralPageState extends State<ReferralPage> {
                     'Code: ${_snapshot?.claimedCode ?? 'Claimed'}',
                     style: TextStyle(
                       fontFamily: 'Afacad',
-                      fontSize: 13,
+                      fontSize: 15,
                       color: Colors.green.shade800,
                     ),
                   ),
@@ -597,7 +597,7 @@ class _ReferralPageState extends State<ReferralPage> {
             'HAVE A FRIEND\'S CODE?',
             style: TextStyle(
               fontFamily: 'Recoleta',
-              fontSize: 16,
+              fontSize: 18,
               fontWeight: FontWeight.bold,
               color: brandColor,
             ),
@@ -609,7 +609,7 @@ class _ReferralPageState extends State<ReferralPage> {
                 : 'Enter your friend\'s referral code to link accounts.',
             style: TextStyle(
               fontFamily: 'Afacad',
-              fontSize: 13,
+              fontSize: 15,
               color: Colors.black54,
             ),
           ),
@@ -672,7 +672,7 @@ class _ReferralPageState extends State<ReferralPage> {
                           fontFamily: 'Recoleta',
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
-                          fontSize: 14,
+                          fontSize: 16,
                         ),
                       ),
               ),
@@ -684,7 +684,7 @@ class _ReferralPageState extends State<ReferralPage> {
               _claimError!,
               style: TextStyle(
                 fontFamily: 'Afacad',
-                fontSize: 12,
+                fontSize: 14,
                 color: Colors.red.shade700,
                 fontWeight: FontWeight.w600,
               ),
@@ -715,7 +715,7 @@ class _ReferralPageState extends State<ReferralPage> {
               : 'Referral rewards are set by C2 Coffee.',
           style: TextStyle(
             fontFamily: 'Afacad',
-            fontSize: 13,
+            fontSize: 15,
             color: brandColor,
             fontWeight: FontWeight.w600,
           ),
@@ -751,7 +751,7 @@ class _ReferralPageState extends State<ReferralPage> {
                 ),
                 child: Text(
                   stepNumber.toString(),
-                  style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
                 ),
               ),
             ],
@@ -762,7 +762,7 @@ class _ReferralPageState extends State<ReferralPage> {
             textAlign: TextAlign.center,
             style: const TextStyle(
               fontFamily: 'Afacad',
-              fontSize: 12,
+              fontSize: 14,
               color: Colors.black87,
               height: 1.2,
             ),

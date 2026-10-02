@@ -112,7 +112,7 @@ class _SuccessPageState extends State<SuccessPage>
                           widget.title,
                           style: const TextStyle(
                             fontFamily: 'Recoleta',
-                            fontSize: 28,
+                            fontSize: 30,
                             fontWeight: FontWeight.bold,
                             color: Colors.black87,
                           ),
@@ -127,7 +127,7 @@ class _SuccessPageState extends State<SuccessPage>
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontFamily: 'Afacad',
-                            fontSize: 16,
+                            fontSize: 18,
                             color: Colors.grey.shade600,
                           ),
                         ),
@@ -152,7 +152,7 @@ class _SuccessPageState extends State<SuccessPage>
                         'DONE',
                         style: TextStyle(
                           fontFamily: 'Afacad',
-                          fontSize: 18,
+                          fontSize: 20,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
                         ),

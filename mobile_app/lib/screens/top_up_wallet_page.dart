@@ -445,7 +445,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
           '1 token = RM 1\n\nCurrent balance: ${_session.tokenBalance} tokens\nReserved: ${_session.tokenReserved} tokens\nBalance cap: ${_session.tokenCap} tokens.',
           style: const TextStyle(
             fontFamily: 'Afacad',
-            fontSize: 15,
+            fontSize: 17,
             color: Colors.black87,
             height: 1.3,
           ),
@@ -497,7 +497,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
                 'Select amount',
                 style: TextStyle(
                   fontFamily: 'Recoleta',
-                  fontSize: 22,
+                  fontSize: 24,
                   fontWeight: FontWeight.bold,
                   color: brandColor,
                 ),
@@ -531,7 +531,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
                               'TOKENS',
                               style: TextStyle(
                                 fontFamily: 'Afacad',
-                                fontSize: 11,
+                                fontSize: 13,
                                 fontWeight: FontWeight.bold,
                                 color: selected
                                     ? Colors.white70
@@ -543,7 +543,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
                               '${package.tokenAmount}',
                               style: TextStyle(
                                 fontFamily: 'Recoleta',
-                                fontSize: 28,
+                                fontSize: 30,
                                 fontWeight: FontWeight.bold,
                                 color: selected ? Colors.white : brandColor,
                                 height: 1.1,
@@ -566,7 +566,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
                     'Recent Transactions',
                     style: TextStyle(
                       fontFamily: 'Recoleta',
-                      fontSize: 22,
+                      fontSize: 24,
                       fontWeight: FontWeight.bold,
                       color: brandColor,
                     ),
@@ -646,7 +646,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
                       'C2 TOKEN WALLET',
                       style: TextStyle(
                         fontFamily: 'Afacad',
-                        fontSize: 12,
+                        fontSize: 14,
                         fontWeight: FontWeight.bold,
                         letterSpacing: 0.9,
                         color: Colors.white.withValues(alpha: 0.76),
@@ -657,7 +657,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
                       '${_session.tokenBalance} tokens',
                       style: const TextStyle(
                         fontFamily: 'Recoleta',
-                        fontSize: 27,
+                        fontSize: 29,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
                       ),
@@ -681,7 +681,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
               '${_session.tokenReserved} reserved  •  wallet cap ${_session.tokenCap}',
               style: TextStyle(
                 fontFamily: 'Afacad',
-                fontSize: 13,
+                fontSize: 15,
                 fontWeight: FontWeight.w600,
                 color: Colors.white.withValues(alpha: 0.86),
               ),
@@ -737,7 +737,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
                   'Add C2 Tokens',
                   style: TextStyle(
                     fontFamily: 'Recoleta',
-                    fontSize: 21,
+                    fontSize: 23,
                     fontWeight: FontWeight.bold,
                     color: AppColors.deepTeal,
                   ),
@@ -755,7 +755,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
                     'RM $rmAmount',
                     style: TextStyle(
                       fontFamily: 'Afacad',
-                      fontSize: 13,
+                      fontSize: 15,
                       fontWeight: FontWeight.bold,
                       color: AppColors.deepTeal,
                     ),
@@ -776,7 +776,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
                             : 'You will add $tokenAmount tokens for RM $rmAmount using $_paymentMethodLabel. Tokens are added only after payment is confirmed.',
             style: const TextStyle(
               fontFamily: 'Afacad',
-              fontSize: 15,
+              fontSize: 17,
               color: Colors.black54,
               height: 1.35,
             ),
@@ -847,7 +847,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
                             : 'CONTINUE TO PAYMENT',
                 style: TextStyle(
                   fontFamily: 'Recoleta',
-                  fontSize: 16,
+                  fontSize: 18,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
                 ),
@@ -924,7 +924,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontFamily: 'Afacad',
-                fontSize: 12,
+                fontSize: 14,
                 fontWeight: FontWeight.bold,
                 height: 1,
                 color: selected
@@ -939,7 +939,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
               available ? (selected ? 'Selected' : 'Available') : 'Unavailable',
               style: TextStyle(
                 fontFamily: 'Afacad',
-                fontSize: 10,
+                fontSize: 12,
                 color: selected
                     ? Colors.white.withValues(alpha: 0.76)
                     : Colors.grey.shade500,
@@ -975,7 +975,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
             'Loading wallet transactions...',
             style: TextStyle(
               fontFamily: 'Afacad',
-              fontSize: 14,
+              fontSize: 16,
               color: AppColors.deepTeal,
             ),
           ),
@@ -1012,7 +1012,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
             'Wallet transactions',
             style: TextStyle(
               fontFamily: 'Recoleta',
-              fontSize: 20,
+              fontSize: 22,
               fontWeight: FontWeight.bold,
               color: AppColors.deepTeal,
             ),
@@ -1023,7 +1023,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
             textAlign: TextAlign.center,
             style: const TextStyle(
               fontFamily: 'Afacad',
-              fontSize: 14,
+              fontSize: 16,
               color: Colors.black54,
               height: 1.35,
             ),
@@ -1078,7 +1078,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
                   item.$2,
                   style: TextStyle(
                     fontFamily: 'Afacad',
-                    fontSize: 13,
+                    fontSize: 15,
                     fontWeight: FontWeight.bold,
                     color: isSelected ? Colors.white : Colors.black87,
                   ),
@@ -1160,7 +1160,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
                   _transactionTitle(transaction),
                   style: TextStyle(
                     fontFamily: 'Afacad',
-                    fontSize: 16,
+                    fontSize: 18,
                     fontWeight: FontWeight.bold,
                     color: AppColors.deepTeal,
                   ),
@@ -1172,7 +1172,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
                       : createdLabel,
                   style: const TextStyle(
                     fontFamily: 'Afacad',
-                    fontSize: 13,
+                    fontSize: 15,
                     color: Colors.black54,
                   ),
                 ),
@@ -1181,7 +1181,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
                     createdLabel,
                     style: const TextStyle(
                       fontFamily: 'Afacad',
-                      fontSize: 12,
+                      fontSize: 14,
                       color: Colors.black45,
                     ),
                   ),
@@ -1196,7 +1196,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
                 amountLabel,
                 style: TextStyle(
                   fontFamily: 'Afacad',
-                  fontSize: 16,
+                  fontSize: 18,
                   fontWeight: FontWeight.bold,
                   color: AppColors.deepTeal,
                 ),
@@ -1206,7 +1206,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
                 'Balance ${transaction.balanceAfter}',
                 style: const TextStyle(
                   fontFamily: 'Afacad',
-                  fontSize: 12,
+                  fontSize: 14,
                   color: Colors.black54,
                 ),
               ),

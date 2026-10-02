@@ -285,7 +285,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage>
                     'Choose Your Icon',
                     style: TextStyle(
                         fontFamily: 'Recoleta',
-                        fontSize: 24,
+                        fontSize: 26,
                         fontWeight: FontWeight.bold,
                         color: AppColors.primary,
                         letterSpacing: 0.5),
@@ -364,7 +364,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage>
                               child: Text('or',
                                   style: TextStyle(
                                       fontFamily: 'Afacad',
-                                      fontSize: 14,
+                                      fontSize: 16,
                                       color: AppColors.primary,
                                       fontWeight: FontWeight.w600)),
                             ),
@@ -405,7 +405,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage>
                                   'Upload from your own gallery',
                                   style: TextStyle(
                                       fontFamily: 'Afacad',
-                                      fontSize: 16,
+                                      fontSize: 18,
                                       fontWeight: FontWeight.w600,
                                       color: Colors.white,
                                       letterSpacing: 0.3),
@@ -433,7 +433,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage>
                       child: const Text('Cancel',
                           style: TextStyle(
                               fontFamily: 'Afacad',
-                              fontSize: 15,
+                              fontSize: 17,
                               fontWeight: FontWeight.w600,
                               color: Colors.grey,
                               letterSpacing: 1.2)),
@@ -761,7 +761,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage>
                             textAlign: TextAlign.center,
                             style: TextStyle(
                                 fontFamily: 'Recoleta',
-                                fontSize: 26,
+                                fontSize: 28,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.white),
                           ),
@@ -771,7 +771,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage>
                             textAlign: TextAlign.center,
                             style: TextStyle(
                                 fontFamily: 'Afacad',
-                                fontSize: 12,
+                                fontSize: 14,
                                 color: Colors.white70),
                           ),
                         ],
@@ -804,7 +804,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage>
                                   'Please fill in the security code.',
                                   style: TextStyle(
                                       fontFamily: 'Recoleta',
-                                      fontSize: 18,
+                                      fontSize: 20,
                                       fontWeight: FontWeight.normal,
                                       color: textColor),
                                 ),
@@ -935,7 +935,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage>
                                                           : '',
                                                       style: const TextStyle(
                                                         fontFamily: 'Afacad',
-                                                        fontSize: 26,
+                                                        fontSize: 28,
                                                         fontWeight:
                                                             FontWeight.bold,
                                                         color: Colors.black87,
@@ -957,7 +957,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage>
                                   text: TextSpan(
                                     style: const TextStyle(
                                         fontFamily: 'Afacad',
-                                        fontSize: 14,
+                                        fontSize: 16,
                                         color: Colors.black54),
                                     children: [
                                       const TextSpan(
@@ -995,7 +995,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage>
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
                                       fontFamily: 'Afacad',
-                                      fontSize: 13,
+                                      fontSize: 15,
                                       fontWeight: FontWeight.w600,
                                       color: Colors.redAccent,
                                     ),
@@ -1036,7 +1036,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage>
                                             'VERIFY',
                                             style: TextStyle(
                                                 fontFamily: 'Recoleta',
-                                                fontSize: 16,
+                                                fontSize: 18,
                                                 fontWeight: FontWeight.bold,
                                                 letterSpacing: 1.0),
                                           ),

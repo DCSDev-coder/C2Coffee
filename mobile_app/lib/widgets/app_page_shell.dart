@@ -100,7 +100,7 @@ class AppPageShell extends StatelessWidget {
                             title,
                             style: const TextStyle(
                               fontFamily: 'Recoleta',
-                              fontSize: 20,
+                              fontSize: 22,
                               fontWeight: FontWeight.bold,
                               color: Colors.white,
                               letterSpacing: 1.0,

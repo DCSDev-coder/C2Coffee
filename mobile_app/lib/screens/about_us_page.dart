@@ -34,7 +34,7 @@ class AboutUsPage extends StatelessWidget {
             'Sip The Calm',
             style: TextStyle(
               fontFamily: 'Recoleta',
-              fontSize: 24,
+              fontSize: 26,
               fontWeight: FontWeight.bold,
               color: AppColors.deepTeal,
             ),
@@ -44,7 +44,7 @@ class AboutUsPage extends StatelessWidget {
             'C2 Coffee mobile app',
             style: TextStyle(
               fontFamily: 'Afacad',
-              fontSize: 14,
+              fontSize: 16,
               color: Colors.black54,
             ),
           ),
@@ -56,7 +56,7 @@ class AboutUsPage extends StatelessWidget {
               'Copyright © C2 Coffee & Candle',
               style: TextStyle(
                 fontFamily: 'Afacad',
-                fontSize: 12,
+                fontSize: 14,
                 color: Colors.black54,
               ),
             ),

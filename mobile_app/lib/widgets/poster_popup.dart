@@ -205,7 +205,7 @@ class _PosterPopupState extends State<PosterPopup>
                                               "Don't show again",
                                               style: TextStyle(
                                                 fontFamily: 'Afacad',
-                                                fontSize: 12,
+                                                fontSize: 14,
                                                 fontWeight: FontWeight.w700,
                                                 color: Colors.white,
                                               ),
@@ -271,7 +271,7 @@ class _PosterPopupState extends State<PosterPopup>
           'Poster unavailable',
           style: TextStyle(
             fontFamily: 'Afacad',
-            fontSize: 14,
+            fontSize: 16,
             fontWeight: FontWeight.w700,
             color: Color(0xFF6B7280),
           ),

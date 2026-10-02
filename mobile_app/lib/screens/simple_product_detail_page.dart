@@ -189,7 +189,7 @@ class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
                         _itemName,
                         style: const TextStyle(
                           fontFamily: 'Recoleta',
-                          fontSize: 28,
+                          fontSize: 30,
                           fontWeight: FontWeight.w900,
                           color: Colors.black,
                         ),
@@ -199,7 +199,7 @@ class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
                         _itemDescription,
                         style: const TextStyle(
                           fontFamily: 'Afacad',
-                          fontSize: 14,
+                          fontSize: 16,
                           color: Colors.black87,
                         ),
                       ),
@@ -229,7 +229,7 @@ class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
                                       key: const ValueKey('rmPrice'),
                                       style: const TextStyle(
                                         fontFamily: 'Afacad',
-                                        fontSize: 14,
+                                        fontSize: 16,
                                         fontWeight: FontWeight.bold,
                                         color: Colors.black87,
                                       ),
@@ -239,7 +239,7 @@ class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
                               Text('$_baseCalories kcal',
                                   style: const TextStyle(
                                       fontFamily: 'Afacad',
-                                      fontSize: 12,
+                                      fontSize: 14,
                                       fontWeight: FontWeight.w600,
                                       color: Colors.black54)),
                               const SizedBox(width: 12),
@@ -280,7 +280,7 @@ class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
                     'Total',
                     style: TextStyle(
                         fontFamily: 'Recoleta',
-                        fontSize: 16,
+                        fontSize: 18,
                         fontWeight: FontWeight.bold),
                   ),
                   Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
@@ -298,7 +298,7 @@ class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
                               key: const ValueKey('totalRmPrice'),
                               style: const TextStyle(
                                 fontFamily: 'Afacad',
-                                fontSize: 12,
+                                fontSize: 14,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.black87,
                               ),
@@ -307,7 +307,7 @@ class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
                     Text('${_baseCalories * quantity} kcal',
                         style: const TextStyle(
                             fontFamily: 'Afacad',
-                            fontSize: 11,
+                            fontSize: 13,
                             color: Colors.black54))
                   ]),
                 ],
@@ -340,7 +340,7 @@ class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
                             quantity.toString(),
                             style: const TextStyle(
                                 fontFamily: 'Recoleta',
-                                fontSize: 16,
+                                fontSize: 18,
                                 fontWeight: FontWeight.bold),
                           ),
                         ),
@@ -418,7 +418,7 @@ class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
                         'ADD TO CART',
                         style: TextStyle(
                           fontFamily: 'Recoleta',
-                          fontSize: 14,
+                          fontSize: 16,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
                         ),

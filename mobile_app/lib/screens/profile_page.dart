@@ -440,7 +440,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       'Hey $_username,',
                       style: TextStyle(
                         fontFamily: 'Recoleta',
-                        fontSize: 20,
+                        fontSize: 22,
                         fontWeight: FontWeight.bold,
                         color: AppColors.deepTeal,
                       ),
@@ -504,7 +504,7 @@ class _ProfilePageState extends State<ProfilePage> {
                             'Total Balance',
                             style: TextStyle(
                               fontFamily: 'Afacad',
-                              fontSize: 16,
+                              fontSize: 18,
                               color: Colors.white.withValues(alpha: 0.8),
                             ),
                           ),
@@ -516,7 +516,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                 _session.tokenBalance.toStringAsFixed(2),
                                 style: const TextStyle(
                                   fontFamily: 'Afacad',
-                                  fontSize: 36,
+                                  fontSize: 38,
                                   fontWeight: FontWeight.bold,
                                   color: Colors.white,
                                 ),
@@ -528,7 +528,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                   'tokens',
                                   style: TextStyle(
                                     fontFamily: 'Afacad',
-                                    fontSize: 16,
+                                    fontSize: 18,
                                     fontWeight: FontWeight.bold,
                                     color: Colors.white,
                                   ),
@@ -561,7 +561,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                     'Add Balance',
                                     style: TextStyle(
                                       fontFamily: 'Afacad',
-                                      fontSize: 14,
+                                      fontSize: 16,
                                       fontWeight: FontWeight.bold,
                                       color: Colors.white,
                                     ),
@@ -588,7 +588,7 @@ class _ProfilePageState extends State<ProfilePage> {
             'News',
             style: TextStyle(
               fontFamily: 'Recoleta',
-              fontSize: 20,
+              fontSize: 22,
               fontWeight: FontWeight.bold,
               color: AppColors.deepTeal,
             ),
@@ -606,7 +606,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 Text('Calendar',
                     style: TextStyle(
                         fontFamily: 'Recoleta',
-                        fontSize: 20,
+                        fontSize: 22,
                         fontWeight: FontWeight.bold,
                         color: AppColors.deepTeal)),
                 const SizedBox(height: 12),
@@ -638,7 +638,7 @@ class _ProfilePageState extends State<ProfilePage> {
           'Recent activity',
           style: TextStyle(
             fontFamily: 'Recoleta',
-            fontSize: 20,
+            fontSize: 22,
             fontWeight: FontWeight.bold,
             color: AppColors.deepTeal,
           ),
@@ -663,7 +663,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         'Your token and order activity will appear here.',
                         style: TextStyle(
                           fontFamily: 'Afacad',
-                          fontSize: 15,
+                          fontSize: 17,
                           color: Colors.black54,
                         ),
                       ),
@@ -723,7 +723,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontFamily: 'Afacad',
-                    fontSize: 16,
+                    fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -731,7 +731,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   timestamp,
                   style: const TextStyle(
                     fontFamily: 'Afacad',
-                    fontSize: 13,
+                    fontSize: 15,
                     color: Colors.black54,
                   ),
                 ),
@@ -742,7 +742,7 @@ class _ProfilePageState extends State<ProfilePage> {
             amountLabel,
             style: TextStyle(
               fontFamily: 'Afacad',
-              fontSize: 15,
+              fontSize: 17,
               fontWeight: FontWeight.bold,
               color: isCredit ? AppColors.deepTeal : AppColors.accent,
             ),
@@ -788,7 +788,7 @@ class _ProfilePageState extends State<ProfilePage> {
           'News and promotions will appear here once marketing updates them.',
           style: TextStyle(
             fontFamily: 'Afacad',
-            fontSize: 15,
+            fontSize: 17,
             color: Colors.grey,
           ),
         ),
@@ -819,7 +819,7 @@ class _ProfilePageState extends State<ProfilePage> {
               foregroundColor: AppColors.primary,
               textStyle: const TextStyle(
                 fontFamily: 'Afacad',
-                fontSize: 17,
+                fontSize: 19,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -881,7 +881,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       banner.title,
                       style: TextStyle(
                         fontFamily: 'Recoleta',
-                        fontSize: 18,
+                        fontSize: 20,
                         fontWeight: FontWeight.bold,
                         color: AppColors.brandText,
                       ),
@@ -893,7 +893,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontFamily: 'Afacad',
-                        fontSize: 16,
+                        fontSize: 18,
                         color: AppColors.textMuted,
                         height: 1.35,
                       ),
@@ -903,7 +903,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       'Read more',
                       style: TextStyle(
                         fontFamily: 'Afacad',
-                        fontSize: 15,
+                        fontSize: 17,
                         fontWeight: FontWeight.w700,
                         color: AppColors.primary,
                       ),
@@ -1099,7 +1099,7 @@ class _CustomCalendarWidgetState extends State<CustomCalendarWidget> {
                       '${monthNames[_currentMonth.month - 1]} ${_currentMonth.year}',
                       style: TextStyle(
                         fontFamily: 'Recoleta',
-                        fontSize: 20,
+                        fontSize: 22,
                         fontWeight: FontWeight.bold,
                         color: AppColors.deepTeal,
                       ),
@@ -1123,7 +1123,7 @@ class _CustomCalendarWidgetState extends State<CustomCalendarWidget> {
                               day,
                               style: const TextStyle(
                                 fontFamily: 'Afacad',
-                                fontSize: 12,
+                                fontSize: 14,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.grey,
                               ),
@@ -1217,7 +1217,7 @@ class _CustomCalendarWidgetState extends State<CustomCalendarWidget> {
                               day.toString(),
                               style: TextStyle(
                                 fontFamily: 'Afacad',
-                                fontSize: 16,
+                                fontSize: 18,
                                 fontWeight: FontWeight.bold,
                                 color: hasOrder
                                     ? AppColors.deepTeal
@@ -1286,7 +1286,7 @@ class _CustomCalendarWidgetState extends State<CustomCalendarWidget> {
                               'Daily details',
                               style: TextStyle(
                                 fontFamily: 'Recoleta',
-                                fontSize: 20,
+                                fontSize: 22,
                                 fontWeight: FontWeight.bold,
                                 color: AppColors.deepTeal,
                               ),
@@ -1304,7 +1304,7 @@ class _CustomCalendarWidgetState extends State<CustomCalendarWidget> {
                         '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}',
                         style: TextStyle(
                           fontFamily: 'Afacad',
-                          fontSize: 14,
+                          fontSize: 16,
                           color: Colors.grey.shade700,
                         ),
                       ),
@@ -1363,7 +1363,7 @@ class _CustomCalendarWidgetState extends State<CustomCalendarWidget> {
                 title,
                 style: TextStyle(
                   fontFamily: 'Recoleta',
-                  fontSize: 18,
+                  fontSize: 20,
                   fontWeight: FontWeight.bold,
                   color: AppColors.deepTeal,
                 ),
@@ -1395,7 +1395,7 @@ class _CustomCalendarWidgetState extends State<CustomCalendarWidget> {
                         titles[index],
                         style: TextStyle(
                           fontFamily: 'Afacad',
-                          fontSize: 16,
+                          fontSize: 18,
                           color: Colors.grey.shade900,
                           height: 1.25,
                         ),
@@ -1478,7 +1478,7 @@ class _CalendarLegendItem extends StatelessWidget {
           label,
           style: const TextStyle(
             fontFamily: 'Afacad',
-            fontSize: 12,
+            fontSize: 14,
             color: Colors.black54,
           ),
         ),

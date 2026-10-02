@@ -109,7 +109,7 @@ class _BaristaPageState extends State<BaristaPage> {
                           widget.title.toUpperCase(),
                           style: const TextStyle(
                             fontFamily: 'Recoleta',
-                            fontSize: 20,
+                            fontSize: 22,
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
                             letterSpacing: 1.0,
@@ -276,7 +276,7 @@ class _BaristaPageState extends State<BaristaPage> {
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       fontFamily: 'Afacad',
-                      fontSize: 14,
+                      fontSize: 16,
                       fontWeight: FontWeight.normal,
                       color: Colors.black87,
                       height: 1.15,
@@ -297,7 +297,7 @@ class _BaristaPageState extends State<BaristaPage> {
                     ),
                     style: TextStyle(
                       fontFamily: 'Afacad',
-                      fontSize: 13.5,
+                      fontSize: 15.5,
                       fontWeight: FontWeight.bold,
                       color: AppColors.deepTeal,
                     ),

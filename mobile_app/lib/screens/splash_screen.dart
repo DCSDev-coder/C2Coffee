@@ -178,7 +178,7 @@ class _SplashScreenState extends State<SplashScreen>
                                 style: TextStyle(
                                     fontFamily: 'Afacad',
                                     color: Colors.white70,
-                                    fontSize: 15),
+                                    fontSize: 17),
                               ),
                               const SizedBox(height: 12),
                               FilledButton(
@@ -198,7 +198,7 @@ class _SplashScreenState extends State<SplashScreen>
                                 style: const TextStyle(
                                   fontFamily: 'Afacad',
                                   color: Colors.white70,
-                                  fontSize: 14,
+                                  fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                 ),
                               );

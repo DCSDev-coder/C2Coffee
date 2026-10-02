@@ -70,7 +70,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                       'Your order',
                       style: TextStyle(
                         fontFamily: 'Afacad',
-                        fontSize: 16,
+                        fontSize: 18,
                         fontWeight: FontWeight.bold,
                         color: orangeColor,
                       ),
@@ -80,7 +80,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                       snapshot.storeName,
                       style: const TextStyle(
                         fontFamily: 'Afacad',
-                        fontSize: 13,
+                        fontSize: 15,
                         color: Colors.black54,
                       ),
                     ),
@@ -97,7 +97,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                           '+ Add order',
                           style: TextStyle(
                             fontFamily: 'Afacad',
-                            fontSize: 15,
+                            fontSize: 17,
                             fontWeight: FontWeight.bold,
                             color: orangeColor,
                           ),
@@ -120,7 +120,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                         _checkoutError!,
                         style: const TextStyle(
                           fontFamily: 'Afacad',
-                          fontSize: 14,
+                          fontSize: 16,
                           fontWeight: FontWeight.bold,
                           color: Colors.red,
                         ),
@@ -153,7 +153,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
               'Your cart is empty.',
               style: TextStyle(
                 fontFamily: 'Recoleta',
-                fontSize: 24,
+                fontSize: 26,
                 fontWeight: FontWeight.bold,
                 color: orangeColor,
               ),
@@ -164,7 +164,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontFamily: 'Afacad',
-                fontSize: 14,
+                fontSize: 16,
                 color: Colors.black54,
               ),
             ),
@@ -241,7 +241,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                               item.name,
                               style: const TextStyle(
                                 fontFamily: 'Recoleta',
-                                fontSize: 18,
+                                fontSize: 20,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.black87,
                               ),
@@ -254,7 +254,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                                   text: '${item.unitTotalTokens} tokens',
                                   style: const TextStyle(
                                     fontFamily: 'Afacad',
-                                    fontSize: 14,
+                                    fontSize: 16,
                                     color: Colors.black87,
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -274,7 +274,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                         ].join('\n'),
                         style: const TextStyle(
                           fontFamily: 'Afacad',
-                          fontSize: 13,
+                          fontSize: 15,
                           color: Colors.black87,
                           height: 1.3,
                         ),
@@ -306,7 +306,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                               '${item.quantity}',
                               style: TextStyle(
                                 color: orangeColor,
-                                fontSize: 14,
+                                fontSize: 16,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -337,7 +337,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                   'Line Total',
                   style: TextStyle(
                     fontFamily: 'Recoleta',
-                    fontSize: 16,
+                    fontSize: 18,
                     fontWeight: FontWeight.bold,
                     color: Colors.black87,
                   ),
@@ -346,7 +346,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                   '${item.lineTotalTokens} tokens',
                   style: TextStyle(
                     fontFamily: 'Afacad',
-                    fontSize: 14,
+                    fontSize: 16,
                     fontWeight: FontWeight.bold,
                     color: orangeColor,
                   ),
@@ -456,7 +456,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                     voucher != null ? voucher.template.name : 'Apply Voucher',
                     style: const TextStyle(
                       fontFamily: 'Recoleta',
-                      fontSize: 17,
+                      fontSize: 19,
                       fontWeight: FontWeight.bold,
                       color: Colors.black87,
                     ),
@@ -468,7 +468,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                         : 'Select an available voucher for discount',
                     style: TextStyle(
                       fontFamily: 'Afacad',
-                      fontSize: 13,
+                      fontSize: 15,
                       color: voucher != null ? orangeColor : Colors.black54,
                       fontWeight:
                           voucher != null ? FontWeight.bold : FontWeight.normal,
@@ -510,7 +510,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
             'Payment Method',
             style: TextStyle(
               fontFamily: 'Recoleta',
-              fontSize: 18,
+              fontSize: 20,
               fontWeight: FontWeight.bold,
               color: Colors.black87,
             ),
@@ -532,7 +532,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                       'Wallet',
                       style: TextStyle(
                         fontFamily: 'Afacad',
-                        fontSize: 15,
+                        fontSize: 17,
                         fontWeight: FontWeight.bold,
                         color: Colors.black87,
                       ),
@@ -541,7 +541,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                       '${_session.tokenBalance} tokens available',
                       style: TextStyle(
                         fontFamily: 'Afacad',
-                        fontSize: 12,
+                        fontSize: 14,
                         fontWeight: FontWeight.bold,
                         color: orangeColor,
                       ),
@@ -550,7 +550,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                       'After checkout: ${remainingBalance >= 0 ? remainingBalance : 0} tokens',
                       style: const TextStyle(
                         fontFamily: 'Afacad',
-                        fontSize: 12,
+                        fontSize: 14,
                         color: Colors.black54,
                       ),
                     ),
@@ -626,7 +626,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
           label,
           style: const TextStyle(
             fontFamily: 'Recoleta',
-            fontSize: 16,
+            fontSize: 18,
             fontWeight: FontWeight.bold,
             color: Colors.black87,
           ),
@@ -635,7 +635,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
           value,
           style: TextStyle(
             fontFamily: 'Afacad',
-            fontSize: 14,
+            fontSize: 16,
             fontWeight: FontWeight.bold,
             color: isDiscount ? Colors.green.shade700 : orangeColor,
           ),
@@ -672,7 +672,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                     : 'INSUFFICIENT TOKENS',
             style: const TextStyle(
               fontFamily: 'Afacad',
-              fontSize: 18,
+              fontSize: 20,
               fontWeight: FontWeight.bold,
               color: Colors.white,
             ),

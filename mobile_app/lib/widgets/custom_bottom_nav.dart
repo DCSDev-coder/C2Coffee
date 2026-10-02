@@ -441,7 +441,7 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
                 duration: const Duration(milliseconds: 160),
                 style: TextStyle(
                   fontFamily: 'Afacad',
-                  fontSize: 11,
+                  fontSize: 13,
                   letterSpacing: 0.2,
                   fontWeight: isHighlighted ? FontWeight.w600 : FontWeight.w500,
                   color: textColor,

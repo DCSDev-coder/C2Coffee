@@ -150,7 +150,7 @@ class _TutorialDialogState extends State<_TutorialDialog> {
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                   fontFamily: 'Recoleta',
-                                  fontSize: 24,
+                                  fontSize: 26,
                                   fontWeight: FontWeight.bold,
                                   color: AppColors.brandText)),
                           const SizedBox(height: 12),
@@ -158,7 +158,7 @@ class _TutorialDialogState extends State<_TutorialDialog> {
                               textAlign: TextAlign.center,
                               style: const TextStyle(
                                   fontFamily: 'Afacad',
-                                  fontSize: 16,
+                                  fontSize: 18,
                                   height: 1.4,
                                   color: Colors.black54)),
                         ],

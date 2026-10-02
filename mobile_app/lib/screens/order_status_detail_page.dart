@@ -517,7 +517,7 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
               title,
               style: TextStyle(
                 fontFamily: 'Afacad',
-                fontSize: 13,
+                fontSize: 15,
                 fontWeight: FontWeight.bold,
                 color: isActive ? Colors.black87 : Colors.grey.shade500,
               ),
@@ -609,7 +609,7 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontFamily: 'Recoleta',
-                fontSize: 28,
+                fontSize: 30,
                 fontWeight: FontWeight.bold,
                 color: AppColors.deepTeal,
               ),
@@ -619,7 +619,7 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
               _orderTitle(),
               style: const TextStyle(
                 fontFamily: 'Afacad',
-                fontSize: 15,
+                fontSize: 17,
                 color: Colors.black54,
               ),
             ),
@@ -639,7 +639,7 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontFamily: 'Recoleta',
-                fontSize: 30,
+                fontSize: 32,
                 fontWeight: FontWeight.bold,
                 color: AppColors.deepTeal,
               ),
@@ -650,7 +650,7 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
               textAlign: TextAlign.center,
               style: const TextStyle(
                 fontFamily: 'Afacad',
-                fontSize: 17,
+                fontSize: 19,
                 color: Colors.black87,
                 height: 1.35,
               ),
@@ -662,7 +662,7 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontFamily: 'Afacad',
-                  fontSize: 15,
+                  fontSize: 17,
                   fontWeight: FontWeight.bold,
                   color: AppColors.deepTeal,
                 ),
@@ -675,7 +675,7 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontFamily: 'Afacad',
-                  fontSize: 14,
+                  fontSize: 16,
                   fontWeight: FontWeight.bold,
                   color: Colors.red.shade700,
                 ),
@@ -691,7 +691,7 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
                   _isEmailingReceipt ? 'SENDING RECEIPT...' : 'EMAIL RECEIPT',
                   style: const TextStyle(
                     fontFamily: 'Recoleta',
-                    fontSize: 16,
+                    fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -724,7 +724,7 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
                     _isCollecting ? 'UPDATING...' : 'MARK AS COLLECTED',
                     style: const TextStyle(
                       fontFamily: 'Recoleta',
-                      fontSize: 16,
+                      fontSize: 18,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
                     ),
@@ -748,7 +748,7 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
                     'BACK TO MY ORDER',
                     style: TextStyle(
                       fontFamily: 'Recoleta',
-                      fontSize: 16,
+                      fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
                   ),

@@ -138,7 +138,7 @@ class OrderDetailsPage extends StatelessWidget {
                                 _formatDateTime(order.createdAt),
                                 style: const TextStyle(
                                   fontFamily: 'Afacad',
-                                  fontSize: 12,
+                                  fontSize: 14,
                                   color: Colors.black54,
                                 ),
                               ),
@@ -153,7 +153,7 @@ class OrderDetailsPage extends StatelessWidget {
                                       _displayName(),
                                       style: TextStyle(
                                         fontFamily: 'Recoleta',
-                                        fontSize: 20,
+                                        fontSize: 22,
                                         fontWeight: FontWeight.bold,
                                         color: AppColors.deepTeal,
                                       ),
@@ -164,7 +164,7 @@ class OrderDetailsPage extends StatelessWidget {
                                     'x${totalItems > 0 ? totalItems : 1}',
                                     style: TextStyle(
                                       fontFamily: 'Afacad',
-                                      fontSize: 22,
+                                      fontSize: 24,
                                       fontWeight: FontWeight.bold,
                                       color: AppColors.deepTeal,
                                     ),
@@ -176,7 +176,7 @@ class OrderDetailsPage extends StatelessWidget {
                                 _buildDetails(),
                                 style: const TextStyle(
                                   fontFamily: 'Afacad',
-                                  fontSize: 14,
+                                  fontSize: 16,
                                   color: Colors.black87,
                                   height: 1.2,
                                 ),
@@ -186,7 +186,7 @@ class OrderDetailsPage extends StatelessWidget {
                                 'Store: ${order.store.name}',
                                 style: const TextStyle(
                                   fontFamily: 'Afacad',
-                                  fontSize: 14,
+                                  fontSize: 16,
                                   color: Colors.black87,
                                 ),
                               ),
@@ -196,7 +196,7 @@ class OrderDetailsPage extends StatelessWidget {
                                   'Order Ref: ${order.orderRef}',
                                   style: const TextStyle(
                                     fontFamily: 'Afacad',
-                                    fontSize: 14,
+                                    fontSize: 16,
                                     color: Colors.black54,
                                   ),
                                 ),
@@ -214,7 +214,7 @@ class OrderDetailsPage extends StatelessWidget {
                           totalLabel,
                           style: const TextStyle(
                             fontFamily: 'Afacad',
-                            fontSize: 14,
+                            fontSize: 16,
                             color: Colors.black87,
                           ),
                         ),
@@ -223,7 +223,7 @@ class OrderDetailsPage extends StatelessWidget {
                           'RM${double.tryParse(order.finalTotalRm)?.toStringAsFixed(2) ?? order.finalTotalRm}',
                           style: TextStyle(
                             fontFamily: 'Afacad',
-                            fontSize: 14,
+                            fontSize: 16,
                             fontWeight: FontWeight.bold,
                             color: AppColors.deepTeal,
                           ),
@@ -254,7 +254,7 @@ class OrderDetailsPage extends StatelessWidget {
                     'Order Again',
                     style: TextStyle(
                       fontFamily: 'Recoleta',
-                      fontSize: 16,
+                      fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
                   ),

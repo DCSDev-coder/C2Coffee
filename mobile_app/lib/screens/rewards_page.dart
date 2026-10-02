@@ -184,7 +184,7 @@ class _RewardsPageState extends State<RewardsPage> {
                 'C2 COFFEE SQUAD',
                 style: TextStyle(
                   fontFamily: 'Recoleta',
-                  fontSize: 20,
+                  fontSize: 22,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
                   letterSpacing: 1.0,
@@ -197,7 +197,7 @@ class _RewardsPageState extends State<RewardsPage> {
                     : 'ACCOUNT UNAVAILABLE',
                 style: const TextStyle(
                   fontFamily: 'Afacad',
-                  fontSize: 14,
+                  fontSize: 16,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
                   letterSpacing: 1.2,
@@ -297,7 +297,7 @@ class _RewardsPageState extends State<RewardsPage> {
                       '${_session.tokenBalance}',
                       style: TextStyle(
                         fontFamily: 'Recoleta',
-                        fontSize: 32,
+                        fontSize: 34,
                         fontWeight: FontWeight.bold,
                         color: AppColors.softGold,
                         height: 1.1,
@@ -307,7 +307,7 @@ class _RewardsPageState extends State<RewardsPage> {
                       'tokens',
                       style: TextStyle(
                         fontFamily: 'Afacad',
-                        fontSize: 16,
+                        fontSize: 18,
                         color: Colors.black54,
                       ),
                     ),
@@ -327,7 +327,7 @@ class _RewardsPageState extends State<RewardsPage> {
                       '${_session.cupsLast180d}',
                       style: TextStyle(
                         fontFamily: 'Recoleta',
-                        fontSize: 32,
+                        fontSize: 34,
                         fontWeight: FontWeight.bold,
                         color: AppColors.brandText,
                         height: 1.1,
@@ -337,7 +337,7 @@ class _RewardsPageState extends State<RewardsPage> {
                       'cups collected',
                       style: TextStyle(
                         fontFamily: 'Afacad',
-                        fontSize: 16,
+                        fontSize: 18,
                         color: Colors.black54,
                       ),
                     ),
@@ -347,7 +347,7 @@ class _RewardsPageState extends State<RewardsPage> {
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         fontFamily: 'Afacad',
-                        fontSize: 11,
+                        fontSize: 13,
                         color: Colors.black45,
                         height: 1.1,
                       ),
@@ -384,7 +384,7 @@ class _RewardsPageState extends State<RewardsPage> {
             textAlign: TextAlign.center,
             style: const TextStyle(
               fontFamily: 'Afacad',
-              fontSize: 10,
+              fontSize: 12,
               color: Colors.black54,
             ),
           ),
@@ -409,7 +409,7 @@ class _RewardsPageState extends State<RewardsPage> {
           const Text(
             'Account information is unavailable',
             textAlign: TextAlign.center,
-            style: TextStyle(fontFamily: 'Recoleta', fontSize: 22),
+            style: TextStyle(fontFamily: 'Recoleta', fontSize: 24),
           ),
           const SizedBox(height: 8),
           Text(
@@ -417,7 +417,7 @@ class _RewardsPageState extends State<RewardsPage> {
                 'We could not load your current rewards information.',
             textAlign: TextAlign.center,
             style: const TextStyle(
-                fontFamily: 'Afacad', fontSize: 15, color: Colors.black54),
+                fontFamily: 'Afacad', fontSize: 17, color: Colors.black54),
           ),
           const SizedBox(height: 16),
           OutlinedButton.icon(
@@ -486,7 +486,7 @@ class _RewardsPageState extends State<RewardsPage> {
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontFamily: 'Recoleta',
-                          fontSize: 16,
+                          fontSize: 18,
                           fontWeight: FontWeight.bold,
                           color: AppColors.brandText,
                         ),
@@ -547,7 +547,7 @@ class _RewardsPageState extends State<RewardsPage> {
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontFamily: 'Recoleta',
-                          fontSize: 16,
+                          fontSize: 18,
                           fontWeight: FontWeight.bold,
                           color: AppColors.brandText,
                         ),
@@ -621,7 +621,7 @@ class _RewardsPageState extends State<RewardsPage> {
           '$collectedCups / $targetCups cups collected',
           style: TextStyle(
             fontFamily: 'Afacad',
-            fontSize: 15,
+            fontSize: 17,
             fontWeight: FontWeight.bold,
             color: AppColors.brandText,
           ),
@@ -644,7 +644,7 @@ class _RewardsPageState extends State<RewardsPage> {
               : 'Tier details are not available right now.',
           style: const TextStyle(
             fontFamily: 'Afacad',
-            fontSize: 15,
+            fontSize: 17,
             color: Colors.black54,
           ),
         ),
@@ -665,7 +665,7 @@ class _RewardsPageState extends State<RewardsPage> {
                 'Tier',
                 style: TextStyle(
                   fontFamily: 'Recoleta',
-                  fontSize: 20,
+                  fontSize: 22,
                   fontWeight: FontWeight.bold,
                   color: AppColors.brandText,
                 ),
@@ -776,7 +776,7 @@ class _RewardsPageState extends State<RewardsPage> {
               tier.name,
               style: TextStyle(
                 fontFamily: 'Recoleta',
-                fontSize: 14,
+                fontSize: 16,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
                 color: textColor,
               ),
@@ -825,7 +825,7 @@ class _RewardsPageState extends State<RewardsPage> {
                     tier.name,
                     style: TextStyle(
                       fontFamily: 'Recoleta',
-                      fontSize: 18,
+                      fontSize: 20,
                       fontWeight: FontWeight.bold,
                       color: AppColors.brandText,
                     ),
@@ -870,7 +870,7 @@ class _RewardsPageState extends State<RewardsPage> {
               'Tier rewards',
               style: TextStyle(
                 fontFamily: 'Recoleta',
-                fontSize: 15,
+                fontSize: 17,
                 fontWeight: FontWeight.bold,
                 color: AppColors.textDark,
               ),
@@ -902,7 +902,7 @@ class _RewardsPageState extends State<RewardsPage> {
                       detail,
                       style: const TextStyle(
                         fontFamily: 'Afacad',
-                        fontSize: 14,
+                        fontSize: 16,
                         fontWeight: FontWeight.w500,
                         color: Colors.black87,
                         height: 1.3,
@@ -937,7 +937,7 @@ class _RewardsPageState extends State<RewardsPage> {
             label,
             style: TextStyle(
               fontFamily: 'Afacad',
-              fontSize: 11,
+              fontSize: 13,
               fontWeight: FontWeight.bold,
               color: color,
               letterSpacing: 0.4,
@@ -991,7 +991,7 @@ class _RewardsPageState extends State<RewardsPage> {
                       'FAQS',
                       style: TextStyle(
                         fontFamily: 'Recoleta',
-                        fontSize: 16,
+                        fontSize: 18,
                         fontWeight: FontWeight.bold,
                         color: AppColors.brandText,
                       ),
@@ -1000,7 +1000,7 @@ class _RewardsPageState extends State<RewardsPage> {
                       'Learn how it works',
                       style: TextStyle(
                         fontFamily: 'Afacad',
-                        fontSize: 12,
+                        fontSize: 14,
                         color: Colors.grey,
                       ),
                     ),
@@ -1059,7 +1059,7 @@ class _RewardsPageState extends State<RewardsPage> {
                       'FAQS',
                       style: TextStyle(
                         fontFamily: 'Recoleta',
-                        fontSize: 24,
+                        fontSize: 26,
                         fontWeight: FontWeight.bold,
                         color: AppColors.brandText,
                       ),
@@ -1068,7 +1068,7 @@ class _RewardsPageState extends State<RewardsPage> {
                       'Learn how it works',
                       style: TextStyle(
                         fontFamily: 'Afacad',
-                        fontSize: 14,
+                        fontSize: 16,
                         color: Colors.grey,
                       ),
                     ),
@@ -1135,7 +1135,7 @@ class _RewardsPageState extends State<RewardsPage> {
           title,
           style: const TextStyle(
             fontFamily: 'Afacad',
-            fontSize: 14,
+            fontSize: 16,
             fontWeight: FontWeight.bold,
             color: Colors.black87,
           ),
@@ -1149,7 +1149,7 @@ class _RewardsPageState extends State<RewardsPage> {
             content,
             style: const TextStyle(
               fontFamily: 'Afacad',
-              fontSize: 12,
+              fontSize: 14,
               color: Colors.black54,
               height: 1.4,
             ),

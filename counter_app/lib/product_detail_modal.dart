@@ -92,7 +92,7 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
                 title.toUpperCase(),
                 style: const TextStyle(
                   fontFamily: 'Recoleta',
-                  fontSize: 13,
+                  fontSize: 15,
                   fontWeight: FontWeight.w900,
                   color: Colors.black87,
                 ),
@@ -114,7 +114,7 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
               subtitle,
               style: const TextStyle(
                 fontFamily: 'Afacad',
-                fontSize: 11,
+                fontSize: 13,
                 color: Colors.black54,
               ),
             ),
@@ -138,8 +138,7 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
 
     Widget cardChild = AnimatedContainer(
       duration: const Duration(milliseconds: 200),
-      width: 100,
-      height: 100,
+      height: 110,
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
       decoration: BoxDecoration(
         color: isSelected ? (isGradient ? null : color) : Colors.white,
@@ -160,9 +159,7 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
         boxShadow: [
           if (isSelected)
             BoxShadow(
-              color: (isGradient ? gradientColors!.first : color).withValues(
-                alpha: 0.25,
-              ),
+              color: (isGradient ? gradientColors!.first : color).withOpacity(0.25),
               blurRadius: 6,
               offset: const Offset(0, 3),
             ),
@@ -178,7 +175,7 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontFamily: 'Recoleta',
-                fontSize: 13,
+                fontSize: 15,
                 fontWeight: FontWeight.w900,
                 color: isSelected ? textColor : Colors.grey.shade600,
                 height: 1.1,
@@ -191,10 +188,10 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontFamily: 'Afacad',
-                fontSize: 11,
+                fontSize: 13,
                 fontWeight: FontWeight.bold,
                 color: isSelected
-                    ? textColor.withValues(alpha: 0.9)
+                    ? textColor.withOpacity(0.9)
                     : Colors.grey.shade400,
               ),
             ),
@@ -203,7 +200,12 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
       ),
     );
 
-    return GestureDetector(onTap: () => onChanged(value), child: cardChild);
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.only(right: 12),
+        child: GestureDetector(onTap: () => onChanged(value), child: cardChild),
+      ),
+    );
   }
 
   Widget _buildLibraryGroup(CounterModifierGroup group) {
@@ -211,17 +213,20 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildSectionTitle(group.name, required: group.minSelect > 0),
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
+        Row(
+          
+
           children: group.options.map((option) {
             final isSelected =
                 _librarySelections[group.id]?.contains(option.id) ?? false;
             final subtitle = option.priceDeltaRm == '0.00'
                 ? '+ 0.00'
-                : '+ \${option.priceDeltaRm}';
+                : '+ ${option.priceDeltaRm}';
 
-            return GestureDetector(
+            return Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: GestureDetector(
               onTap: () {
                 setState(() {
                   if (group.selectionType == 'single') {
@@ -241,7 +246,7 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
               },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                width: 100,
+                
                 height: 100,
                 padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
                 decoration: BoxDecoration(
@@ -271,7 +276,7 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontFamily: 'Recoleta',
-                        fontSize: 13,
+                        fontSize: 15,
                         fontWeight: FontWeight.w900,
                         color: isSelected ? Colors.white : Colors.grey.shade600,
                         height: 1.1,
@@ -283,7 +288,7 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontFamily: 'Afacad',
-                        fontSize: 11,
+                        fontSize: 13,
                         fontWeight: FontWeight.bold,
                         color: isSelected
                             ? Colors.white.withValues(alpha: 0.9)
@@ -293,8 +298,10 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
                   ],
                 ),
               ),
-            );
-          }).toList(),
+            ),
+          ),
+        );
+      }).toList(),
         ),
       ],
     );
@@ -308,6 +315,16 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
         backgroundColor: const Color(0xFFEFEBE3),
         foregroundColor: Colors.black87,
         elevation: 0,
+        title: const Text(
+          'CUSTOMIZATIONS',
+          style: TextStyle(
+            fontFamily: 'Recoleta',
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: AppColors.primary,
+          ),
+        ),
+        centerTitle: true,
         actions: [
           IconButton(
             icon: const Icon(Icons.close),
@@ -315,61 +332,84 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Image header
-            Container(
-              padding: const EdgeInsets.all(16),
-              height: 200, // Smaller image
+      body: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            flex: 4,
+            child: Container(
+              color: Colors.white,
               child: Center(
-                child: widget.item.imageUrl != null
-                    ? Image.network(widget.item.imageUrl!, fit: BoxFit.contain)
-                    : const Icon(
-                        Icons.coffee,
-                        size: 80,
-                        color: AppColors.secondary,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        height: 250,
+                        child: Center(
+                          child: widget.item.imageUrl != null
+                              ? Image.network(widget.item.imageUrl!, fit: BoxFit.contain)
+                              : const Icon(Icons.coffee, size: 80, color: AppColors.secondary),
+                        ),
                       ),
-              ),
-            ),
-            Container(
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(24),
-                  topRight: Radius.circular(24),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Text(
+                              widget.item.name,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontFamily: 'Recoleta',
+                                fontSize: 30,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              _itemDescription,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontFamily: 'Afacad',
+                                fontSize: 18,
+                                color: Colors.black54,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    widget.item.name,
-                    style: const TextStyle(
-                      fontFamily: 'Recoleta',
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                    ),
+            ),
+          ),
+          Expanded(
+            flex: 6,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                border: Border(
+                  left: BorderSide(
+                    color: Colors.grey.shade300,
+                    width: 1,
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _itemDescription,
-                    style: const TextStyle(
-                      fontFamily: 'Afacad',
-                      fontSize: 16,
-                      color: Colors.black54,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  const Divider(),
+                ),
+              ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
 
                   if (widget.item.allowChoiceOfBeans) ...[
                     _buildSectionTitle('Choice of Beans'),
-                    Wrap(
-                      spacing: 12,
-                      runSpacing: 12,
+                    Row(
+                      
+
                       children: [
                         _buildOptionCard(
                           title: 'DATO\nBLEND',
@@ -400,9 +440,9 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
 
                   if (widget.item.allowTemperature) ...[
                     _buildSectionTitle('Choice of Temperature'),
-                    Wrap(
-                      spacing: 12,
-                      runSpacing: 12,
+                    Row(
+                      
+
                       children: [
                         _buildOptionCard(
                           title: 'HOT',
@@ -428,9 +468,9 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
 
                   if (widget.item.allowChoiceOfMilk) ...[
                     _buildSectionTitle('Choice of Milk'),
-                    Wrap(
-                      spacing: 12,
-                      runSpacing: 12,
+                    Row(
+                      
+
                       children: [
                         _buildOptionCard(
                           title: 'FRESH\nMILK',
@@ -456,9 +496,9 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
 
                   if (widget.item.allowChoiceOfSweetness) ...[
                     _buildSectionTitle('Choice of Sweetness'),
-                    Wrap(
-                      spacing: 12,
-                      runSpacing: 12,
+                    Row(
+                      
+
                       children: [
                         _buildOptionCard(
                           title: 'NO\nSUGAR',
@@ -493,9 +533,9 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
 
                   if (widget.item.allowIceLevel) ...[
                     _buildSectionTitle('Ice Level'),
-                    Wrap(
-                      spacing: 12,
-                      runSpacing: 12,
+                    Row(
+                      
+
                       children: [
                         _buildOptionCard(
                           title: 'LESS\nICE',
@@ -528,9 +568,10 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
                 ],
               ),
             ),
-          ],
+          ),
         ),
-      ),
+      ],
+    ),
       bottomNavigationBar: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         decoration: BoxDecoration(
@@ -554,7 +595,7 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
                     'Total',
                     style: TextStyle(
                       fontFamily: 'Recoleta',
-                      fontSize: 16,
+                      fontSize: 18,
                       fontWeight: FontWeight.bold,
                       color: Colors.black87,
                     ),
@@ -563,7 +604,7 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
                     'RM ${totalPrice.toStringAsFixed(2)}',
                     style: const TextStyle(
                       fontFamily: 'Afacad',
-                      fontSize: 16,
+                      fontSize: 18,
                       fontWeight: FontWeight.bold,
                       color: AppColors.primary,
                     ),
@@ -598,7 +639,7 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
                             _quantity.toString(),
                             style: const TextStyle(
                               fontFamily: 'Recoleta',
-                              fontSize: 16,
+                              fontSize: 18,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -650,7 +691,7 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
                         'ADD TO CART',
                         style: TextStyle(
                           fontFamily: 'Recoleta',
-                          fontSize: 14,
+                          fontSize: 16,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
                         ),

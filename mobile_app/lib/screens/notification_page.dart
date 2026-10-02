@@ -164,7 +164,7 @@ class _NotificationPageState extends State<NotificationPage> {
             '$text ($count)',
             style: TextStyle(
               fontFamily: 'Recoleta',
-              fontSize: 18,
+              fontSize: 20,
               fontWeight: FontWeight.bold,
               color: AppColors.deepTeal,
             ),
@@ -212,7 +212,7 @@ class _NotificationPageState extends State<NotificationPage> {
             title,
             style: TextStyle(
               fontFamily: 'Recoleta',
-              fontSize: 18,
+              fontSize: 20,
               fontWeight: FontWeight.bold,
               color: AppColors.deepTeal,
             ),
@@ -222,7 +222,7 @@ class _NotificationPageState extends State<NotificationPage> {
             message,
             style: const TextStyle(
               fontFamily: 'Afacad',
-              fontSize: 14,
+              fontSize: 16,
               color: Colors.black87,
               height: 1.35,
             ),
@@ -237,7 +237,7 @@ class _NotificationPageState extends State<NotificationPage> {
                   actionLabel,
                   style: TextStyle(
                     fontFamily: 'Afacad',
-                    fontSize: 15,
+                    fontSize: 17,
                     fontWeight: FontWeight.bold,
                     color: AppColors.deepTeal,
                   ),
@@ -306,7 +306,7 @@ class _NotificationPageState extends State<NotificationPage> {
                           notification.title,
                           style: TextStyle(
                             fontFamily: 'Recoleta',
-                            fontSize: 16,
+                            fontSize: 18,
                             fontWeight:
                                 isUnread ? FontWeight.bold : FontWeight.w600,
                             color: AppColors.deepTeal,
@@ -332,7 +332,7 @@ class _NotificationPageState extends State<NotificationPage> {
                     dateLabel,
                     style: TextStyle(
                       fontFamily: 'Afacad',
-                      fontSize: 12,
+                      fontSize: 14,
                       fontWeight: FontWeight.w600,
                       color: Colors.grey.shade700,
                     ),
@@ -342,7 +342,7 @@ class _NotificationPageState extends State<NotificationPage> {
                     notification.body,
                     style: const TextStyle(
                       fontFamily: 'Afacad',
-                      fontSize: 14,
+                      fontSize: 16,
                       color: Colors.black87,
                       height: 1.35,
                     ),

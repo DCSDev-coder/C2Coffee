@@ -242,7 +242,7 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                     'Choose Your Icon',
                     style: TextStyle(
                         fontFamily: 'Recoleta',
-                        fontSize: 24,
+                        fontSize: 26,
                         fontWeight: FontWeight.bold,
                         color: primaryColor,
                         letterSpacing: 0.5),
@@ -323,7 +323,7 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                               child: Text('or',
                                   style: TextStyle(
                                       fontFamily: 'Afacad',
-                                      fontSize: 14,
+                                      fontSize: 16,
                                       color: primaryColor,
                                       fontWeight: FontWeight.w600)),
                             ),
@@ -363,7 +363,7 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                                   'Upload from your own gallery',
                                   style: TextStyle(
                                       fontFamily: 'Afacad',
-                                      fontSize: 16,
+                                      fontSize: 18,
                                       fontWeight: FontWeight.w600,
                                       color: Colors.white,
                                       letterSpacing: 0.3),
@@ -391,7 +391,7 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                       child: const Text('Cancel',
                           style: TextStyle(
                               fontFamily: 'Afacad',
-                              fontSize: 15,
+                              fontSize: 17,
                               fontWeight: FontWeight.w600,
                               color: Colors.grey,
                               letterSpacing: 1.2)),
@@ -558,7 +558,7 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                             'Step 2 of 2',
                             style: TextStyle(
                                 fontFamily: 'Recoleta',
-                                fontSize: 20,
+                                fontSize: 22,
                                 fontStyle: FontStyle.italic,
                                 color: Colors.white),
                           ),
@@ -568,7 +568,7 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                             textAlign: TextAlign.center,
                             style: TextStyle(
                                 fontFamily: 'Recoleta',
-                                fontSize: 26,
+                                fontSize: 28,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.white),
                           ),
@@ -578,7 +578,7 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                             textAlign: TextAlign.center,
                             style: TextStyle(
                                 fontFamily: 'Afacad',
-                                fontSize: 12,
+                                fontSize: 14,
                                 color: Colors.white70),
                           ),
                         ],
@@ -620,7 +620,7 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                                       'Address (Optional)',
                                       style: TextStyle(
                                           fontFamily: 'Recoleta',
-                                          fontSize: 16,
+                                          fontSize: 18,
                                           fontWeight: FontWeight.bold,
                                           color: textColor),
                                     ),
@@ -701,7 +701,7 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                                       'Gender *',
                                       style: TextStyle(
                                           fontFamily: 'Recoleta',
-                                          fontSize: 16,
+                                          fontSize: 18,
                                           fontWeight: FontWeight.bold,
                                           color: textColor),
                                     ),
@@ -760,7 +760,7 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                                           text: TextSpan(
                                             style: const TextStyle(
                                                 fontFamily: 'Afacad',
-                                                fontSize: 14,
+                                                fontSize: 16,
                                                 color: Colors.black87),
                                             children: [
                                               const TextSpan(
@@ -802,7 +802,7 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                                           'PREVIOUS STEP',
                                           style: TextStyle(
                                               fontFamily: 'Recoleta',
-                                              fontSize: 16,
+                                              fontSize: 18,
                                               fontWeight: FontWeight.bold,
                                               letterSpacing: 1.0),
                                         ),
@@ -966,7 +966,7 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                                           'SIGN UP',
                                           style: TextStyle(
                                               fontFamily: 'Recoleta',
-                                              fontSize: 16,
+                                              fontSize: 18,
                                               fontWeight: FontWeight.bold,
                                               letterSpacing: 1.0),
                                         ),
@@ -1012,7 +1012,7 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
           label,
           style: TextStyle(
               fontFamily: 'Recoleta',
-              fontSize: 16,
+              fontSize: 18,
               fontWeight: FontWeight.bold,
               color: AppColors.brandText),
         ),
@@ -1040,13 +1040,13 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
             readOnly: readOnly,
             onTapOutside: (_) => FocusScope.of(context).unfocus(),
             style: const TextStyle(
-                fontFamily: 'Afacad', fontSize: 15, color: Colors.black87),
+                fontFamily: 'Afacad', fontSize: 17, color: Colors.black87),
             decoration: InputDecoration(
               filled: true,
               fillColor: Colors.white,
               hintText: hintText,
               hintStyle: const TextStyle(
-                  fontFamily: 'Afacad', fontSize: 15, color: Colors.grey),
+                  fontFamily: 'Afacad', fontSize: 17, color: Colors.grey),
               border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(20),
                   borderSide: BorderSide.none),
@@ -1136,7 +1136,7 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
               gender,
               style: TextStyle(
                 fontFamily: 'Afacad',
-                fontSize: 15,
+                fontSize: 17,
                 fontWeight: FontWeight.w600,
                 color: isSelected ? primaryColor : Colors.grey.shade400,
               ),
@@ -1180,7 +1180,7 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                       'Terms & Conditions',
                       style: TextStyle(
                         fontFamily: 'Recoleta',
-                        fontSize: 20,
+                        fontSize: 22,
                         fontWeight: FontWeight.bold,
                         color: primaryColor,
                       ),
@@ -1207,7 +1207,7 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                   'By proceeding with this, you agree that:',
                   style: TextStyle(
                     fontFamily: 'Afacad',
-                    fontSize: 14,
+                    fontSize: 16,
                     fontWeight: FontWeight.w600,
                     color: Colors.black87,
                   ),
@@ -1221,7 +1221,7 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                           Text(
                             '• ',
                             style: TextStyle(
-                              fontSize: 14,
+                              fontSize: 16,
                               fontWeight: FontWeight.bold,
                               color: primaryColor,
                             ),
@@ -1231,7 +1231,7 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                               term,
                               style: const TextStyle(
                                 fontFamily: 'Afacad',
-                                fontSize: 13.5,
+                                fontSize: 15.5,
                                 color: Colors.black87,
                                 height: 1.3,
                               ),
@@ -1266,7 +1266,7 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                       'I AGREE',
                       style: TextStyle(
                         fontFamily: 'Recoleta',
-                        fontSize: 15,
+                        fontSize: 17,
                         fontWeight: FontWeight.bold,
                         letterSpacing: 0.5,
                       ),
@@ -1327,7 +1327,7 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                 text: 'I agree to the ',
                 style: const TextStyle(
                   fontFamily: 'Afacad',
-                  fontSize: 13.5,
+                  fontSize: 15.5,
                   color: Colors.black87,
                 ),
                 children: [
@@ -1335,7 +1335,7 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                     text: 'Terms & Conditions',
                     style: TextStyle(
                       fontFamily: 'Afacad',
-                      fontSize: 13.5,
+                      fontSize: 15.5,
                       fontWeight: FontWeight.bold,
                       color: primaryColor,
                       decoration: TextDecoration.underline,
@@ -1347,7 +1347,7 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                     text: ' *',
                     style: TextStyle(
                       fontFamily: 'Afacad',
-                      fontSize: 13.5,
+                      fontSize: 15.5,
                       color: primaryColor,
                     ),
                   ),

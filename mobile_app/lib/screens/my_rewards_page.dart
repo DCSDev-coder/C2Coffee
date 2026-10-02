@@ -209,7 +209,7 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
                         'Rewards hub',
                         style: TextStyle(
                           fontFamily: 'Afacad',
-                          fontSize: 13,
+                          fontSize: 15,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
                         ),
@@ -220,7 +220,7 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
                       'Your rewards, all in one place',
                       style: TextStyle(
                         fontFamily: 'Recoleta',
-                        fontSize: 22,
+                        fontSize: 24,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
                         height: 1.15,
@@ -231,7 +231,7 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
                       'Your regular vouchers and birthday-tier reward are shown separately.',
                       style: TextStyle(
                         fontFamily: 'Afacad',
-                        fontSize: 14,
+                        fontSize: 16,
                         color: Colors.white.withValues(alpha: 0.88),
                         height: 1.35,
                       ),
@@ -281,7 +281,7 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
             value,
             style: const TextStyle(
               fontFamily: 'Recoleta',
-              fontSize: 18,
+              fontSize: 20,
               fontWeight: FontWeight.bold,
               color: Colors.white,
             ),
@@ -291,7 +291,7 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
             label,
             style: TextStyle(
               fontFamily: 'Afacad',
-              fontSize: 13,
+              fontSize: 15,
               fontWeight: FontWeight.w600,
               color: Colors.white.withValues(alpha: 0.9),
             ),
@@ -378,7 +378,7 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
           title,
           style: TextStyle(
             fontFamily: 'Recoleta',
-            fontSize: 18,
+            fontSize: 20,
             fontWeight: FontWeight.bold,
             color: AppColors.deepTeal,
           ),
@@ -388,7 +388,7 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
           subtitle,
           style: const TextStyle(
             fontFamily: 'Afacad',
-            fontSize: 13,
+            fontSize: 15,
             color: Colors.black54,
             height: 1.35,
           ),
@@ -473,7 +473,7 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
                             voucher.template.displayLabel,
                             style: TextStyle(
                               fontFamily: 'Recoleta',
-                              fontSize: 18,
+                              fontSize: 20,
                               fontWeight: FontWeight.bold,
                               color: AppColors.deepTeal,
                             ),
@@ -497,7 +497,7 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
                             _voucherBadge(voucher),
                             style: TextStyle(
                               fontFamily: 'Afacad',
-                              fontSize: 12,
+                              fontSize: 14,
                               fontWeight: FontWeight.bold,
                               color: AppColors.deepTeal,
                             ),
@@ -510,7 +510,7 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
                       'Status: ${_voucherStatusLabel(voucher)}',
                       style: TextStyle(
                         fontFamily: 'Afacad',
-                        fontSize: 13,
+                        fontSize: 15,
                         color: statusColor,
                       ),
                     ),
@@ -519,7 +519,7 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
                       'Redeem by $expiryLabel',
                       style: const TextStyle(
                         fontFamily: 'Afacad',
-                        fontSize: 13,
+                        fontSize: 15,
                         fontWeight: FontWeight.w600,
                         color: Colors.black54,
                       ),
@@ -549,7 +549,7 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
                         isExpanded ? 'Hide details' : 'Show details',
                         style: const TextStyle(
                           fontFamily: 'Afacad',
-                          fontSize: 13,
+                          fontSize: 15,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -609,7 +609,7 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
         text: TextSpan(
           style: TextStyle(
             fontFamily: 'Afacad',
-            fontSize: 12,
+            fontSize: 14,
             color: Colors.black87,
           ),
           children: [
@@ -689,7 +689,7 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
             textAlign: TextAlign.center,
             style: TextStyle(
               fontFamily: 'Recoleta',
-              fontSize: 22,
+              fontSize: 24,
               fontWeight: FontWeight.bold,
               color: AppColors.deepTeal,
             ),
@@ -700,7 +700,7 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
             textAlign: TextAlign.center,
             style: const TextStyle(
               fontFamily: 'Afacad',
-              fontSize: 15,
+              fontSize: 17,
               color: Colors.black54,
               height: 1.35,
             ),

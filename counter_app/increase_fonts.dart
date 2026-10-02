@@ -27,7 +27,18 @@ void increaseFonts(String path) {
   print('Done increasing fonts in $path');
 }
 
+void processDirectory(String dirPath) {
+  final dir = Directory(dirPath);
+  if (!dir.existsSync()) return;
+  
+  for (final entity in dir.listSync(recursive: true)) {
+    if (entity is File && entity.path.endsWith('.dart')) {
+      increaseFonts(entity.path);
+    }
+  }
+}
+
 void main() {
-  increaseFonts('lib/main.dart');
-  increaseFonts('../mobile_app/lib/screens/orders_page.dart');
+  processDirectory('lib');
+  processDirectory('../mobile_app/lib');
 }

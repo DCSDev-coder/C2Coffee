@@ -474,7 +474,7 @@ class _HomePageState extends State<HomePage> {
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               fontFamily: 'Afacad',
-                              fontSize: 12,
+                              fontSize: 14,
                               color: Colors.grey,
                             ),
                           ),
@@ -870,7 +870,7 @@ class _HomePageState extends State<HomePage> {
                   'MY\nORDER',
                   style: TextStyle(
                     fontFamily: 'Recoleta',
-                    fontSize: 24,
+                    fontSize: 26,
                     fontWeight: FontWeight.w900,
                     color: Colors.white,
                     height: 0.9,
@@ -899,7 +899,7 @@ class _HomePageState extends State<HomePage> {
                   'MY\nREFERRAL',
                   style: TextStyle(
                     fontFamily: 'Recoleta',
-                    fontSize: 22,
+                    fontSize: 24,
                     fontWeight: FontWeight.w900,
                     color: AppColors.brandText,
                     height: 0.9,
@@ -933,7 +933,7 @@ class _HomePageState extends State<HomePage> {
               'PARTNER SPOTLIGHT',
               style: TextStyle(
                 fontFamily: 'Afacad',
-                fontSize: 12,
+                fontSize: 14,
                 fontWeight: FontWeight.w700,
                 color: AppColors.supportingSurface,
                 letterSpacing: 1.4,
@@ -944,7 +944,7 @@ class _HomePageState extends State<HomePage> {
               'Put your brand in front of the C2 community.',
               style: TextStyle(
                 fontFamily: 'Recoleta',
-                fontSize: 25,
+                fontSize: 27,
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
                 height: 1.12,
@@ -955,7 +955,7 @@ class _HomePageState extends State<HomePage> {
               'Feature your business, event, or exclusive offer in the C2 Coffee app.',
               style: TextStyle(
                 fontFamily: 'Afacad',
-                fontSize: 16,
+                fontSize: 18,
                 color: Colors.white.withValues(alpha: 0.84),
                 height: 1.25,
               ),
@@ -980,7 +980,7 @@ class _HomePageState extends State<HomePage> {
                 'Advertise with us',
                 style: TextStyle(
                   fontFamily: 'Afacad',
-                  fontSize: 16,
+                  fontSize: 18,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -1009,7 +1009,7 @@ class _HomePageState extends State<HomePage> {
             'Partner Spotlight',
             style: TextStyle(
               fontFamily: 'Recoleta',
-              fontSize: 22,
+              fontSize: 24,
               fontWeight: FontWeight.bold,
               color: AppColors.brandText,
             ),
@@ -1055,7 +1055,7 @@ class _HomePageState extends State<HomePage> {
                                 const Text('SPONSORED',
                                     style: TextStyle(
                                         fontFamily: 'Afacad',
-                                        fontSize: 10,
+                                        fontSize: 12,
                                         fontWeight: FontWeight.w700,
                                         color: Colors.white70,
                                         letterSpacing: 1.2)),
@@ -1065,7 +1065,7 @@ class _HomePageState extends State<HomePage> {
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
                                         fontFamily: 'Afacad',
-                                        fontSize: 13,
+                                        fontSize: 15,
                                         fontWeight: FontWeight.w600,
                                         color: Colors.white)),
                               Text(banner.title,
@@ -1073,7 +1073,7 @@ class _HomePageState extends State<HomePage> {
                                   overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
                                       fontFamily: 'Recoleta',
-                                      fontSize: 21,
+                                      fontSize: 23,
                                       fontWeight: FontWeight.bold,
                                       color: Colors.white)),
                               if (banner.actionType != 'none')
@@ -1083,7 +1083,7 @@ class _HomePageState extends State<HomePage> {
                                         : 'Learn more',
                                     style: const TextStyle(
                                         fontFamily: 'Afacad',
-                                        fontSize: 13,
+                                        fontSize: 15,
                                         fontWeight: FontWeight.w700,
                                         color: Colors.white)),
                             ],
@@ -1118,7 +1118,7 @@ class _HomePageState extends State<HomePage> {
                 title,
                 style: TextStyle(
                   fontFamily: 'Recoleta',
-                  fontSize: 22,
+                  fontSize: 24,
                   fontWeight: FontWeight.bold,
                   color: AppColors.brandText,
                 ),
@@ -1131,7 +1131,7 @@ class _HomePageState extends State<HomePage> {
                       'See all',
                       style: TextStyle(
                         fontFamily: 'Afacad',
-                        fontSize: 14,
+                        fontSize: 16,
                         fontWeight: FontWeight.bold,
                         color: AppColors.brandText,
                       ),
@@ -1163,7 +1163,7 @@ class _HomePageState extends State<HomePage> {
               'No live menu items are available for this store yet.',
               style: TextStyle(
                 fontFamily: 'Afacad',
-                fontSize: 15,
+                fontSize: 17,
                 color: Colors.grey.shade700,
               ),
             ),
@@ -1238,7 +1238,7 @@ class _HomePageState extends State<HomePage> {
                                         overflow: TextOverflow.ellipsis,
                                         style: const TextStyle(
                                           fontFamily: 'Recoleta',
-                                          fontSize: 15,
+                                          fontSize: 17,
                                           fontWeight: FontWeight.bold,
                                         ),
                                       ),
@@ -1250,7 +1250,7 @@ class _HomePageState extends State<HomePage> {
                                       overflow: TextOverflow.ellipsis,
                                       style: TextStyle(
                                         fontFamily: 'Afacad',
-                                        fontSize: 14,
+                                        fontSize: 16,
                                         fontWeight: FontWeight.bold,
                                         color: AppColors.brandText,
                                       ),
@@ -1348,7 +1348,7 @@ class _HomePageState extends State<HomePage> {
               'Unable to load live data',
               style: TextStyle(
                 fontFamily: 'Recoleta',
-                fontSize: 18,
+                fontSize: 20,
                 fontWeight: FontWeight.bold,
                 color: AppColors.brandText,
               ),
@@ -1356,7 +1356,7 @@ class _HomePageState extends State<HomePage> {
             const SizedBox(height: 8),
             Text(
               message,
-              style: const TextStyle(fontFamily: 'Afacad', fontSize: 15),
+              style: const TextStyle(fontFamily: 'Afacad', fontSize: 17),
             ),
             const SizedBox(height: 12),
             TextButton(

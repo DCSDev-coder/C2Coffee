@@ -234,7 +234,7 @@ class _OrderStatusBannerState extends State<OrderStatusBanner>
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontFamily: 'Recoleta',
-                              fontSize: 13,
+                              fontSize: 15,
                               fontWeight: FontWeight.bold,
                               color: AppColors.deepTeal,
                               height: 1.1,
@@ -245,7 +245,7 @@ class _OrderStatusBannerState extends State<OrderStatusBanner>
                           '${(progress * 100).round()}%',
                           style: TextStyle(
                             fontFamily: 'Afacad',
-                            fontSize: 11,
+                            fontSize: 13,
                             fontWeight: FontWeight.bold,
                             color: AppColors.deepTeal,
                           ),
@@ -272,7 +272,7 @@ class _OrderStatusBannerState extends State<OrderStatusBanner>
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontFamily: 'Afacad',
-                        fontSize: 11,
+                        fontSize: 13,
                         color: Colors.black54,
                         height: 1.1,
                       ),
@@ -317,7 +317,7 @@ class _OrderStatusBannerState extends State<OrderStatusBanner>
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontFamily: 'Recoleta',
-                      fontSize: 13,
+                      fontSize: 15,
                       fontWeight: FontWeight.bold,
                       color: AppColors.deepTeal,
                     ),
@@ -328,7 +328,7 @@ class _OrderStatusBannerState extends State<OrderStatusBanner>
                   _statusTitle(order.status),
                   style: TextStyle(
                     fontFamily: 'Afacad',
-                    fontSize: 11,
+                    fontSize: 13,
                     fontWeight: FontWeight.bold,
                     color: progressColor,
                   ),
@@ -352,7 +352,7 @@ class _OrderStatusBannerState extends State<OrderStatusBanner>
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 fontFamily: 'Afacad',
-                fontSize: 11,
+                fontSize: 13,
                 color: Colors.black54,
                 height: 1.1,
               ),
@@ -413,7 +413,7 @@ class _OrderStatusBannerState extends State<OrderStatusBanner>
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontFamily: 'Recoleta',
-                    fontSize: 13,
+                    fontSize: 15,
                     fontWeight: FontWeight.bold,
                     color: AppColors.deepTeal,
                     height: 1.1,
@@ -426,7 +426,7 @@ class _OrderStatusBannerState extends State<OrderStatusBanner>
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontFamily: 'Afacad',
-                    fontSize: 11,
+                    fontSize: 13,
                     color: Colors.black54,
                     height: 1.1,
                   ),
@@ -446,7 +446,7 @@ class _OrderStatusBannerState extends State<OrderStatusBanner>
                 summaryLabel,
                 style: TextStyle(
                   fontFamily: 'Afacad',
-                  fontSize: 11,
+                  fontSize: 13,
                   fontWeight: FontWeight.bold,
                   color: AppColors.deepTeal,
                 ),
@@ -456,7 +456,7 @@ class _OrderStatusBannerState extends State<OrderStatusBanner>
                 allowExpand ? 'Tap chevron for details' : 'View orders',
                 style: TextStyle(
                   fontFamily: 'Afacad',
-                  fontSize: 10,
+                  fontSize: 12,
                   color: Colors.black54,
                 ),
               ),

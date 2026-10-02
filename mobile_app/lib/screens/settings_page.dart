@@ -409,7 +409,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 Text('Choose Avatar',
                     style: TextStyle(
                         fontFamily: 'Recoleta',
-                        fontSize: 24,
+                        fontSize: 26,
                         fontWeight: FontWeight.bold,
                         color: orangeColor)),
                 const SizedBox(height: 24),
@@ -436,7 +436,7 @@ class _SettingsPageState extends State<SettingsPage> {
                           Text(option['name'],
                               style: const TextStyle(
                                   fontFamily: 'Afacad',
-                                  fontSize: 16,
+                                  fontSize: 18,
                                   fontWeight: FontWeight.bold,
                                   color: Colors.black87)),
                         ],
@@ -454,7 +454,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   label: const Text('Upload from Gallery',
                       style: TextStyle(
                           fontFamily: 'Recoleta',
-                          fontSize: 16,
+                          fontSize: 18,
                           fontWeight: FontWeight.bold,
                           color: Colors.white)),
                   style: ElevatedButton.styleFrom(
@@ -542,7 +542,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     label,
                     style: const TextStyle(
                       fontFamily: 'Afacad',
-                      fontSize: 16,
+                      fontSize: 18,
                       color: Colors.black54,
                     ),
                   ),
@@ -555,7 +555,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontFamily: 'Afacad',
-                      fontSize: 16,
+                      fontSize: 18,
                       color: value.isEmpty ? Colors.black54 : Colors.black87,
                       fontWeight: FontWeight.w600,
                     ),
@@ -576,7 +576,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   helperText,
                   style: const TextStyle(
                     fontFamily: 'Afacad',
-                    fontSize: 12,
+                    fontSize: 14,
                     color: Colors.black54,
                   ),
                 ),
@@ -1045,7 +1045,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   child: Text('Settings',
                       style: TextStyle(
                           fontFamily: 'Recoleta',
-                          fontSize: 18,
+                          fontSize: 20,
                           fontWeight: FontWeight.bold,
                           color: AppColors.deepTeal)),
                 ),
@@ -1080,12 +1080,12 @@ class _SettingsPageState extends State<SettingsPage> {
                             title: const Text('Marketing updates',
                                 style: TextStyle(
                                     fontFamily: 'Afacad',
-                                    fontSize: 16,
+                                    fontSize: 18,
                                     color: Colors.black87)),
                             subtitle: const Text(
                               'Offers and campaign announcements. Order, token, and account alerts stay on.',
                               style:
-                                  TextStyle(fontFamily: 'Afacad', fontSize: 13),
+                                  TextStyle(fontFamily: 'Afacad', fontSize: 15),
                             ),
                             value: _marketingNotifications,
                             onChanged: _marketingPreferenceLoading
@@ -1098,12 +1098,12 @@ class _SettingsPageState extends State<SettingsPage> {
                             title: const Text('App Tutorial',
                                 style: TextStyle(
                                     fontFamily: 'Afacad',
-                                    fontSize: 16,
+                                    fontSize: 18,
                                     color: Colors.black87)),
                             subtitle: const Text(
                               'Replay the wallet, outlet, ordering and rewards guide.',
                               style:
-                                  TextStyle(fontFamily: 'Afacad', fontSize: 13),
+                                  TextStyle(fontFamily: 'Afacad', fontSize: 15),
                             ),
                             trailing: const Icon(Icons.play_circle_outline,
                                 color: Colors.grey),
@@ -1119,7 +1119,7 @@ class _SettingsPageState extends State<SettingsPage> {
                             title: const Text('Contact Support',
                                 style: TextStyle(
                                     fontFamily: 'Afacad',
-                                    fontSize: 16,
+                                    fontSize: 18,
                                     color: Colors.black87)),
                             trailing: const Icon(Icons.arrow_forward_ios,
                                 size: 16, color: Colors.grey),
@@ -1134,7 +1134,7 @@ class _SettingsPageState extends State<SettingsPage> {
                             title: const Text('Privacy Policy',
                                 style: TextStyle(
                                     fontFamily: 'Afacad',
-                                    fontSize: 16,
+                                    fontSize: 18,
                                     color: Colors.black87)),
                             trailing: const Icon(Icons.arrow_forward_ios,
                                 size: 16, color: Colors.grey),
@@ -1148,7 +1148,7 @@ class _SettingsPageState extends State<SettingsPage> {
                             title: const Text('Terms & Conditions',
                                 style: TextStyle(
                                     fontFamily: 'Afacad',
-                                    fontSize: 16,
+                                    fontSize: 18,
                                     color: Colors.black87)),
                             trailing: const Icon(Icons.arrow_forward_ios,
                                 size: 16, color: Colors.grey),
@@ -1162,7 +1162,7 @@ class _SettingsPageState extends State<SettingsPage> {
                             title: const Text('About Us',
                                 style: TextStyle(
                                     fontFamily: 'Afacad',
-                                    fontSize: 16,
+                                    fontSize: 18,
                                     color: Colors.black87)),
                             trailing: const Icon(Icons.arrow_forward_ios,
                                 size: 16, color: Colors.grey),
@@ -1176,13 +1176,13 @@ class _SettingsPageState extends State<SettingsPage> {
                             title: Text('Close Account',
                                 style: TextStyle(
                                     fontFamily: 'Recoleta',
-                                    fontSize: 18,
+                                    fontSize: 20,
                                     fontWeight: FontWeight.w700,
                                     color: _destructiveActionColor)),
                             subtitle: const Text(
                               'Request closure and sign out from all devices',
                               style:
-                                  TextStyle(fontFamily: 'Afacad', fontSize: 13),
+                                  TextStyle(fontFamily: 'Afacad', fontSize: 15),
                             ),
                             trailing: Icon(Icons.arrow_forward_ios,
                                 size: 16, color: _destructiveActionColor),
@@ -1234,7 +1234,7 @@ class _SettingsPageState extends State<SettingsPage> {
                         Text('Log Out',
                             style: TextStyle(
                                 fontFamily: 'Recoleta',
-                                fontSize: 20,
+                                fontSize: 22,
                                 fontWeight: FontWeight.w700,
                                 color: _destructiveActionColor)),
                       ],
@@ -1390,7 +1390,7 @@ class _EmailChangeOtpDialogState extends State<_EmailChangeOtpDialog> {
               'Verify New Email',
               style: TextStyle(
                 fontFamily: 'Recoleta',
-                fontSize: 30,
+                fontSize: 32,
                 fontWeight: FontWeight.bold,
                 color: AppColors.deepTeal,
               ),
@@ -1400,7 +1400,7 @@ class _EmailChangeOtpDialogState extends State<_EmailChangeOtpDialog> {
               'Enter the 6-digit code sent to $_maskedEmail. It expires in $minutes minutes.',
               style: const TextStyle(
                 fontFamily: 'Afacad',
-                fontSize: 17,
+                fontSize: 19,
                 height: 1.25,
                 color: Colors.black54,
               ),
@@ -1464,7 +1464,7 @@ class _EmailChangeOtpDialogState extends State<_EmailChangeOtpDialog> {
                               hasValue ? digits[index] : '',
                               style: const TextStyle(
                                 fontFamily: 'Afacad',
-                                fontSize: 26,
+                                fontSize: 28,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),

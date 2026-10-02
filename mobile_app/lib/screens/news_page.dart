@@ -71,7 +71,7 @@ class _NewsPageState extends State<NewsPage> {
               style: TextStyle(
                 color: AppColors.textMuted,
                 fontFamily: 'Afacad',
-                fontSize: 15,
+                fontSize: 17,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -116,7 +116,7 @@ class _NewsDetail extends StatelessWidget {
             style: TextStyle(
               color: AppColors.brandText,
               fontFamily: 'Recoleta',
-              fontSize: 30,
+              fontSize: 32,
               fontWeight: FontWeight.w800,
               height: 1.05,
             ),
@@ -128,7 +128,7 @@ class _NewsDetail extends StatelessWidget {
               style: TextStyle(
                 color: AppColors.textMuted,
                 fontFamily: 'Afacad',
-                fontSize: 20,
+                fontSize: 22,
                 height: 1.38,
               ),
             ),
@@ -146,7 +146,7 @@ class _NewsDetail extends StatelessWidget {
                 style: TextStyle(
                   color: AppColors.supportingText,
                   fontFamily: 'Afacad',
-                  fontSize: 16,
+                  fontSize: 18,
                   fontWeight: FontWeight.w700,
                 ),
               ),

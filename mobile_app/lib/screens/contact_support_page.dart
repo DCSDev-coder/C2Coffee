@@ -178,7 +178,7 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
                   'Request Received',
                   style: TextStyle(
                     fontFamily: 'Recoleta',
-                    fontSize: 20,
+                    fontSize: 22,
                     fontWeight: FontWeight.bold,
                     color: AppColors.deepTeal,
                   ),
@@ -193,7 +193,7 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
                   'Your support ticket has been registered successfully.',
                   style: const TextStyle(
                     fontFamily: 'Afacad',
-                    fontSize: 15,
+                    fontSize: 17,
                     color: Colors.black87,
                   ),
                 ),
@@ -214,7 +214,7 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
                         'Reference Ticket Number:',
                         style: TextStyle(
                           fontFamily: 'Afacad',
-                          fontSize: 12,
+                          fontSize: 14,
                           color: Colors.grey,
                         ),
                       ),
@@ -223,7 +223,7 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
                         ticket.ticketNumber,
                         style: TextStyle(
                           fontFamily: 'Afacad',
-                          fontSize: 17,
+                          fontSize: 19,
                           fontWeight: FontWeight.bold,
                           color: AppColors.deepTeal,
                           letterSpacing: 0.5,
@@ -237,7 +237,7 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
                   ticket.message,
                   style: TextStyle(
                     fontFamily: 'Afacad',
-                    fontSize: 14,
+                    fontSize: 16,
                     color: Colors.black54,
                   ),
                 ),
@@ -250,7 +250,7 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
                   'Done',
                   style: TextStyle(
                     fontFamily: 'Afacad',
-                    fontSize: 16,
+                    fontSize: 18,
                     fontWeight: FontWeight.bold,
                     color: AppColors.deepTeal,
                   ),
@@ -305,7 +305,7 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
             'Direct Channels',
             style: TextStyle(
               fontFamily: 'Recoleta',
-              fontSize: 18,
+              fontSize: 20,
               fontWeight: FontWeight.bold,
               color: AppColors.deepTeal,
             ),
@@ -320,7 +320,7 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
             'Submit an Inquiry',
             style: TextStyle(
               fontFamily: 'Recoleta',
-              fontSize: 18,
+              fontSize: 20,
               fontWeight: FontWeight.bold,
               color: AppColors.deepTeal,
             ),
@@ -377,7 +377,7 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
                   'We\'re here to help',
                   style: TextStyle(
                     fontFamily: 'Recoleta',
-                    fontSize: 17,
+                    fontSize: 19,
                     fontWeight: FontWeight.bold,
                     color: AppColors.deepTeal,
                   ),
@@ -387,7 +387,7 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
                   'Have an issue with your pickup order, prepaid C2 tokens, or billing? Reach out to our dedicated support team.',
                   style: TextStyle(
                     fontFamily: 'Afacad',
-                    fontSize: 14,
+                    fontSize: 16,
                     color: Colors.black87,
                     height: 1.35,
                   ),
@@ -519,7 +519,7 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
                   title,
                   style: const TextStyle(
                     fontFamily: 'Afacad',
-                    fontSize: 15,
+                    fontSize: 17,
                     fontWeight: FontWeight.bold,
                     color: Colors.black87,
                   ),
@@ -529,7 +529,7 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
                   subtitle,
                   style: const TextStyle(
                     fontFamily: 'Afacad',
-                    fontSize: 14,
+                    fontSize: 16,
                     color: Colors.black54,
                   ),
                 ),
@@ -546,7 +546,7 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
                     badgeText,
                     style: TextStyle(
                       fontFamily: 'Afacad',
-                      fontSize: 11,
+                      fontSize: 13,
                       fontWeight: FontWeight.w600,
                       color: AppColors.deepTeal,
                     ),
@@ -570,7 +570,7 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
                   actionText,
                   style: TextStyle(
                     fontFamily: 'Afacad',
-                    fontSize: 12,
+                    fontSize: 14,
                     fontWeight: FontWeight.bold,
                     color: AppColors.deepTeal,
                   ),
@@ -616,7 +616,7 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
                 'For your security, do not send passwords, one-time passwords, full card details, bank credentials, or other unnecessary sensitive information.',
                 style: TextStyle(
                   fontFamily: 'Afacad',
-                  fontSize: 13,
+                  fontSize: 15,
                   color: Colors.black87,
                   height: 1.3,
                 ),
@@ -628,7 +628,7 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
               'Issue Category',
               style: TextStyle(
                 fontFamily: 'Afacad',
-                fontSize: 14,
+                fontSize: 16,
                 fontWeight: FontWeight.bold,
                 color: Colors.black87,
               ),
@@ -654,7 +654,7 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
                         cat,
                         style: const TextStyle(
                           fontFamily: 'Afacad',
-                          fontSize: 15,
+                          fontSize: 17,
                           color: Colors.black87,
                         ),
                       ),
@@ -678,7 +678,7 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
               'Order Reference',
               style: TextStyle(
                 fontFamily: 'Afacad',
-                fontSize: 14,
+                fontSize: 16,
                 fontWeight: FontWeight.bold,
                 color: Colors.black87,
               ),
@@ -723,7 +723,7 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
               'Photo or Video Evidence (Optional)',
               style: TextStyle(
                 fontFamily: 'Afacad',
-                fontSize: 14,
+                fontSize: 16,
                 fontWeight: FontWeight.bold,
                 color: Colors.black87,
               ),
@@ -733,7 +733,7 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
               'Up to 3 files. Maximum 5 MB each and 8 MB total. Videos up to 60 seconds.',
               style: TextStyle(
                 fontFamily: 'Afacad',
-                fontSize: 12,
+                fontSize: 14,
                 color: Colors.black54,
               ),
             ),
@@ -778,7 +778,7 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                                fontFamily: 'Afacad', fontSize: 13),
+                                fontFamily: 'Afacad', fontSize: 15),
                           ),
                         ),
                         IconButton(
@@ -803,7 +803,7 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
               'Subject',
               style: TextStyle(
                 fontFamily: 'Afacad',
-                fontSize: 14,
+                fontSize: 16,
                 fontWeight: FontWeight.bold,
                 color: Colors.black87,
               ),
@@ -847,7 +847,7 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
               'Message Details',
               style: TextStyle(
                 fontFamily: 'Afacad',
-                fontSize: 14,
+                fontSize: 16,
                 fontWeight: FontWeight.bold,
                 color: Colors.black87,
               ),
@@ -920,7 +920,7 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
                             'Submit Support Request',
                             style: TextStyle(
                               fontFamily: 'Recoleta',
-                              fontSize: 16,
+                              fontSize: 18,
                               fontWeight: FontWeight.bold,
                               color: Colors.white,
                             ),
@@ -956,7 +956,7 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
                   'Terms & Conditions',
                   style: TextStyle(
                     fontFamily: 'Afacad',
-                    fontSize: 13,
+                    fontSize: 15,
                     fontWeight: FontWeight.bold,
                     color: AppColors.deepTeal,
                     decoration: TextDecoration.underline,
@@ -976,7 +976,7 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
                   'Privacy Policy',
                   style: TextStyle(
                     fontFamily: 'Afacad',
-                    fontSize: 13,
+                    fontSize: 15,
                     fontWeight: FontWeight.bold,
                     color: AppColors.deepTeal,
                     decoration: TextDecoration.underline,
@@ -991,7 +991,7 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
             textAlign: TextAlign.center,
             style: TextStyle(
               fontFamily: 'Afacad',
-              fontSize: 12,
+              fontSize: 14,
               color: Colors.grey,
             ),
           ),

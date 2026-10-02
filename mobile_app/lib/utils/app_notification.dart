@@ -332,7 +332,7 @@ class _AppNotificationBannerState extends State<_AppNotificationBanner>
                     widget.message,
                     style: const TextStyle(
                       fontFamily: 'Afacad',
-                      fontSize: 15,
+                      fontSize: 17,
                       fontWeight: FontWeight.w600,
                       color: Colors.white,
                       height: 1.25,

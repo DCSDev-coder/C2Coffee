@@ -408,7 +408,7 @@ class _MenuPageState extends State<MenuPage> {
                       'Sort menu',
                       style: TextStyle(
                         fontFamily: 'Recoleta',
-                        fontSize: 23,
+                        fontSize: 25,
                         fontWeight: FontWeight.bold,
                         color: AppColors.deepTeal,
                       ),
@@ -418,7 +418,7 @@ class _MenuPageState extends State<MenuPage> {
                       'Sort items within each category.',
                       style: TextStyle(
                         fontFamily: 'Afacad',
-                        fontSize: 16,
+                        fontSize: 18,
                         color: Colors.black54,
                       ),
                     ),
@@ -561,7 +561,7 @@ class _MenuPageState extends State<MenuPage> {
                       'MENU',
                       style: TextStyle(
                         fontFamily: 'Recoleta',
-                        fontSize: 20,
+                        fontSize: 22,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
                         letterSpacing: 1.2,
@@ -622,7 +622,7 @@ class _MenuPageState extends State<MenuPage> {
                                           TextAlignVertical.center,
                                       style: TextStyle(
                                         fontFamily: 'Afacad',
-                                        fontSize: 15,
+                                        fontSize: 17,
                                         color: AppColors.brandText,
                                         fontWeight: FontWeight.w500,
                                       ),
@@ -630,7 +630,7 @@ class _MenuPageState extends State<MenuPage> {
                                         hintText: 'Search menu items...',
                                         hintStyle: TextStyle(
                                           fontFamily: 'Afacad',
-                                          fontSize: 14,
+                                          fontSize: 16,
                                           color: Color(0xFF9CA3AF),
                                         ),
                                         border: InputBorder.none,
@@ -741,7 +741,7 @@ class _MenuPageState extends State<MenuPage> {
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontFamily: 'Afacad',
-                          fontSize: 13,
+                          fontSize: 15,
                           fontWeight: FontWeight.w800,
                           letterSpacing: 0.2,
                           color: _showTokenPrice
@@ -833,7 +833,7 @@ class _MenuPageState extends State<MenuPage> {
                                         banner.eyebrow,
                                         style: const TextStyle(
                                           fontFamily: 'Afacad',
-                                          fontSize: 11,
+                                          fontSize: 13,
                                           fontWeight: FontWeight.w700,
                                           letterSpacing: 1.1,
                                           color: Colors.white70,
@@ -846,7 +846,7 @@ class _MenuPageState extends State<MenuPage> {
                                         overflow: TextOverflow.ellipsis,
                                         style: const TextStyle(
                                           fontFamily: 'Recoleta',
-                                          fontSize: 20,
+                                          fontSize: 22,
                                           fontWeight: FontWeight.bold,
                                           color: Colors.white,
                                         ),
@@ -868,7 +868,7 @@ class _MenuPageState extends State<MenuPage> {
                                     banner.actionLabel,
                                     style: TextStyle(
                                       fontFamily: 'Afacad',
-                                      fontSize: 13,
+                                      fontSize: 15,
                                       fontWeight: FontWeight.w700,
                                       color: AppColors.deepTeal,
                                     ),
@@ -1051,7 +1051,7 @@ class _MenuPageState extends State<MenuPage> {
                               'Get Directions',
                               style: TextStyle(
                                 fontFamily: 'Recoleta',
-                                fontSize: 18,
+                                fontSize: 20,
                                 fontWeight: FontWeight.bold,
                                 color: AppColors.brandText,
                               ),
@@ -1061,7 +1061,7 @@ class _MenuPageState extends State<MenuPage> {
                               storeName,
                               style: const TextStyle(
                                 fontFamily: 'Afacad',
-                                fontSize: 13,
+                                fontSize: 15,
                                 color: Colors.black54,
                               ),
                               maxLines: 1,
@@ -1088,7 +1088,7 @@ class _MenuPageState extends State<MenuPage> {
                       style: TextStyle(
                         fontFamily: 'Afacad',
                         fontWeight: FontWeight.w600,
-                        fontSize: 16,
+                        fontSize: 18,
                       ),
                     ),
                     trailing: const Icon(
@@ -1127,7 +1127,7 @@ class _MenuPageState extends State<MenuPage> {
                       style: TextStyle(
                         fontFamily: 'Afacad',
                         fontWeight: FontWeight.w600,
-                        fontSize: 16,
+                        fontSize: 18,
                       ),
                     ),
                     trailing: const Icon(
@@ -1190,7 +1190,7 @@ class _MenuPageState extends State<MenuPage> {
                           style: TextStyle(
                             fontFamily: 'Recoleta',
                             fontWeight: FontWeight.bold,
-                            fontSize: 16,
+                            fontSize: 18,
                             color: AppColors.deepTeal,
                           ),
                           maxLines: 1,
@@ -1223,7 +1223,7 @@ class _MenuPageState extends State<MenuPage> {
                           : 'Store Pickup Unavailable',
                       style: TextStyle(
                         fontFamily: 'Afacad',
-                        fontSize: 13,
+                        fontSize: 15,
                         fontWeight: FontWeight.w500,
                         color: Colors.black54,
                       ),
@@ -1260,7 +1260,7 @@ class _MenuPageState extends State<MenuPage> {
                     'Direction',
                     style: TextStyle(
                       fontFamily: 'Afacad',
-                      fontSize: 13,
+                      fontSize: 15,
                       fontWeight: FontWeight.w700,
                       color: AppColors.deepTeal,
                     ),
@@ -1323,7 +1323,7 @@ class _MenuPageState extends State<MenuPage> {
                   '${_cart.items.length}',
                   style: const TextStyle(
                     fontFamily: 'Afacad',
-                    fontSize: 10,
+                    fontSize: 12,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                     height: 1,
@@ -1410,7 +1410,7 @@ class _MenuPageState extends State<MenuPage> {
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontFamily: 'Afacad',
-                            fontSize: 11,
+                            fontSize: 13,
                             fontWeight:
                                 isSelected ? FontWeight.bold : FontWeight.w600,
                             color: isSelected
@@ -1455,6 +1455,7 @@ class _MenuPageState extends State<MenuPage> {
   }
 
   Widget _buildMenuLoadingState() {
+    final crossAxisCount = MediaQuery.orientationOf(context) == Orientation.landscape ? 3 : 2;
     return Row(
       children: [
         Container(
@@ -1486,8 +1487,8 @@ class _MenuPageState extends State<MenuPage> {
           child: GridView.builder(
             padding: const EdgeInsets.all(12),
             itemCount: 6,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: crossAxisCount,
               crossAxisSpacing: 12,
               mainAxisSpacing: 12,
               childAspectRatio: 0.65,
@@ -1533,6 +1534,7 @@ class _MenuPageState extends State<MenuPage> {
   }
 
   Widget _buildSection(_MenuSection section, int index) {
+    final crossAxisCount = MediaQuery.orientationOf(context) == Orientation.landscape ? 3 : 2;
     return Column(
       key: _sectionKeys[index],
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1543,7 +1545,7 @@ class _MenuPageState extends State<MenuPage> {
             section.title,
             style: TextStyle(
               fontFamily: 'Recoleta',
-              fontSize: 16,
+              fontSize: 18,
               fontWeight: FontWeight.bold,
               color: AppColors.deepTeal,
             ),
@@ -1553,8 +1555,8 @@ class _MenuPageState extends State<MenuPage> {
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           padding: EdgeInsets.zero,
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
             crossAxisSpacing: 12,
             mainAxisSpacing: 12,
             childAspectRatio: 0.65,
@@ -1629,7 +1631,7 @@ class _MenuPageState extends State<MenuPage> {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontFamily: 'Recoleta',
-                        fontSize: 15,
+                        fontSize: 17,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -1648,7 +1650,7 @@ class _MenuPageState extends State<MenuPage> {
                             key: const ValueKey('rmPrice'),
                             style: TextStyle(
                               fontFamily: 'Afacad',
-                              fontSize: 14,
+                              fontSize: 16,
                               fontWeight: FontWeight.bold,
                               color: AppColors.deepTeal,
                             ),
@@ -1678,7 +1680,7 @@ class _MenuPageState extends State<MenuPage> {
               title,
               style: TextStyle(
                 fontFamily: 'Recoleta',
-                fontSize: 22,
+                fontSize: 24,
                 fontWeight: FontWeight.bold,
                 color: AppColors.deepTeal,
               ),
@@ -1689,7 +1691,7 @@ class _MenuPageState extends State<MenuPage> {
               textAlign: TextAlign.center,
               style: const TextStyle(
                 fontFamily: 'Afacad',
-                fontSize: 15,
+                fontSize: 17,
               ),
             ),
             if (onRetry != null) ...[

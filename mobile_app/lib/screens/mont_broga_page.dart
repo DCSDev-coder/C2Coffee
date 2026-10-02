@@ -722,7 +722,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
             title,
             style: const TextStyle(
               fontFamily: 'Recoleta',
-              fontSize: 17,
+              fontSize: 19,
               fontWeight: FontWeight.w900,
               color: Colors.black,
             ),
@@ -732,7 +732,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
               'Pick 1 *',
               style: TextStyle(
                 fontFamily: 'Afacad',
-                fontSize: 11,
+                fontSize: 13,
                 color: AppColors.deepTeal,
                 fontWeight: FontWeight.bold,
               ),
@@ -742,7 +742,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
               subtitle,
               style: const TextStyle(
                 fontFamily: 'Afacad',
-                fontSize: 11,
+                fontSize: 13,
                 color: Colors.black54,
               ),
             ),
@@ -811,7 +811,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontFamily: 'Recoleta',
-                fontSize: 13,
+                fontSize: 15,
                 fontWeight: FontWeight.w900,
                 color: isSelected ? textColor : Colors.grey.shade600,
                 height: 1.1,
@@ -829,7 +829,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontFamily: 'Afacad',
-                fontSize: 11,
+                fontSize: 13,
                 fontWeight: FontWeight.bold,
                 color: isSelected
                     ? textColor.withValues(alpha: 0.9)
@@ -967,7 +967,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                     fontFamily: 'Recoleta',
-                                    fontSize: 13,
+                                    fontSize: 15,
                                     fontWeight: FontWeight.w900,
                                     color: isSelected
                                         ? Colors.white
@@ -984,7 +984,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
                                       fontFamily: 'Afacad',
-                                      fontSize: 11,
+                                      fontSize: 13,
                                       fontWeight: FontWeight.w700,
                                       color: isSelected
                                           ? Colors.white.withValues(alpha: .9)
@@ -1117,7 +1117,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                           widget.item['name']?.toString() ?? 'Mont Broga',
                           style: const TextStyle(
                             fontFamily: 'Recoleta',
-                            fontSize: 28,
+                            fontSize: 30,
                             fontWeight: FontWeight.w900,
                             color: Colors.black,
                           ),
@@ -1127,7 +1127,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                           _itemDescription,
                           style: const TextStyle(
                             fontFamily: 'Afacad',
-                            fontSize: 14,
+                            fontSize: 16,
                             color: Colors.black87,
                           ),
                         ),
@@ -1157,7 +1157,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                                         key: const ValueKey('rmPrice'),
                                         style: const TextStyle(
                                           fontFamily: 'Afacad',
-                                          fontSize: 14,
+                                          fontSize: 16,
                                           fontWeight: FontWeight.bold,
                                           color: Colors.black87,
                                         ),
@@ -1167,7 +1167,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                                 '$estimatedCalories kcal',
                                 style: const TextStyle(
                                   fontFamily: 'Afacad',
-                                  fontSize: 12,
+                                  fontSize: 14,
                                   fontWeight: FontWeight.w600,
                                   color: Colors.black54,
                                 ),
@@ -1265,7 +1265,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                                       '+0.00',
                                       style: TextStyle(
                                         fontFamily: 'Afacad',
-                                        fontSize: 10,
+                                        fontSize: 12,
                                         color: Colors.transparent,
                                       ),
                                     ),
@@ -1285,7 +1285,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                                       '+3.00',
                                       style: TextStyle(
                                         fontFamily: 'Afacad',
-                                        fontSize: 10,
+                                        fontSize: 12,
                                         fontWeight: FontWeight.bold,
                                         color: orangeColor,
                                       ),
@@ -1306,7 +1306,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                                       '+6.00',
                                       style: TextStyle(
                                         fontFamily: 'Afacad',
-                                        fontSize: 10,
+                                        fontSize: 12,
                                         fontWeight: FontWeight.bold,
                                         color: orangeColor,
                                       ),
@@ -1560,7 +1560,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                     'Total',
                     style: TextStyle(
                         fontFamily: 'Recoleta',
-                        fontSize: 16,
+                        fontSize: 18,
                         fontWeight: FontWeight.bold,
                         color: Colors.black87),
                   ),
@@ -1581,7 +1581,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                                 key: const ValueKey('totalRmPrice'),
                                 style: const TextStyle(
                                   fontFamily: 'Afacad',
-                                  fontSize: 12,
+                                  fontSize: 14,
                                   fontWeight: FontWeight.bold,
                                   color: Colors.black87,
                                 ),
@@ -1591,7 +1591,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                         '$estimatedCalories kcal',
                         style: const TextStyle(
                           fontFamily: 'Afacad',
-                          fontSize: 11,
+                          fontSize: 13,
                           color: Colors.black54,
                         ),
                       ),
@@ -1627,7 +1627,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                             quantity.toString(),
                             style: const TextStyle(
                                 fontFamily: 'Recoleta',
-                                fontSize: 16,
+                                fontSize: 18,
                                 fontWeight: FontWeight.bold),
                           ),
                         ),
@@ -1709,7 +1709,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                         'ADD TO CART',
                         style: TextStyle(
                           fontFamily: 'Recoleta',
-                          fontSize: 14,
+                          fontSize: 16,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
                         ),
