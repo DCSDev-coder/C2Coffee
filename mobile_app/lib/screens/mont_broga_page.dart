@@ -120,19 +120,24 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
     List<Map<String, dynamic>> options,
   ) {
     final maximum = (group['maxSelect'] as num?)?.toInt() ?? 1;
-    final minimum = (group['minSelect'] as num?)?.toInt() ?? 0;
-    final required = group['isRequired'] == true;
-    final requiredMinimum = required ? (minimum > 0 ? minimum : 1) : minimum;
     final selected = options
         .where((option) => option['isDefault'] == true)
         .take(maximum)
         .toList();
-    if (selected.length < requiredMinimum) {
-      selected.addAll(options
-          .where((option) => !selected.contains(option))
-          .take(requiredMinimum - selected.length));
-    }
     return selected;
+  }
+
+  List<String> _missingRequiredLibraryGroups() {
+    return _activeLibraryGroups
+        .where((group) {
+          final minimum = (group['minSelect'] as num?)?.toInt() ?? 0;
+          final required = group['isRequired'] == true;
+          final requiredMinimum = required ? math.max(1, minimum) : minimum;
+          final selected = _librarySelections[group['id'] as int]?.length ?? 0;
+          return selected < requiredMinimum;
+        })
+        .map((group) => group['name']?.toString() ?? 'Required option')
+        .toList();
   }
 
   @override
@@ -1648,6 +1653,14 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                   Expanded(
                     child: ElevatedButton(
                       onPressed: () {
+                        final missingGroups = _missingRequiredLibraryGroups();
+                        if (missingGroups.isNotEmpty) {
+                          AppNotification.showError(
+                            context,
+                            'Please choose: ${missingGroups.join(', ')}',
+                          );
+                          return;
+                        }
                         final selectedStore = _session.selectedStore;
                         if (selectedStore == null) {
                           AppNotification.showError(

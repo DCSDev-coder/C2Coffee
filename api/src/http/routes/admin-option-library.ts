@@ -47,10 +47,8 @@ const groupSchema = z.object({
     context.addIssue({ code: z.ZodIssueCode.custom, path: ['min_select'], message: 'Minimum selections cannot exceed maximum selections.' });
   }
   const defaultCount = value.options.filter((option) => option.is_active && option.is_default).length;
-  const requiredMinimum = value.is_required ? Math.max(1, value.min_select) : value.min_select;
-  if (defaultCount < requiredMinimum) {
-    context.addIssue({ code: z.ZodIssueCode.custom, path: ['options'], message: `Choose at least ${requiredMinimum} default customer choice${requiredMinimum === 1 ? '' : 's'} for this required group.` });
-  }
+  // A required group may intentionally have no default. Customers must then
+  // make the choice themselves before an order can be submitted.
   if (defaultCount > value.max_select) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ['options'], message: 'Default customer choices cannot exceed the group maximum.' });
   }

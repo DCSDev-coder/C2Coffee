@@ -56,9 +56,12 @@ String friendlyCustomerErrorMessage(
 
   switch (error.code) {
     case 'invalid_access_token':
+    case 'invalid_refresh_token':
+    case 'missing_access_token':
     case 'missing_bearer_token':
     case 'session_not_found':
     case 'session_version_mismatch':
+    case 'user_not_active':
       return 'Your session has expired. Please sign in again.';
     case 'network_error':
       return 'We could not reach C2 Coffee right now. Please check your connection and try again.';
@@ -69,7 +72,7 @@ String friendlyCustomerErrorMessage(
     case 'insufficient_token_balance':
       return 'Your token balance is not enough to complete this order.';
     case 'validation_error':
-      return 'Your cart has too many items or a quantity above 20. Please reduce it and try again.';
+      return 'Please review the information and try again.';
     case 'token_price_not_available':
       return 'This item does not have a token price yet. Please choose another item or contact the store.';
     case 'invalid_option_selection':
@@ -82,6 +85,27 @@ String friendlyCustomerErrorMessage(
       return 'A token return is already being processed for this order. Please check your wallet shortly.';
     case 'store_closed':
       return 'This outlet is currently closed. Choose an open outlet before ordering.';
+    case 'store_not_available':
+      return 'This outlet is not available right now. Please choose another outlet.';
+    case 'voucher_not_active':
+    case 'voucher_expired':
+    case 'voucher_not_available_now':
+      return 'This voucher is no longer available. Please choose another voucher.';
+    case 'voucher_store_mismatch':
+      return 'This voucher cannot be used at the selected outlet.';
+    case 'voucher_not_applicable_to_cart':
+      return 'This voucher does not apply to the items in your cart.';
+    case 'voucher_min_spend_not_met':
+      return 'Your order does not meet this voucher\'s minimum spend.';
+    case 'referral_code_not_found':
+      return 'That referral code was not found. Please check it and try again.';
+    case 'referral_already_claimed':
+      return 'You have already claimed a referral code.';
+    case 'referral_not_eligible':
+      return 'This account is not eligible to claim that referral code.';
+    case 'referral_reward_unavailable':
+    case 'referral_code_unavailable':
+      return 'The referral program is temporarily unavailable. Please try again later.';
     default:
       return fallback;
   }

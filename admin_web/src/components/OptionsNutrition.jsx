@@ -141,13 +141,9 @@ export default function OptionsNutrition() {
     const selectedIds = group.applies_to === 'all_drinks'
       ? allDrinkIds
       : (group.menu_item_ids || []);
-    const defaultIndex = (group.options || []).findIndex((option) => option.is_active && option.is_default);
-    const firstActiveIndex = (group.options || []).findIndex((option) => option.is_active);
     const options = (group.options || []).map((option, index) => ({
       ...option,
-      // Existing data may predate the one-required-choice workflow. Keep the
-      // first available choice valid if there was no saved default.
-      is_default: index === (defaultIndex >= 0 ? defaultIndex : firstActiveIndex)
+      is_default: Boolean(option.is_default)
     }));
     setForm({
       ...group,
@@ -665,7 +661,7 @@ export default function OptionsNutrition() {
                 <div className="mb-2.5 flex items-center justify-between">
                   <div>
                     <h3 className="font-bold text-gray-900">Customer choices</h3>
-                    <p className="text-xs text-gray-500">Customers choose one option. Select the default choice below; its price and token adjustment are included automatically.</p>
+        <p className="text-xs text-gray-500">Customers choose one option. You may select a default, or leave this group with no default so customers must choose explicitly.</p>
                   </div>
                   <button
                     type="button"
@@ -708,7 +704,7 @@ export default function OptionsNutrition() {
                                 className="sr-only"
                                 onChange={(event) => uploadChoiceImage(event.target.files?.[0], index)}
                               />
-                            </label>
+                          </label>
                           </div>
                         )}
                         <label className="text-xs font-bold text-gray-700">
@@ -789,13 +785,19 @@ export default function OptionsNutrition() {
                           />
                           Default choice
                         </label>
+                        <button
+                          type="button"
+                          onClick={() => setForm({ ...form, options: form.options.map((entry) => ({ ...entry, is_default: false })) })}
+                          className="min-h-10 rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-50"
+                        >
+                          No default
+                        </button>
                         <div className="flex items-center justify-end pb-1">
                           <button
                             type="button"
                             disabled={form.options.length === 1}
                             onClick={() => {
                               const options = form.options.filter((_, optionIndex) => optionIndex !== index);
-                              if (!options.some((option) => option.is_default)) options[0].is_default = true;
                               setForm({ ...form, options });
                             }}
                             className="inline-flex items-center gap-1 text-sm font-semibold text-red-600 hover:text-red-700 disabled:opacity-30 px-3 py-2 rounded-xl hover:bg-red-50 transition-colors"

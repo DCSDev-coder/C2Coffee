@@ -442,12 +442,12 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
   String _imagePath(String status) {
     switch (status) {
       case 'preparing':
-        return 'assets/images/status brew.png';
+        return 'assets/images/OrderStatus/2.png';
       case 'ready_for_pickup':
       case 'collected':
-        return 'assets/images/status bag.png';
+        return 'assets/images/OrderStatus/3.png';
       default:
-        return 'assets/images/status received.png';
+        return 'assets/images/OrderStatus/4.png';
     }
   }
 

@@ -113,14 +113,6 @@ class CatalogPresentation {
     for (final group in groups) {
       final selected =
           group.options.where((option) => option.isDefault).toList();
-      final requiredMinimum = group.isRequired
-          ? (group.minSelect > 0 ? group.minSelect : 1)
-          : group.minSelect;
-      if (selected.length < requiredMinimum) {
-        selected.addAll(group.options
-            .where((option) => !selected.contains(option))
-            .take(requiredMinimum - selected.length));
-      }
       selections[group.id] = selected.take(group.maxSelect).toList();
     }
 
