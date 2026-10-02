@@ -7,6 +7,7 @@ import { mysqlPool } from "../../db/mysql.js";
 import { ApiError } from "../errors.js";
 import { getBootstrapForUser } from "./auth.js";
 import { getUserResponse } from "./me.js";
+import { isStoreOpenNow, normalizeWeeklyHours } from "../../services/store-availability.js";
 
 const menuQuerySchema = z.object({
   store_id: z.coerce.number().int().positive(),
@@ -24,6 +25,11 @@ type StoreRow = RowDataPacket & {
   city: string | null;
   state: string | null;
   postcode: string | null;
+  latitude: string | number | null;
+  longitude: string | number | null;
+  timezone: string;
+  temporarily_closed: number;
+  weekly_hours_json: unknown;
 };
 
 type MenuRow = RowDataPacket & {
@@ -872,7 +878,11 @@ async function listActiveStores(userId: number): Promise<
     city: string | null;
     state: string | null;
     postcode: string | null;
-    is_open_now: null;
+    latitude: number | null;
+    longitude: number | null;
+    is_open_now: boolean;
+    temporarily_closed: boolean;
+    weekly_hours: ReturnType<typeof normalizeWeeklyHours>;
     status: "active" | "inactive";
   }>
 > {
@@ -889,7 +899,12 @@ async function listActiveStores(userId: number): Promise<
         s.address_line_2,
         s.city,
         s.state,
-        s.postcode
+        s.postcode,
+        s.latitude,
+        s.longitude,
+        s.timezone,
+        s.temporarily_closed,
+        s.weekly_hours_json
       FROM stores s
       JOIN customer_tenant_memberships ctm ON ctm.tenant_id = s.tenant_id
       JOIN admin_tenants t ON t.id = s.tenant_id AND t.status = 'active'
@@ -910,7 +925,11 @@ async function listActiveStores(userId: number): Promise<
     city: row.city,
     state: row.state,
     postcode: row.postcode,
-    is_open_now: null,
+    latitude: row.latitude == null ? null : Number(row.latitude),
+    longitude: row.longitude == null ? null : Number(row.longitude),
+    is_open_now: isStoreOpenNow(row),
+    temporarily_closed: row.temporarily_closed === 1,
+    weekly_hours: normalizeWeeklyHours(row.weekly_hours_json),
     status: row.status,
   }));
 }

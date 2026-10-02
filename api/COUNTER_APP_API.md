@@ -90,6 +90,55 @@ X-Counter-Customer-Session: <customer_session_token>
 
 Call this after a completed or cancelled counter order and after idle timeout.
 
+### Quote an RM basket
+
+```http
+POST /v1/counter/orders/quote
+X-Counter-Customer-Session: <customer_session_token>
+Content-Type: application/json
+
+{
+  "applied_voucher_id": 123,
+  "items": [
+    { "menu_item_id": 45, "quantity": 1, "modifiers": [] }
+  ]
+}
+```
+
+The server reloads menu and modifier prices, verifies that the voucher belongs
+to the selected customer and is eligible for this basket, and returns the
+authoritative RM subtotal, discount, and total. The client must not calculate
+or trust voucher discounts locally.
+
+Selecting a voucher is only a preview. Request and verify the customer's
+short-lived email OTP through `/v1/counter/voucher-authorizations/request` and
+`/v1/counter/voucher-authorizations/verify`. The returned authorization token
+is bound server-side to the customer session, voucher, basket, tenant, outlet,
+counter device, and expiry. It must be supplied to the future payment endpoint;
+phone-number lookup alone never authorizes voucher redemption.
+
+```http
+POST /v1/counter/voucher-authorizations/request
+X-Counter-Customer-Session: <customer_session_token>
+Content-Type: application/json
+
+{ "applied_voucher_id": 123, "items": [ ... ] }
+```
+
+The API emails a six-digit code to the masked registered email address. Verify
+it with the returned `request_id`:
+
+```http
+POST /v1/counter/voucher-authorizations/verify
+X-Counter-Customer-Session: <customer_session_token>
+Content-Type: application/json
+
+{ "request_id": "...", "otp_code": "123456" }
+```
+
+Keep the returned `voucher_authorization_token` in memory only. Any voucher or
+basket change invalidates it and requires a new OTP.
+
 ## Current payment boundary
 
 Counter sales are RM purchases; customer tokens must not be deducted. Direct

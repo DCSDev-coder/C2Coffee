@@ -141,54 +141,61 @@ class _ActivationScreenState extends State<ActivationScreen> {
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.storefront, size: 64, color: AppColors.primary),
-              const SizedBox(height: 16),
-              Text(
-                'Register POS Device',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              children: [
+                const Icon(
+                  Icons.storefront,
+                  size: 64,
                   color: AppColors.primary,
-                  fontWeight: FontWeight.bold,
                 ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Enter the activation code from Admin Web.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontFamily: 'Afacad', color: AppColors.charcoal),
-              ),
-              const SizedBox(height: 24),
-              TextField(
-                controller: _codeController,
-                decoration: InputDecoration(
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  labelText: 'Activation Code',
-                  prefixIcon: const Icon(Icons.key),
-                ),
-              ),
-              const SizedBox(height: 16),
-              if (_errorMessage != null) ...[
-                Text(_errorMessage!, style: const TextStyle(fontFamily: 'Afacad', color: Colors.red)),
                 const SizedBox(height: 16),
+                Text(
+                  'Register POS Device',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Enter the activation code from Admin Web.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppColors.charcoal),
+                ),
+                const SizedBox(height: 24),
+                TextField(
+                  controller: _codeController,
+                  decoration: InputDecoration(
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    labelText: 'Activation Code',
+                    prefixIcon: const Icon(Icons.key),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                if (_errorMessage != null) ...[
+                  Text(
+                    _errorMessage!,
+                    style: const TextStyle(color: Colors.red),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                SizedBox(
+                  width: double.infinity,
+                  child: _isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : ElevatedButton(
+                          onPressed: _activate,
+                          child: const Text('Activate Device'),
+                        ),
+                ),
               ],
-              SizedBox(
-                width: double.infinity,
-                child: _isLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : ElevatedButton(
-                        onPressed: _activate,
-                        child: const Text('Activate Device'),
-                      ),
-              ),
-            ],
+            ),
           ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 }
 
 class CounterHomeScreen extends StatefulWidget {
@@ -211,15 +218,19 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
   List<CounterMenuItem> _menuItems = [];
   final List<Map<String, dynamic>> _cart = [];
   final Map<String, GlobalKey> _categoryKeys = {};
-  
+
   final ScrollController _scrollController = ScrollController();
   bool _isScrollingToCategory = false;
-  
+
   String? _orderType; // 'Dine In' or 'Take Away'
   Map<String, dynamic>? _selectedVoucher;
-
-  final TextEditingController _searchController = TextEditingController();
-  String _searchQuery = '';
+  Map<String, dynamic>? _quote;
+  String? _quoteError;
+  bool _quoteLoading = false;
+  int _quoteRequestId = 0;
+  String? _voucherAuthorizationToken;
+  String? _voucherOtpRequestId;
+  bool _voucherOtpLoading = false;
 
   @override
   void initState() {
@@ -229,15 +240,9 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
       if (mounted) {
         setState(() {
           _clearCart();
-          _searchController.clear();
         });
       }
     };
-    _searchController.addListener(() {
-      setState(() {
-        _searchQuery = _searchController.text;
-      });
-    });
     _loadMenu();
   }
 
@@ -246,7 +251,6 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     _selectedCategory.dispose();
-    _searchController.dispose();
     super.dispose();
   }
 
@@ -274,34 +278,12 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
   Future<void> _loadMenu() async {
     final token = await widget.authService.getToken();
     if (token == null) return;
-    
+
     try {
       final response = await _apiClient.get('/v1/counter/menu', token: token);
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        print('=============================');
-        print('API DATA TYPE: ${data.runtimeType}');
-        if (data is Map) {
-          print('API DATA KEYS: ${data.keys.toList()}');
-          if (data['categories'] != null) {
-            print('CATEGORIES IS NOT NULL, length: ${(data['categories'] as List).length}');
-            if ((data['categories'] as List).isNotEmpty) {
-              print('FIRST CATEGORY KEYS: ${(data['categories'][0] as Map).keys.toList()}');
-            }
-          } else if (data['items'] != null) {
-            print('ITEMS IS NOT NULL, length: ${(data['items'] as List).length}');
-            if ((data['items'] as List).isNotEmpty) {
-              print('FIRST ITEM KEYS: ${(data['items'][0] as Map).keys.toList()}');
-            }
-          }
-        } else if (data is List) {
-          print('DATA IS LIST, length: ${data.length}');
-          if (data.isNotEmpty) {
-            print('FIRST ITEM KEYS: ${(data[0] as Map).keys.toList()}');
-          }
-        }
-        print('=============================');
-        
+
         if (mounted) {
           setState(() {
             _menuItems = parseCounterMenu(data);
@@ -309,15 +291,13 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
           });
         }
       } else {
-        print('Error fetching menu, status code: ${response.statusCode}, body: ${response.body}');
         if (mounted) {
           setState(() {
             _errorMessage = 'Failed to load menu (${response.statusCode})';
           });
         }
       }
-    } catch (e, st) {
-      print('Exception fetching menu: $e\n$st');
+    } catch (_) {
       if (mounted) {
         setState(() {
           _errorMessage = 'Network error fetching menu';
@@ -341,7 +321,8 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
       if (!success) {
         if (mounted) {
           setState(() {
-            _errorMessage = 'Number not found. Please try again or continue as a guest.';
+            _errorMessage =
+                'Number not found. Please try again or continue as a guest.';
           });
         }
       } else {
@@ -368,13 +349,20 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
       setState(() {
         _orderType = null;
         _selectedVoucher = null;
+        _voucherAuthorizationToken = null;
+        _voucherOtpRequestId = null;
       });
     }
   }
 
   void _clearCart() {
+    _quoteRequestId++;
     _cart.clear();
     _selectedVoucher = null;
+    _quote = null;
+    _quoteError = null;
+    _voucherAuthorizationToken = null;
+    _voucherOtpRequestId = null;
   }
 
   void _addToCart(CounterMenuItem item, Map<String, dynamic> customization) {
@@ -385,12 +373,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
         'quantity': customization['quantity'] ?? 1,
       });
     });
-  }
-
-  void _removeFromCart(int index) {
-    setState(() {
-      _cart.removeAt(index);
-    });
+    _refreshQuote();
   }
 
   double _getSubtotal() {
@@ -399,12 +382,13 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
       final item = cartItem['item'] as CounterMenuItem;
       final customization = cartItem['customization'] as Map<String, dynamic>;
       final qty = cartItem['quantity'] as int;
-      
+
       double price = item.priceRm;
-      
+
       if (item.modifierGroups.isNotEmpty) {
         double adjustment = 0;
-        final librarySelections = customization['librarySelections'] as Map<int, List<int>>? ?? {};
+        final librarySelections =
+            customization['librarySelections'] as Map<int, List<int>>? ?? {};
         for (final group in item.modifierGroups) {
           final selections = librarySelections[group.id] ?? [];
           for (final optionId in selections) {
@@ -423,32 +407,303 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
           if (customization['milk'] == 'Oat Milk') price += 3.00;
         }
       }
-      
+
       total += price * qty;
     }
     return total;
   }
 
   double _getCartTotal() {
-    double total = _getSubtotal();
-    if (_selectedVoucher != null) {
-      if (_selectedVoucher!['discount_percent'] != null) {
-        total = total * (1 - (_selectedVoucher!['discount_percent'] as double) / 100);
-      } else if (_selectedVoucher!['discount_amount'] != null) {
-        total -= _selectedVoucher!['discount_amount'] as double;
+    return double.tryParse('${_quote?['final_total_rm']}') ?? _getSubtotal();
+  }
+
+  double get _quotedDiscount =>
+      double.tryParse('${_quote?['discount_rm']}') ?? 0;
+
+  List<Map<String, dynamic>> _quoteItems() {
+    return _cart.map((cartItem) {
+      final item = cartItem['item'] as CounterMenuItem;
+      final customization = cartItem['customization'] as Map<String, dynamic>;
+      final selections =
+          customization['librarySelections'] as Map<int, List<int>>? ?? {};
+      final modifiers = <Map<String, dynamic>>[];
+      for (final group in item.modifierGroups) {
+        for (final optionId in selections[group.id] ?? const <int>[]) {
+          final option = group.options.firstWhere(
+            (entry) => entry.id == optionId,
+          );
+          modifiers.add({
+            'group_name': group.name,
+            'option_name': option.name,
+            'price_delta_rm': option.priceDeltaRm,
+            'token_price_delta': 0,
+            'calorie_delta_kcal': 0,
+          });
+        }
+      }
+      return {
+        'menu_item_id': int.parse(item.id),
+        'quantity': cartItem['quantity'] as int,
+        'modifiers': modifiers,
+      };
+    }).toList();
+  }
+
+  Future<void> _refreshQuote({bool invalidateAuthorization = true}) async {
+    if (invalidateAuthorization) {
+      _voucherAuthorizationToken = null;
+      _voucherOtpRequestId = null;
+    }
+    final requestId = ++_quoteRequestId;
+    final session = _sessionManager.currentSession;
+    if (_cart.isEmpty || session == null || session.isGuest) {
+      if (mounted) setState(() => _quote = null);
+      return;
+    }
+    setState(() {
+      _quoteLoading = true;
+      _quoteError = null;
+    });
+    try {
+      final response = await _apiClient.post(
+        '/v1/counter/orders/quote',
+        {'applied_voucher_id': _selectedVoucher?['id'], 'items': _quoteItems()},
+        token: session.deviceToken,
+        headers: {'X-Counter-Customer-Session': session.sessionToken},
+      );
+      final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final quote = decoded['quote'];
+        if (quote is! Map) throw const FormatException('Missing quote');
+        if (mounted && requestId == _quoteRequestId) {
+          setState(() => _quote = Map<String, dynamic>.from(quote));
+        }
+      } else {
+        final error = decoded['error'];
+        final message = error is Map ? error['message']?.toString() : null;
+        if (mounted && requestId == _quoteRequestId) {
+          setState(() {
+            _quote = null;
+            _quoteError = message ?? 'Unable to validate this basket.';
+          });
+        }
+      }
+    } catch (_) {
+      if (mounted && requestId == _quoteRequestId) {
+        setState(() {
+          _quote = null;
+          _quoteError = 'Unable to validate this basket. Check the connection.';
+        });
+      }
+    } finally {
+      if (mounted && requestId == _quoteRequestId) {
+        setState(() => _quoteLoading = false);
       }
     }
-    return total > 0 ? total : 0;
   }
-  
+
+  Map<String, dynamic> _voucherAuthorizationBody() => {
+    'applied_voucher_id': _selectedVoucher?['id'],
+    'items': _quoteItems(),
+  };
+
+  String? _apiErrorMessage(Map<String, dynamic> decoded) {
+    final error = decoded['error'];
+    return error is Map ? error['message']?.toString() : null;
+  }
+
+  Future<void> _beginVoucherAuthorization(Map<String, dynamic> voucher) async {
+    setState(() {
+      _selectedVoucher = voucher;
+      _quote = null;
+      _quoteError = null;
+      _voucherAuthorizationToken = null;
+      _voucherOtpRequestId = null;
+    });
+    await _refreshQuote(invalidateAuthorization: false);
+    if (!mounted || _quoteError != null || _quote == null) return;
+    await _requestVoucherOtp();
+  }
+
+  Future<void> _requestVoucherOtp() async {
+    final session = _sessionManager.currentSession;
+    if (session == null ||
+        session.isGuest ||
+        _selectedVoucher == null ||
+        _quote == null ||
+        _quoteError != null) {
+      return;
+    }
+    setState(() => _voucherOtpLoading = true);
+    try {
+      final response = await _apiClient.post(
+        '/v1/counter/voucher-authorizations/request',
+        _voucherAuthorizationBody(),
+        token: session.deviceToken,
+        headers: {'X-Counter-Customer-Session': session.sessionToken},
+      );
+      final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw FormatException(
+          _apiErrorMessage(decoded) ?? 'Unable to send the voucher code.',
+        );
+      }
+      _voucherOtpRequestId = decoded['request_id']?.toString();
+      if (_voucherOtpRequestId == null) {
+        throw const FormatException('Missing voucher authorization request.');
+      }
+      if (mounted) {
+        await _showVoucherOtpDialog(
+          decoded['sent_to']?.toString() ?? 'your registered email',
+          decoded['debug_otp_code']?.toString(),
+        );
+      }
+    } on FormatException catch (error) {
+      if (mounted) {
+        setState(() => _quoteError = error.message);
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _quoteError =
+              'Unable to send the voucher code. Check the connection.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _voucherOtpLoading = false);
+    }
+  }
+
+  Future<void> _showVoucherOtpDialog(String sentTo, String? debugCode) async {
+    var code = debugCode ?? '';
+    String? errorMessage;
+    var verifying = false;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          Future<void> submit() async {
+            final verified = await _verifyVoucherOtp(
+              code,
+              setDialogState,
+              (value) => errorMessage = value,
+              (value) => verifying = value,
+            );
+            if (verified && dialogContext.mounted) {
+              Navigator.pop(dialogContext);
+            }
+          }
+
+          return AlertDialog(
+            title: const Text('Authorize voucher'),
+            content: SizedBox(
+              width: 420,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Enter the 6-digit code sent to $sentTo.'),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    initialValue: code,
+                    autofocus: true,
+                    keyboardType: TextInputType.number,
+                    maxLength: 6,
+                    decoration: InputDecoration(
+                      labelText: 'Voucher code',
+                      errorText: errorMessage,
+                    ),
+                    onChanged: (value) => code = value,
+                    onFieldSubmitted: verifying ? null : (_) => submit(),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: verifying
+                    ? null
+                    : () {
+                        Navigator.pop(dialogContext);
+                      },
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: verifying ? null : submit,
+                child: Text(verifying ? 'Verifying...' : 'Verify'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Future<bool> _verifyVoucherOtp(
+    String code,
+    StateSetter setDialogState,
+    void Function(String?) setError,
+    void Function(bool) setVerifying,
+  ) async {
+    if (!RegExp(r'^\d{6}$').hasMatch(code.trim())) {
+      setDialogState(() => setError('Enter the complete 6-digit code.'));
+      return false;
+    }
+    final session = _sessionManager.currentSession;
+    final requestId = _voucherOtpRequestId;
+    if (session == null || requestId == null) return false;
+    setDialogState(() {
+      setError(null);
+      setVerifying(true);
+    });
+    try {
+      final response = await _apiClient.post(
+        '/v1/counter/voucher-authorizations/verify',
+        {'request_id': requestId, 'otp_code': code.trim()},
+        token: session.deviceToken,
+        headers: {'X-Counter-Customer-Session': session.sessionToken},
+      );
+      final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        setDialogState(
+          () => setError(
+            _apiErrorMessage(decoded) ?? 'The voucher code is invalid.',
+          ),
+        );
+        return false;
+      }
+      final token = decoded['voucher_authorization_token']?.toString();
+      if (token == null) {
+        setDialogState(() => setError('Voucher authorization failed.'));
+        return false;
+      }
+      if (mounted) {
+        setState(() {
+          _voucherAuthorizationToken = token;
+          _quoteError = null;
+        });
+      }
+      return true;
+    } catch (_) {
+      setDialogState(
+        () => setError('Unable to verify the code. Check the connection.'),
+      );
+      return false;
+    } finally {
+      setDialogState(() => setVerifying(false));
+    }
+  }
+
   double _getCartItemPrice(Map<String, dynamic> cartItem) {
     final item = cartItem['item'] as CounterMenuItem;
     final customization = cartItem['customization'] as Map<String, dynamic>;
-    
+
     double price = item.priceRm;
     if (item.modifierGroups.isNotEmpty) {
       double adjustment = 0;
-      final librarySelections = customization['librarySelections'] as Map<int, List<int>>? ?? {};
+      final librarySelections =
+          customization['librarySelections'] as Map<int, List<int>>? ?? {};
       for (final group in item.modifierGroups) {
         final selections = librarySelections[group.id] ?? [];
         for (final optionId in selections) {
@@ -477,11 +732,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
       behavior: HitTestBehavior.translucent,
       child: Scaffold(
         appBar: AppBar(
-          title: Row(
-            children: [
-              Image.asset('assets/images/c2_logo.png', height: 32),
-            ],
-          ),
+          title: Image.asset('assets/images/c2_logo.png', height: 32),
           actions: [
             if (_sessionManager.currentSession != null)
               Padding(
@@ -492,8 +743,14 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
-                        _sessionManager.currentSession!.customerSummary['username'] ?? _sessionManager.currentSession!.customerSummary['customer_name'] ?? _sessionManager.currentSession!.phone,
-                        style: const TextStyle(fontFamily: 'Afacad', fontWeight: FontWeight.bold, fontSize: 16),
+                        _sessionManager
+                                .currentSession!
+                                .customerSummary['display_name'] ??
+                            _sessionManager.currentSession!.phone,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
                       ),
                       Text(
                         'Tier: ${_sessionManager.currentSession!.customerSummary['loyalty_tier'] ?? 'None'}',
@@ -505,10 +762,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
             const SizedBox(width: 8),
           ],
         ),
-        endDrawer: Drawer(
-          width: 350,
-          child: _buildCartUI(),
-        ),
+        endDrawer: Drawer(width: 350, child: _buildCartUI()),
         floatingActionButton: _sessionManager.currentSession == null
             ? null
             : Builder(
@@ -535,13 +789,16 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                             decoration: BoxDecoration(
                               color: const Color(0xFFE5A93C),
                               shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 1.5),
+                              border: Border.all(
+                                color: Colors.white,
+                                width: 1.5,
+                              ),
                             ),
                             alignment: Alignment.center,
                             child: Text(
                               '${_cart.fold<int>(0, (sum, item) => sum + (item['quantity'] as int? ?? 1))}',
-                              style: const TextStyle(fontFamily: 'Afacad', 
-                                fontSize: 13,
+                              style: const TextStyle(
+                                fontSize: 11,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.white,
                                 height: 1,
@@ -556,8 +813,8 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
         body: _sessionManager.currentSession == null
             ? _buildSessionStartForm()
             : _orderType == null
-                ? _buildOrderTypeSelection()
-                : _buildPOSView(),
+            ? _buildOrderTypeSelection()
+            : _buildPOSView(),
       ),
     );
   }
@@ -566,13 +823,18 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
     return Column(
       children: [
         Container(
-          padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top + 16, bottom: 16, left: 16, right: 16),
+          padding: EdgeInsets.only(
+            top: MediaQuery.of(context).padding.top + 16,
+            bottom: 16,
+            left: 16,
+            right: 16,
+          ),
           color: AppColors.secondary.withValues(alpha: 0.1),
           width: double.infinity,
           child: const Text(
             'Your Basket',
-            style: TextStyle(fontFamily: 'Recoleta', 
-              fontSize: 22,
+            style: TextStyle(
+              fontSize: 20,
               fontWeight: FontWeight.bold,
               color: AppColors.primary,
             ),
@@ -583,31 +845,53 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
               ? const Center(child: Text('Basket is empty'))
               : ListView.separated(
                   itemCount: _cart.length,
-                  separatorBuilder: (context, index) => const Divider(height: 1),
+                  separatorBuilder: (context, index) =>
+                      const Divider(height: 1),
                   itemBuilder: (context, index) {
                     final cartItem = _cart[index];
                     final item = cartItem['item'] as CounterMenuItem;
                     final qty = cartItem['quantity'] as int;
                     final price = _getCartItemPrice(cartItem);
-                    
+
                     final List<String> mods = [];
-                    final customization = cartItem['customization'] as Map<String, dynamic>;
-                    if (customization['bean'] != null) mods.add(customization['bean']);
-                    if (customization['temperature'] != null) mods.add(customization['temperature']);
-                    if (customization['milk'] != null) mods.add(customization['milk']);
-                    if (customization['sweetness'] != null) mods.add(customization['sweetness']);
-                    if (customization['iceLevel'] != null) mods.add(customization['iceLevel']);
+                    final customization =
+                        cartItem['customization'] as Map<String, dynamic>;
+                    if (customization['bean'] != null) {
+                      mods.add(customization['bean']);
+                    }
+                    if (customization['temperature'] != null) {
+                      mods.add(customization['temperature']);
+                    }
+                    if (customization['milk'] != null) {
+                      mods.add(customization['milk']);
+                    }
+                    if (customization['sweetness'] != null) {
+                      mods.add(customization['sweetness']);
+                    }
+                    if (customization['iceLevel'] != null) {
+                      mods.add(customization['iceLevel']);
+                    }
 
                     return ListTile(
                       title: Text(
                         item.name,
-                        style: const TextStyle(fontFamily: 'Afacad', fontWeight: FontWeight.bold),
+                        style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                       subtitle: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (mods.isNotEmpty) Text(mods.join(', '), style: const TextStyle(fontFamily: 'Afacad', fontSize: 14)),
-                          Text('RM ${(price * qty).toStringAsFixed(2)}', style: const TextStyle(fontFamily: 'Afacad', fontWeight: FontWeight.bold, color: AppColors.primary)),
+                          if (mods.isNotEmpty)
+                            Text(
+                              mods.join(', '),
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                          Text(
+                            'RM ${(price * qty).toStringAsFixed(2)}',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primary,
+                            ),
+                          ),
                         ],
                       ),
                       trailing: Row(
@@ -620,19 +904,27 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                                 if (qty > 1) {
                                   cartItem['quantity'] = qty - 1;
                                 } else {
-                                  _removeFromCart(index);
+                                  _cart.removeAt(index);
                                 }
                               });
+                              _refreshQuote();
                             },
                             color: Colors.red,
                           ),
-                          Text('$qty', style: const TextStyle(fontFamily: 'Afacad', fontSize: 18, fontWeight: FontWeight.bold)),
+                          Text(
+                            '$qty',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                           IconButton(
                             icon: const Icon(Icons.add_circle_outline),
                             onPressed: () {
                               setState(() {
                                 cartItem['quantity'] = qty + 1;
                               });
+                              _refreshQuote();
                             },
                             color: AppColors.primary,
                           ),
@@ -656,7 +948,11 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                   child: OutlinedButton.icon(
                     onPressed: _showVoucherSelectionDialog,
                     icon: const Icon(Icons.local_offer_outlined),
-                    label: Text(_selectedVoucher != null ? 'Change Voucher' : 'Apply Voucher'),
+                    label: Text(
+                      _selectedVoucher != null
+                          ? 'Change Voucher'
+                          : 'Apply Voucher',
+                    ),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.primary,
                       side: const BorderSide(color: AppColors.primary),
@@ -666,21 +962,47 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                 ),
               const SizedBox(height: 12),
               if (_selectedVoucher != null)
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Discount (${_selectedVoucher!['name']})', style: const TextStyle(fontFamily: 'Afacad', fontSize: 16, color: Colors.green)),
-                    Text('- RM ${(_getSubtotal() - _getCartTotal()).toStringAsFixed(2)}', style: const TextStyle(fontFamily: 'Afacad', fontSize: 16, color: Colors.green)),
+                    Text(
+                      'Discount (${_selectedVoucher!['name']})',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: _quoteError == null ? Colors.green : Colors.red,
+                      ),
+                    ),
+                    Text(
+                      _quoteLoading || _voucherOtpLoading
+                          ? 'Validating voucher...'
+                          : _quoteError ??
+                                (_voucherAuthorizationToken == null
+                                    ? '- RM ${_quotedDiscount.toStringAsFixed(2)} · OTP required'
+                                    : '- RM ${_quotedDiscount.toStringAsFixed(2)} · Authorized'),
+                      style: const TextStyle(fontSize: 14, color: Colors.green),
+                    ),
                   ],
+                ),
+              if (_quoteError != null && _selectedVoucher == null)
+                Text(
+                  _quoteError!,
+                  style: const TextStyle(fontSize: 13, color: Colors.red),
                 ),
               const SizedBox(height: 4),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Total', style: TextStyle(fontFamily: 'Recoleta', fontSize: 20, fontWeight: FontWeight.bold)),
+                  const Text(
+                    'Total',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
                   Text(
                     'RM ${_getCartTotal().toStringAsFixed(2)}',
-                    style: const TextStyle(fontFamily: 'Recoleta', fontSize: 26, fontWeight: FontWeight.bold, color: AppColors.accent),
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.accent,
+                    ),
                   ),
                 ],
               ),
@@ -690,14 +1012,25 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                 child: ElevatedButton(
                   onPressed: _cart.isEmpty
                       ? null
-                      : () {
-                          Navigator.pop(context); // close drawer
+                      : () async {
+                          final navigator = Navigator.of(context);
+                          if (_quote == null || _quoteError != null) {
+                            await _refreshQuote(invalidateAuthorization: false);
+                            if (_quote == null || _quoteError != null) return;
+                          }
+                          if (_selectedVoucher != null &&
+                              _voucherAuthorizationToken == null) {
+                            await _requestVoucherOtp();
+                            return;
+                          }
+                          if (!mounted) return;
+                          navigator.pop(); // close drawer
                           _showOrderConfirmationDialog();
                         },
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
-                  child: const Text('Checkout', style: TextStyle(fontFamily: 'Afacad', fontSize: 18)),
+                  child: const Text('Checkout', style: TextStyle(fontSize: 16)),
                 ),
               ),
               const SizedBox(height: 8),
@@ -720,216 +1053,258 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
   }
 
   void _showVoucherSelectionDialog() {
-    if (_sessionManager.currentSession?.phone == 'Guest' && _selectedVoucher == null) {
-      final mockUsers = [
-        {'name': 'Ali (Gold Tier)', 'phone': '+60123456789'},
-        {'name': 'Siti (Silver Tier)', 'phone': '+60198765432'},
-      ];
+    final session = _sessionManager.currentSession;
+    if (session == null || session.isGuest) {
       showDialog(
         context: context,
-        builder: (context) {
-          return AlertDialog(
-            title: const Text('Select Customer Account', style: TextStyle(fontFamily: 'Afacad', fontWeight: FontWeight.bold)),
-            content: SizedBox(
-              width: 300,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('Select an account to apply their vouchers to this guest order:', style: TextStyle(fontFamily: 'Afacad', color: Colors.black54)),
-                  const SizedBox(height: 16),
-                  ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: mockUsers.length,
-                    itemBuilder: (context, index) {
-                      final u = mockUsers[index];
-                      return ListTile(
-                        leading: const CircleAvatar(child: Icon(Icons.person)),
-                        title: Text(u['name']!, style: const TextStyle(fontFamily: 'Afacad', fontWeight: FontWeight.w600)),
-                        subtitle: Text(u['phone']!),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        onTap: () {
-                          Navigator.pop(context);
-                          _showMockVouchers();
-                        },
-                      );
-                    },
-                  ),
-                ],
-              ),
+        builder: (context) => AlertDialog(
+          title: const Text('Member account required'),
+          content: const Text(
+            'Vouchers belong to a customer account. Cancel this guest session and enter the member phone number to view available vouchers.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Close'),
             ),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-            ],
-          );
-        }
+          ],
+        ),
       );
-    } else {
-      _showMockVouchers();
+      return;
     }
+    _showAvailableVouchers(session.activeVouchers);
   }
 
-  void _showMockVouchers() {
-    final vouchers = [
-      {'id': 1, 'name': '10% Off Birthday Voucher', 'discount_percent': 10.0, 'discount_amount': null},
-      {'id': 2, 'name': 'RM 5 Off Next Purchase', 'discount_percent': null, 'discount_amount': 5.0},
-    ];
-
+  void _showAvailableVouchers(List<Map<String, dynamic>> vouchers) {
     showDialog(
       context: context,
       builder: (context) {
         return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
           backgroundColor: Colors.white,
           surfaceTintColor: Colors.transparent,
           child: Container(
             width: 500,
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(context).height * 0.8,
+            ),
             padding: const EdgeInsets.all(32.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Available Vouchers',
-                      style: TextStyle(
-                        fontFamily: 'Recoleta',
-                        fontSize: 30,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.primary,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Available Vouchers',
+                        style: TextStyle(
+                          fontFamily: 'Recoleta',
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.close, color: Colors.black54),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Select a voucher to apply to this order.',
+                    style: TextStyle(
+                      fontFamily: 'Afacad',
+                      fontSize: 16,
+                      color: Colors.black54,
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  if (vouchers.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: Center(
+                        child: Text('No active RM vouchers are available.'),
                       ),
                     ),
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close, color: Colors.black54),
+                  ...vouchers.map((v) {
+                    final isSelected = _selectedVoucher?['id'] == v['id'];
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 16.0),
+                      child: InkWell(
+                        onTap: () async {
+                          Navigator.pop(context);
+                          if (isSelected) {
+                            setState(() {
+                              _selectedVoucher = null;
+                              _quote = null;
+                              _quoteError = null;
+                              _voucherAuthorizationToken = null;
+                              _voucherOtpRequestId = null;
+                            });
+                            await _refreshQuote();
+                          } else {
+                            await _beginVoucherAuthorization(v);
+                          }
+                        },
+                        borderRadius: BorderRadius.circular(16),
+                        child: Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? AppColors.primary.withValues(alpha: 0.05)
+                                : Colors.white,
+                            border: Border.all(
+                              color: isSelected
+                                  ? AppColors.primary
+                                  : Colors.black12,
+                              width: isSelected ? 2 : 1,
+                            ),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? AppColors.primary
+                                      : AppColors.surfaceLight,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  Icons.local_offer_outlined,
+                                  color: isSelected
+                                      ? Colors.white
+                                      : AppColors.primary,
+                                  size: 28,
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      v['name'] as String,
+                                      style: TextStyle(
+                                        fontFamily: 'Recoleta',
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.bold,
+                                        color: isSelected
+                                            ? AppColors.primary
+                                            : Colors.black87,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      _voucherDescription(v),
+                                      style: const TextStyle(
+                                        fontFamily: 'Afacad',
+                                        fontSize: 16,
+                                        color: Colors.black54,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (isSelected)
+                                const Icon(
+                                  Icons.check_circle,
+                                  color: AppColors.primary,
+                                  size: 28,
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                  if (_selectedVoucher != null) ...[
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: TextButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            _selectedVoucher = null;
+                            _quote = null;
+                            _quoteError = null;
+                            _voucherAuthorizationToken = null;
+                            _voucherOtpRequestId = null;
+                          });
+                          Navigator.pop(context);
+                          _refreshQuote();
+                        },
+                        icon: const Icon(
+                          Icons.delete_outline,
+                          color: Colors.red,
+                        ),
+                        label: const Text(
+                          'Remove Current Voucher',
+                          style: TextStyle(
+                            color: Colors.red,
+                            fontSize: 16,
+                            fontFamily: 'Afacad',
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
                     ),
                   ],
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Select a voucher to apply to this order.',
-                  style: TextStyle(
-                    fontFamily: 'Afacad',
-                    fontSize: 18,
-                    color: Colors.black54,
-                  ),
-                ),
-                const SizedBox(height: 32),
-                ...vouchers.map((v) {
-                  final isSelected = _selectedVoucher?['id'] == v['id'];
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 16.0),
-                    child: InkWell(
-                      onTap: () {
-                        setState(() {
-                          _selectedVoucher = isSelected ? null : v;
-                        });
-                        Navigator.pop(context);
-                      },
-                      borderRadius: BorderRadius.circular(16),
-                      child: Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: isSelected ? AppColors.primary.withValues(alpha: 0.05) : Colors.white,
-                          border: Border.all(
-                            color: isSelected ? AppColors.primary : Colors.black12,
-                            width: isSelected ? 2 : 1,
-                          ),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: isSelected ? AppColors.primary : AppColors.surfaceLight,
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                Icons.local_offer_outlined,
-                                color: isSelected ? Colors.white : AppColors.primary,
-                                size: 28,
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    v['name'] as String,
-                                    style: TextStyle(
-                                      fontFamily: 'Recoleta',
-                                      fontSize: 22,
-                                      fontWeight: FontWeight.bold,
-                                      color: isSelected ? AppColors.primary : Colors.black87,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    v['discount_percent'] != null 
-                                      ? 'Enjoy ${v['discount_percent']}% off your order.'
-                                      : 'Enjoy RM ${v['discount_amount']} off your order.',
-                                    style: const TextStyle(
-                                      fontFamily: 'Afacad',
-                                      fontSize: 18,
-                                      color: Colors.black54,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            if (isSelected)
-                              const Icon(Icons.check_circle, color: AppColors.primary, size: 28),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
-                }),
-                if (_selectedVoucher != null) ...[
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: TextButton.icon(
-                      onPressed: () {
-                        setState(() {
-                          _selectedVoucher = null;
-                        });
-                        Navigator.pop(context);
-                      },
-                      icon: const Icon(Icons.delete_outline, color: Colors.red),
-                      label: const Text('Remove Current Voucher', style: TextStyle(color: Colors.red, fontSize: 18, fontFamily: 'Afacad', fontWeight: FontWeight.bold)),
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                    ),
-                  ),
                 ],
-              ],
+              ),
             ),
           ),
         );
-      }
+      },
     );
   }
-  
+
+  String _voucherDescription(Map<String, dynamic> voucher) {
+    final value = double.tryParse('${voucher['discount_value']}') ?? 0;
+    final minimum = double.tryParse('${voucher['min_spend_rm']}');
+    final benefit = switch (voucher['discount_mode']) {
+      'percent_rm' => '${value.toStringAsFixed(value % 1 == 0 ? 0 : 2)}% off',
+      'fixed_rm' => 'RM ${value.toStringAsFixed(2)} off',
+      'free_drink' => 'Free eligible drink',
+      _ => 'Voucher benefit',
+    };
+    return minimum == null
+        ? '$benefit. Eligibility is verified at payment.'
+        : '$benefit with minimum spend RM ${minimum.toStringAsFixed(2)}. Eligibility is verified at payment.';
+  }
+
   void _showOrderConfirmationDialog() {
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Order Confirmation', style: TextStyle(fontFamily: 'Afacad', fontWeight: FontWeight.bold)),
+          title: const Text(
+            'Order Confirmation',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
           content: SizedBox(
             width: 400,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text('Please review the order details before proceeding.', style: TextStyle(fontFamily: 'Afacad', color: Colors.black54)),
+                const Text(
+                  'Please review the order details before proceeding.',
+                  style: TextStyle(color: Colors.black54),
+                ),
                 const SizedBox(height: 16),
                 ConstrainedBox(
                   constraints: const BoxConstraints(maxHeight: 300),
@@ -941,31 +1316,55 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                       final item = cartItem['item'] as CounterMenuItem;
                       final qty = cartItem['quantity'] as int;
                       final price = _getCartItemPrice(cartItem);
-                      
+
                       final List<String> mods = [];
-                      final customization = cartItem['customization'] as Map<String, dynamic>;
-                      if (customization['bean'] != null) mods.add(customization['bean']);
-                      if (customization['temperature'] != null) mods.add(customization['temperature']);
-                      if (customization['milk'] != null) mods.add(customization['milk']);
-                      if (customization['sweetness'] != null) mods.add(customization['sweetness']);
-                      if (customization['iceLevel'] != null) mods.add(customization['iceLevel']);
+                      final customization =
+                          cartItem['customization'] as Map<String, dynamic>;
+                      if (customization['bean'] != null) {
+                        mods.add(customization['bean']);
+                      }
+                      if (customization['temperature'] != null) {
+                        mods.add(customization['temperature']);
+                      }
+                      if (customization['milk'] != null) {
+                        mods.add(customization['milk']);
+                      }
+                      if (customization['sweetness'] != null) {
+                        mods.add(customization['sweetness']);
+                      }
+                      if (customization['iceLevel'] != null) {
+                        mods.add(customization['iceLevel']);
+                      }
 
                       return Padding(
                         padding: const EdgeInsets.symmetric(vertical: 4.0),
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('${qty}x ', style: const TextStyle(fontFamily: 'Afacad', fontWeight: FontWeight.bold)),
+                            Text(
+                              '${qty}x ',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(item.name, style: const TextStyle(fontFamily: 'Afacad', fontWeight: FontWeight.bold)),
+                                  Text(
+                                    item.name,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
                                   if (mods.isNotEmpty) ...[
                                     const SizedBox(height: 2),
                                     Text(
                                       mods.join(', '),
-                                      style: const TextStyle(fontFamily: 'Afacad', fontSize: 14, color: Colors.black54),
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.black54,
+                                      ),
                                     ),
                                   ],
                                 ],
@@ -982,17 +1381,39 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Subtotal', style: TextStyle(fontFamily: 'Afacad', fontSize: 18)),
-                    Text('RM ${_getSubtotal().toStringAsFixed(2)}', style: const TextStyle(fontFamily: 'Afacad', fontSize: 18)),
+                    const Text('Subtotal', style: TextStyle(fontSize: 16)),
+                    Text(
+                      'RM ${_getSubtotal().toStringAsFixed(2)}',
+                      style: const TextStyle(fontSize: 16),
+                    ),
                   ],
                 ),
                 if (_selectedVoucher != null) ...[
                   const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Discount (${_selectedVoucher!['name']})', style: const TextStyle(fontFamily: 'Afacad', fontSize: 18, color: Colors.green)),
-                      Text('- RM ${(_getSubtotal() - _getCartTotal()).toStringAsFixed(2)}', style: const TextStyle(fontFamily: 'Afacad', fontSize: 18, color: Colors.green)),
+                      Text(
+                        'Discount (${_selectedVoucher!['name']})',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          color: Colors.green,
+                        ),
+                      ),
+                      Text(
+                        _quoteLoading || _voucherOtpLoading
+                            ? 'Validating voucher...'
+                            : _quoteError ??
+                                  (_voucherAuthorizationToken == null
+                                      ? '- RM ${_quotedDiscount.toStringAsFixed(2)} · OTP required'
+                                      : '- RM ${_quotedDiscount.toStringAsFixed(2)} · Authorized'),
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: _quoteError == null
+                              ? Colors.green
+                              : Colors.red,
+                        ),
+                      ),
                     ],
                   ),
                 ],
@@ -1000,8 +1421,21 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Total Amount', style: TextStyle(fontFamily: 'Recoleta', fontSize: 20, fontWeight: FontWeight.bold)),
-                    Text('RM ${_getCartTotal().toStringAsFixed(2)}', style: const TextStyle(fontFamily: 'Recoleta', fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.primary)),
+                    const Text(
+                      'Total Amount',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      'RM ${_getCartTotal().toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary,
+                      ),
+                    ),
                   ],
                 ),
               ],
@@ -1010,32 +1444,46 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Back to Cart', style: TextStyle(fontFamily: 'Afacad', color: Colors.black54)),
+              child: const Text(
+                'Back to Cart',
+                style: TextStyle(color: Colors.black54),
+              ),
             ),
             ElevatedButton(
-              onPressed: () async {
+              onPressed: () {
                 Navigator.pop(context);
-                _showSuccessDialog(_getCartTotal());
+                _showPaymentUnavailableDialog();
               },
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-              child: const Text('Confirm & Pay', style: TextStyle(fontFamily: 'Afacad', color: Colors.white)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+              ),
+              child: const Text(
+                'Continue to Payment',
+                style: TextStyle(color: Colors.white),
+              ),
             ),
           ],
         );
-      }
+      },
     );
   }
 
-  void _showSuccessDialog(double totalAmount) {
+  void _showPaymentUnavailableDialog() {
     showDialog(
       context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return SuccessDialog(totalAmount: totalAmount);
-      }
-    ).then((_) {
-      _endSession();
-    });
+      builder: (context) => AlertDialog(
+        title: const Text('Payment is not enabled yet'),
+        content: const Text(
+          'This counter cannot place an order until the QR or card payment provider is activated and the server can verify its payment callback. Your basket has not been submitted and no voucher was used.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Back to basket'),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildSessionStartForm() {
@@ -1057,113 +1505,143 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceLight,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.account_circle_outlined, size: 56, color: AppColors.primary),
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              'Member Login',
-              style: TextStyle(fontFamily: 'Recoleta', 
-                fontSize: 30,
-                fontWeight: FontWeight.w800,
-                color: AppColors.primary,
-                letterSpacing: -0.5,
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Enter your registered phone number to access your account.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontFamily: 'Afacad', color: Colors.black54, fontSize: 17, height: 1.4),
-            ),
-            if (_errorMessage != null) ...[
-              const SizedBox(height: 16),
+            children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.red.shade50,
-                  borderRadius: BorderRadius.circular(12),
+                  color: AppColors.surfaceLight,
+                  shape: BoxShape.circle,
                 ),
-                child: Text(
-                  _errorMessage!,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontFamily: 'Afacad', color: Colors.red.shade700, fontWeight: FontWeight.w600, fontSize: 16),
+                child: const Icon(
+                  Icons.account_circle_outlined,
+                  size: 56,
+                  color: AppColors.primary,
+                ),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Member Login',
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.primary,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Enter your registered phone number to access your account.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.black54,
+                  fontSize: 15,
+                  height: 1.4,
+                ),
+              ),
+              if (_errorMessage != null) ...[
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    _errorMessage!,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.red.shade700,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 32),
+              TextField(
+                controller: _phoneController,
+                keyboardType: TextInputType.phone,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+                decoration: InputDecoration(
+                  filled: true,
+                  fillColor: AppColors.surfaceLight,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide.none,
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: const BorderSide(
+                      color: AppColors.secondary,
+                      width: 2,
+                    ),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 20,
+                  ),
+                  labelText: 'Phone Number (e.g. +601...)',
+                  labelStyle: const TextStyle(color: Colors.black54),
+                  prefixIcon: const Icon(
+                    Icons.phone_outlined,
+                    color: AppColors.primary,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 32),
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : ElevatedButton(
+                        onPressed: _startSession,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          elevation: 0,
+                        ),
+                        child: const Text(
+                          'Login',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: TextButton(
+                  onPressed: _isLoading ? null : _startGuestSession,
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.charcoal,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  child: const Text(
+                    'Continue as Guest',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                  ),
                 ),
               ),
             ],
-            const SizedBox(height: 32),
-            TextField(
-              controller: _phoneController,
-              keyboardType: TextInputType.phone,
-              style: const TextStyle(fontFamily: 'Afacad', fontSize: 18, fontWeight: FontWeight.w500),
-              decoration: InputDecoration(
-                filled: true,
-                fillColor: AppColors.surfaceLight,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide.none,
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: const BorderSide(color: AppColors.secondary, width: 2),
-                ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-                labelText: 'Phone Number (e.g. +601...)',
-                labelStyle: const TextStyle(fontFamily: 'Afacad', color: Colors.black54),
-                prefixIcon: const Icon(Icons.phone_outlined, color: AppColors.primary),
-              ),
-            ),
-            const SizedBox(height: 32),
-            SizedBox(
-              width: double.infinity,
-              height: 56,
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : ElevatedButton(
-                      onPressed: _startSession,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        elevation: 0,
-                      ),
-                      child: const Text(
-                        'Login',
-                        style: TextStyle(fontFamily: 'Afacad', fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              height: 56,
-              child: TextButton(
-                onPressed: _isLoading ? null : _startGuestSession,
-                style: TextButton.styleFrom(
-                  foregroundColor: AppColors.charcoal,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-                child: const Text(
-                  'Continue as Guest',
-                  style: TextStyle(fontFamily: 'Afacad', fontSize: 17, fontWeight: FontWeight.w600),
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   Widget _buildOrderTypeSelection() {
     return Center(
@@ -1188,7 +1666,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
               'Order Type',
               style: TextStyle(
                 fontFamily: 'Recoleta',
-                fontSize: 34,
+                fontSize: 32,
                 fontWeight: FontWeight.bold,
                 color: AppColors.primary,
               ),
@@ -1198,7 +1676,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
               'Is this order for Dine In or Take Away?',
               style: TextStyle(
                 fontFamily: 'Afacad',
-                fontSize: 20,
+                fontSize: 18,
                 color: Colors.black54,
               ),
             ),
@@ -1217,14 +1695,29 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                       padding: const EdgeInsets.symmetric(vertical: 48),
                       decoration: BoxDecoration(
                         color: AppColors.surfaceLight,
-                        border: Border.all(color: AppColors.primary.withValues(alpha: 0.3), width: 2),
+                        border: Border.all(
+                          color: AppColors.primary.withValues(alpha: 0.3),
+                          width: 2,
+                        ),
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Column(
                         children: const [
-                          Icon(Icons.restaurant, size: 64, color: AppColors.primary),
+                          Icon(
+                            Icons.restaurant,
+                            size: 64,
+                            color: AppColors.primary,
+                          ),
                           SizedBox(height: 16),
-                          Text('Dine In', style: TextStyle(fontFamily: 'Recoleta', fontSize: 26, fontWeight: FontWeight.bold, color: AppColors.primary)),
+                          Text(
+                            'Dine In',
+                            style: TextStyle(
+                              fontFamily: 'Recoleta',
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primary,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -1243,14 +1736,29 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                       padding: const EdgeInsets.symmetric(vertical: 48),
                       decoration: BoxDecoration(
                         color: AppColors.surfaceLight,
-                        border: Border.all(color: AppColors.primary.withValues(alpha: 0.3), width: 2),
+                        border: Border.all(
+                          color: AppColors.primary.withValues(alpha: 0.3),
+                          width: 2,
+                        ),
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Column(
                         children: const [
-                          Icon(Icons.shopping_bag_outlined, size: 64, color: AppColors.primary),
+                          Icon(
+                            Icons.shopping_bag_outlined,
+                            size: 64,
+                            color: AppColors.primary,
+                          ),
                           SizedBox(height: 16),
-                          Text('Take Away', style: TextStyle(fontFamily: 'Recoleta', fontSize: 26, fontWeight: FontWeight.bold, color: AppColors.primary)),
+                          Text(
+                            'Take Away',
+                            style: TextStyle(
+                              fontFamily: 'Recoleta',
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primary,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -1271,12 +1779,12 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
         child: Center(
           child: Text(
             _errorMessage!,
-            style: const TextStyle(fontFamily: 'Afacad', color: Colors.red, fontSize: 18),
+            style: const TextStyle(color: Colors.red, fontSize: 16),
           ),
         ),
       );
     }
-    
+
     if (_menuItems.isEmpty) {
       return Container(
         color: AppColors.surfaceLight,
@@ -1286,11 +1794,10 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
       );
     }
 
-    final filteredItems = _searchQuery.isEmpty 
-        ? _menuItems 
-        : _menuItems.where((item) => item.name.toLowerCase().contains(_searchQuery.toLowerCase())).toList();
-
-    final categories = filteredItems.map((e) => e.categoryName ?? 'Other').toSet().toList();
+    final categories = _menuItems
+        .map((e) => e.categoryName ?? 'Other')
+        .toSet()
+        .toList();
     if (_selectedCategory.value == null && categories.isNotEmpty) {
       _selectedCategory.value = categories.first;
     }
@@ -1302,7 +1809,9 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
           width: 95,
           decoration: const BoxDecoration(
             color: Colors.white,
-            border: Border(right: BorderSide(color: AppColors.primary, width: 1.5)),
+            border: Border(
+              right: BorderSide(color: AppColors.primary, width: 1.5),
+            ),
           ),
           padding: const EdgeInsets.symmetric(vertical: 16),
           child: ValueListenableBuilder<String?>(
@@ -1329,10 +1838,17 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                     },
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 4),
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 18,
+                        horizontal: 4,
+                      ),
                       decoration: BoxDecoration(
-                        color: isSelected ? AppColors.primary : Colors.transparent,
-                        borderRadius: const BorderRadius.horizontal(right: Radius.circular(12)),
+                        color: isSelected
+                            ? AppColors.primary
+                            : Colors.transparent,
+                        borderRadius: const BorderRadius.horizontal(
+                          right: Radius.circular(12),
+                        ),
                       ),
                       alignment: Alignment.center,
                       child: Text(
@@ -1340,7 +1856,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontFamily: 'Afacad',
-                          fontSize: 14,
+                          fontSize: 12,
                           fontWeight: FontWeight.bold,
                           color: isSelected ? Colors.white : Colors.black87,
                           height: 1.1,
@@ -1351,69 +1867,23 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                   );
                 },
               );
-            }
+            },
           ),
         ),
         Expanded(
           child: Container(
             color: const Color(0xFFF6F5F2), // Light beige background
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 8.0),
-                  child: Container(
-                    height: 54,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(27),
-                      border: Border.all(color: AppColors.primary.withValues(alpha: 0.15), width: 1.5),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.primary.withValues(alpha: 0.06),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Center(
-                      child: TextField(
-                        controller: _searchController,
-                        textAlignVertical: TextAlignVertical.center,
-                        decoration: InputDecoration(
-                          hintText: 'Search for your favorite drinks...',
-                          hintStyle: TextStyle(fontFamily: 'Afacad', fontSize: 17, color: Colors.grey.shade500),
-                          prefixIcon: const Padding(
-                            padding: EdgeInsets.only(left: 16.0, right: 8.0),
-                            child: Icon(Icons.search, color: AppColors.primary, size: 24),
-                          ),
-                          suffixIcon: _searchQuery.isNotEmpty 
-                              ? IconButton(
-                                  icon: const Icon(Icons.cancel, color: Colors.grey, size: 20),
-                                  onPressed: () {
-                                    _searchController.clear();
-                                  },
-                                )
-                              : null,
-                          border: InputBorder.none,
-                          isCollapsed: true,
-                          contentPadding: EdgeInsets.zero,
-                        ),
-                        style: const TextStyle(fontFamily: 'Afacad', fontSize: 18, color: Colors.black87),
-                      ),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: SingleChildScrollView(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: categories.map((category) {
-                  final categoryItems = filteredItems.where((e) => (e.categoryName ?? 'Other') == category).toList();
+            child: SingleChildScrollView(
+              controller: _scrollController,
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: categories.map((category) {
+                  final categoryItems = _menuItems
+                      .where((e) => (e.categoryName ?? 'Other') == category)
+                      .toList();
                   if (categoryItems.isEmpty) return const SizedBox.shrink();
-                  
+
                   return Container(
                     key: _categoryKeys.putIfAbsent(category, () => GlobalKey()),
                     child: Column(
@@ -1425,7 +1895,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                             category.toUpperCase(),
                             style: const TextStyle(
                               fontFamily: 'Recoleta',
-                              fontSize: 20,
+                              fontSize: 18,
                               fontWeight: FontWeight.bold,
                               color: AppColors.primary,
                             ),
@@ -1441,16 +1911,17 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                             } else if (constraints.maxWidth > 600) {
                               crossAxisCount = 4;
                             }
-                            
+
                             return GridView.builder(
                               shrinkWrap: true,
                               physics: const NeverScrollableScrollPhysics(),
-                              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: crossAxisCount,
-                                childAspectRatio: 0.65,
-                                crossAxisSpacing: 12,
-                                mainAxisSpacing: 12,
-                              ),
+                              gridDelegate:
+                                  SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: crossAxisCount,
+                                    childAspectRatio: 0.65,
+                                    crossAxisSpacing: 12,
+                                    mainAxisSpacing: 12,
+                                  ),
                               itemCount: categoryItems.length,
                               itemBuilder: (context, index) {
                                 final item = categoryItems[index];
@@ -1461,7 +1932,9 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                                     borderRadius: BorderRadius.circular(16),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: Colors.black.withOpacity(0.04),
+                                        color: Colors.black.withValues(
+                                          alpha: 0.04,
+                                        ),
                                         blurRadius: 8,
                                         offset: const Offset(0, 2),
                                       ),
@@ -1469,19 +1942,24 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                                   ),
                                   child: InkWell(
                                     onTap: () async {
-                                      final customization = await Navigator.of(context).push(
-                                        MaterialPageRoute(
-                                          builder: (context) => ProductDetailModal(item: item),
-                                        ),
-                                      );
-                                      
+                                      final customization =
+                                          await Navigator.of(context).push(
+                                            MaterialPageRoute(
+                                              builder: (context) =>
+                                                  ProductDetailModal(
+                                                    item: item,
+                                                  ),
+                                            ),
+                                          );
+
                                       if (customization != null) {
                                         _addToCart(item, customization);
                                       }
                                     },
                                     borderRadius: BorderRadius.circular(16),
                                     child: Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
                                       children: [
                                         Expanded(
                                           child: Padding(
@@ -1491,22 +1969,31 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                                                   ? Image.network(
                                                       item.imageUrl!,
                                                       fit: BoxFit.contain,
-                                                      errorBuilder: (context, error, stackTrace) => const Icon(
-                                                        Icons.coffee,
-                                                        size: 48,
-                                                        color: AppColors.secondary,
-                                                      ),
+                                                      errorBuilder:
+                                                          (
+                                                            context,
+                                                            error,
+                                                            stackTrace,
+                                                          ) => const Icon(
+                                                            Icons.coffee,
+                                                            size: 48,
+                                                            color: AppColors
+                                                                .secondary,
+                                                          ),
                                                     )
                                                   : const Icon(
                                                       Icons.coffee,
                                                       size: 48,
-                                                      color: AppColors.secondary,
+                                                      color:
+                                                          AppColors.secondary,
                                                     ),
                                             ),
                                           ),
                                         ),
                                         Padding(
-                                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                          ),
                                           child: Text(
                                             item.name,
                                             maxLines: 2,
@@ -1514,7 +2001,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                                             overflow: TextOverflow.ellipsis,
                                             style: const TextStyle(
                                               fontFamily: 'Recoleta',
-                                              fontSize: 16,
+                                              fontSize: 14,
                                               fontWeight: FontWeight.bold,
                                               color: Colors.black87,
                                               height: 1.1,
@@ -1527,7 +2014,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                                           textAlign: TextAlign.center,
                                           style: const TextStyle(
                                             fontFamily: 'Afacad',
-                                            fontSize: 15,
+                                            fontSize: 13,
                                             fontWeight: FontWeight.bold,
                                             color: Colors.black87,
                                           ),
@@ -1539,7 +2026,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                                 );
                               },
                             );
-                          }
+                          },
                         ),
                         const SizedBox(height: 24),
                       ],
@@ -1549,10 +2036,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
               ),
             ),
           ),
-          ],
-         ),
         ),
-       ),
       ],
     );
   }
@@ -1567,7 +2051,8 @@ class SuccessDialog extends StatefulWidget {
   State<SuccessDialog> createState() => _SuccessDialogState();
 }
 
-class _SuccessDialogState extends State<SuccessDialog> with SingleTickerProviderStateMixin {
+class _SuccessDialogState extends State<SuccessDialog>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
   late Animation<double> _opacityAnimation;
@@ -1580,9 +2065,10 @@ class _SuccessDialogState extends State<SuccessDialog> with SingleTickerProvider
       duration: const Duration(milliseconds: 600),
     );
 
-    _scaleAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.elasticOut),
-    );
+    _scaleAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.elasticOut));
 
     _opacityAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
@@ -1627,17 +2113,10 @@ class _SuccessDialogState extends State<SuccessDialog> with SingleTickerProvider
                 height: 100,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  border: Border.all(
-                    color: AppColors.primary,
-                    width: 6,
-                  ),
+                  border: Border.all(color: AppColors.primary, width: 6),
                 ),
                 child: const Center(
-                  child: Icon(
-                    Icons.check,
-                    color: AppColors.primary,
-                    size: 60,
-                  ),
+                  child: Icon(Icons.check, color: AppColors.primary, size: 60),
                 ),
               ),
             ),
@@ -1648,8 +2127,8 @@ class _SuccessDialogState extends State<SuccessDialog> with SingleTickerProvider
               child: const Text(
                 'Thank you for your order!',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontFamily: 'Recoleta', 
-                  fontSize: 26,
+                style: TextStyle(
+                  fontSize: 24,
                   fontWeight: FontWeight.bold,
                   color: Colors.black87,
                 ),
@@ -1662,8 +2141,8 @@ class _SuccessDialogState extends State<SuccessDialog> with SingleTickerProvider
               child: Text(
                 'Total: RM ${widget.totalAmount.toStringAsFixed(2)}\n\nPlease proceed to pay at the counter.',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontFamily: 'Afacad', 
-                  fontSize: 18,
+                style: TextStyle(
+                  fontSize: 16,
                   color: Colors.grey.shade700,
                   height: 1.4,
                 ),
@@ -1683,8 +2162,8 @@ class _SuccessDialogState extends State<SuccessDialog> with SingleTickerProvider
                 ),
                 child: const Text(
                   'DONE',
-                  style: TextStyle(fontFamily: 'Recoleta', 
-                    fontSize: 20,
+                  style: TextStyle(
+                    fontSize: 18,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                   ),
@@ -1697,4 +2176,3 @@ class _SuccessDialogState extends State<SuccessDialog> with SingleTickerProvider
     );
   }
 }
-

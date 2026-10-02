@@ -7,13 +7,14 @@ import { requireAdminActionConfirmation } from '../../admin/action-confirmation.
 import { mysqlPool } from '../../db/mysql.js';
 import { ApiError } from '../errors.js';
 import { assertOutletPublication } from '../../admin/outlet-policy.js';
+import { normalizeWeeklyHours } from '../../services/store-availability.js';
 
 
 type StoreInput = {
   code: string;
   name: string;
   address_line_1: string;
-  address_line_2?: string;
+  address_line_2?: string | null;
   city: string;
   state: string;
   postcode: string;
@@ -21,13 +22,23 @@ type StoreInput = {
   supports_pickup: boolean;
   pickup_lead_minutes: number;
   is_customer_facing: boolean;
+  latitude?: number | null;
+  longitude?: number | null;
+  temporarily_closed?: boolean;
+  weekly_hours?: unknown;
 };
+
+const weeklyHoursSchema = z.record(z.object({
+  closed: z.boolean(),
+  open: z.string(),
+  close: z.string()
+})).refine((value) => normalizeWeeklyHours(value) !== null, 'Enter valid opening hours for all seven days.');
 
 const storeFields = {
   code: z.string().trim().toUpperCase().regex(/^[A-Z0-9][A-Z0-9-]{1,49}$/, 'Use 2-50 uppercase letters, numbers, or hyphens.'),
   name: z.string().trim().min(2).max(255),
   address_line_1: z.string().trim().min(2).max(255),
-  address_line_2: z.string().trim().max(255).optional().or(z.literal('')),
+  address_line_2: z.string().trim().max(255).nullish().or(z.literal('')),
   city: z.string().trim().min(2).max(120),
   state: z.string().trim().min(2).max(120),
   postcode: z.string().trim().min(2).max(20),
@@ -36,7 +47,11 @@ const storeFields = {
   }, 'Enter a valid timezone.').default('Asia/Kuala_Lumpur'),
   supports_pickup: z.boolean().default(true),
   pickup_lead_minutes: z.coerce.number().int().min(0).max(240).default(15),
-  is_customer_facing: z.boolean().default(false)
+  is_customer_facing: z.boolean().default(false),
+  latitude: z.coerce.number().min(-90).max(90).nullish(),
+  longitude: z.coerce.number().min(-180).max(180).nullish(),
+  temporarily_closed: z.boolean().default(false),
+  weekly_hours: weeklyHoursSchema.nullish()
 };
 
 const createStoreSchema = z.object({
@@ -47,7 +62,7 @@ const createStoreSchema = z.object({
 const updateStoreSchema = z.object({
   name: storeFields.name.optional(),
   address_line_1: storeFields.address_line_1.optional(),
-  address_line_2: storeFields.address_line_2.optional(),
+  address_line_2: storeFields.address_line_2,
   city: storeFields.city.optional(),
   state: storeFields.state.optional(),
   postcode: storeFields.postcode.optional(),
@@ -56,6 +71,10 @@ const updateStoreSchema = z.object({
   pickup_lead_minutes: z.coerce.number().int().min(0).max(240).optional(),
   is_customer_facing: z.boolean().optional(),
   status: z.enum(['active', 'inactive']).optional(),
+  latitude: z.coerce.number().min(-90).max(90).nullish(),
+  longitude: z.coerce.number().min(-180).max(180).nullish(),
+  temporarily_closed: z.boolean().optional(),
+  weekly_hours: weeklyHoursSchema.nullish(),
   confirmation_password: z.string().trim().min(8).max(200)
 }).refine((value) => Object.keys(value).some((key) => !['confirmation_password'].includes(key)), {
   message: 'Choose at least one outlet field to update.'
@@ -74,14 +93,19 @@ function storeParams(tenantId: number, store: StoreInput) {
     timezone: store.timezone,
     supportsPickup: store.supports_pickup ? 1 : 0,
     pickupLeadMinutes: store.pickup_lead_minutes,
-    isCustomerFacing: store.is_customer_facing ? 1 : 0
+    isCustomerFacing: store.is_customer_facing ? 1 : 0,
+    latitude: store.latitude ?? null,
+    longitude: store.longitude ?? null,
+    temporarilyClosed: store.temporarily_closed ? 1 : 0,
+    weeklyHoursJson: store.weekly_hours ? JSON.stringify(store.weekly_hours) : null
   };
 }
 
 async function listTenantStores(tenantId: number) {
   const [stores] = await mysqlPool.query<RowDataPacket[]>(
     `SELECT id, code, name, status, is_customer_facing, timezone, address_line_1, address_line_2,
-            city, state, postcode, supports_pickup, pickup_lead_minutes, created_at, updated_at
+            city, state, postcode, latitude, longitude, temporarily_closed, weekly_hours_json,
+            supports_pickup, pickup_lead_minutes, created_at, updated_at
      FROM stores WHERE tenant_id = :tenantId ORDER BY name ASC, id ASC`,
     { tenantId }
   );
@@ -89,7 +113,11 @@ async function listTenantStores(tenantId: number) {
     ...store,
     is_customer_facing: store.is_customer_facing === 1,
     supports_pickup: store.supports_pickup === 1,
-    pickup_lead_minutes: Number(store.pickup_lead_minutes)
+    pickup_lead_minutes: Number(store.pickup_lead_minutes),
+    latitude: store.latitude == null ? null : Number(store.latitude),
+    longitude: store.longitude == null ? null : Number(store.longitude),
+    temporarily_closed: store.temporarily_closed === 1,
+    weekly_hours: normalizeWeeklyHours(store.weekly_hours_json)
   }));
 }
 
@@ -143,8 +171,8 @@ export async function registerAdminTenantStoreRoutes(app: FastifyInstance): Prom
       await lockTenant(connection, request.adminAuth.tenantId);
       assertOutletPublication(null, { is_customer_facing: payload.is_customer_facing, status: 'active' });
       const [result] = await connection.execute<ResultSetHeader>(
-        `INSERT INTO stores (tenant_id, code, name, status, is_customer_facing, timezone, address_line_1, address_line_2, city, state, postcode, supports_pickup, pickup_lead_minutes)
-         VALUES (:tenantId, :code, :name, 'active', :isCustomerFacing, :timezone, :addressLine1, :addressLine2, :city, :state, :postcode, :supportsPickup, :pickupLeadMinutes)`,
+        `INSERT INTO stores (tenant_id, code, name, status, is_customer_facing, timezone, address_line_1, address_line_2, city, state, postcode, latitude, longitude, temporarily_closed, weekly_hours_json, supports_pickup, pickup_lead_minutes)
+         VALUES (:tenantId, :code, :name, 'active', :isCustomerFacing, :timezone, :addressLine1, :addressLine2, :city, :state, :postcode, :latitude, :longitude, :temporarilyClosed, :weeklyHoursJson, :supportsPickup, :pickupLeadMinutes)`,
         storeParams(request.adminAuth.tenantId, payload)
       );
       await connection.execute(
@@ -177,9 +205,9 @@ export async function registerAdminTenantStoreRoutes(app: FastifyInstance): Prom
       assertOutletPublication({ is_customer_facing: existing.is_customer_facing === 1, status: existing.status },
         { is_customer_facing: payload.is_customer_facing ?? existing.is_customer_facing === 1, status: payload.status ?? existing.status });
       const [result] = await connection.execute<ResultSetHeader>(
-        `UPDATE stores SET name = COALESCE(:name, name), address_line_1 = COALESCE(:addressLine1, address_line_1), address_line_2 = CASE WHEN :updateAddressLine2 THEN :addressLine2 ELSE address_line_2 END, city = COALESCE(:city, city), state = COALESCE(:state, state), postcode = COALESCE(:postcode, postcode), timezone = COALESCE(:timezone, timezone), supports_pickup = COALESCE(:supportsPickup, supports_pickup), pickup_lead_minutes = COALESCE(:pickupLeadMinutes, pickup_lead_minutes), is_customer_facing = COALESCE(:isCustomerFacing, is_customer_facing), status = COALESCE(:status, status), updated_at = UTC_TIMESTAMP()
+        `UPDATE stores SET name = COALESCE(:name, name), address_line_1 = COALESCE(:addressLine1, address_line_1), address_line_2 = CASE WHEN :updateAddressLine2 THEN :addressLine2 ELSE address_line_2 END, city = COALESCE(:city, city), state = COALESCE(:state, state), postcode = COALESCE(:postcode, postcode), timezone = COALESCE(:timezone, timezone), latitude = CASE WHEN :updateLatitude THEN :latitude ELSE latitude END, longitude = CASE WHEN :updateLongitude THEN :longitude ELSE longitude END, temporarily_closed = COALESCE(:temporarilyClosed, temporarily_closed), weekly_hours_json = CASE WHEN :updateWeeklyHours THEN :weeklyHoursJson ELSE weekly_hours_json END, supports_pickup = COALESCE(:supportsPickup, supports_pickup), pickup_lead_minutes = COALESCE(:pickupLeadMinutes, pickup_lead_minutes), is_customer_facing = COALESCE(:isCustomerFacing, is_customer_facing), status = COALESCE(:status, status), updated_at = UTC_TIMESTAMP()
          WHERE id = :storeId AND tenant_id = :tenantId`,
-        { storeId, tenantId: request.adminAuth.tenantId, name: payload.name ?? null, addressLine1: payload.address_line_1 ?? null, updateAddressLine2: payload.address_line_2 !== undefined, addressLine2: payload.address_line_2 === undefined ? null : payload.address_line_2 || null, city: payload.city ?? null, state: payload.state ?? null, postcode: payload.postcode ?? null, timezone: payload.timezone ?? null, supportsPickup: payload.supports_pickup === undefined ? null : payload.supports_pickup ? 1 : 0, pickupLeadMinutes: payload.pickup_lead_minutes ?? null, isCustomerFacing: payload.is_customer_facing === undefined ? null : payload.is_customer_facing ? 1 : 0, status: payload.status ?? null }
+        { storeId, tenantId: request.adminAuth.tenantId, name: payload.name ?? null, addressLine1: payload.address_line_1 ?? null, updateAddressLine2: payload.address_line_2 !== undefined, addressLine2: payload.address_line_2 === undefined ? null : payload.address_line_2 || null, city: payload.city ?? null, state: payload.state ?? null, postcode: payload.postcode ?? null, timezone: payload.timezone ?? null, updateLatitude: payload.latitude !== undefined, latitude: payload.latitude ?? null, updateLongitude: payload.longitude !== undefined, longitude: payload.longitude ?? null, temporarilyClosed: payload.temporarily_closed === undefined ? null : payload.temporarily_closed ? 1 : 0, updateWeeklyHours: payload.weekly_hours !== undefined, weeklyHoursJson: payload.weekly_hours ? JSON.stringify(payload.weekly_hours) : null, supportsPickup: payload.supports_pickup === undefined ? null : payload.supports_pickup ? 1 : 0, pickupLeadMinutes: payload.pickup_lead_minutes ?? null, isCustomerFacing: payload.is_customer_facing === undefined ? null : payload.is_customer_facing ? 1 : 0, status: payload.status ?? null }
       );
       if (!result.affectedRows) throw new ApiError(404, 'store_not_found', 'Outlet was not found.');
       await connection.execute(

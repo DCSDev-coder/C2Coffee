@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:geolocator/geolocator.dart';
 
 import '../services/app_session_service.dart';
 import '../services/catalog_presentation.dart';
@@ -52,6 +53,7 @@ class _MenuPageState extends State<MenuPage> {
   int _voucherBannerIndex = 0;
   Timer? _voucherBannerTimer;
   List<RewardVoucher> _voucherBanners = const [];
+  Map<int, double> _storeDistancesKm = const {};
 
   @override
   void initState() {
@@ -930,34 +932,58 @@ class _MenuPageState extends State<MenuPage> {
   }
 
   Future<void> _showStorePicker() async {
+    await _loadStoreDistances();
+    if (!mounted) return;
+    final stores = List<StoreSummary>.from(_session.stores)
+      ..sort((a, b) {
+        final aDistance = _storeDistancesKm[a.id];
+        final bDistance = _storeDistancesKm[b.id];
+        if (aDistance == null && bDistance == null) {
+          return a.name.compareTo(b.name);
+        }
+        if (aDistance == null) return 1;
+        if (bDistance == null) return -1;
+        return aDistance.compareTo(bDistance);
+      });
     final selected = await showModalBottomSheet<StoreSummary>(
       context: context,
       showDragHandle: true,
       builder: (sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const ListTile(
-              title: Text('Choose pickup outlet',
-                  style: TextStyle(
-                      fontFamily: 'Recoleta', fontWeight: FontWeight.bold)),
-              subtitle: Text('Your menu and order will use this outlet.'),
-            ),
-            ..._session.stores.map((store) => ListTile(
-                  leading: Icon(
-                    store.id == _session.selectedStore?.id
-                        ? Icons.radio_button_checked
-                        : Icons.radio_button_off,
-                    color: AppColors.deepTeal,
-                  ),
-                  title: Text(store.name),
-                  subtitle: Text(store.addressLabel.isEmpty
-                      ? '${store.pickupLeadMinutes} min pickup estimate'
-                      : store.addressLabel),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => Navigator.pop(sheetContext, store),
-                )),
-          ],
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.7),
+          child: Column(
+            children: [
+              const ListTile(
+                title: Text('Choose pickup outlet',
+                    style: TextStyle(
+                        fontFamily: 'Recoleta', fontWeight: FontWeight.bold)),
+                subtitle: Text('Nearest outlets appear first.'),
+              ),
+              Expanded(
+                  child: ListView(
+                      children: stores
+                          .map((store) => ListTile(
+                                leading: Icon(
+                                  store.id == _session.selectedStore?.id
+                                      ? Icons.radio_button_checked
+                                      : Icons.radio_button_off,
+                                  color: AppColors.deepTeal,
+                                ),
+                                title: Text(store.name),
+                                subtitle: Text(
+                                    '${store.isOpenNow ? 'Open' : 'Closed'}${_distanceLabel(store)}'),
+                                trailing: store.isOpenNow
+                                    ? const Icon(Icons.chevron_right)
+                                    : null,
+                                enabled: store.isOpenNow,
+                                onTap: store.isOpenNow
+                                    ? () => Navigator.pop(sheetContext, store)
+                                    : null,
+                              ))
+                          .toList())),
+            ],
+          ),
         ),
       ),
     );
@@ -995,6 +1021,41 @@ class _MenuPageState extends State<MenuPage> {
     setState(() => _selectedCategoryIndex = 0);
     if (_scrollController.hasClients) {
       _scrollController.jumpTo(0);
+    }
+  }
+
+  String _distanceLabel(StoreSummary store) {
+    final distance = _storeDistancesKm[store.id];
+    if (distance == null) return '';
+    return distance < 1
+        ? ' · ${(distance * 1000).round()} m'
+        : ' · ${distance.toStringAsFixed(1)} km';
+  }
+
+  Future<void> _loadStoreDistances() async {
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) return;
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        return;
+      }
+      final position = await Geolocator.getCurrentPosition(
+          locationSettings:
+              const LocationSettings(accuracy: LocationAccuracy.medium));
+      final distances = <int, double>{};
+      for (final store in _session.stores) {
+        if (store.latitude == null || store.longitude == null) continue;
+        distances[store.id] = Geolocator.distanceBetween(position.latitude,
+                position.longitude, store.latitude!, store.longitude!) /
+            1000;
+      }
+      if (mounted) setState(() => _storeDistancesKm = distances);
+    } catch (_) {
+      // Manual outlet selection remains available if location cannot be read.
     }
   }
 
@@ -1210,7 +1271,7 @@ class _MenuPageState extends State<MenuPage> {
                       width: 7,
                       height: 7,
                       decoration: BoxDecoration(
-                        color: _session.selectedStore?.supportsPickup == true
+                        color: _session.selectedStore?.isOpenNow == true
                             ? const Color(0xFF10B981)
                             : Colors.grey,
                         shape: BoxShape.circle,
@@ -1218,9 +1279,9 @@ class _MenuPageState extends State<MenuPage> {
                     ),
                     const SizedBox(width: 5),
                     Text(
-                      _session.selectedStore?.supportsPickup == true
-                          ? 'Available for Store Pickup'
-                          : 'Store Pickup Unavailable',
+                      _session.selectedStore?.isOpenNow == true
+                          ? 'Open for Store Pickup'
+                          : 'Closed',
                       style: TextStyle(
                         fontFamily: 'Afacad',
                         fontSize: 13,
@@ -1275,19 +1336,24 @@ class _MenuPageState extends State<MenuPage> {
   }
 
   Widget _buildCheckoutBar() {
+    final isOpen = _session.selectedStore?.isOpenNow == true;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: () {
-        InteractiveFillingLoader.show(
-          context,
-          targetPage: const OrderConfirmationPage(),
-        );
-      },
+      onTap: isOpen
+          ? () {
+              InteractiveFillingLoader.show(
+                context,
+                targetPage: const OrderConfirmationPage(),
+              );
+            }
+          : () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text(
+                  'This outlet is currently closed. Choose an open outlet to order.'))),
       child: Container(
         width: 56,
         height: 56,
         decoration: BoxDecoration(
-          color: AppColors.deepTeal,
+          color: isOpen ? AppColors.deepTeal : Colors.grey,
           shape: BoxShape.circle,
           boxShadow: [
             BoxShadow(
