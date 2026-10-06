@@ -8,6 +8,7 @@ import '../utils/app_colors.dart';
 import '../utils/app_notification.dart';
 import '../widgets/catalog_product_image.dart';
 import '../widgets/token_price_pair.dart';
+import '../widgets/edge_swipe_back.dart';
 
 class MontBrogaPage extends StatefulWidget {
   final Map<String, dynamic> item;
@@ -1081,657 +1082,680 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: bgColor,
-      body: GestureDetector(
-        behavior: HitTestBehavior.translucent,
-        onTap: _dismissKeyboard,
-        child: CustomScrollView(
-          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-          slivers: [
-            SliverAppBar(
-              backgroundColor: bgColor,
-              elevation: 0,
-              pinned: true,
-              leading: const SizedBox.shrink(),
-              actions: [
-                IconButton(
-                  icon: Icon(Icons.close, color: AppColors.deepTeal),
-                  onPressed: () => InteractiveFillingLoader.showPop(context),
-                ),
-              ],
-            ),
-            SliverToBoxAdapter(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: CatalogProductImage(
-                      assetPath: widget.item['image']?.toString(),
-                      imageUrl: widget.item['image_url']?.toString(),
-                      height: 200,
-                      fit: BoxFit.contain,
+    return EdgeSwipeBack(
+      onBack: () => InteractiveFillingLoader.showPop(context),
+      child: Scaffold(
+        backgroundColor: bgColor,
+        body: GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onTap: _dismissKeyboard,
+          child: CustomScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            slivers: [
+              SliverAppBar(
+                backgroundColor: bgColor,
+                elevation: 0,
+                pinned: true,
+                leading: const SizedBox.shrink(),
+                actions: [
+                  IconButton(
+                    tooltip: 'Close',
+                    iconSize: 30,
+                    constraints: const BoxConstraints.tightFor(
+                      width: 48,
+                      height: 48,
                     ),
+                    icon: Icon(Icons.close_rounded, color: AppColors.deepTeal),
+                    onPressed: () => InteractiveFillingLoader.showPop(context),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.all(20.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          widget.item['name']?.toString() ?? 'Mont Broga',
-                          style: const TextStyle(
-                            fontFamily: 'Recoleta',
-                            fontSize: 30,
-                            fontWeight: FontWeight.w900,
-                            color: Colors.black,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _itemDescription,
-                          style: const TextStyle(
-                            fontFamily: 'Afacad',
-                            fontSize: 16,
-                            color: Colors.black87,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Container(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          decoration: BoxDecoration(
-                            border: Border(
-                              bottom: BorderSide(
-                                  color: Colors.black.withValues(alpha: 0.1)),
+                ],
+              ),
+              SliverToBoxAdapter(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: CatalogProductImage(
+                        assetPath: widget.item['image']?.toString(),
+                        imageUrl: widget.item['image_url']?.toString(),
+                        height: 200,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(20.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.item['name']?.toString() ?? 'Mont Broga',
+                            style: const TextStyle(
+                              fontFamily: 'Recoleta',
+                              fontSize: 30,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.black,
                             ),
                           ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              AnimatedSwitcher(
-                                duration: const Duration(milliseconds: 200),
-                                child: _showTokenPrice
-                                    ? TokenPricePair(
-                                        key: const ValueKey('tokenPrice'),
-                                        tokenValue: _displayStartingTokenPrice,
-                                        tokenFontSize: 14,
-                                        tokenColor: Colors.black87,
-                                      )
-                                    : Text(
-                                        _rmPriceText,
-                                        key: const ValueKey('rmPrice'),
-                                        style: const TextStyle(
-                                          fontFamily: 'Afacad',
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.black87,
-                                        ),
-                                      ),
-                              ),
-                              Text(
-                                '$estimatedCalories kcal',
-                                style: const TextStyle(
-                                  fontFamily: 'Afacad',
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.black54,
-                                ),
-                              ),
-                              _buildExchangeButton(),
-                            ],
-                          ),
-                        ),
-                        // Admin-configured options replace the legacy defaults once available.
-                        if (_usesLibraryOptions) _buildLibraryOptions(),
-                        if (!_usesLibraryOptions && _hasChoiceOfBeans) ...[
-                          _buildSectionTitle('Choice of Beans'),
-                          Row(
-                            children: [
-                              _buildOptionCard(
-                                title: 'DATO\nBLEND',
-                                subtitle: 'Bold and Smoky',
-                                value: 'Dato Blend',
-                                groupValue: selectedBean,
-                                onChanged: (v) =>
-                                    setState(() => selectedBean = v),
-                                color: Colors.transparent,
-                                textColor: Colors.white,
-                                isGradient: true,
-                                gradientColors: [
-                                  const Color(0xFFC76B26),
-                                  const Color(0xFF7A1800)
-                                ],
-                                icon: Image.asset('assets/images/dato.png',
-                                    height: 28, color: Colors.white),
-                              ),
-                              _buildOptionCard(
-                                title: 'DATIN\nBLEND',
-                                subtitle: 'Chocolatey & Medium Acidity',
-                                value: 'Datin Blend',
-                                groupValue: selectedBean,
-                                onChanged: (v) =>
-                                    setState(() => selectedBean = v),
-                                color: Colors.transparent,
-                                textColor: Colors.white,
-                                isGradient: true,
-                                gradientColors: [
-                                  const Color(0xFFE91E63),
-                                  const Color(0xFF009624)
-                                ],
-                                icon: Image.asset('assets/images/datin.png',
-                                    height: 28, color: Colors.white),
-                              ),
-                            ],
-                          ),
-                          const Divider(height: 24),
-                        ],
-                        if (!_usesLibraryOptions && _hasEspressoShot) ...[
-                          _buildSectionTitle('Espresso Shot',
-                              required: false, subtitle: 'Optional'),
-                          SliderTheme(
-                            data: SliderThemeData(
-                              activeTrackColor: orangeColor,
-                              inactiveTrackColor:
-                                  orangeColor.withValues(alpha: 0.2),
-                              thumbColor: orangeColor,
-                              trackHeight: 4.0,
-                              tickMarkShape: const RoundSliderTickMarkShape(
-                                  tickMarkRadius: 8.0),
-                              activeTickMarkColor: orangeColor,
-                              inactiveTickMarkColor:
-                                  orangeColor.withValues(alpha: 0.2),
-                            ),
-                            child: Slider(
-                              value: espressoShots.toDouble(),
-                              min: 1,
-                              max: 3,
-                              divisions: 2,
-                              onChanged: (v) =>
-                                  setState(() => espressoShots = v.toInt()),
+                          const SizedBox(height: 4),
+                          Text(
+                            _itemDescription,
+                            style: const TextStyle(
+                              fontFamily: 'Afacad',
+                              fontSize: 16,
+                              color: Colors.black87,
                             ),
                           ),
-                          Padding(
-                            padding:
-                                const EdgeInsets.symmetric(horizontal: 24.0),
+                          const SizedBox(height: 16),
+                          Container(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            decoration: BoxDecoration(
+                              border: Border(
+                                bottom: BorderSide(
+                                    color: Colors.black.withValues(alpha: 0.1)),
+                              ),
+                            ),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                const Column(
-                                  children: [
-                                    Text(
-                                      '1',
-                                      style: TextStyle(
-                                        fontFamily: 'Afacad',
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.black54,
-                                      ),
-                                    ),
-                                    Text(
-                                      '+0.00',
-                                      style: TextStyle(
-                                        fontFamily: 'Afacad',
-                                        fontSize: 12,
-                                        color: Colors.transparent,
-                                      ),
-                                    ),
-                                  ],
+                                AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 200),
+                                  child: _showTokenPrice
+                                      ? TokenPricePair(
+                                          key: const ValueKey('tokenPrice'),
+                                          tokenValue:
+                                              _displayStartingTokenPrice,
+                                          tokenFontSize: 14,
+                                          tokenColor: Colors.black87,
+                                        )
+                                      : Text(
+                                          _rmPriceText,
+                                          key: const ValueKey('rmPrice'),
+                                          style: const TextStyle(
+                                            fontFamily: 'Afacad',
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.black87,
+                                          ),
+                                        ),
                                 ),
-                                Column(
-                                  children: [
-                                    const Text(
-                                      '2',
-                                      style: TextStyle(
-                                        fontFamily: 'Afacad',
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.black54,
-                                      ),
-                                    ),
-                                    Text(
-                                      '+3.00',
-                                      style: TextStyle(
-                                        fontFamily: 'Afacad',
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                        color: orangeColor,
-                                      ),
-                                    ),
-                                  ],
+                                Text(
+                                  '$estimatedCalories kcal',
+                                  style: const TextStyle(
+                                    fontFamily: 'Afacad',
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.black54,
+                                  ),
                                 ),
-                                Column(
-                                  children: [
-                                    const Text(
-                                      '3',
-                                      style: TextStyle(
-                                        fontFamily: 'Afacad',
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.black54,
-                                      ),
-                                    ),
-                                    Text(
-                                      '+6.00',
-                                      style: TextStyle(
-                                        fontFamily: 'Afacad',
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                        color: orangeColor,
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                                _buildExchangeButton(),
                               ],
                             ),
                           ),
-                          const Divider(height: 24),
-                        ],
-                        if (!_usesLibraryOptions && _hasTemperatureOption) ...[
-                          _buildSectionTitle('Choice of Temperature'),
-                          Row(
-                            children: [
-                              _buildOptionCard(
-                                title: 'HOT',
-                                subtitle: '+ 0.00',
-                                value: 'Hot',
-                                groupValue: temperature,
+                          // Admin-configured options replace the legacy defaults once available.
+                          if (_usesLibraryOptions) _buildLibraryOptions(),
+                          if (!_usesLibraryOptions && _hasChoiceOfBeans) ...[
+                            _buildSectionTitle('Choice of Beans'),
+                            Row(
+                              children: [
+                                _buildOptionCard(
+                                  title: 'DATO\nBLEND',
+                                  subtitle: 'Bold and Smoky',
+                                  value: 'Dato Blend',
+                                  groupValue: selectedBean,
+                                  onChanged: (v) =>
+                                      setState(() => selectedBean = v),
+                                  color: Colors.transparent,
+                                  textColor: Colors.white,
+                                  isGradient: true,
+                                  gradientColors: [
+                                    const Color(0xFFC76B26),
+                                    const Color(0xFF7A1800)
+                                  ],
+                                  icon: Image.asset('assets/images/dato.png',
+                                      height: 28, color: Colors.white),
+                                ),
+                                _buildOptionCard(
+                                  title: 'DATIN\nBLEND',
+                                  subtitle: 'Chocolatey & Medium Acidity',
+                                  value: 'Datin Blend',
+                                  groupValue: selectedBean,
+                                  onChanged: (v) =>
+                                      setState(() => selectedBean = v),
+                                  color: Colors.transparent,
+                                  textColor: Colors.white,
+                                  isGradient: true,
+                                  gradientColors: [
+                                    const Color(0xFFE91E63),
+                                    const Color(0xFF009624)
+                                  ],
+                                  icon: Image.asset('assets/images/datin.png',
+                                      height: 28, color: Colors.white),
+                                ),
+                              ],
+                            ),
+                            const Divider(height: 24),
+                          ],
+                          if (!_usesLibraryOptions && _hasEspressoShot) ...[
+                            _buildSectionTitle('Espresso Shot',
+                                required: false, subtitle: 'Optional'),
+                            SliderTheme(
+                              data: SliderThemeData(
+                                activeTrackColor: orangeColor,
+                                inactiveTrackColor:
+                                    orangeColor.withValues(alpha: 0.2),
+                                thumbColor: orangeColor,
+                                trackHeight: 4.0,
+                                tickMarkShape: const RoundSliderTickMarkShape(
+                                    tickMarkRadius: 8.0),
+                                activeTickMarkColor: orangeColor,
+                                inactiveTickMarkColor:
+                                    orangeColor.withValues(alpha: 0.2),
+                              ),
+                              child: Slider(
+                                value: espressoShots.toDouble(),
+                                min: 1,
+                                max: 3,
+                                divisions: 2,
                                 onChanged: (v) =>
-                                    setState(() => temperature = v),
-                                color: const Color(0xFFE63900),
-                                textColor: Colors.white,
+                                    setState(() => espressoShots = v.toInt()),
                               ),
-                              _buildOptionCard(
-                                title: 'COLD',
-                                subtitle: '+ 0.00',
-                                value: 'Cold',
-                                groupValue: temperature,
-                                onChanged: (v) =>
-                                    setState(() => temperature = v),
-                                color: const Color(0xFF66C2E6),
-                                textColor: Colors.white,
+                            ),
+                            Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 24.0),
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Column(
+                                    children: [
+                                      Text(
+                                        '1',
+                                        style: TextStyle(
+                                          fontFamily: 'Afacad',
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.black54,
+                                        ),
+                                      ),
+                                      Text(
+                                        '+0.00',
+                                        style: TextStyle(
+                                          fontFamily: 'Afacad',
+                                          fontSize: 12,
+                                          color: Colors.transparent,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  Column(
+                                    children: [
+                                      const Text(
+                                        '2',
+                                        style: TextStyle(
+                                          fontFamily: 'Afacad',
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.black54,
+                                        ),
+                                      ),
+                                      Text(
+                                        '+3.00',
+                                        style: TextStyle(
+                                          fontFamily: 'Afacad',
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          color: orangeColor,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  Column(
+                                    children: [
+                                      const Text(
+                                        '3',
+                                        style: TextStyle(
+                                          fontFamily: 'Afacad',
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.black54,
+                                        ),
+                                      ),
+                                      Text(
+                                        '+6.00',
+                                        style: TextStyle(
+                                          fontFamily: 'Afacad',
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          color: orangeColor,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
-                          const Divider(height: 24),
-                        ],
-                        if (!_usesLibraryOptions &&
-                            _hasSparklingMixerOption) ...[
-                          _buildSectionTitle('Choice of Sparkling'),
-                          Row(
-                            children: [
-                              _buildOptionCard(
-                                title: 'GINGER\nADE',
-                                subtitle: '+ 0.00',
-                                value: 'Ginger Ade',
-                                groupValue: sparklingMixer,
-                                onChanged: (v) =>
-                                    setState(() => sparklingMixer = v),
-                                color: const Color(0xFFC76B26),
-                                textColor: Colors.white,
-                              ),
-                              _buildOptionCard(
-                                title: 'TONIC\nWATER',
-                                subtitle: '+ 0.00',
-                                value: 'Tonic Water',
-                                groupValue: sparklingMixer,
-                                onChanged: (v) =>
-                                    setState(() => sparklingMixer = v),
-                                color: const Color(0xFF007AEC),
-                                textColor: Colors.white,
-                              ),
-                            ],
-                          ),
-                          const Divider(height: 24),
-                        ],
-                        if (!_usesLibraryOptions && _hasChoiceOfMilk) ...[
-                          _buildSectionTitle('Choice of Milk'),
-                          Row(
-                            children: [
-                              _buildOptionCard(
-                                title: 'FRESH\nMILK',
-                                subtitle: '+ 0.00',
-                                value: 'Fresh Milk',
-                                groupValue: milk,
-                                onChanged: (v) => setState(() => milk = v),
-                                color: const Color(0xFF007AEC),
-                                textColor: Colors.white,
-                              ),
-                              _buildOptionCard(
-                                title: 'OAT\nMILK',
-                                subtitle: 'OATSIDE\n+ 3.00',
-                                value: 'Oat Milk',
-                                groupValue: milk,
-                                onChanged: (v) => setState(() => milk = v),
-                                color: const Color(0xFF995C00),
-                                textColor: Colors.white,
-                              ),
-                            ],
-                          ),
-                          const Divider(height: 24),
-                        ],
-                        if (!_usesLibraryOptions && _hasChoiceOfSweetness) ...[
-                          _buildSectionTitle('Choice of Sweetness'),
-                          Row(
-                            children: [
-                              _buildOptionCard(
-                                title: 'NO\nSUGAR',
-                                subtitle: '+ 0.00',
-                                value: 'No Sugar',
-                                groupValue: sweetness,
-                                onChanged: (v) => setState(() => sweetness = v),
-                                color: const Color(0xFF7BDB5C),
-                                textColor: Colors.white,
-                              ),
-                              _buildOptionCard(
-                                title: 'LESS\nSWEET',
-                                subtitle: '+ 0.00',
-                                value: 'Less Sweet',
-                                groupValue: sweetness,
-                                onChanged: (v) => setState(() => sweetness = v),
-                                color: const Color(0xFFFF7A00),
-                                textColor: Colors.white,
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              SizedBox(
-                                width: MediaQuery.of(context).size.width * 0.45,
-                                child: _buildOptionCard(
-                                  title: 'REGULAR\nSWEET',
+                            ),
+                            const Divider(height: 24),
+                          ],
+                          if (!_usesLibraryOptions &&
+                              _hasTemperatureOption) ...[
+                            _buildSectionTitle('Choice of Temperature'),
+                            Row(
+                              children: [
+                                _buildOptionCard(
+                                  title: 'HOT',
                                   subtitle: '+ 0.00',
-                                  value: 'Regular Sweet',
+                                  value: 'Hot',
+                                  groupValue: temperature,
+                                  onChanged: (v) =>
+                                      setState(() => temperature = v),
+                                  color: const Color(0xFFE63900),
+                                  textColor: Colors.white,
+                                ),
+                                _buildOptionCard(
+                                  title: 'COLD',
+                                  subtitle: '+ 0.00',
+                                  value: 'Cold',
+                                  groupValue: temperature,
+                                  onChanged: (v) =>
+                                      setState(() => temperature = v),
+                                  color: const Color(0xFF66C2E6),
+                                  textColor: Colors.white,
+                                ),
+                              ],
+                            ),
+                            const Divider(height: 24),
+                          ],
+                          if (!_usesLibraryOptions &&
+                              _hasSparklingMixerOption) ...[
+                            _buildSectionTitle('Choice of Sparkling'),
+                            Row(
+                              children: [
+                                _buildOptionCard(
+                                  title: 'GINGER\nADE',
+                                  subtitle: '+ 0.00',
+                                  value: 'Ginger Ade',
+                                  groupValue: sparklingMixer,
+                                  onChanged: (v) =>
+                                      setState(() => sparklingMixer = v),
+                                  color: const Color(0xFFC76B26),
+                                  textColor: Colors.white,
+                                ),
+                                _buildOptionCard(
+                                  title: 'TONIC\nWATER',
+                                  subtitle: '+ 0.00',
+                                  value: 'Tonic Water',
+                                  groupValue: sparklingMixer,
+                                  onChanged: (v) =>
+                                      setState(() => sparklingMixer = v),
+                                  color: const Color(0xFF007AEC),
+                                  textColor: Colors.white,
+                                ),
+                              ],
+                            ),
+                            const Divider(height: 24),
+                          ],
+                          if (!_usesLibraryOptions && _hasChoiceOfMilk) ...[
+                            _buildSectionTitle('Choice of Milk'),
+                            Row(
+                              children: [
+                                _buildOptionCard(
+                                  title: 'FRESH\nMILK',
+                                  subtitle: '+ 0.00',
+                                  value: 'Fresh Milk',
+                                  groupValue: milk,
+                                  onChanged: (v) => setState(() => milk = v),
+                                  color: const Color(0xFF007AEC),
+                                  textColor: Colors.white,
+                                ),
+                                _buildOptionCard(
+                                  title: 'OAT\nMILK',
+                                  subtitle: 'OATSIDE\n+ 3.00',
+                                  value: 'Oat Milk',
+                                  groupValue: milk,
+                                  onChanged: (v) => setState(() => milk = v),
+                                  color: const Color(0xFF995C00),
+                                  textColor: Colors.white,
+                                ),
+                              ],
+                            ),
+                            const Divider(height: 24),
+                          ],
+                          if (!_usesLibraryOptions &&
+                              _hasChoiceOfSweetness) ...[
+                            _buildSectionTitle('Choice of Sweetness'),
+                            Row(
+                              children: [
+                                _buildOptionCard(
+                                  title: 'NO\nSUGAR',
+                                  subtitle: '+ 0.00',
+                                  value: 'No Sugar',
                                   groupValue: sweetness,
                                   onChanged: (v) =>
                                       setState(() => sweetness = v),
-                                  color: const Color(0xFFD4A017),
+                                  color: const Color(0xFF7BDB5C),
                                   textColor: Colors.white,
-                                  isExpanded: false,
                                 ),
-                              ),
-                            ],
-                          ),
-                          const Divider(height: 24),
-                        ],
-                        if (!_usesLibraryOptions && _hasIceOption) ...[
-                          _buildSectionTitle('Ice Level'),
-                          Row(
-                            children: [
-                              _buildOptionCard(
-                                title: 'LESS\nICE',
-                                subtitle: '+ 0.00',
-                                value: 'Less Ice',
-                                groupValue: iceLevel,
-                                onChanged: (v) => setState(() => iceLevel = v),
-                                color: const Color(0xFF6B3AB7),
-                                textColor: Colors.white,
-                              ),
-                              _buildOptionCard(
-                                title: 'REGULAR\nICE',
-                                subtitle: '+ 0.00',
-                                value: 'Regular Ice',
-                                groupValue: iceLevel,
-                                onChanged: (v) => setState(() => iceLevel = v),
-                                color: const Color(0xFFD47A88),
-                                textColor: Colors.white,
-                              ),
-                            ],
-                          ),
-                          const Divider(height: 24),
-                        ],
-                        if (!_usesLibraryOptions && _hasOrderType) ...[
-                          _buildSectionTitle('Order Type'),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              SizedBox(
-                                width: MediaQuery.of(context).size.width * 0.45,
-                                child: _buildOptionCard(
-                                  title: 'TAKE\nAWAY',
-                                  subtitle: '',
-                                  value: 'Take Away',
-                                  groupValue: orderType,
+                                _buildOptionCard(
+                                  title: 'LESS\nSWEET',
+                                  subtitle: '+ 0.00',
+                                  value: 'Less Sweet',
+                                  groupValue: sweetness,
                                   onChanged: (v) =>
-                                      setState(() => orderType = v),
-                                  color: const Color(0xFFFF6B5C),
+                                      setState(() => sweetness = v),
+                                  color: const Color(0xFFFF7A00),
                                   textColor: Colors.white,
-                                  isExpanded: false,
                                 ),
-                              ),
-                            ],
-                          ),
-                          const Divider(height: 24),
-                        ],
-                        if (_hasRemarks) ...[
-                          _buildSectionTitle('Remarks', required: false),
-                          TextField(
-                            controller: remarksController,
-                            maxLines: 4,
-                            textInputAction: TextInputAction.done,
-                            onSubmitted: (_) => _dismissKeyboard(),
-                            onTapOutside: (_) => _dismissKeyboard(),
-                            decoration: InputDecoration(
-                              hintText: 'Add your remark',
-                              hintStyle: const TextStyle(
-                                  fontFamily: 'Afacad', color: Colors.black38),
-                              filled: true,
-                              fillColor: Colors.white,
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(
-                                    color: orangeColor.withValues(alpha: 0.5)),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(
-                                    color: orangeColor.withValues(alpha: 0.5)),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(color: orangeColor),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                SizedBox(
+                                  width:
+                                      MediaQuery.of(context).size.width * 0.45,
+                                  child: _buildOptionCard(
+                                    title: 'REGULAR\nSWEET',
+                                    subtitle: '+ 0.00',
+                                    value: 'Regular Sweet',
+                                    groupValue: sweetness,
+                                    onChanged: (v) =>
+                                        setState(() => sweetness = v),
+                                    color: const Color(0xFFD4A017),
+                                    textColor: Colors.white,
+                                    isExpanded: false,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const Divider(height: 24),
+                          ],
+                          if (!_usesLibraryOptions && _hasIceOption) ...[
+                            _buildSectionTitle('Ice Level'),
+                            Row(
+                              children: [
+                                _buildOptionCard(
+                                  title: 'LESS\nICE',
+                                  subtitle: '+ 0.00',
+                                  value: 'Less Ice',
+                                  groupValue: iceLevel,
+                                  onChanged: (v) =>
+                                      setState(() => iceLevel = v),
+                                  color: const Color(0xFF6B3AB7),
+                                  textColor: Colors.white,
+                                ),
+                                _buildOptionCard(
+                                  title: 'REGULAR\nICE',
+                                  subtitle: '+ 0.00',
+                                  value: 'Regular Ice',
+                                  groupValue: iceLevel,
+                                  onChanged: (v) =>
+                                      setState(() => iceLevel = v),
+                                  color: const Color(0xFFD47A88),
+                                  textColor: Colors.white,
+                                ),
+                              ],
+                            ),
+                            const Divider(height: 24),
+                          ],
+                          if (!_usesLibraryOptions && _hasOrderType) ...[
+                            _buildSectionTitle('Order Type'),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                SizedBox(
+                                  width:
+                                      MediaQuery.of(context).size.width * 0.45,
+                                  child: _buildOptionCard(
+                                    title: 'TAKE\nAWAY',
+                                    subtitle: '',
+                                    value: 'Take Away',
+                                    groupValue: orderType,
+                                    onChanged: (v) =>
+                                        setState(() => orderType = v),
+                                    color: const Color(0xFFFF6B5C),
+                                    textColor: Colors.white,
+                                    isExpanded: false,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const Divider(height: 24),
+                          ],
+                          if (_hasRemarks) ...[
+                            _buildSectionTitle('Remarks', required: false),
+                            TextField(
+                              controller: remarksController,
+                              maxLines: 4,
+                              textInputAction: TextInputAction.done,
+                              onSubmitted: (_) => _dismissKeyboard(),
+                              onTapOutside: (_) => _dismissKeyboard(),
+                              decoration: InputDecoration(
+                                hintText: 'Add your remark',
+                                hintStyle: const TextStyle(
+                                    fontFamily: 'Afacad',
+                                    color: Colors.black38),
+                                filled: true,
+                                fillColor: Colors.white,
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(
+                                      color:
+                                          orangeColor.withValues(alpha: 0.5)),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(
+                                      color:
+                                          orangeColor.withValues(alpha: 0.5)),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(color: orangeColor),
+                                ),
                               ),
                             ),
-                          ),
-                          const SizedBox(height: 40),
+                            const SizedBox(height: 40),
+                          ],
                         ],
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, -4),
-            ),
-          ],
-        ),
-        child: SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Total',
-                    style: TextStyle(
-                        fontFamily: 'Recoleta',
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87),
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 200),
-                        child: _showTokenPrice
-                            ? TokenPricePair(
-                                key: const ValueKey('totalTokenPrice'),
-                                tokenValue: totalTokenPrice,
-                                tokenFontSize: 12,
-                                tokenColor: Colors.black87,
-                              )
-                            : Text(
-                                _displayTotalText,
-                                key: const ValueKey('totalRmPrice'),
-                                style: const TextStyle(
-                                  fontFamily: 'Afacad',
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.black87,
-                                ),
-                              ),
-                      ),
-                      Text(
-                        '$estimatedCalories kcal',
-                        style: const TextStyle(
-                          fontFamily: 'Afacad',
-                          fontSize: 13,
-                          color: Colors.black54,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(color: orangeColor),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.remove, size: 18),
-                          constraints:
-                              const BoxConstraints(minWidth: 36, minHeight: 36),
-                          padding: EdgeInsets.zero,
-                          color: Colors.black54,
-                          onPressed: () {
-                            if (quantity > 1) {
-                              setState(() => quantity--);
-                            }
-                          },
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 10.0),
-                          child: Text(
-                            quantity.toString(),
-                            style: const TextStyle(
-                                fontFamily: 'Recoleta',
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.add, size: 18),
-                          constraints:
-                              const BoxConstraints(minWidth: 36, minHeight: 36),
-                          padding: EdgeInsets.zero,
-                          color: Colors.black54,
-                          onPressed: () {
-                            setState(() => quantity++);
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        final missingGroups = _missingRequiredLibraryGroups();
-                        if (missingGroups.isNotEmpty) {
-                          AppNotification.showError(
-                            context,
-                            'Please choose: ${missingGroups.join(', ')}',
-                          );
-                          return;
-                        }
-                        final selectedStore = _session.selectedStore;
-                        if (selectedStore == null) {
-                          AppNotification.showError(
-                            context,
-                            'Please select a store first.',
-                          );
-                          return;
-                        }
-
-                        CartService.instance.addItem(
-                          storeId: selectedStore.id,
-                          storeName: selectedStore.name,
-                          item: CartItem(
-                            id: '${widget.item['code'] ?? _itemName}-${DateTime.now().microsecondsSinceEpoch}',
-                            menuItemId:
-                                (widget.item['id'] as num?)?.toInt() ?? 0,
-                            menuItemCode:
-                                widget.item['code']?.toString() ?? _itemName,
-                            name: _itemName,
-                            categoryCode:
-                                widget.item['categoryCode']?.toString(),
-                            categoryName: widget.item['category']?.toString(),
-                            subcategoryCode:
-                                widget.item['subcategoryCode']?.toString(),
-                            subcategoryName:
-                                widget.item['subcategory']?.toString(),
-                            productKindCode:
-                                widget.item['productKindCode']?.toString(),
-                            productKindName:
-                                widget.item['productKind']?.toString(),
-                            imageAssetPath: null,
-                            imageUrl: widget.item['image_url']?.toString(),
-                            basePriceRm: _itemBasePrice,
-                            tokenPrice: _baseTokenPrice,
-                            quantity: quantity,
-                            remarks: remarksController.text.trim().isEmpty
-                                ? null
-                                : remarksController.text.trim(),
-                            displayDetails: _displayDetails,
-                            modifiers: _cartModifiers,
-                          ),
-                        );
-
-                        AppNotification.showSuccess(
-                          context,
-                          'Added $quantity x $_itemName to cart!',
-                          icon: Icons.shopping_bag_outlined,
-                        );
-                        InteractiveFillingLoader.showPop(context);
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: orangeColor,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                      ),
-                      child: const Text(
-                        'ADD TO CART',
-                        style: TextStyle(
-                          fontFamily: 'Recoleta',
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
+          ),
+        ),
+        bottomNavigationBar: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 10,
+                offset: const Offset(0, -4),
+              ),
+            ],
+          ),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Total',
+                      style: TextStyle(
+                          fontFamily: 'Recoleta',
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87),
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 200),
+                          child: _showTokenPrice
+                              ? TokenPricePair(
+                                  key: const ValueKey('totalTokenPrice'),
+                                  tokenValue: totalTokenPrice,
+                                  tokenFontSize: 12,
+                                  tokenColor: Colors.black87,
+                                )
+                              : Text(
+                                  _displayTotalText,
+                                  key: const ValueKey('totalRmPrice'),
+                                  style: const TextStyle(
+                                    fontFamily: 'Afacad',
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                        ),
+                        Text(
+                          '$estimatedCalories kcal',
+                          style: const TextStyle(
+                            fontFamily: 'Afacad',
+                            fontSize: 13,
+                            color: Colors.black54,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Container(
+                      decoration: BoxDecoration(
+                        border: Border.all(color: orangeColor),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.remove, size: 18),
+                            constraints: const BoxConstraints(
+                                minWidth: 36, minHeight: 36),
+                            padding: EdgeInsets.zero,
+                            color: Colors.black54,
+                            onPressed: () {
+                              if (quantity > 1) {
+                                setState(() => quantity--);
+                              }
+                            },
+                          ),
+                          Padding(
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 10.0),
+                            child: Text(
+                              quantity.toString(),
+                              style: const TextStyle(
+                                  fontFamily: 'Recoleta',
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.add, size: 18),
+                            constraints: const BoxConstraints(
+                                minWidth: 36, minHeight: 36),
+                            padding: EdgeInsets.zero,
+                            color: Colors.black54,
+                            onPressed: () {
+                              setState(() => quantity++);
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          final missingGroups = _missingRequiredLibraryGroups();
+                          if (missingGroups.isNotEmpty) {
+                            AppNotification.showError(
+                              context,
+                              'Please choose: ${missingGroups.join(', ')}',
+                            );
+                            return;
+                          }
+                          final selectedStore = _session.selectedStore;
+                          if (selectedStore == null) {
+                            AppNotification.showError(
+                              context,
+                              'Please select a store first.',
+                            );
+                            return;
+                          }
+
+                          CartService.instance.addItem(
+                            storeId: selectedStore.id,
+                            storeName: selectedStore.name,
+                            item: CartItem(
+                              id: '${widget.item['code'] ?? _itemName}-${DateTime.now().microsecondsSinceEpoch}',
+                              menuItemId:
+                                  (widget.item['id'] as num?)?.toInt() ?? 0,
+                              menuItemCode:
+                                  widget.item['code']?.toString() ?? _itemName,
+                              name: _itemName,
+                              categoryCode:
+                                  widget.item['categoryCode']?.toString(),
+                              categoryName: widget.item['category']?.toString(),
+                              subcategoryCode:
+                                  widget.item['subcategoryCode']?.toString(),
+                              subcategoryName:
+                                  widget.item['subcategory']?.toString(),
+                              productKindCode:
+                                  widget.item['productKindCode']?.toString(),
+                              productKindName:
+                                  widget.item['productKind']?.toString(),
+                              imageAssetPath: null,
+                              imageUrl: widget.item['image_url']?.toString(),
+                              basePriceRm: _itemBasePrice,
+                              tokenPrice: _baseTokenPrice,
+                              quantity: quantity,
+                              remarks: remarksController.text.trim().isEmpty
+                                  ? null
+                                  : remarksController.text.trim(),
+                              displayDetails: _displayDetails,
+                              modifiers: _cartModifiers,
+                            ),
+                          );
+
+                          AppNotification.showSuccess(
+                            context,
+                            'Added $quantity x $_itemName to cart!',
+                            icon: Icons.shopping_bag_outlined,
+                          );
+                          InteractiveFillingLoader.showPop(context);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: orangeColor,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                        ),
+                        child: const Text(
+                          'ADD TO CART',
+                          style: TextStyle(
+                            fontFamily: 'Recoleta',
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),

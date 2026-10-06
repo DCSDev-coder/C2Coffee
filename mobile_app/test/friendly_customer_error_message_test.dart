@@ -27,6 +27,14 @@ void main() {
         ),
         'Your session has expired. Please sign in again.',
       );
+      expect(
+        friendlyCustomerErrorMessage(
+          ApiException('Birthday locked.',
+              code: 'birthday_change_support_required'),
+          fallback: fallback,
+        ),
+        'For account security, contact support to correct your saved birthday.',
+      );
     });
 
     test('uses neutral wording for generic validation errors', () {

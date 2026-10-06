@@ -5,6 +5,7 @@ import {
   BookOpen,
   CalendarDays,
   CheckCircle2,
+  ClipboardCheck,
   Clock3,
   Coffee,
   LogIn,
@@ -90,6 +91,22 @@ function isReadyOrderPastPickupWindow(order, now) {
 }
 
 function itemModifiers(item) {
+  if (Array.isArray(item.modifiers) && item.modifiers.length > 0) {
+    return item.modifiers
+      .filter((modifier) => {
+        const group = String(modifier.group || '').trim().toLowerCase();
+        return group !== 'remarks' && !group.includes('note') && !group.includes('order type') && group !== 'order';
+      })
+      .map((modifier) => {
+        const group = String(modifier.group || '').trim();
+        const option = String(modifier.option || '').trim();
+        if (!option) return '';
+        return group ? `${group}: ${option}` : option;
+      })
+      .filter(Boolean)
+      .join(' · ');
+  }
+
   const values = [
     item.bean,
     item.espressoShot,
@@ -100,10 +117,7 @@ function itemModifiers(item) {
     item.iceLevel,
   ].filter(Boolean);
 
-  if (values.length > 0) return values.join(' · ');
-  return Array.isArray(item.modifiers)
-    ? item.modifiers.map((modifier) => modifier.option).filter(Boolean).join(' · ')
-    : '';
+  return values.join(' · ');
 }
 
 function formatCoverageTime(value) {
@@ -199,7 +213,7 @@ function OrderCard({ order, stage, isUpdating, canOperate, guides, now, onOpen, 
             <div key={`${item.name}-${index}`} className="text-sm text-slate-700">
               <div className="flex items-center justify-between gap-2">
                 <span className="font-bold text-slate-900">{item.qty || 1}x {item.name || 'Menu item'}</span>
-                {guide && canOperate && <button type="button" onClick={(event) => { event.stopPropagation(); onOpenGuide(guide); }} className="shrink-0 rounded-md border border-[#8ABFB4] bg-[#F0F8F6] px-2 py-1 text-[11px] font-extrabold text-[#1F3A34] hover:bg-[#E2F2EE]">SOP</button>}
+                <div className="flex items-center gap-1.5">{item.orderType && <span className="shrink-0 rounded-md bg-amber-100 px-2 py-1 text-[11px] font-extrabold text-amber-900">{item.orderType}</span>}{guide && canOperate && <button type="button" onClick={(event) => { event.stopPropagation(); onOpenGuide(guide); }} className="shrink-0 rounded-md border border-[#8ABFB4] bg-[#F0F8F6] px-2 py-1 text-[11px] font-extrabold text-[#1F3A34] hover:bg-[#E2F2EE]">SOP</button>}</div>
               </div>
               {itemModifiers(item) && <p className="mt-0.5 truncate text-xs text-slate-500">{itemModifiers(item)}</p>}
             </div>
@@ -272,12 +286,13 @@ function OrderDetails({ order, guides, onClose, isUpdating, onAdvance, onOpenGui
                   <div className="flex justify-between gap-3">
                     <p className="font-bold text-slate-900">{item.qty || 1}x {item.name || 'Menu item'}</p>
                     <div className="flex shrink-0 items-center gap-2">
+                      {item.orderType && <span className="rounded-full bg-amber-100 px-2 py-1 text-[11px] font-bold text-amber-900">{item.orderType}</span>}
                       {guide && <button type="button" onClick={() => onOpenGuide(guide)} className="rounded-md border border-[#8ABFB4] bg-[#F0F8F6] px-2 py-1 text-[11px] font-extrabold text-[#1F3A34] hover:bg-[#E2F2EE]">Open SOP</button>}
                       {item.remarks && <span className="rounded-full bg-amber-100 px-2 py-1 text-[11px] font-bold text-amber-800">Note</span>}
                     </div>
                   </div>
                   {itemModifiers(item) && <p className="mt-1 text-sm leading-6 text-slate-600">{itemModifiers(item)}</p>}
-                  {item.remarks && <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">{item.remarks}</p>}
+                  {item.remarks && <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900"><span className="font-bold">Additional note:</span> {item.remarks}</p>}
                 </div>
                 );
               })}
@@ -350,6 +365,21 @@ function AttendanceDialog({ mode, attendance, isSubmitting, onClose, onSubmit })
             </button>
           </>
         )}
+      </form>
+    </div>
+  );
+}
+
+function SideWorkCompletionDialog({ task, attendance, isSubmitting, onClose, onSubmit }) {
+  const [baristaId, setBaristaId] = useState('');
+  const [pin, setPin] = useState('');
+  const activeIds = new Set((attendance?.active_attendance || []).map((entry) => Number(entry.barista_id)));
+  const availableBaristas = (attendance?.baristas || []).filter((barista) => barista.pin_configured && activeIds.has(Number(barista.id)));
+  return (
+    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-slate-950/35 sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-label="Complete side work">
+      <form onSubmit={(event) => { event.preventDefault(); if (baristaId && pin.length === 6) onSubmit(Number(baristaId), pin); }} className="w-full max-w-md rounded-t-2xl bg-white p-6 shadow-2xl sm:rounded-2xl">
+        <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-[0.16em] text-[#5C867F]">Complete side work</p><h2 className="mt-1 text-xl font-extrabold text-slate-900">{task.title}</h2><p className="mt-1 text-sm leading-6 text-slate-600">Confirm who completed this task using their own PIN.</p></div><button type="button" onClick={onClose} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100" aria-label="Close side-work form"><X size={20} /></button></div>
+        {availableBaristas.length === 0 ? <p className="mt-6 rounded-xl bg-amber-50 p-4 text-sm text-amber-900">No barista is currently clocked in. Clock in before completing this task.</p> : <><label className="mt-6 block text-sm font-bold text-slate-700">Your name<select value={baristaId} onChange={(event) => setBaristaId(event.target.value)} className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-base"><option value="">Select your name</option>{availableBaristas.map((barista) => <option key={barista.id} value={barista.id}>{barista.name}</option>)}</select></label><label className="mt-4 block text-sm font-bold text-slate-700">Six-digit PIN<input value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" type="password" className="mt-2 w-full rounded-xl border border-slate-300 px-3 py-3 text-base" /></label><button disabled={isSubmitting || !baristaId || pin.length !== 6} className="mt-6 w-full rounded-xl bg-[#1F3A34] px-4 py-3 text-sm font-extrabold text-white disabled:opacity-60">{isSubmitting ? 'Recording completion...' : 'Mark task completed'}</button></>}
       </form>
     </div>
   );
@@ -431,6 +461,9 @@ export default function BaristaConsole({ currentUser, view = 'orders' }) {
   const [attendance, setAttendance] = useState(null);
   const [weeklySchedule, setWeeklySchedule] = useState([]);
   const [guides, setGuides] = useState([]);
+  const [sideWork, setSideWork] = useState([]);
+  const [selectedSideWork, setSelectedSideWork] = useState(null);
+  const [isCompletingSideWork, setIsCompletingSideWork] = useState(false);
   const [attendanceMode, setAttendanceMode] = useState(null);
   const [guideType, setGuideType] = useState(null);
   const [initialGuideId, setInitialGuideId] = useState(null);
@@ -440,6 +473,7 @@ export default function BaristaConsole({ currentUser, view = 'orders' }) {
   const [newOrderAlert, setNewOrderAlert] = useState('');
   const [currentTime, setCurrentTime] = useState(() => Date.now());
   const lastReminderAtByOrderId = useRef(new Map());
+  const notifiedSideWorkIds = useRef(new Set());
   const isWorkspace = view === 'workspace';
   const canOperate = Array.isArray(currentUser?.roles)
     && currentUser.roles.length === 1
@@ -465,10 +499,11 @@ export default function BaristaConsole({ currentUser, view = 'orders' }) {
   };
 
   const loadStaffWorkspace = async () => {
-    const [attendanceResult, scheduleResult, guidesResult] = await Promise.allSettled([
+    const [attendanceResult, scheduleResult, guidesResult, sideWorkResult] = await Promise.allSettled([
       adminRequest('/v1/barista/attendance/status'),
       adminRequest('/v1/barista/weekly-schedule'),
       adminRequest('/v1/barista/guides'),
+      adminRequest('/v1/barista/side-work'),
     ]);
 
     if (attendanceResult.status === 'fulfilled') setAttendance(attendanceResult.value || null);
@@ -479,9 +514,10 @@ export default function BaristaConsole({ currentUser, view = 'orders' }) {
       setWeeklySchedule(datedShifts.length > 0 ? datedShifts : (Array.isArray(scheduleResult.value?.weekly_schedule) ? scheduleResult.value.weekly_schedule : []));
     }
     if (guidesResult.status === 'fulfilled') setGuides(Array.isArray(guidesResult.value?.guides) ? guidesResult.value.guides : []);
+    if (sideWorkResult.status === 'fulfilled') setSideWork(Array.isArray(sideWorkResult.value?.tasks) ? sideWorkResult.value.tasks : []);
 
-    if ([attendanceResult, scheduleResult, guidesResult].every((result) => result.status === 'rejected')) {
-      const failedResult = [attendanceResult, scheduleResult, guidesResult].find((result) => result.status === 'rejected');
+    if ([attendanceResult, scheduleResult, guidesResult, sideWorkResult].every((result) => result.status === 'rejected')) {
+      const failedResult = [attendanceResult, scheduleResult, guidesResult, sideWorkResult].find((result) => result.status === 'rejected');
       setError(failedResult?.reason?.message || 'Unable to load the staff workspace. Please refresh the page.');
     }
   };
@@ -492,6 +528,7 @@ export default function BaristaConsole({ currentUser, view = 'orders' }) {
     const intervalId = window.setInterval(() => {
       setCurrentTime(Date.now());
       void loadOrders({ silent: true });
+      void loadStaffWorkspace();
     }, 15000);
     const refreshOnFocus = () => void loadOrders({ silent: true });
     window.addEventListener('focus', refreshOnFocus);
@@ -569,6 +606,24 @@ export default function BaristaConsole({ currentUser, view = 'orders' }) {
     }
   };
 
+  const completeSideWork = async (baristaId, pin) => {
+    if (!selectedSideWork) return;
+    try {
+      setIsCompletingSideWork(true);
+      setError('');
+      await adminRequest('/v1/barista/side-work/complete', {
+        method: 'POST',
+        body: JSON.stringify({ task_id: selectedSideWork.id, barista_id: baristaId, pin })
+      });
+      setSelectedSideWork(null);
+      await loadStaffWorkspace();
+    } catch (completionError) {
+      setError(completionError?.message || 'The side-work completion could not be recorded.');
+    } finally {
+      setIsCompletingSideWork(false);
+    }
+  };
+
   const stagedOrders = useMemo(() => {
     const groups = { new: [], preparing: [], ready: [] };
     orders.forEach((order) => {
@@ -616,6 +671,18 @@ export default function BaristaConsole({ currentUser, view = 'orders' }) {
     : weeklySchedule.filter((entry) => Number(entry.weekday) === todayWeekday);
   const upcomingSchedule = hasDatedSchedule ? weeklySchedule : [];
   const activeAttendance = attendance?.active_attendance || [];
+  const dueSideWork = sideWork.filter((task) => !task.completed_at && currentTime >= new Date(`${task.scheduled_date}T${task.scheduled_time}:00+08:00`).getTime());
+
+  useEffect(() => {
+    const newlyDue = dueSideWork.filter((task) => !notifiedSideWorkIds.current.has(task.id));
+    if (newlyDue.length === 0) return;
+    newlyDue.forEach((task) => notifiedSideWorkIds.current.add(task.id));
+    playOrderAlertSound();
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+      const task = newlyDue[0];
+      new Notification(`Side work due: ${task.title}`, { body: task.instructions || 'Open the Barista Workspace for details.' });
+    }
+  }, [dueSideWork]);
   const advanceOrder = async (orderId, status) => {
     try {
       setUpdatingOrderId(orderId);
@@ -694,6 +761,16 @@ export default function BaristaConsole({ currentUser, view = 'orders' }) {
             <AlertCircle className="mt-0.5 shrink-0" size={18} />
             <span>{error}</span>
           </div>
+        )}
+
+        {sideWork.length > 0 && (
+          <section className="mt-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center gap-3"><div className={`flex h-10 w-10 items-center justify-center rounded-xl ${dueSideWork.length ? 'bg-amber-100 text-amber-800' : 'bg-[#F0F8F6] text-[#1F3A34]'}`}><ClipboardCheck size={20} /></div><div><h2 className="font-extrabold text-slate-900">Today’s side work</h2><p className="text-xs text-slate-500">{dueSideWork.length ? `${dueSideWork.length} task${dueSideWork.length === 1 ? '' : 's'} due now` : 'Timed cleaning and upkeep tasks'}</p></div></div>
+            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{sideWork.map((task) => {
+              const due = !task.completed_at && currentTime >= new Date(`${task.scheduled_date}T${task.scheduled_time}:00+08:00`).getTime();
+              return <article key={task.id} className={`rounded-xl border p-4 ${task.completed_at ? 'border-emerald-200 bg-emerald-50' : due ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-slate-50'}`}><div className="flex items-start justify-between gap-3"><div><p className="font-extrabold text-slate-900">{task.title}</p><p className="mt-1 text-xs font-bold text-slate-500">{task.scheduled_time}</p></div><span className={`rounded-full px-2 py-1 text-xs font-bold ${task.completed_at ? 'bg-emerald-100 text-emerald-800' : due ? 'bg-amber-200 text-amber-900' : 'bg-white text-slate-600'}`}>{task.completed_at ? 'Completed' : due ? 'Due now' : 'Upcoming'}</span></div>{task.instructions && <p className="mt-3 text-sm leading-6 text-slate-600">{task.instructions}</p>}{task.completed_at ? <p className="mt-3 text-xs font-bold text-emerald-800">Completed by {task.completed_by_barista_name}</p> : <button type="button" onClick={() => setSelectedSideWork(task)} disabled={!canOperate} className="mt-4 w-full rounded-lg bg-[#1F3A34] px-3 py-2 text-sm font-bold text-white disabled:opacity-50">Mark completed</button>}</article>;
+            })}</div>
+          </section>
         )}
 
         {!isWorkspace && (isLoading ? (
@@ -787,6 +864,7 @@ export default function BaristaConsole({ currentUser, view = 'orders' }) {
         onOpenGuide={(guide) => { setInitialGuideId(guide.id); setGuideType('drink'); }}
       />}
       {canOperate && attendanceMode && <AttendanceDialog mode={attendanceMode} attendance={attendance} isSubmitting={isUpdatingAttendance} onClose={() => setAttendanceMode(null)} onSubmit={updateAttendance} />}
+      {canOperate && selectedSideWork && <SideWorkCompletionDialog task={selectedSideWork} attendance={attendance} isSubmitting={isCompletingSideWork} onClose={() => setSelectedSideWork(null)} onSubmit={completeSideWork} />}
       {canOperate && guideType && <GuidesDialog guideType={guideType} guides={guides} initialGuideId={initialGuideId} onClose={() => { setGuideType(null); setInitialGuideId(null); }} />}
     </div>
   );

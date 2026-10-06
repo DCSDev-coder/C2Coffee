@@ -72,7 +72,10 @@ async function applySqlFile(
     await connection.beginTransaction();
     for (const statement of splitSqlStatements(sql)) {
       if (statement.trim().length === 0) continue;
-      await connection.query(statement);
+      // The pool enables mysql2 named placeholders. Supplying an empty values
+      // object prevents colons inside SQL string literals (for example,
+      // `birthday:%`) from being treated as an undefined parameter set.
+      await connection.query(statement, {});
     }
 
     if (trackMigration) {

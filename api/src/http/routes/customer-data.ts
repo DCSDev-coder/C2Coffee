@@ -314,7 +314,7 @@ function isScheduleActiveNow(
   const annualDate = typeof schedule.annualDate === 'string' ? schedule.annualDate : '';
   const monthlyDay = Number(schedule.monthlyDay ?? 0);
 
-  if (mode === 'birthday' && birthdayMonthDay !== current.monthDay) return false;
+  if (mode === 'birthday' && (!birthdayMonthDay || birthdayMonthDay.slice(0, 2) !== current.month)) return false;
   if (mode === 'weekly' && activeDays.length > 0 && !activeDays.includes(current.weekday)) return false;
   if (mode === 'annual' && annualDate && annualDate !== current.monthDay) return false;
   if (mode === 'monthly' && monthlyDay > 0 && monthlyDay !== Number(current.day)) return false;
@@ -330,7 +330,7 @@ function recurringIssueCaseRef(
 ): string | null {
   switch (scheduleMode) {
     case 'birthday':
-      return `birthday:${currentDate.dateKey}`;
+      return `birthday:${currentDate.year}`;
     case 'annual':
       return `annual:${currentDate.monthDay}:${currentDate.year}`;
     case 'monthly':
@@ -405,6 +405,31 @@ async function syncTierBirthdayRewards(
   birthdayMonthDay: string | null,
   currentDateParts: ReturnType<typeof getKualaLumpurDateParts>
 ): Promise<void> {
+  const isBirthdayMonth = Boolean(
+    birthdayMonthDay && birthdayMonthDay.slice(0, 2) === currentDateParts.month
+  );
+
+  if (!isBirthdayMonth) {
+    await mysqlPool.execute(
+      `
+        UPDATE user_vouchers uv
+        JOIN voucher_templates vt ON vt.id = uv.voucher_template_id
+        SET uv.status = 'revoked',
+            uv.revoked_reason = 'Birthday reward is only available during the birthday month',
+            uv.revoked_at = UTC_TIMESTAMP()
+        WHERE uv.user_id = :userId
+          AND uv.status = 'active'
+          AND (
+            uv.issue_case_ref LIKE 'tier_birthday:%'
+            OR uv.issue_case_ref LIKE 'birthday:%'
+            OR vt.voucher_type = 'birthday_treat'
+            OR JSON_UNQUOTE(JSON_EXTRACT(vt.eligible_scope_json, '$.schedule.mode')) = 'birthday'
+          )
+      `,
+      { userId }
+    );
+  }
+
   if (!currentTier || !birthdayMonthDay || birthdayMonthDay.slice(0, 2) !== currentDateParts.month) {
     return;
   }
@@ -412,25 +437,42 @@ async function syncTierBirthdayRewards(
   const tiers = getActiveLoyaltyTiers(await loadLoyaltyTiers());
   const tier = getTierByCode(tiers, currentTier);
   if (!tier) return;
-  const templateIds = tier.rewardConfig?.birthdayVoucherTemplateIds ?? [];
+  const templateIds = (tier.rewardConfig?.birthdayVoucherTemplateIds ?? []).slice(0, 1);
+  const configuredTemplateId = templateIds[0] ?? null;
+  const expectedIssueCaseRef = configuredTemplateId == null
+    ? `birthday:${currentDateParts.year}`
+    : `tier_birthday:${currentDateParts.year}:${tier.code}:${configuredTemplateId}`;
 
-  // A birthday benefit follows the member's current tier. If their tier
-  // changes during the month, retire the previous tier's unredeemed benefit.
+  // Keep exactly one current-year birthday benefit. This also retires legacy,
+  // manually extended, and previous-tier birthday grants that would otherwise
+  // remain visible during the customer's birthday month.
   await mysqlPool.execute(
     `
-      UPDATE user_vouchers
-      SET status = 'revoked',
-          revoked_reason = 'Superseded by current birthday-month tier',
-          revoked_at = UTC_TIMESTAMP()
-      WHERE user_id = :userId
-        AND status = 'active'
-        AND issue_case_ref LIKE :issueCasePrefix
-        AND tier_at_issue <> :tierCode
+      UPDATE user_vouchers uv
+      JOIN voucher_templates vt ON vt.id = uv.voucher_template_id
+      SET uv.status = 'revoked',
+          uv.revoked_reason = 'Superseded by the current birthday reward',
+          uv.revoked_at = UTC_TIMESTAMP()
+      WHERE uv.user_id = :userId
+        AND uv.status = 'active'
+        AND (
+          uv.issue_case_ref LIKE 'tier_birthday:%'
+          OR uv.issue_case_ref LIKE 'birthday:%'
+          OR vt.voucher_type = 'birthday_treat'
+          OR JSON_UNQUOTE(JSON_EXTRACT(vt.eligible_scope_json, '$.schedule.mode')) = 'birthday'
+        )
+        AND NOT (
+          uv.issue_case_ref = :expectedIssueCaseRef
+          AND (
+            :configuredTemplateId IS NULL
+            OR uv.voucher_template_id = :configuredTemplateId
+          )
+        )
     `,
     {
       userId,
-      issueCasePrefix: `tier_birthday:${currentDateParts.year}:%`,
-      tierCode: tier.code
+      expectedIssueCaseRef,
+      configuredTemplateId
     }
   );
 
@@ -510,6 +552,10 @@ async function syncAutoVisibleVoucherTemplates(
     ...(tier.rewardConfig?.voucherTemplateIds ?? []),
     ...(tier.rewardConfig?.birthdayVoucherTemplateIds ?? [])
   ]));
+  const hasTierBirthdayReward = activeTiers.some(
+    (tier) => tier.code === currentTier &&
+      (tier.rewardConfig?.birthdayVoucherTemplateIds?.length ?? 0) > 0
+  );
 
   const [templates] = await mysqlPool.query<Array<AutoSyncVoucherTemplateRow & { is_employee: number }>>(
     `
@@ -554,6 +600,9 @@ async function syncAutoVisibleVoucherTemplates(
   const existingIssueKeys = new Set(
     existingRows.map((row) => `${Number(row.voucher_template_id)}::${row.issue_case_ref ?? ''}`)
   );
+  const existingIssueRefs = new Set(
+    existingRows.map((row) => row.issue_case_ref).filter((value): value is string => Boolean(value))
+  );
 
   for (const template of templates) {
     // Do not auto-issue historical legacy referral vouchers.
@@ -571,11 +620,20 @@ async function syncAutoVisibleVoucherTemplates(
     const schedule = getVoucherSchedule(scope);
     const issueCaseRef = recurringIssueCaseRef(scheduleMode, currentDateParts) ?? `campaign:${template.id}`;
 
+    // A member receives either the configured tier birthday reward or one
+    // generic birthday campaign, never both.
+    if (scheduleMode === 'birthday' && hasTierBirthdayReward) {
+      continue;
+    }
+
     if (!isScheduleActiveNow(schedule, currentBirthdayMonthDay)) {
       continue;
     }
 
-    if (existingIssueKeys.has(`${template.id}::${issueCaseRef ?? ''}`)) {
+    if (
+      existingIssueKeys.has(`${template.id}::${issueCaseRef ?? ''}`) ||
+      (scheduleMode === 'birthday' && existingIssueRefs.has(issueCaseRef))
+    ) {
       continue;
     }
 
@@ -624,8 +682,9 @@ async function syncAutoVisibleVoucherTemplates(
       continue;
     }
 
-    const expiresAt =
-      scheduleMode === 'birthday' || scheduleMode === 'annual' || scheduleMode === 'monthly' || scheduleMode === 'daily'
+    const expiresAt = scheduleMode === 'birthday'
+      ? getKualaLumpurMonthEndUtc()
+      : scheduleMode === 'annual' || scheduleMode === 'monthly' || scheduleMode === 'daily'
         ? getKualaLumpurDayEndUtc()
         : resolveAutoIssuedVoucherExpiry(template);
     if (expiresAt.getTime() <= Date.now()) {

@@ -146,7 +146,7 @@ function sourceDisplayLabel(sourceType: string): string {
 const tierRewardConfigSchema = z.union([
   z.object({
     voucherTemplateIds: z.array(z.coerce.number().int().positive()).max(10).optional().default([]),
-    birthdayVoucherTemplateIds: z.array(z.coerce.number().int().positive()).max(10).optional().default([])
+    birthdayVoucherTemplateIds: z.array(z.coerce.number().int().positive()).max(1).optional().default([])
   }),
   // Accept the previous request shape while deployed admin clients update.
   z.object({

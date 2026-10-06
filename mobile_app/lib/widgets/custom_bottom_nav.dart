@@ -3,12 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import '../utils/app_colors.dart';
+import 'app_tutorial.dart';
 
 class CustomBottomNav extends StatefulWidget {
   final int selectedIndex;
   final Function(int) onItemTapped;
   final Color? orangeColor;
   final ScrollController? scrollController;
+  final bool enableTutorialTargets;
 
   static final ValueNotifier<bool> isMinimizedNotifier =
       ValueNotifier<bool>(false);
@@ -19,6 +21,7 @@ class CustomBottomNav extends StatefulWidget {
     required this.onItemTapped,
     this.orangeColor,
     this.scrollController,
+    this.enableTutorialTargets = false,
   });
 
   static void switchTab(BuildContext context, Widget targetPage) {
@@ -159,7 +162,8 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
     if (totalWidth <= 0) return;
     final tabWidth = totalWidth / 5.0;
     // Map touch coordinate to continuous float index [0.0, 4.0]
-    final continuousIndex = ((localX - (tabWidth / 2)) / tabWidth).clamp(0.0, 4.0);
+    final continuousIndex =
+        ((localX - (tabWidth / 2)) / tabWidth).clamp(0.0, 4.0);
     _dragIndicatorFraction = continuousIndex;
 
     final hoveredIndex = continuousIndex.round().clamp(0, 4);
@@ -232,13 +236,12 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
 
     final Color activeColor =
         isDarkNav ? AppColors.secondary : AppColors.brandText;
-    final Color inactiveColor =
-        isDarkNav ? AppColors.t2NavInactive.withValues(alpha: 0.60) : Colors.grey.shade400;
-    final Color activePillColor = isDarkNav
-        ? AppColors.secondary.withValues(alpha: 0.16)
-        : AppColors.secondary.withValues(alpha: 0.12);
-    final Color inactiveTextColor =
-        isDarkNav ? AppColors.t2NavInactive.withValues(alpha: 0.75) : Colors.grey.shade500;
+    final Color inactiveColor = isDarkNav
+        ? AppColors.t2NavInactive.withValues(alpha: 0.60)
+        : Colors.grey.shade400;
+    final Color inactiveTextColor = isDarkNav
+        ? AppColors.t2NavInactive.withValues(alpha: 0.75)
+        : Colors.grey.shade500;
 
     return RepaintBoundary(
       child: SafeArea(
@@ -259,7 +262,8 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
                     borderRadius: BorderRadius.circular(32),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: isDarkNav ? 0.35 : 0.08),
+                        color: Colors.black
+                            .withValues(alpha: isDarkNav ? 0.35 : 0.08),
                         blurRadius: 24,
                         offset: const Offset(0, 8),
                       ),
@@ -309,31 +313,58 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
                                       padding: const EdgeInsets.symmetric(
                                           horizontal: 6, vertical: 2),
                                       child: AnimatedContainer(
-                                        duration: const Duration(
-                                            milliseconds: 160),
+                                        duration:
+                                            const Duration(milliseconds: 160),
                                         decoration: BoxDecoration(
-                                          color: activePillColor,
                                           borderRadius:
-                                              BorderRadius.circular(20),
+                                              BorderRadius.circular(22),
+                                          gradient: LinearGradient(
+                                            begin: Alignment.topLeft,
+                                            end: Alignment.bottomRight,
+                                            colors: isDarkNav
+                                                ? [
+                                                    Colors.white.withValues(alpha: 0.16),
+                                                    AppColors.secondary.withValues(alpha: 0.22),
+                                                  ]
+                                                : [
+                                                    Colors.white.withValues(alpha: 0.70),
+                                                    AppColors.secondary.withValues(alpha: 0.16),
+                                                  ],
+                                          ),
                                           border: Border.all(
-                                            color: (isDarkNav
-                                                    ? AppColors.secondary
-                                                    : AppColors.secondary)
-                                                .withValues(
-                                                    alpha: _isDragging
-                                                        ? 0.35
-                                                        : 0.18),
-                                            width: 0.8,
+                                            color: isDarkNav
+                                                ? Colors.white.withValues(alpha: 0.24)
+                                                : Colors.white.withValues(alpha: 0.85),
+                                            width: 1.0,
                                           ),
                                           boxShadow: [
-                                            if (_isDragging)
+                                            BoxShadow(
+                                              color: (isDarkNav
+                                                      ? Colors.black
+                                                      : AppColors.secondary)
+                                                  .withValues(alpha: isDarkNav ? 0.25 : 0.12),
+                                              blurRadius: _isDragging ? 14 : 8,
+                                              offset: const Offset(0, 2),
+                                            ),
+                                            if (!isDarkNav)
                                               BoxShadow(
-                                                color: activeColor.withValues(
-                                                    alpha: 0.20),
-                                                blurRadius: 12,
-                                                spreadRadius: 1,
+                                                color: Colors.white.withValues(alpha: 0.60),
+                                                blurRadius: 4,
+                                                offset: const Offset(-1, -1),
                                               ),
                                           ],
+                                        ),
+                                        child: ClipRRect(
+                                          borderRadius: BorderRadius.circular(22),
+                                          child: BackdropFilter(
+                                            filter: ImageFilter.blur(
+                                                sigmaX: 8, sigmaY: 8),
+                                            child: Container(
+                                              color: isDarkNav
+                                                  ? AppColors.secondary.withValues(alpha: 0.08)
+                                                  : Colors.white.withValues(alpha: 0.15),
+                                            ),
+                                          ),
                                         ),
                                       ),
                                     ),
@@ -419,6 +450,9 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
     final Color textColor = isHighlighted ? activeColor : inactiveTextColor;
 
     return Expanded(
+      key: widget.enableTutorialTargets
+          ? AppTutorial.bottomNavKeys[index]
+          : null,
       child: GestureDetector(
         onTap: () => _handleItemTapped(index),
         behavior: HitTestBehavior.opaque,
@@ -459,4 +493,3 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
     );
   }
 }
-

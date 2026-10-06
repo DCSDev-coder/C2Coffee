@@ -16,12 +16,12 @@ import 'privacy_policy_page.dart';
 import 'terms_of_use_page.dart';
 import 'about_us_page.dart';
 import 'contact_support_page.dart';
+import 'tutorial_page.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../utils/app_colors.dart';
 import '../utils/app_notification.dart';
 import '../widgets/app_page_shell.dart';
 import '../widgets/catalog_product_image.dart';
-import '../widgets/app_tutorial.dart';
 import '../widgets/profile_avatar_style.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -1095,24 +1095,24 @@ class _SettingsPageState extends State<SettingsPage> {
                           ),
                           const Divider(height: 1, indent: 16, endIndent: 16),
                           ListTile(
-                            title: const Text('App Tutorial',
+                            title: const Text('Tutorial & Help',
                                 style: TextStyle(
                                     fontFamily: 'Afacad',
                                     fontSize: 18,
                                     color: Colors.black87)),
                             subtitle: const Text(
-                              'Replay the wallet, outlet, ordering and rewards guide.',
+                              'Learn how ordering, tokens, rewards and pickup work.',
                               style:
                                   TextStyle(fontFamily: 'Afacad', fontSize: 15),
                             ),
-                            trailing: const Icon(Icons.play_circle_outline,
-                                color: Colors.grey),
-                            onTap: () {
-                              final userId = _session.user?.id;
-                              if (userId != null) {
-                                AppTutorial.show(context, userId: userId);
-                              }
-                            },
+                            trailing: const Icon(Icons.arrow_forward_ios,
+                                size: 16, color: Colors.grey),
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute<void>(
+                                builder: (_) => const TutorialPage(),
+                              ),
+                            ),
                           ),
                           const Divider(height: 1, indent: 16, endIndent: 16),
                           ListTile(

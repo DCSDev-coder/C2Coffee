@@ -215,6 +215,13 @@ export async function updateAdminOptionGroup(groupId, payload) {
   );
 }
 
+export async function updateAdminOptionGroupOrder(groupIds) {
+  return adminRequest("/v1/admin/menu/options-library/groups/order", {
+    method: "PATCH",
+    body: JSON.stringify({ group_ids: groupIds }),
+  });
+}
+
 export async function updateAdminMenuItemOptionExclusions(itemId, optionIds) {
   return adminRequest(
     `/v1/admin/menu/items/${encodeURIComponent(itemId)}/option-exclusions`,

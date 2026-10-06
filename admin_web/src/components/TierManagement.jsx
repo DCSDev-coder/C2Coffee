@@ -693,7 +693,7 @@ const TierManagement = () => {
         await updateAdminTier(tier.id, {
           rewardConfig: {
             voucherTemplateIds: tierRewardForm.rewardTiming === 'birthday_month' ? tierRewardIds(tier) : [...tierRewardIds(tier), Number(createdVoucher.db_id)],
-            birthdayVoucherTemplateIds: tierRewardForm.rewardTiming === 'birthday_month' ? [...tierBirthdayRewardIds(tier), Number(createdVoucher.db_id)] : tierBirthdayRewardIds(tier)
+            birthdayVoucherTemplateIds: tierRewardForm.rewardTiming === 'birthday_month' ? [Number(createdVoucher.db_id)] : tierBirthdayRewardIds(tier)
           }
         });
       }

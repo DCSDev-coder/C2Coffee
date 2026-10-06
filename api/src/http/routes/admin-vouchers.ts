@@ -45,6 +45,14 @@ const voucherCreateUpdateSchema = z.object({
   endTime: z.string().trim().optional().nullable(),
   annualDate: z.string().trim().optional().nullable(),
   monthlyDay: z.coerce.number().int().min(1).max(28).optional().nullable()
+}).superRefine((value, context) => {
+  if (value.benefitType === 'Birthday Voucher' && value.availabilityMode !== 'birthday') {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['availabilityMode'],
+      message: 'Birthday vouchers must use birthday-month availability.'
+    });
+  }
 });
 
 const customerSearchQuerySchema = z.object({
@@ -559,13 +567,15 @@ function normalizeTimeValue(value: string | null | undefined): string | null {
 function normalizeActiveDays(days: string[] | undefined): string[] {
   if (!Array.isArray(days)) return [];
 
-  return Array.from(
+  const normalized = Array.from(
     new Set(
       days
         .map((day) => DAY_NAME_MAP[String(day).trim().toLowerCase()])
         .filter((day): day is string => Boolean(day))
     )
   );
+  const order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  return normalized.sort((a, b) => order.indexOf(a) - order.indexOf(b));
 }
 
 function normalizeAnnualDate(value: string | null | undefined): string | null {

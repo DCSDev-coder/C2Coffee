@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../utils/app_colors.dart';
+import 'edge_swipe_back.dart';
 
 class AppPageShell extends StatelessWidget {
   final String title;
@@ -85,12 +86,18 @@ class AppPageShell extends StatelessWidget {
                     if (showBackButton)
                       Align(
                         alignment: Alignment.centerLeft,
-                        child: GestureDetector(
-                          onTap: onBack,
-                          child: const Icon(
-                            Icons.arrow_back_ios,
+                        child: IconButton(
+                          tooltip: 'Back',
+                          onPressed: onBack,
+                          iconSize: 26,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints.tightFor(
+                            width: 48,
+                            height: 48,
+                          ),
+                          icon: const Icon(
+                            Icons.arrow_back_ios_new_rounded,
                             color: Colors.white,
-                            size: 20,
                           ),
                         ),
                       ),
@@ -146,7 +153,7 @@ class AppPageShell extends StatelessWidget {
       ],
     );
 
-    return _EdgeSwipeBack(
+    return EdgeSwipeBack(
       onBack: onBack,
       child: Scaffold(
         key: scaffoldKey,
@@ -161,57 +168,6 @@ class AppPageShell extends StatelessWidget {
                 children: [bodyColumn, overlay!],
               )
             : bodyColumn,
-      ),
-    );
-  }
-}
-
-class _EdgeSwipeBack extends StatefulWidget {
-  final Widget child;
-  final VoidCallback onBack;
-
-  const _EdgeSwipeBack({required this.child, required this.onBack});
-
-  @override
-  State<_EdgeSwipeBack> createState() => _EdgeSwipeBackState();
-}
-
-class _EdgeSwipeBackState extends State<_EdgeSwipeBack> {
-  static const _edgeWidth = 28.0;
-  static const _minimumSwipeDistance = 72.0;
-  double? _startX;
-  double _dragDistance = 0;
-
-  bool get _canPop => Navigator.of(context).canPop();
-
-  @override
-  Widget build(BuildContext context) {
-    return Listener(
-      onPointerDown: (event) {
-        _startX = event.position.dx;
-        _dragDistance = 0;
-      },
-      onPointerCancel: (_) {
-        _startX = null;
-        _dragDistance = 0;
-      },
-      child: GestureDetector(
-        behavior: HitTestBehavior.translucent,
-        onHorizontalDragUpdate: (details) {
-          if (_startX == null || _startX! > _edgeWidth || !_canPop) return;
-          if (details.delta.dx > 0) _dragDistance += details.delta.dx;
-        },
-        onHorizontalDragEnd: (details) {
-          final shouldPop = _startX != null &&
-              _startX! <= _edgeWidth &&
-              _canPop &&
-              (_dragDistance >= _minimumSwipeDistance ||
-                  (details.primaryVelocity ?? 0) > 700);
-          _startX = null;
-          _dragDistance = 0;
-          if (shouldPop) widget.onBack();
-        },
-        child: widget.child,
       ),
     );
   }

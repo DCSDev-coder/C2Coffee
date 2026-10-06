@@ -321,10 +321,21 @@ class RewardVoucherTemplate {
     }
 
     if (mode == 'weekly') {
+      const weekdayOrder = <String>[
+        'Monday',
+        'Tuesday',
+        'Wednesday',
+        'Thursday',
+        'Friday',
+        'Saturday',
+        'Sunday'
+      ];
       final activeDays = (schedule['activeDays'] as List? ?? const [])
           .map((day) => day?.toString().trim() ?? '')
           .where((day) => day.isNotEmpty)
           .toList();
+      activeDays.sort(
+          (a, b) => weekdayOrder.indexOf(a).compareTo(weekdayOrder.indexOf(b)));
       if (activeDays.isNotEmpty &&
           !activeDays.contains(_weekdayName(now.weekday))) {
         return false;
@@ -396,10 +407,21 @@ class RewardVoucherTemplate {
     }
 
     if (mode == 'weekly') {
+      const weekdayOrder = <String>[
+        'Monday',
+        'Tuesday',
+        'Wednesday',
+        'Thursday',
+        'Friday',
+        'Saturday',
+        'Sunday'
+      ];
       final activeDays = (schedule['activeDays'] as List? ?? const [])
           .map((day) => day?.toString().trim() ?? '')
           .where((day) => day.isNotEmpty)
           .toList();
+      activeDays.sort(
+          (a, b) => weekdayOrder.indexOf(a).compareTo(weekdayOrder.indexOf(b)));
       final dayLabel =
           activeDays.isEmpty ? 'Selected days' : activeDays.join(', ');
       return timeLabel == null
@@ -426,8 +448,8 @@ class RewardVoucherTemplate {
 
     if (mode == 'birthday') {
       return timeLabel == null
-          ? 'On customer birthday'
-          : 'On customer birthday, $timeLabel';
+          ? 'During your birthday month'
+          : 'During your birthday month, $timeLabel';
     }
 
     return timeLabel == null ? 'Always available' : 'Every day, $timeLabel';
@@ -1023,11 +1045,18 @@ class ReferralSnapshot {
       isEligibleToClaim: (json['is_eligible_to_claim'] as bool?) ?? false,
       claimedCode: json['claimed_code'] as String?,
       activeProgramName: (json['active_program'] as Map?)?['name'] as String?,
-      qualificationDays: ((json['active_program'] as Map?)?['qualification_days'] as num?)?.toInt(),
-      friendRewardType: (json['active_program'] as Map?)?['friend_reward_type'] as String?,
-      friendTokenAmount: ((json['active_program'] as Map?)?['friend_token_amount'] as num?)?.toInt(),
-      friendRewardLabel: (json['active_program'] as Map?)?['friend_reward_label'] as String?,
-      referrerRewardLabel: (json['active_program'] as Map?)?['referrer_reward_label'] as String?,
+      qualificationDays:
+          ((json['active_program'] as Map?)?['qualification_days'] as num?)
+              ?.toInt(),
+      friendRewardType:
+          (json['active_program'] as Map?)?['friend_reward_type'] as String?,
+      friendTokenAmount:
+          ((json['active_program'] as Map?)?['friend_token_amount'] as num?)
+              ?.toInt(),
+      friendRewardLabel:
+          (json['active_program'] as Map?)?['friend_reward_label'] as String?,
+      referrerRewardLabel:
+          (json['active_program'] as Map?)?['referrer_reward_label'] as String?,
     );
   }
 }

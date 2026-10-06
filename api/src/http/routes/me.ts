@@ -15,7 +15,10 @@ import { sendOtpEmail, sendSupportTicketEmail } from '../../services/otp-email.j
 const profileUpsertSchema = z.object({
   display_name: z.string().trim().min(1).max(255),
   email: z.string().trim().email().max(255).optional().or(z.literal('')),
-  birthday: z.string().trim().optional().or(z.literal('')),
+  birthday: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/).refine((value) => {
+    const parsed = new Date(`${value}T00:00:00.000Z`);
+    return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+  }, 'Enter a valid birthday.').optional().or(z.literal('')),
   gender: z.string().trim().max(50).optional().or(z.literal('')),
   house_line: z.string().trim().max(255).optional().or(z.literal('')),
   street_line: z.string().trim().max(255).optional().or(z.literal('')),
@@ -78,12 +81,23 @@ export async function registerMeRoutes(app: FastifyInstance): Promise<void> {
     const normalizedEmail = nullableString(payload.email);
 
     const [currentRows] = await mysqlPool.query<
-      Array<RowDataPacket & { email: string | null }>
+      Array<RowDataPacket & { email: string | null; birthday_iso: string | null }>
     >(
-      `SELECT email FROM user_profiles WHERE user_id = :userId LIMIT 1`,
+      `SELECT email, DATE_FORMAT(birthday, '%Y-%m-%d') AS birthday_iso
+       FROM user_profiles WHERE user_id = :userId LIMIT 1`,
       { userId: request.auth.userId }
     );
     const currentEmail = nullableString(currentRows[0]?.email);
+    const currentBirthday = currentRows[0]?.birthday_iso ?? null;
+    const requestedBirthday = nullableString(payload.birthday);
+    const birthdayToSave = payload.birthday === undefined ? currentBirthday : requestedBirthday;
+    if (currentBirthday && birthdayToSave !== currentBirthday) {
+      throw new ApiError(
+        409,
+        'birthday_change_support_required',
+        'For account security, contact support to correct a saved birthday.'
+      );
+    }
     if ((normalizedEmail || '') !== (currentEmail || '')) {
       throw new ApiError(
         409,
@@ -149,7 +163,7 @@ export async function registerMeRoutes(app: FastifyInstance): Promise<void> {
         userId: request.auth.userId,
         displayName: payload.display_name,
         email: normalizedEmail,
-        birthday: nullableString(payload.birthday),
+        birthday: birthdayToSave,
         gender: nullableString(payload.gender),
         houseLine: nullableString(payload.house_line),
         streetLine: nullableString(payload.street_line),

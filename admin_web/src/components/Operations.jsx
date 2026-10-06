@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { CalendarDays, Check, CircleAlert, Clock3, Plus, RefreshCw, Save, Trash2, X } from 'lucide-react';
+import { CalendarDays, Check, CircleAlert, ClipboardCheck, Clock3, Plus, RefreshCw, Save, Trash2, X } from 'lucide-react';
 import {
   adminRequest,
   loadAdminAttendance,
@@ -9,6 +9,7 @@ import {
 } from '../lib/adminApi';
 
 const initialShift = { barista_id: '', shift_date: isoDate(), starts_at: '09:00', ends_at: '17:00' };
+const initialSideWork = { title: '', instructions: '', scheduled_date: isoDate(), scheduled_time: '14:00' };
 
 function displayTime(value) {
   return value?.slice(0, 5) || '--:--';
@@ -88,6 +89,9 @@ export default function Operations() {
   const [attendanceTo, setAttendanceTo] = useState(isoDate());
   const [attendanceBaristaId, setAttendanceBaristaId] = useState('');
   const [shiftForm, setShiftForm] = useState(initialShift);
+  const [sideWork, setSideWork] = useState([]);
+  const [sideWorkForm, setSideWorkForm] = useState(initialSideWork);
+  const [savingSideWork, setSavingSideWork] = useState(false);
   const [selectedDate, setSelectedDate] = useState(null);
   const [loading, setLoading] = useState(true);
   const [savingSchedule, setSavingSchedule] = useState(false);
@@ -98,15 +102,17 @@ export default function Operations() {
     setLoading(true);
     setError('');
     try {
-      const [operations, baristaResponse] = await Promise.all([
+      const [operations, baristaResponse, sideWorkResponse] = await Promise.all([
         loadAdminOperationalSetup(),
-        adminRequest('/v1/admin/baristas')
+        adminRequest('/v1/admin/baristas'),
+        adminRequest(`/v1/admin/side-work?from=${isoDate()}&to=${isoDate(30)}`)
       ]);
       setSchedule((operations.scheduled_shifts || []).map((shift) => ({
         ...shift,
         shift_date: dateKey(shift.shift_date)
       })));
       setBaristas((baristaResponse.baristas || []).filter((barista) => barista.is_active));
+      setSideWork(Array.isArray(sideWorkResponse.tasks) ? sideWorkResponse.tasks : []);
     } catch (loadError) {
       setError(loadError.message || 'Unable to load operations setup.');
     } finally {
@@ -192,6 +198,38 @@ export default function Operations() {
     setNotice('');
   };
 
+  const addSideWork = async (event) => {
+    event.preventDefault();
+    setSavingSideWork(true);
+    setError('');
+    setNotice('');
+    try {
+      await adminRequest('/v1/admin/side-work', {
+        method: 'POST',
+        body: JSON.stringify(sideWorkForm)
+      });
+      setSideWorkForm({ ...initialSideWork, scheduled_date: sideWorkForm.scheduled_date });
+      setNotice('Side work scheduled. It will appear in the Barista Workspace on the selected day.');
+      await loadData();
+    } catch (saveError) {
+      setError(saveError.message || 'Unable to schedule side work.');
+    } finally {
+      setSavingSideWork(false);
+    }
+  };
+
+  const removeSideWork = async (taskId) => {
+    setError('');
+    setNotice('');
+    try {
+      await adminRequest(`/v1/admin/side-work/${taskId}`, { method: 'DELETE' });
+      setSideWork((current) => current.filter((task) => Number(task.id) !== Number(taskId)));
+      setNotice('Side-work task removed.');
+    } catch (deleteError) {
+      setError(deleteError.message || 'Unable to remove the side-work task.');
+    }
+  };
+
   const publishSchedule = async () => {
     if (schedule.length === 0) {
       setError('Add at least one shift before publishing the timetable.');
@@ -247,6 +285,9 @@ export default function Operations() {
           </button>
           <button type="button" onClick={() => selectTab('attendance')} className={`inline-flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-bold ${activeTab === 'attendance' ? 'border-[#2E5E58] text-[#2E5E58]' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
             <Clock3 size={17} /> Attendance
+          </button>
+          <button type="button" onClick={() => selectTab('side-work')} className={`inline-flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-bold ${activeTab === 'side-work' ? 'border-[#2E5E58] text-[#2E5E58]' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
+            <ClipboardCheck size={17} /> Side work
           </button>
         </div>
 
@@ -318,6 +359,21 @@ export default function Operations() {
             </div>,
             document.body
           )}
+        </section>}
+
+        {activeTab === 'side-work' && <section className="mt-6 grid gap-5 xl:grid-cols-[380px_1fr]">
+          <form onSubmit={addSideWork} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h2 className="text-lg font-bold text-slate-900">Schedule side work</h2>
+            <p className="mt-1 text-sm text-slate-500">Create timed cleaning and upkeep reminders for the barista team.</p>
+            <label className="mt-5 block text-sm font-bold text-slate-700">Task name<input required maxLength="120" value={sideWorkForm.title} onChange={(event) => setSideWorkForm((current) => ({ ...current, title: event.target.value }))} placeholder="Mop the service floor" className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-[#2E5E58]" /></label>
+            <label className="mt-4 block text-sm font-bold text-slate-700">Instructions<textarea maxLength="500" rows="4" value={sideWorkForm.instructions} onChange={(event) => setSideWorkForm((current) => ({ ...current, instructions: event.target.value }))} placeholder="Include the area, supplies, and completion standard." className="mt-1.5 w-full resize-none rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-[#2E5E58]" /></label>
+            <div className="mt-4 grid grid-cols-2 gap-3"><label className="text-sm font-bold text-slate-700">Date<input required type="date" min={isoDate()} max={isoDate(30)} value={sideWorkForm.scheduled_date} onChange={(event) => setSideWorkForm((current) => ({ ...current, scheduled_date: event.target.value }))} className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" /></label><label className="text-sm font-bold text-slate-700">Time<input required type="time" value={sideWorkForm.scheduled_time} onChange={(event) => setSideWorkForm((current) => ({ ...current, scheduled_time: event.target.value }))} className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" /></label></div>
+            <button disabled={savingSideWork} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#1F3A34] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50"><Plus size={17} />{savingSideWork ? 'Scheduling...' : 'Schedule task'}</button>
+          </form>
+          <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div><h2 className="text-lg font-bold text-slate-900">Next 31 days</h2><p className="mt-1 text-sm text-slate-500">Completion is recorded against the clocked-in barista who confirms the task.</p></div>
+            <div className="mt-5 space-y-3">{sideWork.length === 0 ? <p className="rounded-xl border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-500">No side work scheduled.</p> : sideWork.map((task) => <div key={task.id} className="flex items-start justify-between gap-4 rounded-xl border border-slate-200 p-4"><div><div className="flex flex-wrap items-center gap-2"><p className="font-bold text-slate-900">{task.title}</p>{task.completed_at && <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700">Completed by {task.completed_by_barista_name}</span>}</div><p className="mt-1 text-sm font-semibold text-[#2E5E58]">{displayDate(task.scheduled_date)} at {displayTime(task.scheduled_time)}</p>{task.instructions && <p className="mt-2 text-sm leading-6 text-slate-600">{task.instructions}</p>}</div><button type="button" onClick={() => void removeSideWork(task.id)} className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label={`Remove ${task.title}`}><Trash2 size={17} /></button></div>)}</div>
+          </article>
         </section>}
 
         {activeTab === 'attendance' && <section className="mt-6 space-y-5">

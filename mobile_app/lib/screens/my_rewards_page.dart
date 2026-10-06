@@ -465,21 +465,22 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
+                    Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Text(
-                            voucher.template.displayLabel,
-                            style: TextStyle(
-                              fontFamily: 'Recoleta',
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.deepTeal,
-                            ),
+                        Text(
+                          voucher.template.displayLabel,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontFamily: 'Recoleta',
+                            fontSize: 20,
+                            height: 1.12,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.deepTeal,
                           ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(height: 10),
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 10,
@@ -542,7 +543,9 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
                         foregroundColor: cardAccentColor,
                       ),
                       icon: Icon(
-                        isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                        isExpanded
+                            ? Icons.keyboard_arrow_up
+                            : Icons.keyboard_arrow_down,
                         size: 18,
                       ),
                       label: Text(
@@ -562,25 +565,24 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
                       firstChild: const SizedBox.shrink(),
                       secondChild: Padding(
                         padding: const EdgeInsets.only(top: 8),
-                        child: Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            _buildInfoChip('Code', voucher.template.code),
-                            _buildInfoChip(
+                            _buildInfoRow('Code', voucher.template.code),
+                            _buildInfoRow(
                               'Availability',
                               voucher.template.availabilityLabel,
                             ),
-                            _buildInfoChip(
+                            _buildInfoRow(
                               'Benefit',
                               voucher.template.benefitLabel,
                             ),
-                            _buildInfoChip(
+                            _buildInfoRow(
                               'Applies to',
                               voucher.template.eligibilityLabel,
                             ),
                             if (voucher.template.minSpendRm != null)
-                              _buildInfoChip(
+                              _buildInfoRow(
                                 'Min spend',
                                 'RM ${voucher.template.minSpendRm}',
                               ),
@@ -598,12 +600,13 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
     );
   }
 
-  Widget _buildInfoChip(String label, String value) {
+  Widget _buildInfoRow(String label, String value) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: AppColors.surfaceLight,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: RichText(
         text: TextSpan(

@@ -60,7 +60,6 @@ const destinationLabelMap = {
 };
 
 const partnerActionOptions = [
-  { value: "none", label: "Display only" },
   { value: "external_url", label: "Open HTTPS website" },
   { value: "email", label: "Open email inquiry" },
 ];
@@ -351,7 +350,11 @@ const Marketing = () => {
       partnerName: banner.partnerName || "",
       sponsoredLabel: banner.sponsoredLabel !== false,
       ctaLabel: banner.ctaLabel || "",
-      actionType: banner.actionType || "none",
+      actionType:
+        banner.bannerType === "partner" &&
+        (!banner.actionType || banner.actionType === "none")
+          ? "external_url"
+          : banner.actionType || "none",
       actionValue: banner.actionValue || "",
       destinationType: banner.destinationType || "menu",
       targetValue: banner.targetValue || "",
@@ -386,6 +389,13 @@ const Marketing = () => {
 
       if (bannerType === "event") {
         next.destinationType = "calendar";
+      } else if (bannerType === "partner") {
+        next.actionType =
+          current.actionType === "email" ? "email" : "external_url";
+        next.ctaLabel = current.ctaLabel || "Visit website";
+        next.destinationType = "menu";
+        next.placement = "home";
+        next.floatingPriority = false;
       } else if (bannerType === "new_item") {
         next.destinationType = "menu";
       } else if (
@@ -398,10 +408,6 @@ const Marketing = () => {
         !["reward_section", "menu"].includes(current.destinationType)
       ) {
         next.destinationType = "menu";
-      } else if (bannerType === "partner") {
-        next.destinationType = "menu";
-        next.placement = "home";
-        next.floatingPriority = false;
       }
 
       return next;
@@ -435,9 +441,7 @@ const Marketing = () => {
       return;
     }
     if (
-      formData.bannerType === "partner" &&
-      formData.actionType !== "none" &&
-      !formData.actionValue.trim()
+      formData.bannerType === "partner" && !formData.actionValue.trim()
     ) {
       setError("Enter the website or email address for the partner action.");
       return;

@@ -62,6 +62,31 @@ const SolidCheckSquareIcon = ({ size = 20, className = "" }) => (
   </svg>
 );
 
+const itemCustomizationRows = (item) => {
+  if (Array.isArray(item.modifiers) && item.modifiers.length > 0) {
+    return item.modifiers
+      .map((modifier) => ({
+        label: String(modifier.group || '').trim(),
+        value: String(modifier.option || '').trim(),
+      }))
+      .filter(({ label, value }) => (
+        value
+        && label.toLowerCase() !== 'remarks'
+        && label.toLowerCase() !== 'order type'
+      ));
+  }
+
+  return [
+    ['Bean', item.bean],
+    ['Shot(s)', item.espressoShot],
+    ['Temp', item.temperature],
+    ['Sparkling', item.sparkling],
+    ['Milk', item.milk],
+    ['Sweetness', item.sweetness],
+    ['Ice Level', item.iceLevel],
+  ].filter(([, value]) => value).map(([label, value]) => ({ label, value }));
+};
+
 // Helpers matching Customers Page
 
 const getTierColor = (tier, tierCode) => {
@@ -321,8 +346,10 @@ const OrderDetailPanel = ({ order, onClose, onViewProfile }) => {
       <div>
         <p className="text-xs font-bold text-gray-900 mb-2.5">Order Items</p>
         <div className="space-y-4">
-          {order.items.map((item, i) => (
-            <div key={i} className="flex flex-col pb-4 border-b border-gray-50 last:border-0 last:pb-0">
+          {order.items.map((item, i) => {
+            const customizations = itemCustomizationRows(item);
+            return (
+              <div key={i} className="flex flex-col pb-4 border-b border-gray-50 last:border-0 last:pb-0">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 shrink-0 flex items-center justify-center bg-gray-50 rounded-lg p-1 border border-gray-100">
@@ -351,51 +378,15 @@ const OrderDetailPanel = ({ order, onClose, onViewProfile }) => {
               </div>
 
               {/* Customizations Grid */}
-              {(item.bean || item.espressoShot || item.temperature || item.sparkling || item.milk || item.sweetness || item.iceLevel) && (
+              {customizations.length > 0 && (
                 <div className="mt-3 ml-13 pl-3 border-l-2 border-gray-100">
                   <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                    {item.bean && (
-                      <div className="flex flex-col">
-                        <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">Bean</span>
-                        <span className="text-xs font-semibold text-gray-800">{item.bean}</span>
+                    {customizations.map((customization, customizationIndex) => (
+                      <div key={`${customization.label}-${customization.value}-${customizationIndex}`} className="flex flex-col">
+                        <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">{customization.label || 'Option'}</span>
+                        <span className="text-xs font-semibold text-gray-800">{customization.value}</span>
                       </div>
-                    )}
-                    {item.espressoShot && (
-                      <div className="flex flex-col">
-                        <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">Shot(s)</span>
-                        <span className="text-xs font-semibold text-gray-800">{item.espressoShot}</span>
-                      </div>
-                    )}
-                    {item.temperature && (
-                      <div className="flex flex-col">
-                        <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">Temp</span>
-                        <span className="text-xs font-semibold text-gray-800">{item.temperature}</span>
-                      </div>
-                    )}
-                    {item.sparkling && (
-                      <div className="flex flex-col">
-                        <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">Sparkling</span>
-                        <span className="text-xs font-semibold text-gray-800">{item.sparkling}</span>
-                      </div>
-                    )}
-                    {item.milk && (
-                      <div className="flex flex-col">
-                        <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">Milk</span>
-                        <span className="text-xs font-semibold text-gray-800">{item.milk}</span>
-                      </div>
-                    )}
-                    {item.sweetness && (
-                      <div className="flex flex-col">
-                        <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">Sweetness</span>
-                        <span className="text-xs font-semibold text-gray-800">{item.sweetness}</span>
-                      </div>
-                    )}
-                    {item.iceLevel && (
-                      <div className="flex flex-col">
-                        <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">Ice Level</span>
-                        <span className="text-xs font-semibold text-gray-800">{item.iceLevel}</span>
-                      </div>
-                    )}
+                    ))}
                   </div>
                 </div>
               )}
@@ -407,8 +398,9 @@ const OrderDetailPanel = ({ order, onClose, onViewProfile }) => {
                   <p className="text-xs font-medium text-gray-800 mt-0.5">{item.remarks}</p>
                 </div>
               )}
-            </div>
-          ))}
+              </div>
+            );
+          })}
         </div>
 
         <div className="mt-3 pt-3 border-t border-gray-100 space-y-1.5">

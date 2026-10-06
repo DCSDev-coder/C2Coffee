@@ -13,6 +13,7 @@ import '../services/payment_security.dart';
 import '../utils/app_colors.dart';
 import 'loading_order_page.dart';
 import '../widgets/app_page_shell.dart';
+import '../widgets/app_tutorial.dart';
 
 enum TransactionFilter { all, incoming, outgoing }
 
@@ -62,11 +63,22 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _session.addListener(_handleSessionChanged);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadWalletData();
-      _loadPaymentMethods();
-      _loadPackages();
-      _restorePendingTopUp();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await Future.wait([
+        _loadWalletData(),
+        _loadPaymentMethods(),
+        _loadPackages(),
+        _restorePendingTopUp(),
+      ]);
+      if (!mounted) return;
+      final userId = _session.user?.id;
+      if (userId != null) {
+        if (AppTutorial.consumeWalletReplayRequest()) {
+          await AppTutorial.showWallet(context, userId: userId);
+        } else {
+          await AppTutorial.showWalletIfNeeded(context, userId: userId);
+        }
+      }
     });
   }
 
@@ -504,6 +516,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
               ),
               const SizedBox(height: 16),
               Row(
+                key: AppTutorial.walletPackagesKey,
                 children: List.generate(_packages.length, (i) {
                   final package = _packages[i];
                   final selected = _selectedPackageId == package.id;
@@ -560,6 +573,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
               _buildTopUpCard(),
               const SizedBox(height: 28),
               Row(
+                key: AppTutorial.walletHistoryKey,
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
@@ -592,6 +606,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
 
   Widget _buildBalanceCard() {
     return Container(
+      key: AppTutorial.walletBalanceKey,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -704,6 +719,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
         _paymentMethod != null;
 
     return Container(
+      key: AppTutorial.walletPaymentKey,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -887,7 +903,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         height: 112,
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
         decoration: BoxDecoration(
           color: selected
               ? AppColors.deepTeal
@@ -916,7 +932,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
                       ? AppColors.deepTeal
                       : Colors.grey.shade500,
             ),
-            const SizedBox(height: 7),
+            const SizedBox(height: 6),
             Text(
               presentation.$1,
               textAlign: TextAlign.center,
@@ -924,7 +940,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontFamily: 'Afacad',
-                fontSize: 14,
+                fontSize: 13.5,
                 fontWeight: FontWeight.bold,
                 height: 1,
                 color: selected
@@ -934,12 +950,12 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
                         : Colors.grey.shade500,
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 3),
             Text(
               available ? (selected ? 'Selected' : 'Available') : 'Unavailable',
               style: TextStyle(
                 fontFamily: 'Afacad',
-                fontSize: 12,
+                fontSize: 11.5,
                 color: selected
                     ? Colors.white.withValues(alpha: 0.76)
                     : Colors.grey.shade500,

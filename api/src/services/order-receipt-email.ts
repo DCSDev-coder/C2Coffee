@@ -150,9 +150,22 @@ export async function deliverQueuedOrderReceiptEmail(orderId: number): Promise<'
           { itemIds }
         );
     const modifiersByItem = new Map<number, string[]>();
+    const orderTypeByItem = new Map<number, string>();
+    const modifierRemarksByItem = new Map<number, string>();
     for (const modifier of modifiers) {
+      const group = String(modifier.modifier_group_name_snapshot || '').trim();
+      const normalizedGroup = group.toLowerCase();
+      const option = String(modifier.modifier_option_name_snapshot || '').trim();
+      if (normalizedGroup.includes('order type') || normalizedGroup === 'order') {
+        orderTypeByItem.set(modifier.order_item_id, option);
+        continue;
+      }
+      if (normalizedGroup.includes('remark') || normalizedGroup.includes('note')) {
+        modifierRemarksByItem.set(modifier.order_item_id, option);
+        continue;
+      }
       const values = modifiersByItem.get(modifier.order_item_id) ?? [];
-      values.push(`${modifier.modifier_group_name_snapshot}: ${modifier.modifier_option_name_snapshot}`);
+      values.push(group ? `${group}: ${option}` : option);
       modifiersByItem.set(modifier.order_item_id, values);
     }
 
@@ -167,7 +180,9 @@ export async function deliverQueuedOrderReceiptEmail(orderId: number): Promise<'
         name: item.item_name_snapshot,
         quantity: item.quantity,
         totalRm: item.line_subtotal_rm,
-        modifiers: modifiersByItem.get(item.id) ?? []
+        modifiers: modifiersByItem.get(item.id) ?? [],
+        orderType: orderTypeByItem.get(item.id) ?? null,
+        remarks: modifierRemarksByItem.get(item.id) || null
       })),
       totalRm: order.final_total_rm,
       tokens: order.token_amount_charged

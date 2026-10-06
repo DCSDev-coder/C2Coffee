@@ -56,6 +56,13 @@ const groupSchema = z.object({
 
 const nutritionSchema = z.object({ base_calories_kcal: z.coerce.number().int().min(0).max(5000) });
 const optionExclusionsSchema = z.object({ option_ids: z.array(z.coerce.number().int().positive()).max(1000).default([]) });
+const optionGroupOrderSchema = z.object({
+  group_ids: z.array(z.coerce.number().int().positive()).min(1).max(500)
+}).superRefine((value, context) => {
+  if (new Set(value.group_ids).size !== value.group_ids.length) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['group_ids'], message: 'Option group order cannot contain duplicate groups.' });
+  }
+});
 const ingredientSchema = z.object({
   name: z.string().trim().min(1).max(255),
   brand: z.string().trim().max(255).nullable().optional(),
@@ -178,6 +185,43 @@ export async function registerAdminOptionLibraryRoutes(app: FastifyInstance): Pr
     requireAnyAdminRole(request, ['super_admin', 'marketing_admin', 'operations_admin']);
     const payload = groupSchema.parse(request.body);
     return saveGroup(request.adminAuth.tenantId, payload);
+  });
+
+  app.patch('/v1/admin/menu/options-library/groups/order', { preHandler: authenticateAdminRequest }, async (request) => {
+    requireAnyAdminRole(request, ['super_admin', 'marketing_admin', 'operations_admin']);
+    const payload = optionGroupOrderSchema.parse(request.body);
+    const tenantId = request.adminAuth.tenantId;
+    const connection = await mysqlPool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [groupRows] = await connection.query<Array<RowDataPacket>>(
+        `SELECT id FROM menu_option_groups
+         WHERE tenant_id = :tenantId
+         ORDER BY sort_order, id
+         FOR UPDATE`,
+        { tenantId }
+      );
+      const ownedIds = groupRows.map((row) => Number(row.id));
+      const requestedIds = payload.group_ids;
+      const ownedIdSet = new Set(ownedIds);
+      if (requestedIds.length !== ownedIds.length || requestedIds.some((id) => !ownedIdSet.has(id))) {
+        throw new ApiError(409, 'option_group_order_conflict', 'Option groups changed while you were reordering. Refresh the page and try again.');
+      }
+      for (const [sortOrder, groupId] of requestedIds.entries()) {
+        await connection.execute(
+          `UPDATE menu_option_groups SET sort_order = :sortOrder
+           WHERE id = :groupId AND tenant_id = :tenantId`,
+          { sortOrder, groupId, tenantId }
+        );
+      }
+      await connection.commit();
+      return { group_ids: requestedIds };
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
   });
 
   app.patch('/v1/admin/menu/options-library/groups/:groupId', { preHandler: authenticateAdminRequest }, async (request) => {
@@ -391,10 +435,12 @@ export async function registerAdminOptionLibraryRoutes(app: FastifyInstance): Pr
         `SELECT i.id
          FROM menu_items i
          JOIN menu_categories c ON c.id = i.category_id
+         JOIN menu_item_store_availability availability ON availability.menu_item_id = i.id
+         JOIN stores s ON s.id = availability.store_id AND s.tenant_id = :tenantId
          WHERE i.id = :itemId
            AND LOWER(COALESCE(c.product_kind_code, '')) = 'drink'
          LIMIT 1`,
-        { itemId }
+        { itemId, tenantId: request.adminAuth.tenantId }
       );
       if (!itemRows[0]) throw new ApiError(404, 'drink_menu_item_not_found', 'Drink menu item was not found.');
 
@@ -492,10 +538,12 @@ async function saveGroup(tenantId: number, payload: z.infer<typeof groupSchema>,
           `SELECT i.id
            FROM menu_items i
            JOIN menu_categories c ON c.id = i.category_id
+           JOIN menu_item_store_availability availability ON availability.menu_item_id = i.id
+           JOIN stores s ON s.id = availability.store_id AND s.tenant_id = :tenantId
            WHERE i.id = :menuItemId
              AND LOWER(COALESCE(c.product_kind_code, '')) = 'drink'
            LIMIT 1`,
-          { menuItemId }
+          { menuItemId, tenantId }
         );
         if (!items[0]) throw new ApiError(400, 'invalid_option_item', 'Options can only be assigned to drink items.');
         await connection.execute('INSERT INTO menu_option_group_items (option_group_id,menu_item_id) VALUES (:id,:menuItemId)', { id, menuItemId });
@@ -523,10 +571,12 @@ async function saveGroup(tenantId: number, payload: z.infer<typeof groupSchema>,
           `SELECT i.id
            FROM menu_items i
            JOIN menu_categories c ON c.id = i.category_id
+           JOIN menu_item_store_availability availability ON availability.menu_item_id = i.id
+           JOIN stores s ON s.id = availability.store_id AND s.tenant_id = :tenantId
            WHERE i.id = :menuItemId
              AND LOWER(COALESCE(c.product_kind_code, '')) = 'drink'
            LIMIT 1`,
-          { menuItemId }
+          { menuItemId, tenantId }
         );
         if (!items[0]) throw new ApiError(400, 'invalid_option_exclusion', 'A choice can only be hidden from drink menu items.');
         await connection.execute(
@@ -571,7 +621,8 @@ async function assertTenantMenuItem(itemId: number, tenantId: number): Promise<v
     `SELECT i.id
      FROM menu_items i
      JOIN menu_categories c ON c.id = i.category_id
-     JOIN stores s ON s.tenant_id = :tenantId
+     JOIN menu_item_store_availability availability ON availability.menu_item_id = i.id
+     JOIN stores s ON s.id = availability.store_id AND s.tenant_id = :tenantId
      WHERE i.id = :itemId
        AND LOWER(COALESCE(c.product_kind_code, '')) = 'drink'
      LIMIT 1`,

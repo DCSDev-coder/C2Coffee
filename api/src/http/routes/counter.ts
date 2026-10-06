@@ -13,6 +13,7 @@ import { env } from '../../config/env.js';
 import { loadCatalogMenu } from './catalog.js';
 import { isStoreTradingNow } from '../../services/store-availability.js';
 import { sendOtpEmail } from '../../services/otp-email.js';
+import { getKualaLumpurDateParts } from '../../lib/kuala-lumpur-time.js';
 import {
   collectMatchedUnits,
   isVoucherAvailableNow,
@@ -126,8 +127,8 @@ async function requireCounterCustomerSession(request: FastifyRequest): Promise<C
 
 async function getCounterCustomerSummary(tenantId: number, userId: number) {
   const [profiles, bootstrap, vouchers] = await Promise.all([
-    mysqlPool.query<Array<RowDataPacket & { display_name: string }>>(
-      `SELECT up.display_name
+    mysqlPool.query<Array<RowDataPacket & { display_name: string; birthday_month_day: string | null }>>(
+      `SELECT up.display_name, DATE_FORMAT(up.birthday, '%m-%d') AS birthday_month_day
        FROM user_profiles up
        JOIN customer_tenant_memberships ctm ON ctm.user_id = up.user_id
        WHERE up.user_id = :userId AND ctm.tenant_id = :tenantId
@@ -139,13 +140,15 @@ async function getCounterCustomerSummary(tenantId: number, userId: number) {
       id: number;
       code: string;
       name: string;
+      voucher_type: string;
       discount_mode: 'fixed_rm' | 'percent_rm' | 'free_drink';
       discount_value: string;
       min_spend_rm: string | null;
       eligible_scope_json: unknown;
+      issue_case_ref: string | null;
       expires_at: Date | null;
     }>>(
-      `SELECT uv.id, vt.code, vt.name, vt.discount_mode,
+      `SELECT uv.id, uv.issue_case_ref, vt.code, vt.name, vt.voucher_type, vt.discount_mode,
               CAST(vt.discount_value AS CHAR) AS discount_value,
               CAST(vt.min_spend_rm AS CHAR) AS min_spend_rm,
               vt.eligible_scope_json, uv.expires_at
@@ -172,7 +175,19 @@ async function getCounterCustomerSummary(tenantId: number, userId: number) {
       display_name: profile.display_name,
       loyalty_tier: bootstrap.tier,
       token_balance: bootstrap.token_balance,
-      active_vouchers: vouchers[0].map((voucher) => ({
+      active_vouchers: vouchers[0].filter((voucher) => {
+        const scope = parseVoucherScope(voucher.eligible_scope_json);
+        const isTierBirthday = voucher.issue_case_ref?.startsWith('tier_birthday:') ?? false;
+        const schedule = scope.schedule && typeof scope.schedule === 'object'
+          ? scope.schedule as Record<string, unknown>
+          : null;
+        const isBirthdayVoucher = isTierBirthday || voucher.voucher_type === 'birthday_treat' ||
+          String(schedule?.mode ?? 'always') === 'birthday';
+        const birthdayMonth = profile.birthday_month_day?.slice(0, 2);
+        const currentMonth = getKualaLumpurDateParts().month;
+        return (!isBirthdayVoucher || birthdayMonth === currentMonth) &&
+          isVoucherAvailableNow(scope, new Date(), profile.birthday_month_day);
+      }).map((voucher) => ({
         id: voucher.id,
         code: voucher.code,
         name: voucher.name,
@@ -364,7 +379,9 @@ export async function registerCounterRoutes(app: FastifyInstance): Promise<void>
         const schedule = scope.schedule && typeof scope.schedule === 'object'
           ? scope.schedule as Record<string, unknown>
           : null;
-        if (String(schedule?.mode ?? 'always') === 'birthday' && !isTierBirthday) {
+        const isBirthdayVoucher = isTierBirthday || voucher.voucher_type === 'birthday_treat' ||
+          String(schedule?.mode ?? 'always') === 'birthday';
+        if (isBirthdayVoucher) {
           const [birthdays] = await connection.query<Array<RowDataPacket & { birthday_month_day: string | null }>>(
             `SELECT DATE_FORMAT(birthday, '%m-%d') AS birthday_month_day
              FROM user_profiles WHERE user_id = :userId LIMIT 1`,
@@ -372,7 +389,11 @@ export async function registerCounterRoutes(app: FastifyInstance): Promise<void>
           );
           birthdayMonthDay = birthdays[0]?.birthday_month_day ?? null;
         }
-        if (!isTierBirthday && !isVoucherAvailableNow(scope, new Date(), birthdayMonthDay)) {
+        const birthdayEligible = !isBirthdayVoucher || Boolean(
+          birthdayMonthDay &&
+          birthdayMonthDay.slice(0, 2) === getKualaLumpurDateParts().month
+        );
+        if (!birthdayEligible || !isVoucherAvailableNow(scope, new Date(), birthdayMonthDay)) {
           throw new ApiError(400, 'voucher_not_available_now', 'Selected voucher is outside its active promotion time.');
         }
         const qualifying = collectMatchedUnits(rule.qualifying_scope, normalizedItems);
@@ -432,8 +453,15 @@ export async function registerCounterRoutes(app: FastifyInstance): Promise<void>
     if (!stores[0] || !isStoreTradingNow(stores[0])) {
       throw new ApiError(409, 'store_closed', 'This outlet is currently closed and cannot accept orders.');
     }
-    const [rows] = await mysqlPool.query<Array<RowDataPacket & { email: string | null }>>(
-      `SELECT up.email
+    const [rows] = await mysqlPool.query<Array<RowDataPacket & {
+      email: string | null;
+      birthday_month_day: string | null;
+      issue_case_ref: string | null;
+      voucher_type: string;
+      eligible_scope_json: unknown;
+    }>>(
+      `SELECT up.email, DATE_FORMAT(up.birthday, '%m-%d') AS birthday_month_day,
+              uv.issue_case_ref, vt.voucher_type, vt.eligible_scope_json
        FROM user_vouchers uv
        JOIN voucher_templates vt ON vt.id = uv.voucher_template_id
        JOIN user_profiles up ON up.user_id = uv.user_id
@@ -455,6 +483,30 @@ export async function registerCounterRoutes(app: FastifyInstance): Promise<void>
     const email = rows[0]?.email?.trim().toLowerCase();
     if (!rows[0]) {
       throw new ApiError(400, 'voucher_not_active', 'Selected voucher is no longer available.');
+    }
+    const selectedVoucher = rows[0];
+    const selectedScope = parseVoucherScope(selectedVoucher.eligible_scope_json);
+    const selectedSchedule = selectedScope.schedule && typeof selectedScope.schedule === 'object'
+      ? selectedScope.schedule as Record<string, unknown>
+      : null;
+    const isBirthdayVoucher =
+      (selectedVoucher.issue_case_ref?.startsWith('tier_birthday:') ?? false) ||
+      selectedVoucher.voucher_type === 'birthday_treat' ||
+      String(selectedSchedule?.mode ?? 'always') === 'birthday';
+    const birthdayEligible = !isBirthdayVoucher || Boolean(
+      selectedVoucher.birthday_month_day &&
+      selectedVoucher.birthday_month_day.slice(0, 2) === getKualaLumpurDateParts().month
+    );
+    if (!birthdayEligible || !isVoucherAvailableNow(
+      selectedScope,
+      new Date(),
+      selectedVoucher.birthday_month_day
+    )) {
+      throw new ApiError(
+        400,
+        'voucher_not_available_now',
+        'Selected voucher is outside of its active promotion time.'
+      );
     }
     if (!email) {
       throw new ApiError(400, 'voucher_otp_email_missing', 'Add an email address to the customer account before using a voucher at the counter.');

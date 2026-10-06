@@ -71,7 +71,7 @@ function parseRewardConfig(value: unknown): LoyaltyTierRewardConfig | null {
     : [rawConfig.birthdayVoucherTemplateId];
   const birthdayVoucherTemplateIds = [...new Set(rawBirthdayIds
     .map((value) => Number(value))
-    .filter((value) => Number.isInteger(value) && value > 0))];
+    .filter((value) => Number.isInteger(value) && value > 0))].slice(0, 1);
 
   if (voucherTemplateIds.length === 0 && birthdayVoucherTemplateIds.length === 0) {
     return null;

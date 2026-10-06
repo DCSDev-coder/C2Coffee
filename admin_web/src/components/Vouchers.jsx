@@ -1844,7 +1844,13 @@ const Vouchers = ({ onNavigate }) => {
                       <label className="block font-bold text-gray-900 mb-1">Benefit</label>
                       <select
                         value={newVoucher.benefitType}
-                        onChange={(e) => setNewVoucher({ ...newVoucher, benefitType: e.target.value })}
+                        onChange={(e) => setNewVoucher({
+                          ...newVoucher,
+                          benefitType: e.target.value,
+                          availabilityMode: e.target.value === 'Birthday Voucher'
+                            ? 'birthday'
+                            : newVoucher.availabilityMode
+                        })}
                         className="peer w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
                       >
                         {BENEFIT_TYPE_OPTIONS.map((option) => (
@@ -1998,6 +2004,7 @@ const Vouchers = ({ onNavigate }) => {
                       <label className="block font-bold text-gray-900 mb-1 mt-3">Availability schedule</label>
                       <select
                         value={newVoucher.availabilityMode}
+                        disabled={newVoucher.benefitType === 'Birthday Voucher'}
                         onChange={(e) => setNewVoucher({ ...newVoucher, availabilityMode: e.target.value, activeDays: [], annualDate: "", monthlyDay: "" })}
                         className="peer w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
                       >
@@ -2236,7 +2243,13 @@ const Vouchers = ({ onNavigate }) => {
                       <label className="block font-bold text-gray-900 mb-1">Benefit</label>
                       <select
                         value={editingVoucher.benefitType}
-                        onChange={(e) => setEditingVoucher({ ...editingVoucher, benefitType: e.target.value })}
+                        onChange={(e) => setEditingVoucher({
+                          ...editingVoucher,
+                          benefitType: e.target.value,
+                          availabilityMode: e.target.value === 'Birthday Voucher'
+                            ? 'birthday'
+                            : editingVoucher.availabilityMode
+                        })}
                         className="peer w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
                       >
                         {BENEFIT_TYPE_OPTIONS.map((option) => (
@@ -2405,6 +2418,7 @@ const Vouchers = ({ onNavigate }) => {
                       <label className="block font-bold text-gray-900 mb-1 mt-3">Availability schedule</label>
                       <select
                         value={editingVoucher.availabilityMode}
+                        disabled={editingVoucher.benefitType === 'Birthday Voucher'}
                         onChange={(e) => setEditingVoucher({ ...editingVoucher, availabilityMode: e.target.value, activeDays: [], annualDate: "", monthlyDay: "" })}
                         className="peer w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
                       >

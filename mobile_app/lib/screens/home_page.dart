@@ -91,7 +91,11 @@ class _HomePageState extends State<HomePage> {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         final userId = _session.user?.id;
         if (userId != null) {
-          await AppTutorial.showIfNeeded(context, userId: userId);
+          if (AppTutorial.consumeReplayRequest()) {
+            await AppTutorial.show(context, userId: userId);
+          } else {
+            await AppTutorial.showIfNeeded(context, userId: userId);
+          }
         }
         if (mounted) _showPosterIfNeeded();
       });
@@ -345,6 +349,7 @@ class _HomePageState extends State<HomePage> {
             selectedIndex: 0,
             onItemTapped: _onBottomNavTapped,
             scrollController: _scrollController,
+            enableTutorialTargets: true,
           ),
           body: Stack(
             children: [
@@ -497,6 +502,7 @@ class _HomePageState extends State<HomePage> {
               ),
               const SizedBox(width: 12),
               GestureDetector(
+                key: AppTutorial.walletKey,
                 onTap: () {
                   InteractiveFillingLoader.show(
                     context,

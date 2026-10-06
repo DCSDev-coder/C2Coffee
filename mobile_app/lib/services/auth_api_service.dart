@@ -73,6 +73,8 @@ String friendlyCustomerErrorMessage(
       return 'Your token balance is not enough to complete this order.';
     case 'validation_error':
       return 'Please review the information and try again.';
+    case 'birthday_change_support_required':
+      return 'For account security, contact support to correct your saved birthday.';
     case 'token_price_not_available':
       return 'This item does not have a token price yet. Please choose another item or contact the store.';
     case 'invalid_option_selection':

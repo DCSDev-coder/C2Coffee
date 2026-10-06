@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { ImagePlus, Plus, Pencil, X, Save, Sparkles, Trash2 } from 'lucide-react';
+import { GripVertical, ImagePlus, Plus, Pencil, X, Save, Sparkles, Trash2 } from 'lucide-react';
 import {
   createAdminOptionGroup,
   deleteAdminOptionGroup,
@@ -8,7 +8,8 @@ import {
   loadAdminOptionLibrary,
   updateAdminMenuNutrition,
   uploadAdminOptionImage,
-  updateAdminOptionGroup
+  updateAdminOptionGroup,
+  updateAdminOptionGroupOrder
 } from '../lib/adminApi';
 import { useUnsavedChanges } from '../utils/UnsavedChangesContext';
 import RecipeNutrition from './RecipeNutrition';
@@ -86,6 +87,7 @@ export default function OptionsNutrition() {
   const [nutritionDrafts, setNutritionDrafts] = useState({});
   const [initialNutrition, setInitialNutrition] = useState({});
   const [loading, setLoading] = useState(true);
+  const [draggedGroupId, setDraggedGroupId] = useState(null);
 
   const { registerUnsavedHandler } = useUnsavedChanges();
 
@@ -285,6 +287,28 @@ export default function OptionsNutrition() {
     }
   };
 
+  const reorderGroups = async (targetId) => {
+    if (draggedGroupId == null || draggedGroupId === targetId) return;
+    const currentIndex = groups.findIndex((group) => group.id === draggedGroupId);
+    const targetIndex = groups.findIndex((group) => group.id === targetId);
+    if (currentIndex < 0 || targetIndex < 0) return;
+
+    const nextGroups = [...groups];
+    const [moved] = nextGroups.splice(currentIndex, 1);
+    nextGroups.splice(targetIndex, 0, moved);
+    setGroups(nextGroups);
+    setDraggedGroupId(null);
+    setMessage('Saving option group order...');
+    try {
+      await updateAdminOptionGroupOrder(nextGroups.map((group) => group.id));
+      setMessage('Option group order saved for customer and counter apps.');
+      await load();
+    } catch (error) {
+      setMessage(error.message || 'Unable to save option group order.');
+      await load();
+    }
+  };
+
   const handleGroupFormSubmit = async (event) => {
     event.preventDefault();
     try {
@@ -388,10 +412,21 @@ export default function OptionsNutrition() {
             </div>
           ) : (
             groups.map((group) => (
-              <div key={group.id} className="p-5">
+              <div
+                key={group.id}
+                className="p-5"
+                draggable
+                onDragStart={() => setDraggedGroupId(group.id)}
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={() => void reorderGroups(group.id)}
+                onDragEnd={() => setDraggedGroupId(null)}
+              >
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
+                      <span className="cursor-grab text-gray-400" title="Drag to reorder" aria-label={`Drag ${group.name} to reorder`}>
+                        <GripVertical size={18} />
+                      </span>
                       <h2 className="font-bold text-gray-900">{group.name}</h2>
                       <span className="rounded-full bg-[#E8F2EF] px-2 py-0.5 text-xs font-bold text-[#1F3A34]">
                         {group.applies_to === 'all_drinks'

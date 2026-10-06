@@ -37,6 +37,8 @@ type OrderReceiptEmailPayload = {
     quantity: number;
     totalRm: string;
     modifiers: string[];
+    orderType?: string | null;
+    remarks?: string | null;
   }>;
   totalRm: string;
   tokens: number;
@@ -169,12 +171,16 @@ export async function sendOrderReceiptEmail(payload: OrderReceiptEmailPayload): 
 
   const itemText = payload.items.flatMap((item) => [
     `${Math.max(1, item.quantity)} x ${item.name} - RM ${item.totalRm}`,
+    ...(item.orderType ? [`  Order type: ${item.orderType}`] : []),
+    ...(item.remarks ? [`  Additional note: ${item.remarks}`] : []),
     ...item.modifiers.map((modifier) => `  ${modifier}`)
   ]);
   const itemHtml = payload.items.map((item) => `
     <tr>
       <td style="padding:10px 0;border-bottom:1px solid #e5e7eb">
         <strong>${escapeHtml(String(Math.max(1, item.quantity)))} x ${escapeHtml(item.name)}</strong>
+        ${item.orderType ? `<div style="margin-top:6px;color:#374151;font-size:13px"><strong>Order type:</strong> ${escapeHtml(item.orderType)}</div>` : ''}
+        ${item.remarks ? `<div style="margin-top:4px;padding:7px 9px;background:#fff7ed;border-radius:6px;color:#9a3412;font-size:13px"><strong>Additional note:</strong> ${escapeHtml(item.remarks)}</div>` : ''}
         ${item.modifiers.length > 0 ? `<div style="margin-top:4px;color:#6b7280;font-size:13px">${item.modifiers.map(escapeHtml).join('<br>')}</div>` : ''}
       </td>
       <td style="padding:10px 0;border-bottom:1px solid #e5e7eb;text-align:right;white-space:nowrap">RM ${escapeHtml(item.totalRm)}</td>

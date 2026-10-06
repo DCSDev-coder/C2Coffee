@@ -6,6 +6,7 @@ import '../utils/app_colors.dart';
 import '../utils/app_notification.dart';
 import '../widgets/catalog_product_image.dart';
 import '../widgets/token_price_pair.dart';
+import '../widgets/edge_swipe_back.dart';
 
 class SimpleProductDetailPage extends StatefulWidget {
   final Map<String, dynamic> item;
@@ -149,285 +150,297 @@ class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
     Color orangeColor = AppColors.deepTeal;
     const Color bgColor = Colors.white;
 
-    return Scaffold(
-      backgroundColor: bgColor,
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            backgroundColor: bgColor,
-            elevation: 0,
-            pinned: true,
-            leading: const SizedBox.shrink(),
-            actions: [
-              IconButton(
-                icon: Icon(Icons.close, color: AppColors.deepTeal),
-                onPressed: () => InteractiveFillingLoader.showPop(context),
-              ),
-            ],
-          ),
-          SliverToBoxAdapter(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Transform.scale(
-                    scale: _imageScale,
-                    child: CatalogProductImage(
-                      assetPath: null,
-                      imageUrl: widget.item['image_url']?.toString(),
-                      height: 200,
-                      fit: BoxFit.contain,
-                    ),
+    return EdgeSwipeBack(
+      onBack: () => InteractiveFillingLoader.showPop(context),
+      child: Scaffold(
+        backgroundColor: bgColor,
+        body: CustomScrollView(
+          slivers: [
+            SliverAppBar(
+              backgroundColor: bgColor,
+              elevation: 0,
+              pinned: true,
+              leading: const SizedBox.shrink(),
+              actions: [
+                IconButton(
+                  tooltip: 'Close',
+                  iconSize: 30,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 48,
+                    height: 48,
                   ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(20.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _itemName,
-                        style: const TextStyle(
-                          fontFamily: 'Recoleta',
-                          fontSize: 30,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.black,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _itemDescription,
-                        style: const TextStyle(
-                          fontFamily: 'Afacad',
-                          fontSize: 16,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        decoration: BoxDecoration(
-                          border: Border(
-                            bottom: BorderSide(
-                                color: Colors.black.withValues(alpha: 0.1)),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            AnimatedSwitcher(
-                              duration: const Duration(milliseconds: 200),
-                              child: _showTokenPrice
-                                  ? TokenPricePair(
-                                      key: const ValueKey('tokenPrice'),
-                                      tokenValue: _tokenPrice,
-                                      tokenFontSize: 14,
-                                      tokenColor: Colors.black87,
-                                    )
-                                  : Text(
-                                      _rmPriceText,
-                                      key: const ValueKey('rmPrice'),
-                                      style: const TextStyle(
-                                        fontFamily: 'Afacad',
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.black87,
-                                      ),
-                                    ),
-                            ),
-                            Row(children: [
-                              Text('$_baseCalories kcal',
-                                  style: const TextStyle(
-                                      fontFamily: 'Afacad',
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.black54)),
-                              const SizedBox(width: 12),
-                              _buildExchangeButton()
-                            ]),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                    ],
-                  ),
+                  icon: Icon(Icons.close_rounded, color: AppColors.deepTeal),
+                  onPressed: () => InteractiveFillingLoader.showPop(context),
                 ),
               ],
             ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, -5),
-            ),
-          ],
-        ),
-        child: SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            SliverToBoxAdapter(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Total',
-                    style: TextStyle(
-                        fontFamily: 'Recoleta',
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold),
+                  Center(
+                    child: Transform.scale(
+                      scale: _imageScale,
+                      child: CatalogProductImage(
+                        assetPath: null,
+                        imageUrl: widget.item['image_url']?.toString(),
+                        height: 200,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
                   ),
-                  Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                    AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 200),
-                      child: _showTokenPrice
-                          ? TokenPricePair(
-                              key: const ValueKey('totalTokenPrice'),
-                              tokenValue: _tokenPrice * quantity,
-                              tokenFontSize: 12,
-                              tokenColor: Colors.black87,
-                            )
-                          : Text(
-                              _displayTotalText,
-                              key: const ValueKey('totalRmPrice'),
-                              style: const TextStyle(
-                                fontFamily: 'Afacad',
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
-                              ),
-                            ),
-                    ),
-                    Text('${_baseCalories * quantity} kcal',
-                        style: const TextStyle(
-                            fontFamily: 'Afacad',
-                            fontSize: 13,
-                            color: Colors.black54))
-                  ]),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(color: orangeColor),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
+                  Padding(
+                    padding: const EdgeInsets.all(20.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        IconButton(
-                          icon: const Icon(Icons.remove, size: 18),
-                          constraints:
-                              const BoxConstraints(minWidth: 36, minHeight: 36),
-                          padding: EdgeInsets.zero,
-                          color: Colors.black54,
-                          onPressed: () {
-                            if (quantity > 1) {
-                              setState(() => quantity--);
-                            }
-                          },
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 10.0),
-                          child: Text(
-                            quantity.toString(),
-                            style: const TextStyle(
-                                fontFamily: 'Recoleta',
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold),
+                        Text(
+                          _itemName,
+                          style: const TextStyle(
+                            fontFamily: 'Recoleta',
+                            fontSize: 30,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.black,
                           ),
                         ),
-                        IconButton(
-                          icon: const Icon(Icons.add, size: 18),
-                          constraints:
-                              const BoxConstraints(minWidth: 36, minHeight: 36),
-                          padding: EdgeInsets.zero,
-                          color: Colors.black54,
-                          onPressed: () {
-                            setState(() => quantity++);
-                          },
+                        const SizedBox(height: 4),
+                        Text(
+                          _itemDescription,
+                          style: const TextStyle(
+                            fontFamily: 'Afacad',
+                            fontSize: 16,
+                            color: Colors.black87,
+                          ),
                         ),
+                        const SizedBox(height: 16),
+                        Container(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          decoration: BoxDecoration(
+                            border: Border(
+                              bottom: BorderSide(
+                                  color: Colors.black.withValues(alpha: 0.1)),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 200),
+                                child: _showTokenPrice
+                                    ? TokenPricePair(
+                                        key: const ValueKey('tokenPrice'),
+                                        tokenValue: _tokenPrice,
+                                        tokenFontSize: 14,
+                                        tokenColor: Colors.black87,
+                                      )
+                                    : Text(
+                                        _rmPriceText,
+                                        key: const ValueKey('rmPrice'),
+                                        style: const TextStyle(
+                                          fontFamily: 'Afacad',
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.black87,
+                                        ),
+                                      ),
+                              ),
+                              Row(children: [
+                                Text('$_baseCalories kcal',
+                                    style: const TextStyle(
+                                        fontFamily: 'Afacad',
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.black54)),
+                                const SizedBox(width: 12),
+                                _buildExchangeButton()
+                              ]),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
                       ],
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        final selectedStore = _session.selectedStore;
-                        if (selectedStore == null) {
-                          AppNotification.showError(
-                            context,
-                            'Please select a store first.',
-                          );
-                          return;
-                        }
-
-                        CartService.instance.addItem(
-                          storeId: selectedStore.id,
-                          storeName: selectedStore.name,
-                          item: CartItem(
-                            id: '${widget.item['code'] ?? _itemName}-${DateTime.now().microsecondsSinceEpoch}',
-                            menuItemId:
-                                (widget.item['id'] as num?)?.toInt() ?? 0,
-                            menuItemCode:
-                                widget.item['code']?.toString() ?? _itemName,
-                            name: _itemName,
-                            categoryCode:
-                                widget.item['categoryCode']?.toString(),
-                            categoryName: widget.item['category']?.toString(),
-                            subcategoryCode:
-                                widget.item['subcategoryCode']?.toString(),
-                            subcategoryName:
-                                widget.item['subcategory']?.toString(),
-                            productKindCode:
-                                widget.item['productKindCode']?.toString(),
-                            productKindName:
-                                widget.item['productKind']?.toString(),
-                            imageAssetPath: null,
-                            imageUrl: widget.item['image_url']?.toString(),
-                            basePriceRm: _itemBasePrice,
-                            tokenPrice: _tokenPrice,
-                            quantity: quantity,
-                            remarks: null,
-                            displayDetails: null,
-                          ),
-                        );
-                        AppNotification.showSuccess(
-                          context,
-                          'Added $quantity x $_itemName to cart!',
-                          icon: Icons.shopping_bag_outlined,
-                        );
-                        InteractiveFillingLoader.showPop(context);
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: orangeColor,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                      ),
-                      child: const Text(
-                        'ADD TO CART',
-                        style: TextStyle(
+                ],
+              ),
+            ),
+          ],
+        ),
+        bottomNavigationBar: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 10,
+                offset: const Offset(0, -5),
+              ),
+            ],
+          ),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Total',
+                      style: TextStyle(
                           fontFamily: 'Recoleta',
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold),
+                    ),
+                    Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 200),
+                            child: _showTokenPrice
+                                ? TokenPricePair(
+                                    key: const ValueKey('totalTokenPrice'),
+                                    tokenValue: _tokenPrice * quantity,
+                                    tokenFontSize: 12,
+                                    tokenColor: Colors.black87,
+                                  )
+                                : Text(
+                                    _displayTotalText,
+                                    key: const ValueKey('totalRmPrice'),
+                                    style: const TextStyle(
+                                      fontFamily: 'Afacad',
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                          ),
+                          Text('${_baseCalories * quantity} kcal',
+                              style: const TextStyle(
+                                  fontFamily: 'Afacad',
+                                  fontSize: 13,
+                                  color: Colors.black54))
+                        ]),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Container(
+                      decoration: BoxDecoration(
+                        border: Border.all(color: orangeColor),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.remove, size: 18),
+                            constraints: const BoxConstraints(
+                                minWidth: 36, minHeight: 36),
+                            padding: EdgeInsets.zero,
+                            color: Colors.black54,
+                            onPressed: () {
+                              if (quantity > 1) {
+                                setState(() => quantity--);
+                              }
+                            },
+                          ),
+                          Padding(
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 10.0),
+                            child: Text(
+                              quantity.toString(),
+                              style: const TextStyle(
+                                  fontFamily: 'Recoleta',
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.add, size: 18),
+                            constraints: const BoxConstraints(
+                                minWidth: 36, minHeight: 36),
+                            padding: EdgeInsets.zero,
+                            color: Colors.black54,
+                            onPressed: () {
+                              setState(() => quantity++);
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          final selectedStore = _session.selectedStore;
+                          if (selectedStore == null) {
+                            AppNotification.showError(
+                              context,
+                              'Please select a store first.',
+                            );
+                            return;
+                          }
+
+                          CartService.instance.addItem(
+                            storeId: selectedStore.id,
+                            storeName: selectedStore.name,
+                            item: CartItem(
+                              id: '${widget.item['code'] ?? _itemName}-${DateTime.now().microsecondsSinceEpoch}',
+                              menuItemId:
+                                  (widget.item['id'] as num?)?.toInt() ?? 0,
+                              menuItemCode:
+                                  widget.item['code']?.toString() ?? _itemName,
+                              name: _itemName,
+                              categoryCode:
+                                  widget.item['categoryCode']?.toString(),
+                              categoryName: widget.item['category']?.toString(),
+                              subcategoryCode:
+                                  widget.item['subcategoryCode']?.toString(),
+                              subcategoryName:
+                                  widget.item['subcategory']?.toString(),
+                              productKindCode:
+                                  widget.item['productKindCode']?.toString(),
+                              productKindName:
+                                  widget.item['productKind']?.toString(),
+                              imageAssetPath: null,
+                              imageUrl: widget.item['image_url']?.toString(),
+                              basePriceRm: _itemBasePrice,
+                              tokenPrice: _tokenPrice,
+                              quantity: quantity,
+                              remarks: null,
+                              displayDetails: null,
+                            ),
+                          );
+                          AppNotification.showSuccess(
+                            context,
+                            'Added $quantity x $_itemName to cart!',
+                            icon: Icons.shopping_bag_outlined,
+                          );
+                          InteractiveFillingLoader.showPop(context);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: orangeColor,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                        ),
+                        child: const Text(
+                          'ADD TO CART',
+                          style: TextStyle(
+                            fontFamily: 'Recoleta',
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),

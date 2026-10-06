@@ -171,6 +171,9 @@ function enforceBaristaRouteAccess(request: FastifyRequest): void {
   const canUseStaffAttendance =
     /^\/v1\/barista\/attendance\/(status|current|clock-in|clock-out)$/.test(path);
   const canReadStaffGuides = request.method === 'GET' && path === '/v1/barista/guides';
+  const canUseSideWork =
+    (request.method === 'GET' && path === '/v1/barista/side-work') ||
+    (request.method === 'POST' && path === '/v1/barista/side-work/complete');
   const canQueuePrintJob =
     request.method === 'POST' && path === '/v1/barista/print-jobs';
   const canUseAssignedDirectPrinter =
@@ -196,6 +199,7 @@ function enforceBaristaRouteAccess(request: FastifyRequest): void {
     !canReadWeeklySchedule &&
     !canUseStaffAttendance &&
     !canReadStaffGuides &&
+    !canUseSideWork &&
     !canQueuePrintJob &&
     !canUseAssignedDirectPrinter &&
     !canManageOwnPushToken &&

@@ -626,7 +626,13 @@ function validatePartnerAction(
       "Partner Spotlight requires a partner or business name.",
     );
   }
-  if (input.actionType === "none") return;
+  if (input.actionType === "none") {
+    throw new ApiError(
+      400,
+      "missing_partner_action",
+      "Partner Spotlight requires a website or email action.",
+    );
+  }
   if (!input.actionValue) {
     throw new ApiError(
       400,

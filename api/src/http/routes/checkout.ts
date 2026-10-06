@@ -231,7 +231,10 @@ export function isVoucherAvailableNow(
   const annualDate = typeof schedule.annualDate === 'string' ? schedule.annualDate : '';
   const monthlyDay = Number(schedule.monthlyDay ?? 0);
 
-  if (mode === 'birthday' && (!birthdayMonthDay || birthdayMonthDay !== currentMonthDay)) {
+  if (
+    mode === 'birthday' &&
+    (!birthdayMonthDay || birthdayMonthDay.slice(0, 2) !== currentParts.month)
+  ) {
     return false;
   }
 
@@ -640,9 +643,12 @@ export async function registerCheckoutRoutes(
             ? (voucherScope.schedule as Record<string, unknown>)
             : null;
         const voucherMode = String(voucherSchedule?.mode || 'always').trim();
+        const isBirthdayVoucher = isTierBirthdayReward ||
+          appliedVoucher.voucher_type === 'birthday_treat' ||
+          voucherMode === 'birthday';
         let customerBirthdayMonthDay: string | null = null;
 
-        if (voucherMode === 'birthday' && !isTierBirthdayReward) {
+        if (isBirthdayVoucher) {
           const [birthdayRows] = await connection.query<
             Array<RowDataPacket & { birthday_month_day: string | null }>
           >(
@@ -659,11 +665,11 @@ export async function registerCheckoutRoutes(
           customerBirthdayMonthDay = birthdayRows[0]?.birthday_month_day ?? null;
         }
 
-        // A tier birthday voucher is issued only during the customer's
-        // birthday month and expires at that month's end. Its issued grant,
-        // rather than the reusable template's generic schedule, is the
-        // authoritative availability rule.
-        if (!isTierBirthdayReward && !isVoucherAvailableNow(voucherScope, new Date(), customerBirthdayMonthDay)) {
+        const birthdayEligible = !isBirthdayVoucher || Boolean(
+          customerBirthdayMonthDay &&
+          customerBirthdayMonthDay.slice(0, 2) === getKualaLumpurDateParts().month
+        );
+        if (!birthdayEligible || !isVoucherAvailableNow(voucherScope, new Date(), customerBirthdayMonthDay)) {
           throw new ApiError(
             400,
             'voucher_not_available_now',
