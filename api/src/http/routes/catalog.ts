@@ -380,6 +380,153 @@ function buildHomeBannerSelectClause(columns: Set<string>): string {
 export async function registerCatalogRoutes(
   app: FastifyInstance,
 ): Promise<void> {
+  app.get("/v1/public/menu", async (_request, reply) => {
+    const [storeRows] = await mysqlPool.query<
+      Array<RowDataPacket & { id: number; name: string }>
+    >(
+      `
+        SELECT s.id, s.name
+        FROM stores s
+        JOIN admin_tenants t ON t.id = s.tenant_id
+        WHERE t.code = :tenantCode
+          AND t.status = 'active'
+          AND s.status = 'active'
+          AND s.is_customer_facing = 1
+        ORDER BY s.id ASC
+        LIMIT 1
+      `,
+      { tenantCode: env.DEPLOYMENT_TENANT_CODE },
+    );
+
+    const store = storeRows[0];
+    if (!store) {
+      throw new ApiError(404, "public_store_not_found", "No public store is configured.");
+    }
+
+    const catalog = await loadCatalogMenu(store.id);
+    const drinks = catalog.categories.flatMap((category) =>
+      category.items
+        .filter((item) => item.product_kind_code === "drink")
+        .map((item) => ({
+          id: item.id,
+          code: item.code,
+          category: category.name,
+          name: item.name,
+          description: item.description,
+          image_url: item.image_url,
+        })),
+    );
+
+    reply.header("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
+    return {
+      store_id: store.id,
+      store_name: store.name,
+      drinks,
+    };
+  });
+
+  app.get("/v1/public/tiers", async (_request, reply) => {
+    const [rows] = await mysqlPool.query<Array<RowDataPacket & {
+      id: number;
+      code: string;
+      name: string;
+      min_cups: number | string;
+      promotion_text: string;
+      reward_config_json: unknown;
+    }>>(
+      `
+        SELECT
+          t.id AS tenant_id,
+          lt.id,
+          lt.code,
+          lt.name,
+          lt.min_cups,
+          lt.promotion_text,
+          lt.reward_config_json
+        FROM loyalty_tiers lt
+        JOIN admin_tenants t
+          ON t.code = :tenantCode
+         AND t.status = 'active'
+        WHERE lt.is_active = 1
+        ORDER BY lt.min_cups ASC, lt.sort_order ASC, lt.id ASC
+      `,
+      { tenantCode: env.DEPLOYMENT_TENANT_CODE },
+    );
+
+    const rewardIds = [...new Set(rows.flatMap((row) => {
+      let config: unknown = row.reward_config_json;
+      if (typeof config === "string") {
+        try {
+          config = JSON.parse(config);
+        } catch {
+          config = null;
+        }
+      }
+
+      if (!config || typeof config !== "object") return [];
+      const raw = config as {
+        voucherTemplateIds?: unknown;
+        birthdayVoucherTemplateIds?: unknown;
+      };
+      return [
+        ...(Array.isArray(raw.voucherTemplateIds) ? raw.voucherTemplateIds : []),
+        ...(Array.isArray(raw.birthdayVoucherTemplateIds) ? raw.birthdayVoucherTemplateIds : []),
+      ]
+        .map((value) => Number(value))
+        .filter((value) => Number.isInteger(value) && value > 0);
+    }))];
+
+    const rewardNames = new Map<number, string>();
+    if (rewardIds.length > 0) {
+      const bindings: Record<string, number> = { tenantId: Number((rows[0] as { tenant_id?: number }).tenant_id ?? 0) };
+      const placeholders = rewardIds.map((id, index) => {
+        const key = `rewardId${index}`;
+        bindings[key] = id;
+        return `:${key}`;
+      });
+      const [rewardRows] = await mysqlPool.query<Array<RowDataPacket & { id: number; name: string }>>(
+        `
+          SELECT id, name
+          FROM voucher_templates
+          WHERE tenant_id = :tenantId
+            AND is_active = 1
+            AND id IN (${placeholders.join(", ")})
+        `,
+        bindings,
+      );
+      rewardRows.forEach((reward) => rewardNames.set(Number(reward.id), String(reward.name ?? "").trim()));
+    }
+
+    reply.header("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
+    return {
+      tiers: rows.map((row) => ({
+        id: Number(row.id),
+        code: String(row.code ?? "").trim().toLowerCase(),
+        name: String(row.name ?? "").trim(),
+        min_cups: Number(row.min_cups ?? 0),
+        promotion_text: String(row.promotion_text ?? "").trim(),
+        rewards: (() => {
+          let config: unknown = row.reward_config_json;
+          if (typeof config === "string") {
+            try {
+              config = JSON.parse(config);
+            } catch {
+              config = null;
+            }
+          }
+          if (!config || typeof config !== "object") return [];
+          const raw = config as { voucherTemplateIds?: unknown; birthdayVoucherTemplateIds?: unknown };
+          return [
+            ...(Array.isArray(raw.voucherTemplateIds) ? raw.voucherTemplateIds : []),
+            ...(Array.isArray(raw.birthdayVoucherTemplateIds) ? raw.birthdayVoucherTemplateIds : []),
+          ]
+            .map((value) => rewardNames.get(Number(value)))
+            .filter((value): value is string => Boolean(value));
+        })(),
+      })),
+    };
+  });
+
   app.get(
     "/v1/bootstrap",
     { preHandler: authenticateRequest },
@@ -499,13 +646,13 @@ export async function loadCatalogMenu(storeId: number) {
           c.id AS category_id,
           c.code AS category_code,
           c.name AS category_name,
-          CASE
+          COALESCE(NULLIF(LOWER(c.product_kind_code), ''), CASE
             WHEN LOWER(c.code) IN ('coffee', 'non_coffee') THEN 'drink'
             WHEN LOWER(c.code) = 'food' THEN 'food'
             WHEN LOWER(c.code) = 'merchandise' THEN 'merchandise'
             WHEN LOWER(c.code) = 'candles' THEN 'candle'
             ELSE 'other'
-          END AS category_product_kind_code,
+          END) AS category_product_kind_code,
           c.sort_order AS category_sort_order,
           sc.id AS subcategory_id,
           sc.code AS subcategory_code,

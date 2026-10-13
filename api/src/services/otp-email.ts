@@ -25,6 +25,17 @@ type SupportTicketEmailPayload = {
   }>;
 };
 
+type WebsiteContactEmailPayload = {
+  to: string;
+  subject: string;
+  formType: string;
+  name: string;
+  brand: string;
+  email: string;
+  phone: string;
+  message: string;
+};
+
 type OrderReceiptEmailPayload = {
   to: string;
   orderReference: string;
@@ -147,6 +158,35 @@ export async function sendSupportTicketEmail(
       content: attachment.content,
       contentType: attachment.mimeType
     }))
+  });
+
+  return { messageId: info.messageId };
+}
+
+export async function sendWebsiteContactEmail(
+  payload: WebsiteContactEmailPayload,
+): Promise<{ messageId?: string }> {
+  const fromAddress = env.EMAIL_FROM_ADDRESS || env.EMAIL_SMTP_USER;
+  if (!fromAddress) {
+    throw new Error('EMAIL_FROM_ADDRESS is required for website contact delivery.');
+  }
+
+  const details = [
+    `Form: ${payload.formType}`,
+    `Name: ${payload.name || 'Not provided'}`,
+    `Brand: ${payload.brand || 'Not provided'}`,
+    `Email: ${payload.email || 'Not provided'}`,
+    `Phone: ${payload.phone || 'Not provided'}`,
+    '',
+    payload.message || 'Newsletter signup request.',
+  ].join('\n');
+
+  const info = await getTransporter().sendMail({
+    from: `"${env.EMAIL_FROM_NAME}" <${fromAddress}>`,
+    to: payload.to,
+    replyTo: payload.email || undefined,
+    subject: payload.subject,
+    text: details,
   });
 
   return { messageId: info.messageId };

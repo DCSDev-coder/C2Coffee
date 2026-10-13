@@ -65,6 +65,7 @@ const envSchema = z.object({
   EMAIL_FROM_ADDRESS: z.string().email().optional().default(''),
   EMAIL_FROM_NAME: z.string().optional().default('C2 Coffee & Candle'),
   SUPPORT_EMAIL_ADDRESS: z.string().email().default('support@c2coffeeandcandle.com'),
+  COLLABORATION_EMAIL_ADDRESS: z.string().email().default('collabc2@c2coffeeandcandle.com'),
   ADMIN_COOKIE_DOMAIN: z.string().trim().optional().default(''),
   ADMIN_COOKIE_SECURE: envBoolean(false),
   ADMIN_COOKIE_SAME_SITE: z.enum(['lax', 'strict', 'none']).default('lax'),

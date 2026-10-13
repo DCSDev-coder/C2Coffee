@@ -35,6 +35,7 @@ import { registerAdminReferralRoutes } from './http/routes/admin-referrals.js';
 import { registerAdminCounterDeviceRoutes } from './http/routes/admin-counter-devices.js';
 import { registerCounterRoutes } from './http/routes/counter.js';
 import { registerAdminTenantStoreRoutes } from './http/routes/admin-tenants-stores.js';
+import { registerWebsiteContactRoutes } from './http/routes/website-contact.js';
 
 function isAllowedCorsOrigin(origin: string, allowedOrigins: string[]): boolean {
   let requestUrl: URL;
@@ -152,6 +153,7 @@ export async function buildApp() {
   await registerHomeFeaturedRoutes(app);
   await registerMeRoutes(app);
   await registerCatalogRoutes(app);
+  await registerWebsiteContactRoutes(app);
   await registerCheckoutRoutes(app);
   await registerCustomerDataRoutes(app);
   await registerTopUpRoutes(app);
