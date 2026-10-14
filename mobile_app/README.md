@@ -27,3 +27,16 @@ builds may opt in with `--dart-define=ALLOW_BILLPLZ_SANDBOX=true`.
 ## Asset flow
 
 Poster and menu images are loaded from the API asset routes. If an image returns 404, verify that the file exists on the API host under `api/public/menu/uploads/` and that the API runtime can read it.
+
+## Project layout
+
+- `lib/` contains the customer application source.
+- `assets/images/` contains packaged customer-app fallbacks and interface assets.
+- `assets/fonts/` contains only the font files declared in `pubspec.yaml`.
+- `android/`, `ios/`, and `web/` contain Flutter platform projects.
+- `test/` contains automated tests.
+- `play_store_assets/` and `testflight_screenshots_*` are release-listing assets; they are not runtime application code.
+
+Generated folders such as `build/`, `.dart_tool/`, Android Gradle caches, IDE
+metadata, Flutter crash logs, and Finder metadata must not be committed. Run
+`flutter clean` when generated build output needs to be removed.

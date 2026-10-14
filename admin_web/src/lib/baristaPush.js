@@ -17,6 +17,7 @@ const firebaseConfig = {
 const vapidKey = String(import.meta.env.VITE_FIREBASE_VAPID_KEY || '').trim();
 let foregroundUnsubscribe = null;
 let alertAudioContext = null;
+const ORDER_ALERT_VOLUME = 0.38;
 
 function getAlertAudioContext() {
   if (alertAudioContext || typeof window === 'undefined') return alertAudioContext;
@@ -45,7 +46,7 @@ export function playOrderAlertSound() {
   oscillator.frequency.setValueAtTime(880, audioContext.currentTime);
   oscillator.frequency.setValueAtTime(1175, audioContext.currentTime + 0.13);
   gain.gain.setValueAtTime(0.0001, audioContext.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.18, audioContext.currentTime + 0.015);
+  gain.gain.exponentialRampToValueAtTime(ORDER_ALERT_VOLUME, audioContext.currentTime + 0.015);
   gain.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.34);
   oscillator.connect(gain).connect(audioContext.destination);
   oscillator.start();
