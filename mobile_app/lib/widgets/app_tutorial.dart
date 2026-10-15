@@ -102,9 +102,9 @@ class AppTutorial {
           targetKey: walletPackagesKey,
           icon: Icons.add_circle_outline_rounded,
           eyebrow: 'TOP-UP AMOUNT',
-          title: 'Choose a token package',
+          title: 'Enter your top-up amount',
           description:
-              'Select how many tokens you want to add. One C2 Token equals RM 1, and the exact charge is shown before payment.',
+              'Enter any whole-ringgit amount from RM 1 within your remaining wallet capacity. One C2 Token equals RM 1.',
         ),
         _TutorialStep(
           targetKey: walletPaymentKey,

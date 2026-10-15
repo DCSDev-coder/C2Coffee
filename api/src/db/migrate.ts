@@ -56,7 +56,10 @@ async function run(): Promise<void> {
 
 async function getSqlFiles(directory: string): Promise<string[]> {
   return (await readdir(directory))
-    .filter((file) => file.endsWith('.sql'))
+    // Only execute migration/seed files that follow the repository naming
+    // convention. This excludes macOS AppleDouble metadata such as
+    // `._093_example.sql`, which is binary data rather than SQL.
+    .filter((file) => /^\d{3}_.+\.sql$/.test(file))
     .sort();
 }
 

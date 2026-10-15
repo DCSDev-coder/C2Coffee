@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../services/notification_service.dart';
 import '../services/secure_session_service.dart';
 import '../utils/app_colors.dart';
+import '../utils/app_notification.dart';
 import '../widgets/app_page_shell.dart';
 import 'loading_order_page.dart';
 import 'my_rewards_page.dart';
@@ -83,10 +84,9 @@ class _NotificationPageState extends State<NotificationPage> {
       });
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('We could not clear notifications. Please try again.'),
-        ),
+      AppNotification.showError(
+        context,
+        'We could not clear notifications. Please try again.',
       );
     } finally {
       if (mounted) setState(() => _clearing = false);

@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import test from 'node:test';
 
 import { assertDeploymentTenants } from '../dist/admin/deployment-policy.js';
 import { assertOutletPublication } from '../dist/admin/outlet-policy.js';
 import { assertTenantAccountEditable, assertTenantRoleAssignment } from '../dist/admin/role-policy.js';
-import { isTrustedBillplzCheckoutUrl } from '../dist/payments/billplz-security.js';
+import { chipMethodLabel, isTrustedChipCheckoutUrl, verifyChipSignature } from '../dist/payments/chip-client.js';
+import { chipTerminalFailure } from '../dist/services/chip-topup-settlement.js';
 import { generateDeviceActivationCode } from '../dist/lib/crypto.js';
 
 test('deployment accepts exactly one configured active cafe', () => {
@@ -42,12 +44,36 @@ test('inactive outlets cannot remain available in the customer app', () => {
   ), { code: 'customer_store_conflict' });
 });
 
-test('Billplz checkout redirects stay on the configured HTTPS gateway host', () => {
-  const gateway = 'https://www.billplz-sandbox.com';
-  assert.equal(isTrustedBillplzCheckoutUrl('https://www.billplz-sandbox.com/bills/abc', gateway), true);
-  assert.equal(isTrustedBillplzCheckoutUrl('http://www.billplz-sandbox.com/bills/abc', gateway), false);
-  assert.equal(isTrustedBillplzCheckoutUrl('https://billplz-sandbox.com.evil.test/bills/abc', gateway), false);
-  assert.equal(isTrustedBillplzCheckoutUrl('https://user:pass@www.billplz-sandbox.com/bills/abc', gateway), false);
+test('CHIP checkout redirects stay on an HTTPS CHIP host', () => {
+  assert.equal(isTrustedChipCheckoutUrl('https://gate.chip-in.asia/p/abc'), true);
+  assert.equal(isTrustedChipCheckoutUrl('https://chip-in.asia/p/abc'), true);
+  assert.equal(isTrustedChipCheckoutUrl('http://gate.chip-in.asia/p/abc'), false);
+  assert.equal(isTrustedChipCheckoutUrl('https://chip-in.asia.evil.test/p/abc'), false);
+  assert.equal(isTrustedChipCheckoutUrl('https://user:pass@gate.chip-in.asia/p/abc'), false);
+});
+
+test('CHIP callback signature verifies the exact raw body', () => {
+  const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const body = Buffer.from('{"id":"3fa85f64-5717-4562-b3fc-2c963f66afa6","status":"paid"}');
+  const signature = crypto.sign('RSA-SHA256', body, privateKey).toString('base64');
+
+  assert.equal(verifyChipSignature(body, signature, publicKey.export({ type: 'spki', format: 'pem' })), true);
+  assert.equal(verifyChipSignature(Buffer.from(`${body.toString()} `), signature, publicKey.export({ type: 'spki', format: 'pem' })), false);
+  assert.equal(verifyChipSignature(body, 'not-valid-base64!', publicKey.export({ type: 'spki', format: 'pem' })), false);
+});
+
+test('CHIP customer payment methods use receipt-safe labels', () => {
+  assert.equal(chipMethodLabel('fpx'), 'FPX Online Banking');
+  assert.equal(chipMethodLabel('duitnow_qr'), 'DuitNow QR');
+  assert.equal(chipMethodLabel('card'), 'Credit or debit card');
+  assert.equal(chipMethodLabel('ewallet'), 'E-wallet');
+});
+
+test('CHIP terminal failures are separated from retryable states', () => {
+  assert.equal(chipTerminalFailure('cancelled'), 'cancelled');
+  assert.equal(chipTerminalFailure('error'), 'failed');
+  assert.equal(chipTerminalFailure('pending'), null);
+  assert.equal(chipTerminalFailure('paid'), null);
 });
 
 test('counter activation codes are human-readable and carry sufficient random data', () => {

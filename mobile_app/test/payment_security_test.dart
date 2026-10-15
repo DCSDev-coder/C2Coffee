@@ -2,27 +2,20 @@ import 'package:c2_coffee/services/payment_security.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('accepts only HTTPS Billplz checkout hosts', () {
-    expect(isTrustedPaymentCheckoutUrl('https://www.billplz.com/bills/abc'),
+  test('accepts only HTTPS CHIP checkout hosts', () {
+    expect(isTrustedPaymentCheckoutUrl('https://gate.chip-in.asia/p/abc'),
         isTrue);
     expect(
-        isTrustedPaymentCheckoutUrl(
-            'https://www.billplz-sandbox.com/bills/abc'),
-        isFalse);
-    expect(
-        isTrustedPaymentCheckoutUrl(
-          'https://www.billplz-sandbox.com/bills/abc',
-          allowSandbox: true,
-        ),
+        isTrustedPaymentCheckoutUrl('https://checkout.chip-in.asia/p/abc'),
         isTrue);
-    expect(isTrustedPaymentCheckoutUrl('http://www.billplz.com/bills/abc'),
+    expect(isTrustedPaymentCheckoutUrl('http://gate.chip-in.asia/p/abc'),
         isFalse);
     expect(
-        isTrustedPaymentCheckoutUrl('https://billplz.com.evil.test/bills/abc'),
+        isTrustedPaymentCheckoutUrl('https://chip-in.asia.evil.test/p/abc'),
         isFalse);
     expect(
         isTrustedPaymentCheckoutUrl(
-            'https://user:pass@www.billplz.com/bills/abc'),
+            'https://user:pass@gate.chip-in.asia/p/abc'),
         isFalse);
   });
 }

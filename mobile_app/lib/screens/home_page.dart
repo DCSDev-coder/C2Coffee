@@ -794,7 +794,7 @@ class _HomePageState extends State<HomePage> {
 
     final uri = banner.actionType == 'email'
         ? Uri(scheme: 'mailto', path: value, queryParameters: {
-            'subject': 'C2 Coffee Partner Spotlight: ${banner.title}',
+            'subject': 'C2 Coffee Partnership: ${banner.title}',
           })
         : Uri.tryParse(value);
     if (uri == null ||
@@ -936,7 +936,7 @@ class _HomePageState extends State<HomePage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'PARTNER SPOTLIGHT',
+              'PARTNERSHIP',
               style: TextStyle(
                 fontFamily: 'Afacad',
                 fontSize: 14,
@@ -1012,7 +1012,7 @@ class _HomePageState extends State<HomePage> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Text(
-            'Partner Spotlight',
+            'Partnership',
             style: TextStyle(
               fontFamily: 'Recoleta',
               fontSize: 24,

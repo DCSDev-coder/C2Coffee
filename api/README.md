@@ -13,7 +13,14 @@ The target stack follows the finalized C2MobileApp documentation:
 - Fastify
 - MySQL managed through cPanel/phpMyAdmin
 - Docker-ready runtime
-- Billplz for direct payment and token top-up
+- CHIP Collect for server-side payment creation and verified token top-up callbacks
+
+CHIP is fail-closed by default. The customer app currently exposes only payment
+methods that are both present in `TOPUP_GATEWAY_ALLOWED_METHODS` and returned by
+CHIP `GET /payment_methods/`. As of 14 October 2026, the intended production
+allowlist is `fpx,duitnow_qr`; Cards and E-wallet remain disabled while their
+merchant statuses are Pending.
+
 - WhatsApp OTP primary, SMS only when the user explicitly requests it
 
 ## Domain Decision

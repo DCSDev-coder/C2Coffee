@@ -5,11 +5,6 @@ class ApiConfig {
     'API_BASE_URL',
     defaultValue: 'https://api.c2coffeeandcandle.com/v1',
   );
-  static const allowBillplzSandbox = bool.fromEnvironment(
-    'ALLOW_BILLPLZ_SANDBOX',
-    defaultValue: false,
-  );
-
   static String get baseUrl => validateBaseUrl(_configuredBaseUrl);
 
   static String validateBaseUrl(String value) {

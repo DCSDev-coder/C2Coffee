@@ -10,6 +10,7 @@ import '../services/catalog_presentation.dart';
 import '../services/cart_service.dart';
 import '../services/catalog_api_service.dart';
 import '../utils/app_colors.dart';
+import '../utils/app_notification.dart';
 import '../services/customer_data_service.dart';
 import '../services/secure_session_service.dart';
 import '../widgets/catalog_product_image.dart';
@@ -47,6 +48,7 @@ class _MenuPageState extends State<MenuPage> {
 
   bool _isSearching = false;
   bool _showTokenPrice = true;
+  bool _showScrollToTop = false;
   bool _isAutoScrolling = false;
   _MenuSortOrder _sortOrder = _MenuSortOrder.menuOrder;
   int _selectedCategoryIndex = 0;
@@ -291,6 +293,12 @@ class _MenuPageState extends State<MenuPage> {
   }
 
   void _onScroll() {
+    final shouldShowScrollToTop =
+        _scrollController.hasClients && _scrollController.offset > 520;
+    if (shouldShowScrollToTop != _showScrollToTop && mounted) {
+      setState(() => _showScrollToTop = shouldShowScrollToTop);
+    }
+
     if (_isAutoScrolling || _uiSections.isEmpty) return;
 
     final activationLine = MediaQuery.sizeOf(context).height * 0.66;
@@ -338,6 +346,16 @@ class _MenuPageState extends State<MenuPage> {
     );
     await Future<void>.delayed(const Duration(milliseconds: 100));
     _isAutoScrolling = false;
+  }
+
+  Future<void> _scrollToTop() async {
+    if (!_scrollController.hasClients) return;
+    setState(() => _selectedCategoryIndex = 0);
+    await _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 480),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   int? _tokenPriceForItem(Map<String, dynamic> item) {
@@ -389,67 +407,119 @@ class _MenuPageState extends State<MenuPage> {
   Future<void> _showMenuFilters() async {
     final selection = await showModalBottomSheet<_MenuFilterSelection>(
       context: context,
-      showDragHandle: true,
+      isScrollControlled: true,
       backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
       builder: (context) {
         var selectedSortOrder = _sortOrder;
 
         return StatefulBuilder(
           builder: (context, setSheetState) => SafeArea(
             top: false,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxHeight: MediaQuery.sizeOf(context).height * 0.72,
-              ),
+            child: SizedBox(
+              width: double.infinity,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(
-                      'Sort menu',
-                      style: TextStyle(
-                        fontFamily: 'Recoleta',
-                        fontSize: 25,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.deepTeal,
+                    Center(
+                      child: Container(
+                        width: 44,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: AppColors.border,
+                          borderRadius: BorderRadius.circular(99),
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    const Text(
-                      'Sort items within each category.',
-                      style: TextStyle(
-                        fontFamily: 'Afacad',
-                        fontSize: 18,
-                        color: Colors.black54,
-                      ),
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Container(
+                          width: 46,
+                          height: 46,
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceLight,
+                            borderRadius: BorderRadius.circular(15),
+                          ),
+                          child: Icon(Icons.tune_rounded,
+                              color: AppColors.deepTeal),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Arrange your menu',
+                                style: TextStyle(
+                                  fontFamily: 'Recoleta',
+                                  fontSize: 23,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.brandText,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              const Text(
+                                'Choose how items appear in every category.',
+                                style: TextStyle(
+                                  fontFamily: 'Afacad',
+                                  fontSize: 16,
+                                  color: Colors.black54,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 10),
-                    Expanded(
+                    const SizedBox(height: 20),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFAFAF8),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: AppColors.border),
+                      ),
                       child: RadioGroup<_MenuSortOrder>(
                         groupValue: selectedSortOrder,
                         onChanged: (value) {
                           if (value == null) return;
                           setSheetState(() => selectedSortOrder = value);
                         },
-                        child: ListView(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             for (final sort in _MenuSortOrder.values)
-                              RadioListTile<_MenuSortOrder>(
-                                contentPadding: EdgeInsets.zero,
-                                dense: true,
-                                value: sort,
-                                title: Text(
-                                  sort.label,
-                                  style: const TextStyle(fontFamily: 'Afacad'),
+                              Material(
+                                color: Colors.transparent,
+                                child: RadioListTile<_MenuSortOrder>(
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                  ),
+                                  value: sort,
+                                  title: Text(
+                                    sort.label,
+                                    style: TextStyle(
+                                      fontFamily: 'Afacad',
+                                      fontSize: 17,
+                                      fontWeight: selectedSortOrder == sort
+                                          ? FontWeight.w700
+                                          : FontWeight.w500,
+                                      color: AppColors.brandText,
+                                    ),
+                                  ),
+                                  activeColor: AppColors.deepTeal,
                                 ),
-                                activeColor: AppColors.deepTeal,
                               ),
                           ],
                         ),
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 18),
                     Row(
                       children: [
                         Expanded(
@@ -463,8 +533,19 @@ class _MenuPageState extends State<MenuPage> {
                             style: OutlinedButton.styleFrom(
                               foregroundColor: AppColors.deepTeal,
                               side: BorderSide(color: AppColors.deepTeal),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
                             ),
-                            child: const Text('Reset'),
+                            child: const Text(
+                              'Reset',
+                              style: TextStyle(
+                                fontFamily: 'Afacad',
+                                fontSize: 17,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -478,8 +559,19 @@ class _MenuPageState extends State<MenuPage> {
                             ),
                             style: FilledButton.styleFrom(
                               backgroundColor: AppColors.deepTeal,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
                             ),
-                            child: const Text('Apply'),
+                            child: const Text(
+                              'Apply',
+                              style: TextStyle(
+                                fontFamily: 'Afacad',
+                                fontSize: 17,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
                           ),
                         ),
                       ],
@@ -708,9 +800,39 @@ class _MenuPageState extends State<MenuPage> {
           ),
           overlay: Stack(
             children: [
+              if (_showScrollToTop)
+                Positioned(
+                  right: 18,
+                  bottom: (_cart.items.isNotEmpty ? 158 : 94) +
+                      MediaQuery.paddingOf(context).bottom,
+                  child: Semantics(
+                    button: true,
+                    label: 'Back to top',
+                    child: Material(
+                      color: AppColors.deepTeal,
+                      elevation: 5,
+                      shadowColor: Colors.black26,
+                      shape: const CircleBorder(),
+                      child: InkWell(
+                        customBorder: const CircleBorder(),
+                        onTap: _scrollToTop,
+                        child: const SizedBox(
+                          width: 48,
+                          height: 48,
+                          child: Icon(
+                            Icons.keyboard_arrow_up_rounded,
+                            color: Colors.white,
+                            size: 30,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               Positioned(
                 right: 18,
-                bottom: 146 + MediaQuery.paddingOf(context).bottom,
+                bottom: (_cart.items.isNotEmpty ? 218 : 154) +
+                    MediaQuery.paddingOf(context).bottom,
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onTap: () {
@@ -758,8 +880,9 @@ class _MenuPageState extends State<MenuPage> {
               ),
               if (_cart.items.isNotEmpty)
                 Positioned(
-                  right: 18,
-                  bottom: 72 + MediaQuery.paddingOf(context).bottom,
+                  left: 54,
+                  right: 54,
+                  bottom: 80 + MediaQuery.paddingOf(context).bottom,
                   child: _buildCheckoutBar(),
                 ),
             ],
@@ -1062,160 +1185,119 @@ class _MenuPageState extends State<MenuPage> {
   void _openStoreDirection() {
     final store = _session.selectedStore;
     final storeName = store?.name ?? 'C2 Coffee';
-    final destination = store?.addressLabel.isNotEmpty == true
-        ? store!.addressLabel
-        : storeName;
+    final destination = _navigationDestination(store);
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
       builder: (sheetContext) {
-        return Container(
-          margin: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.12),
-                blurRadius: 20,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: SafeArea(
+        return SafeArea(
+          top: false,
+          child: SizedBox(
+            width: double.infinity,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 22),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: AppColors.secondary.withValues(alpha: 0.15),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.near_me_rounded,
-                          color: AppColors.deepTeal,
-                          size: 22,
-                        ),
+                  Center(
+                    child: Container(
+                      width: 44,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppColors.border,
+                        borderRadius: BorderRadius.circular(99),
                       ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Get Directions',
-                              style: TextStyle(
-                                fontFamily: 'Recoleta',
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.brandText,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              storeName,
-                              style: const TextStyle(
-                                fontFamily: 'Afacad',
-                                fontSize: 15,
-                                color: Colors.black54,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                   const SizedBox(height: 20),
-                  ListTile(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+                  Container(
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      gradient: AppColors.headerGradient,
+                      borderRadius: BorderRadius.circular(22),
                     ),
-                    tileColor: const Color(0xFFF7F8F9),
-                    leading: const Icon(
-                      Icons.map_rounded,
-                      color: Color(0xFF4285F4),
-                      size: 28,
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.16),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: const Icon(
+                            Icons.near_me_rounded,
+                            color: Colors.white,
+                            size: 25,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Choose your route',
+                                style: TextStyle(
+                                  fontFamily: 'Recoleta',
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                storeName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontFamily: 'Afacad',
+                                  fontSize: 16,
+                                  color: Colors.white.withValues(alpha: 0.82),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                    title: const Text(
-                      'Google Maps',
-                      style: TextStyle(
-                        fontFamily: 'Afacad',
-                        fontWeight: FontWeight.w600,
-                        fontSize: 18,
-                      ),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    destination,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontFamily: 'Afacad',
+                      fontSize: 15,
+                      color: Colors.black54,
+                      height: 1.25,
                     ),
-                    trailing: const Icon(
-                      Icons.arrow_forward_ios_rounded,
-                      size: 14,
-                      color: Colors.black45,
-                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  _DirectionOption(
+                    icon: Icons.map_rounded,
+                    iconColor: const Color(0xFF4285F4),
+                    title: 'Google Maps',
+                    subtitle: 'Open the exact outlet location',
                     onTap: () async {
                       Navigator.pop(sheetContext);
-                      final googleMapsUri = Uri.https(
-                        'www.google.com',
-                        '/maps/search/',
-                        {'api': '1', 'query': destination},
-                      );
-                      if (await canLaunchUrl(googleMapsUri)) {
-                        await launchUrl(
-                          googleMapsUri,
-                          mode: LaunchMode.externalApplication,
-                        );
-                      }
+                      await _launchGoogleMaps(store, destination);
                     },
                   ),
-                  const SizedBox(height: 10),
-                  ListTile(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    tileColor: const Color(0xFFF7F8F9),
-                    leading: const Icon(
-                      Icons.navigation_rounded,
-                      color: Color(0xFF33CCFF),
-                      size: 28,
-                    ),
-                    title: const Text(
-                      'Waze',
-                      style: TextStyle(
-                        fontFamily: 'Afacad',
-                        fontWeight: FontWeight.w600,
-                        fontSize: 18,
-                      ),
-                    ),
-                    trailing: const Icon(
-                      Icons.arrow_forward_ios_rounded,
-                      size: 14,
-                      color: Colors.black45,
-                    ),
+                  const SizedBox(height: 12),
+                  _DirectionOption(
+                    icon: Icons.navigation_rounded,
+                    iconColor: const Color(0xFF20B8E8),
+                    title: 'Waze',
+                    subtitle: 'Start turn-by-turn navigation',
                     onTap: () async {
                       Navigator.pop(sheetContext);
-                      final encodedDestination =
-                          Uri.encodeComponent(destination);
-                      final wazeAppUri = Uri.parse(
-                          'waze://?q=$encodedDestination&navigate=yes');
-                      final wazeWebUri = Uri.parse(
-                          'https://www.waze.com/ul?q=$encodedDestination&navigate=yes');
-
-                      if (await canLaunchUrl(wazeAppUri)) {
-                        await launchUrl(
-                          wazeAppUri,
-                          mode: LaunchMode.externalApplication,
-                        );
-                      } else if (await canLaunchUrl(wazeWebUri)) {
-                        await launchUrl(
-                          wazeWebUri,
-                          mode: LaunchMode.externalApplication,
-                        );
-                      }
+                      await _launchWaze(store, destination);
                     },
                   ),
                 ],
@@ -1225,6 +1307,58 @@ class _MenuPageState extends State<MenuPage> {
         );
       },
     );
+  }
+
+  String _navigationDestination(StoreSummary? store) {
+    if (store?.code.toUpperCase() == 'C2-BROGA') {
+      return '42-1, Jalan Eco Forest 6/1C, Eco Forest, 43500 Semenyih, Selangor';
+    }
+    if (store?.addressLabel.isNotEmpty == true) return store!.addressLabel;
+    return store?.name ?? 'C2 Coffee';
+  }
+
+  String? _coordinatePair(StoreSummary? store) {
+    // The legacy C2-BROGA database row can contain its former Broga pin.
+    // Use the canonical Eco Forest address above until that row is corrected.
+    if (store?.code.toUpperCase() == 'C2-BROGA') return null;
+    if (store?.latitude == null || store?.longitude == null) return null;
+    return '${store!.latitude},${store.longitude}';
+  }
+
+  Future<void> _launchGoogleMaps(
+    StoreSummary? store,
+    String destination,
+  ) async {
+    final query = _coordinatePair(store) ?? destination;
+    final uri = Uri.https(
+      'www.google.com',
+      '/maps/search/',
+      {'api': '1', 'query': query},
+    );
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  Future<void> _launchWaze(StoreSummary? store, String destination) async {
+    final coordinates = _coordinatePair(store);
+    final appUri = coordinates == null
+        ? Uri.parse(
+            'waze://?q=${Uri.encodeComponent(destination)}&navigate=yes')
+        : Uri.parse('waze://?ll=$coordinates&navigate=yes');
+    final webUri = coordinates == null
+        ? Uri.https('www.waze.com', '/ul', {
+            'q': destination,
+            'navigate': 'yes',
+          })
+        : Uri.https('www.waze.com', '/ul', {
+            'll': coordinates,
+            'navigate': 'yes',
+          });
+
+    if (await canLaunchUrl(appUri)) {
+      await launchUrl(appUri, mode: LaunchMode.externalApplication);
+      return;
+    }
+    await launchUrl(webUri, mode: LaunchMode.externalApplication);
   }
 
   Widget _buildStoreHeader() {
@@ -1337,67 +1471,130 @@ class _MenuPageState extends State<MenuPage> {
 
   Widget _buildCheckoutBar() {
     final isOpen = _session.selectedStore?.isOpenNow == true;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: isOpen
-          ? () {
-              InteractiveFillingLoader.show(
-                context,
-                targetPage: const OrderConfirmationPage(),
-              );
-            }
-          : () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text(
-                  'This outlet is currently closed. Choose an open outlet to order.'))),
-      child: Container(
-        width: 56,
-        height: 56,
-        decoration: BoxDecoration(
-          color: isOpen ? AppColors.deepTeal : Colors.grey,
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.16),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
+    final itemCount = _cart.items.length;
+    return Material(
+      color: isOpen ? AppColors.deepTeal : Colors.grey.shade600,
+      elevation: 8,
+      shadowColor: Colors.black.withValues(alpha: 0.24),
+      borderRadius: BorderRadius.circular(30),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(30),
+        onTap: isOpen
+            ? () {
+                InteractiveFillingLoader.show(
+                  context,
+                  targetPage: const OrderConfirmationPage(),
+                );
+              }
+            : () => AppNotification.showWarning(
+                  context,
+                  'This outlet is currently closed. Choose an open outlet to order.',
+                ),
+        child: Container(
+          height: 54,
+          padding: const EdgeInsets.symmetric(horizontal: 15),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.18),
             ),
-          ],
-        ),
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            const Center(
-              child: Icon(
-                Icons.shopping_bag_outlined,
-                color: Colors.white,
-                size: 24,
-              ),
-            ),
-            Positioned(
-              top: -2,
-              right: -2,
-              child: Container(
-                width: 20,
-                height: 20,
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFE5A93C),
+                  color: Colors.white.withValues(alpha: 0.14),
                   shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 1.5),
                 ),
-                alignment: Alignment.center,
-                child: Text(
-                  '${_cart.items.length}',
-                  style: const TextStyle(
-                    fontFamily: 'Afacad',
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    height: 1,
-                  ),
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    const Center(
+                      child: Icon(
+                        Icons.shopping_bag_outlined,
+                        color: Colors.white,
+                        size: 21,
+                      ),
+                    ),
+                    Positioned(
+                      top: -4,
+                      right: -4,
+                      child: Container(
+                        constraints: const BoxConstraints(
+                          minWidth: 20,
+                          minHeight: 20,
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE5A93C),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.white, width: 1.5),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          '$itemCount',
+                          style: const TextStyle(
+                            fontFamily: 'Afacad',
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            height: 1,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ),
-          ],
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Checkout',
+                      style: TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        height: 1,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '$itemCount ${itemCount == 1 ? 'item' : 'items'} in your bag',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.white.withValues(alpha: 0.72),
+                        height: 1,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.14),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.arrow_forward_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1521,7 +1718,8 @@ class _MenuPageState extends State<MenuPage> {
   }
 
   Widget _buildMenuLoadingState() {
-    final crossAxisCount = MediaQuery.orientationOf(context) == Orientation.landscape ? 3 : 2;
+    final crossAxisCount =
+        MediaQuery.orientationOf(context) == Orientation.landscape ? 3 : 2;
     return Row(
       children: [
         Container(
@@ -1600,7 +1798,8 @@ class _MenuPageState extends State<MenuPage> {
   }
 
   Widget _buildSection(_MenuSection section, int index) {
-    final crossAxisCount = MediaQuery.orientationOf(context) == Orientation.landscape ? 3 : 2;
+    final crossAxisCount =
+        MediaQuery.orientationOf(context) == Orientation.landscape ? 3 : 2;
     return Column(
       key: _sectionKeys[index],
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1691,15 +1890,8 @@ class _MenuPageState extends State<MenuPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
-                    child: Text(
-                      item['name']?.toString() ?? 'Item',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontFamily: 'Recoleta',
-                        fontSize: 17,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    child: _ResponsiveMenuItemName(
+                      name: item['name']?.toString() ?? 'Item',
                     ),
                   ),
                   AnimatedSwitcher(
@@ -1768,6 +1960,160 @@ class _MenuPageState extends State<MenuPage> {
               ),
             ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ResponsiveMenuItemName extends StatelessWidget {
+  final String name;
+
+  const _ResponsiveMenuItemName({required this.name});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const sizes = <double>[17, 16, 15, 14, 13];
+        final words = name.trim().split(RegExp(r'\s+'));
+
+        for (final fontSize in sizes) {
+          final style = TextStyle(
+            fontFamily: 'Recoleta',
+            fontSize: fontSize,
+            fontWeight: FontWeight.bold,
+            height: 1.12,
+          );
+          final fullLine = TextPainter(
+            text: TextSpan(text: name, style: style),
+            textDirection: TextDirection.ltr,
+            maxLines: 1,
+          )..layout(maxWidth: constraints.maxWidth);
+
+          if (!fullLine.didExceedMaxLines) {
+            return Text(
+              name,
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.ellipsis,
+              style: style,
+            );
+          }
+
+          if (words.length < 2) continue;
+          var splitAfter = 0;
+          for (var index = 1; index < words.length; index++) {
+            final firstLine = words.take(index).join(' ');
+            final painter = TextPainter(
+              text: TextSpan(text: firstLine, style: style),
+              textDirection: TextDirection.ltr,
+              maxLines: 1,
+            )..layout(maxWidth: constraints.maxWidth);
+            if (painter.didExceedMaxLines) break;
+            splitAfter = index;
+          }
+
+          if (splitAfter > 0) {
+            final firstLine = words.take(splitAfter).join(' ');
+            final secondLine = words.skip(splitAfter).join(' ');
+            return Text(
+              '$firstLine\n$secondLine',
+              maxLines: 2,
+              softWrap: false,
+              overflow: TextOverflow.ellipsis,
+              style: style,
+            );
+          }
+        }
+
+        return Text(
+          name,
+          maxLines: 1,
+          softWrap: false,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontFamily: 'Recoleta',
+            fontSize: 13,
+            fontWeight: FontWeight.bold,
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _DirectionOption extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _DirectionOption({
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0xFFFAFAF8),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(color: AppColors.border),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+          child: Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: iconColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(icon, color: iconColor, size: 25),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.brandText,
+                      ),
+                    ),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 14,
+                        color: Colors.black54,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Icons.arrow_forward_ios_rounded,
+                size: 15,
+                color: Colors.black38,
+              ),
+            ],
+          ),
         ),
       ),
     );

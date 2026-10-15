@@ -1,4 +1,4 @@
--- A verified Billplz callback must credit the wallet even if SMTP is unavailable.
+-- A verified payment callback must credit the wallet even if SMTP is unavailable.
 
 CREATE TABLE IF NOT EXISTS topup_receipt_email_deliveries (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,

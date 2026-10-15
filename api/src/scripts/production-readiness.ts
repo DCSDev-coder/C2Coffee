@@ -1,6 +1,7 @@
 import nodemailer from 'nodemailer';
 
 import { env } from '../config/env.js';
+import { getActiveChipMethods } from '../payments/chip-client.js';
 
 type Check = {
   name: string;
@@ -21,68 +22,11 @@ async function requireHealthy(url: string): Promise<void> {
   }
 }
 
-type BillplzItem = Record<string, unknown>;
-
-async function fetchBillplzList(path: string, property: string): Promise<BillplzItem[]> {
-  const baseUrl = env.TOPUP_GATEWAY_BASE_URL.replace(/\/+$/, '');
-  const authorization = `Basic ${Buffer.from(`${env.TOPUP_GATEWAY_API_KEY}:`).toString('base64')}`;
-  const response = await fetch(`${baseUrl}${path}`, {
-    headers: { authorization },
-    signal: AbortSignal.timeout(10_000)
-  });
-  const body = await response.json().catch(() => null) as Record<string, unknown> | null;
-  const items = body?.[property];
-  if (!response.ok || !Array.isArray(items)) {
-    throw new Error(`Billplz ${property.replaceAll('_', ' ')} lookup returned HTTP ${response.status}.`);
-  }
-  return items.filter((item): item is BillplzItem => Boolean(item) && typeof item === 'object');
-}
-
-async function requireBillplzApprovedMethods(): Promise<void> {
-  const collectionId = encodeURIComponent(env.TOPUP_GATEWAY_COLLECTION_ID);
-  const collectionMethods = await fetchBillplzList(
-    `/v3/collections/${collectionId}/payment_methods`,
-    'payment_methods'
-  );
-  const activeCollectionCodes = new Set(
-    collectionMethods
-      .filter((method) => method.active === true)
-      .map((method) => String(method.code ?? ''))
-  );
-  const requiredCollectionCode: Record<string, string> = {
-    touch_n_go: 'touchngo',
-    card: 'billplz',
-    bank_transfer: 'fpx'
-  } as const;
-
+async function requireChipApprovedMethods(): Promise<void> {
+  const active = await getActiveChipMethods();
   for (const method of env.TOPUP_GATEWAY_ALLOWED_METHODS) {
-    const collectionCode = requiredCollectionCode[method];
-    if (!activeCollectionCodes.has(collectionCode)) {
-      throw new Error(`Billplz method ${method} is allowed by the API but is not active for this collection.`);
-    }
-  }
-
-  if (env.TOPUP_GATEWAY_ALLOWED_METHODS.includes('bank_transfer')) {
-    const banks = await fetchBillplzList('/v3/fpx_banks', 'banks');
-    if (!banks.some((bank) => bank.active === true)) {
-      throw new Error('Billplz online banking is active for the collection, but no FPX bank is currently available.');
-    }
-  }
-
-  const requiredGatewayCodes = new Set<string>();
-  if (env.TOPUP_GATEWAY_ALLOWED_METHODS.includes('touch_n_go')) requiredGatewayCodes.add('BP-TNG01');
-  if (env.TOPUP_GATEWAY_ALLOWED_METHODS.includes('card')) requiredGatewayCodes.add('BP-BILLPLZ1');
-  if (requiredGatewayCodes.size === 0) return;
-
-  const gateways = await fetchBillplzList('/v4/payment_gateways', 'payment_gateways');
-  const activeGatewayCodes = new Set(
-    gateways
-      .filter((gateway) => gateway.active === true)
-      .map((gateway) => String(gateway.code ?? ''))
-  );
-  for (const requiredCode of requiredGatewayCodes) {
-    if (!activeGatewayCodes.has(requiredCode)) {
-      throw new Error(`Billplz gateway ${requiredCode} is required by the API allowlist but is not active.`);
+    if (!active.has(method as 'fpx' | 'duitnow_qr' | 'card' | 'ewallet')) {
+      throw new Error(`CHIP method ${method} is allowed by the API but is not active for this brand.`);
     }
   }
 }
@@ -93,7 +37,7 @@ async function main(): Promise<void> {
     ? 'FCM delivery is enabled and the service-account secret has the required fields; a physical device test remains required.'
     : 'FCM delivery is disabled. Set FCM_DELIVERY_ENABLED=true and install the service-account secret before testing notifications.';
   const topUpReadinessDetail = env.TOPUP_GATEWAY_ENABLED
-    ? `Top-up gateway ${env.TOPUP_GATEWAY_PROVIDER} allowlist is ${env.TOPUP_GATEWAY_ALLOWED_METHODS.join(', ')}. Collection-level activation is verified for every allowed method.`
+    ? `Top-up gateway ${env.TOPUP_GATEWAY_PROVIDER} allowlist is ${env.TOPUP_GATEWAY_ALLOWED_METHODS.join(', ')}. Brand-level activation is verified for every allowed method.`
     : 'Online token top-up is intentionally disabled. Counter/admin token credits remain the only available top-up route.';
   const checks: Check[] = [
     {
@@ -171,15 +115,14 @@ async function main(): Promise<void> {
         requireValue('TOPUP_GATEWAY_PROVIDER', env.TOPUP_GATEWAY_PROVIDER);
         requireValue('TOPUP_GATEWAY_BASE_URL', env.TOPUP_GATEWAY_BASE_URL);
         requireValue('TOPUP_GATEWAY_API_KEY', env.TOPUP_GATEWAY_API_KEY);
-        requireValue('TOPUP_GATEWAY_WEBHOOK_SECRET', env.TOPUP_GATEWAY_WEBHOOK_SECRET);
-        requireValue('TOPUP_GATEWAY_COLLECTION_ID', env.TOPUP_GATEWAY_COLLECTION_ID);
-        if (env.TOPUP_GATEWAY_PROVIDER !== 'billplz') {
-          throw new Error('Only Billplz is approved for online C2 Token top-up.');
+        requireValue('TOPUP_GATEWAY_BRAND_ID', env.TOPUP_GATEWAY_BRAND_ID);
+        if (env.TOPUP_GATEWAY_PROVIDER !== 'chip') {
+          throw new Error('Only CHIP is approved for online C2 Token top-up.');
         }
         if (env.TOPUP_GATEWAY_ALLOWED_METHODS.includes('atome')) {
           throw new Error('Atome must not be enabled for token top-up.');
         }
-        return requireBillplzApprovedMethods();
+        return requireChipApprovedMethods();
       }
     }
   ];
@@ -203,7 +146,7 @@ async function main(): Promise<void> {
     console.log('INFO    Receipt printing is not configured in this deployment; no physical-printer test is required.');
   }
   if (env.TOPUP_GATEWAY_ENABLED) {
-    console.log(`MANUAL  Complete one end-to-end ${env.TOPUP_GATEWAY_ALLOWED_METHODS.join('/')} payment and signed callback in the configured Billplz environment before customer launch.`);
+    console.log(`MANUAL  Complete one end-to-end ${env.TOPUP_GATEWAY_ALLOWED_METHODS.join('/')} payment and verified callback in CHIP before customer launch.`);
   }
   if (failed) process.exitCode = 1;
 }

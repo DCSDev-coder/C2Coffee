@@ -3,6 +3,7 @@ import cookie from '@fastify/cookie';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import Fastify from 'fastify';
+import rawBody from 'fastify-raw-body';
 import { env } from './config/env.js';
 import { assertSingleCafeDeployment } from './admin/deployment.js';
 import { errorHandler } from './http/errors.js';
@@ -114,6 +115,11 @@ export async function buildApp() {
     // routes apply their own identity-specific limits.
     max: 600,
     timeWindow: '1 minute'
+  });
+  await app.register(rawBody, {
+    global: false,
+    encoding: false,
+    runFirst: true
   });
   app.addContentTypeParser('application/x-www-form-urlencoded', { parseAs: 'string' }, (_request, body, done) => {
     const values: Record<string, string> = {};

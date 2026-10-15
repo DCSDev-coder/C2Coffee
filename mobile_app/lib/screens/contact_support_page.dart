@@ -446,11 +446,19 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
           icon: Icons.storefront_outlined,
           iconBg: const Color(0xFFFFF3E0),
           iconColor: AppColors.accent,
-          title: 'C2 Coffee Broga',
+          title: 'C2 Coffee Eco Forest',
           subtitle: 'Open the outlet location in Google Maps',
           badgeText: 'Self-Pickup Only',
           onTap: () => _openSupportLink(
-            Uri.parse('https://share.google/V7PquHQI2Uj1Mps1g'),
+            Uri.https(
+              'www.google.com',
+              '/maps/search/',
+              {
+                'api': '1',
+                'query':
+                    '42-1, Jalan Eco Forest 6/1C, Eco Forest, 43500 Semenyih, Selangor',
+              },
+            ),
             'Google Maps',
           ),
           actionText: 'Maps',
@@ -463,10 +471,18 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
           iconBg: const Color(0xFFFFF3E0),
           iconColor: AppColors.accent,
           title: 'Navigate with Waze',
-          subtitle: 'Search for C2 Coffee Broga in Waze',
+          subtitle: 'Navigate to C2 Coffee Eco Forest',
           badgeText: 'Navigation',
           onTap: () => _openSupportLink(
-            Uri.parse('https://waze.com/ul?q=C2%20Coffee%20Broga'),
+            Uri.https(
+              'www.waze.com',
+              '/ul',
+              {
+                'q':
+                    '42-1, Jalan Eco Forest 6/1C, Eco Forest, 43500 Semenyih, Selangor',
+                'navigate': 'yes',
+              },
+            ),
             'Waze',
           ),
           actionText: 'Waze',

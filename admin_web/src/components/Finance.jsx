@@ -1,11 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   BarChart3,
   Download,
   RefreshCw,
   ReceiptText,
   ShoppingCart,
-  TrendingUp,
   Wallet
 } from 'lucide-react';
 import {
@@ -45,12 +44,18 @@ const EMPTY_OVERVIEW = {
 
 const topUpMethodLabel = (method) => {
   switch (method) {
+    case 'fpx':
+      return 'FPX Online Banking';
+    case 'duitnow_qr':
+      return 'DuitNow QR';
+    case 'ewallet':
+      return 'E-wallet';
     case 'touch_n_go':
-      return 'Touch n Go eWallet';
+      return 'Touch n Go eWallet (legacy)';
     case 'card':
-      return 'Visa or Mastercard';
+      return 'Credit or debit card';
     case 'bank_transfer':
-      return 'Online banking';
+      return 'Online banking (legacy)';
     case 'not_recorded':
       return 'Not recorded';
     default:
@@ -130,8 +135,7 @@ const Finance = ({ setCurrentPage }) => {
   const totalPaidTopUps = topUpMethodBreakdown.reduce((total, entry) => total + Number(entry.count || 0), 0);
   const mostUsedTopUpMethod = topUpMethodBreakdown.find((entry) => entry.method !== 'not_recorded') || null;
 
-  const exportRows = useMemo(() => {
-    return [
+  const exportRows = [
       ['Date', 'Time', 'Type', 'Description', 'Outlet', 'RM Amount', 'Token Amount', 'Status', 'Payment'],
       ...recentTransactions.map((transaction) => [
         `"${transaction.date}"`,
@@ -145,7 +149,6 @@ const Finance = ({ setCurrentPage }) => {
         `"${transaction.paymentMode || ''}"`
       ])
     ];
-  }, [recentTransactions]);
 
   const handleExport = () => {
     exportToCSV(exportRows, 'finance_overview.csv');

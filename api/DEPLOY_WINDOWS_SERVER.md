@@ -152,6 +152,17 @@ docker compose logs --tail 100 c2-api
 docker compose exec c2-api npm run production-readiness:prod
 ```
 
+Run CHIP reconciliation once after every deployment:
+
+```powershell
+docker compose exec -T c2-api npm run reconcile:chip:prod
+```
+
+Configure Windows Task Scheduler to run that reconciliation command every five
+minutes. It releases expired wallet reservations, retrieves authoritative CHIP
+status for pending purchases, credits confirmed payments idempotently, and
+marks terminal failures without trusting the customer browser return.
+
 ## 10. Operational notes
 
 - The container binds only to `127.0.0.1:8080` on the server host
@@ -162,7 +173,9 @@ docker compose exec c2-api npm run production-readiness:prod
   professional in-app notifications even if FCM is temporarily unavailable.
 - A printer route becomes connected only after a print connector heartbeat.
   The connector protocol is documented in `PRINT_CONNECTOR_PROTOCOL.md`.
-- Billplz env placeholders are intentionally present but not yet required by live routes
+- CHIP remains fail-closed until the API key, Brand ID, active method codes,
+  and a real callback test have been completed. Never place the secret key in
+  either Flutter app.
 
 ## 11. Production readiness evidence
 

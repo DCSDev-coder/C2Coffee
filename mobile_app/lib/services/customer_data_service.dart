@@ -101,38 +101,6 @@ class OnlineTopUpPaymentMethods {
   }
 }
 
-class OnlineBankOption {
-  final String code;
-
-  const OnlineBankOption({required this.code});
-
-  String get label {
-    const labels = <String, String>{
-      'MB2U0227': 'Maybank2u',
-      'MBSB001': 'MBSB Bank',
-      'BCBB0235': 'CIMB Clicks',
-      'RHB0218': 'RHB Bank',
-      'PBB0233': 'Public Bank',
-      'HLB0224': 'Hong Leong Bank',
-      'ABB0233': 'Affin Bank',
-      'AGRO01': 'Agrobank',
-      'ABMB0212': 'Alliance Bank',
-      'AMBB0209': 'AmBank',
-      'BIMB0340': 'Bank Islam',
-      'BMMB0341': 'Bank Muamalat',
-      'BOCM01': 'Bank of China',
-      'BKRM0602': 'Bank Rakyat',
-      'BSN0601': 'Bank Simpanan Nasional',
-      'HSBC0223': 'HSBC',
-      'KFH0346': 'Kuwait Finance House',
-      'OCBC0229': 'OCBC',
-      'SCB0216': 'Standard Chartered',
-      'UOB0226': 'UOB',
-    };
-    return labels[code] ?? code;
-  }
-}
-
 class RewardVoucherTemplate {
   final String code;
   final String name;
@@ -1084,24 +1052,11 @@ class CustomerDataService {
         .toList();
   }
 
-  Future<List<OnlineBankOption>> getBillplzBanks({
-    required String accessToken,
-  }) async {
-    final response =
-        await _get('/topups/billplz/banks', accessToken: accessToken);
-    return (response['banks'] as List? ?? const [])
-        .map((item) => OnlineBankOption(
-              code: (item as Map)['code'] as String? ?? '',
-            ))
-        .where((bank) => bank.code.isNotEmpty)
-        .toList();
-  }
-
-  Future<OnlineTopUpPaymentMethods> getBillplzPaymentMethods({
+  Future<OnlineTopUpPaymentMethods> getChipPaymentMethods({
     required String accessToken,
   }) async {
     final response = await _get(
-      '/topups/billplz/payment-methods',
+      '/topups/payment-methods',
       accessToken: accessToken,
     );
     return OnlineTopUpPaymentMethods.fromApi(response);
@@ -1117,19 +1072,17 @@ class CustomerDataService {
         .toList();
   }
 
-  Future<OnlineTopUpSession> startBillplzTopUp({
+  Future<OnlineTopUpSession> startChipTopUp({
     required String accessToken,
-    required int packageId,
+    required int amountRm,
     required String paymentMethod,
-    String? bankCode,
   }) async {
     final response = await _post(
-      '/topups/billplz',
+      '/topups',
       accessToken: accessToken,
       body: {
-        'package_id': packageId,
+        'amount_rm': amountRm,
         'payment_method': paymentMethod,
-        if (bankCode != null) 'bank_code': bankCode,
       },
     );
     return OnlineTopUpSession.fromApi(response);

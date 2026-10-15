@@ -84,7 +84,8 @@ class _ReferralPageState extends State<ReferralPage> {
     });
 
     try {
-      final accessToken = await SecureSessionService.instance.getValidAccessToken();
+      final accessToken =
+          await SecureSessionService.instance.getValidAccessToken();
       if (accessToken == null || accessToken.isEmpty) {
         throw Exception('Missing access token.');
       }
@@ -106,7 +107,8 @@ class _ReferralPageState extends State<ReferralPage> {
       if (!mounted) return;
       final msg = friendlyCustomerErrorMessage(
         error,
-        fallback: 'We could not claim this referral code right now. Please try again.',
+        fallback:
+            'We could not claim this referral code right now. Please try again.',
       );
       setState(() {
         _claimError = msg;
@@ -192,337 +194,345 @@ class _ReferralPageState extends State<ReferralPage> {
                     ),
                   )
                 : Column(
-                              children: [
-                                // Invite A Friend Card
-                                Container(
-                                  width: double.infinity,
-                                  padding: const EdgeInsets.all(24),
-                                  decoration: BoxDecoration(
-                                    color: cardBgColor,
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                        color: AppColors.border, width: 1),
-                                  ),
-                                  child: Column(
-                                    children: [
-                                      Icon(
-                                        Icons.group_add_outlined,
-                                        size: 80,
-                                        color: brandColor,
-                                      ),
-                                      const SizedBox(height: 16),
-                                      Text(
-                                        'INVITE A FRIEND',
-                                        style: TextStyle(
-                                          fontFamily: 'Recoleta',
-                                          fontSize: 32,
-                                          fontWeight: FontWeight.w900,
-                                          color: brandColor,
-                                          letterSpacing: 1.5,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      RichText(
-                                        textAlign: TextAlign.center,
-                                        text: TextSpan(
-                                          style: TextStyle(
-                                            fontFamily: 'Afacad',
-                                            fontSize: 17,
-                                            color: brandColor,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                          children: [
-                                            const TextSpan(text: 'When your friend collects their first order, you receive '),
-                                            TextSpan(
-                                              text: _snapshot?.referrerRewardLabel ?? 'a referral reward',
-                                              style: TextStyle(
-                                                color: AppColors.gold,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                            const TextSpan(
-                                                text:
-                                                    '.'),
-                                          ],
-                                        ),
-                                      ),
-                                      const SizedBox(height: 16),
-                                    ],
-                                  ),
+                    children: [
+                      // Invite A Friend Card
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              cardBgColor,
+                              Colors.white,
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: AppColors.border, width: 1),
+                        ),
+                        child: Column(
+                          children: [
+                            Container(
+                              width: 92,
+                              height: 92,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: AppColors.border,
                                 ),
-                                const SizedBox(height: 24),
-
-                                // Unique Code Card
-                                Container(
-                                  width: double.infinity,
-                                  padding: const EdgeInsets.all(20),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(
-                                        color: AppColors.border, width: 1),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black
-                                            .withValues(alpha: 0.03),
-                                        blurRadius: 8,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ],
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: brandColor.withValues(alpha: 0.08),
+                                    blurRadius: 18,
+                                    offset: const Offset(0, 8),
                                   ),
-                                  child: Column(
-                                    children: [
-                                      Text(
-                                        'YOUR UNIQUE CODE',
-                                        style: TextStyle(
-                                          fontFamily: 'Recoleta',
-                                          fontSize: 20,
-                                          fontWeight: FontWeight.w900,
-                                          color: brandColor,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 12),
-                                      InkWell(
-                                        onTap: () => _shareCode(referralCode),
-                                        borderRadius: BorderRadius.circular(8),
-                                        child: Container(
-                                          width: double.infinity,
-                                          padding: const EdgeInsets.symmetric(
-                                              vertical: 12),
-                                          decoration: BoxDecoration(
-                                            color: AppColors.surfaceLight,
-                                            borderRadius:
-                                                BorderRadius.circular(8),
-                                            border: Border.all(
-                                                color: AppColors.border),
-                                          ),
-                                          alignment: Alignment.center,
-                                          child: Row(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.center,
-                                            children: [
-                                              Text(
-                                                referralCode,
-                                                style: TextStyle(
-                                                  fontFamily: 'Afacad',
-                                                  fontSize: 26,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: brandColor,
-                                                  letterSpacing: 2,
-                                                ),
-                                              ),
-                                              const SizedBox(width: 8),
-                                              Icon(Icons.copy,
-                                                  size: 18, color: brandColor),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 12),
-                                      GestureDetector(
-                                        onTap: () => _copyCode(referralCode),
-                                        child: Container(
-                                          width: double.infinity,
-                                          padding: const EdgeInsets.symmetric(
-                                              vertical: 12),
-                                          decoration: BoxDecoration(
-                                            color: brandColor,
-                                            borderRadius:
-                                                BorderRadius.circular(8),
-                                          ),
-                                          child: const Row(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.center,
-                                            children: [
-                                              Icon(Icons.ios_share,
-                                                  color: Colors.white,
-                                                  size: 20),
-                                              SizedBox(width: 8),
-                                              Text(
-                                                'Share Code',
-                                                style: TextStyle(
-                                                  fontFamily: 'Afacad',
-                                                  fontSize: 20,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: Colors.white,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(height: 24),
-
-                                // Claim Friend's Referral Code Card
-                                _buildClaimFriendCodeCard(brandColor),
-                                const SizedBox(height: 24),
-
-                                // How It Works Divider
-                                Row(
-                                  children: [
-                                    Expanded(
-                                        child: Divider(
-                                            color: AppColors.border,
-                                            thickness: 1)),
-                                    Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 12),
-                                      child: Text(
-                                        'How It Works',
-                                        style: TextStyle(
-                                          fontFamily: 'Recoleta',
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                          color: brandColor,
-                                        ),
-                                      ),
-                                    ),
-                                    Expanded(
-                                        child: Divider(
-                                            color: AppColors.border,
-                                            thickness: 1)),
-                                  ],
-                                ),
-                                const SizedBox(height: 24),
-
-                                // Steps Card
-                                Container(
-                                  width: double.infinity,
-                                  padding: const EdgeInsets.all(20),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(
-                                        color: AppColors.border, width: 1),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black
-                                            .withValues(alpha: 0.03),
-                                        blurRadius: 8,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ],
-                                  ),
-                                  child: _buildHorizontalSteps(brandColor),
-                                ),
-                                const SizedBox(height: 32),
-
-                                // My Achievements Divider
-                                Row(
-                                  children: [
-                                    Expanded(
-                                        child: Divider(
-                                            color: AppColors.border,
-                                            thickness: 1)),
-                                    Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 12),
-                                      child: Text(
-                                        'My Achievements',
-                                        style: TextStyle(
-                                          fontFamily: 'Recoleta',
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                          color: brandColor,
-                                        ),
-                                      ),
-                                    ),
-                                    Expanded(
-                                        child: Divider(
-                                            color: AppColors.border,
-                                            thickness: 1)),
-                                  ],
-                                ),
-                                const SizedBox(height: 24),
-
-                                // Achievements Card
-                                Container(
-                                  width: double.infinity,
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 24),
-                                  decoration: BoxDecoration(
-                                    color: brandColor,
-                                    borderRadius: BorderRadius.circular(16),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black
-                                            .withValues(alpha: 0.05),
-                                        blurRadius: 8,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Expanded(
-                                        child: Column(
-                                          children: [
-                                            const Text(
-                                              'Friends Invited',
-                                              style: TextStyle(
-                                                fontFamily: 'Recoleta',
-                                                fontSize: 18,
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.white,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 8),
-                                            Text(
-                                              '${_snapshot?.friendsInvited ?? 0}',
-                                              style: const TextStyle(
-                                                fontFamily: 'Afacad',
-                                                fontSize: 46,
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.white,
-                                                height: 1.0,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      Container(
-                                        width: 1.5,
-                                        height: 70,
-                                        color: Colors.white
-                                            .withValues(alpha: 0.3),
-                                      ),
-                                      Expanded(
-                                        child: Column(
-                                          children: [
-                                            const Text(
-                                              'Rewards Earned',
-                                              style: TextStyle(
-                                                fontFamily: 'Recoleta',
-                                                fontSize: 18,
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.white,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 8),
-                                            Text(
-                                              '${_snapshot?.rewardsClaimed ?? 0}',
-                                              style: TextStyle(
-                                                fontFamily: 'Afacad',
-                                                fontSize: 46,
-                                                fontWeight: FontWeight.bold,
-                                                color: AppColors.gold,
-                                                height: 1.0,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(height: 40),
-                              ],
+                                ],
+                              ),
+                              child: Icon(
+                                Icons.group_add_outlined,
+                                size: 52,
+                                color: brandColor,
+                              ),
                             ),
-          ),
-        );
+                            const SizedBox(height: 20),
+                            Text(
+                              'INVITE A\nFRIEND',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontFamily: 'Recoleta',
+                                fontSize: 31,
+                                fontWeight: FontWeight.w900,
+                                color: brandColor,
+                                letterSpacing: 1.2,
+                                height: 1.08,
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+                            RichText(
+                              textAlign: TextAlign.center,
+                              text: TextSpan(
+                                style: TextStyle(
+                                  fontFamily: 'Afacad',
+                                  fontSize: 17,
+                                  color: brandColor,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                children: [
+                                  const TextSpan(
+                                      text:
+                                          'When your friend collects their first order, you receive '),
+                                  TextSpan(
+                                    text: _snapshot?.referrerRewardLabel ??
+                                        'a referral reward',
+                                    style: TextStyle(
+                                      color: AppColors.gold,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const TextSpan(text: '.'),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Unique Code Card
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppColors.border, width: 1),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.03),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          children: [
+                            Text(
+                              'YOUR UNIQUE CODE',
+                              style: TextStyle(
+                                fontFamily: 'Recoleta',
+                                fontSize: 20,
+                                fontWeight: FontWeight.w900,
+                                color: brandColor,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            InkWell(
+                              onTap: () => _shareCode(referralCode),
+                              borderRadius: BorderRadius.circular(8),
+                              child: Container(
+                                width: double.infinity,
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: AppColors.surfaceLight,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: AppColors.border),
+                                ),
+                                alignment: Alignment.center,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      referralCode,
+                                      style: TextStyle(
+                                        fontFamily: 'Afacad',
+                                        fontSize: 26,
+                                        fontWeight: FontWeight.bold,
+                                        color: brandColor,
+                                        letterSpacing: 2,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Icon(Icons.copy,
+                                        size: 18, color: brandColor),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            GestureDetector(
+                              onTap: () => _copyCode(referralCode),
+                              child: Container(
+                                width: double.infinity,
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: brandColor,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.ios_share,
+                                        color: Colors.white, size: 20),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      'Share Code',
+                                      style: TextStyle(
+                                        fontFamily: 'Afacad',
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Claim Friend's Referral Code Card
+                      _buildClaimFriendCodeCard(brandColor),
+                      const SizedBox(height: 24),
+
+                      // How It Works Divider
+                      Row(
+                        children: [
+                          Expanded(
+                              child: Divider(
+                                  color: AppColors.border, thickness: 1)),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            child: Text(
+                              'How It Works',
+                              style: TextStyle(
+                                fontFamily: 'Recoleta',
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: brandColor,
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                              child: Divider(
+                                  color: AppColors.border, thickness: 1)),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Steps Card
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppColors.border, width: 1),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.03),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: _buildHorizontalSteps(brandColor),
+                      ),
+                      const SizedBox(height: 32),
+
+                      // My Achievements Divider
+                      Row(
+                        children: [
+                          Expanded(
+                              child: Divider(
+                                  color: AppColors.border, thickness: 1)),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            child: Text(
+                              'My Achievements',
+                              style: TextStyle(
+                                fontFamily: 'Recoleta',
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: brandColor,
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                              child: Divider(
+                                  color: AppColors.border, thickness: 1)),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Achievements Card
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 24),
+                        decoration: BoxDecoration(
+                          color: brandColor,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.05),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                children: [
+                                  const Text(
+                                    'Friends Invited',
+                                    style: TextStyle(
+                                      fontFamily: 'Recoleta',
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    '${_snapshot?.friendsInvited ?? 0}',
+                                    style: const TextStyle(
+                                      fontFamily: 'Afacad',
+                                      fontSize: 46,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                      height: 1.0,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              width: 1.5,
+                              height: 70,
+                              color: Colors.white.withValues(alpha: 0.3),
+                            ),
+                            Expanded(
+                              child: Column(
+                                children: [
+                                  const Text(
+                                    'Rewards Earned',
+                                    style: TextStyle(
+                                      fontFamily: 'Recoleta',
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    '${_snapshot?.rewardsClaimed ?? 0}',
+                                    style: TextStyle(
+                                      fontFamily: 'Afacad',
+                                      fontSize: 46,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.gold,
+                                      height: 1.0,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 40),
+                    ],
+                  ),
+      ),
+    );
   }
 
   Widget _buildClaimFriendCodeCard(Color brandColor) {
@@ -701,11 +711,14 @@ class _ReferralPageState extends State<ReferralPage> {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildHorizontalStepItem(1, Icons.group_add_outlined, "Invite your\nfriends to\nsign up", brandColor),
+            _buildHorizontalStepItem(1, Icons.group_add_outlined,
+                "Invite your\nfriends to\nsign up", brandColor),
             Expanded(child: _buildDashedLine(brandColor)),
-            _buildHorizontalStepItem(2, Icons.card_giftcard, "Your friends\nget a product\nfrom us", brandColor),
+            _buildHorizontalStepItem(2, Icons.card_giftcard,
+                "Your friends\nget a product\nfrom us", brandColor),
             Expanded(child: _buildDashedLine(brandColor)),
-            _buildHorizontalStepItem(3, Icons.stars, "You and your\nfriends get\nrewarded", brandColor),
+            _buildHorizontalStepItem(3, Icons.stars,
+                "You and your\nfriends get\nrewarded", brandColor),
           ],
         ),
         const SizedBox(height: 16),
@@ -725,7 +738,8 @@ class _ReferralPageState extends State<ReferralPage> {
     );
   }
 
-  Widget _buildHorizontalStepItem(int stepNumber, IconData icon, String text, Color brandColor) {
+  Widget _buildHorizontalStepItem(
+      int stepNumber, IconData icon, String text, Color brandColor) {
     return SizedBox(
       width: 90,
       child: Column(
@@ -751,7 +765,10 @@ class _ReferralPageState extends State<ReferralPage> {
                 ),
                 child: Text(
                   stepNumber.toString(),
-                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold),
                 ),
               ),
             ],
@@ -788,7 +805,9 @@ class _ReferralPageState extends State<ReferralPage> {
               return SizedBox(
                 width: dashWidth,
                 height: 1.5,
-                child: DecoratedBox(decoration: BoxDecoration(color: brandColor.withValues(alpha: 0.3))),
+                child: DecoratedBox(
+                    decoration: BoxDecoration(
+                        color: brandColor.withValues(alpha: 0.3))),
               );
             }),
           );

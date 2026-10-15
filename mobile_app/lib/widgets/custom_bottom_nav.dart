@@ -160,8 +160,8 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
 
   void _updateDragPosition(double localX, double totalWidth) {
     if (totalWidth <= 0) return;
-    final tabWidth = totalWidth / 5.0;
-    // Map touch coordinate to continuous float index [0.0, 4.0]
+    const itemCount = 5;
+    final tabWidth = totalWidth / itemCount;
     final continuousIndex =
         ((localX - (tabWidth / 2)) / tabWidth).clamp(0.0, 4.0);
     _dragIndicatorFraction = continuousIndex;
@@ -224,16 +224,12 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
   Widget _buildContent(BuildContext context) {
     final bool isDarkNav = AppColors.isTier3Or4;
 
-    // High-end glassmorphism palette matching modern iOS/Threads design:
-    // Sleek, translucent dark/light glass with ultra-crisp optics, no thick cartoonish borders.
     final Color glassBaseColor = isDarkNav
         ? const Color(0xFF142421).withValues(alpha: 0.82)
         : Colors.white.withValues(alpha: 0.80);
-
     final Color glassBorderColor = isDarkNav
         ? Colors.white.withValues(alpha: 0.12)
         : Colors.white.withValues(alpha: 0.70);
-
     final Color activeColor =
         isDarkNav ? AppColors.secondary : AppColors.brandText;
     final Color inactiveColor = isDarkNav
@@ -248,184 +244,219 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
         child: Padding(
           padding: const EdgeInsets.only(left: 24, right: 24, bottom: 6),
           child: LayoutBuilder(
-            builder: (context, outerConstraints) {
+            builder: (context, mainConstraints) {
               return GestureDetector(
                 onHorizontalDragStart: (details) =>
-                    _onPanStart(details, outerConstraints),
+                    _onPanStart(details, mainConstraints),
                 onHorizontalDragUpdate: (details) =>
-                    _onPanUpdate(details, outerConstraints),
+                    _onPanUpdate(details, mainConstraints),
                 onHorizontalDragEnd: _onPanEnd,
                 onHorizontalDragCancel: _onPanCancel,
                 behavior: HitTestBehavior.opaque,
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(32),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black
-                            .withValues(alpha: isDarkNav ? 0.35 : 0.08),
-                        blurRadius: 24,
-                        offset: const Offset(0, 8),
-                      ),
-                      BoxShadow(
-                        color: (isDarkNav ? AppColors.secondary : Colors.black)
-                            .withValues(alpha: 0.03),
-                        blurRadius: 6,
-                        offset: const Offset(0, 1),
-                      ),
-                    ],
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(32),
-                    child: BackdropFilter(
-                      // Real-time smooth Gaussian blur
-                      filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: glassBaseColor,
-                          borderRadius: BorderRadius.circular(32),
-                          border: Border.all(
-                            color: glassBorderColor,
-                            width: 0.8,
-                          ),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 6),
-                        child: Stack(
-                          children: [
-                            // Sleek sliding & draggable active indicator pill
-                            Positioned.fill(
-                              child: LayoutBuilder(
-                                builder: (context, constraints) {
-                                  final double currentFraction = _isDragging
-                                      ? _dragIndicatorFraction
-                                      : _localSelectedIndex.toDouble();
-                                  final double alignmentX =
-                                      -1.0 + (currentFraction * 0.5);
-
-                                  return AnimatedAlign(
-                                    duration: _isDragging
-                                        ? Duration.zero
-                                        : const Duration(milliseconds: 240),
-                                    curve: Curves.easeOutCubic,
-                                    alignment: Alignment(alignmentX, 0),
-                                    child: Container(
-                                      width: constraints.maxWidth / 5,
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 6, vertical: 2),
-                                      child: AnimatedContainer(
-                                        duration:
-                                            const Duration(milliseconds: 160),
-                                        decoration: BoxDecoration(
-                                          borderRadius:
-                                              BorderRadius.circular(22),
-                                          gradient: LinearGradient(
-                                            begin: Alignment.topLeft,
-                                            end: Alignment.bottomRight,
-                                            colors: isDarkNav
-                                                ? [
-                                                    Colors.white.withValues(alpha: 0.16),
-                                                    AppColors.secondary.withValues(alpha: 0.22),
-                                                  ]
-                                                : [
-                                                    Colors.white.withValues(alpha: 0.70),
-                                                    AppColors.secondary.withValues(alpha: 0.16),
-                                                  ],
-                                          ),
-                                          border: Border.all(
-                                            color: isDarkNav
-                                                ? Colors.white.withValues(alpha: 0.24)
-                                                : Colors.white.withValues(alpha: 0.85),
-                                            width: 1.0,
-                                          ),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: (isDarkNav
-                                                      ? Colors.black
-                                                      : AppColors.secondary)
-                                                  .withValues(alpha: isDarkNav ? 0.25 : 0.12),
-                                              blurRadius: _isDragging ? 14 : 8,
-                                              offset: const Offset(0, 2),
-                                            ),
-                                            if (!isDarkNav)
-                                              BoxShadow(
-                                                color: Colors.white.withValues(alpha: 0.60),
-                                                blurRadius: 4,
-                                                offset: const Offset(-1, -1),
+                child: _buildGlassShell(
+                  isDarkNav: isDarkNav,
+                  glassBaseColor: glassBaseColor,
+                  glassBorderColor: glassBorderColor,
+                  borderRadius: 32,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Stack(
+                      children: [
+                        Positioned.fill(
+                          child: LayoutBuilder(
+                            builder: (context, constraints) {
+                              final currentFraction = _isDragging
+                                  ? _dragIndicatorFraction
+                                  : _localSelectedIndex.toDouble();
+                              final alignmentX = -1.0 + (currentFraction * 0.5);
+                              return AnimatedAlign(
+                                duration: _isDragging
+                                    ? Duration.zero
+                                    : const Duration(milliseconds: 240),
+                                curve: Curves.easeOutCubic,
+                                alignment: Alignment(alignmentX, 0),
+                                child: Container(
+                                  width: constraints.maxWidth / 5,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 160),
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(22),
+                                      gradient: LinearGradient(
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                        colors: isDarkNav
+                                            ? [
+                                                Colors.white.withValues(
+                                                  alpha: 0.16,
+                                                ),
+                                                AppColors.secondary.withValues(
+                                                  alpha: 0.22,
+                                                ),
+                                              ]
+                                            : [
+                                                Colors.white.withValues(
+                                                  alpha: 0.70,
+                                                ),
+                                                AppColors.secondary.withValues(
+                                                  alpha: 0.16,
+                                                ),
+                                              ],
+                                      ),
+                                      border: Border.all(
+                                        color: isDarkNav
+                                            ? Colors.white.withValues(
+                                                alpha: 0.24,
+                                              )
+                                            : Colors.white.withValues(
+                                                alpha: 0.85,
                                               ),
-                                          ],
-                                        ),
-                                        child: ClipRRect(
-                                          borderRadius: BorderRadius.circular(22),
-                                          child: BackdropFilter(
-                                            filter: ImageFilter.blur(
-                                                sigmaX: 8, sigmaY: 8),
-                                            child: Container(
-                                              color: isDarkNav
-                                                  ? AppColors.secondary.withValues(alpha: 0.08)
-                                                  : Colors.white.withValues(alpha: 0.15),
-                                            ),
+                                        width: 1,
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: (isDarkNav
+                                                  ? Colors.black
+                                                  : AppColors.secondary)
+                                              .withValues(
+                                            alpha: isDarkNav ? 0.25 : 0.12,
                                           ),
+                                          blurRadius: _isDragging ? 14 : 8,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                        if (!isDarkNav)
+                                          BoxShadow(
+                                            color: Colors.white.withValues(
+                                              alpha: 0.60,
+                                            ),
+                                            blurRadius: 4,
+                                            offset: const Offset(-1, -1),
+                                          ),
+                                      ],
+                                    ),
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(22),
+                                      child: BackdropFilter(
+                                        filter: ImageFilter.blur(
+                                          sigmaX: 8,
+                                          sigmaY: 8,
+                                        ),
+                                        child: Container(
+                                          color: isDarkNav
+                                              ? AppColors.secondary.withValues(
+                                                  alpha: 0.08,
+                                                )
+                                              : Colors.white.withValues(
+                                                  alpha: 0.15,
+                                                ),
                                         ),
                                       ),
                                     ),
-                                  );
-                                },
-                              ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                        Row(
+                          children: [
+                            _buildNavItem(
+                              Icons.home_rounded,
+                              Icons.home_outlined,
+                              'Home',
+                              0,
+                              activeColor,
+                              inactiveColor,
+                              inactiveTextColor,
                             ),
-
-                            // Interactive navigation items (consistent heights to prevent layout jumping)
-                            Row(
-                              children: [
-                                _buildNavItem(
-                                    Icons.home_rounded,
-                                    Icons.home_outlined,
-                                    'Home',
-                                    0,
-                                    activeColor,
-                                    inactiveColor,
-                                    inactiveTextColor),
-                                _buildNavItem(
-                                    Icons.local_cafe_rounded,
-                                    Icons.local_cafe_outlined,
-                                    'Menu',
-                                    1,
-                                    activeColor,
-                                    inactiveColor,
-                                    inactiveTextColor),
-                                _buildNavItem(
-                                    Icons.receipt_rounded,
-                                    Icons.receipt_outlined,
-                                    'Orders',
-                                    2,
-                                    activeColor,
-                                    inactiveColor,
-                                    inactiveTextColor),
-                                _buildNavItem(
-                                    Icons.card_giftcard_rounded,
-                                    Icons.card_giftcard_outlined,
-                                    'Rewards',
-                                    3,
-                                    activeColor,
-                                    inactiveColor,
-                                    inactiveTextColor),
-                                _buildNavItem(
-                                    Icons.person_rounded,
-                                    Icons.person_outline_rounded,
-                                    'Account',
-                                    4,
-                                    activeColor,
-                                    inactiveColor,
-                                    inactiveTextColor),
-                              ],
+                            _buildNavItem(
+                              Icons.local_cafe_rounded,
+                              Icons.local_cafe_outlined,
+                              'Menu',
+                              1,
+                              activeColor,
+                              inactiveColor,
+                              inactiveTextColor,
+                            ),
+                            _buildNavItem(
+                              Icons.receipt_rounded,
+                              Icons.receipt_outlined,
+                              'Orders',
+                              2,
+                              activeColor,
+                              inactiveColor,
+                              inactiveTextColor,
+                            ),
+                            _buildNavItem(
+                              Icons.card_giftcard_rounded,
+                              Icons.card_giftcard_outlined,
+                              'Rewards',
+                              3,
+                              activeColor,
+                              inactiveColor,
+                              inactiveTextColor,
+                            ),
+                            _buildNavItem(
+                              Icons.person_rounded,
+                              Icons.person_outline_rounded,
+                              'Account',
+                              4,
+                              activeColor,
+                              inactiveColor,
+                              inactiveTextColor,
                             ),
                           ],
                         ),
-                      ),
+                      ],
                     ),
                   ),
                 ),
               );
             },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGlassShell({
+    required bool isDarkNav,
+    required Color glassBaseColor,
+    required Color glassBorderColor,
+    required double borderRadius,
+    required Widget child,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(borderRadius),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDarkNav ? 0.35 : 0.08),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+          BoxShadow(
+            color: (isDarkNav ? AppColors.secondary : Colors.black)
+                .withValues(alpha: 0.03),
+            blurRadius: 6,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(borderRadius),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          child: Container(
+            decoration: BoxDecoration(
+              color: glassBaseColor,
+              borderRadius: BorderRadius.circular(borderRadius),
+              border: Border.all(color: glassBorderColor, width: 0.8),
+            ),
+            child: child,
           ),
         ),
       ),

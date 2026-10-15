@@ -1,0 +1,283 @@
+import crypto from 'node:crypto';
+import type { RowDataPacket } from 'mysql2/promise';
+
+import { env } from '../config/env.js';
+import { getUtcConnection } from '../db/mysql.js';
+import { ApiError } from '../http/errors.js';
+import { createUserNotification } from '../http/notifications.js';
+import { chipMethodLabel, type ChipPurchase } from '../payments/chip-client.js';
+import { deliverQueuedTopUpReceiptEmail, queueTopUpReceiptEmail } from './topup-receipt-email.js';
+
+type SettlementLogger = {
+  warn: (context: Record<string, unknown>, message: string) => void;
+};
+
+type PaymentRow = RowDataPacket & {
+  payment_id: number;
+  payment_status: 'pending' | 'authorized' | 'paid' | 'failed' | 'cancelled' | 'refunded' | 'partially_refunded';
+  payment_method: string;
+  topup_id: number;
+  user_id: number;
+  topup_ref: string;
+  token_amount: number;
+  rm_amount: string;
+  topup_status: 'pending_payment' | 'paid' | 'failed' | 'cancelled';
+  provider_bill_id: string;
+  customer_email: string | null;
+};
+
+export type ChipSettlementResult = {
+  received: true;
+  credited?: boolean;
+  duplicate?: boolean;
+  needs_review?: boolean;
+  terminal?: boolean;
+  receipt_email?: 'queued' | 'unavailable';
+};
+
+function normalizedStatus(purchase: ChipPurchase): string {
+  return typeof purchase.status === 'string' ? purchase.status.trim().toLowerCase() : 'unknown';
+}
+
+export function chipTerminalFailure(status: unknown): 'failed' | 'cancelled' | null {
+  const normalized = typeof status === 'string' ? status.trim().toLowerCase() : '';
+  if (normalized === 'cancelled') return 'cancelled';
+  if (['error', 'failed', 'payment_failure'].includes(normalized)) return 'failed';
+  return null;
+}
+
+/**
+ * Applies an authoritative CHIP purchase to the matching top-up exactly once.
+ * Both signed callbacks and the reconciliation command use this function.
+ */
+export async function settleChipTopUpPurchase(
+  purchaseId: string,
+  purchase: ChipPurchase,
+  { eventSource = 'callback', logger }: { eventSource?: string; logger?: SettlementLogger } = {}
+): Promise<ChipSettlementResult> {
+  const amountCents = Number(purchase.purchase?.total);
+  const status = normalizedStatus(purchase);
+  const isPaid = status === 'paid';
+  if (purchase.id !== purchaseId ||
+      purchase.brand_id !== env.TOPUP_GATEWAY_BRAND_ID ||
+      purchase.purchase?.currency !== 'MYR' ||
+      !Number.isInteger(amountCents) || amountCents <= 0) {
+    throw new ApiError(400, 'invalid_chip_callback', 'Invalid CHIP purchase data.');
+  }
+
+  const connection = await getUtcConnection();
+  let committed = false;
+  let receiptTopUpId: number | null = null;
+  try {
+    await connection.beginTransaction();
+    const [paymentRows] = await connection.execute<PaymentRow[]>(
+      `SELECT p.id AS payment_id, p.status AS payment_status, p.payment_method, p.provider_bill_id,
+              tt.id AS topup_id, tt.user_id, tt.topup_ref, tt.token_amount,
+              CAST(tt.rm_amount AS CHAR) AS rm_amount, tt.status AS topup_status,
+              up.email AS customer_email
+       FROM payments p
+       JOIN token_topups tt ON tt.id = p.topup_id
+       LEFT JOIN user_profiles up ON up.user_id = tt.user_id
+       WHERE p.provider = 'chip' AND p.provider_bill_id = :purchaseId
+       LIMIT 1 FOR UPDATE`,
+      { purchaseId }
+    );
+    const payment = paymentRows[0];
+    if (!payment) throw new ApiError(404, 'chip_payment_not_found', 'Payment was not found.');
+
+    if (payment.payment_status === 'paid' || payment.topup_status === 'paid') {
+      await connection.commit();
+      committed = true;
+      return { received: true, duplicate: true };
+    }
+
+    const eventRef = `chip:${eventSource}:${purchaseId}:${status}:${String(purchase.updated_on ?? '')}`;
+    const [existingEvents] = await connection.execute<Array<RowDataPacket & { id: number }>>(
+      `SELECT id FROM payment_events WHERE provider_event_id = :eventRef LIMIT 1 FOR UPDATE`,
+      { eventRef }
+    );
+    if (existingEvents[0]) {
+      await connection.commit();
+      committed = true;
+      return { received: true, duplicate: true };
+    }
+
+    const expectedAmountCents = Math.round(Number(payment.rm_amount) * 100);
+    const amountMatches = amountCents === expectedAmountCents;
+    const eventPayloadHash = crypto.createHash('sha256').update(JSON.stringify(purchase)).digest('hex');
+    if (!isPaid || !amountMatches) {
+      const terminalFailure = chipTerminalFailure(status);
+      await connection.execute(
+        `INSERT INTO payment_events
+           (payment_id, provider_event_id, event_type, event_payload_hash, processed_at, process_result, created_at)
+         VALUES (:paymentId, :eventRef, :eventType, :payloadHash, UTC_TIMESTAMP(), :result, UTC_TIMESTAMP())`,
+        {
+          paymentId: payment.payment_id,
+          eventRef,
+          eventType: isPaid ? 'amount_mismatch' : `chip_${status}`,
+          payloadHash: eventPayloadHash,
+          result: isPaid ? 'rejected' : terminalFailure ?? 'not_paid'
+        }
+      );
+      if (terminalFailure) {
+        await connection.execute(
+          `UPDATE payments
+           SET status = :paymentStatus, failed_at = IF(:paymentStatus = 'failed', UTC_TIMESTAMP(), failed_at)
+           WHERE id = :paymentId AND status IN ('pending', 'authorized')`,
+          { paymentId: payment.payment_id, paymentStatus: terminalFailure }
+        );
+        await connection.execute(
+          `UPDATE token_topups SET status = :topupStatus
+           WHERE id = :topupId AND status = 'pending_payment'`,
+          { topupId: payment.topup_id, topupStatus: terminalFailure }
+        );
+        await connection.execute(
+          `UPDATE token_wallet_cap_reservations
+           SET status = 'released', release_reason = :releaseReason, released_at = UTC_TIMESTAMP()
+           WHERE topup_id = :topupId AND status IN ('active', 'needs_review')`,
+          { topupId: payment.topup_id, releaseReason: `chip_${terminalFailure}` }
+        );
+      } else if (isPaid && !amountMatches) {
+        await connection.execute(
+          `UPDATE token_wallet_cap_reservations
+           SET status = 'needs_review', release_reason = 'amount_mismatch'
+           WHERE topup_id = :topupId AND status IN ('active', 'released')`,
+          { topupId: payment.topup_id }
+        );
+      }
+      await connection.commit();
+      committed = true;
+      return { received: true, credited: false, terminal: Boolean(terminalFailure) };
+    }
+
+    const [accounts] = await connection.execute<Array<RowDataPacket & { balance_available: number; balance_cap: number }>>(
+      `SELECT balance_available, balance_cap FROM token_accounts WHERE user_id = :userId LIMIT 1 FOR UPDATE`,
+      { userId: payment.user_id }
+    );
+    const account = accounts[0];
+    if (!account) throw new ApiError(409, 'token_account_not_found', 'Token account was not found.');
+    const [reservationRows] = await connection.execute<Array<RowDataPacket & {
+      id: number;
+      token_amount: number;
+      status: 'active' | 'consumed' | 'released' | 'needs_review';
+    }>>(
+      `SELECT id, token_amount, status FROM token_wallet_cap_reservations
+       WHERE topup_id = :topupId LIMIT 1 FOR UPDATE`,
+      { topupId: payment.topup_id }
+    );
+    const reservation = reservationRows[0];
+    if (!reservation || !['active', 'released', 'needs_review'].includes(reservation.status) ||
+        Number(reservation.token_amount) !== Number(payment.token_amount)) {
+      if (reservation?.status === 'consumed') {
+        await connection.commit();
+        committed = true;
+        return { received: true, duplicate: true };
+      }
+      throw new ApiError(409, 'wallet_capacity_reservation_unavailable', 'This paid top-up requires staff reconciliation.');
+    }
+    const [otherReservations] = await connection.execute<Array<RowDataPacket & { reserved_tokens: number }>>(
+      `SELECT COALESCE(SUM(token_amount), 0) AS reserved_tokens
+       FROM token_wallet_cap_reservations
+       WHERE user_id = :userId AND status = 'active' AND id != :reservationId
+         AND expires_at > UTC_TIMESTAMP()
+       FOR UPDATE`,
+      { userId: payment.user_id, reservationId: reservation.id }
+    );
+    const reservedTokens = Number(otherReservations[0]?.reserved_tokens ?? 0);
+    if (Number(account.balance_available) + reservedTokens + Number(payment.token_amount) > Number(account.balance_cap)) {
+      await connection.execute(
+        `UPDATE token_wallet_cap_reservations
+         SET status = 'needs_review', release_reason = 'wallet_cap_conflict'
+         WHERE id = :reservationId`,
+        { reservationId: reservation.id }
+      );
+      if (reservation.status !== 'needs_review') {
+        await connection.execute(
+          `INSERT INTO payment_events
+             (payment_id, provider_event_id, event_type, event_payload_hash, processed_at, process_result, created_at)
+           VALUES (:paymentId, :eventRef, 'chip_paid', :payloadHash, UTC_TIMESTAMP(), 'needs_review', UTC_TIMESTAMP())`,
+          { paymentId: payment.payment_id, eventRef, payloadHash: eventPayloadHash }
+        );
+      }
+      await connection.commit();
+      committed = true;
+      return { received: true, credited: false, needs_review: true };
+    }
+
+    const balanceAfter = Number(account.balance_available) + Number(payment.token_amount);
+    await connection.execute(
+      `UPDATE token_accounts SET balance_available = :balanceAfter, updated_at = UTC_TIMESTAMP()
+       WHERE user_id = :userId`,
+      { balanceAfter, userId: payment.user_id }
+    );
+    await connection.execute(
+      `UPDATE token_topups SET status = 'paid', paid_at = UTC_TIMESTAMP()
+       WHERE id = :topupId AND status IN ('pending_payment', 'failed', 'cancelled')`,
+      { topupId: payment.topup_id }
+    );
+    await connection.execute(
+      `UPDATE payments SET status = 'paid', paid_at = UTC_TIMESTAMP(), failed_at = NULL
+       WHERE id = :paymentId AND status IN ('pending', 'authorized', 'failed', 'cancelled')`,
+      { paymentId: payment.payment_id }
+    );
+    await connection.execute(
+      `INSERT INTO token_ledger
+         (user_id, token_lot_id, direction, source_type, source_id, amount, balance_after, remarks, created_at)
+       VALUES (:userId, NULL, 'credit', 'topup_paid', :topupId, :amount, :balanceAfter, :remarks, UTC_TIMESTAMP())`,
+      {
+        userId: payment.user_id,
+        topupId: payment.topup_id,
+        amount: payment.token_amount,
+        balanceAfter,
+        remarks: `CHIP top-up ${payment.topup_ref}`
+      }
+    );
+    await connection.execute(
+      `UPDATE token_wallet_cap_reservations
+       SET status = 'consumed', consumed_at = UTC_TIMESTAMP(), release_reason = NULL
+       WHERE id = :reservationId AND status IN ('active', 'released', 'needs_review')`,
+      { reservationId: reservation.id }
+    );
+    await connection.execute(
+      `INSERT INTO payment_events
+         (payment_id, provider_event_id, event_type, event_payload_hash, processed_at, process_result, created_at)
+       VALUES (:paymentId, :eventRef, 'chip_paid', :payloadHash, UTC_TIMESTAMP(), 'credited', UTC_TIMESTAMP())`,
+      { paymentId: payment.payment_id, eventRef, payloadHash: eventPayloadHash }
+    );
+    await createUserNotification(connection, {
+      userId: payment.user_id,
+      type: 'token_topup_paid',
+      title: 'Tokens added',
+      body: `${payment.token_amount} C2 Tokens have been added to your wallet.`
+    });
+    const receiptEmailQueued = await queueTopUpReceiptEmail(connection, {
+      topupId: payment.topup_id,
+      recipientEmail: payment.customer_email,
+      paymentMethod: chipMethodLabel(payment.payment_method),
+      providerBillId: payment.provider_bill_id
+    });
+    await connection.commit();
+    committed = true;
+    if (receiptEmailQueued) receiptTopUpId = payment.topup_id;
+
+    const result: ChipSettlementResult = {
+      received: true,
+      credited: true,
+      receipt_email: receiptEmailQueued ? 'queued' : 'unavailable'
+    };
+
+    if (receiptTopUpId !== null) {
+      void deliverQueuedTopUpReceiptEmail(receiptTopUpId).then((outcome) => {
+        if (outcome === 'failed') logger?.warn({ topupId: receiptTopUpId }, 'Top-up receipt email delivery failed after payment.');
+      }).catch(() => {
+        logger?.warn({ topupId: receiptTopUpId }, 'Top-up receipt email delivery could not be started after payment.');
+      });
+    }
+    return result;
+  } catch (error) {
+    if (!committed) await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+}

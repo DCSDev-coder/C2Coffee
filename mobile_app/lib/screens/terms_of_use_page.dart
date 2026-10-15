@@ -44,7 +44,7 @@ class TermsOfUsePage extends StatelessWidget {
             title: 'Token Checkout & Payment Gateway Security',
             body:
                 '4.1 Menu item checkout in the App is completed using prepaid C2 Tokens only. Direct cash, FPX, debit card, credit card, or third-party wallet checkout for menu items is not supported inside the App at this time.\n\n'
-                '4.2 Where online token top-up is offered, it is processed by an authorised payment gateway. The available payment methods and token packages are shown in the App before a top-up session is created.\n\n'
+                '4.2 Where online token top-up is offered, it is processed by an authorised payment gateway. The available payment methods and permitted top-up amount are shown in the App before a top-up session is created.\n\n'
                 '4.3 C2 Coffee does not capture, process, log, or store credit/debit card numbers (PAN), CVV security codes, or banking credentials in the App.',
           ),
           _buildSection(

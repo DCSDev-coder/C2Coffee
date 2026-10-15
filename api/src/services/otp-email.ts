@@ -278,7 +278,7 @@ export async function sendTopUpReceiptEmail(payload: TopUpReceiptEmailPayload): 
     'Token top-up payment confirmed',
     '',
     `Top-up reference: ${payload.topUpReference}`,
-    `Billplz bill ID: ${payload.providerBillId}`,
+    `CHIP purchase ID: ${payload.providerBillId}`,
     `Payment method: ${payload.paymentMethod}`,
     `Paid: ${payload.paidAt}`,
     `Amount paid: RM ${payload.amountRm}`,
@@ -298,7 +298,7 @@ export async function sendTopUpReceiptEmail(payload: TopUpReceiptEmailPayload): 
         <p style="margin-top:0;color:#4b5563">Token top-up payment confirmed</p>
         <div style="padding:16px;background:#f3f4f6;border-radius:10px">
           <div><strong>Top-up reference:</strong> ${escapeHtml(payload.topUpReference)}</div>
-          <div><strong>Billplz bill ID:</strong> ${escapeHtml(payload.providerBillId)}</div>
+          <div><strong>CHIP purchase ID:</strong> ${escapeHtml(payload.providerBillId)}</div>
           <div><strong>Payment method:</strong> ${escapeHtml(payload.paymentMethod)}</div>
           <div><strong>Paid:</strong> ${escapeHtml(payload.paidAt)}</div>
         </div>

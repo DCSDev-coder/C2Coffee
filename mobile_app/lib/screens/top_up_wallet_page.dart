@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../services/app_session_service.dart';
-import '../services/api_config.dart';
 import '../services/auth_api_service.dart';
 import '../services/customer_data_service.dart';
 import '../services/pending_top_up_service.dart';
@@ -11,13 +11,14 @@ import '../services/secure_session_service.dart';
 import '../services/payment_security.dart';
 
 import '../utils/app_colors.dart';
+import '../utils/app_notification.dart';
 import 'loading_order_page.dart';
 import '../widgets/app_page_shell.dart';
 import '../widgets/app_tutorial.dart';
 
 enum TransactionFilter { all, incoming, outgoing }
 
-enum TopUpPaymentMethod { touchNGo, card, bankTransfer }
+enum TopUpPaymentMethod { fpx, duitNowQr, card, ewallet }
 
 class TopUpWalletPage extends StatefulWidget {
   const TopUpWalletPage({super.key});
@@ -30,13 +31,15 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
     with WidgetsBindingObserver {
   final AppSessionService _session = AppSessionService.instance;
   static const bool _topUpGatewayEnabled = true;
+  final TextEditingController _amountController =
+      TextEditingController(text: '0');
+  final FocusNode _amountFocusNode = FocusNode();
   int? _selectedPackageId;
   List<TokenTopUpPackage> _packages = const [];
   TopUpPaymentMethod? _paymentMethod;
   Set<TopUpPaymentMethod> _availablePaymentMethods = const {};
   bool _isPaymentMethodsLoading = true;
   String? _paymentMethodsError;
-  OnlineBankOption? _selectedBank;
   bool _isStartingTopUp = false;
   String? _pendingTopUpRef;
   bool _isTransactionsLoading = true;
@@ -63,6 +66,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _session.addListener(_handleSessionChanged);
+    _amountFocusNode.addListener(_handleAmountFocusChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await Future.wait([
         _loadWalletData(),
@@ -97,7 +101,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
           .getTopUpPackages(accessToken: token);
       if (mounted) setState(() => _packages = packages);
     } catch (_) {
-      // The purchase button stays disabled until trusted server packages load.
+      // Custom top-up remains available if preset packages cannot be loaded.
     }
   }
 
@@ -105,7 +109,14 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _session.removeListener(_handleSessionChanged);
+    _amountFocusNode.removeListener(_handleAmountFocusChanged);
+    _amountFocusNode.dispose();
+    _amountController.dispose();
     super.dispose();
+  }
+
+  void _handleAmountFocusChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
@@ -126,14 +137,26 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
         accessToken: token,
         topupRef: topupRef,
       );
-      if (!mounted || topup.status != 'paid') return;
+      if (!mounted) return;
+      if (const {'failed', 'cancelled', 'expired'}.contains(topup.status)) {
+        await PendingTopUpService.instance.clear();
+        if (!mounted) return;
+        setState(() => _pendingTopUpRef = null);
+        AppNotification.showError(
+          context,
+          'That payment was not completed. You can start a new top-up.',
+        );
+        return;
+      }
+      if (topup.status != 'paid') return;
       await PendingTopUpService.instance.clear();
+      if (!mounted) return;
       setState(() => _pendingTopUpRef = null);
       await _loadWalletData(forceSessionReload: true);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Payment confirmed. Your C2 Tokens are ready.')),
+        AppNotification.showSuccess(
+          context,
+          'Payment confirmed. Your C2 Tokens are ready.',
         );
       }
     } catch (_) {
@@ -205,7 +228,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
         throw ApiException('Missing access token.');
       }
       final result = await CustomerDataService.instance
-          .getBillplzPaymentMethods(accessToken: token);
+          .getChipPaymentMethods(accessToken: token);
       final methods = result.methods
           .map(_paymentMethodFromApiValue)
           .whereType<TopUpPaymentMethod>()
@@ -217,9 +240,6 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
         _paymentMethod = methods.contains(_paymentMethod)
             ? _paymentMethod
             : _preferredPaymentMethod(methods);
-        if (_paymentMethod != TopUpPaymentMethod.bankTransfer) {
-          _selectedBank = null;
-        }
         _isPaymentMethodsLoading = false;
       });
     } on ApiException catch (error) {
@@ -243,12 +263,14 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
 
   TopUpPaymentMethod? _paymentMethodFromApiValue(String value) {
     switch (value) {
-      case 'touch_n_go':
-        return TopUpPaymentMethod.touchNGo;
+      case 'fpx':
+        return TopUpPaymentMethod.fpx;
+      case 'duitnow_qr':
+        return TopUpPaymentMethod.duitNowQr;
       case 'card':
         return TopUpPaymentMethod.card;
-      case 'bank_transfer':
-        return TopUpPaymentMethod.bankTransfer;
+      case 'ewallet':
+        return TopUpPaymentMethod.ewallet;
       default:
         return null;
     }
@@ -291,12 +313,14 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
 
   String get _paymentMethodLabel {
     switch (_paymentMethod) {
-      case TopUpPaymentMethod.touchNGo:
-        return "Touch 'n Go eWallet";
+      case TopUpPaymentMethod.fpx:
+        return 'FPX Online Banking';
+      case TopUpPaymentMethod.duitNowQr:
+        return 'DuitNow QR';
       case TopUpPaymentMethod.card:
         return 'Credit or debit card';
-      case TopUpPaymentMethod.bankTransfer:
-        return _selectedBank?.label ?? 'Online banking';
+      case TopUpPaymentMethod.ewallet:
+        return 'E-wallet';
       case null:
         return 'Choose a payment method';
     }
@@ -304,97 +328,69 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
 
   String? get _paymentMethodApiValue {
     switch (_paymentMethod) {
-      case TopUpPaymentMethod.touchNGo:
-        return 'touch_n_go';
+      case TopUpPaymentMethod.fpx:
+        return 'fpx';
+      case TopUpPaymentMethod.duitNowQr:
+        return 'duitnow_qr';
       case TopUpPaymentMethod.card:
         return 'card';
-      case TopUpPaymentMethod.bankTransfer:
-        return 'bank_transfer';
+      case TopUpPaymentMethod.ewallet:
+        return 'ewallet';
       case null:
         return null;
     }
   }
 
-  Future<void> _chooseBank() async {
-    try {
-      final token = await SecureSessionService.instance.getValidAccessToken();
-      if (token == null || token.isEmpty) {
-        throw ApiException('Missing access token.');
-      }
-      final banks = await CustomerDataService.instance
-          .getBillplzBanks(accessToken: token);
-      if (!mounted) return;
-      final selection = await showModalBottomSheet<OnlineBankOption>(
-        context: context,
-        showDragHandle: true,
-        builder: (sheetContext) => SafeArea(
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              const ListTile(title: Text('Choose your bank')),
-              ...banks.map((bank) => ListTile(
-                    title: Text(bank.label),
-                    subtitle: Text(bank.code),
-                    onTap: () => Navigator.pop(sheetContext, bank),
-                  )),
-            ],
-          ),
-        ),
-      );
-      if (selection != null && mounted) {
-        setState(() => _selectedBank = selection);
-      }
-    } on ApiException catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(_friendlyMessage(error))));
-      }
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Unable to load online banking options.')));
-      }
-    }
+  int? get _enteredTopUpAmount {
+    final amount = int.tryParse(_amountController.text.trim());
+    return amount != null && amount >= 1 ? amount : null;
+  }
+
+  int get _remainingWalletCapacity {
+    final remaining =
+        _session.tokenCap - _session.tokenBalance - _session.tokenReserved;
+    return remaining.clamp(0, _session.tokenCap);
+  }
+
+  int _packageAmount(TokenTopUpPackage package) {
+    return double.tryParse(package.amountRm)?.round() ?? package.tokenAmount;
   }
 
   Future<void> _startTopUp() async {
-    final selectedPackage =
-        _packages.where((item) => item.id == _selectedPackageId).firstOrNull;
-    if (selectedPackage == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Choose a token amount first.')));
-      return;
-    }
-    if (_paymentMethod == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Choose an available payment method.')),
+    final amount = _enteredTopUpAmount;
+    if (amount == null) {
+      AppNotification.showError(
+        context,
+        'Enter a whole-ringgit amount of at least RM 1.',
       );
       return;
     }
-    if (_paymentMethod == TopUpPaymentMethod.bankTransfer &&
-        _selectedBank == null) {
-      await _chooseBank();
-      if (_selectedBank == null) {
-        return;
-      }
+    if (amount > _remainingWalletCapacity) {
+      AppNotification.showError(
+        context,
+        'You can add up to $_remainingWalletCapacity tokens without exceeding your wallet cap.',
+      );
+      return;
     }
-
+    if (_paymentMethod == null) {
+      AppNotification.showError(
+        context,
+        'Choose an available payment method.',
+      );
+      return;
+    }
     setState(() => _isStartingTopUp = true);
     try {
       final token = await SecureSessionService.instance.getValidAccessToken();
       if (token == null || token.isEmpty) {
         throw ApiException('Missing access token.');
       }
-      final topup = await CustomerDataService.instance.startBillplzTopUp(
+      final topup = await CustomerDataService.instance.startChipTopUp(
         accessToken: token,
-        packageId: selectedPackage.id,
+        amountRm: amount,
         paymentMethod: _paymentMethodApiValue!,
-        bankCode: _selectedBank?.code,
       );
-      if (!isTrustedPaymentCheckoutUrl(
-        topup.checkoutUrl,
-        allowSandbox: ApiConfig.allowBillplzSandbox,
-      )) {
+      if (!isTrustedPaymentCheckoutUrl(topup.checkoutUrl)) {
         throw ApiException('The payment provider returned an untrusted URL.');
       }
       await PendingTopUpService.instance.save(topup.topupRef);
@@ -408,21 +404,21 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
         throw ApiException('Unable to open the payment page.');
       }
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text(
-                  'Complete payment in your browser, then return to C2 Coffee.')),
+        AppNotification.showInfo(
+          context,
+          'Complete payment in your browser, then return to C2 Coffee.',
         );
       }
     } on ApiException catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(_friendlyMessage(error))));
+        AppNotification.showError(context, _friendlyMessage(error));
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Unable to start payment. Please try again.')));
+        AppNotification.showError(
+          context,
+          'Unable to start payment. Please try again.',
+        );
       }
     } finally {
       if (mounted) {
@@ -515,59 +511,176 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
                 ),
               ),
               const SizedBox(height: 16),
-              Row(
-                key: AppTutorial.walletPackagesKey,
-                children: List.generate(_packages.length, (i) {
-                  final package = _packages[i];
-                  final selected = _selectedPackageId == package.id;
-                  return Expanded(
-                    child: GestureDetector(
-                      onTap: () =>
-                          setState(() => _selectedPackageId = package.id),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 180),
-                        margin: EdgeInsets.only(
-                          right: i < _packages.length - 1 ? 12 : 0,
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 18),
-                        decoration: BoxDecoration(
-                          color: selected ? brandColor : AppColors.surfaceLight,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                            color: selected ? brandColor : AppColors.border,
-                            width: 1.5,
+              if (_packages.isNotEmpty) ...[
+                Row(
+                  key: AppTutorial.walletPackagesKey,
+                  children: List.generate(_packages.length, (i) {
+                    final package = _packages[i];
+                    final packageAmount = _packageAmount(package);
+                    final selected = _selectedPackageId == package.id;
+                    final available = packageAmount <= _remainingWalletCapacity;
+                    return Expanded(
+                      child: GestureDetector(
+                        onTap: !available
+                            ? null
+                            : () {
+                                FocusManager.instance.primaryFocus?.unfocus();
+                                setState(() {
+                                  _selectedPackageId = package.id;
+                                  _amountController.text =
+                                      packageAmount.toString();
+                                });
+                              },
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          margin: EdgeInsets.only(
+                            right: i < _packages.length - 1 ? 12 : 0,
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 18),
+                          decoration: BoxDecoration(
+                            color: selected
+                                ? brandColor
+                                : available
+                                    ? AppColors.surfaceLight
+                                    : Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: selected
+                                  ? brandColor
+                                  : available
+                                      ? AppColors.border
+                                      : Colors.grey.shade300,
+                              width: 1.5,
+                            ),
+                          ),
+                          child: Column(
+                            children: [
+                              Text(
+                                'TOKENS',
+                                style: TextStyle(
+                                  fontFamily: 'Afacad',
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: selected
+                                      ? Colors.white70
+                                      : available
+                                          ? Colors.grey.shade600
+                                          : Colors.grey.shade400,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              Text(
+                                '$packageAmount',
+                                style: TextStyle(
+                                  fontFamily: 'Recoleta',
+                                  fontSize: 30,
+                                  fontWeight: FontWeight.bold,
+                                  color: selected
+                                      ? Colors.white
+                                      : available
+                                          ? brandColor
+                                          : Colors.grey.shade400,
+                                  height: 1.1,
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                'RM $packageAmount',
+                                style: TextStyle(
+                                  fontFamily: 'Afacad',
+                                  fontSize: 13,
+                                  color: selected
+                                      ? Colors.white70
+                                      : Colors.grey.shade500,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        child: Column(
-                          children: [
-                            Text(
-                              'TOKENS',
-                              style: TextStyle(
-                                fontFamily: 'Afacad',
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                                color: selected
-                                    ? Colors.white70
-                                    : Colors.grey.shade600,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                            Text(
-                              '${package.tokenAmount}',
-                              style: TextStyle(
-                                fontFamily: 'Recoleta',
-                                fontSize: 30,
-                                fontWeight: FontWeight.bold,
-                                color: selected ? Colors.white : brandColor,
-                                height: 1.1,
-                              ),
-                            ),
-                          ],
+                      ),
+                    );
+                  }),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Or enter another amount',
+                  style: TextStyle(
+                    fontFamily: 'Afacad',
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: brandColor,
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
+              TextField(
+                key: _packages.isEmpty ? AppTutorial.walletPackagesKey : null,
+                controller: _amountController,
+                focusNode: _amountFocusNode,
+                keyboardType: TextInputType.number,
+                textInputAction: TextInputAction.done,
+                enableInteractiveSelection: false,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                onChanged: (_) => setState(() => _selectedPackageId = null),
+                style: TextStyle(
+                  fontFamily: 'Recoleta',
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: _amountFocusNode.hasFocus
+                      ? Colors.black87
+                      : Colors.grey.shade500,
+                ),
+                decoration: InputDecoration(
+                  prefixIcon: Padding(
+                    padding: const EdgeInsets.only(left: 18, right: 12),
+                    child: Center(
+                      widthFactor: 1,
+                      child: Text(
+                        'TOKEN',
+                        style: TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.7,
+                          color: brandColor,
                         ),
                       ),
                     ),
-                  );
-                }),
+                  ),
+                  hintText: '1',
+                  helperText:
+                      'Minimum 1 token • Maximum $_remainingWalletCapacity tokens for your current wallet balance',
+                  errorText: _enteredTopUpAmount != null &&
+                          _enteredTopUpAmount! > _remainingWalletCapacity
+                      ? 'This exceeds your remaining wallet capacity.'
+                      : null,
+                  filled: true,
+                  fillColor: AppColors.surfaceLight,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 18,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide(
+                      color: AppColors.border,
+                      width: 1.5,
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide(color: brandColor, width: 1.8),
+                  ),
+                  errorBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(color: Colors.redAccent),
+                  ),
+                  focusedErrorBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide:
+                        const BorderSide(color: Colors.redAccent, width: 1.8),
+                  ),
+                ),
               ),
               const SizedBox(height: 24),
               _buildTopUpCard(),
@@ -708,14 +821,14 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
   }
 
   Widget _buildTopUpCard() {
-    final selectedPackage =
-        _packages.where((item) => item.id == _selectedPackageId).firstOrNull;
-    final tokenAmount = selectedPackage?.tokenAmount;
-    final rmAmount = selectedPackage?.amountRm;
+    final tokenAmount = _enteredTopUpAmount;
+    final amountIsValid =
+        tokenAmount != null && tokenAmount <= _remainingWalletCapacity;
     final canContinue = _topUpGatewayEnabled &&
         !_isStartingTopUp &&
         !_isPaymentMethodsLoading &&
-        tokenAmount != null &&
+        _pendingTopUpRef == null &&
+        amountIsValid &&
         _paymentMethod != null;
 
     return Container(
@@ -768,7 +881,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
                     borderRadius: BorderRadius.circular(99),
                   ),
                   child: Text(
-                    'RM $rmAmount',
+                    'RM $tokenAmount',
                     style: TextStyle(
                       fontFamily: 'Afacad',
                       fontSize: 15,
@@ -787,9 +900,13 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
                     ? 'Checking available payment methods securely...'
                     : _paymentMethodsError != null
                         ? _paymentMethodsError!
-                        : tokenAmount == null
-                            ? 'Choose a token package, then select how you want to pay.'
-                            : 'You will add $tokenAmount tokens for RM $rmAmount using $_paymentMethodLabel. Tokens are added only after payment is confirmed.',
+                        : _pendingTopUpRef != null
+                            ? 'Your previous payment is still being confirmed. Return here after completing payment in the browser.'
+                            : tokenAmount == null
+                                ? 'Enter how many tokens you want to add, then select how you want to pay.'
+                                : !amountIsValid
+                                    ? 'Enter an amount within your remaining wallet capacity.'
+                                    : 'You will add $tokenAmount tokens for RM $tokenAmount using $_paymentMethodLabel. Tokens are added only after payment is confirmed.',
             style: const TextStyle(
               fontFamily: 'Afacad',
               fontSize: 17,
@@ -808,36 +925,19 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
               ),
             ),
             const SizedBox(height: 10),
-            Row(
-              children: TopUpPaymentMethod.values
-                  .map(
-                    (method) => Expanded(
-                      child: Padding(
-                        padding: EdgeInsets.only(
-                          right:
-                              method == TopUpPaymentMethod.bankTransfer ? 0 : 8,
-                        ),
-                        child: _buildPaymentMethodCard(method),
-                      ),
-                    ),
-                  )
-                  .toList(),
-            ),
-            if (_paymentMethod == TopUpPaymentMethod.bankTransfer) ...[
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: _isStartingTopUp ? null : _chooseBank,
-                  icon: const Icon(Icons.account_balance_outlined),
-                  label: Text(_selectedBank?.label ?? 'Choose bank'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.deepTeal,
-                    side: BorderSide(color: AppColors.deepTeal),
-                  ),
-                ),
-              ),
-            ],
+            LayoutBuilder(builder: (context, constraints) {
+              final cardWidth = (constraints.maxWidth - 8) / 2;
+              return Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: TopUpPaymentMethod.values
+                    .map((method) => SizedBox(
+                          width: cardWidth,
+                          child: _buildPaymentMethodCard(method),
+                        ))
+                    .toList(),
+              );
+            }),
             const SizedBox(height: 18),
           ],
           SizedBox(
@@ -860,7 +960,9 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
                         ? 'OPENING SECURE PAYMENT...'
                         : _isPaymentMethodsLoading
                             ? 'CHECKING PAYMENT METHODS...'
-                            : 'CONTINUE TO PAYMENT',
+                            : _pendingTopUpRef != null
+                                ? 'PAYMENT PENDING'
+                                : 'CONTINUE TO PAYMENT',
                 style: TextStyle(
                   fontFamily: 'Recoleta',
                   fontSize: 18,
@@ -879,26 +981,19 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
     final selected = _paymentMethod == method;
     final available = _availablePaymentMethods.contains(method);
     final presentation = switch (method) {
-      TopUpPaymentMethod.touchNGo => (
-          "Touch 'n Go",
-          Icons.account_balance_wallet_outlined
-        ),
+      TopUpPaymentMethod.fpx => ('FPX Banking', Icons.account_balance_outlined),
+      TopUpPaymentMethod.duitNowQr => ('DuitNow QR', Icons.qr_code_rounded),
       TopUpPaymentMethod.card => ('Card', Icons.credit_card_outlined),
-      TopUpPaymentMethod.bankTransfer => (
-          'Online banking',
-          Icons.account_balance_outlined
+      TopUpPaymentMethod.ewallet => (
+          'E-wallet',
+          Icons.account_balance_wallet_outlined
         ),
     };
 
     return InkWell(
       onTap: !available || _isStartingTopUp
           ? null
-          : () => setState(() {
-                _paymentMethod = method;
-                if (method != TopUpPaymentMethod.bankTransfer) {
-                  _selectedBank = null;
-                }
-              }),
+          : () => setState(() => _paymentMethod = method),
       borderRadius: BorderRadius.circular(14),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
@@ -952,7 +1047,9 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
             ),
             const SizedBox(height: 3),
             Text(
-              available ? (selected ? 'Selected' : 'Available') : 'Unavailable',
+              available
+                  ? (selected ? 'Selected' : 'Available')
+                  : 'Not available',
               style: TextStyle(
                 fontFamily: 'Afacad',
                 fontSize: 11.5,

@@ -39,7 +39,7 @@ Do not mark the release complete until every required item has evidence.
 
 ## Explicit non-evidence
 
-- A Firebase or Billplz dashboard screenshot alone does not prove app delivery.
+- A Firebase or CHIP dashboard screenshot alone does not prove app delivery or payment confirmation.
 - A configured printer target alone does not prove receipt printing.
 - A successful local build alone does not prove public HTTPS, SMTP, or device behavior.
 

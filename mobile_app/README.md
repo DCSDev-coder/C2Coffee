@@ -21,8 +21,9 @@ flutter build ios --release \
 Every separately deployed cafe must supply its own HTTPS `/v1` endpoint using
 `API_BASE_URL`. Invalid, credential-bearing, or unversioned URLs are rejected.
 
-Production builds reject Billplz sandbox checkout URLs. Only local sandbox QA
-builds may opt in with `--dart-define=ALLOW_BILLPLZ_SANDBOX=true`.
+Production builds accept only HTTPS checkout URLs on CHIP-owned
+`chip-in.asia` hosts. Payment creation and confirmation happen through the C2
+API; the CHIP secret key must never be included in a Flutter build.
 
 ## Asset flow
 

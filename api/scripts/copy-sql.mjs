@@ -11,10 +11,19 @@ const copyTargets = [
   ['public', 'dist/public']
 ];
 
+const isPortableEntry = (sourcePath) => {
+  const name = path.basename(sourcePath);
+  return name !== '.DS_Store' && !name.startsWith('._');
+};
+
 for (const [sourceRelative, destinationRelative] of copyTargets) {
   const sourcePath = path.join(rootDir, sourceRelative);
   const destinationPath = path.join(rootDir, destinationRelative);
 
   await mkdir(path.dirname(destinationPath), { recursive: true });
-  await cp(sourcePath, destinationPath, { recursive: true, force: true });
+  await cp(sourcePath, destinationPath, {
+    recursive: true,
+    force: true,
+    filter: isPortableEntry
+  });
 }

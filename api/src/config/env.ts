@@ -48,11 +48,15 @@ const envSchema = z.object({
   TOPUP_GATEWAY_PROVIDER: z.string().trim().max(50).default(''),
   TOPUP_GATEWAY_BASE_URL: z.string().trim().default(''),
   TOPUP_GATEWAY_API_KEY: z.string().trim().default(''),
-  TOPUP_GATEWAY_WEBHOOK_SECRET: z.string().trim().default(''),
-  TOPUP_GATEWAY_COLLECTION_ID: z.string().trim().max(100).default(''),
-  // Start with FPX online banking only. Add card or Touch 'n Go only after
-  // Billplz activates that method for the deployment's collection.
-  TOPUP_GATEWAY_ALLOWED_METHODS: z.string().trim().default('bank_transfer'),
+  TOPUP_GATEWAY_BRAND_ID: z.string().trim().max(100).default(''),
+  // CHIP method codes are returned by GET /payment_methods/. Keep these
+  // configurable because the merchant account is authoritative.
+  CHIP_FPX_METHOD_CODES: z.string().trim().default('fpx'),
+  CHIP_DUITNOW_METHOD_CODES: z.string().trim().default('duitnow_qr,dnqr'),
+  CHIP_CARD_METHOD_CODES: z.string().trim().default('visa,mastercard,maestro'),
+  CHIP_EWALLET_METHOD_CODES: z.string().trim().default(''),
+  // Only methods both approved here and active in CHIP are shown to clients.
+  TOPUP_GATEWAY_ALLOWED_METHODS: z.string().trim().default('fpx,duitnow_qr'),
   WHATSAPP_CLOUD_API_TOKEN: z.string().optional().default(''),
   WHATSAPP_PHONE_NUMBER_ID: z.string().optional().default(''),
   SMS_PROVIDER_BASE_URL: z.string().optional().default(''),
@@ -112,15 +116,18 @@ const topUpMethods = parsed.TOPUP_GATEWAY_ALLOWED_METHODS
   .split(',')
   .map((method) => method.trim().toLowerCase())
   .filter(Boolean);
-const allowedTopUpMethods = new Set(['touch_n_go', 'card', 'bank_transfer']);
+const allowedTopUpMethods = new Set(['fpx', 'duitnow_qr', 'card', 'ewallet']);
 
 if (topUpMethods.some((method) => !allowedTopUpMethods.has(method))) {
-  throw new Error('TOPUP_GATEWAY_ALLOWED_METHODS may only include touch_n_go, card, and bank_transfer.');
+  throw new Error('TOPUP_GATEWAY_ALLOWED_METHODS may only include fpx, duitnow_qr, card, and ewallet.');
 }
 
 if (parsed.TOPUP_GATEWAY_ENABLED) {
-  if (!parsed.TOPUP_GATEWAY_PROVIDER || !parsed.TOPUP_GATEWAY_BASE_URL || !parsed.TOPUP_GATEWAY_API_KEY || !parsed.TOPUP_GATEWAY_WEBHOOK_SECRET || !parsed.TOPUP_GATEWAY_COLLECTION_ID) {
-    throw new Error('TOPUP_GATEWAY_ENABLED=true requires provider, HTTPS base URL, API key, webhook secret, and collection ID.');
+  if (!parsed.TOPUP_GATEWAY_PROVIDER || !parsed.TOPUP_GATEWAY_BASE_URL || !parsed.TOPUP_GATEWAY_API_KEY || !parsed.TOPUP_GATEWAY_BRAND_ID) {
+    throw new Error('TOPUP_GATEWAY_ENABLED=true requires provider, HTTPS base URL, API key, and CHIP brand ID.');
+  }
+  if (parsed.TOPUP_GATEWAY_PROVIDER !== 'chip') {
+    throw new Error('TOPUP_GATEWAY_PROVIDER must be chip.');
   }
   if (new URL(parsed.TOPUP_GATEWAY_BASE_URL).protocol !== 'https:') {
     throw new Error('TOPUP_GATEWAY_BASE_URL must use HTTPS.');
@@ -136,7 +143,11 @@ export const env = {
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean),
-  TOPUP_GATEWAY_ALLOWED_METHODS: topUpMethods
+  TOPUP_GATEWAY_ALLOWED_METHODS: topUpMethods,
+  CHIP_FPX_METHOD_CODES: parsed.CHIP_FPX_METHOD_CODES.split(',').map((value) => value.trim()).filter(Boolean),
+  CHIP_DUITNOW_METHOD_CODES: parsed.CHIP_DUITNOW_METHOD_CODES.split(',').map((value) => value.trim()).filter(Boolean),
+  CHIP_CARD_METHOD_CODES: parsed.CHIP_CARD_METHOD_CODES.split(',').map((value) => value.trim()).filter(Boolean),
+  CHIP_EWALLET_METHOD_CODES: parsed.CHIP_EWALLET_METHOD_CODES.split(',').map((value) => value.trim()).filter(Boolean)
 };
 
 export type ApiEnv = typeof env;
