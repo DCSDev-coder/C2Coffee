@@ -64,7 +64,6 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
       final list = await CustomerDataService.instance.getRewardVouchers(
         accessToken: accessToken,
         onlyActive: true,
-        includeTierRewards: true,
       );
 
       if (mounted) {
@@ -316,8 +315,7 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
             const SizedBox(height: 14),
             _buildVoucherSection(
               title: 'Rewards history',
-              subtitle:
-                  'Shown in rewards history and unavailable at checkout.',
+              subtitle: 'Shown in rewards history and unavailable at checkout.',
               vouchers: nonTokenCheckoutVouchers,
               enabled: false,
             ),

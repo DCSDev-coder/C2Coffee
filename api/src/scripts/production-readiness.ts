@@ -1,6 +1,8 @@
 import nodemailer from 'nodemailer';
+import type { RowDataPacket } from 'mysql2/promise';
 
 import { env } from '../config/env.js';
+import { mysqlPool } from '../db/mysql.js';
 import { getActiveChipMethods } from '../payments/chip-client.js';
 
 type Check = {
@@ -28,6 +30,136 @@ async function requireChipApprovedMethods(): Promise<void> {
     if (!active.has(method as 'fpx' | 'duitnow_qr' | 'card' | 'ewallet')) {
       throw new Error(`CHIP method ${method} is allowed by the API but is not active for this brand.`);
     }
+  }
+}
+
+async function requireNoFinancialReviewBacklog(): Promise<void> {
+  const [rows] = await mysqlPool.query<Array<RowDataPacket & {
+    topup_reviews: number;
+    referral_reviews: number;
+    loyalty_reviews: number;
+  }>>(
+    `SELECT
+       (SELECT COUNT(*) FROM token_topups WHERE status = 'refund_needs_review') AS topup_reviews,
+       (SELECT COUNT(*) FROM referral_reward_reversals WHERE status = 'needs_review') AS referral_reviews,
+       (SELECT COUNT(*) FROM loyalty_order_reward_issues WHERE reversal_status = 'needs_review') AS loyalty_reviews`
+  );
+  const topUpReviews = Number(rows[0]?.topup_reviews ?? 0);
+  const referralReviews = Number(rows[0]?.referral_reviews ?? 0);
+  const loyaltyReviews = Number(rows[0]?.loyalty_reviews ?? 0);
+  if (topUpReviews > 0 || referralReviews > 0 || loyaltyReviews > 0) {
+    throw new Error(
+      `Unresolved financial review queue: ${topUpReviews} top-up refund(s), ` +
+      `${referralReviews} referral reversal(s), ${loyaltyReviews} loyalty reward reversal(s).`
+    );
+  }
+}
+
+async function requireVoucherIntegrity(): Promise<void> {
+  const [migrationRows] = await mysqlPool.query<Array<RowDataPacket & { migration_count: number }>>(
+    `SELECT COUNT(*) AS migration_count
+       FROM schema_migrations
+      WHERE filename = '100_index_voucher_allocation_checks.sql'`
+  );
+  if (Number(migrationRows[0]?.migration_count ?? 0) !== 1) {
+    throw new Error('Voucher allocation migration 100 has not been applied.');
+  }
+
+  const [rows] = await mysqlPool.query<Array<RowDataPacket & {
+    invalid_templates: number;
+    duplicate_campaigns: number;
+    duplicate_claimable_tiers: number;
+    stale_active_vouchers: number;
+  }>>(
+    `SELECT
+       (
+         SELECT COUNT(*)
+         FROM voucher_templates vt
+         WHERE (vt.total_quantity IS NOT NULL AND vt.total_quantity < 1)
+            OR (vt.limit_per_user IS NOT NULL AND vt.limit_per_user < 1)
+            OR (vt.total_quantity IS NOT NULL AND vt.limit_per_user > vt.total_quantity)
+            OR (
+              COALESCE(JSON_UNQUOTE(JSON_EXTRACT(vt.eligible_scope_json, '$.audience')), 'all_customers') <> 'manual_issue_only'
+              AND COALESCE(vt.limit_per_user, 1) > 1
+            )
+       ) AS invalid_templates,
+       (
+         SELECT COUNT(*)
+         FROM (
+           SELECT uv.user_id, uv.voucher_template_id
+           FROM user_vouchers uv
+           JOIN voucher_templates vt ON vt.id = uv.voucher_template_id
+           WHERE uv.status = 'active'
+             AND uv.redeemed_at IS NULL
+             AND uv.revoked_at IS NULL
+             AND uv.expires_at > UTC_TIMESTAMP()
+             AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(vt.eligible_scope_json, '$.schedule.mode')), 'always') = 'always'
+             AND uv.issue_case_ref LIKE 'campaign:%'
+           GROUP BY uv.user_id, uv.voucher_template_id
+           HAVING COUNT(*) > 1
+         ) duplicate_campaign_rows
+       ) AS duplicate_campaigns,
+       (
+         SELECT COUNT(*)
+         FROM (
+           SELECT user_id, tier_code
+           FROM user_tier_reward_entitlements
+           WHERE status = 'claimable'
+           GROUP BY user_id, tier_code
+           HAVING COUNT(*) > 1
+         ) duplicate_tier_rows
+       ) AS duplicate_claimable_tiers,
+       (
+         SELECT COUNT(*)
+         FROM user_vouchers
+         WHERE status = 'active'
+           AND expires_at <= UTC_TIMESTAMP()
+       ) AS stale_active_vouchers`
+  );
+  const result = rows[0];
+  const invalidTemplates = Number(result?.invalid_templates ?? 0);
+  const duplicateCampaigns = Number(result?.duplicate_campaigns ?? 0);
+  const duplicateTiers = Number(result?.duplicate_claimable_tiers ?? 0);
+  const staleActive = Number(result?.stale_active_vouchers ?? 0);
+  if (invalidTemplates || duplicateCampaigns || duplicateTiers || staleActive) {
+    throw new Error(
+      `Voucher integrity failure: ${invalidTemplates} invalid template(s), ` +
+      `${duplicateCampaigns} duplicate campaign allocation(s), ` +
+      `${duplicateTiers} duplicate claimable tier reward(s), ` +
+      `${staleActive} expired voucher(s) still active.`
+    );
+  }
+}
+
+async function requirePaymentServiceNoticeIntegrity(): Promise<void> {
+  const [migrationRows] = await mysqlPool.query<Array<RowDataPacket & { migration_count: number }>>(
+    `SELECT COUNT(*) AS migration_count
+       FROM schema_migrations
+      WHERE filename = '103_create_payment_service_notices.sql'`
+  );
+  if (Number(migrationRows[0]?.migration_count ?? 0) !== 1) {
+    throw new Error('Payment-service notice migration 103 has not been applied.');
+  }
+
+  const [rows] = await mysqlPool.query<Array<RowDataPacket & {
+    invalid_windows: number;
+    invalid_cancellations: number;
+  }>>(
+    `SELECT
+       (SELECT COUNT(*)
+          FROM payment_service_notices
+         WHERE ends_at <= starts_at) AS invalid_windows,
+       (SELECT COUNT(*)
+          FROM payment_service_notices
+         WHERE status = 'cancelled' AND cancelled_at IS NULL) AS invalid_cancellations`
+  );
+  const invalidWindows = Number(rows[0]?.invalid_windows ?? 0);
+  const invalidCancellations = Number(rows[0]?.invalid_cancellations ?? 0);
+  if (invalidWindows || invalidCancellations) {
+    throw new Error(
+      `Payment-service notice integrity failure: ${invalidWindows} invalid window(s), ` +
+      `${invalidCancellations} incomplete cancellation(s).`
+    );
   }
 }
 
@@ -124,6 +256,21 @@ async function main(): Promise<void> {
         }
         return requireChipApprovedMethods();
       }
+    },
+    {
+      name: 'Financial reconciliation queue',
+      detail: 'No top-up refund or referral reversal may remain in the manual-review queue before release.',
+      run: requireNoFinancialReviewBacklog
+    },
+    {
+      name: 'Voucher allocation integrity',
+      detail: 'Voucher concurrency migration, active allocations, and claimable tier rewards must be internally consistent.',
+      run: requireVoucherIntegrity
+    },
+    {
+      name: 'Payment-service notice integrity',
+      detail: 'The scheduled-maintenance notice schema and stored windows must be internally consistent.',
+      run: requirePaymentServiceNoticeIntegrity
     }
   ];
 
@@ -151,4 +298,6 @@ async function main(): Promise<void> {
   if (failed) process.exitCode = 1;
 }
 
-void main();
+void main().finally(async () => {
+  await mysqlPool.end();
+});

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { adminRequest, loadAdminTenants } from '../lib/adminApi';
+import { getSafeAdminLoginErrorMessage } from '../lib/adminAuthRequestPolicy';
 import { Eye, EyeOff } from 'lucide-react';
 
 const Login = ({ onLoginSuccess }) => {
@@ -68,10 +69,10 @@ const Login = ({ onLoginSuccess }) => {
         tenant: response.tenant,
         user: response.user
       });
-    } catch {
+    } catch (error) {
       setIdentifier('');
       setPassword('');
-      setErrorMessage('Denied');
+      setErrorMessage(getSafeAdminLoginErrorMessage(error));
     } finally {
       setIsSubmitting(false);
     }
@@ -125,7 +126,7 @@ const Login = ({ onLoginSuccess }) => {
       {/* Background Image with subtle scale */}
       <div 
         className="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat opacity-90 scale-105"
-        style={{ backgroundImage: 'url(/FKP01925.jpg)' }}
+        style={{ backgroundImage: 'url(/FKP01925.webp)' }}
       />
       
       {/* Premium Gradient Overlay */}

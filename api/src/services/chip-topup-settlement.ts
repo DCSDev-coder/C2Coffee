@@ -5,8 +5,8 @@ import { env } from '../config/env.js';
 import { getUtcConnection } from '../db/mysql.js';
 import { ApiError } from '../http/errors.js';
 import { createUserNotification } from '../http/notifications.js';
-import { chipMethodLabel, type ChipPurchase } from '../payments/chip-client.js';
-import { deliverQueuedTopUpReceiptEmail, queueTopUpReceiptEmail } from './topup-receipt-email.js';
+import type { ChipPurchase } from '../payments/chip-client.js';
+import { deliverPushToUser } from './push-delivery.js';
 
 type SettlementLogger = {
   warn: (context: Record<string, unknown>, message: string) => void;
@@ -15,15 +15,12 @@ type SettlementLogger = {
 type PaymentRow = RowDataPacket & {
   payment_id: number;
   payment_status: 'pending' | 'authorized' | 'paid' | 'failed' | 'cancelled' | 'refunded' | 'partially_refunded';
-  payment_method: string;
   topup_id: number;
   user_id: number;
   topup_ref: string;
   token_amount: number;
   rm_amount: string;
-  topup_status: 'pending_payment' | 'paid' | 'failed' | 'cancelled';
-  provider_bill_id: string;
-  customer_email: string | null;
+  topup_status: 'pending_payment' | 'paid' | 'failed' | 'cancelled' | 'refunded' | 'refund_needs_review';
 };
 
 export type ChipSettlementResult = {
@@ -32,8 +29,28 @@ export type ChipSettlementResult = {
   duplicate?: boolean;
   needs_review?: boolean;
   terminal?: boolean;
-  receipt_email?: 'queued' | 'unavailable';
 };
+
+function deliverTopUpStatusPush(
+  logger: SettlementLogger | undefined,
+  input: { userId: number; title: string; body: string; type: string; topupRef: string; status: string }
+): void {
+  void deliverPushToUser({
+    userId: input.userId,
+    title: input.title,
+    body: input.body,
+    data: {
+      type: input.type,
+      topup_ref: input.topupRef,
+      status: input.status
+    }
+  }).catch((error) => {
+    logger?.warn(
+      { topupRef: input.topupRef, status: input.status, error: error instanceof Error ? error.message : String(error) },
+      'Top-up status push delivery failed after settlement.'
+    );
+  });
+}
 
 function normalizedStatus(purchase: ChipPurchase): string {
   return typeof purchase.status === 'string' ? purchase.status.trim().toLowerCase() : 'unknown';
@@ -58,6 +75,8 @@ export async function settleChipTopUpPurchase(
   const amountCents = Number(purchase.purchase?.total);
   const status = normalizedStatus(purchase);
   const isPaid = status === 'paid';
+  const isRefunded = status === 'refunded';
+  const isPartiallyRefunded = status === 'partially_refunded';
   if (purchase.id !== purchaseId ||
       purchase.brand_id !== env.TOPUP_GATEWAY_BRAND_ID ||
       purchase.purchase?.currency !== 'MYR' ||
@@ -67,29 +86,20 @@ export async function settleChipTopUpPurchase(
 
   const connection = await getUtcConnection();
   let committed = false;
-  let receiptTopUpId: number | null = null;
   try {
     await connection.beginTransaction();
     const [paymentRows] = await connection.execute<PaymentRow[]>(
-      `SELECT p.id AS payment_id, p.status AS payment_status, p.payment_method, p.provider_bill_id,
+      `SELECT p.id AS payment_id, p.status AS payment_status,
               tt.id AS topup_id, tt.user_id, tt.topup_ref, tt.token_amount,
-              CAST(tt.rm_amount AS CHAR) AS rm_amount, tt.status AS topup_status,
-              up.email AS customer_email
+              CAST(tt.rm_amount AS CHAR) AS rm_amount, tt.status AS topup_status
        FROM payments p
        JOIN token_topups tt ON tt.id = p.topup_id
-       LEFT JOIN user_profiles up ON up.user_id = tt.user_id
        WHERE p.provider = 'chip' AND p.provider_bill_id = :purchaseId
        LIMIT 1 FOR UPDATE`,
       { purchaseId }
     );
     const payment = paymentRows[0];
     if (!payment) throw new ApiError(404, 'chip_payment_not_found', 'Payment was not found.');
-
-    if (payment.payment_status === 'paid' || payment.topup_status === 'paid') {
-      await connection.commit();
-      committed = true;
-      return { received: true, duplicate: true };
-    }
 
     const eventRef = `chip:${eventSource}:${purchaseId}:${status}:${String(purchase.updated_on ?? '')}`;
     const [existingEvents] = await connection.execute<Array<RowDataPacket & { id: number }>>(
@@ -105,6 +115,185 @@ export async function settleChipTopUpPurchase(
     const expectedAmountCents = Math.round(Number(payment.rm_amount) * 100);
     const amountMatches = amountCents === expectedAmountCents;
     const eventPayloadHash = crypto.createHash('sha256').update(JSON.stringify(purchase)).digest('hex');
+
+    if (isRefunded || isPartiallyRefunded) {
+      if (payment.payment_status === 'refunded' && payment.topup_status === 'refunded') {
+        await connection.commit();
+        committed = true;
+        return { received: true, duplicate: true };
+      }
+
+      // CHIP's normal purchase payload does not expose a stable partial-refund
+      // token amount. Never guess how many tokens to remove for a partial cash
+      // refund; flag it for staff review instead.
+      if (isPartiallyRefunded) {
+        await connection.execute(
+          `UPDATE payments SET status = 'partially_refunded' WHERE id = :paymentId`,
+          { paymentId: payment.payment_id }
+        );
+        await connection.execute(
+          `UPDATE token_topups SET status = 'refund_needs_review' WHERE id = :topupId`,
+          { topupId: payment.topup_id }
+        );
+        await connection.execute(
+          `INSERT INTO payment_events
+             (payment_id, provider_event_id, event_type, event_payload_hash, processed_at, process_result, created_at)
+           VALUES (:paymentId, :eventRef, 'chip_partially_refunded', :payloadHash, UTC_TIMESTAMP(), 'needs_review', UTC_TIMESTAMP())`,
+          { paymentId: payment.payment_id, eventRef, payloadHash: eventPayloadHash }
+        );
+        await createUserNotification(connection, {
+          userId: payment.user_id,
+          type: 'token_topup_review',
+          title: 'Refund under review',
+          body: 'A partial refund was reported. Our team needs to verify the matching C2 Token adjustment.',
+          data: { topup_ref: payment.topup_ref, status: 'refund_needs_review' },
+          deliveryKey: `token_topup_review:${payment.topup_id}:partial_refund`
+        });
+        await connection.commit();
+        committed = true;
+        deliverTopUpStatusPush(logger, {
+          userId: payment.user_id,
+          title: 'Refund under review',
+          body: 'A partial refund was reported. Our team needs to verify the matching C2 Token adjustment.',
+          type: 'token_topup_review',
+          topupRef: payment.topup_ref,
+          status: 'refund_needs_review'
+        });
+        return { received: true, needs_review: true };
+      }
+
+      const [ledgerRows] = await connection.execute<Array<RowDataPacket & {
+        direction: 'credit' | 'debit';
+        source_type: 'topup_paid' | 'topup_refund';
+      }>>(
+        `SELECT direction, source_type
+         FROM token_ledger
+         WHERE user_id = :userId AND source_id = :topupId
+           AND source_type IN ('topup_paid', 'topup_refund')
+         FOR UPDATE`,
+        { userId: payment.user_id, topupId: payment.topup_id }
+      );
+      const wasCredited = ledgerRows.some((row) => row.direction === 'credit' && row.source_type === 'topup_paid') &&
+        !ledgerRows.some((row) => row.direction === 'debit' && row.source_type === 'topup_refund');
+      if (wasCredited) {
+        const [accounts] = await connection.execute<Array<RowDataPacket & { balance_available: number }>>(
+          `SELECT balance_available FROM token_accounts WHERE user_id = :userId LIMIT 1 FOR UPDATE`,
+          { userId: payment.user_id }
+        );
+        const account = accounts[0];
+        if (!account || Number(account.balance_available) < Number(payment.token_amount)) {
+          await connection.execute(
+            `UPDATE payments SET status = 'refunded' WHERE id = :paymentId`,
+            { paymentId: payment.payment_id }
+          );
+          await connection.execute(
+            `UPDATE token_topups SET status = 'refund_needs_review' WHERE id = :topupId`,
+            { topupId: payment.topup_id }
+          );
+          await connection.execute(
+            `INSERT INTO payment_events
+               (payment_id, provider_event_id, event_type, event_payload_hash, processed_at, process_result, created_at)
+             VALUES (:paymentId, :eventRef, 'chip_refunded', :payloadHash, UTC_TIMESTAMP(), 'needs_review_insufficient_tokens', UTC_TIMESTAMP())`,
+            { paymentId: payment.payment_id, eventRef, payloadHash: eventPayloadHash }
+          );
+          await createUserNotification(connection, {
+            userId: payment.user_id,
+            type: 'token_topup_review',
+            title: 'Refund under review',
+            body: 'Your payment was refunded, but the wallet adjustment needs staff review.',
+            data: { topup_ref: payment.topup_ref, status: 'refund_needs_review' },
+            deliveryKey: `token_topup_review:${payment.topup_id}:refund_balance`
+          });
+          await connection.commit();
+          committed = true;
+          deliverTopUpStatusPush(logger, {
+            userId: payment.user_id,
+            title: 'Refund under review',
+            body: 'Your payment was refunded, but the wallet adjustment needs staff review.',
+            type: 'token_topup_review',
+            topupRef: payment.topup_ref,
+            status: 'refund_needs_review'
+          });
+          return { received: true, needs_review: true };
+        }
+
+        const balanceAfter = Number(account.balance_available) - Number(payment.token_amount);
+        await connection.execute(
+          `UPDATE token_accounts SET balance_available = :balanceAfter, updated_at = UTC_TIMESTAMP()
+           WHERE user_id = :userId`,
+          { balanceAfter, userId: payment.user_id }
+        );
+        await connection.execute(
+          `INSERT INTO token_ledger
+             (user_id, token_lot_id, direction, source_type, source_id, amount, balance_after, remarks, created_at)
+           VALUES (:userId, NULL, 'debit', 'topup_refund', :topupId, :amount, :balanceAfter, :remarks, UTC_TIMESTAMP())`,
+          {
+            userId: payment.user_id,
+            topupId: payment.topup_id,
+            amount: payment.token_amount,
+            balanceAfter,
+            remarks: `CHIP refund ${payment.topup_ref}`
+          }
+        );
+      }
+
+      await connection.execute(
+        `UPDATE payments SET status = 'refunded' WHERE id = :paymentId`,
+        { paymentId: payment.payment_id }
+      );
+      await connection.execute(
+        `UPDATE token_topups SET status = 'refunded' WHERE id = :topupId`,
+        { topupId: payment.topup_id }
+      );
+      await connection.execute(
+        `UPDATE token_wallet_cap_reservations
+         SET status = 'released', release_reason = 'chip_refunded', released_at = UTC_TIMESTAMP()
+         WHERE topup_id = :topupId AND status IN ('active', 'needs_review')`,
+        { topupId: payment.topup_id }
+      );
+      await connection.execute(
+        `INSERT INTO payment_events
+           (payment_id, provider_event_id, event_type, event_payload_hash, processed_at, process_result, created_at)
+         VALUES (:paymentId, :eventRef, 'chip_refunded', :payloadHash, UTC_TIMESTAMP(), :result, UTC_TIMESTAMP())`,
+        {
+          paymentId: payment.payment_id,
+          eventRef,
+          payloadHash: eventPayloadHash,
+          result: wasCredited ? 'tokens_reversed' : 'no_credit_to_reverse'
+        }
+      );
+      if (wasCredited) {
+        const notificationBody = `${payment.token_amount} C2 Tokens were removed because the payment was refunded.`;
+        await createUserNotification(connection, {
+          userId: payment.user_id,
+          type: 'token_topup_refunded',
+          title: 'Top-up refunded',
+          body: notificationBody,
+          data: { topup_ref: payment.topup_ref, status: 'refunded' },
+          deliveryKey: `token_topup_refunded:${payment.topup_id}`
+        });
+      }
+      await connection.commit();
+      committed = true;
+      if (wasCredited) {
+        deliverTopUpStatusPush(logger, {
+          userId: payment.user_id,
+          title: 'Top-up refunded',
+          body: `${payment.token_amount} C2 Tokens were removed because the payment was refunded.`,
+          type: 'token_topup_refunded',
+          topupRef: payment.topup_ref,
+          status: 'refunded'
+        });
+      }
+      return { received: true, credited: false, terminal: true };
+    }
+
+    if (payment.payment_status === 'paid' || payment.topup_status === 'paid') {
+      await connection.commit();
+      committed = true;
+      return { received: true, duplicate: true };
+    }
+
     if (!isPaid || !amountMatches) {
       const terminalFailure = chipTerminalFailure(status);
       await connection.execute(
@@ -137,6 +326,18 @@ export async function settleChipTopUpPurchase(
            WHERE topup_id = :topupId AND status IN ('active', 'needs_review')`,
           { topupId: payment.topup_id, releaseReason: `chip_${terminalFailure}` }
         );
+        const title = terminalFailure === 'cancelled' ? 'Top-up cancelled' : 'Top-up unsuccessful';
+        const body = terminalFailure === 'cancelled'
+          ? 'Your top-up was cancelled. No C2 Tokens were added.'
+          : 'Your top-up was unsuccessful. No C2 Tokens were added.';
+        await createUserNotification(connection, {
+          userId: payment.user_id,
+          type: `token_topup_${terminalFailure}`,
+          title,
+          body,
+          data: { topup_ref: payment.topup_ref, status: terminalFailure },
+          deliveryKey: `token_topup_${terminalFailure}:${payment.topup_id}`
+        });
       } else if (isPaid && !amountMatches) {
         await connection.execute(
           `UPDATE token_wallet_cap_reservations
@@ -144,9 +345,38 @@ export async function settleChipTopUpPurchase(
            WHERE topup_id = :topupId AND status IN ('active', 'released')`,
           { topupId: payment.topup_id }
         );
+        await createUserNotification(connection, {
+          userId: payment.user_id,
+          type: 'token_topup_review',
+          title: 'Top-up under review',
+          body: 'Your payment was received, but the amount needs verification before C2 Tokens can be added.',
+          data: { topup_ref: payment.topup_ref, status: 'needs_review' },
+          deliveryKey: `token_topup_review:${payment.topup_id}:amount`
+        });
       }
       await connection.commit();
       committed = true;
+      if (terminalFailure) {
+        deliverTopUpStatusPush(logger, {
+          userId: payment.user_id,
+          title: terminalFailure === 'cancelled' ? 'Top-up cancelled' : 'Top-up unsuccessful',
+          body: terminalFailure === 'cancelled'
+            ? 'Your top-up was cancelled. No C2 Tokens were added.'
+            : 'Your top-up was unsuccessful. No C2 Tokens were added.',
+          type: `token_topup_${terminalFailure}`,
+          topupRef: payment.topup_ref,
+          status: terminalFailure
+        });
+      } else if (isPaid && !amountMatches) {
+        deliverTopUpStatusPush(logger, {
+          userId: payment.user_id,
+          title: 'Top-up under review',
+          body: 'Your payment was received, but the amount needs verification before C2 Tokens can be added.',
+          type: 'token_topup_review',
+          topupRef: payment.topup_ref,
+          status: 'needs_review'
+        });
+      }
       return { received: true, credited: false, terminal: Boolean(terminalFailure) };
     }
 
@@ -191,16 +421,30 @@ export async function settleChipTopUpPurchase(
          WHERE id = :reservationId`,
         { reservationId: reservation.id }
       );
-      if (reservation.status !== 'needs_review') {
-        await connection.execute(
-          `INSERT INTO payment_events
-             (payment_id, provider_event_id, event_type, event_payload_hash, processed_at, process_result, created_at)
-           VALUES (:paymentId, :eventRef, 'chip_paid', :payloadHash, UTC_TIMESTAMP(), 'needs_review', UTC_TIMESTAMP())`,
-          { paymentId: payment.payment_id, eventRef, payloadHash: eventPayloadHash }
-        );
-      }
+      await connection.execute(
+        `INSERT INTO payment_events
+           (payment_id, provider_event_id, event_type, event_payload_hash, processed_at, process_result, created_at)
+         VALUES (:paymentId, :eventRef, 'chip_paid', :payloadHash, UTC_TIMESTAMP(), 'needs_review', UTC_TIMESTAMP())`,
+        { paymentId: payment.payment_id, eventRef, payloadHash: eventPayloadHash }
+      );
+      await createUserNotification(connection, {
+        userId: payment.user_id,
+        type: 'token_topup_review',
+        title: 'Top-up under review',
+        body: 'Your payment was received, but your wallet needs staff review before C2 Tokens can be added.',
+        data: { topup_ref: payment.topup_ref, status: 'needs_review' },
+        deliveryKey: `token_topup_review:${payment.topup_id}:wallet_cap`
+      });
       await connection.commit();
       committed = true;
+      deliverTopUpStatusPush(logger, {
+        userId: payment.user_id,
+        title: 'Top-up under review',
+        body: 'Your payment was received, but your wallet needs staff review before C2 Tokens can be added.',
+        type: 'token_topup_review',
+        topupRef: payment.topup_ref,
+        status: 'needs_review'
+      });
       return { received: true, credited: false, needs_review: true };
     }
 
@@ -248,32 +492,21 @@ export async function settleChipTopUpPurchase(
       userId: payment.user_id,
       type: 'token_topup_paid',
       title: 'Tokens added',
-      body: `${payment.token_amount} C2 Tokens have been added to your wallet.`
-    });
-    const receiptEmailQueued = await queueTopUpReceiptEmail(connection, {
-      topupId: payment.topup_id,
-      recipientEmail: payment.customer_email,
-      paymentMethod: chipMethodLabel(payment.payment_method),
-      providerBillId: payment.provider_bill_id
+      body: `${payment.token_amount} C2 Tokens have been added to your wallet.`,
+      data: { topup_ref: payment.topup_ref, status: 'paid' },
+      deliveryKey: `token_topup_paid:${payment.topup_id}`
     });
     await connection.commit();
     committed = true;
-    if (receiptEmailQueued) receiptTopUpId = payment.topup_id;
-
-    const result: ChipSettlementResult = {
-      received: true,
-      credited: true,
-      receipt_email: receiptEmailQueued ? 'queued' : 'unavailable'
-    };
-
-    if (receiptTopUpId !== null) {
-      void deliverQueuedTopUpReceiptEmail(receiptTopUpId).then((outcome) => {
-        if (outcome === 'failed') logger?.warn({ topupId: receiptTopUpId }, 'Top-up receipt email delivery failed after payment.');
-      }).catch(() => {
-        logger?.warn({ topupId: receiptTopUpId }, 'Top-up receipt email delivery could not be started after payment.');
-      });
-    }
-    return result;
+    deliverTopUpStatusPush(logger, {
+      userId: payment.user_id,
+      title: 'Tokens added',
+      body: `${payment.token_amount} C2 Tokens have been added to your wallet.`,
+      type: 'token_topup_paid',
+      topupRef: payment.topup_ref,
+      status: 'paid'
+    });
+    return { received: true, credited: true };
   } catch (error) {
     if (!committed) await connection.rollback();
     throw error;

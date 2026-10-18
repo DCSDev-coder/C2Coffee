@@ -112,6 +112,7 @@ const LoyaltyTokens = ({ onBack, onNavigate }) => {
   const [editTokenAmount, setEditTokenAmount] = useState("");
   const [editTokenAction, setEditTokenAction] = useState("Add");
   const [editTokenReason, setEditTokenReason] = useState("");
+  const [editTokenPassword, setEditTokenPassword] = useState("");
   const [editTokenError, setEditTokenError] = useState("");
   const [isSavingTokenAdjustment, setIsSavingTokenAdjustment] = useState(false);
   const [menuOpenId, setMenuOpenId] = useState(null);
@@ -560,6 +561,7 @@ const LoyaltyTokens = ({ onBack, onNavigate }) => {
                 onClick={() => {
                   setEditTokenError("");
                   setEditTokenReason("");
+                  setEditTokenPassword("");
                   setIsEditTokensOpen(true);
                 }}
                 className="w-full py-2.5 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-sm"
@@ -577,7 +579,7 @@ const LoyaltyTokens = ({ onBack, onNavigate }) => {
           <div className="bg-white rounded-2xl w-full max-w-[420px] shadow-2xl border border-gray-100 overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="flex justify-between items-center px-6 py-4.5 border-b border-gray-100 bg-white/80 backdrop-blur-xs">
               <h2 className="text-lg font-bold text-gray-900">Adjust Wallet Tokens</h2>
-              <button onClick={() => setIsEditTokensOpen(false)} className="p-1.5 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer">
+              <button onClick={() => { setEditTokenPassword(""); setIsEditTokensOpen(false); }} className="p-1.5 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer">
                 <X size={20} />
               </button>
             </div>
@@ -632,6 +634,19 @@ const LoyaltyTokens = ({ onBack, onNavigate }) => {
                 <p className="mt-1.5 text-xs text-gray-500">This is recorded in the token ledger and audit log.</p>
               </div>
 
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1.5">Current password <span className="text-red-500">*</span></label>
+                <input
+                  type="password"
+                  value={editTokenPassword}
+                  onChange={(e) => setEditTokenPassword(e.target.value)}
+                  autoComplete="current-password"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-[#1F3A34] focus:border-[#1F3A34] sm:text-sm outline-none"
+                  placeholder="Confirm this financial adjustment"
+                />
+                <p className="mt-1.5 text-xs text-gray-500">Required every time tokens are manually added or deducted.</p>
+              </div>
+
               {editTokenError && (
                 <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                   {editTokenError}
@@ -643,6 +658,7 @@ const LoyaltyTokens = ({ onBack, onNavigate }) => {
                 onClick={() => {
                   setIsEditTokensOpen(false);
                   setEditTokenError("");
+                  setEditTokenPassword("");
                 }}
                 disabled={isSavingTokenAdjustment}
                 className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-bold text-gray-700 bg-white hover:bg-gray-50 transition-colors cursor-pointer"
@@ -662,13 +678,19 @@ const LoyaltyTokens = ({ onBack, onNavigate }) => {
                     return;
                   }
 
+                  if (editTokenPassword.length < 8) {
+                    setEditTokenError('Enter your current password to confirm this adjustment.');
+                    return;
+                  }
+
                   setIsSavingTokenAdjustment(true);
                   setEditTokenError("");
                   try {
                     await adjustAdminCustomerTokens(selectedCustomer.id, {
                       action: editTokenAction === 'Add' ? 'credit' : 'debit',
                       amount,
-                      reason: editTokenReason.trim()
+                      reason: editTokenReason.trim(),
+                      confirmation_password: editTokenPassword
                     });
                     const response = await loadAdminLoyaltyOverview(100);
                     setOverview(response ?? null);
@@ -676,6 +698,7 @@ const LoyaltyTokens = ({ onBack, onNavigate }) => {
                     setSelectedCustomer(null);
                     setIsEditTokensOpen(false);
                     setEditTokenAmount("");
+                    setEditTokenPassword("");
                   } catch (error) {
                     setEditTokenError(error?.message || 'We could not update this token wallet.');
                   } finally {

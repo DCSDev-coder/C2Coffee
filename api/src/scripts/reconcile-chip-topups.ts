@@ -5,6 +5,7 @@ import { assertChipConfigured, getChipPurchase } from '../payments/chip-client.j
 import { chipTerminalFailure, settleChipTopUpPurchase } from '../services/chip-topup-settlement.js';
 
 type PendingChipPayment = RowDataPacket & {
+  payment_id: number;
   provider_bill_id: string;
 };
 
@@ -29,20 +30,23 @@ async function main(): Promise<void> {
   const released = 'affectedRows' in releaseResult ? Number(releaseResult.affectedRows) : 0;
 
   const [rows] = await mysqlPool.query<PendingChipPayment[]>(
-    `SELECT p.provider_bill_id
+    `SELECT p.id AS payment_id, p.provider_bill_id
      FROM payments p
      JOIN token_topups tt ON tt.id = p.topup_id
      LEFT JOIN token_wallet_cap_reservations r ON r.topup_id = tt.id
      WHERE p.provider = 'chip' AND p.provider_bill_id IS NOT NULL
-       AND p.status IN ('pending', 'authorized')
-       AND tt.status = 'pending_payment'
-       AND (p.created_at >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 14 DAY) OR r.status = 'needs_review')
+       AND (
+         (p.status IN ('pending', 'authorized') AND tt.status = 'pending_payment')
+         OR (p.status = 'paid' AND tt.status = 'paid')
+         OR tt.status = 'refund_needs_review'
+       )
+       AND (p.created_at >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 30 DAY) OR r.status = 'needs_review' OR tt.status = 'refund_needs_review')
        AND NOT EXISTS (
          SELECT 1 FROM payment_events pe
          WHERE pe.payment_id = p.id AND pe.process_result = 'rejected'
        )
-     GROUP BY p.provider_bill_id
-     ORDER BY MIN(p.id) ASC
+     GROUP BY p.id, p.provider_bill_id, p.provider_checked_at, p.created_at
+     ORDER BY COALESCE(p.provider_checked_at, p.created_at) ASC, p.id ASC
      LIMIT ${limit}`
   );
 
@@ -56,7 +60,12 @@ async function main(): Promise<void> {
   for (const row of rows) {
     try {
       const purchase = await getChipPurchase(row.provider_bill_id);
-      if (purchase.status !== 'paid' && !chipTerminalFailure(purchase.status)) {
+      await mysqlPool.execute(
+        `UPDATE payments SET provider_checked_at = UTC_TIMESTAMP() WHERE id = :paymentId`,
+        { paymentId: row.payment_id }
+      );
+      if (!['paid', 'refunded', 'partially_refunded'].includes(String(purchase.status).toLowerCase()) &&
+          !chipTerminalFailure(purchase.status)) {
         unchanged += 1;
         continue;
       }

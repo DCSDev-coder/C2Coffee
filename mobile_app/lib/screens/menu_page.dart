@@ -50,6 +50,7 @@ class _MenuPageState extends State<MenuPage> {
   bool _showTokenPrice = true;
   bool _showScrollToTop = false;
   bool _isAutoScrolling = false;
+  String? _pendingInitialCategoryCode;
   _MenuSortOrder _sortOrder = _MenuSortOrder.menuOrder;
   int _selectedCategoryIndex = 0;
   int _voucherBannerIndex = 0;
@@ -61,6 +62,10 @@ class _MenuPageState extends State<MenuPage> {
   void initState() {
     super.initState();
     _selectedCategoryIndex = widget.initialCategoryIndex;
+    _pendingInitialCategoryCode =
+        widget.initialCategoryCode?.trim().isEmpty == true
+            ? null
+            : widget.initialCategoryCode?.trim();
     _scrollController.addListener(_onScroll);
     _searchController.addListener(() => setState(() {}));
     _session.addListener(_onSessionChanged);
@@ -1634,6 +1639,19 @@ class _MenuPageState extends State<MenuPage> {
 
     final safeSelectedIndex =
         _selectedCategoryIndex.clamp(0, sections.length - 1);
+
+    final pendingCategoryCode = _pendingInitialCategoryCode;
+    if (pendingCategoryCode != null) {
+      final targetIndex = sections.indexWhere(
+        (section) => section.key == pendingCategoryCode,
+      );
+      if (targetIndex >= 0) {
+        _pendingInitialCategoryCode = null;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) unawaited(_scrollToCategory(targetIndex));
+        });
+      }
+    }
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,

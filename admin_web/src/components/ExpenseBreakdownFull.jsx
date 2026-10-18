@@ -49,7 +49,10 @@ const ExpenseBreakdownFull = ({ onBack }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const statusBreakdown = Array.isArray(overview.statusBreakdown) ? overview.statusBreakdown : [];
+  const statusBreakdown = useMemo(
+    () => Array.isArray(overview.statusBreakdown) ? overview.statusBreakdown : [],
+    [overview.statusBreakdown]
+  );
   const summary = overview.summary || {};
   const totalStatuses = statusBreakdown.reduce((acc, item) => acc + Number(item.value || 0), 0);
 

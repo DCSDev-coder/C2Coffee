@@ -141,54 +141,67 @@ class _ActivationScreenState extends State<ActivationScreen> {
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.storefront, size: 64, color: AppColors.primary),
-              const SizedBox(height: 16),
-              Text(
-                'Register POS Device',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              children: [
+                const Icon(
+                  Icons.storefront,
+                  size: 64,
                   color: AppColors.primary,
-                  fontWeight: FontWeight.bold,
                 ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Enter the activation code from Admin Web.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontFamily: 'Afacad', color: AppColors.charcoal),
-              ),
-              const SizedBox(height: 24),
-              TextField(
-                controller: _codeController,
-                decoration: InputDecoration(
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  labelText: 'Activation Code',
-                  prefixIcon: const Icon(Icons.key),
-                ),
-              ),
-              const SizedBox(height: 16),
-              if (_errorMessage != null) ...[
-                Text(_errorMessage!, style: const TextStyle(fontFamily: 'Afacad', color: Colors.red)),
                 const SizedBox(height: 16),
+                Text(
+                  'Register POS Device',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Enter the activation code from Admin Web.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: 'Afacad',
+                    color: AppColors.charcoal,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                TextField(
+                  controller: _codeController,
+                  decoration: InputDecoration(
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    labelText: 'Activation Code',
+                    prefixIcon: const Icon(Icons.key),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                if (_errorMessage != null) ...[
+                  Text(
+                    _errorMessage!,
+                    style: const TextStyle(
+                      fontFamily: 'Afacad',
+                      color: Colors.red,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                SizedBox(
+                  width: double.infinity,
+                  child: _isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : ElevatedButton(
+                          onPressed: _activate,
+                          child: const Text('Activate Device'),
+                        ),
+                ),
               ],
-              SizedBox(
-                width: double.infinity,
-                child: _isLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : ElevatedButton(
-                        onPressed: _activate,
-                        child: const Text('Activate Device'),
-                      ),
-              ),
-            ],
+            ),
           ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 }
 
 class CounterHomeScreen extends StatefulWidget {
@@ -211,10 +224,10 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
   List<CounterMenuItem> _menuItems = [];
   final List<Map<String, dynamic>> _cart = [];
   final Map<String, GlobalKey> _categoryKeys = {};
-  
+
   final ScrollController _scrollController = ScrollController();
   bool _isScrollingToCategory = false;
-  
+
   String? _orderType; // 'Dine In' or 'Take Away'
   Map<String, dynamic>? _selectedVoucher;
 
@@ -274,34 +287,11 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
   Future<void> _loadMenu() async {
     final token = await widget.authService.getToken();
     if (token == null) return;
-    
+
     try {
       final response = await _apiClient.get('/v1/counter/menu', token: token);
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        print('=============================');
-        print('API DATA TYPE: ${data.runtimeType}');
-        if (data is Map) {
-          print('API DATA KEYS: ${data.keys.toList()}');
-          if (data['categories'] != null) {
-            print('CATEGORIES IS NOT NULL, length: ${(data['categories'] as List).length}');
-            if ((data['categories'] as List).isNotEmpty) {
-              print('FIRST CATEGORY KEYS: ${(data['categories'][0] as Map).keys.toList()}');
-            }
-          } else if (data['items'] != null) {
-            print('ITEMS IS NOT NULL, length: ${(data['items'] as List).length}');
-            if ((data['items'] as List).isNotEmpty) {
-              print('FIRST ITEM KEYS: ${(data['items'][0] as Map).keys.toList()}');
-            }
-          }
-        } else if (data is List) {
-          print('DATA IS LIST, length: ${data.length}');
-          if (data.isNotEmpty) {
-            print('FIRST ITEM KEYS: ${(data[0] as Map).keys.toList()}');
-          }
-        }
-        print('=============================');
-        
         if (mounted) {
           setState(() {
             _menuItems = parseCounterMenu(data);
@@ -309,7 +299,9 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
           });
         }
       } else {
-        print('Error fetching menu, status code: ${response.statusCode}, body: ${response.body}');
+        debugPrint(
+          'Counter menu request failed with HTTP ${response.statusCode}.',
+        );
         if (mounted) {
           setState(() {
             _errorMessage = 'Failed to load menu (${response.statusCode})';
@@ -317,7 +309,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
         }
       }
     } catch (e, st) {
-      print('Exception fetching menu: $e\n$st');
+      debugPrint('Counter menu request failed: $e\n$st');
       if (mounted) {
         setState(() {
           _errorMessage = 'Network error fetching menu';
@@ -341,7 +333,8 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
       if (!success) {
         if (mounted) {
           setState(() {
-            _errorMessage = 'Number not found. Please try again or continue as a guest.';
+            _errorMessage =
+                'Number not found. Please try again or continue as a guest.';
           });
         }
       } else {
@@ -399,12 +392,13 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
       final item = cartItem['item'] as CounterMenuItem;
       final customization = cartItem['customization'] as Map<String, dynamic>;
       final qty = cartItem['quantity'] as int;
-      
+
       double price = item.priceRm;
-      
+
       if (item.modifierGroups.isNotEmpty) {
         double adjustment = 0;
-        final librarySelections = customization['librarySelections'] as Map<int, List<int>>? ?? {};
+        final librarySelections =
+            customization['librarySelections'] as Map<int, List<int>>? ?? {};
         for (final group in item.modifierGroups) {
           final selections = librarySelections[group.id] ?? [];
           for (final optionId in selections) {
@@ -423,7 +417,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
           if (customization['milk'] == 'Oat Milk') price += 3.00;
         }
       }
-      
+
       total += price * qty;
     }
     return total;
@@ -433,22 +427,25 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
     double total = _getSubtotal();
     if (_selectedVoucher != null) {
       if (_selectedVoucher!['discount_percent'] != null) {
-        total = total * (1 - (_selectedVoucher!['discount_percent'] as double) / 100);
+        total =
+            total *
+            (1 - (_selectedVoucher!['discount_percent'] as double) / 100);
       } else if (_selectedVoucher!['discount_amount'] != null) {
         total -= _selectedVoucher!['discount_amount'] as double;
       }
     }
     return total > 0 ? total : 0;
   }
-  
+
   double _getCartItemPrice(Map<String, dynamic> cartItem) {
     final item = cartItem['item'] as CounterMenuItem;
     final customization = cartItem['customization'] as Map<String, dynamic>;
-    
+
     double price = item.priceRm;
     if (item.modifierGroups.isNotEmpty) {
       double adjustment = 0;
-      final librarySelections = customization['librarySelections'] as Map<int, List<int>>? ?? {};
+      final librarySelections =
+          customization['librarySelections'] as Map<int, List<int>>? ?? {};
       for (final group in item.modifierGroups) {
         final selections = librarySelections[group.id] ?? [];
         for (final optionId in selections) {
@@ -478,9 +475,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
       child: Scaffold(
         appBar: AppBar(
           title: Row(
-            children: [
-              Image.asset('assets/images/c2_logo.png', height: 32),
-            ],
+            children: [Image.asset('assets/images/c2_logo.png', height: 32)],
           ),
           actions: [
             if (_sessionManager.currentSession != null)
@@ -492,8 +487,18 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
-                        _sessionManager.currentSession!.customerSummary['username'] ?? _sessionManager.currentSession!.customerSummary['customer_name'] ?? _sessionManager.currentSession!.phone,
-                        style: const TextStyle(fontFamily: 'Afacad', fontWeight: FontWeight.bold, fontSize: 20),
+                        _sessionManager
+                                .currentSession!
+                                .customerSummary['username'] ??
+                            _sessionManager
+                                .currentSession!
+                                .customerSummary['customer_name'] ??
+                            _sessionManager.currentSession!.phone,
+                        style: const TextStyle(
+                          fontFamily: 'Afacad',
+                          fontWeight: FontWeight.bold,
+                          fontSize: 20,
+                        ),
                       ),
                       Text(
                         'Tier: ${_sessionManager.currentSession!.customerSummary['loyalty_tier'] ?? 'None'}',
@@ -505,10 +510,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
             const SizedBox(width: 8),
           ],
         ),
-        endDrawer: Drawer(
-          width: 350,
-          child: _buildCartUI(),
-        ),
+        endDrawer: Drawer(width: 350, child: _buildCartUI()),
         floatingActionButton: _sessionManager.currentSession == null
             ? null
             : Builder(
@@ -535,12 +537,16 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                             decoration: BoxDecoration(
                               color: const Color(0xFFE5A93C),
                               shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 1.5),
+                              border: Border.all(
+                                color: Colors.white,
+                                width: 1.5,
+                              ),
                             ),
                             alignment: Alignment.center,
                             child: Text(
                               '${_cart.fold<int>(0, (sum, item) => sum + (item['quantity'] as int? ?? 1))}',
-                              style: const TextStyle(fontFamily: 'Afacad', 
+                              style: const TextStyle(
+                                fontFamily: 'Afacad',
                                 fontSize: 17,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.white,
@@ -556,8 +562,8 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
         body: _sessionManager.currentSession == null
             ? _buildSessionStartForm()
             : _orderType == null
-                ? _buildOrderTypeSelection()
-                : _buildPOSView(),
+            ? _buildOrderTypeSelection()
+            : _buildPOSView(),
       ),
     );
   }
@@ -566,12 +572,18 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
     return Column(
       children: [
         Container(
-          padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top + 16, bottom: 16, left: 16, right: 16),
+          padding: EdgeInsets.only(
+            top: MediaQuery.of(context).padding.top + 16,
+            bottom: 16,
+            left: 16,
+            right: 16,
+          ),
           color: AppColors.secondary.withValues(alpha: 0.1),
           width: double.infinity,
           child: const Text(
             'Your Basket',
-            style: TextStyle(fontFamily: 'Recoleta', 
+            style: TextStyle(
+              fontFamily: 'Recoleta',
               fontSize: 26,
               fontWeight: FontWeight.bold,
               color: AppColors.primary,
@@ -583,31 +595,60 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
               ? const Center(child: Text('Basket is empty'))
               : ListView.separated(
                   itemCount: _cart.length,
-                  separatorBuilder: (context, index) => const Divider(height: 1),
+                  separatorBuilder: (context, index) =>
+                      const Divider(height: 1),
                   itemBuilder: (context, index) {
                     final cartItem = _cart[index];
                     final item = cartItem['item'] as CounterMenuItem;
                     final qty = cartItem['quantity'] as int;
                     final price = _getCartItemPrice(cartItem);
-                    
+
                     final List<String> mods = [];
-                    final customization = cartItem['customization'] as Map<String, dynamic>;
-                    if (customization['bean'] != null) mods.add(customization['bean']);
-                    if (customization['temperature'] != null) mods.add(customization['temperature']);
-                    if (customization['milk'] != null) mods.add(customization['milk']);
-                    if (customization['sweetness'] != null) mods.add(customization['sweetness']);
-                    if (customization['iceLevel'] != null) mods.add(customization['iceLevel']);
+                    final customization =
+                        cartItem['customization'] as Map<String, dynamic>;
+                    if (customization['bean'] != null) {
+                      mods.add(customization['bean']);
+                    }
+                    if (customization['temperature'] != null) {
+                      mods.add(customization['temperature']);
+                    }
+                    if (customization['milk'] != null) {
+                      mods.add(customization['milk']);
+                    }
+                    if (customization['sweetness'] != null) {
+                      mods.add(customization['sweetness']);
+                    }
+                    if (customization['iceLevel'] != null) {
+                      mods.add(customization['iceLevel']);
+                    }
 
                     return ListTile(
                       title: Text(
                         item.name,
-                        style: const TextStyle(fontFamily: 'Afacad', fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                          fontFamily: 'Afacad',
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       subtitle: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (mods.isNotEmpty) Text(mods.join(', '), style: const TextStyle(fontFamily: 'Afacad', fontSize: 18)),
-                          Text('RM ${(price * qty).toStringAsFixed(2)}', style: const TextStyle(fontFamily: 'Afacad', fontWeight: FontWeight.bold, color: AppColors.primary)),
+                          if (mods.isNotEmpty)
+                            Text(
+                              mods.join(', '),
+                              style: const TextStyle(
+                                fontFamily: 'Afacad',
+                                fontSize: 18,
+                              ),
+                            ),
+                          Text(
+                            'RM ${(price * qty).toStringAsFixed(2)}',
+                            style: const TextStyle(
+                              fontFamily: 'Afacad',
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primary,
+                            ),
+                          ),
                         ],
                       ),
                       trailing: Row(
@@ -626,7 +667,14 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                             },
                             color: Colors.red,
                           ),
-                          Text('$qty', style: const TextStyle(fontFamily: 'Afacad', fontSize: 22, fontWeight: FontWeight.bold)),
+                          Text(
+                            '$qty',
+                            style: const TextStyle(
+                              fontFamily: 'Afacad',
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                           IconButton(
                             icon: const Icon(Icons.add_circle_outline),
                             onPressed: () {
@@ -656,7 +704,11 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                   child: OutlinedButton.icon(
                     onPressed: _showVoucherSelectionDialog,
                     icon: const Icon(Icons.local_offer_outlined),
-                    label: Text(_selectedVoucher != null ? 'Change Voucher' : 'Apply Voucher'),
+                    label: Text(
+                      _selectedVoucher != null
+                          ? 'Change Voucher'
+                          : 'Apply Voucher',
+                    ),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.primary,
                       side: const BorderSide(color: AppColors.primary),
@@ -669,18 +721,44 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Discount (${_selectedVoucher!['name']})', style: const TextStyle(fontFamily: 'Afacad', fontSize: 20, color: Colors.green)),
-                    Text('- RM ${(_getSubtotal() - _getCartTotal()).toStringAsFixed(2)}', style: const TextStyle(fontFamily: 'Afacad', fontSize: 20, color: Colors.green)),
+                    Text(
+                      'Discount (${_selectedVoucher!['name']})',
+                      style: const TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 20,
+                        color: Colors.green,
+                      ),
+                    ),
+                    Text(
+                      '- RM ${(_getSubtotal() - _getCartTotal()).toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 20,
+                        color: Colors.green,
+                      ),
+                    ),
                   ],
                 ),
               const SizedBox(height: 4),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Total', style: TextStyle(fontFamily: 'Recoleta', fontSize: 24, fontWeight: FontWeight.bold)),
+                  const Text(
+                    'Total',
+                    style: TextStyle(
+                      fontFamily: 'Recoleta',
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   Text(
                     'RM ${_getCartTotal().toStringAsFixed(2)}',
-                    style: const TextStyle(fontFamily: 'Recoleta', fontSize: 30, fontWeight: FontWeight.bold, color: AppColors.accent),
+                    style: const TextStyle(
+                      fontFamily: 'Recoleta',
+                      fontSize: 30,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.accent,
+                    ),
                   ),
                 ],
               ),
@@ -697,7 +775,10 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
-                  child: const Text('Checkout', style: TextStyle(fontFamily: 'Afacad', fontSize: 22)),
+                  child: const Text(
+                    'Checkout',
+                    style: TextStyle(fontFamily: 'Afacad', fontSize: 22),
+                  ),
                 ),
               ),
               const SizedBox(height: 8),
@@ -720,7 +801,8 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
   }
 
   void _showVoucherSelectionDialog() {
-    if (_sessionManager.currentSession?.phone == 'Guest' && _selectedVoucher == null) {
+    if (_sessionManager.currentSession?.phone == 'Guest' &&
+        _selectedVoucher == null) {
       final mockUsers = [
         {'name': 'Ali (Gold Tier)', 'phone': '+60123456789'},
         {'name': 'Siti (Silver Tier)', 'phone': '+60198765432'},
@@ -729,13 +811,25 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
         context: context,
         builder: (context) {
           return AlertDialog(
-            title: const Text('Select Customer Account', style: TextStyle(fontFamily: 'Afacad', fontWeight: FontWeight.bold)),
+            title: const Text(
+              'Select Customer Account',
+              style: TextStyle(
+                fontFamily: 'Afacad',
+                fontWeight: FontWeight.bold,
+              ),
+            ),
             content: SizedBox(
               width: 300,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('Select an account to apply their vouchers to this guest order:', style: TextStyle(fontFamily: 'Afacad', color: Colors.black54)),
+                  const Text(
+                    'Select an account to apply their vouchers to this guest order:',
+                    style: TextStyle(
+                      fontFamily: 'Afacad',
+                      color: Colors.black54,
+                    ),
+                  ),
                   const SizedBox(height: 16),
                   ListView.builder(
                     shrinkWrap: true,
@@ -744,9 +838,17 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                       final u = mockUsers[index];
                       return ListTile(
                         leading: const CircleAvatar(child: Icon(Icons.person)),
-                        title: Text(u['name']!, style: const TextStyle(fontFamily: 'Afacad', fontWeight: FontWeight.w600)),
+                        title: Text(
+                          u['name']!,
+                          style: const TextStyle(
+                            fontFamily: 'Afacad',
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                         subtitle: Text(u['phone']!),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                         onTap: () {
                           Navigator.pop(context);
                           _showMockVouchers();
@@ -758,10 +860,13 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
               ),
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
             ],
           );
-        }
+        },
       );
     } else {
       _showMockVouchers();
@@ -770,15 +875,27 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
 
   void _showMockVouchers() {
     final vouchers = [
-      {'id': 1, 'name': '10% Off Birthday Voucher', 'discount_percent': 10.0, 'discount_amount': null},
-      {'id': 2, 'name': 'RM 5 Off Next Purchase', 'discount_percent': null, 'discount_amount': 5.0},
+      {
+        'id': 1,
+        'name': '10% Off Birthday Voucher',
+        'discount_percent': 10.0,
+        'discount_amount': null,
+      },
+      {
+        'id': 2,
+        'name': 'RM 5 Off Next Purchase',
+        'discount_percent': null,
+        'discount_amount': 5.0,
+      },
     ];
 
     showDialog(
       context: context,
       builder: (context) {
         return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
           backgroundColor: Colors.white,
           surfaceTintColor: Colors.transparent,
           child: Container(
@@ -831,9 +948,13 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                       child: Container(
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          color: isSelected ? AppColors.primary.withValues(alpha: 0.05) : Colors.white,
+                          color: isSelected
+                              ? AppColors.primary.withValues(alpha: 0.05)
+                              : Colors.white,
                           border: Border.all(
-                            color: isSelected ? AppColors.primary : Colors.black12,
+                            color: isSelected
+                                ? AppColors.primary
+                                : Colors.black12,
                             width: isSelected ? 2 : 1,
                           ),
                           borderRadius: BorderRadius.circular(16),
@@ -843,12 +964,16 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                             Container(
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
-                                color: isSelected ? AppColors.primary : AppColors.surfaceLight,
+                                color: isSelected
+                                    ? AppColors.primary
+                                    : AppColors.surfaceLight,
                                 shape: BoxShape.circle,
                               ),
                               child: Icon(
                                 Icons.local_offer_outlined,
-                                color: isSelected ? Colors.white : AppColors.primary,
+                                color: isSelected
+                                    ? Colors.white
+                                    : AppColors.primary,
                                 size: 28,
                               ),
                             ),
@@ -863,14 +988,16 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                                       fontFamily: 'Recoleta',
                                       fontSize: 26,
                                       fontWeight: FontWeight.bold,
-                                      color: isSelected ? AppColors.primary : Colors.black87,
+                                      color: isSelected
+                                          ? AppColors.primary
+                                          : Colors.black87,
                                     ),
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
-                                    v['discount_percent'] != null 
-                                      ? 'Enjoy ${v['discount_percent']}% off your order.'
-                                      : 'Enjoy RM ${v['discount_amount']} off your order.',
+                                    v['discount_percent'] != null
+                                        ? 'Enjoy ${v['discount_percent']}% off your order.'
+                                        : 'Enjoy RM ${v['discount_amount']} off your order.',
                                     style: const TextStyle(
                                       fontFamily: 'Afacad',
                                       fontSize: 22,
@@ -881,7 +1008,11 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                               ),
                             ),
                             if (isSelected)
-                              const Icon(Icons.check_circle, color: AppColors.primary, size: 28),
+                              const Icon(
+                                Icons.check_circle,
+                                color: AppColors.primary,
+                                size: 28,
+                              ),
                           ],
                         ),
                       ),
@@ -900,10 +1031,20 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                         Navigator.pop(context);
                       },
                       icon: const Icon(Icons.delete_outline, color: Colors.red),
-                      label: const Text('Remove Current Voucher', style: TextStyle(color: Colors.red, fontSize: 22, fontFamily: 'Afacad', fontWeight: FontWeight.bold)),
+                      label: const Text(
+                        'Remove Current Voucher',
+                        style: TextStyle(
+                          color: Colors.red,
+                          fontSize: 22,
+                          fontFamily: 'Afacad',
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                       style: TextButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                     ),
                   ),
@@ -912,24 +1053,30 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
             ),
           ),
         );
-      }
+      },
     );
   }
-  
+
   void _showOrderConfirmationDialog() {
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Order Confirmation', style: TextStyle(fontFamily: 'Afacad', fontWeight: FontWeight.bold)),
+          title: const Text(
+            'Order Confirmation',
+            style: TextStyle(fontFamily: 'Afacad', fontWeight: FontWeight.bold),
+          ),
           content: SizedBox(
             width: 400,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text('Please review the order details before proceeding.', style: TextStyle(fontFamily: 'Afacad', color: Colors.black54)),
+                const Text(
+                  'Please review the order details before proceeding.',
+                  style: TextStyle(fontFamily: 'Afacad', color: Colors.black54),
+                ),
                 const SizedBox(height: 16),
                 ConstrainedBox(
                   constraints: const BoxConstraints(maxHeight: 300),
@@ -941,31 +1088,58 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                       final item = cartItem['item'] as CounterMenuItem;
                       final qty = cartItem['quantity'] as int;
                       final price = _getCartItemPrice(cartItem);
-                      
+
                       final List<String> mods = [];
-                      final customization = cartItem['customization'] as Map<String, dynamic>;
-                      if (customization['bean'] != null) mods.add(customization['bean']);
-                      if (customization['temperature'] != null) mods.add(customization['temperature']);
-                      if (customization['milk'] != null) mods.add(customization['milk']);
-                      if (customization['sweetness'] != null) mods.add(customization['sweetness']);
-                      if (customization['iceLevel'] != null) mods.add(customization['iceLevel']);
+                      final customization =
+                          cartItem['customization'] as Map<String, dynamic>;
+                      if (customization['bean'] != null) {
+                        mods.add(customization['bean']);
+                      }
+                      if (customization['temperature'] != null) {
+                        mods.add(customization['temperature']);
+                      }
+                      if (customization['milk'] != null) {
+                        mods.add(customization['milk']);
+                      }
+                      if (customization['sweetness'] != null) {
+                        mods.add(customization['sweetness']);
+                      }
+                      if (customization['iceLevel'] != null) {
+                        mods.add(customization['iceLevel']);
+                      }
 
                       return Padding(
                         padding: const EdgeInsets.symmetric(vertical: 4.0),
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('${qty}x ', style: const TextStyle(fontFamily: 'Afacad', fontWeight: FontWeight.bold)),
+                            Text(
+                              '${qty}x ',
+                              style: const TextStyle(
+                                fontFamily: 'Afacad',
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(item.name, style: const TextStyle(fontFamily: 'Afacad', fontWeight: FontWeight.bold)),
+                                  Text(
+                                    item.name,
+                                    style: const TextStyle(
+                                      fontFamily: 'Afacad',
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
                                   if (mods.isNotEmpty) ...[
                                     const SizedBox(height: 2),
                                     Text(
                                       mods.join(', '),
-                                      style: const TextStyle(fontFamily: 'Afacad', fontSize: 18, color: Colors.black54),
+                                      style: const TextStyle(
+                                        fontFamily: 'Afacad',
+                                        fontSize: 18,
+                                        color: Colors.black54,
+                                      ),
                                     ),
                                   ],
                                 ],
@@ -982,8 +1156,17 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Subtotal', style: TextStyle(fontFamily: 'Afacad', fontSize: 22)),
-                    Text('RM ${_getSubtotal().toStringAsFixed(2)}', style: const TextStyle(fontFamily: 'Afacad', fontSize: 22)),
+                    const Text(
+                      'Subtotal',
+                      style: TextStyle(fontFamily: 'Afacad', fontSize: 22),
+                    ),
+                    Text(
+                      'RM ${_getSubtotal().toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 22,
+                      ),
+                    ),
                   ],
                 ),
                 if (_selectedVoucher != null) ...[
@@ -991,8 +1174,22 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('Discount (${_selectedVoucher!['name']})', style: const TextStyle(fontFamily: 'Afacad', fontSize: 22, color: Colors.green)),
-                      Text('- RM ${(_getSubtotal() - _getCartTotal()).toStringAsFixed(2)}', style: const TextStyle(fontFamily: 'Afacad', fontSize: 22, color: Colors.green)),
+                      Text(
+                        'Discount (${_selectedVoucher!['name']})',
+                        style: const TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 22,
+                          color: Colors.green,
+                        ),
+                      ),
+                      Text(
+                        '- RM ${(_getSubtotal() - _getCartTotal()).toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 22,
+                          color: Colors.green,
+                        ),
+                      ),
                     ],
                   ),
                 ],
@@ -1000,8 +1197,23 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Total Amount', style: TextStyle(fontFamily: 'Recoleta', fontSize: 24, fontWeight: FontWeight.bold)),
-                    Text('RM ${_getCartTotal().toStringAsFixed(2)}', style: const TextStyle(fontFamily: 'Recoleta', fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.primary)),
+                    const Text(
+                      'Total Amount',
+                      style: TextStyle(
+                        fontFamily: 'Recoleta',
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      'RM ${_getCartTotal().toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        fontFamily: 'Recoleta',
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary,
+                      ),
+                    ),
                   ],
                 ),
               ],
@@ -1010,32 +1222,43 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Back to Cart', style: TextStyle(fontFamily: 'Afacad', color: Colors.black54)),
+              child: const Text(
+                'Back to Cart',
+                style: TextStyle(fontFamily: 'Afacad', color: Colors.black54),
+              ),
             ),
             ElevatedButton(
               onPressed: () async {
                 Navigator.pop(context);
-                _showSuccessDialog(_getCartTotal());
+                if (!mounted) return;
+                await showDialog<void>(
+                  context: context,
+                  builder: (dialogContext) => AlertDialog(
+                    title: const Text('Counter checkout is not enabled'),
+                    content: const Text(
+                      'This Counter build can prepare a quote, but it cannot create or charge a production order yet. Please complete the order through the approved customer checkout flow.',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(dialogContext),
+                        child: const Text('Close'),
+                      ),
+                    ],
+                  ),
+                );
               },
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-              child: const Text('Confirm & Pay', style: TextStyle(fontFamily: 'Afacad', color: Colors.white)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+              ),
+              child: const Text(
+                'Review Checkout Status',
+                style: TextStyle(fontFamily: 'Afacad', color: Colors.white),
+              ),
             ),
           ],
         );
-      }
+      },
     );
-  }
-
-  void _showSuccessDialog(double totalAmount) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return SuccessDialog(totalAmount: totalAmount);
-      }
-    ).then((_) {
-      _endSession();
-    });
   }
 
   Widget _buildSessionStartForm() {
@@ -1057,113 +1280,155 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceLight,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.account_circle_outlined, size: 56, color: AppColors.primary),
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              'Member Login',
-              style: TextStyle(fontFamily: 'Recoleta', 
-                fontSize: 34,
-                fontWeight: FontWeight.w800,
-                color: AppColors.primary,
-                letterSpacing: -0.5,
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Enter your registered phone number to access your account.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontFamily: 'Afacad', color: Colors.black54, fontSize: 21, height: 1.4),
-            ),
-            if (_errorMessage != null) ...[
-              const SizedBox(height: 16),
+            children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.red.shade50,
-                  borderRadius: BorderRadius.circular(12),
+                  color: AppColors.surfaceLight,
+                  shape: BoxShape.circle,
                 ),
-                child: Text(
-                  _errorMessage!,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontFamily: 'Afacad', color: Colors.red.shade700, fontWeight: FontWeight.w600, fontSize: 20),
+                child: const Icon(
+                  Icons.account_circle_outlined,
+                  size: 56,
+                  color: AppColors.primary,
+                ),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Member Login',
+                style: TextStyle(
+                  fontFamily: 'Recoleta',
+                  fontSize: 34,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.primary,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Enter your registered phone number to access your account.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'Afacad',
+                  color: Colors.black54,
+                  fontSize: 21,
+                  height: 1.4,
+                ),
+              ),
+              if (_errorMessage != null) ...[
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    _errorMessage!,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: 'Afacad',
+                      color: Colors.red.shade700,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 20,
+                    ),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 32),
+              TextField(
+                controller: _phoneController,
+                keyboardType: TextInputType.phone,
+                style: const TextStyle(
+                  fontFamily: 'Afacad',
+                  fontSize: 22,
+                  fontWeight: FontWeight.w500,
+                ),
+                decoration: InputDecoration(
+                  filled: true,
+                  fillColor: AppColors.surfaceLight,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide.none,
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: const BorderSide(
+                      color: AppColors.secondary,
+                      width: 2,
+                    ),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 20,
+                  ),
+                  labelText: 'Phone Number (e.g. +601...)',
+                  labelStyle: const TextStyle(
+                    fontFamily: 'Afacad',
+                    color: Colors.black54,
+                  ),
+                  prefixIcon: const Icon(
+                    Icons.phone_outlined,
+                    color: AppColors.primary,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 32),
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : ElevatedButton(
+                        onPressed: _startSession,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          elevation: 0,
+                        ),
+                        child: const Text(
+                          'Login',
+                          style: TextStyle(
+                            fontFamily: 'Afacad',
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: TextButton(
+                  onPressed: _isLoading ? null : _startGuestSession,
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.charcoal,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  child: const Text(
+                    'Continue as Guest',
+                    style: TextStyle(
+                      fontFamily: 'Afacad',
+                      fontSize: 21,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
               ),
             ],
-            const SizedBox(height: 32),
-            TextField(
-              controller: _phoneController,
-              keyboardType: TextInputType.phone,
-              style: const TextStyle(fontFamily: 'Afacad', fontSize: 22, fontWeight: FontWeight.w500),
-              decoration: InputDecoration(
-                filled: true,
-                fillColor: AppColors.surfaceLight,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide.none,
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: const BorderSide(color: AppColors.secondary, width: 2),
-                ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-                labelText: 'Phone Number (e.g. +601...)',
-                labelStyle: const TextStyle(fontFamily: 'Afacad', color: Colors.black54),
-                prefixIcon: const Icon(Icons.phone_outlined, color: AppColors.primary),
-              ),
-            ),
-            const SizedBox(height: 32),
-            SizedBox(
-              width: double.infinity,
-              height: 56,
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : ElevatedButton(
-                      onPressed: _startSession,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        elevation: 0,
-                      ),
-                      child: const Text(
-                        'Login',
-                        style: TextStyle(fontFamily: 'Afacad', fontSize: 22, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              height: 56,
-              child: TextButton(
-                onPressed: _isLoading ? null : _startGuestSession,
-                style: TextButton.styleFrom(
-                  foregroundColor: AppColors.charcoal,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-                child: const Text(
-                  'Continue as Guest',
-                  style: TextStyle(fontFamily: 'Afacad', fontSize: 21, fontWeight: FontWeight.w600),
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   Widget _buildOrderTypeSelection() {
     return Center(
@@ -1217,14 +1482,29 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                       padding: const EdgeInsets.symmetric(vertical: 48),
                       decoration: BoxDecoration(
                         color: AppColors.surfaceLight,
-                        border: Border.all(color: AppColors.primary.withValues(alpha: 0.3), width: 2),
+                        border: Border.all(
+                          color: AppColors.primary.withValues(alpha: 0.3),
+                          width: 2,
+                        ),
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Column(
                         children: const [
-                          Icon(Icons.restaurant, size: 64, color: AppColors.primary),
+                          Icon(
+                            Icons.restaurant,
+                            size: 64,
+                            color: AppColors.primary,
+                          ),
                           SizedBox(height: 16),
-                          Text('Dine In', style: TextStyle(fontFamily: 'Recoleta', fontSize: 30, fontWeight: FontWeight.bold, color: AppColors.primary)),
+                          Text(
+                            'Dine In',
+                            style: TextStyle(
+                              fontFamily: 'Recoleta',
+                              fontSize: 30,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primary,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -1243,14 +1523,29 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                       padding: const EdgeInsets.symmetric(vertical: 48),
                       decoration: BoxDecoration(
                         color: AppColors.surfaceLight,
-                        border: Border.all(color: AppColors.primary.withValues(alpha: 0.3), width: 2),
+                        border: Border.all(
+                          color: AppColors.primary.withValues(alpha: 0.3),
+                          width: 2,
+                        ),
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Column(
                         children: const [
-                          Icon(Icons.shopping_bag_outlined, size: 64, color: AppColors.primary),
+                          Icon(
+                            Icons.shopping_bag_outlined,
+                            size: 64,
+                            color: AppColors.primary,
+                          ),
                           SizedBox(height: 16),
-                          Text('Take Away', style: TextStyle(fontFamily: 'Recoleta', fontSize: 30, fontWeight: FontWeight.bold, color: AppColors.primary)),
+                          Text(
+                            'Take Away',
+                            style: TextStyle(
+                              fontFamily: 'Recoleta',
+                              fontSize: 30,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primary,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -1271,12 +1566,16 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
         child: Center(
           child: Text(
             _errorMessage!,
-            style: const TextStyle(fontFamily: 'Afacad', color: Colors.red, fontSize: 22),
+            style: const TextStyle(
+              fontFamily: 'Afacad',
+              color: Colors.red,
+              fontSize: 22,
+            ),
           ),
         ),
       );
     }
-    
+
     if (_menuItems.isEmpty) {
       return Container(
         color: AppColors.surfaceLight,
@@ -1286,11 +1585,20 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
       );
     }
 
-    final filteredItems = _searchQuery.isEmpty 
-        ? _menuItems 
-        : _menuItems.where((item) => item.name.toLowerCase().contains(_searchQuery.toLowerCase())).toList();
+    final filteredItems = _searchQuery.isEmpty
+        ? _menuItems
+        : _menuItems
+              .where(
+                (item) => item.name.toLowerCase().contains(
+                  _searchQuery.toLowerCase(),
+                ),
+              )
+              .toList();
 
-    final categories = filteredItems.map((e) => e.categoryName ?? 'Other').toSet().toList();
+    final categories = filteredItems
+        .map((e) => e.categoryName ?? 'Other')
+        .toSet()
+        .toList();
     if (_selectedCategory.value == null && categories.isNotEmpty) {
       _selectedCategory.value = categories.first;
     }
@@ -1330,7 +1638,9 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                       margin: const EdgeInsets.only(right: 8),
                       padding: const EdgeInsets.symmetric(horizontal: 24),
                       decoration: BoxDecoration(
-                        color: isSelected ? AppColors.primary : Colors.grey.shade100,
+                        color: isSelected
+                            ? AppColors.primary
+                            : Colors.grey.shade100,
                         borderRadius: BorderRadius.circular(24),
                       ),
                       alignment: Alignment.center,
@@ -1363,7 +1673,10 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(27),
-                      border: Border.all(color: AppColors.primary.withValues(alpha: 0.15), width: 1.5),
+                      border: Border.all(
+                        color: AppColors.primary.withValues(alpha: 0.15),
+                        width: 1.5,
+                      ),
                       boxShadow: [
                         BoxShadow(
                           color: AppColors.primary.withValues(alpha: 0.06),
@@ -1378,14 +1691,26 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                         textAlignVertical: TextAlignVertical.center,
                         decoration: InputDecoration(
                           hintText: 'Search for your favorite drinks...',
-                          hintStyle: TextStyle(fontFamily: 'Afacad', fontSize: 21, color: Colors.grey.shade500),
+                          hintStyle: TextStyle(
+                            fontFamily: 'Afacad',
+                            fontSize: 21,
+                            color: Colors.grey.shade500,
+                          ),
                           prefixIcon: const Padding(
                             padding: EdgeInsets.only(left: 16.0, right: 8.0),
-                            child: Icon(Icons.search, color: AppColors.primary, size: 24),
+                            child: Icon(
+                              Icons.search,
+                              color: AppColors.primary,
+                              size: 24,
+                            ),
                           ),
-                          suffixIcon: _searchQuery.isNotEmpty 
+                          suffixIcon: _searchQuery.isNotEmpty
                               ? IconButton(
-                                  icon: const Icon(Icons.cancel, color: Colors.grey, size: 20),
+                                  icon: const Icon(
+                                    Icons.cancel,
+                                    color: Colors.grey,
+                                    size: 20,
+                                  ),
                                   onPressed: () {
                                     _searchController.clear();
                                   },
@@ -1395,7 +1720,11 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                           isCollapsed: true,
                           contentPadding: EdgeInsets.zero,
                         ),
-                        style: const TextStyle(fontFamily: 'Afacad', fontSize: 22, color: Colors.black87),
+                        style: const TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 22,
+                          color: Colors.black87,
+                        ),
                       ),
                     ),
                   ),
@@ -1407,149 +1736,192 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: categories.map((category) {
-                  final categoryItems = filteredItems.where((e) => (e.categoryName ?? 'Other') == category).toList();
-                  if (categoryItems.isEmpty) return const SizedBox.shrink();
-                  
-                  return Container(
-                    key: _categoryKeys.putIfAbsent(category, () => GlobalKey()),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 12, top: 4),
-                          child: Text(
-                            category.toUpperCase(),
-                            style: const TextStyle(
-                              fontFamily: 'Recoleta',
-                              fontSize: 32,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.primary,
-                            ),
+                        final categoryItems = filteredItems
+                            .where(
+                              (e) => (e.categoryName ?? 'Other') == category,
+                            )
+                            .toList();
+                        if (categoryItems.isEmpty) {
+                          return const SizedBox.shrink();
+                        }
+
+                        return Container(
+                          key: _categoryKeys.putIfAbsent(
+                            category,
+                            () => GlobalKey(),
                           ),
-                        ),
-                        LayoutBuilder(
-                          builder: (context, constraints) {
-                            int crossAxisCount = 2;
-                            if (constraints.maxWidth > 1200) {
-                              crossAxisCount = 6;
-                            } else if (constraints.maxWidth > 900) {
-                              crossAxisCount = 5;
-                            } else if (constraints.maxWidth > 600) {
-                              crossAxisCount = 4;
-                            }
-                            
-                            return GridView.builder(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: crossAxisCount,
-                                childAspectRatio: 0.65,
-                                crossAxisSpacing: 12,
-                                mainAxisSpacing: 12,
-                              ),
-                              itemCount: categoryItems.length,
-                              itemBuilder: (context, index) {
-                                final item = categoryItems[index];
-                                final price = item.priceRm;
-                                return Container(
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(color: Colors.grey.shade300, width: 1),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.04),
-                                        blurRadius: 8,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ],
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                  bottom: 12,
+                                  top: 4,
+                                ),
+                                child: Text(
+                                  category.toUpperCase(),
+                                  style: const TextStyle(
+                                    fontFamily: 'Recoleta',
+                                    fontSize: 32,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.primary,
                                   ),
-                                  child: InkWell(
-                                    onTap: () async {
-                                      final customization = await Navigator.of(context).push(
-                                        MaterialPageRoute(
-                                          builder: (context) => ProductDetailModal(item: item),
+                                ),
+                              ),
+                              LayoutBuilder(
+                                builder: (context, constraints) {
+                                  int crossAxisCount = 2;
+                                  if (constraints.maxWidth > 1200) {
+                                    crossAxisCount = 6;
+                                  } else if (constraints.maxWidth > 900) {
+                                    crossAxisCount = 5;
+                                  } else if (constraints.maxWidth > 600) {
+                                    crossAxisCount = 4;
+                                  }
+
+                                  return GridView.builder(
+                                    shrinkWrap: true,
+                                    physics:
+                                        const NeverScrollableScrollPhysics(),
+                                    gridDelegate:
+                                        SliverGridDelegateWithFixedCrossAxisCount(
+                                          crossAxisCount: crossAxisCount,
+                                          childAspectRatio: 0.65,
+                                          crossAxisSpacing: 12,
+                                          mainAxisSpacing: 12,
+                                        ),
+                                    itemCount: categoryItems.length,
+                                    itemBuilder: (context, index) {
+                                      final item = categoryItems[index];
+                                      final price = item.priceRm;
+                                      return Container(
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          borderRadius: BorderRadius.circular(
+                                            16,
+                                          ),
+                                          border: Border.all(
+                                            color: Colors.grey.shade300,
+                                            width: 1,
+                                          ),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Colors.black.withValues(
+                                                alpha: 0.04,
+                                              ),
+                                              blurRadius: 8,
+                                              offset: const Offset(0, 2),
+                                            ),
+                                          ],
+                                        ),
+                                        child: InkWell(
+                                          onTap: () async {
+                                            final customization =
+                                                await Navigator.of(
+                                                  context,
+                                                ).push(
+                                                  MaterialPageRoute(
+                                                    builder: (context) =>
+                                                        ProductDetailModal(
+                                                          item: item,
+                                                        ),
+                                                  ),
+                                                );
+
+                                            if (customization != null) {
+                                              _addToCart(item, customization);
+                                            }
+                                          },
+                                          borderRadius: BorderRadius.circular(
+                                            16,
+                                          ),
+                                          child: Column(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              Expanded(
+                                                child: Padding(
+                                                  padding: const EdgeInsets.all(
+                                                    12,
+                                                  ),
+                                                  child: Center(
+                                                    child: item.imageUrl != null
+                                                        ? Image.network(
+                                                            item.imageUrl!,
+                                                            fit: BoxFit.contain,
+                                                            errorBuilder:
+                                                                (
+                                                                  context,
+                                                                  error,
+                                                                  stackTrace,
+                                                                ) => const Icon(
+                                                                  Icons.coffee,
+                                                                  size: 48,
+                                                                  color: AppColors
+                                                                      .secondary,
+                                                                ),
+                                                          )
+                                                        : const Icon(
+                                                            Icons.coffee,
+                                                            size: 48,
+                                                            color: AppColors
+                                                                .secondary,
+                                                          ),
+                                                  ),
+                                                ),
+                                              ),
+                                              Padding(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 8,
+                                                    ),
+                                                child: Text(
+                                                  item.name,
+                                                  maxLines: 2,
+                                                  textAlign: TextAlign.center,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: const TextStyle(
+                                                    fontFamily: 'Recoleta',
+                                                    fontSize: 20,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Colors.black87,
+                                                    height: 1.1,
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                'RM ${price.toStringAsFixed(2)}',
+                                                textAlign: TextAlign.center,
+                                                style: const TextStyle(
+                                                  fontFamily: 'Afacad',
+                                                  fontSize: 19,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.black87,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 16),
+                                            ],
+                                          ),
                                         ),
                                       );
-                                      
-                                      if (customization != null) {
-                                        _addToCart(item, customization);
-                                      }
                                     },
-                                    borderRadius: BorderRadius.circular(16),
-                                    child: Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        Expanded(
-                                          child: Padding(
-                                            padding: const EdgeInsets.all(12),
-                                            child: Center(
-                                              child: item.imageUrl != null
-                                                  ? Image.network(
-                                                      item.imageUrl!,
-                                                      fit: BoxFit.contain,
-                                                      errorBuilder: (context, error, stackTrace) => const Icon(
-                                                        Icons.coffee,
-                                                        size: 48,
-                                                        color: AppColors.secondary,
-                                                      ),
-                                                    )
-                                                  : const Icon(
-                                                      Icons.coffee,
-                                                      size: 48,
-                                                      color: AppColors.secondary,
-                                                    ),
-                                            ),
-                                          ),
-                                        ),
-                                        Padding(
-                                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                                          child: Text(
-                                            item.name,
-                                            maxLines: 2,
-                                            textAlign: TextAlign.center,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
-                                              fontFamily: 'Recoleta',
-                                              fontSize: 20,
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.black87,
-                                              height: 1.1,
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          'RM ${price.toStringAsFixed(2)}',
-                                          textAlign: TextAlign.center,
-                                          style: const TextStyle(
-                                            fontFamily: 'Afacad',
-                                            fontSize: 19,
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.black87,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 16),
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              },
-                            );
-                          }
-                        ),
-                        const SizedBox(height: 24),
-                      ],
+                                  );
+                                },
+                              ),
+                              const SizedBox(height: 24),
+                            ],
+                          ),
+                        );
+                      }).toList(),
                     ),
-                  );
-                }).toList(),
-              ),
+                  ),
+                ),
+              ],
             ),
           ),
-          ],
-         ),
         ),
-       ),
       ],
     );
   }
@@ -1564,7 +1936,8 @@ class SuccessDialog extends StatefulWidget {
   State<SuccessDialog> createState() => _SuccessDialogState();
 }
 
-class _SuccessDialogState extends State<SuccessDialog> with SingleTickerProviderStateMixin {
+class _SuccessDialogState extends State<SuccessDialog>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
   late Animation<double> _opacityAnimation;
@@ -1577,9 +1950,10 @@ class _SuccessDialogState extends State<SuccessDialog> with SingleTickerProvider
       duration: const Duration(milliseconds: 600),
     );
 
-    _scaleAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.elasticOut),
-    );
+    _scaleAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.elasticOut));
 
     _opacityAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
@@ -1624,17 +1998,10 @@ class _SuccessDialogState extends State<SuccessDialog> with SingleTickerProvider
                 height: 100,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  border: Border.all(
-                    color: AppColors.primary,
-                    width: 6,
-                  ),
+                  border: Border.all(color: AppColors.primary, width: 6),
                 ),
                 child: const Center(
-                  child: Icon(
-                    Icons.check,
-                    color: AppColors.primary,
-                    size: 60,
-                  ),
+                  child: Icon(Icons.check, color: AppColors.primary, size: 60),
                 ),
               ),
             ),
@@ -1645,7 +2012,8 @@ class _SuccessDialogState extends State<SuccessDialog> with SingleTickerProvider
               child: const Text(
                 'Thank you for your order!',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontFamily: 'Recoleta', 
+                style: TextStyle(
+                  fontFamily: 'Recoleta',
                   fontSize: 30,
                   fontWeight: FontWeight.bold,
                   color: Colors.black87,
@@ -1659,7 +2027,8 @@ class _SuccessDialogState extends State<SuccessDialog> with SingleTickerProvider
               child: Text(
                 'Total: RM ${widget.totalAmount.toStringAsFixed(2)}\n\nPlease proceed to pay at the counter.',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontFamily: 'Afacad', 
+                style: TextStyle(
+                  fontFamily: 'Afacad',
                   fontSize: 22,
                   color: Colors.grey.shade700,
                   height: 1.4,
@@ -1680,7 +2049,8 @@ class _SuccessDialogState extends State<SuccessDialog> with SingleTickerProvider
                 ),
                 child: const Text(
                   'DONE',
-                  style: TextStyle(fontFamily: 'Recoleta', 
+                  style: TextStyle(
+                    fontFamily: 'Recoleta',
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
@@ -1694,4 +2064,3 @@ class _SuccessDialogState extends State<SuccessDialog> with SingleTickerProvider
     );
   }
 }
-

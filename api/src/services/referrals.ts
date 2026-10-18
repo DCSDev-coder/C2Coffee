@@ -84,12 +84,40 @@ export async function issueReferralReward(
   }
 
   if (reward.type !== 'voucher' || !reward.voucherTemplateId) return { issued: false, reason: 'invalid_reward' };
-  const [templates] = await connection.query<Array<RowDataPacket & { name: string }>>(
-    `SELECT name FROM voucher_templates WHERE id = :voucherTemplateId AND tenant_id = :tenantId
-       AND is_active = 1 AND (valid_until IS NULL OR valid_until > UTC_TIMESTAMP()) LIMIT 1`,
+  const [templates] = await connection.query<Array<RowDataPacket & {
+    name: string;
+    total_quantity: number | null;
+    limit_per_user: number | null;
+  }>>(
+    `SELECT name, total_quantity, limit_per_user
+       FROM voucher_templates
+      WHERE id = :voucherTemplateId AND tenant_id = :tenantId
+        AND is_active = 1 AND (valid_until IS NULL OR valid_until > UTC_TIMESTAMP())
+      LIMIT 1
+      FOR UPDATE`,
     { voucherTemplateId: reward.voucherTemplateId, tenantId }
   );
-  if (!templates[0]) return { issued: false, reason: 'voucher_unavailable' };
+  const template = templates[0];
+  if (!template) return { issued: false, reason: 'voucher_unavailable' };
+
+  const [countRows] = await connection.query<Array<RowDataPacket & {
+    total_count: number;
+    user_count: number;
+  }>>(
+    `SELECT COUNT(*) AS total_count,
+            COALESCE(SUM(CASE WHEN user_id = :userId THEN 1 ELSE 0 END), 0) AS user_count
+       FROM user_vouchers
+      WHERE voucher_template_id = :voucherTemplateId
+        AND status <> 'revoked'`,
+    { userId, voucherTemplateId: reward.voucherTemplateId }
+  );
+  const counts = countRows[0];
+  if (
+    (template.total_quantity != null && Number(counts?.total_count ?? 0) >= Number(template.total_quantity)) ||
+    (template.limit_per_user != null && Number(counts?.user_count ?? 0) >= Number(template.limit_per_user))
+  ) {
+    return { issued: false, reason: 'voucher_unavailable' };
+  }
   const issueCaseRef = `referral:${referralId}:${side}`;
   const [result] = await connection.execute<ResultSetHeader>(
     `INSERT IGNORE INTO user_vouchers (
@@ -101,7 +129,7 @@ export async function issueReferralReward(
     { userId, voucherTemplateId: reward.voucherTemplateId, issueCaseRef }
   );
   return result.affectedRows
-    ? { issued: true, label: templates[0].name }
+    ? { issued: true, label: template.name }
     : { issued: false, reason: 'duplicate_issue' };
 }
 
@@ -254,6 +282,160 @@ export async function awardReferralForCollectedOrder(
     }
   );
   if (referrerReward.issued) await createUserNotification(connection, { userId: referral.referrer_user_id, type: 'referral_reward', title: 'Referral reward unlocked', body: `Your friend collected their first order. ${referrerReward.label} is now available.`, data: { referral_id: referral.id, referral_order_id: orderId } });
+}
+
+type ReversalStatus = 'reversed' | 'needs_review' | 'not_issued';
+
+/**
+ * Reverse rewards whose qualification depended on an order that was refunded.
+ * Spent tokens or redeemed vouchers are never silently clawed back: they are
+ * recorded as needs_review for finance/support follow-up.
+ */
+export async function reverseReferralForRefundedOrder(
+  connection: PoolConnection,
+  orderId: number,
+  adminUserId: number
+): Promise<{ found: boolean; needsReview: boolean }> {
+  const [rows] = await connection.query<Array<ReferralRow & {
+    friend_issued: number;
+    referrer_issued: number;
+  }>>(
+    `SELECT r.id, r.referrer_user_id, r.referred_user_id, rp.tenant_id,
+            r.program_snapshot_json, r.qualification_expires_at,
+            COALESCE(o.friend_issued, 0) AS friend_issued,
+            COALESCE(o.referrer_issued, 0) AS referrer_issued
+     FROM referrals r
+     JOIN referral_programs rp ON rp.id = r.referral_program_id
+     LEFT JOIN referral_reward_outcomes o ON o.referral_id = r.id
+     WHERE r.qualified_order_id = :orderId
+     LIMIT 1 FOR UPDATE`,
+    { orderId }
+  );
+  const referral = rows[0];
+  const program = referral && parseProgramSnapshot(referral.program_snapshot_json);
+  if (!referral || !program) return { found: false, needsReview: false };
+
+  let needsReview = false;
+  const sides = [
+    {
+      side: 'friend' as const,
+      userId: referral.referred_user_id,
+      issued: Number(referral.friend_issued) === 1,
+      reward: program.friendReward
+    },
+    {
+      side: 'referrer' as const,
+      userId: referral.referrer_user_id,
+      issued: Number(referral.referrer_issued) === 1,
+      reward: program.referrerReward
+    }
+  ];
+
+  for (const item of sides) {
+    const [existing] = await connection.query<Array<RowDataPacket & { status: ReversalStatus }>>(
+      `SELECT status FROM referral_reward_reversals
+       WHERE referral_id = :referralId AND reward_side = :side LIMIT 1 FOR UPDATE`,
+      { referralId: referral.id, side: item.side }
+    );
+    if (existing[0]) {
+      needsReview ||= existing[0].status === 'needs_review';
+      continue;
+    }
+
+    let reversalStatus: ReversalStatus = item.issued ? 'reversed' : 'not_issued';
+    let reason = item.issued ? 'Reward reversed after qualifying order refund' : 'Reward was not issued';
+
+    if (item.issued && item.reward.type === 'token' && item.reward.tokenAmount) {
+      const [accounts] = await connection.query<Array<RowDataPacket & { balance_available: number }>>(
+        `SELECT balance_available FROM token_accounts WHERE user_id = :userId LIMIT 1 FOR UPDATE`,
+        { userId: item.userId }
+      );
+      const balance = Number(accounts[0]?.balance_available ?? -1);
+      if (balance < item.reward.tokenAmount) {
+        reversalStatus = 'needs_review';
+        reason = 'Referral tokens were already spent or the wallet is unavailable';
+      } else {
+        const balanceAfter = balance - item.reward.tokenAmount;
+        await connection.execute(
+          `UPDATE token_accounts SET balance_available = :balanceAfter, updated_at = UTC_TIMESTAMP()
+           WHERE user_id = :userId`,
+          { balanceAfter, userId: item.userId }
+        );
+        await connection.execute(
+          `INSERT INTO token_ledger (
+             user_id, token_lot_id, direction, source_type, source_id, amount,
+             balance_after, remarks, created_by_admin_id, created_at
+           ) VALUES (
+             :userId, NULL, 'debit', 'referral_reversal', :referralId, :amount,
+             :balanceAfter, :remarks, :adminUserId, UTC_TIMESTAMP()
+           )`,
+          {
+            userId: item.userId,
+            referralId: referral.id,
+            amount: item.reward.tokenAmount,
+            balanceAfter,
+            remarks: `Referral ${item.side} reward reversed after order refund`,
+            adminUserId
+          }
+        );
+      }
+    } else if (item.issued && item.reward.type === 'voucher') {
+      const issueCaseRef = `referral:${referral.id}:${item.side}`;
+      const [vouchers] = await connection.query<Array<RowDataPacket & { id: number; status: string }>>(
+        `SELECT id, status FROM user_vouchers
+         WHERE user_id = :userId AND issue_case_ref = :issueCaseRef
+         LIMIT 1 FOR UPDATE`,
+        { userId: item.userId, issueCaseRef }
+      );
+      const voucher = vouchers[0];
+      if (!voucher || voucher.status === 'redeemed') {
+        reversalStatus = 'needs_review';
+        reason = voucher ? 'Referral voucher was already redeemed' : 'Issued referral voucher could not be located';
+      } else if (voucher.status === 'active') {
+        await connection.execute(
+          `UPDATE user_vouchers
+           SET status = 'revoked', revoked_by_admin_id = :adminUserId,
+               revoked_reason = 'Qualifying order refunded', revoked_at = UTC_TIMESTAMP()
+           WHERE id = :voucherId`,
+          { adminUserId, voucherId: voucher.id }
+        );
+      }
+    }
+
+    await connection.execute(
+      `INSERT INTO referral_reward_reversals (
+         referral_id, refunded_order_id, reward_side, status, reason,
+         reversed_by_admin_id, created_at
+       ) VALUES (
+         :referralId, :orderId, :side, :status, :reason,
+         :adminUserId, UTC_TIMESTAMP()
+       )`,
+      {
+        referralId: referral.id,
+        orderId,
+        side: item.side,
+        status: reversalStatus,
+        reason,
+        adminUserId
+      }
+    );
+    needsReview ||= reversalStatus === 'needs_review';
+  }
+
+  await connection.execute(
+    `UPDATE referrals
+     SET status = :status
+     WHERE id = :referralId`,
+    { status: needsReview ? 'reversal_review' : 'reversed', referralId: referral.id }
+  );
+  await connection.execute(
+    `UPDATE referral_reward_jobs
+     SET status = 'waived', resolution_note = 'Qualifying order refunded',
+         resolved_by_admin_id = :adminUserId, resolved_at = UTC_TIMESTAMP()
+     WHERE referral_id = :referralId AND status IN ('pending','retrying','needs_review')`,
+    { referralId: referral.id, adminUserId }
+  );
+  return { found: true, needsReview };
 }
 
 export async function retryReferralRewardJob(

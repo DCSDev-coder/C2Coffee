@@ -7,7 +7,11 @@ class InteractiveFillingLoader extends StatefulWidget {
 
   /// Helper to show loader directly over current screen without black background,
   /// then transition smoothly to targetPage when navigating forward.
-  static void show(BuildContext context, {Widget? targetPage}) {
+  static void show(
+    BuildContext context, {
+    Widget? targetPage,
+    bool clearNavigationStack = false,
+  }) {
     if (targetPage == null) return;
 
     showDialog(
@@ -30,20 +34,25 @@ class InteractiveFillingLoader extends StatefulWidget {
                   if (dialogContext.mounted) {
                     Navigator.of(dialogContext, rootNavigator: true).pop();
                     if (context.mounted) {
-                      Navigator.push(
-                        context,
-                        PageRouteBuilder(
-                          transitionDuration: const Duration(milliseconds: 250),
-                          pageBuilder: (context, animation, secondaryAnimation) =>
-                              FadeTransition(
-                            opacity: CurvedAnimation(
-                              parent: animation,
-                              curve: Curves.easeOut,
-                            ),
-                            child: targetPage,
+                      final route = PageRouteBuilder(
+                        transitionDuration: const Duration(milliseconds: 250),
+                        pageBuilder: (context, animation, secondaryAnimation) =>
+                            FadeTransition(
+                          opacity: CurvedAnimation(
+                            parent: animation,
+                            curve: Curves.easeOut,
                           ),
+                          child: targetPage,
                         ),
                       );
+                      if (clearNavigationStack) {
+                        Navigator.of(context).pushAndRemoveUntil(
+                          route,
+                          (route) => false,
+                        );
+                      } else {
+                        Navigator.of(context).push(route);
+                      }
                     }
                   }
                 },

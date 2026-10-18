@@ -421,7 +421,8 @@ const TierRewardModal = ({ open, form, tiers, menuItems, onChange, onClose, onSa
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label className="block text-xs font-medium text-gray-500">Uses per customer</label>
-                <input required type="number" min="1" max="20" value={form.limitPerUser} onChange={(event) => onChange({ limitPerUser: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#1F3A34]" />
+                <div className="mt-1 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-700">1</div>
+                <p className="mt-1 text-[11px] text-gray-400">One claim per achievement or birthday reward period.</p>
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-500">Description</label>
@@ -621,7 +622,8 @@ const TierManagement = () => {
       subcategoryCodes: voucher.subcategoryCodes || [],
       eligibleItems: (voucher.eligibleItems || []).filter((item) => item !== 'All Items'),
       rewardQuantity: voucher.rewardQuantity || 1,
-      limitPerUser: voucher.limitPerUser || 1,
+      // Never carry a legacy multi-use value back into the editor.
+      limitPerUser: 1,
       description: voucher.description || ''
     } : {
       ...emptyTierRewardForm(sortedTiers),
@@ -653,7 +655,7 @@ const TierManagement = () => {
     rewardQuantity: Number(tierRewardForm.rewardQuantity) || 1,
     expiry: null,
     totalQty: null,
-    limitPerUser: Number(tierRewardForm.limitPerUser) || 1,
+    limitPerUser: 1,
     description: tierRewardForm.description || (tierRewardForm.rewardTiming === 'birthday_month' ? `Birthday-month tier reward: ${tierRewardForm.name}` : `Tier achievement reward: ${tierRewardForm.name}`),
     imageUrl: null,
     audience: 'all_customers',
@@ -676,6 +678,14 @@ const TierManagement = () => {
       alert('Choose at least one eligible menu item type.');
       return;
     }
+    if (!editingTierReward && tierRewardForm.rewardTiming === 'achievement' && tierRewardIds(tier).length > 0) {
+      alert(`${tier.name} already has an achievement reward. Edit or remove it before adding another.`);
+      return;
+    }
+    if (!editingTierReward && tierRewardForm.rewardTiming === 'birthday_month' && tierBirthdayRewardIds(tier).length > 0) {
+      alert(`${tier.name} already has a birthday-month reward. Edit or remove it before adding another.`);
+      return;
+    }
 
     setTierRewardSaving(true);
     let createdVoucher = null;
@@ -692,7 +702,7 @@ const TierManagement = () => {
         });
         await updateAdminTier(tier.id, {
           rewardConfig: {
-            voucherTemplateIds: tierRewardForm.rewardTiming === 'birthday_month' ? tierRewardIds(tier) : [...tierRewardIds(tier), Number(createdVoucher.db_id)],
+            voucherTemplateIds: tierRewardForm.rewardTiming === 'birthday_month' ? tierRewardIds(tier) : [Number(createdVoucher.db_id)],
             birthdayVoucherTemplateIds: tierRewardForm.rewardTiming === 'birthday_month' ? [Number(createdVoucher.db_id)] : tierBirthdayRewardIds(tier)
           }
         });

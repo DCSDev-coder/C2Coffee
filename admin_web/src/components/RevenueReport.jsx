@@ -53,7 +53,10 @@ const RevenueReport = ({ onBack }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const monthlyRevenue = Array.isArray(overview.monthlyRevenue) ? overview.monthlyRevenue : [];
+  const monthlyRevenue = useMemo(
+    () => Array.isArray(overview.monthlyRevenue) ? overview.monthlyRevenue : [],
+    [overview.monthlyRevenue]
+  );
   const summary = overview.summary || {};
 
   const chartData = useMemo(() => monthlyRevenue.map((entry) => ({

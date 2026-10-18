@@ -120,7 +120,10 @@ const ReportByProduct = ({ onBack }) => {
   }, [selectedDate, selectedStoreId]);
 
   const overview = reportResponse || EMPTY_REPORT;
-  const products = Array.isArray(overview.products) ? overview.products : [];
+  const products = useMemo(
+    () => Array.isArray(overview.products) ? overview.products : [],
+    [overview.products]
+  );
   const chartData = Array.isArray(overview.chartData) ? overview.chartData : [];
 
   const safeSearchTerm = searchTerm.trim().toLowerCase();

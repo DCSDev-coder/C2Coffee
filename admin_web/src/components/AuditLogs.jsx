@@ -106,7 +106,10 @@ const AuditLogs = () => {
   }, [selectedDate]);
 
   const overview = auditResponse || EMPTY_AUDIT;
-  const logs = Array.isArray(overview.logs) ? overview.logs : [];
+  const logs = useMemo(
+    () => Array.isArray(overview.logs) ? overview.logs : [],
+    [overview.logs]
+  );
 
   const uniqueTargetTypes = useMemo(() => {
     return [...new Set(logs.map((log) => log.targetType).filter(Boolean))].sort();

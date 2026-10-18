@@ -10,6 +10,7 @@ import {
   X,
 } from "lucide-react";
 import Pagination from "./Pagination";
+import PaymentServiceNotices from "./PaymentServiceNotices";
 import {
   createAdminMarketingBanner,
   deleteAdminMarketingBanner,
@@ -625,6 +626,8 @@ const Marketing = () => {
             </button>
           </div>
         </div>
+
+        <PaymentServiceNotices />
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 shrink-0">
           {summaryCards.map((card) => (

@@ -5,6 +5,7 @@ import {
   adminRequest,
   clearAdminTokens,
   loadAdminTokens,
+  refreshAdminSession,
   saveAdminTokens
 } from './lib/adminApi';
 import { isTerminalAdminSessionFailure } from './lib/adminSessionPolicy';
@@ -110,10 +111,7 @@ function App() {
   useEffect(() => {
     const restoreAdminSession = async () => {
       try {
-        const response = await adminRequest('/v1/admin/auth/refresh', {
-          method: 'POST',
-          body: JSON.stringify({})
-        });
+        const response = await refreshAdminSession();
 
         saveAdminTokens({
           accessToken: response.access_token,

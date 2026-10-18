@@ -23,7 +23,7 @@ type CustomerTopUpRow = RowDataPacket & {
   topup_ref: string;
   token_amount: number;
   rm_amount: string;
-  status: 'pending_payment' | 'paid' | 'failed' | 'cancelled';
+  status: 'pending_payment' | 'paid' | 'failed' | 'cancelled' | 'refunded' | 'refund_needs_review';
   expires_at: Date | null;
   provider_bill_id: string | null;
   payment_status: 'pending' | 'authorized' | 'paid' | 'failed' | 'cancelled' | 'refunded' | 'partially_refunded';

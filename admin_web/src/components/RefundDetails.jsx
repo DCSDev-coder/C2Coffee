@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { ArrowLeft, Check, Mail, Search, X } from "lucide-react";
 import Pagination from "./Pagination";
@@ -56,7 +56,7 @@ const RefundDetails = ({ onBack, currentUser, selectedStoreId = null, onStoreCha
     Array.isArray(currentUser?.roles) &&
     currentUser.roles.includes("super_admin");
 
-  const loadRefunds = async () => {
+  const loadRefunds = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
@@ -67,11 +67,11 @@ const RefundDetails = ({ onBack, currentUser, selectedStoreId = null, onStoreCha
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedStoreId]);
 
   useEffect(() => {
     void loadRefunds();
-  }, [selectedStoreId]);
+  }, [loadRefunds]);
 
   const reviewRefund = async (refund, decision, password) => {
     if (refund.status !== "Pending") return;

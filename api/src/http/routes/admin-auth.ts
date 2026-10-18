@@ -270,7 +270,14 @@ export async function registerAdminAuthRoutes(app: FastifyInstance): Promise<voi
       }
     }
   }, async (request, reply) => {
-    const payload = adminLoginSchema.parse(request.body);
+    const parsedPayload = adminLoginSchema.safeParse(request.body);
+    if (!parsedPayload.success) {
+      // Authentication responses must not disclose which credential field or
+      // password rule failed. Keep malformed and incorrect credentials
+      // indistinguishable to both the browser and external callers.
+      throw new ApiError(401, 'invalid_admin_credentials', 'Admin username or password is incorrect.');
+    }
+    const payload = parsedPayload.data;
     if (payload.tenant_code !== env.DEPLOYMENT_TENANT_CODE) {
       throw new ApiError(401, 'invalid_admin_credentials', 'Admin username or password is incorrect.');
     }

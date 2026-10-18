@@ -40,6 +40,51 @@ class InAppNotification {
   }
 }
 
+class PaymentServiceNotice {
+  final int id;
+  final String title;
+  final String message;
+  final List<String> paymentMethods;
+  final DateTime startsAt;
+  final DateTime endsAt;
+  final bool isPopupDismissed;
+
+  const PaymentServiceNotice({
+    required this.id,
+    required this.title,
+    required this.message,
+    required this.paymentMethods,
+    required this.startsAt,
+    required this.endsAt,
+    required this.isPopupDismissed,
+  });
+
+  factory PaymentServiceNotice.fromApi(Map<String, dynamic> json) {
+    return PaymentServiceNotice(
+      id: (json['id'] as num).toInt(),
+      title: json['title'] as String? ?? 'Payment service maintenance',
+      message: json['message'] as String? ?? '',
+      paymentMethods: (json['payment_methods'] as List? ?? const [])
+          .map((value) => '$value')
+          .toList(growable: false),
+      startsAt: DateTime.parse(json['starts_at'] as String).toLocal(),
+      endsAt: DateTime.parse(json['ends_at'] as String).toLocal(),
+      isPopupDismissed: json['is_popup_dismissed'] as bool? ?? false,
+    );
+  }
+
+  String get paymentMethodLabel => paymentMethods.map((method) {
+        switch (method) {
+          case 'fpx':
+            return 'Online Banking (FPX)';
+          case 'duitnow_qr':
+            return 'DuitNow QR';
+          default:
+            return method;
+        }
+      }).join(', ');
+}
+
 class NotificationService {
   NotificationService._();
 
@@ -61,6 +106,31 @@ class NotificationService {
               Map<String, dynamic>.from(item as Map),
             ))
         .toList();
+  }
+
+  Future<List<PaymentServiceNotice>> getPaymentServiceNotices({
+    required String accessToken,
+  }) async {
+    final response = await _get(
+      '/payment-service-notices',
+      accessToken: accessToken,
+    );
+    return (response['notices'] as List? ?? const [])
+        .map((item) => PaymentServiceNotice.fromApi(
+              Map<String, dynamic>.from(item as Map),
+            ))
+        .toList(growable: false);
+  }
+
+  Future<void> dismissPaymentServiceNoticePopup({
+    required String accessToken,
+    required int noticeId,
+  }) {
+    return _write(
+      'POST',
+      '/payment-service-notices/$noticeId/dismiss-popup',
+      accessToken: accessToken,
+    );
   }
 
   Future<void> markRead(

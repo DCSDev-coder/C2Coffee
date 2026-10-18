@@ -41,6 +41,8 @@ type CustomerTenantPushDeliveryInput = {
   title: string;
   body: string;
   data?: Record<string, string>;
+  /** Operational notices must reach customers even when marketing is disabled. */
+  respectMarketingPreference?: boolean;
 };
 
 export type PushDeliveryResult = {
@@ -179,9 +181,11 @@ export async function deliverPushToUser(input: PushDeliveryInput): Promise<void>
 }
 
 /**
- * Sends a customer-facing marketing update to active devices in one tenant.
+ * Sends a customer-facing update to active devices in one tenant.
  * The caller persists the in-app notification first, so an FCM outage cannot
- * make a campaign announcement disappear from the customer notification feed.
+ * make an announcement disappear from the customer notification feed.
+ * Marketing preference filtering is enabled by default and must only be
+ * disabled for essential operational or service-availability messages.
  */
 export async function deliverPushToCustomerTenant(
   input: CustomerTenantPushDeliveryInput
@@ -199,12 +203,18 @@ export async function deliverPushToCustomerTenant(
       LEFT JOIN customer_notification_preferences cnp ON cnp.user_id = pt.user_id
       WHERE pt.status = 'active'
         AND u.status = 'active'
-        AND COALESCE(cnp.marketing_enabled, 1) = 1
+        AND (
+          :respectMarketingPreference = 0
+          OR COALESCE(cnp.marketing_enabled, 1) = 1
+        )
       GROUP BY pt.id, pt.push_token
       ORDER BY pt.last_seen_at DESC
       LIMIT 5000
     `,
-    { tenantId: input.tenantId }
+    {
+      tenantId: input.tenantId,
+      respectMarketingPreference: input.respectMarketingPreference === false ? 0 : 1
+    }
   );
   if (tokens.length === 0) return { attemptedTokens: 0, deliveredTokens: 0, invalidTokens: 0, failedTokens: 0, failureReasons: [] };
 

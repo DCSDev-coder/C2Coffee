@@ -27,7 +27,7 @@ const VouchersAnalytics = ({ onBack, vouchers }) => {
   const [analytics, setAnalytics] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const safeVouchers = Array.isArray(vouchers) ? vouchers : [];
+  const safeVouchers = useMemo(() => Array.isArray(vouchers) ? vouchers : [], [vouchers]);
 
   useEffect(() => {
     let cancelled = false;
@@ -38,7 +38,7 @@ const VouchersAnalytics = ({ onBack, vouchers }) => {
         if (!cancelled) {
           setAnalytics(response);
         }
-      } catch (error) {
+      } catch {
         if (!cancelled) {
           setAnalytics(null);
         }

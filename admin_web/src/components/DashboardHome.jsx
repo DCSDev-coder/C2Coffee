@@ -1,4 +1,4 @@
-import React, { forwardRef, useEffect, useState } from 'react';
+import React, { forwardRef, useCallback, useEffect, useState } from 'react';
 import {
   ArrowRight,
   CalendarDays,
@@ -102,7 +102,7 @@ const DashboardHome = ({ setCurrentPage }) => {
   const rangeStartDate = toDateKey(rangeStart);
   const rangeEndDate = toDateKey(rangeEnd);
 
-  const fetchDashboard = async ({ showLoading = false } = {}) => {
+  const fetchDashboard = useCallback(async ({ showLoading = false } = {}) => {
     if (selectedPeriod === 'custom' && !rangeStartDate) return;
     if (showLoading) setLoading(true);
     try {
@@ -119,13 +119,13 @@ const DashboardHome = ({ setCurrentPage }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [rangeEndDate, rangeStartDate, selectedPeriod, selectedStoreId]);
 
   useEffect(() => {
     fetchDashboard({ showLoading: true });
     const interval = window.setInterval(() => fetchDashboard(), REFRESH_INTERVAL_MS);
     return () => window.clearInterval(interval);
-  }, [rangeStartDate, rangeEndDate, selectedPeriod, selectedStoreId]);
+  }, [fetchDashboard]);
 
   const periodLabel = selectedPeriod === 'this_month'
     ? 'This month'

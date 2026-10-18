@@ -3,26 +3,28 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/app_colors.dart';
 
+class HomeTutorialTargets {
+  final GlobalKey walletKey = GlobalKey(debugLabel: 'tutorial-wallet');
+  final List<GlobalKey> bottomNavKeys = List<GlobalKey>.generate(
+    5,
+    (index) => GlobalKey(debugLabel: 'tutorial-nav-$index'),
+  );
+}
+
+class WalletTutorialTargets {
+  final GlobalKey balanceKey = GlobalKey(debugLabel: 'tutorial-wallet-balance');
+  final GlobalKey packagesKey =
+      GlobalKey(debugLabel: 'tutorial-wallet-packages');
+  final GlobalKey paymentKey = GlobalKey(debugLabel: 'tutorial-wallet-payment');
+  final GlobalKey historyKey = GlobalKey(debugLabel: 'tutorial-wallet-history');
+}
+
 class AppTutorial {
   AppTutorial._();
 
   static const _version = 2;
   static bool _replayRequested = false;
   static bool _walletReplayRequested = false;
-
-  static final GlobalKey walletKey = GlobalKey(debugLabel: 'tutorial-wallet');
-  static final GlobalKey walletBalanceKey =
-      GlobalKey(debugLabel: 'tutorial-wallet-balance');
-  static final GlobalKey walletPackagesKey =
-      GlobalKey(debugLabel: 'tutorial-wallet-packages');
-  static final GlobalKey walletPaymentKey =
-      GlobalKey(debugLabel: 'tutorial-wallet-payment');
-  static final GlobalKey walletHistoryKey =
-      GlobalKey(debugLabel: 'tutorial-wallet-history');
-  static final List<GlobalKey> bottomNavKeys = List<GlobalKey>.generate(
-    5,
-    (index) => GlobalKey(debugLabel: 'tutorial-nav-$index'),
-  );
 
   static void requestReplay() => _replayRequested = true;
 
@@ -46,9 +48,9 @@ class AppTutorial {
   static String _walletPreferenceKey(Object userId) =>
       'customer_wallet_tutorial_v1_$userId';
 
-  static List<_TutorialStep> get _homeSteps => [
+  static List<_TutorialStep> _homeSteps(HomeTutorialTargets targets) => [
         _TutorialStep(
-          targetKey: walletKey,
+          targetKey: targets.walletKey,
           icon: Icons.account_balance_wallet_outlined,
           eyebrow: 'YOUR BALANCE',
           title: 'Tokens at a glance',
@@ -56,7 +58,7 @@ class AppTutorial {
               'Your available tokens are always shown here. Tap this wallet to view top-up options and transaction details.',
         ),
         _TutorialStep(
-          targetKey: bottomNavKeys[1],
+          targetKey: targets.bottomNavKeys[1],
           icon: Icons.local_cafe_outlined,
           eyebrow: 'START HERE',
           title: 'Choose an outlet and order',
@@ -64,7 +66,7 @@ class AppTutorial {
               'Open Menu, then tap the outlet name at the top to choose your pickup location. Select a drink, review every required option, and add it to your bag.',
         ),
         _TutorialStep(
-          targetKey: bottomNavKeys[2],
+          targetKey: targets.bottomNavKeys[2],
           icon: Icons.receipt_long_outlined,
           eyebrow: 'LIVE UPDATES',
           title: 'Follow your order',
@@ -72,7 +74,7 @@ class AppTutorial {
               'Orders keeps your receipts and live status in one place, from payment confirmation through brewing and ready for pickup.',
         ),
         _TutorialStep(
-          targetKey: bottomNavKeys[3],
+          targetKey: targets.bottomNavKeys[3],
           icon: Icons.card_giftcard_outlined,
           eyebrow: 'LOYALTY',
           title: 'Check rewards and vouchers',
@@ -80,7 +82,7 @@ class AppTutorial {
               'See your tier progress, available rewards, and voucher benefits here. Eligibility is confirmed again during checkout.',
         ),
         _TutorialStep(
-          targetKey: bottomNavKeys[4],
+          targetKey: targets.bottomNavKeys[4],
           icon: Icons.person_outline_rounded,
           eyebrow: 'YOUR ACCOUNT',
           title: 'Manage your preferences',
@@ -89,9 +91,9 @@ class AppTutorial {
         ),
       ];
 
-  static List<_TutorialStep> get _walletSteps => [
+  static List<_TutorialStep> _walletSteps(WalletTutorialTargets targets) => [
         _TutorialStep(
-          targetKey: walletBalanceKey,
+          targetKey: targets.balanceKey,
           icon: Icons.account_balance_wallet_outlined,
           eyebrow: 'WALLET SUMMARY',
           title: 'Know what you can spend',
@@ -99,7 +101,7 @@ class AppTutorial {
               'This card shows your available tokens, tokens reserved by pending orders, and the maximum balance your wallet can hold.',
         ),
         _TutorialStep(
-          targetKey: walletPackagesKey,
+          targetKey: targets.packagesKey,
           icon: Icons.add_circle_outline_rounded,
           eyebrow: 'TOP-UP AMOUNT',
           title: 'Enter your top-up amount',
@@ -107,7 +109,7 @@ class AppTutorial {
               'Enter any whole-ringgit amount from RM 1 within your remaining wallet capacity. One C2 Token equals RM 1.',
         ),
         _TutorialStep(
-          targetKey: walletPaymentKey,
+          targetKey: targets.paymentKey,
           icon: Icons.verified_user_outlined,
           eyebrow: 'SECURE PAYMENT',
           title: 'Confirm how you will pay',
@@ -115,7 +117,7 @@ class AppTutorial {
               'Choose an available payment method and review the amount. Tokens are credited only after the payment provider confirms payment.',
         ),
         _TutorialStep(
-          targetKey: walletHistoryKey,
+          targetKey: targets.historyKey,
           icon: Icons.history_rounded,
           eyebrow: 'ACTIVITY',
           title: 'Review every token movement',
@@ -127,20 +129,22 @@ class AppTutorial {
   static Future<void> showIfNeeded(
     BuildContext context, {
     required Object userId,
+    required HomeTutorialTargets targets,
   }) async {
     final preferences = await SharedPreferences.getInstance();
     if (preferences.getBool(_preferenceKey(userId)) == true ||
         !context.mounted) {
       return;
     }
-    await show(context, userId: userId);
+    await show(context, userId: userId, targets: targets);
   }
 
   static Future<void> show(
     BuildContext context, {
     required Object userId,
+    required HomeTutorialTargets targets,
   }) async {
-    final completed = await _showSteps(context, _homeSteps);
+    final completed = await _showSteps(context, _homeSteps(targets));
     if (completed == true) {
       final preferences = await SharedPreferences.getInstance();
       await preferences.setBool(_preferenceKey(userId), true);
@@ -150,13 +154,14 @@ class AppTutorial {
   static Future<void> showWalletIfNeeded(
     BuildContext context, {
     required Object userId,
+    required WalletTutorialTargets targets,
   }) async {
     final preferences = await SharedPreferences.getInstance();
     if (preferences.getBool(_walletPreferenceKey(userId)) == true ||
         !context.mounted) {
       return;
     }
-    final completed = await _showSteps(context, _walletSteps);
+    final completed = await _showSteps(context, _walletSteps(targets));
     if (completed == true) {
       await preferences.setBool(_walletPreferenceKey(userId), true);
     }
@@ -165,8 +170,9 @@ class AppTutorial {
   static Future<void> showWallet(
     BuildContext context, {
     required Object userId,
+    required WalletTutorialTargets targets,
   }) async {
-    final completed = await _showSteps(context, _walletSteps);
+    final completed = await _showSteps(context, _walletSteps(targets));
     if (completed == true) {
       final preferences = await SharedPreferences.getInstance();
       await preferences.setBool(_walletPreferenceKey(userId), true);

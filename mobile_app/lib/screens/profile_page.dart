@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../services/catalog_api_service.dart';
 import '../services/customer_data_service.dart';
 import '../services/secure_session_service.dart';
@@ -14,6 +15,7 @@ import 'menu_page.dart';
 import 'loading_order_page.dart';
 import 'orders_page.dart';
 import 'top_up_wallet_page.dart';
+import 'contact_support_page.dart';
 import 'notification_page.dart';
 import 'settings_page.dart';
 import 'rewards_page.dart';
@@ -58,6 +60,7 @@ class _ProfilePageState extends State<ProfilePage> {
   String _username = 'C2 Member';
   bool _showAllOffers = false;
   List<WalletTransaction> _recentActivity = const [];
+  final Set<String> _recordedPartnerImpressions = <String>{};
 
   Color get orangeColor => AppColors.deepTeal;
   final Color bgColor = Colors.white;
@@ -583,6 +586,13 @@ class _ProfilePageState extends State<ProfilePage> {
           _buildRecentActivitySection(),
           const SizedBox(height: 24),
 
+          if (_partnerBanners.isNotEmpty) ...[
+            _buildPartnerSpotlightSection(_partnerBanners),
+            const SizedBox(height: 24),
+          ],
+          _buildAdvertiseWithUs(),
+          const SizedBox(height: 24),
+
           // News Section
           Text(
             'News',
@@ -827,6 +837,259 @@ class _ProfilePageState extends State<ProfilePage> {
         ],
       ],
     );
+  }
+
+  List<HomeBanner> get _partnerBanners {
+    final banners = _session.homeBanners
+        .where((banner) => banner.bannerType == 'partner')
+        .toList()
+      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    return banners;
+  }
+
+  Widget _buildAdvertiseWithUs() {
+    final supportingText = AppColors.secondary.computeLuminance() > 0.42
+        ? AppColors.brandText
+        : Colors.white;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        gradient: AppColors.headerGradient,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'PARTNERSHIP',
+            style: TextStyle(
+              fontFamily: 'Afacad',
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: AppColors.supportingSurface,
+              letterSpacing: 1.4,
+            ),
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            'Put your brand in front of the C2 community.',
+            style: TextStyle(
+              fontFamily: 'Recoleta',
+              fontSize: 27,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+              height: 1.12,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Feature your business, event, or exclusive offer in the C2 Coffee app.',
+            style: TextStyle(
+              fontFamily: 'Afacad',
+              fontSize: 18,
+              color: Colors.white.withValues(alpha: 0.84),
+              height: 1.25,
+            ),
+          ),
+          const SizedBox(height: 18),
+          FilledButton.icon(
+            onPressed: () => InteractiveFillingLoader.show(
+              context,
+              targetPage: const ContactSupportPage(),
+            ),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.secondary,
+              foregroundColor: supportingText,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            icon: const Icon(Icons.campaign_outlined, size: 18),
+            label: const Text(
+              'Advertise with us',
+              style: TextStyle(
+                fontFamily: 'Afacad',
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPartnerSpotlightSection(List<HomeBanner> banners) {
+    for (final banner in banners) {
+      if (_recordedPartnerImpressions.add(banner.code)) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          unawaited(_recordPartnerEngagement(banner, 'impression'));
+        });
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Partnership',
+          style: TextStyle(
+            fontFamily: 'Recoleta',
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            color: AppColors.brandText,
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 230,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            itemCount: banners.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 14),
+            itemBuilder: (context, index) {
+              final banner = banners[index];
+              return GestureDetector(
+                onTap: () => unawaited(_openPartnerCampaign(banner)),
+                child: SizedBox(
+                  width: MediaQuery.sizeOf(context).width.clamp(280, 420) - 48,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(22),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        _buildBannerImage(banner.imageSource),
+                        const DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [Colors.transparent, Color(0xB3000000)],
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          left: 18,
+                          right: 18,
+                          bottom: 16,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (banner.sponsoredLabel)
+                                const Text(
+                                  'SPONSORED',
+                                  style: TextStyle(
+                                    fontFamily: 'Afacad',
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white70,
+                                    letterSpacing: 1.2,
+                                  ),
+                                ),
+                              if ((banner.partnerName ?? '').trim().isNotEmpty)
+                                Text(
+                                  banner.partnerName!,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontFamily: 'Afacad',
+                                    fontSize: 16,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              Text(
+                                banner.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontFamily: 'Recoleta',
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              if ((banner.ctaLabel ?? '').trim().isNotEmpty)
+                                Text(
+                                  banner.ctaLabel!,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontFamily: 'Afacad',
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _recordPartnerEngagement(
+      HomeBanner banner, String eventType) async {
+    try {
+      final token = await SecureSessionService.instance.getValidAccessToken();
+      if (token == null || token.isEmpty) return;
+      await CatalogApiService.instance.recordBannerEngagement(
+        accessToken: token,
+        bannerCode: banner.code,
+        eventType: eventType,
+      );
+    } catch (_) {
+      // Analytics must never block profile navigation.
+    }
+  }
+
+  Future<void> _openPartnerCampaign(HomeBanner banner) async {
+    unawaited(_recordPartnerEngagement(banner, 'click'));
+    final value = banner.actionValue?.trim() ?? '';
+    if (banner.actionType == 'none' || value.isEmpty) return;
+
+    final uri = banner.actionType == 'email'
+        ? Uri(scheme: 'mailto', path: value, queryParameters: {
+            'subject': 'C2 Coffee Partnership: ${banner.title}',
+          })
+        : Uri.tryParse(value);
+    if (uri == null ||
+        (banner.actionType == 'external_url' && uri.scheme != 'https')) {
+      return;
+    }
+
+    if (banner.actionType == 'external_url' && mounted) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Open partner website?'),
+          content:
+              Text('You are leaving the C2 Coffee app to visit ${uri.host}.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Continue'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+    }
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
   Widget _buildNewsCard(HomeBanner banner, List<HomeBanner> allBanners) {

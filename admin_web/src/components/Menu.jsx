@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Search,
@@ -391,7 +391,7 @@ const Menu = ({ onNavigate }) => {
     is_active: true
   });
 
-  const loadMenu = async () => {
+  const loadMenu = useCallback(async () => {
     setLoading(true);
     setErrorMessage('');
 
@@ -416,9 +416,11 @@ const Menu = ({ onNavigate }) => {
         item_ids: (group.item_ids || []).filter((id) => activeItemIds.has(id))
       })));
 
-      if (selectedCategory !== 'All' && !categories.some((category) => category.code === selectedCategory)) {
-        setSelectedCategory('All');
-      }
+      setSelectedCategory((currentCategory) => (
+        currentCategory !== 'All' && !categories.some((category) => category.code === currentCategory)
+          ? 'All'
+          : currentCategory
+      ));
 
       if (typeof window !== 'undefined') {
         const dismissed = window.localStorage.getItem(MENU_PANEL_DISMISSED_KEY) === '1';
@@ -440,11 +442,11 @@ const Menu = ({ onNavigate }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     void loadMenu();
-  }, []);
+  }, [loadMenu]);
 
   const loadDrinkGuides = async () => {
     try {

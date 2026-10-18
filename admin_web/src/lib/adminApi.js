@@ -1,6 +1,10 @@
 import { isTerminalAdminSessionFailure } from "./adminSessionPolicy";
+import {
+  ADMIN_REFRESH_PATH,
+  shouldAttachStoredAdminAccessToken,
+  shouldAttemptAdminSessionRefresh,
+} from "./adminAuthRequestPolicy";
 
-const ADMIN_REFRESH_PATH = "/v1/admin/auth/refresh";
 const ADMIN_API_BASE_URL = (
   import.meta.env.VITE_API_BASE_URL || "https://api.c2coffeeandcandle.com"
 ).replace(/\/$/, "");
@@ -59,13 +63,13 @@ function broadcastAdminSessionExpired() {
   window.dispatchEvent(new Event("c2-admin-session-expired"));
 }
 
-async function refreshAdminSession() {
+export async function refreshAdminSession() {
   if (typeof window === "undefined") {
     return null;
   }
 
   if (!refreshSessionPromise) {
-    refreshSessionPromise = (async () => {
+    const performRefresh = async () => {
       let response;
       try {
         response = await fetch(`${getAdminApiBaseUrl()}${ADMIN_REFRESH_PATH}`, {
@@ -116,6 +120,23 @@ async function refreshAdminSession() {
       });
 
       return body;
+    };
+
+    refreshSessionPromise = (async () => {
+      // The refresh cookie is rotated after every successful request. A
+      // browser-wide lock prevents two Admin tabs (and React Strict Mode in
+      // development) from consuming the same cookie at the same time.
+      if (
+        typeof navigator !== "undefined" &&
+        navigator.locks?.request
+      ) {
+        return navigator.locks.request(
+          "c2-admin-session-refresh",
+          { mode: "exclusive" },
+          performRefresh,
+        );
+      }
+      return performRefresh();
     })().finally(() => {
       refreshSessionPromise = null;
     });
@@ -126,22 +147,6 @@ async function refreshAdminSession() {
 
 function formatAdminErrorMessage(body, response) {
   const code = body?.error?.code || "unexpected_error";
-
-  if (
-    response.status === 401 ||
-    [
-      "invalid_access_token",
-      "missing_bearer_token",
-      "session_not_found",
-      "session_version_mismatch",
-    ].includes(code)
-  ) {
-    return "Your admin session has expired. Please sign in again.";
-  }
-
-  if (code === "unexpected_error") {
-    return "We could not complete this request. Please try again.";
-  }
 
   switch (code) {
     case "invalid_admin_credentials":
@@ -167,8 +172,22 @@ function formatAdminErrorMessage(body, response) {
     case "customer_not_found":
       return "No active customer account was found for that phone number.";
     default:
-      return "We could not complete this request. Please try again.";
+      break;
   }
+
+  if (
+    response.status === 401 ||
+    [
+      "invalid_access_token",
+      "missing_bearer_token",
+      "session_not_found",
+      "session_version_mismatch",
+    ].includes(code)
+  ) {
+    return "Your admin session has expired. Please sign in again.";
+  }
+
+  return "We could not complete this request. Please try again.";
 }
 
 export async function loadAdminTenants() {
@@ -476,6 +495,24 @@ export async function notifyAdminMarketingBanner(bannerId) {
   return adminRequest(`/v1/admin/marketing/banners/${bannerId}/notify`, {
     method: "POST",
   });
+}
+
+export async function loadAdminPaymentServiceNotices() {
+  return adminRequest("/v1/admin/marketing/payment-service-notices");
+}
+
+export async function createAdminPaymentServiceNotice(payload) {
+  return adminRequest("/v1/admin/marketing/payment-service-notices", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function cancelAdminPaymentServiceNotice(noticeId) {
+  return adminRequest(
+    `/v1/admin/marketing/payment-service-notices/${encodeURIComponent(noticeId)}/cancel`,
+    { method: "POST" },
+  );
 }
 
 export async function loadAdminLoyaltyOverview(limit = 50) {
@@ -820,7 +857,11 @@ export async function adminRequest(
     headers["Content-Type"] = "application/json";
   }
 
-  if (accessToken && !headers["Authorization"]) {
+  if (
+    accessToken &&
+    shouldAttachStoredAdminAccessToken(path) &&
+    !headers["Authorization"]
+  ) {
     headers["Authorization"] = `Bearer ${accessToken}`;
   }
 
@@ -845,9 +886,11 @@ export async function adminRequest(
   const body = isJson ? await response.json().catch(() => null) : null;
 
   if (
-    response.status === 401 &&
-    retryOnUnauthorized &&
-    path !== ADMIN_REFRESH_PATH
+    shouldAttemptAdminSessionRefresh({
+      path,
+      status: response.status,
+      retryOnUnauthorized,
+    })
   ) {
     try {
       await refreshAdminSession();

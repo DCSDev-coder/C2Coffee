@@ -4,8 +4,8 @@ import crypto from 'node:crypto';
 import { authenticateAdminRequest } from '../../admin/guard.js';
 import { requireAdminActionConfirmation } from '../../admin/action-confirmation.js';
 import { mysqlPool } from '../../db/mysql.js';
-import { processOrderLoyalty } from '../../services/loyalty.js';
-import { awardReferralForCollectedOrder } from '../../services/referrals.js';
+import { processOrderLoyalty, reverseOrderLoyalty } from '../../services/loyalty.js';
+import { awardReferralForCollectedOrder, reverseReferralForRefundedOrder } from '../../services/referrals.js';
 import { issueRefundReplacementVoucher } from '../../services/voucher-replacement.js';
 import { deliverPushToUser } from '../../services/push-delivery.js';
 import { ApiError } from '../errors.js';
@@ -823,6 +823,17 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           `UPDATE orders SET status = 'refunded', updated_at = UTC_TIMESTAMP() WHERE id = :orderId`,
           { orderId: refund.order_id }
         );
+        const loyaltyReversal = await reverseOrderLoyalty(
+          refund.order_id,
+          refund.user_id,
+          connection,
+          request.adminAuth.adminUserId
+        );
+        const referralReversal = await reverseReferralForRefundedOrder(
+          connection,
+          refund.order_id,
+          request.adminAuth.adminUserId
+        );
         const replacementVoucherIssued = await issueRefundReplacementVoucher(connection, {
           orderId: refund.order_id,
           userId: refund.user_id,
@@ -849,9 +860,11 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           userId: refund.user_id,
           type: 'refund_completed',
           title: 'Refund approved',
-        body: replacementVoucherIssued
-          ? 'Your tokens were returned and an equivalent voucher was added back to your account.'
-          : 'The applicable tokens have been returned to your C2 Coffee account.'
+          body: referralReversal.needsReview || loyaltyReversal.rewardNeedsReview
+            ? 'Your order refund is complete. A reward linked to this order requires staff review.'
+            : replacementVoucherIssued
+              ? 'Your tokens were returned and an equivalent voucher was added back to your account.'
+              : 'The applicable tokens have been returned to your C2 Coffee account.'
         });
       }
 

@@ -690,6 +690,8 @@ const Vouchers = ({ onNavigate }) => {
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [issueReason, setIssueReason] = useState("");
   const [issuePhone, setIssuePhone] = useState("");
+  const [issueRequestKey, setIssueRequestKey] = useState("");
+  const [issueInProgress, setIssueInProgress] = useState(false);
 
   const productKindLabels = Object.fromEntries(
     (menuTaxonomy.productKinds || []).map((option) => [option.value, option.label])
@@ -1036,6 +1038,9 @@ const Vouchers = ({ onNavigate }) => {
     setIssuingVoucher(voucher);
     setIssueReason(`Admin issued ${voucher.name}`);
     setIssuePhone("");
+    setIssueRequestKey(
+      globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`
+    );
     setShowIssueModal(true);
   };
 
@@ -1049,13 +1054,16 @@ const Vouchers = ({ onNavigate }) => {
       return;
     }
 
+    if (issueInProgress) return;
+    setIssueInProgress(true);
     try {
       await adminRequest(`/v1/admin/vouchers/${issuingVoucher.id}/issuances`, {
         method: 'POST',
         body: JSON.stringify({
           userId: selectedCustomer?.id,
           phone: issuePhone.trim() || undefined,
-          issuedReason: issueReason.trim() || `Admin issued ${issuingVoucher.name}`
+          issuedReason: issueReason.trim() || `Admin issued ${issuingVoucher.name}`,
+          issueCaseRef: `admin:${issueRequestKey}`
         })
       });
       await refreshVouchers(issuingVoucher.id);
@@ -1064,6 +1072,8 @@ const Vouchers = ({ onNavigate }) => {
       setIssuingVoucher(null);
     } catch (err) {
       alert('Error issuing voucher: ' + err.message);
+    } finally {
+      setIssueInProgress(false);
     }
   };
 
@@ -1760,9 +1770,10 @@ const Vouchers = ({ onNavigate }) => {
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 bg-[#1E433A] text-white rounded-xl text-xs font-bold hover:bg-[#16342D] shadow-xs transition-all cursor-pointer"
+                  disabled={issueInProgress}
+                  className="px-6 py-2.5 bg-[#1E433A] text-white rounded-xl text-xs font-bold hover:bg-[#16342D] shadow-xs transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  Issue Voucher
+                  {issueInProgress ? 'Issuing...' : 'Issue Voucher'}
                 </button>
               </div>
             </form>

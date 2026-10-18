@@ -54,13 +54,7 @@ class SessionLifecycleService {
       if ((tokenToUse == null || tokenToUse.isEmpty) &&
           refreshToken != null &&
           refreshToken.isNotEmpty) {
-        final tokens = await AuthApiService.instance.refreshSession(
-          refreshToken: refreshToken,
-        );
-        await SecureSessionService.instance.saveSession(
-          accessToken: tokens.accessToken,
-          refreshToken: tokens.refreshToken,
-        );
+        final tokens = await SecureSessionService.instance.refreshSession();
         tokenToUse = tokens.accessToken;
       }
 
@@ -69,13 +63,7 @@ class SessionLifecycleService {
           await AuthApiService.instance.logout(accessToken: tokenToUse);
         } catch (_) {
           if (refreshToken != null && refreshToken.isNotEmpty) {
-            final tokens = await AuthApiService.instance.refreshSession(
-              refreshToken: refreshToken,
-            );
-            await SecureSessionService.instance.saveSession(
-              accessToken: tokens.accessToken,
-              refreshToken: tokens.refreshToken,
-            );
+            final tokens = await SecureSessionService.instance.refreshSession();
             await AuthApiService.instance.logout(
               accessToken: tokens.accessToken,
             );

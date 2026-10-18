@@ -46,7 +46,10 @@ const AllTransactions = ({ onBack }) => {
     };
   }, []);
 
-  const transactions = Array.isArray(overview.recentTransactions) ? overview.recentTransactions : [];
+  const transactions = useMemo(
+    () => Array.isArray(overview.recentTransactions) ? overview.recentTransactions : [],
+    [overview.recentTransactions]
+  );
 
   const filtered = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();

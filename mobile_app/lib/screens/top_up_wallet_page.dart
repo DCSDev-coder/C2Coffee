@@ -30,6 +30,7 @@ class TopUpWalletPage extends StatefulWidget {
 class _TopUpWalletPageState extends State<TopUpWalletPage>
     with WidgetsBindingObserver {
   final AppSessionService _session = AppSessionService.instance;
+  final WalletTutorialTargets _tutorialTargets = WalletTutorialTargets();
   static const bool _topUpGatewayEnabled = true;
   final TextEditingController _amountController =
       TextEditingController(text: '0');
@@ -78,9 +79,17 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
       final userId = _session.user?.id;
       if (userId != null) {
         if (AppTutorial.consumeWalletReplayRequest()) {
-          await AppTutorial.showWallet(context, userId: userId);
+          await AppTutorial.showWallet(
+            context,
+            userId: userId,
+            targets: _tutorialTargets,
+          );
         } else {
-          await AppTutorial.showWalletIfNeeded(context, userId: userId);
+          await AppTutorial.showWalletIfNeeded(
+            context,
+            userId: userId,
+            targets: _tutorialTargets,
+          );
         }
       }
     });
@@ -138,14 +147,32 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
         topupRef: topupRef,
       );
       if (!mounted) return;
-      if (const {'failed', 'cancelled', 'expired'}.contains(topup.status)) {
+      if (const {
+        'failed',
+        'cancelled',
+        'expired',
+        'refunded',
+        'refund_needs_review'
+      }.contains(topup.status)) {
         await PendingTopUpService.instance.clear();
         if (!mounted) return;
         setState(() => _pendingTopUpRef = null);
-        AppNotification.showError(
-          context,
-          'That payment was not completed. You can start a new top-up.',
-        );
+        if (topup.status == 'refunded') {
+          AppNotification.showInfo(
+            context,
+            'This top-up was refunded and its tokens were removed.',
+          );
+        } else if (topup.status == 'refund_needs_review') {
+          AppNotification.showInfo(
+            context,
+            'This refund is being reviewed because some credited tokens were already used.',
+          );
+        } else {
+          AppNotification.showError(
+            context,
+            'That payment was not completed. You can start a new top-up.',
+          );
+        }
         return;
       }
       if (topup.status != 'paid') return;
@@ -513,7 +540,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
               const SizedBox(height: 16),
               if (_packages.isNotEmpty) ...[
                 Row(
-                  key: AppTutorial.walletPackagesKey,
+                  key: _tutorialTargets.packagesKey,
                   children: List.generate(_packages.length, (i) {
                     final package = _packages[i];
                     final packageAmount = _packageAmount(package);
@@ -614,7 +641,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
                 const SizedBox(height: 8),
               ],
               TextField(
-                key: _packages.isEmpty ? AppTutorial.walletPackagesKey : null,
+                key: _packages.isEmpty ? _tutorialTargets.packagesKey : null,
                 controller: _amountController,
                 focusNode: _amountFocusNode,
                 keyboardType: TextInputType.number,
@@ -686,7 +713,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
               _buildTopUpCard(),
               const SizedBox(height: 28),
               Row(
-                key: AppTutorial.walletHistoryKey,
+                key: _tutorialTargets.historyKey,
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
@@ -719,7 +746,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
 
   Widget _buildBalanceCard() {
     return Container(
-      key: AppTutorial.walletBalanceKey,
+      key: _tutorialTargets.balanceKey,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -832,7 +859,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
         _paymentMethod != null;
 
     return Container(
-      key: AppTutorial.walletPaymentKey,
+      key: _tutorialTargets.paymentKey,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,

@@ -19,7 +19,6 @@ import '../widgets/poster_popup.dart';
 import '../widgets/app_tutorial.dart';
 import '../widgets/profile_avatar_style.dart';
 import 'loading_order_page.dart';
-import 'contact_support_page.dart';
 import 'menu_page.dart';
 import 'notification_page.dart';
 import 'orders_page.dart';
@@ -49,6 +48,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final AppSessionService _session = AppSessionService.instance;
+  final HomeTutorialTargets _tutorialTargets = HomeTutorialTargets();
   final PageController _pageController = PageController();
   final ScrollController _scrollController = ScrollController();
 
@@ -58,6 +58,7 @@ class _HomePageState extends State<HomePage> {
   final bool _showTokenPrice = true;
   Timer? _carouselTimer;
   int _currentBannerIndex = 0;
+  bool _showScrollToTop = false;
   final Set<String> _recordedPartnerImpressions = <String>{};
 
   static const _carouselInterval = Duration(seconds: 4);
@@ -82,6 +83,7 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _session.addListener(_handleSessionChanged);
+    _scrollController.addListener(_onScroll);
     _loadAvatarState();
     Future.microtask(() async {
       try {
@@ -92,9 +94,17 @@ class _HomePageState extends State<HomePage> {
         final userId = _session.user?.id;
         if (userId != null) {
           if (AppTutorial.consumeReplayRequest()) {
-            await AppTutorial.show(context, userId: userId);
+            await AppTutorial.show(
+              context,
+              userId: userId,
+              targets: _tutorialTargets,
+            );
           } else {
-            await AppTutorial.showIfNeeded(context, userId: userId);
+            await AppTutorial.showIfNeeded(
+              context,
+              userId: userId,
+              targets: _tutorialTargets,
+            );
           }
         }
         if (mounted) _showPosterIfNeeded();
@@ -108,6 +118,7 @@ class _HomePageState extends State<HomePage> {
     _session.removeListener(_handleSessionChanged);
     _carouselTimer?.cancel();
     _pageController.dispose();
+    _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     super.dispose();
   }
@@ -118,6 +129,23 @@ class _HomePageState extends State<HomePage> {
     }
     setState(() {});
     _restartCarouselTimer();
+  }
+
+  void _onScroll() {
+    final shouldShow =
+        _scrollController.hasClients && _scrollController.offset > 520;
+    if (shouldShow != _showScrollToTop && mounted) {
+      setState(() => _showScrollToTop = shouldShow);
+    }
+  }
+
+  Future<void> _scrollToTop() async {
+    if (!_scrollController.hasClients) return;
+    await _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 480),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   void _restartCarouselTimer() {
@@ -327,6 +355,25 @@ class _HomePageState extends State<HomePage> {
     return '${val.round()} tokens';
   }
 
+  String? _featuredCategoryCode(
+    HomeFeaturedSection section,
+    List<Map<String, dynamic>> items,
+  ) {
+    final configuredCode = section.categoryCode.trim();
+    if (configuredCode.isNotEmpty) return configuredCode;
+
+    // Older API responses did not include category metadata for featured
+    // groups. Derive a destination from the items so those groups do not
+    // silently fall back to the first menu category.
+    final counts = <String, int>{};
+    for (final item in items) {
+      final code = item['categoryCode']?.toString().trim() ?? '';
+      if (code.isNotEmpty) counts[code] = (counts[code] ?? 0) + 1;
+    }
+    if (counts.isEmpty) return null;
+    return counts.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -349,7 +396,7 @@ class _HomePageState extends State<HomePage> {
             selectedIndex: 0,
             onItemTapped: _onBottomNavTapped,
             scrollController: _scrollController,
-            enableTutorialTargets: true,
+            tutorialTargetKeys: _tutorialTargets.bottomNavKeys,
           ),
           body: Stack(
             children: [
@@ -397,9 +444,12 @@ class _HomePageState extends State<HomePage> {
                               items: featured.items,
                               onSeeAll: () => InteractiveFillingLoader.show(
                                 context,
+                                clearNavigationStack: true,
                                 targetPage: MenuPage(
-                                  initialCategoryCode:
-                                      featured.section.categoryCode,
+                                  initialCategoryCode: _featuredCategoryCode(
+                                    featured.section,
+                                    featured.items,
+                                  ),
                                 ),
                               ),
                             ),
@@ -409,7 +459,6 @@ class _HomePageState extends State<HomePage> {
                             _buildPartnerSpotlightSection(_partnerBanners),
                             const SizedBox(height: 24),
                           ],
-                          _buildAdvertiseWithUs(),
                         ],
                       ],
                     ),
@@ -421,6 +470,34 @@ class _HomePageState extends State<HomePage> {
                 rightOffset: 16,
                 bottomOffset: 90 + MediaQuery.paddingOf(context).bottom,
               ),
+              if (_showScrollToTop)
+                Positioned(
+                  right: 18,
+                  bottom: 94 + MediaQuery.paddingOf(context).bottom,
+                  child: Semantics(
+                    button: true,
+                    label: 'Back to top',
+                    child: Material(
+                      color: AppColors.deepTeal,
+                      elevation: 5,
+                      shadowColor: Colors.black26,
+                      shape: const CircleBorder(),
+                      child: InkWell(
+                        customBorder: const CircleBorder(),
+                        onTap: _scrollToTop,
+                        child: const SizedBox(
+                          width: 48,
+                          height: 48,
+                          child: Icon(
+                            Icons.keyboard_arrow_up_rounded,
+                            color: Colors.white,
+                            size: 30,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
         );
@@ -502,7 +579,7 @@ class _HomePageState extends State<HomePage> {
               ),
               const SizedBox(width: 12),
               GestureDetector(
-                key: AppTutorial.walletKey,
+                key: _tutorialTargets.walletKey,
                 onTap: () {
                   InteractiveFillingLoader.show(
                     context,
@@ -862,6 +939,7 @@ class _HomePageState extends State<HomePage> {
             child: GestureDetector(
               onTap: () => InteractiveFillingLoader.show(
                 context,
+                clearNavigationStack: true,
                 targetPage: const OrdersPage(),
               ),
               child: Container(
@@ -915,84 +993,6 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildAdvertiseWithUs() {
-    final supportingText = AppColors.secondary.computeLuminance() > 0.42
-        ? AppColors.brandText
-        : Colors.white;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(22),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(24),
-          gradient: AppColors.headerGradient,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'PARTNERSHIP',
-              style: TextStyle(
-                fontFamily: 'Afacad',
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: AppColors.supportingSurface,
-                letterSpacing: 1.4,
-              ),
-            ),
-            const SizedBox(height: 10),
-            const Text(
-              'Put your brand in front of the C2 community.',
-              style: TextStyle(
-                fontFamily: 'Recoleta',
-                fontSize: 27,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-                height: 1.12,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Feature your business, event, or exclusive offer in the C2 Coffee app.',
-              style: TextStyle(
-                fontFamily: 'Afacad',
-                fontSize: 18,
-                color: Colors.white.withValues(alpha: 0.84),
-                height: 1.25,
-              ),
-            ),
-            const SizedBox(height: 18),
-            FilledButton.icon(
-              onPressed: () => InteractiveFillingLoader.show(
-                context,
-                targetPage: const ContactSupportPage(),
-              ),
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.secondary,
-                foregroundColor: supportingText,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-              icon: const Icon(Icons.campaign_outlined, size: 18),
-              label: const Text(
-                'Advertise with us',
-                style: TextStyle(
-                  fontFamily: 'Afacad',
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

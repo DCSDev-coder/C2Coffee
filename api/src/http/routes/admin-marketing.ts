@@ -27,6 +27,67 @@ const marketingUploadSchema = z.object({
   poster_kind: z.enum(["standard", "partner"]).optional().default("standard"),
 });
 
+const paymentMethodSchema = z.enum(["fpx", "duitnow_qr"]);
+const paymentServiceNoticeCreateSchema = z
+  .object({
+    title: z.string().trim().min(1).max(160).default("Payment service maintenance"),
+    message: z.string().trim().min(1).max(600),
+    payment_methods: z.array(paymentMethodSchema).min(1).max(2),
+    starts_at: z.string().datetime({ offset: true }),
+    ends_at: z.string().datetime({ offset: true }),
+  })
+  .superRefine((value, context) => {
+    if (new Set(value.payment_methods).size !== value.payment_methods.length) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "Payment methods must be unique.", path: ["payment_methods"] });
+    }
+    const startsAt = new Date(value.starts_at).getTime();
+    const endsAt = new Date(value.ends_at).getTime();
+    if (endsAt <= startsAt) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "End time must be after start time.", path: ["ends_at"] });
+    }
+    if (endsAt <= Date.now()) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "End time must be in the future.", path: ["ends_at"] });
+    }
+  });
+
+type PaymentServiceNoticeRow = RowDataPacket & {
+  id: number;
+  title: string;
+  message: string;
+  payment_methods_json: string | string[];
+  starts_at: Date;
+  ends_at: Date;
+  status: "active" | "cancelled";
+  created_at: Date;
+  updated_at: Date;
+};
+
+function paymentMethodsFromJson(value: string | string[]): string[] {
+  if (Array.isArray(value)) return value.filter((item) => paymentMethodSchema.safeParse(item).success);
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed)
+      ? parsed.filter((item): item is string => paymentMethodSchema.safeParse(item).success)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function paymentServiceNoticeResponse(row: PaymentServiceNoticeRow) {
+  return {
+    id: row.id,
+    title: row.title,
+    message: row.message,
+    payment_methods: paymentMethodsFromJson(row.payment_methods_json),
+    starts_at: row.starts_at.toISOString(),
+    ends_at: row.ends_at.toISOString(),
+    status: row.status,
+    created_at: row.created_at.toISOString(),
+    updated_at: row.updated_at.toISOString(),
+  };
+}
+
 const bannerCreateSchema = z.object({
   title: z.string().trim().min(1).max(255),
   subtitle: z.string().trim().min(1).max(512),
@@ -789,6 +850,144 @@ async function notifyCustomersAboutPoster(input: {
 export async function registerAdminMarketingRoutes(
   app: FastifyInstance,
 ): Promise<void> {
+  app.get(
+    "/v1/admin/marketing/payment-service-notices",
+    { preHandler: authenticateAdminRequest },
+    async (request) => {
+      requireMarketingAccess(request);
+      const [rows] = await mysqlPool.query<PaymentServiceNoticeRow[]>(
+        `SELECT id, title, message, payment_methods_json, starts_at, ends_at, status, created_at, updated_at
+         FROM payment_service_notices
+         WHERE tenant_id = :tenantId
+         ORDER BY status = 'active' DESC, ends_at DESC, id DESC
+         LIMIT 100`,
+        { tenantId: request.adminAuth.tenantId },
+      );
+      return { notices: rows.map(paymentServiceNoticeResponse) };
+    },
+  );
+
+  app.post(
+    "/v1/admin/marketing/payment-service-notices",
+    { preHandler: authenticateAdminRequest },
+    async (request, reply) => {
+      requireMarketingAccess(request);
+      const payload = paymentServiceNoticeCreateSchema.parse(request.body);
+      const startsAt = toUtcDateTimeString(payload.starts_at);
+      const endsAt = toUtcDateTimeString(payload.ends_at);
+      if (!startsAt || !endsAt) {
+        throw new ApiError(400, "invalid_maintenance_window", "Enter a valid maintenance start and end time.");
+      }
+
+      const connection = await mysqlPool.getConnection();
+      let committed = false;
+      let noticeId = 0;
+      try {
+        await connection.beginTransaction();
+        const [result] = await connection.execute<ResultSetHeader>(
+          `INSERT INTO payment_service_notices
+             (tenant_id, title, message, payment_methods_json, starts_at, ends_at, status, created_by_admin_id, created_at, updated_at)
+           VALUES
+             (:tenantId, :title, :message, :paymentMethods, :startsAt, :endsAt, 'active', :adminUserId, UTC_TIMESTAMP(), UTC_TIMESTAMP())`,
+          {
+            tenantId: request.adminAuth.tenantId,
+            title: payload.title,
+            message: payload.message,
+            paymentMethods: JSON.stringify(payload.payment_methods),
+            startsAt,
+            endsAt,
+            adminUserId: request.adminAuth.adminUserId,
+          },
+        );
+        noticeId = result.insertId;
+        await connection.execute(
+          `INSERT INTO admin_audit_logs
+             (admin_user_id, effective_roles_json, action_code, target_type, target_id, after_json, ip_address, user_agent, created_at)
+           VALUES
+             (:adminUserId, :roles, 'payment_service_notice_created', 'payment_service_notice', :noticeId,
+              :afterJson, :ipAddress, :userAgent, UTC_TIMESTAMP())`,
+          {
+            adminUserId: request.adminAuth.adminUserId,
+            roles: JSON.stringify(request.adminAuth.roles),
+            noticeId,
+            afterJson: JSON.stringify({
+              title: payload.title,
+              message: payload.message,
+              payment_methods: payload.payment_methods,
+              starts_at: payload.starts_at,
+              ends_at: payload.ends_at,
+            }),
+            ipAddress: request.ip,
+            userAgent: request.headers["user-agent"] ?? null,
+          },
+        );
+        await connection.commit();
+        committed = true;
+      } catch (error) {
+        if (!committed) await connection.rollback();
+        throw error;
+      } finally {
+        connection.release();
+      }
+
+      let delivery = null;
+      try {
+        delivery = await deliverPushToCustomerTenant({
+          tenantId: request.adminAuth.tenantId,
+          title: payload.title,
+          body: payload.message,
+          data: { type: "payment_service_notice", notice_id: String(noticeId) },
+          respectMarketingPreference: false,
+        });
+      } catch (error) {
+        request.log.warn(
+          { noticeId, error: error instanceof Error ? error.message : String(error) },
+          "Payment service notice was saved but push delivery failed.",
+        );
+      }
+
+      return reply.code(201).send({ notice_id: noticeId, delivery });
+    },
+  );
+
+  app.post(
+    "/v1/admin/marketing/payment-service-notices/:id/cancel",
+    { preHandler: authenticateAdminRequest },
+    async (request) => {
+      requireMarketingAccess(request);
+      const noticeId = z.coerce.number().int().positive().parse((request.params as { id: string }).id);
+      const [result] = await mysqlPool.execute<ResultSetHeader>(
+        `UPDATE payment_service_notices
+         SET status = 'cancelled', cancelled_by_admin_id = :adminUserId,
+             cancelled_at = UTC_TIMESTAMP(), updated_at = UTC_TIMESTAMP()
+         WHERE id = :noticeId AND tenant_id = :tenantId AND status = 'active'`,
+        {
+          noticeId,
+          tenantId: request.adminAuth.tenantId,
+          adminUserId: request.adminAuth.adminUserId,
+        },
+      );
+      if (result.affectedRows === 0) {
+        throw new ApiError(404, "payment_service_notice_not_found", "Active payment service notice was not found.");
+      }
+      await mysqlPool.execute(
+        `INSERT INTO admin_audit_logs
+           (admin_user_id, effective_roles_json, action_code, target_type, target_id, ip_address, user_agent, created_at)
+         VALUES
+           (:adminUserId, :roles, 'payment_service_notice_cancelled', 'payment_service_notice', :noticeId,
+            :ipAddress, :userAgent, UTC_TIMESTAMP())`,
+        {
+          adminUserId: request.adminAuth.adminUserId,
+          roles: JSON.stringify(request.adminAuth.roles),
+          noticeId,
+          ipAddress: request.ip,
+          userAgent: request.headers["user-agent"] ?? null,
+        },
+      );
+      return { cancelled: true };
+    },
+  );
+
   app.post(
     "/v1/admin/marketing/uploads",
     {

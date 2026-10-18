@@ -7,6 +7,7 @@ import '../services/customer_data_service.dart';
 import '../services/catalog_api_service.dart';
 import '../services/secure_session_service.dart';
 import '../utils/app_colors.dart';
+import '../utils/app_notification.dart';
 import '../widgets/order_status_banner.dart';
 import 'loading_order_page.dart';
 import '../widgets/app_page_shell.dart';
@@ -24,6 +25,8 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
   bool _isRewardsLoading = true;
   String? _rewardsError;
   List<RewardVoucher> _vouchers = const [];
+  List<TierRewardEntitlement> _claimableTierRewards = const [];
+  final Set<int> _claimingTierRewardIds = <int>{};
   final Set<int> _expandedVoucherIds = <int>{};
 
   @override
@@ -64,15 +67,17 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
         );
       }
 
-      final vouchers = await CustomerDataService.instance.getRewardVouchers(
+      final rewards = await CustomerDataService.instance.getRewardsCenter(
         accessToken: accessToken,
       );
 
       if (!mounted) return;
       setState(() {
-        _vouchers = vouchers;
+        _vouchers = rewards.vouchers;
+        _claimableTierRewards = rewards.claimableTierRewards;
         _expandedVoucherIds.removeWhere(
-          (voucherId) => !vouchers.any((voucher) => voucher.id == voucherId),
+          (voucherId) =>
+              !rewards.vouchers.any((voucher) => voucher.id == voucherId),
         );
         _isRewardsLoading = false;
       });
@@ -88,6 +93,45 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
         _rewardsError = 'Unable to load rewards right now.';
         _isRewardsLoading = false;
       });
+    }
+  }
+
+  Future<void> _claimTierReward(TierRewardEntitlement reward) async {
+    if (_claimingTierRewardIds.contains(reward.id)) return;
+    setState(() => _claimingTierRewardIds.add(reward.id));
+
+    try {
+      final accessToken =
+          await SecureSessionService.instance.getValidAccessToken();
+      if (accessToken == null || accessToken.isEmpty) {
+        throw ApiException(
+          'Missing access token.',
+          code: 'missing_access_token',
+        );
+      }
+      await CustomerDataService.instance.claimTierReward(
+        accessToken: accessToken,
+        entitlementId: reward.id,
+      );
+      if (!mounted) return;
+      AppNotification.showSuccess(
+        context,
+        '${reward.template.displayLabel} is ready to use at checkout.',
+      );
+      await _loadRewards(forceSessionReload: true);
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      AppNotification.showError(context, _friendlyMessage(error));
+    } catch (_) {
+      if (!mounted) return;
+      AppNotification.showError(
+        context,
+        'Unable to claim this tier reward right now.',
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _claimingTierRewardIds.remove(reward.id));
+      }
     }
   }
 
@@ -110,7 +154,7 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final visibleVoucherCount = _vouchers.length;
+    final visibleRewardCount = _vouchers.length + _claimableTierRewards.length;
 
     return AppPageShell(
       title: 'MY REWARDS',
@@ -127,7 +171,7 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
             padding: const EdgeInsets.all(20),
             child: Column(
               children: [
-                _buildRewardsHeroCard(visibleVoucherCount),
+                _buildRewardsHeroCard(visibleRewardCount),
               ],
             ),
           ),
@@ -141,7 +185,7 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
     );
   }
 
-  Widget _buildRewardsHeroCard(int visibleVoucherCount) {
+  Widget _buildRewardsHeroCard(int visibleRewardCount) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
@@ -228,7 +272,7 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Your regular vouchers and birthday-tier reward are shown separately.',
+                      'Claim tier rewards here, then use active vouchers at checkout.',
                       style: TextStyle(
                         fontFamily: 'Afacad',
                         fontSize: 16,
@@ -242,8 +286,8 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
                       runSpacing: 10,
                       children: [
                         _buildHeroStatChip(
-                          '$visibleVoucherCount',
-                          'Voucher${visibleVoucherCount == 1 ? '' : 's'}',
+                          '$visibleRewardCount',
+                          'Reward${visibleRewardCount == 1 ? '' : 's'}',
                         ),
                       ],
                     ),
@@ -334,7 +378,9 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
         .where((voucher) => voucher.rewardKind != 'tier_birthday')
         .toList();
 
-    if (regularVouchers.isEmpty && birthdayTierVouchers.isEmpty) {
+    if (regularVouchers.isEmpty &&
+        birthdayTierVouchers.isEmpty &&
+        _claimableTierRewards.isEmpty) {
       return _buildMessageCard(
         title: 'No rewards yet',
         message:
@@ -345,6 +391,11 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (_claimableTierRewards.isNotEmpty) ...[
+          _buildClaimableTierRewardsSection(),
+          if (birthdayTierVouchers.isNotEmpty || regularVouchers.isNotEmpty)
+            const SizedBox(height: 24),
+        ],
         if (birthdayTierVouchers.isNotEmpty) ...[
           _buildRewardsSection(
             title: 'Birthday tier reward',
@@ -362,6 +413,121 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
             accentColor: AppColors.deepTeal,
           ),
       ],
+    );
+  }
+
+  Widget _buildClaimableTierRewardsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Tier rewards to claim',
+          style: TextStyle(
+            fontFamily: 'Recoleta',
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: AppColors.deepTeal,
+          ),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'Claim an unlocked reward before it becomes available at checkout.',
+          style: TextStyle(
+            fontFamily: 'Afacad',
+            fontSize: 15,
+            color: Colors.black54,
+            height: 1.35,
+          ),
+        ),
+        const SizedBox(height: 12),
+        for (var i = 0; i < _claimableTierRewards.length; i++) ...[
+          _buildClaimableTierRewardCard(_claimableTierRewards[i]),
+          if (i < _claimableTierRewards.length - 1) const SizedBox(height: 12),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildClaimableTierRewardCard(TierRewardEntitlement reward) {
+    final isClaiming = _claimingTierRewardIds.contains(reward.id);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceLight,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: AppColors.gold.withValues(alpha: 0.55),
+          width: 1.2,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (reward.template.imageUrl?.trim().isNotEmpty ?? false) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(13),
+              child: AspectRatio(
+                aspectRatio: 2 / 1,
+                child: CatalogProductImage(
+                  imageUrl: resolveCatalogImageSource(reward.template.imageUrl),
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+          ],
+          Text(
+            reward.template.displayLabel,
+            style: TextStyle(
+              fontFamily: 'Recoleta',
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: AppColors.deepTeal,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            reward.template.benefitLabel,
+            style: const TextStyle(
+              fontFamily: 'Afacad',
+              fontSize: 15,
+              color: Colors.black54,
+            ),
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: isClaiming ? null : () => _claimTierReward(reward),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.deepTeal,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: const StadiumBorder(),
+              ),
+              icon: isClaiming
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.card_giftcard_outlined),
+              label: Text(
+                isClaiming ? 'Claiming...' : 'Claim reward',
+                style: const TextStyle(
+                  fontFamily: 'Afacad',
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

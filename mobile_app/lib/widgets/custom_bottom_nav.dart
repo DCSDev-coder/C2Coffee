@@ -3,14 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import '../utils/app_colors.dart';
-import 'app_tutorial.dart';
 
 class CustomBottomNav extends StatefulWidget {
   final int selectedIndex;
   final Function(int) onItemTapped;
   final Color? orangeColor;
   final ScrollController? scrollController;
-  final bool enableTutorialTargets;
+  final List<GlobalKey>? tutorialTargetKeys;
 
   static final ValueNotifier<bool> isMinimizedNotifier =
       ValueNotifier<bool>(false);
@@ -21,17 +20,17 @@ class CustomBottomNav extends StatefulWidget {
     required this.onItemTapped,
     this.orangeColor,
     this.scrollController,
-    this.enableTutorialTargets = false,
-  });
+    this.tutorialTargetKeys,
+  }) : assert(tutorialTargetKeys == null || tutorialTargetKeys.length == 5);
 
   static void switchTab(BuildContext context, Widget targetPage) {
-    Navigator.pushReplacement(
-      context,
+    Navigator.of(context).pushAndRemoveUntil(
       PageRouteBuilder(
         pageBuilder: (context, animation1, animation2) => targetPage,
         transitionDuration: Duration.zero,
         reverseTransitionDuration: Duration.zero,
       ),
+      (route) => false,
     );
   }
 
@@ -481,9 +480,7 @@ class _CustomBottomNavState extends State<CustomBottomNav> {
     final Color textColor = isHighlighted ? activeColor : inactiveTextColor;
 
     return Expanded(
-      key: widget.enableTutorialTargets
-          ? AppTutorial.bottomNavKeys[index]
-          : null,
+      key: widget.tutorialTargetKeys?[index],
       child: GestureDetector(
         onTap: () => _handleItemTapped(index),
         behavior: HitTestBehavior.opaque,

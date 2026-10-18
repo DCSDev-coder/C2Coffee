@@ -169,13 +169,30 @@ export async function registerHomeFeaturedRoutes(app: FastifyInstance): Promise<
       `SELECT id, title, selection_mode, category_ids_json, item_ids_json, display_limit, sort_order
        FROM home_featured_groups WHERE is_active = 1 ORDER BY sort_order, id`
     );
-    const configuredSections = await Promise.all(groups.map(async (group) => ({
-      group_id: Number(group.id),
-      title: group.title,
-      selection_mode: group.selection_mode,
-      category_ids: parseIdArray(group.category_ids_json),
-      item_ids: await loadGroupItemIds(storeId, group)
-    })));
+    const categoryById = new Map(categories.map((category) => [
+      Number(category.id),
+      category,
+    ]));
+    const configuredSections = await Promise.all(groups.map(async (group) => {
+      const categoryIds = parseIdArray(group.category_ids_json);
+      // A featured group normally represents one menu section. Expose that
+      // section metadata so mobile clients can open the correct category.
+      // Leave it blank for intentionally mixed groups; there is no single
+      // correct destination in that case.
+      const category = categoryIds.length === 1
+        ? categoryById.get(categoryIds[0])
+        : undefined;
+      return {
+        group_id: Number(group.id),
+        title: group.title,
+        selection_mode: group.selection_mode,
+        category_id: category?.id ?? 0,
+        category_code: category?.code ?? '',
+        category_name: category?.name ?? '',
+        category_ids: categoryIds,
+        item_ids: await loadGroupItemIds(storeId, group)
+      };
+    }));
     return {
       sections: configuredSections.length > 0 ? configuredSections : await Promise.all(categories.map(async (category) => ({
         category_id: Number(category.id),

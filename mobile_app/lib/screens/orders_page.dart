@@ -43,7 +43,10 @@ class _OrdersPageState extends State<OrdersPage>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
   final AppSessionService _session = AppSessionService.instance;
+  final ScrollController _activeOrdersScrollController = ScrollController();
+  final ScrollController _historyOrdersScrollController = ScrollController();
   bool _isOrdersLoading = true;
+  bool _showScrollToTop = false;
   String? _ordersError;
   CustomerOrder? _activeOrder;
   List<CustomerOrder> _orders = const [];
@@ -58,6 +61,9 @@ class _OrdersPageState extends State<OrdersPage>
       vsync: this,
       initialIndex: widget.initialTabIndex,
     );
+    _activeOrdersScrollController.addListener(_handleOrdersScroll);
+    _historyOrdersScrollController.addListener(_handleOrdersScroll);
+    _tabController.addListener(_handleTabChanged);
     _session.addListener(_handleSessionChanged);
     globalOrderStatusRawStatus.addListener(_handleGlobalStatusChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -81,12 +87,48 @@ class _OrdersPageState extends State<OrdersPage>
   void dispose() {
     _session.removeListener(_handleSessionChanged);
     globalOrderStatusRawStatus.removeListener(_handleGlobalStatusChanged);
+    _activeOrdersScrollController
+      ..removeListener(_handleOrdersScroll)
+      ..dispose();
+    _historyOrdersScrollController
+      ..removeListener(_handleOrdersScroll)
+      ..dispose();
+    _tabController.removeListener(_handleTabChanged);
     _tabController.dispose();
     super.dispose();
   }
 
   void _handleSessionChanged() {
     // No-op: this page updates from explicit order refreshes only.
+  }
+
+  ScrollController get _currentOrdersScrollController =>
+      _tabController.index == 0
+          ? _activeOrdersScrollController
+          : _historyOrdersScrollController;
+
+  void _handleOrdersScroll() {
+    final controller = _currentOrdersScrollController;
+    final shouldShow = controller.hasClients && controller.offset > 520;
+    if (shouldShow != _showScrollToTop && mounted) {
+      setState(() => _showScrollToTop = shouldShow);
+    }
+  }
+
+  void _handleTabChanged() {
+    if (!_tabController.indexIsChanging) {
+      _handleOrdersScroll();
+    }
+  }
+
+  Future<void> _scrollToTop() async {
+    final controller = _currentOrdersScrollController;
+    if (!controller.hasClients) return;
+    await controller.animateTo(
+      0,
+      duration: const Duration(milliseconds: 480),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   List<CustomerOrder> get _displayActiveOrders {
@@ -258,8 +300,40 @@ class _OrdersPageState extends State<OrdersPage>
           selectedIndex: 2,
           onItemTapped: _onBottomNavTapped,
         ),
-        overlay: OrderStatusBanner(
-          bottomOffset: 90 + MediaQuery.paddingOf(context).bottom,
+        overlay: Stack(
+          children: [
+            OrderStatusBanner(
+              bottomOffset: 90 + MediaQuery.paddingOf(context).bottom,
+            ),
+            if (_showScrollToTop)
+              Positioned(
+                right: 18,
+                bottom: 94 + MediaQuery.paddingOf(context).bottom,
+                child: Semantics(
+                  button: true,
+                  label: 'Back to top',
+                  child: Material(
+                    color: AppColors.deepTeal,
+                    elevation: 5,
+                    shadowColor: Colors.black26,
+                    shape: const CircleBorder(),
+                    child: InkWell(
+                      customBorder: const CircleBorder(),
+                      onTap: _scrollToTop,
+                      child: const SizedBox(
+                        width: 48,
+                        height: 48,
+                        child: Icon(
+                          Icons.keyboard_arrow_up_rounded,
+                          color: Colors.white,
+                          size: 30,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
         child: Column(
           children: [
@@ -320,6 +394,7 @@ class _OrdersPageState extends State<OrdersPage>
     if (activeOrders.isNotEmpty) {
       final bottomInset = MediaQuery.paddingOf(context).bottom;
       return ListView(
+        controller: _activeOrdersScrollController,
         padding: EdgeInsets.only(
           left: 16,
           right: 16,
@@ -369,6 +444,7 @@ class _OrdersPageState extends State<OrdersPage>
     if (historyOrders.isNotEmpty) {
       final bottomInset = MediaQuery.paddingOf(context).bottom;
       return ListView(
+        controller: _historyOrdersScrollController,
         padding: EdgeInsets.only(
           left: 16,
           right: 16,

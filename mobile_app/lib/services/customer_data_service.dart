@@ -744,6 +744,49 @@ class RewardVoucher {
   }
 }
 
+class TierRewardEntitlement {
+  final int id;
+  final String status;
+  final String issueCaseRef;
+  final String tierCode;
+  final DateTime unlockedAt;
+  final RewardVoucherTemplate template;
+
+  const TierRewardEntitlement({
+    required this.id,
+    required this.status,
+    required this.issueCaseRef,
+    required this.tierCode,
+    required this.unlockedAt,
+    required this.template,
+  });
+
+  bool get isClaimable => status == 'claimable';
+
+  factory TierRewardEntitlement.fromApi(Map<String, dynamic> json) {
+    return TierRewardEntitlement(
+      id: (json['id'] as num).toInt(),
+      status: json['status'] as String? ?? '',
+      issueCaseRef: json['issue_case_ref'] as String? ?? '',
+      tierCode: json['tier_code'] as String? ?? '',
+      unlockedAt: _parseApiDate(json['unlocked_at'] as String),
+      template: RewardVoucherTemplate.fromApi(
+        Map<String, dynamic>.from(json['template'] as Map),
+      ),
+    );
+  }
+}
+
+class RewardsCenterSnapshot {
+  final List<RewardVoucher> vouchers;
+  final List<TierRewardEntitlement> claimableTierRewards;
+
+  const RewardsCenterSnapshot({
+    required this.vouchers,
+    required this.claimableTierRewards,
+  });
+}
+
 class CustomerOrderStore {
   final int id;
   final String name;
@@ -1119,6 +1162,46 @@ class CustomerDataService {
               !onlyTokenCheckoutEligible || voucher.isTokenCheckoutEligible,
         )
         .toList();
+  }
+
+  Future<RewardsCenterSnapshot> getRewardsCenter({
+    required String accessToken,
+    int limit = 50,
+    bool includeHistory = false,
+  }) async {
+    final response = await _get(
+      '/rewards/vouchers?limit=$limit${includeHistory ? '&include_history=true' : ''}',
+      accessToken: accessToken,
+    );
+
+    final vouchers = (response['vouchers'] as List? ?? const [])
+        .map((item) => RewardVoucher.fromApi(
+              Map<String, dynamic>.from(item as Map),
+            ))
+        .toList();
+    final claimableTierRewards =
+        (response['claimable_tier_rewards'] as List? ?? const [])
+            .map((item) => TierRewardEntitlement.fromApi(
+                  Map<String, dynamic>.from(item as Map),
+                ))
+            .where((reward) => reward.isClaimable)
+            .toList();
+
+    return RewardsCenterSnapshot(
+      vouchers: vouchers,
+      claimableTierRewards: claimableTierRewards,
+    );
+  }
+
+  Future<void> claimTierReward({
+    required String accessToken,
+    required int entitlementId,
+  }) async {
+    await _post(
+      '/rewards/tier-entitlements/$entitlementId/claim',
+      accessToken: accessToken,
+      body: const {},
+    );
   }
 
   Future<CustomerOrdersSnapshot> getOrders({

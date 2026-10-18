@@ -222,9 +222,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
     };
   });
 
-  app.post('/v1/auth/request-otp', {
-    config: { rateLimit: { max: 5, timeWindow: '15 minutes' } }
-  }, async (request) => {
+  app.post('/v1/auth/request-otp', async (request) => {
     const payload = requestOtpSchema.parse(request.body);
     const phone = normalizePhoneE164(payload.phone);
     const importedMembership = await findImportedMembership(phone);
@@ -236,6 +234,30 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
       );
     }
     const device = await findOrCreateDevice(payload.device_fingerprint);
+
+    // IIS is the public entry point, so every proxied customer can share the
+    // same Docker source address. Enforce OTP limits against the actual phone
+    // and device identities instead of applying a route-level IP limit that
+    // could lock every customer out after a handful of requests.
+    const [requestWindowRows] = await mysqlPool.query<Array<RowDataPacket & {
+      phone_requests: number;
+      device_requests: number;
+    }>>(
+      `SELECT
+         SUM(phone_e164 = :phone) AS phone_requests,
+         SUM(device_id = :deviceId) AS device_requests
+       FROM auth_otps
+       WHERE requested_at >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 15 MINUTE)
+         AND (phone_e164 = :phone OR device_id = :deviceId)`,
+      { phone, deviceId: device.id }
+    );
+    const requestWindow = requestWindowRows[0];
+    if (Number(requestWindow?.phone_requests ?? 0) >= 5) {
+      throw new ApiError(429, 'otp_phone_rate_limit', 'Too many codes were requested for this phone. Please wait and try again.');
+    }
+    if (Number(requestWindow?.device_requests ?? 0) >= 10) {
+      throw new ApiError(429, 'otp_device_rate_limit', 'Too many codes were requested from this device. Please wait and try again.');
+    }
     const providedEmail = payload.email?.trim() || null;
     let resolvedEmail: string;
     if (importedMembership && payload.purpose === 'signup') {
@@ -434,9 +456,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
     return response;
   });
 
-  app.post('/v1/auth/verify-otp', {
-    config: { rateLimit: { max: 10, timeWindow: '15 minutes' } }
-  }, async (request) => {
+  app.post('/v1/auth/verify-otp', async (request) => {
     const payload = verifyOtpSchema.parse(request.body);
     const requestId = Number(payload.request_id);
     const phone = normalizePhoneE164(payload.phone);
@@ -929,33 +949,61 @@ async function findOrCreateUserForPhone(
     }
   );
 
-  await connection.execute(
+  const [welcomeTemplates] = await connection.query<Array<RowDataPacket & {
+    id: number;
+    expires_in_days: number | null;
+    total_quantity: number | null;
+  }>>(
     `
-      INSERT INTO user_vouchers (
-        user_id,
-        voucher_template_id,
-        status,
-        issued_by_type,
-        issued_reason,
-        issue_case_ref,
-        issued_at,
-        expires_at
-      )
-      SELECT
-        :userId,
-        vt.id,
-        'active',
-        'system',
-        'Welcome drink voucher upon registration',
-        CONCAT('welcome:', vt.id),
-        UTC_TIMESTAMP(),
-        DATE_ADD(UTC_TIMESTAMP(), INTERVAL vt.expires_in_days DAY)
+      SELECT vt.id, vt.expires_in_days, vt.total_quantity
       FROM voucher_templates vt
-      WHERE vt.code = 'WELCOME10' AND vt.is_active = 1
+      JOIN admin_tenants tenant
+        ON tenant.id = vt.tenant_id
+       AND tenant.code = :tenantCode
+       AND tenant.status = 'active'
+      WHERE vt.code = 'WELCOME10'
+        AND vt.is_active = 1
+        AND (vt.valid_until IS NULL OR vt.valid_until > UTC_TIMESTAMP())
       LIMIT 1
+      FOR UPDATE
     `,
-    { userId: userInsert.insertId }
+    { tenantCode: env.DEPLOYMENT_TENANT_CODE }
   );
+  const welcomeTemplate = welcomeTemplates[0];
+  if (welcomeTemplate) {
+    const [welcomeCounts] = await connection.query<Array<RowDataPacket & { total_count: number }>>(
+      `
+        SELECT COUNT(*) AS total_count
+        FROM user_vouchers
+        WHERE voucher_template_id = :templateId
+          AND status <> 'revoked'
+      `,
+      { templateId: welcomeTemplate.id }
+    );
+    if (
+      welcomeTemplate.total_quantity == null ||
+      Number(welcomeCounts[0]?.total_count ?? 0) < Number(welcomeTemplate.total_quantity)
+    ) {
+      await connection.execute(
+        `
+          INSERT IGNORE INTO user_vouchers (
+            user_id, voucher_template_id, status, issued_by_type, issued_reason,
+            issue_case_ref, issued_at, expires_at
+          ) VALUES (
+            :userId, :templateId, 'active', 'system',
+            'Welcome drink voucher upon registration', :issueCaseRef,
+            UTC_TIMESTAMP(), DATE_ADD(UTC_TIMESTAMP(), INTERVAL :expiresInDays DAY)
+          )
+        `,
+        {
+          userId: userInsert.insertId,
+          templateId: welcomeTemplate.id,
+          issueCaseRef: `welcome:${welcomeTemplate.id}`,
+          expiresInDays: Math.max(1, Number(welcomeTemplate.expires_in_days ?? 30))
+        }
+      );
+    }
+  }
 
   return {
     id: userInsert.insertId,

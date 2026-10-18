@@ -4,21 +4,31 @@ import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import sharp from 'sharp';
 import { z } from 'zod';
 import { authenticateAdminRequest, requireAdminRole } from '../../admin/guard.js';
-import { mysqlPool } from '../../db/mysql.js';
+import { getUtcConnection, mysqlPool } from '../../db/mysql.js';
 import { ApiError } from '../errors.js';
 import { saveMediaAsset } from '../../lib/media-assets.js';
 import { getActiveLoyaltyTiers, getTierByCode, loadLoyaltyTiers } from '../../services/loyalty-tiers.js';
+
+const voucherBenefitTypeSchema = z.enum([
+  'Discount',
+  'Free Drink',
+  'Free Food',
+  'Percentage Off',
+  'Cash Voucher',
+  'Token Discount',
+  'Birthday Voucher'
+]);
 
 const voucherCreateUpdateSchema = z.object({
   code: z.string().trim().min(1).max(50),
   name: z.string().trim().min(1).max(255),
   type: z.string().trim().min(1).max(100),
-  benefitType: z.string().trim().min(1).max(50),
+  benefitType: voucherBenefitTypeSchema,
   promotionKind: z.enum(['standard', 'bundle']).optional().default('standard'),
   status: z.enum(['Active', 'Expired', 'Draft']).optional().default('Active'),
   tier: z.string(),
   reward: z.string().trim().max(255).optional(),
-  discountValue: z.union([z.string(), z.number()]).optional(),
+  discountValue: z.coerce.number().finite().min(0).max(1_000_000).optional(),
   productKinds: z.array(z.string()).optional().default([]),
   subcategoryCodes: z.array(z.string()).optional().default([]),
   eligibleItems: z.array(z.string()),
@@ -28,8 +38,8 @@ const voucherCreateUpdateSchema = z.object({
   qualifyingQuantity: z.number().int().min(1).max(20).optional().default(1),
   rewardQuantity: z.number().int().min(1).max(20).optional().default(1),
   expiry: z.string().trim().optional().nullable(),
-  totalQty: z.number().int().nullable().optional(),
-  limitPerUser: z.number().int().nullable().optional(),
+  totalQty: z.coerce.number().int().min(1).max(1_000_000).nullable().optional(),
+  limitPerUser: z.coerce.number().int().min(1).max(10_000).nullable().optional(),
   description: z.string().optional(),
   imageUrl: z.string().trim().max(512).nullable().optional(),
   audience: z
@@ -40,10 +50,10 @@ const voucherCreateUpdateSchema = z.object({
     .enum(['always', 'daily', 'weekly', 'monthly', 'annual', 'birthday'])
     .optional()
     .default('always'),
-  activeDays: z.array(z.string()).optional().default([]),
-  startTime: z.string().trim().optional().nullable(),
-  endTime: z.string().trim().optional().nullable(),
-  annualDate: z.string().trim().optional().nullable(),
+  activeDays: z.array(z.enum(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'])).optional().default([]),
+  startTime: z.string().trim().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional().nullable(),
+  endTime: z.string().trim().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional().nullable(),
+  annualDate: z.string().trim().regex(/^(?:\d{4}-)?\d{2}-\d{2}$/).optional().nullable(),
   monthlyDay: z.coerce.number().int().min(1).max(28).optional().nullable()
 }).superRefine((value, context) => {
   if (value.benefitType === 'Birthday Voucher' && value.availabilityMode !== 'birthday') {
@@ -51,6 +61,68 @@ const voucherCreateUpdateSchema = z.object({
       code: z.ZodIssueCode.custom,
       path: ['availabilityMode'],
       message: 'Birthday vouchers must use birthday-month availability.'
+    });
+  }
+
+  if (
+    ['Discount', 'Percentage Off', 'Cash Voucher', 'Token Discount'].includes(value.benefitType) &&
+    !(Number(value.discountValue) > 0)
+  ) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['discountValue'],
+      message: 'Discount value must be greater than zero.'
+    });
+  }
+
+  if (
+    ['Discount', 'Percentage Off'].includes(value.benefitType) &&
+    Number(value.discountValue) > 100
+  ) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['discountValue'],
+      message: 'Percentage discount cannot exceed 100%.'
+    });
+  }
+
+  if (value.availabilityMode === 'weekly' && value.activeDays.length === 0) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['activeDays'],
+      message: 'Choose at least one day for a weekly voucher.'
+    });
+  }
+
+  if (value.availabilityMode === 'annual' && !normalizeAnnualDate(value.annualDate)) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['annualDate'],
+      message: 'Choose a valid annual date.'
+    });
+  }
+
+  if (Boolean(value.startTime) !== Boolean(value.endTime)) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: value.startTime ? ['endTime'] : ['startTime'],
+      message: 'Provide both a start and end time, or leave both empty.'
+    });
+  }
+
+  if (value.totalQty != null && value.limitPerUser != null && value.limitPerUser > value.totalQty) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['limitPerUser'],
+      message: 'Per-customer limit cannot exceed the total voucher quantity.'
+    });
+  }
+
+  if (value.audience !== 'manual_issue_only' && value.limitPerUser != null && value.limitPerUser > 1) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['limitPerUser'],
+      message: 'Automatic vouchers support one voucher per customer per availability period. Use manual issuance for larger per-customer limits.'
     });
   }
 });
@@ -237,6 +309,33 @@ function parseScopeJson(value: unknown): Record<string, unknown> {
   }
 
   return {};
+}
+
+function canonicalJson(value: unknown): string {
+  const normalize = (input: unknown): unknown => {
+    if (Array.isArray(input)) return input.map(normalize);
+    if (input && typeof input === 'object') {
+      return Object.fromEntries(
+        Object.entries(input as Record<string, unknown>)
+          .sort(([left], [right]) => left.localeCompare(right))
+          .map(([key, entry]) => [key, normalize(entry)])
+      );
+    }
+    return input;
+  };
+  return JSON.stringify(normalize(parseScopeJson(value)));
+}
+
+function sameNullableNumber(left: unknown, right: unknown): boolean {
+  if (left == null && right == null) return true;
+  return Number(left) === Number(right);
+}
+
+function sameNullableDate(left: unknown, right: unknown): boolean {
+  const leftDate = parseDateValue(left);
+  const rightDate = parseDateValue(right);
+  if (!leftDate && !rightDate) return true;
+  return leftDate?.getTime() === rightDate?.getTime();
 }
 
 function parseScopeSelection(value: unknown): ScopeSelection {
@@ -451,6 +550,25 @@ function buildScopeSelection(
   };
 }
 
+function applySafeBenefitScopeDefaults(payload: VoucherPayload): VoucherPayload {
+  const hasExplicitQualifyingScope =
+    normalizeEligibleItems(payload.eligibleItems).some((item) => item !== 'All Items') ||
+    normalizeScopeCodes(payload.productKinds).length > 0 ||
+    normalizeScopeCodes(payload.subcategoryCodes).length > 0;
+
+  if (hasExplicitQualifyingScope) return payload;
+
+  if (payload.benefitType === 'Free Drink' || payload.benefitType === 'Birthday Voucher') {
+    return { ...payload, productKinds: ['drink'] };
+  }
+
+  if (payload.benefitType === 'Free Food') {
+    return { ...payload, productKinds: ['food'] };
+  }
+
+  return payload;
+}
+
 function buildPromotionRule(payload: VoucherPayload): PromotionRule {
   const qualifyingScope = buildScopeSelection(
     payload.eligibleItems,
@@ -581,15 +699,18 @@ function normalizeActiveDays(days: string[] | undefined): string[] {
 function normalizeAnnualDate(value: string | null | undefined): string | null {
   if (!value) return null;
   const trimmed = value.trim();
-  if (/^\d{2}-\d{2}$/.test(trimmed)) {
-    return trimmed;
-  }
+  const monthDay = /^\d{2}-\d{2}$/.test(trimmed)
+    ? trimmed
+    : /^\d{4}-\d{2}-\d{2}$/.test(trimmed)
+      ? trimmed.slice(5)
+      : null;
+  if (!monthDay) return null;
 
-  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
-    return trimmed.slice(5);
-  }
-
-  return null;
+  const [month, day] = monthDay.split('-').map(Number);
+  const candidate = new Date(Date.UTC(2000, month - 1, day));
+  return candidate.getUTCMonth() === month - 1 && candidate.getUTCDate() === day
+    ? monthDay
+    : null;
 }
 
 type VoucherSchedule = {
@@ -815,7 +936,10 @@ function buildVoucherWriteBindings(
   if (hasColumn(columns, 'limit_per_user')) {
     columnsToWrite.push('limit_per_user');
     placeholders.push(':limitPerUser');
-    values.limitPerUser = payload.limitPerUser ?? 1;
+    // A tier reward maps to one entitlement per customer and reward period.
+    // Enforce that invariant even if a stale or custom client sends a larger
+    // value.
+    values.limitPerUser = voucherType === 'tier_reward' ? 1 : (payload.limitPerUser ?? 1);
   }
 
   if (hasColumn(columns, 'image_url')) {
@@ -1175,7 +1299,7 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
   // POST /v1/admin/vouchers
   app.post('/v1/admin/vouchers', { preHandler: [authenticateAdminRequest] }, async (request) => {
     requireAdminRole(request, 'super_admin');
-    const payload = voucherCreateUpdateSchema.parse(request.body);
+    const payload = applySafeBenefitScopeDefaults(voucherCreateUpdateSchema.parse(request.body));
     const voucherColumns = await getVoucherTemplateColumns();
     const tierScope = await normalizeVoucherTierScope(payload.tier);
     
@@ -1275,7 +1399,7 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
   // PUT /v1/admin/vouchers/:id
   app.put<{ Params: { id: string } }>('/v1/admin/vouchers/:id', { preHandler: [authenticateAdminRequest] }, async (request) => {
     requireAdminRole(request, 'super_admin');
-    const payload = voucherCreateUpdateSchema.parse(request.body);
+    const payload = applySafeBenefitScopeDefaults(voucherCreateUpdateSchema.parse(request.body));
     const voucherColumns = await getVoucherTemplateColumns();
     const code = request.params.id;
     const tierScope = await normalizeVoucherTierScope(payload.tier);
@@ -1309,6 +1433,7 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
     if (payload.type === 'Tier Reward') {
       voucherType = 'tier_reward';
     }
+    const limitPerUser = voucherType === 'tier_reward' ? 1 : (payload.limitPerUser ?? 1);
 
     const eligibleItems = normalizeEligibleItems(payload.eligibleItems);
     const productKinds = normalizeScopeCodes(payload.productKinds);
@@ -1339,18 +1464,6 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
       audience: payload.audience,
       schedule
     });
-    const writeBindings = buildVoucherWriteBindings(
-      voucherColumns,
-      payload,
-      scopeJson,
-      discountMode,
-      voucherType,
-      discountValue,
-      tokenValue,
-      isActive,
-      effectiveValidUntil
-    );
-
     const updateAssignments = [
       'name = :name',
       'voucher_type = :voucherType',
@@ -1374,53 +1487,108 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
       updateAssignments.push('image_url = :imageUrl');
     }
 
-    await mysqlPool.query(
-      `
-        UPDATE voucher_templates
-        SET ${updateAssignments.join(', ')}
-        WHERE code = :code AND tenant_id = :tenantId
-      `,
-      {
-        code,
-        tenantId: request.adminAuth.tenantId,
-        name: payload.name,
-        voucherType,
-        discountMode,
-        discountValue,
-        tokenValue,
-        scopeJson,
-        isActive,
-        validUntil: effectiveValidUntil,
-        totalQty: payload.totalQty ?? null,
-        limitPerUser: payload.limitPerUser ?? 1,
-        imageUrl: payload.imageUrl || null
-      }
-    );
-
-    const [updatedRows] = await mysqlPool.query<Array<RowDataPacket & { image_url: string | null }>>(
-      `
-        SELECT image_url
-        FROM voucher_templates
-        WHERE code = :code AND tenant_id = :tenantId
-        LIMIT 1
-      `,
-      { code, tenantId: request.adminAuth.tenantId }
-    );
-
-    if (!updatedRows[0]) {
-      throw new ApiError(404, 'voucher_not_found', 'Voucher was not found.');
-    }
-
-    if (isActive === 0 || (effectiveValidUntil && effectiveValidUntil.getTime() <= Date.now())) {
-      await revokeUnusedVoucherIssuances(
-        code,
-        request.adminAuth.tenantId,
-        request.adminAuth.adminUserId,
-        'Voucher campaign is no longer available.'
+    const connection = await getUtcConnection();
+    try {
+      await connection.beginTransaction();
+      const [currentRows] = await connection.query<Array<VoucherTemplateRow & { issuance_count: number }>>(
+        `
+          SELECT vt.*,
+                 (SELECT COUNT(*) FROM user_vouchers uv WHERE uv.voucher_template_id = vt.id) AS issuance_count
+          FROM voucher_templates vt
+          WHERE vt.code = :code AND vt.tenant_id = :tenantId
+          LIMIT 1
+          FOR UPDATE
+        `,
+        { code, tenantId: request.adminAuth.tenantId }
       );
-    }
+      const current = currentRows[0];
+      if (!current) {
+        throw new ApiError(404, 'voucher_not_found', 'Voucher was not found.');
+      }
 
-    return { success: true, imageUrl: updatedRows[0].image_url };
+      const materialChange =
+        current.voucher_type !== voucherType ||
+        current.discount_mode !== discountMode ||
+        !sameNullableNumber(current.discount_value, discountValue) ||
+        !sameNullableNumber(current.token_value, tokenValue) ||
+        canonicalJson(current.eligible_scope_json) !== canonicalJson(scopeJson) ||
+        (hasColumn(voucherColumns, 'valid_until') && !sameNullableDate(current.valid_until, effectiveValidUntil)) ||
+        (hasColumn(voucherColumns, 'total_quantity') && !sameNullableNumber(current.total_quantity, payload.totalQty ?? null)) ||
+        (hasColumn(voucherColumns, 'limit_per_user') && !sameNullableNumber(current.limit_per_user, limitPerUser));
+      const remainsUsable = isActive === 1 &&
+        (!effectiveValidUntil || effectiveValidUntil.getTime() > Date.now());
+
+      // Issued vouchers intentionally use the live template at checkout. To
+      // prevent an administrator silently changing a customer's issued value,
+      // material changes require a new campaign. Disabling/expiring remains
+      // allowed and revokes every unused issuance below.
+      if (Number(current.issuance_count ?? 0) > 0 && remainsUsable && materialChange) {
+        throw new ApiError(
+          409,
+          'voucher_has_issuances',
+          'This voucher has already been issued. Create a new voucher for benefit, eligibility, schedule, expiry, or limit changes.'
+        );
+      }
+
+      await connection.query(
+        `
+          UPDATE voucher_templates
+          SET ${updateAssignments.join(', ')}
+          WHERE code = :code AND tenant_id = :tenantId
+        `,
+        {
+          code,
+          tenantId: request.adminAuth.tenantId,
+          name: payload.name,
+          voucherType,
+          discountMode,
+          discountValue,
+          tokenValue,
+          scopeJson,
+          isActive,
+          validUntil: effectiveValidUntil,
+          totalQty: payload.totalQty ?? null,
+          limitPerUser,
+          imageUrl: payload.imageUrl || null
+        }
+      );
+
+      if (!remainsUsable) {
+        await connection.execute(
+          `
+            UPDATE user_vouchers uv
+            JOIN voucher_templates vt ON vt.id = uv.voucher_template_id
+            SET uv.status = 'revoked',
+                uv.revoked_by_admin_id = :adminUserId,
+                uv.revoked_reason = 'Voucher campaign is no longer available.',
+                uv.revoked_at = UTC_TIMESTAMP()
+            WHERE vt.code = :code
+              AND vt.tenant_id = :tenantId
+              AND uv.status = 'active'
+              AND uv.redeemed_at IS NULL
+              AND uv.revoked_at IS NULL
+          `,
+          { code, tenantId: request.adminAuth.tenantId, adminUserId: request.adminAuth.adminUserId }
+        );
+      }
+
+      const [updatedRows] = await connection.query<Array<RowDataPacket & { image_url: string | null }>>(
+        `
+          SELECT image_url
+          FROM voucher_templates
+          WHERE code = :code AND tenant_id = :tenantId
+          LIMIT 1
+        `,
+        { code, tenantId: request.adminAuth.tenantId }
+      );
+      await connection.commit();
+      return { success: true, imageUrl: updatedRows[0]?.image_url ?? null };
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
   });
 
   // DELETE /v1/admin/vouchers/:id
@@ -1482,11 +1650,13 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
           JOIN users u ON u.id = uv.user_id
           LEFT JOIN user_profiles up ON up.user_id = u.id
           WHERE vt.code = :code
+            AND vt.tenant_id = :tenantId
           ORDER BY uv.issued_at DESC, uv.id DESC
           LIMIT :limit
         `,
         {
           code: request.params.id,
+          tenantId: request.adminAuth.tenantId,
           limit
         }
       );
@@ -1623,89 +1793,134 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
         throw new ApiError(400, 'voucher_tier_not_eligible', 'This customer is not in the eligible member tier for this voucher.');
       }
 
-      if (hasColumn(voucherColumns, 'total_quantity') && template.total_quantity !== null && template.total_quantity !== undefined) {
-        const [quantityRows] = await mysqlPool.query<Array<RowDataPacket & { count: number }>>(
-          `
-            SELECT COUNT(*) AS count
-            FROM user_vouchers
-            WHERE voucher_template_id = :templateId
-              AND status <> 'revoked'
-          `,
-          { templateId: template.id }
-        );
-
-        if ((quantityRows[0]?.count ?? 0) >= template.total_quantity) {
-          throw new ApiError(400, 'voucher_quantity_exhausted', 'Voucher allocation has been fully used.');
-        }
-      }
-
-      if (hasColumn(voucherColumns, 'limit_per_user') && template.limit_per_user !== null && template.limit_per_user !== undefined) {
-        const [limitRows] = await mysqlPool.query<Array<RowDataPacket & { count: number }>>(
-          `
-            SELECT COUNT(*) AS count
-            FROM user_vouchers
-            WHERE voucher_template_id = :templateId
-              AND user_id = :userId
-              AND status <> 'revoked'
-          `,
-          {
-            templateId: template.id,
-            userId: payload.userId
-          }
-        );
-
-        if ((limitRows[0]?.count ?? 0) >= template.limit_per_user) {
-          throw new ApiError(400, 'voucher_limit_per_user_reached', 'This customer has already reached the issue limit for this voucher.');
-        }
-      }
-
       const resolvedExpiry = resolveVoucherExpiryForIssue(template, scope, payload.expiresAt);
       if (resolvedExpiry.getTime() <= Date.now()) {
         throw new ApiError(400, 'invalid_expiry', 'Issued voucher expiry must be in the future.');
       }
 
-      const [result] = await mysqlPool.query<ResultSetHeader>(
-        `
-          INSERT INTO user_vouchers (
-            user_id,
-            voucher_template_id,
-            status,
-            issued_by_type,
-            issued_by_admin_id,
-            issued_reason,
-            issue_case_ref,
-            tier_at_issue,
-            issued_at,
-            expires_at
-          )
-          VALUES (
-            :userId,
-            :templateId,
-            'active',
-            'admin',
-            :adminUserId,
-            :issuedReason,
-            :issueCaseRef,
-            :tierAtIssue,
-            UTC_TIMESTAMP(),
-            :expiresAt
-          )
-        `,
-        {
-          userId: customer.id,
-          templateId: template.id,
-          adminUserId: request.adminAuth.adminUserId,
-          issuedReason: payload.issuedReason || `Admin issued ${template.name}`,
-          issueCaseRef: payload.issueCaseRef || null,
-          tierAtIssue: customerTier || null,
-          expiresAt: resolvedExpiry
-        }
-      );
+      const connection = await getUtcConnection();
+      try {
+        await connection.beginTransaction();
 
-      return {
-        success: true,
-        issuedVoucherId: result.insertId
-      };
+        const [lockedRows] = await connection.query<Array<RowDataPacket & {
+          id: number;
+          is_active: number;
+          valid_until: Date | null;
+          total_quantity: number | null;
+          limit_per_user: number | null;
+          updated_at: Date;
+        }>>(
+          `
+            SELECT vt.id, vt.is_active, vt.valid_until, vt.total_quantity,
+                   vt.limit_per_user, vt.updated_at
+            FROM voucher_templates vt
+            WHERE vt.id = :templateId
+              AND vt.tenant_id = :tenantId
+            LIMIT 1
+            FOR UPDATE
+          `,
+          { templateId: template.id, tenantId: request.adminAuth.tenantId }
+        );
+        const lockedTemplate = lockedRows[0];
+        if (!lockedTemplate) {
+          throw new ApiError(404, 'voucher_not_found', 'Voucher template was not found.');
+        }
+        if (
+          lockedTemplate.is_active !== 1 ||
+          (lockedTemplate.valid_until && lockedTemplate.valid_until.getTime() <= Date.now())
+        ) {
+          throw new ApiError(400, 'voucher_not_active', 'Only active voucher templates can be issued.');
+        }
+
+        const originallyReadUpdatedAt = parseDateValue(template.updated_at)?.getTime();
+        if (originallyReadUpdatedAt && lockedTemplate.updated_at.getTime() !== originallyReadUpdatedAt) {
+          throw new ApiError(409, 'voucher_changed', 'Voucher settings changed. Refresh and try again.');
+        }
+
+        if (payload.issueCaseRef) {
+          const [existingIssueRows] = await connection.query<Array<RowDataPacket & { id: number }>>(
+            `
+              SELECT id
+              FROM user_vouchers
+              WHERE user_id = :userId
+                AND voucher_template_id = :templateId
+                AND issue_case_ref = :issueCaseRef
+              LIMIT 1
+            `,
+            {
+              userId: customer.id,
+              templateId: lockedTemplate.id,
+              issueCaseRef: payload.issueCaseRef
+            }
+          );
+          if (existingIssueRows[0]) {
+            await connection.commit();
+            return {
+              success: true,
+              issuedVoucherId: existingIssueRows[0].id,
+              idempotentReplay: true
+            };
+          }
+        }
+
+        const [countRows] = await connection.query<Array<RowDataPacket & {
+          total_count: number;
+          user_count: number;
+        }>>(
+          `
+            SELECT
+              COUNT(*) AS total_count,
+              COALESCE(SUM(CASE WHEN user_id = :userId THEN 1 ELSE 0 END), 0) AS user_count
+            FROM user_vouchers
+            WHERE voucher_template_id = :templateId
+              AND status <> 'revoked'
+          `,
+          { templateId: lockedTemplate.id, userId: customer.id }
+        );
+        const counts = countRows[0];
+        if (
+          lockedTemplate.total_quantity != null &&
+          Number(counts?.total_count ?? 0) >= Number(lockedTemplate.total_quantity)
+        ) {
+          throw new ApiError(409, 'voucher_quantity_exhausted', 'Voucher allocation has been fully used.');
+        }
+        if (
+          lockedTemplate.limit_per_user != null &&
+          Number(counts?.user_count ?? 0) >= Number(lockedTemplate.limit_per_user)
+        ) {
+          throw new ApiError(409, 'voucher_limit_per_user_reached', 'This customer has already reached the issue limit for this voucher.');
+        }
+
+        const [result] = await connection.query<ResultSetHeader>(
+          `
+            INSERT INTO user_vouchers (
+              user_id, voucher_template_id, status, issued_by_type,
+              issued_by_admin_id, issued_reason, issue_case_ref, tier_at_issue,
+              issued_at, expires_at
+            ) VALUES (
+              :userId, :templateId, 'active', 'admin', :adminUserId,
+              :issuedReason, :issueCaseRef, :tierAtIssue, UTC_TIMESTAMP(), :expiresAt
+            )
+          `,
+          {
+            userId: customer.id,
+            templateId: lockedTemplate.id,
+            adminUserId: request.adminAuth.adminUserId,
+            issuedReason: payload.issuedReason || `Admin issued ${template.name}`,
+            issueCaseRef: payload.issueCaseRef || null,
+            tierAtIssue: customerTier || null,
+            expiresAt: resolvedExpiry
+          }
+        );
+
+        await connection.commit();
+        return { success: true, issuedVoucherId: result.insertId };
+      } catch (error) {
+        await connection.rollback();
+        throw error;
+      } finally {
+        connection.release();
+      }
     }
   );
 
@@ -1715,44 +1930,54 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
     async (request) => {
       requireAdminRole(request, 'super_admin');
       const payload = revokeIssuedVoucherSchema.parse(request.body);
+      const connection = await getUtcConnection();
+      try {
+        await connection.beginTransaction();
+        const [rows] = await connection.query<Array<RowDataPacket & { id: number; status: string }>>(
+          `
+            SELECT uv.id, uv.status
+            FROM user_vouchers uv
+            JOIN voucher_templates vt ON vt.id = uv.voucher_template_id
+            WHERE uv.id = :id
+              AND vt.tenant_id = :tenantId
+            LIMIT 1
+            FOR UPDATE
+          `,
+          { id: Number(request.params.id), tenantId: request.adminAuth.tenantId }
+        );
 
-      const [rows] = await mysqlPool.query<Array<RowDataPacket & { id: number; status: string }>>(
-        `
-          SELECT id, status
-          FROM user_vouchers
-          WHERE id = :id
-          LIMIT 1
-          FOR UPDATE
-        `,
-        { id: Number(request.params.id) }
-      );
-
-      const issuedVoucher = rows[0];
-      if (!issuedVoucher) {
-        throw new ApiError(404, 'issued_voucher_not_found', 'Issued voucher was not found.');
-      }
-
-      if (issuedVoucher.status !== 'active') {
-        throw new ApiError(400, 'issued_voucher_not_active', 'Only active issued vouchers can be revoked.');
-      }
-
-      await mysqlPool.query(
-        `
-          UPDATE user_vouchers
-          SET status = 'revoked',
-              revoked_by_admin_id = :adminUserId,
-              revoked_reason = :reason,
-              revoked_at = UTC_TIMESTAMP()
-          WHERE id = :id
-        `,
-        {
-          id: issuedVoucher.id,
-          adminUserId: request.adminAuth.adminUserId,
-          reason: payload.reason
+        const issuedVoucher = rows[0];
+        if (!issuedVoucher) {
+          throw new ApiError(404, 'issued_voucher_not_found', 'Issued voucher was not found.');
         }
-      );
+        if (issuedVoucher.status !== 'active') {
+          throw new ApiError(400, 'issued_voucher_not_active', 'Only active issued vouchers can be revoked.');
+        }
 
-      return { success: true };
+        await connection.query(
+          `
+            UPDATE user_vouchers
+            SET status = 'revoked',
+                revoked_by_admin_id = :adminUserId,
+                revoked_reason = :reason,
+                revoked_at = UTC_TIMESTAMP()
+            WHERE id = :id
+              AND status = 'active'
+          `,
+          {
+            id: issuedVoucher.id,
+            adminUserId: request.adminAuth.adminUserId,
+            reason: payload.reason
+          }
+        );
+        await connection.commit();
+        return { success: true };
+      } catch (error) {
+        await connection.rollback();
+        throw error;
+      } finally {
+        connection.release();
+      }
     }
   );
 }

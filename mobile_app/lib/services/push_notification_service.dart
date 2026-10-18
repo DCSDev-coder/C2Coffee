@@ -12,6 +12,7 @@ import '../utils/app_notification.dart';
 import '../screens/my_rewards_page.dart';
 import '../screens/notification_page.dart';
 import '../screens/orders_page.dart';
+import '../screens/top_up_wallet_page.dart';
 
 const _customerNotificationChannelId = 'c2_order_updates';
 const _customerNotificationChannelName = 'C2 updates';
@@ -177,6 +178,34 @@ class PushNotificationService {
             null, 'A new C2 Coffee update is available in Notifications.');
         if (opened) _openNotificationDestination(const NotificationPage());
         break;
+      case 'payment_service_notice':
+        AppNotification.showWarning(
+          null,
+          'A scheduled payment service notice is available in Notifications.',
+          onTap: () => _openNotificationDestination(const NotificationPage()),
+        );
+        if (opened) _openNotificationDestination(const NotificationPage());
+        break;
+      case 'token_topup_paid':
+        AppNotification.showSuccess(null, 'Your top-up is complete and your C2 Tokens are ready.');
+        if (opened) _openNotificationDestination(const TopUpWalletPage());
+        break;
+      case 'token_topup_failed':
+        AppNotification.showError(null, 'Your top-up was unsuccessful. No C2 Tokens were added.');
+        if (opened) _openNotificationDestination(const TopUpWalletPage());
+        break;
+      case 'token_topup_cancelled':
+        AppNotification.showInfo(null, 'Your top-up was cancelled. No C2 Tokens were added.');
+        if (opened) _openNotificationDestination(const TopUpWalletPage());
+        break;
+      case 'token_topup_refunded':
+        AppNotification.showInfo(null, 'Your top-up refund has been processed.');
+        if (opened) _openNotificationDestination(const TopUpWalletPage());
+        break;
+      case 'token_topup_review':
+        AppNotification.showWarning(null, 'Your top-up needs review. Open Notifications for details.');
+        if (opened) _openNotificationDestination(const TopUpWalletPage());
+        break;
     }
   }
 
@@ -195,6 +224,12 @@ class PushNotificationService {
       'order_pickup_reminder' => 'Pickup reminder',
       'voucher_expiring' => 'Reward expiring soon',
       'marketing_poster' => 'New C2 Coffee update',
+      'payment_service_notice' => 'Payment service notice',
+      'token_topup_paid' => 'Top-up complete',
+      'token_topup_failed' => 'Top-up unsuccessful',
+      'token_topup_cancelled' => 'Top-up cancelled',
+      'token_topup_refunded' => 'Top-up refunded',
+      'token_topup_review' => 'Top-up under review',
       _ => null,
     };
     final body = switch (type) {
@@ -202,6 +237,12 @@ class PushNotificationService {
       'order_pickup_reminder' => 'Your order is still waiting at the counter.',
       'voucher_expiring' => 'Open Rewards to use it before it expires.',
       'marketing_poster' => 'Open Notifications to see the latest update.',
+      'payment_service_notice' => 'Open Notifications to check the affected payment method and time.',
+      'token_topup_paid' => 'Your C2 Tokens are ready in your wallet.',
+      'token_topup_failed' => 'No C2 Tokens were added.',
+      'token_topup_cancelled' => 'No C2 Tokens were added.',
+      'token_topup_refunded' => 'Open your wallet for the latest status.',
+      'token_topup_review' => 'Open Notifications for details.',
       _ => null,
     };
     if (title == null || body == null) return;

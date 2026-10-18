@@ -160,41 +160,70 @@ export async function processOrderLoyalty(
 
     }
 
-    // Award thresholds crossed by this order. A base-tier reward is a first
-    // completed-drink reward, never an account-creation reward.
-    const unlockedTiers = activeTiers.filter((tier) =>
-      ((tier.minCups === 0 && currentCups === 0 && cupsLast180d >= 1)
-        || (tier.minCups > currentCups && tier.minCups <= cupsLast180d))
-      && Boolean(tier.rewardConfig?.voucherTemplateIds.length)
-    );
+    if (currentTier !== newTier) {
+      await connection.execute(
+        `
+          UPDATE user_tier_reward_entitlements
+          SET status = 'revoked',
+              revoked_reason = 'Superseded by the customer current tier',
+              revoked_at = UTC_TIMESTAMP()
+          WHERE user_id = :userId
+            AND status = 'claimable'
+            AND tier_code <> :newTier
+        `,
+        { userId, newTier }
+      );
+
+      await connection.execute(
+        `
+          UPDATE user_vouchers
+          SET status = 'revoked',
+              revoked_reason = 'Superseded by the customer current tier',
+              revoked_at = UTC_TIMESTAMP()
+          WHERE user_id = :userId
+            AND status = 'active'
+            AND redeemed_at IS NULL
+            AND revoked_at IS NULL
+            AND (
+              issue_case_ref LIKE 'tier_claim:%'
+              OR issue_case_ref LIKE 'tier_unlock:%'
+            )
+            AND (tier_at_issue IS NULL OR tier_at_issue <> :newTier)
+        `,
+        { userId, newTier }
+      );
+    }
+
+    // A tier benefit belongs only to the member's resulting/current tier. If
+    // one order crosses multiple thresholds, do not expose every historical
+    // tier as a cumulative claim list.
+    const reachedCurrentTierReward = newTierConfig
+      && ((newTierConfig.minCups === 0 && currentCups === 0 && cupsLast180d >= 1)
+        || (newTierConfig.minCups > currentCups && newTierConfig.minCups <= cupsLast180d))
+      && Boolean(newTierConfig.rewardConfig?.voucherTemplateIds.length);
+    const unlockedTiers = reachedCurrentTierReward && newTierConfig
+      ? [newTierConfig]
+      : [];
 
     for (const tier of unlockedTiers) {
-      const issuedVoucherTemplateIds: number[] = [];
+      const unlockedVoucherTemplateIds: number[] = [];
 
-      for (const voucherTemplateId of tier.rewardConfig?.voucherTemplateIds ?? []) {
-        const [issueResult] = await connection.execute<ResultSetHeader>(
+      for (const voucherTemplateId of (tier.rewardConfig?.voucherTemplateIds ?? []).slice(0, 1)) {
+        const [entitlementResult] = await connection.execute<ResultSetHeader>(
           `
-            INSERT IGNORE INTO user_vouchers (
-              user_id,
-              voucher_template_id,
-              status,
-              issued_by_type,
-              issued_reason,
-              issue_case_ref,
-              tier_at_issue,
-              issued_at,
-              expires_at
+            INSERT IGNORE INTO user_tier_reward_entitlements (
+              user_id, tenant_id, voucher_template_id, tier_code, status,
+              issue_case_ref, source_order_id, unlocked_at
             )
             SELECT
               :userId,
+              vt.tenant_id,
               vt.id,
-              'active',
-              'system',
-              :issuedReason,
-              :issueCaseRef,
               :tierCode,
-              UTC_TIMESTAMP(),
-              DATE_ADD(UTC_TIMESTAMP(), INTERVAL COALESCE(vt.expires_in_days, 30) DAY)
+              'claimable',
+              :issueCaseRef,
+              :orderId,
+              UTC_TIMESTAMP()
             FROM voucher_templates vt
             JOIN orders o
               ON o.id = :orderId
@@ -210,34 +239,183 @@ export async function processOrderLoyalty(
             userId,
             orderId,
             voucherTemplateId,
-            issuedReason: tier.minCups === 0
-              ? `First completed drink reward: ${tier.name}`
-              : `Tier unlock reward: ${tier.name}`,
-            // A member can receive each reward once for this tier, even after requalification.
             issueCaseRef: `tier_unlock:${tier.code}:${voucherTemplateId}`,
             tierCode: tier.code
           }
         );
 
-        if (issueResult.affectedRows > 0) {
-          issuedVoucherTemplateIds.push(voucherTemplateId);
+        if (entitlementResult.affectedRows > 0) {
+          unlockedVoucherTemplateIds.push(voucherTemplateId);
+          await connection.execute(
+            `INSERT INTO loyalty_order_reward_issues (
+               order_id, user_id, user_voucher_id, tier_reward_entitlement_id,
+               tier_code, reversal_status, created_at
+             ) VALUES (
+               :orderId, :userId, NULL, :entitlementId,
+               :tierCode, 'active', UTC_TIMESTAMP()
+             )`,
+            {
+              orderId,
+              userId,
+              entitlementId: entitlementResult.insertId,
+              tierCode: tier.code
+            }
+          );
         }
       }
 
-      if (issuedVoucherTemplateIds.length > 0) {
+      if (unlockedVoucherTemplateIds.length > 0) {
         await createUserNotification(connection, {
           userId,
           type: 'tier_reward',
           title: tier.minCups === 0 ? 'First drink reward unlocked' : `${tier.name} reward unlocked`,
-          body: issuedVoucherTemplateIds.length === 1
-            ? 'A tier reward voucher has been added to your account.'
-            : `${issuedVoucherTemplateIds.length} tier reward vouchers have been added to your account.`,
+          body: unlockedVoucherTemplateIds.length === 1
+            ? 'A tier reward is ready to claim in My Rewards.'
+            : `${unlockedVoucherTemplateIds.length} tier rewards are ready to claim in My Rewards.`,
           data: {
             tier_code: tier.code,
-            voucher_template_ids: issuedVoucherTemplateIds
+            voucher_template_ids: unlockedVoucherTemplateIds
           }
         });
       }
     }
   }
+}
+
+/** Reverse cups from a refunded order and persist the recalculated tier. */
+export async function reverseOrderLoyalty(
+  orderId: number,
+  userId: number,
+  connection: PoolConnection,
+  adminUserId: number
+): Promise<{ cupsReversed: number; rewardNeedsReview: boolean }> {
+  const [rewardIssues] = await connection.query<Array<RowDataPacket & {
+    issue_id: number;
+    voucher_id: number | null;
+    voucher_status: string | null;
+    entitlement_id: number | null;
+    entitlement_status: string | null;
+  }>>(
+    `SELECT lori.id AS issue_id, lori.user_voucher_id AS voucher_id,
+            uv.status AS voucher_status,
+            lori.tier_reward_entitlement_id AS entitlement_id,
+            utre.status AS entitlement_status
+     FROM loyalty_order_reward_issues lori
+     LEFT JOIN user_vouchers uv ON uv.id = lori.user_voucher_id
+     LEFT JOIN user_tier_reward_entitlements utre
+       ON utre.id = lori.tier_reward_entitlement_id
+     WHERE lori.order_id = :orderId AND lori.user_id = :userId
+       AND lori.reversal_status = 'active'
+     FOR UPDATE`,
+    { orderId, userId }
+  );
+  let rewardNeedsReview = false;
+  for (const issue of rewardIssues) {
+    if (issue.entitlement_status === 'claimable' && issue.entitlement_id !== null) {
+      await connection.execute(
+        `UPDATE user_tier_reward_entitlements
+         SET status = 'revoked', revoked_reason = 'Qualifying order refunded',
+             revoked_at = UTC_TIMESTAMP()
+         WHERE id = :entitlementId AND status = 'claimable'`,
+        { entitlementId: issue.entitlement_id }
+      );
+      await connection.execute(
+        `UPDATE loyalty_order_reward_issues
+         SET reversal_status = 'reversed', reversal_reason = 'Unclaimed tier reward revoked after refund',
+             reversed_by_admin_id = :adminUserId, reversed_at = UTC_TIMESTAMP()
+         WHERE id = :issueId`,
+        { adminUserId, issueId: issue.issue_id }
+      );
+    } else if (issue.voucher_status === 'active' && issue.voucher_id !== null) {
+      await connection.execute(
+        `UPDATE user_vouchers
+         SET status = 'revoked', revoked_by_admin_id = :adminUserId,
+             revoked_reason = 'Qualifying order refunded', revoked_at = UTC_TIMESTAMP()
+         WHERE id = :voucherId AND status = 'active'`,
+        { adminUserId, voucherId: issue.voucher_id }
+      );
+      await connection.execute(
+        `UPDATE loyalty_order_reward_issues
+         SET reversal_status = 'reversed', reversal_reason = 'Qualifying order refunded',
+             reversed_by_admin_id = :adminUserId, reversed_at = UTC_TIMESTAMP()
+         WHERE id = :issueId`,
+        { adminUserId, issueId: issue.issue_id }
+      );
+      if (issue.entitlement_id !== null) {
+        await connection.execute(
+          `UPDATE user_tier_reward_entitlements
+           SET status = 'revoked', revoked_reason = 'Qualifying order refunded',
+               revoked_at = UTC_TIMESTAMP()
+           WHERE id = :entitlementId AND status = 'claimed'`,
+          { entitlementId: issue.entitlement_id }
+        );
+      }
+    } else if (
+      issue.voucher_status === 'redeemed'
+      || issue.entitlement_status === 'claimed'
+      || (issue.voucher_status === null && issue.entitlement_status === null)
+    ) {
+      rewardNeedsReview = true;
+      await connection.execute(
+        `UPDATE loyalty_order_reward_issues
+         SET reversal_status = 'needs_review',
+             reversal_reason = :reason, reversed_by_admin_id = :adminUserId,
+             reversed_at = UTC_TIMESTAMP()
+         WHERE id = :issueId`,
+        {
+          adminUserId,
+          issueId: issue.issue_id,
+          reason: issue.voucher_status === 'redeemed' || issue.entitlement_status === 'claimed'
+            ? 'Tier reward voucher was already redeemed'
+            : 'Tier reward entitlement could not be located'
+        }
+      );
+    } else {
+      await connection.execute(
+        `UPDATE loyalty_order_reward_issues
+         SET reversal_status = 'reversed', reversal_reason = 'Voucher was already inactive',
+             reversed_by_admin_id = :adminUserId, reversed_at = UTC_TIMESTAMP()
+         WHERE id = :issueId`,
+        { adminUserId, issueId: issue.issue_id }
+      );
+    }
+  }
+
+  const [events] = await connection.query<Array<RowDataPacket & { cups_awarded: number }>>(
+    `SELECT cups_awarded
+     FROM loyalty_cup_events
+     WHERE order_id = :orderId AND user_id = :userId AND reversed_at IS NULL
+     FOR UPDATE`,
+    { orderId, userId }
+  );
+  const cupsReversed = events.reduce((total, event) => total + Number(event.cups_awarded), 0);
+  if (cupsReversed <= 0) return { cupsReversed: 0, rewardNeedsReview };
+
+  await connection.execute(
+    `UPDATE loyalty_cup_events
+     SET reversed_at = UTC_TIMESTAMP(), reversal_reason = 'Order refunded'
+     WHERE order_id = :orderId AND user_id = :userId AND reversed_at IS NULL`,
+    { orderId, userId }
+  );
+
+  const tiers = await loadLoyaltyTiers(connection);
+  const [totals] = await connection.query<Array<RowDataPacket & { total_cups: number }>>(
+    `SELECT COALESCE(SUM(cups_awarded), 0) AS total_cups
+     FROM loyalty_cup_events
+     WHERE user_id = :userId
+       AND effective_at >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 180 DAY)
+       AND reversed_at IS NULL`,
+    { userId }
+  );
+  const cupsLast180d = Number(totals[0]?.total_cups ?? 0);
+  const tier = getTierProgress(cupsLast180d, tiers).tierCode;
+  await connection.execute(
+    `INSERT INTO loyalty_tier_snapshots (
+       user_id, tier_code, qualifying_cups_last_180d, effective_at, reason_code
+     ) VALUES (
+       :userId, :tier, :cupsLast180d, UTC_TIMESTAMP(), 'refund_reversal'
+     )`,
+    { userId, tier, cupsLast180d }
+  );
+  return { cupsReversed, rewardNeedsReview };
 }

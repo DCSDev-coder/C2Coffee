@@ -4,6 +4,7 @@ import type { PoolConnection, RowDataPacket, ResultSetHeader } from 'mysql2/prom
 import sharp from 'sharp';
 import { z } from 'zod';
 import { authenticateAdminRequest, requireAdminRole, requireAnyAdminRole } from '../../admin/guard.js';
+import { requireAdminActionConfirmation } from '../../admin/action-confirmation.js';
 import { mysqlPool } from '../../db/mysql.js';
 import { ApiError } from '../errors.js';
 import { saveMediaAsset } from '../../lib/media-assets.js';
@@ -145,7 +146,7 @@ function sourceDisplayLabel(sourceType: string): string {
 
 const tierRewardConfigSchema = z.union([
   z.object({
-    voucherTemplateIds: z.array(z.coerce.number().int().positive()).max(10).optional().default([]),
+    voucherTemplateIds: z.array(z.coerce.number().int().positive()).max(1).optional().default([]),
     birthdayVoucherTemplateIds: z.array(z.coerce.number().int().positive()).max(1).optional().default([])
   }),
   // Accept the previous request shape while deployed admin clients update.
@@ -186,7 +187,8 @@ const loyaltyTierPatchSchema = loyaltyTierUpsertSchema.partial().extend({
 const tokenAdjustmentSchema = z.object({
   action: z.enum(['credit', 'debit']),
   amount: z.coerce.number().int().min(1).max(500),
-  reason: z.string().trim().min(3).max(500)
+  reason: z.string().trim().min(3).max(500),
+  confirmation_password: z.string().trim().min(8).max(200)
 });
 
 async function validateTierRewardVoucher(
@@ -674,17 +676,25 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
 
     try {
       await connection.beginTransaction();
+      await requireAdminActionConfirmation(
+        connection,
+        request.adminAuth.adminUserId,
+        payload.confirmation_password
+      );
 
       const [customerRows] = await connection.query<Array<RowDataPacket & { id: number }>>(
         `
-          SELECT id
-          FROM users
-          WHERE id = :customerId
-            AND deleted_at IS NULL
+          SELECT u.id
+          FROM users u
+          JOIN customer_tenant_memberships ctm
+            ON ctm.user_id = u.id
+           AND ctm.tenant_id = :tenantId
+          WHERE u.id = :customerId
+            AND u.deleted_at IS NULL
           LIMIT 1
           FOR UPDATE
         `,
-        { customerId: params.customerId }
+        { customerId: params.customerId, tenantId: request.adminAuth.tenantId }
       );
 
       if (!customerRows[0]) {

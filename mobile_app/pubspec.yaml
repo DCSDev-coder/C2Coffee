@@ -50,9 +50,6 @@ flutter:
 
   assets:
   - assets/images/
-  - assets/images/candles/
-  - assets/images/pastries/
-  - assets/images/merchandies/
   - assets/images/OrderStatus/
 
   fonts:

@@ -29,9 +29,13 @@ const rewardVoucherListQuerySchema = z.object({
   // Voucher history is requested explicitly so checkout continues to receive
   // only vouchers that can still be redeemed.
   include_history: z.enum(['1', 'true']).optional().transform((value) => value !== undefined),
-  // Checkout asks for every redeemable voucher. The rewards page keeps tier
-  // achievement vouchers in the tier experience instead of the general list.
+  // Retained for older app builds. New tier achievements are claimable
+  // entitlements and only become ordinary vouchers after a successful claim.
   include_tier_rewards: z.enum(['1', 'true']).optional().transform((value) => value !== undefined)
+});
+
+const tierRewardClaimParamsSchema = z.object({
+  entitlementId: z.coerce.number().int().positive()
 });
 
 const pushTokenSchema = z.object({
@@ -90,6 +94,28 @@ type VoucherRow = RowDataPacket & {
   token_value: number | null;
   min_spend_rm: string | null;
   requires_drink_in_cart: number;
+};
+
+type TierRewardEntitlementRow = RowDataPacket & {
+  id: number;
+  status: 'claimable' | 'claimed' | 'revoked';
+  issue_case_ref: string;
+  tier_code: string;
+  unlocked_at: Date;
+  template_id: number;
+  template_code: string;
+  template_name: string;
+  template_image_url: string | null;
+  voucher_type: VoucherRow['voucher_type'];
+  discount_mode: VoucherRow['discount_mode'];
+  discount_value: string;
+  token_value: number | null;
+  min_spend_rm: string | null;
+  requires_drink_in_cart: number;
+  eligible_scope_json: string | Record<string, unknown> | null;
+  exclude_scope_json: string | Record<string, unknown> | null;
+  total_quantity?: number | null;
+  limit_per_user?: number | null;
 };
 
 type AutoSyncVoucherTemplateRow = RowDataPacket & {
@@ -179,12 +205,27 @@ type NotificationRow = RowDataPacket & {
   created_at: Date;
 };
 
+type PaymentServiceNoticeRow = RowDataPacket & {
+  id: number;
+  title: string;
+  message: string;
+  payment_methods_json: string | string[];
+  starts_at: Date;
+  ends_at: Date;
+  created_at: Date;
+  is_popup_dismissed: number;
+};
+
 const notificationListQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional().default(50)
 });
 
 const notificationIdParamsSchema = z.object({
   notificationId: z.coerce.number().int().positive()
+});
+
+const paymentServiceNoticeParamsSchema = z.object({
+  noticeId: z.coerce.number().int().positive()
 });
 
 const notificationPreferencesSchema = z.object({
@@ -221,7 +262,7 @@ function publicNotificationData(value: unknown): Record<string, string> {
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
     const data = parsed as Record<string, unknown>;
     const safe: Record<string, string> = {};
-    for (const key of ['type', 'order_ref', 'voucher_id', 'banner_id']) {
+    for (const key of ['type', 'order_ref', 'voucher_id', 'banner_id', 'topup_ref', 'status']) {
       const candidate = String(data[key] ?? '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 100);
       if (candidate) safe[key] = candidate;
     }
@@ -282,6 +323,117 @@ function resolveAutoIssuedVoucherExpiry(
   return new Date(Date.now() + 3650 * 24 * 60 * 60 * 1000);
 }
 
+function isDuplicateKeyError(error: unknown): boolean {
+  return typeof error === 'object' && error !== null &&
+    'code' in error && (error as { code?: string }).code === 'ER_DUP_ENTRY';
+}
+
+async function issueAutoVisibleVoucherAtomically(input: {
+  userId: number;
+  templateId: number;
+  issueCaseRef: string;
+  issuedReason: string;
+  tierAtIssue: string | null;
+  expiresAt: Date;
+  recurring: boolean;
+}): Promise<boolean> {
+  const connection = await getUtcConnection();
+  try {
+    await connection.beginTransaction();
+
+    // Lock the template as the allocation mutex. Every automatic/manual issue
+    // path takes this lock before checking quantity, so the final allocation
+    // cannot be oversubscribed by simultaneous customer requests.
+    const [templateRows] = await connection.query<Array<RowDataPacket & {
+      total_quantity: number | null;
+      limit_per_user: number | null;
+    }>>(
+      `
+        SELECT vt.total_quantity, vt.limit_per_user
+        FROM voucher_templates vt
+        JOIN customer_tenant_memberships ctm
+          ON ctm.tenant_id = vt.tenant_id
+         AND ctm.user_id = :userId
+        WHERE vt.id = :templateId
+          AND vt.is_active = 1
+          AND (vt.valid_until IS NULL OR vt.valid_until > UTC_TIMESTAMP())
+        LIMIT 1
+        FOR UPDATE
+      `,
+      { userId: input.userId, templateId: input.templateId }
+    );
+    const lockedTemplate = templateRows[0];
+    if (!lockedTemplate) {
+      await connection.commit();
+      return false;
+    }
+
+    const [issueCountRows] = await connection.query<Array<RowDataPacket & {
+      total_count: number;
+      user_count: number;
+    }>>(
+      `
+        SELECT
+          COUNT(*) AS total_count,
+          COALESCE(SUM(
+            CASE
+              WHEN user_id = :userId
+                AND (:isRecurring = 0 OR issue_case_ref = :issueCaseRef)
+              THEN 1
+              ELSE 0
+            END
+          ), 0) AS user_count
+        FROM user_vouchers
+        WHERE voucher_template_id = :templateId
+          AND status <> 'revoked'
+      `,
+      {
+        userId: input.userId,
+        templateId: input.templateId,
+        issueCaseRef: input.issueCaseRef,
+        isRecurring: input.recurring ? 1 : 0
+      }
+    );
+    const counts = issueCountRows[0];
+    if (
+      (lockedTemplate.total_quantity != null && Number(counts?.total_count ?? 0) >= Number(lockedTemplate.total_quantity)) ||
+      (lockedTemplate.limit_per_user != null && Number(counts?.user_count ?? 0) >= Number(lockedTemplate.limit_per_user))
+    ) {
+      await connection.commit();
+      return false;
+    }
+
+    await connection.execute(
+      `
+        INSERT INTO user_vouchers (
+          user_id, voucher_template_id, status, issued_by_type, issued_reason,
+          issue_case_ref, tier_at_issue, issued_at, expires_at
+        ) VALUES (
+          :userId, :templateId, 'active', 'system', :issuedReason,
+          :issueCaseRef, :tierAtIssue, UTC_TIMESTAMP(), :expiresAt
+        )
+      `,
+      {
+        userId: input.userId,
+        templateId: input.templateId,
+        issuedReason: input.issuedReason,
+        issueCaseRef: input.issueCaseRef,
+        tierAtIssue: input.tierAtIssue,
+        expiresAt: input.expiresAt
+      }
+    );
+
+    await connection.commit();
+    return true;
+  } catch (error) {
+    await connection.rollback();
+    if (isDuplicateKeyError(error)) return false;
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
 function getVoucherScheduleMode(scope: Record<string, unknown>): string {
   const rawSchedule =
     scope.schedule && typeof scope.schedule === 'object'
@@ -335,6 +487,8 @@ function recurringIssueCaseRef(
       return `annual:${currentDate.monthDay}:${currentDate.year}`;
     case 'monthly':
       return `monthly:${currentDate.year}-${currentDate.month}`;
+    case 'weekly':
+      return `weekly:${currentDate.dateKey}`;
     case 'daily':
       return `daily:${currentDate.dateKey}`;
     default:
@@ -358,12 +512,55 @@ async function syncCurrentTierAchievementRewards(
 
   const tiers = getActiveLoyaltyTiers(await loadLoyaltyTiers());
   const tier = getTierByCode(tiers, currentTier);
-  const templateIds = tier?.rewardConfig?.voucherTemplateIds ?? [];
+  const templateIds = (tier?.rewardConfig?.voucherTemplateIds ?? []).slice(0, 1);
+
+  // Tier rewards are current-tier benefits, not a cumulative catalogue. Keep
+  // history, but make every previous-tier or superseded entitlement unusable.
+  await mysqlPool.execute(
+    `
+      UPDATE user_tier_reward_entitlements
+      SET status = 'revoked',
+          revoked_reason = 'Superseded by the customer current tier',
+          revoked_at = UTC_TIMESTAMP()
+      WHERE user_id = :userId
+        AND status = 'claimable'
+        AND (
+          tier_code <> :currentTier
+          OR :currentTemplateId IS NULL
+          OR voucher_template_id <> :currentTemplateId
+        )
+    `,
+    {
+      userId,
+      currentTier,
+      currentTemplateId: templateIds[0] ?? null
+    }
+  );
+
+  await mysqlPool.execute(
+    `
+      UPDATE user_vouchers
+      SET status = 'revoked',
+          revoked_reason = 'Superseded by the customer current tier',
+          revoked_at = UTC_TIMESTAMP()
+      WHERE user_id = :userId
+        AND status = 'active'
+        AND redeemed_at IS NULL
+        AND revoked_at IS NULL
+        AND (
+          issue_case_ref LIKE 'tier_claim:%'
+          OR issue_case_ref LIKE 'tier_unlock:%'
+        )
+        AND (tier_at_issue IS NULL OR tier_at_issue <> :currentTier)
+    `,
+    { userId, currentTier }
+  );
+
   if (!tier || templateIds.length === 0) return;
 
-  // Achievement rewards are normally issued when a collected order crosses a
-  // threshold. This backfill covers rewards configured after a member has
-  // already reached their current tier, without granting lower or future tiers.
+  // Achievement rewards are normally unlocked when a collected order crosses
+  // a threshold. This backfill creates a claimable entitlement when rewards are
+  // configured after a member has already reached their current tier.
   const hasReachedTier = tier.minCups === 0
     ? qualifyingCups >= 1
     : qualifyingCups >= tier.minCups;
@@ -372,14 +569,13 @@ async function syncCurrentTierAchievementRewards(
   for (const voucherTemplateId of templateIds) {
     await mysqlPool.execute(
       `
-        INSERT IGNORE INTO user_vouchers (
-          user_id, voucher_template_id, status, issued_by_type, issued_reason,
-          issue_case_ref, tier_at_issue, issued_at, expires_at
+        INSERT IGNORE INTO user_tier_reward_entitlements (
+          user_id, tenant_id, voucher_template_id, tier_code, status,
+          issue_case_ref, unlocked_at
         )
         SELECT
-          :userId, vt.id, 'active', 'system', :issuedReason,
-          :issueCaseRef, :tierCode, UTC_TIMESTAMP(),
-          DATE_ADD(UTC_TIMESTAMP(), INTERVAL COALESCE(vt.expires_in_days, 30) DAY)
+          :userId, vt.tenant_id, vt.id, :tierCode, 'claimable',
+          :issueCaseRef, UTC_TIMESTAMP()
         FROM voucher_templates vt
         JOIN customer_tenant_memberships ctm
           ON ctm.tenant_id = vt.tenant_id
@@ -391,7 +587,6 @@ async function syncCurrentTierAchievementRewards(
       {
         userId,
         voucherTemplateId,
-        issuedReason: `Tier unlock reward: ${tier.name}`,
         issueCaseRef: `tier_unlock:${tier.code}:${voucherTemplateId}`,
         tierCode: tier.code
       }
@@ -424,6 +619,15 @@ async function syncTierBirthdayRewards(
             OR uv.issue_case_ref LIKE 'birthday:%'
             OR vt.voucher_type = 'birthday_treat'
             OR JSON_UNQUOTE(JSON_EXTRACT(vt.eligible_scope_json, '$.schedule.mode')) = 'birthday'
+            OR EXISTS (
+              SELECT 1
+              FROM loyalty_tiers lt
+              WHERE JSON_CONTAINS(
+                COALESCE(lt.reward_config_json, JSON_OBJECT()),
+                JSON_ARRAY(uv.voucher_template_id),
+                '$.birthdayVoucherTemplateIds'
+              )
+            )
           )
       `,
       { userId }
@@ -460,6 +664,15 @@ async function syncTierBirthdayRewards(
           OR uv.issue_case_ref LIKE 'birthday:%'
           OR vt.voucher_type = 'birthday_treat'
           OR JSON_UNQUOTE(JSON_EXTRACT(vt.eligible_scope_json, '$.schedule.mode')) = 'birthday'
+          OR EXISTS (
+            SELECT 1
+            FROM loyalty_tiers lt
+            WHERE JSON_CONTAINS(
+              COALESCE(lt.reward_config_json, JSON_OBJECT()),
+              JSON_ARRAY(uv.voucher_template_id),
+              '$.birthdayVoucherTemplateIds'
+            )
+          )
         )
         AND NOT (
           uv.issue_case_ref = :expectedIssueCaseRef
@@ -479,31 +692,15 @@ async function syncTierBirthdayRewards(
   if (templateIds.length === 0) return;
 
   for (const voucherTemplateId of templateIds) {
-    await mysqlPool.execute(
-      `
-        INSERT IGNORE INTO user_vouchers (
-          user_id, voucher_template_id, status, issued_by_type, issued_reason,
-          issue_case_ref, tier_at_issue, issued_at, expires_at
-        )
-        SELECT
-          :userId, vt.id, 'active', 'system', :issuedReason,
-          :issueCaseRef, :tierCode, UTC_TIMESTAMP(), :expiresAt
-        FROM voucher_templates vt
-        JOIN customer_tenant_memberships ctm
-          ON ctm.tenant_id = vt.tenant_id
-         AND ctm.user_id = :userId
-        WHERE vt.id = :voucherTemplateId
-          AND vt.is_active = 1
-      `,
-      {
-        userId,
-        voucherTemplateId,
-        issuedReason: `Birthday-month tier reward: ${tier.name}`,
-        issueCaseRef: `tier_birthday:${currentDateParts.year}:${tier.code}:${voucherTemplateId}`,
-        tierCode: tier.code,
-        expiresAt: getKualaLumpurMonthEndUtc()
-      }
-    );
+    await issueAutoVisibleVoucherAtomically({
+      userId,
+      templateId: voucherTemplateId,
+      issuedReason: `Birthday-month tier reward: ${tier.name}`,
+      issueCaseRef: `tier_birthday:${currentDateParts.year}:${tier.code}:${voucherTemplateId}`,
+      tierAtIssue: tier.code,
+      expiresAt: getKualaLumpurMonthEndUtc(),
+      recurring: true
+    });
   }
 }
 
@@ -574,6 +771,7 @@ async function syncAutoVisibleVoucherTemplates(
       JOIN customer_tenant_memberships ctm
         ON ctm.tenant_id = vt.tenant_id AND ctm.user_id = :userId
       WHERE vt.is_active = 1
+        AND vt.voucher_type <> 'tier_reward'
         AND (vt.valid_until IS NULL OR vt.valid_until > UTC_TIMESTAMP())
         AND NOT EXISTS (
           SELECT 1
@@ -603,6 +801,9 @@ async function syncAutoVisibleVoucherTemplates(
   const existingIssueRefs = new Set(
     existingRows.map((row) => row.issue_case_ref).filter((value): value is string => Boolean(value))
   );
+  const existingTemplateIds = new Set(
+    existingRows.map((row) => Number(row.voucher_template_id))
+  );
 
   for (const template of templates) {
     // Do not auto-issue historical legacy referral vouchers.
@@ -618,7 +819,8 @@ async function syncAutoVisibleVoucherTemplates(
     const scope = parseVoucherScope(template.eligible_scope_json);
     const scheduleMode = getVoucherScheduleMode(scope);
     const schedule = getVoucherSchedule(scope);
-    const issueCaseRef = recurringIssueCaseRef(scheduleMode, currentDateParts) ?? `campaign:${template.id}`;
+    const recurringRef = recurringIssueCaseRef(scheduleMode, currentDateParts);
+    const issueCaseRef = recurringRef ?? `campaign:${template.id}`;
 
     // A member receives either the configured tier birthday reward or one
     // generic birthday campaign, never both.
@@ -631,7 +833,9 @@ async function syncAutoVisibleVoucherTemplates(
     }
 
     if (
-      existingIssueKeys.has(`${template.id}::${issueCaseRef ?? ''}`) ||
+      (recurringRef === null
+        ? existingTemplateIds.has(Number(template.id))
+        : existingIssueKeys.has(`${template.id}::${issueCaseRef}`)) ||
       (scheduleMode === 'birthday' && existingIssueRefs.has(issueCaseRef))
     ) {
       continue;
@@ -648,94 +852,38 @@ async function syncAutoVisibleVoucherTemplates(
       continue;
     }
 
-    const [issueCountRows] = await mysqlPool.query<Array<RowDataPacket & { total_count: number; user_count: number }>>(
-      `
-        SELECT
-          COUNT(*) AS total_count,
-          SUM(
-            CASE
-              WHEN user_id = :userId
-                AND (
-                  :isRecurringSchedule = 0
-                  OR issue_case_ref = :issueCaseRef
-                )
-              THEN 1
-              ELSE 0
-            END
-          ) AS user_count
-        FROM user_vouchers
-        WHERE voucher_template_id = :templateId
-          AND status <> 'revoked'
-      `,
-      {
-        userId,
-        templateId: template.id,
-        issueCaseRef,
-        isRecurringSchedule: issueCaseRef === null ? 0 : 1
-      }
-    );
-    const issueCounts = issueCountRows[0];
-    if (
-      (template.total_quantity != null && Number(issueCounts?.total_count ?? 0) >= Number(template.total_quantity)) ||
-      (template.limit_per_user != null && Number(issueCounts?.user_count ?? 0) >= Number(template.limit_per_user))
-    ) {
-      continue;
-    }
-
     const expiresAt = scheduleMode === 'birthday'
       ? getKualaLumpurMonthEndUtc()
-      : scheduleMode === 'annual' || scheduleMode === 'monthly' || scheduleMode === 'daily'
+      : scheduleMode === 'annual' || scheduleMode === 'monthly' || scheduleMode === 'weekly' || scheduleMode === 'daily'
         ? getKualaLumpurDayEndUtc()
         : resolveAutoIssuedVoucherExpiry(template);
     if (expiresAt.getTime() <= Date.now()) {
       continue;
     }
 
-    await mysqlPool.execute(
-      `
-        INSERT INTO user_vouchers (
-          user_id,
-          voucher_template_id,
-          status,
-          issued_by_type,
-          issued_reason,
-          issue_case_ref,
-          tier_at_issue,
-          issued_at,
-          expires_at
-        )
-        VALUES (
-          :userId,
-          :templateId,
-          'active',
-          'system',
-          :issuedReason,
-          :issueCaseRef,
-          :tierAtIssue,
-          UTC_TIMESTAMP(),
-          :expiresAt
-        )
-      `,
-      {
-        userId,
-        templateId: template.id,
-        issuedReason:
-          scheduleMode === 'birthday'
-            ? `Birthday voucher: ${template.name}`
-            : scheduleMode === 'annual'
-              ? `Annual voucher: ${template.name}`
-            : scheduleMode === 'monthly'
-                ? `Monthly voucher: ${template.name}`
-                : scheduleMode === 'daily'
-                  ? `Daily employee voucher: ${template.name}`
-                  : `Campaign voucher: ${template.name}`,
-        expiresAt,
-        issueCaseRef,
-        tierAtIssue: currentTier
-      }
-    );
+    const issued = await issueAutoVisibleVoucherAtomically({
+      userId,
+      templateId: Number(template.id),
+      issuedReason:
+        scheduleMode === 'birthday'
+          ? `Birthday voucher: ${template.name}`
+          : scheduleMode === 'annual'
+            ? `Annual voucher: ${template.name}`
+          : scheduleMode === 'monthly'
+              ? `Monthly voucher: ${template.name}`
+              : scheduleMode === 'daily'
+                ? `Daily employee voucher: ${template.name}`
+                : `Campaign voucher: ${template.name}`,
+      expiresAt,
+      issueCaseRef,
+      tierAtIssue: currentTier,
+      recurring: recurringRef !== null
+    });
 
-    existingIssueKeys.add(`${template.id}::${issueCaseRef ?? ''}`);
+    if (issued) {
+      existingIssueKeys.add(`${template.id}::${issueCaseRef}`);
+      existingTemplateIds.add(Number(template.id));
+    }
   }
 }
 
@@ -904,6 +1052,69 @@ export async function registerCustomerDataRoutes(
     };
   });
 
+  app.get('/v1/payment-service-notices', { preHandler: authenticateRequest }, async (request) => {
+    const [rows] = await mysqlPool.query<PaymentServiceNoticeRow[]>(
+      `SELECT psn.id, psn.title, psn.message, psn.payment_methods_json,
+              psn.starts_at, psn.ends_at, psn.created_at,
+              CASE WHEN psnd.notice_id IS NULL THEN 0 ELSE 1 END AS is_popup_dismissed
+       FROM payment_service_notices psn
+       JOIN customer_tenant_memberships ctm
+         ON ctm.tenant_id = psn.tenant_id AND ctm.user_id = :userId
+       LEFT JOIN payment_service_notice_dismissals psnd
+         ON psnd.notice_id = psn.id AND psnd.user_id = :userId
+       WHERE psn.status = 'active'
+         AND psn.ends_at > UTC_TIMESTAMP()
+       ORDER BY psn.starts_at ASC, psn.id ASC
+       LIMIT 20`,
+      { userId: request.auth.userId }
+    );
+
+    return {
+      notices: rows.map((row) => {
+        let methods: unknown = row.payment_methods_json;
+        if (typeof methods === 'string') {
+          try {
+            methods = JSON.parse(methods);
+          } catch {
+            methods = [];
+          }
+        }
+        return {
+          id: row.id,
+          title: publicNotificationText(row.title, 'Payment service maintenance', 160),
+          message: publicNotificationText(row.message, 'A payment service will be temporarily unavailable.', 600),
+          payment_methods: Array.isArray(methods)
+            ? methods.filter((method) => method === 'fpx' || method === 'duitnow_qr')
+            : [],
+          starts_at: row.starts_at.toISOString(),
+          ends_at: row.ends_at.toISOString(),
+          created_at: row.created_at.toISOString(),
+          is_popup_dismissed: row.is_popup_dismissed === 1
+        };
+      })
+    };
+  });
+
+  app.post('/v1/payment-service-notices/:noticeId/dismiss-popup', { preHandler: authenticateRequest }, async (request) => {
+    const { noticeId } = paymentServiceNoticeParamsSchema.parse(request.params);
+    const [result] = await mysqlPool.execute<ResultSetHeader>(
+      `INSERT INTO payment_service_notice_dismissals (notice_id, user_id, dismissed_at)
+       SELECT psn.id, :userId, UTC_TIMESTAMP()
+       FROM payment_service_notices psn
+       JOIN customer_tenant_memberships ctm
+         ON ctm.tenant_id = psn.tenant_id AND ctm.user_id = :userId
+       WHERE psn.id = :noticeId
+         AND psn.status = 'active'
+         AND psn.ends_at > UTC_TIMESTAMP()
+       ON DUPLICATE KEY UPDATE dismissed_at = VALUES(dismissed_at)`,
+      { noticeId, userId: request.auth.userId }
+    );
+    if (result.affectedRows === 0) {
+      throw new ApiError(404, 'payment_service_notice_not_found', 'Payment service notice was not found.');
+    }
+    return { dismissed: true };
+  });
+
   app.post('/v1/notifications/:notificationId/read', { preHandler: authenticateRequest }, async (request) => {
     const { notificationId } = notificationIdParamsSchema.parse(request.params);
     await mysqlPool.execute(
@@ -995,6 +1206,9 @@ export async function registerCustomerDataRoutes(
       `
         SELECT vt.id, vt.expires_in_days
         FROM voucher_templates vt
+        JOIN customer_tenant_memberships ctm
+          ON ctm.tenant_id = vt.tenant_id
+         AND ctm.user_id = :userId
         WHERE vt.code = 'WELCOME10'
           AND vt.is_active = 1
           AND (vt.valid_until IS NULL OR vt.valid_until > UTC_TIMESTAMP())
@@ -1009,35 +1223,15 @@ export async function registerCustomerDataRoutes(
     );
 
     for (const tpl of welcomeRows) {
-      await mysqlPool.execute(
-        `
-          INSERT INTO user_vouchers (
-            user_id,
-            voucher_template_id,
-            status,
-            issued_by_type,
-            issued_reason,
-            issue_case_ref,
-            issued_at,
-            expires_at
-          )
-          VALUES (
-            :userId,
-            :templateId,
-            'active',
-            'system',
-            'Welcome Gift Voucher',
-            CONCAT('welcome:', :templateId),
-            UTC_TIMESTAMP(),
-            DATE_ADD(UTC_TIMESTAMP(), INTERVAL :days DAY)
-          )
-        `,
-        {
-          userId,
-          templateId: tpl.id,
-          days: tpl.expires_in_days || 30
-        }
-      );
+      await issueAutoVisibleVoucherAtomically({
+        userId,
+        templateId: tpl.id,
+        issuedReason: 'Welcome Gift Voucher',
+        issueCaseRef: `welcome:${tpl.id}`,
+        tierAtIssue: null,
+        expiresAt: new Date(Date.now() + (tpl.expires_in_days || 30) * 24 * 60 * 60 * 1000),
+        recurring: false
+      });
     }
 
     await syncAutoVisibleVoucherTemplates(userId);
@@ -1096,8 +1290,89 @@ export async function registerCustomerDataRoutes(
       }
     );
 
+    const [claimableTierRewards] = await mysqlPool.query<Array<TierRewardEntitlementRow>>(
+      `
+        SELECT
+          utre.id,
+          utre.status,
+          utre.issue_case_ref,
+          utre.tier_code,
+          utre.unlocked_at,
+          vt.id AS template_id,
+          vt.code AS template_code,
+          vt.name AS template_name,
+          vt.image_url AS template_image_url,
+          vt.voucher_type,
+          vt.discount_mode,
+          CAST(vt.discount_value AS CHAR) AS discount_value,
+          vt.token_value,
+          CAST(vt.min_spend_rm AS CHAR) AS min_spend_rm,
+          vt.requires_drink_in_cart,
+          vt.eligible_scope_json,
+          vt.exclude_scope_json
+        FROM user_tier_reward_entitlements utre
+        JOIN voucher_templates vt ON vt.id = utre.voucher_template_id
+        JOIN loyalty_tiers lt
+          ON lt.code = utre.tier_code
+         AND lt.is_active = 1
+         AND CAST(
+           JSON_UNQUOTE(JSON_EXTRACT(lt.reward_config_json, '$.voucherTemplateIds[0]'))
+           AS UNSIGNED
+         ) = utre.voucher_template_id
+        JOIN loyalty_tier_snapshots current_tier
+          ON current_tier.id = (
+            SELECT latest.id
+            FROM loyalty_tier_snapshots latest
+            WHERE latest.user_id = utre.user_id
+            ORDER BY latest.effective_at DESC, latest.id DESC
+            LIMIT 1
+          )
+         AND current_tier.tier_code = utre.tier_code
+        JOIN customer_tenant_memberships ctm
+          ON ctm.user_id = utre.user_id
+         AND ctm.tenant_id = utre.tenant_id
+        WHERE utre.user_id = :userId
+          AND utre.status = 'claimable'
+          AND vt.is_active = 1
+          AND (vt.valid_until IS NULL OR vt.valid_until > UTC_TIMESTAMP())
+        ORDER BY utre.unlocked_at DESC, utre.id DESC
+        LIMIT 1
+      `,
+      { userId, limit }
+    );
+
+    // Active checkout/reward views show one usable benefit per template even
+    // if legacy data contains multiple rows. History retains every record.
+    const visibleVoucherRows = includeHistory
+      ? rows
+      : rows.filter((row, index, allRows) =>
+          allRows.findIndex((candidate) => candidate.template_code === row.template_code) === index
+        );
+
     return {
-      vouchers: rows.map((row) => ({
+      claimable_tier_rewards: claimableTierRewards.map((row) => ({
+        id: row.id,
+        status: row.status,
+        issue_case_ref: row.issue_case_ref,
+        tier_code: row.tier_code,
+        unlocked_at: row.unlocked_at.toISOString(),
+        reward_kind: 'tier_achievement',
+        template: {
+          id: row.template_id,
+          code: row.template_code,
+          name: row.template_name,
+          image_url: row.template_image_url,
+          voucher_type: row.voucher_type,
+          discount_mode: row.discount_mode,
+          discount_value: row.discount_value,
+          token_value: row.token_value,
+          min_spend_rm: row.min_spend_rm,
+          requires_drink_in_cart: row.requires_drink_in_cart === 1,
+          eligible_scope_json: row.eligible_scope_json,
+          exclude_scope_json: row.exclude_scope_json
+        }
+      })),
+      vouchers: visibleVoucherRows.map((row) => ({
         id: row.id,
         status: row.redeemed_at !== null
           ? 'redeemed'
@@ -1134,6 +1409,178 @@ export async function registerCustomerDataRoutes(
         }
       }))
     };
+  });
+
+  app.post('/v1/rewards/tier-entitlements/:entitlementId/claim', {
+    preHandler: authenticateRequest
+  }, async (request) => {
+    const { entitlementId } = tierRewardClaimParamsSchema.parse(request.params);
+    const userId = request.auth.userId;
+    const connection = await getUtcConnection();
+
+    try {
+      await connection.beginTransaction();
+      const [rows] = await connection.query<Array<TierRewardEntitlementRow & {
+        expires_in_days: number | null;
+      }>>(
+        `
+          SELECT
+            utre.id,
+            utre.status,
+            utre.issue_case_ref,
+            utre.tier_code,
+            utre.unlocked_at,
+            vt.id AS template_id,
+            vt.code AS template_code,
+            vt.name AS template_name,
+            vt.image_url AS template_image_url,
+            vt.voucher_type,
+            vt.discount_mode,
+            CAST(vt.discount_value AS CHAR) AS discount_value,
+            vt.token_value,
+            CAST(vt.min_spend_rm AS CHAR) AS min_spend_rm,
+            vt.requires_drink_in_cart,
+            vt.eligible_scope_json,
+            vt.exclude_scope_json,
+            vt.expires_in_days,
+            vt.total_quantity,
+            vt.limit_per_user
+          FROM user_tier_reward_entitlements utre
+          JOIN voucher_templates vt ON vt.id = utre.voucher_template_id
+          JOIN loyalty_tiers lt
+            ON lt.code = utre.tier_code
+           AND lt.is_active = 1
+           AND CAST(
+             JSON_UNQUOTE(JSON_EXTRACT(lt.reward_config_json, '$.voucherTemplateIds[0]'))
+             AS UNSIGNED
+           ) = utre.voucher_template_id
+          JOIN loyalty_tier_snapshots current_tier
+            ON current_tier.id = (
+              SELECT latest.id
+              FROM loyalty_tier_snapshots latest
+              WHERE latest.user_id = utre.user_id
+              ORDER BY latest.effective_at DESC, latest.id DESC
+              LIMIT 1
+            )
+           AND current_tier.tier_code = utre.tier_code
+          JOIN customer_tenant_memberships ctm
+            ON ctm.user_id = utre.user_id
+           AND ctm.tenant_id = utre.tenant_id
+          WHERE utre.id = :entitlementId
+            AND utre.user_id = :userId
+            AND vt.is_active = 1
+            AND (vt.valid_until IS NULL OR vt.valid_until > UTC_TIMESTAMP())
+          LIMIT 1
+          FOR UPDATE
+        `,
+        { entitlementId, userId }
+      );
+      const entitlement = rows[0];
+      if (!entitlement) {
+        throw new ApiError(404, 'tier_reward_not_found', 'This tier reward could not be found.');
+      }
+      if (entitlement.status !== 'claimable') {
+        throw new ApiError(
+          409,
+          'tier_reward_not_claimable',
+          entitlement.status === 'claimed'
+            ? 'This tier reward has already been claimed.'
+            : 'This tier reward is no longer available.'
+        );
+      }
+
+      const [claimCountRows] = await connection.query<Array<RowDataPacket & {
+        total_count: number;
+        user_count: number;
+      }>>(
+        `
+          SELECT COUNT(*) AS total_count,
+                 COALESCE(SUM(CASE WHEN user_id = :userId THEN 1 ELSE 0 END), 0) AS user_count
+          FROM user_vouchers
+          WHERE voucher_template_id = :templateId
+            AND status <> 'revoked'
+        `,
+        { userId, templateId: entitlement.template_id }
+      );
+      const claimCounts = claimCountRows[0];
+      if (
+        entitlement.total_quantity != null &&
+        Number(claimCounts?.total_count ?? 0) >= Number(entitlement.total_quantity)
+      ) {
+        throw new ApiError(409, 'voucher_quantity_exhausted', 'This tier reward has reached its total claim limit.');
+      }
+      if (
+        entitlement.limit_per_user != null &&
+        Number(claimCounts?.user_count ?? 0) >= Number(entitlement.limit_per_user)
+      ) {
+        throw new ApiError(409, 'voucher_limit_per_user_reached', 'You have already claimed this tier reward.');
+      }
+
+      const [insertResult] = await connection.execute<ResultSetHeader>(
+        `
+          INSERT INTO user_vouchers (
+            user_id, voucher_template_id, status, issued_by_type, issued_reason,
+            issue_case_ref, tier_at_issue, issued_at, expires_at
+          ) VALUES (
+            :userId, :voucherTemplateId, 'active', 'system', :issuedReason,
+            :issueCaseRef, :tierCode, UTC_TIMESTAMP(),
+            DATE_ADD(UTC_TIMESTAMP(), INTERVAL :expiresInDays DAY)
+          )
+        `,
+        {
+          userId,
+          voucherTemplateId: entitlement.template_id,
+          issuedReason: `Claimed tier reward: ${entitlement.template_name}`,
+          issueCaseRef: `tier_claim:${entitlement.id}`,
+          tierCode: entitlement.tier_code,
+          expiresInDays: Math.max(1, Number(entitlement.expires_in_days ?? 30))
+        }
+      );
+
+      await connection.execute(
+        `
+          UPDATE user_tier_reward_entitlements
+          SET status = 'claimed', user_voucher_id = :userVoucherId,
+              claimed_at = UTC_TIMESTAMP()
+          WHERE id = :entitlementId AND status = 'claimable'
+        `,
+        { entitlementId, userVoucherId: insertResult.insertId }
+      );
+
+      await connection.execute(
+        `
+          UPDATE loyalty_order_reward_issues
+          SET user_voucher_id = :userVoucherId
+          WHERE tier_reward_entitlement_id = :entitlementId
+            AND user_id = :userId
+        `,
+        { entitlementId, userId, userVoucherId: insertResult.insertId }
+      );
+
+      await createUserNotification(connection, {
+        userId,
+        type: 'tier_reward',
+        title: 'Tier reward claimed',
+        body: `${entitlement.template_name} is ready to use at checkout.`,
+        data: {
+          tier_code: entitlement.tier_code,
+          voucher_template_id: entitlement.template_id,
+          user_voucher_id: insertResult.insertId
+        }
+      });
+
+      await connection.commit();
+      return {
+        claimed: true,
+        entitlement_id: entitlement.id,
+        user_voucher_id: insertResult.insertId
+      };
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
   });
 
   app.post('/v1/orders/:orderId/cancel', { preHandler: authenticateRequest }, async (request) => {
