@@ -238,21 +238,14 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
-    Future<void> showSequence(int index) async {
-      if (!mounted || index >= banners.length) {
-        return;
+    Future<void> showSequence() async {
+      for (final banner in banners) {
+        if (!mounted) return;
+        await showPosterPopup(context, banner: banner);
       }
-
-      await showPosterPopup(
-        context,
-        banner: banners[index],
-        onClose: () {
-          unawaited(showSequence(index + 1));
-        },
-      );
     }
 
-    unawaited(showSequence(0));
+    unawaited(showSequence());
   }
 
   void _onBottomNavTapped(int index) {

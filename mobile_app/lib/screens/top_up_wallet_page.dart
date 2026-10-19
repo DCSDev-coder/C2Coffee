@@ -15,6 +15,7 @@ import '../utils/app_notification.dart';
 import 'loading_order_page.dart';
 import '../widgets/app_page_shell.dart';
 import '../widgets/app_tutorial.dart';
+import '../widgets/payment_service_notice_popup.dart';
 
 enum TransactionFilter { all, incoming, outgoing }
 
@@ -92,6 +93,8 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
           );
         }
       }
+      if (!mounted) return;
+      await showPendingPaymentServiceNotice(context);
     });
   }
 

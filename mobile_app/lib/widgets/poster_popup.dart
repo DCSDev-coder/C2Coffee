@@ -324,7 +324,18 @@ class _PosterPopupState extends State<PosterPopup>
   }
 }
 
-// Helper function to show the poster popup
+Future<bool> _waitUntilOwningRouteIsCurrent(BuildContext context) async {
+  while (true) {
+    if (!context.mounted) return false;
+    final route = ModalRoute.of(context);
+    if (route == null || route.isCurrent) return true;
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+  }
+}
+
+// Marketing posters are deliberately lower priority than an existing dialog.
+// Waiting for the owning page route prevents a poster from covering a payment
+// maintenance notice, tutorial, or another decision that requires user input.
 Future<void> showPosterPopup(BuildContext context,
     {HomeBanner? banner, VoidCallback? onClose}) async {
   if (banner == null) {
@@ -347,8 +358,11 @@ Future<void> showPosterPopup(BuildContext context,
   }
 
   if (!context.mounted) return;
+  final routeIsReady = await _waitUntilOwningRouteIsCurrent(context);
+  if (!routeIsReady) return;
+  if (!context.mounted) return;
 
-  showDialog(
+  await showDialog<void>(
     context: context,
     barrierDismissible: false,
     barrierColor: Colors.transparent,

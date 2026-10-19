@@ -17,6 +17,7 @@ class AppSessionService extends ChangeNotifier {
 
   static final AppSessionService instance = AppSessionService._();
   static const _selectedStoreIdKey = 'selected_store_id';
+  static const _selectedStoreManuallyKey = 'selected_store_manually';
 
   CurrentUserProfile? _user;
   int _tokenBalance = 0;
@@ -250,8 +251,17 @@ class AppSessionService extends ChangeNotifier {
     }
   }
 
-  Future<void> selectStore(StoreSummary store) async {
-    if (_selectedStore?.id == store.id && _menuCategories.isNotEmpty) return;
+  Future<void> selectStore(
+    StoreSummary store, {
+    bool selectedManually = true,
+  }) async {
+    if (_selectedStore?.id == store.id && _menuCategories.isNotEmpty) {
+      if (selectedManually) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool(_selectedStoreManuallyKey, true);
+      }
+      return;
+    }
 
     _selectedStore = store;
     _menuError = null;
@@ -259,6 +269,7 @@ class AppSessionService extends ChangeNotifier {
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_selectedStoreIdKey, store.id);
+    await prefs.setBool(_selectedStoreManuallyKey, selectedManually);
 
     final accessToken =
         await SecureSessionService.instance.getValidAccessToken();
@@ -270,6 +281,11 @@ class AppSessionService extends ChangeNotifier {
     }
 
     await _loadMenu(accessToken: accessToken, storeId: store.id);
+  }
+
+  Future<bool> shouldAutoSelectNearestStore() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_selectedStoreManuallyKey) != true;
   }
 
   void clear() {

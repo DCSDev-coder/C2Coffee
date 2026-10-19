@@ -7,7 +7,12 @@ import { mysqlPool } from "../../db/mysql.js";
 import { ApiError } from "../errors.js";
 import { getBootstrapForUser } from "./auth.js";
 import { getUserResponse } from "./me.js";
-import { isStoreOpenNow, normalizeWeeklyHours } from "../../services/store-availability.js";
+import {
+  getMobileOrderingStatus,
+  isStoreAcceptingMobileOrdersNow,
+  isStoreOpenNow,
+  normalizeWeeklyHours,
+} from "../../services/store-availability.js";
 
 const menuQuerySchema = z.object({
   store_id: z.coerce.number().int().positive(),
@@ -1028,6 +1033,9 @@ async function listActiveStores(userId: number): Promise<
     latitude: number | null;
     longitude: number | null;
     is_open_now: boolean;
+    accepts_mobile_orders_now: boolean;
+    mobile_ordering_status: "open" | "closing_soon" | "closed";
+    mobile_order_cutoff_at: string | null;
     temporarily_closed: boolean;
     weekly_hours: ReturnType<typeof normalizeWeeklyHours>;
     status: "active" | "inactive";
@@ -1061,24 +1069,31 @@ async function listActiveStores(userId: number): Promise<
     { userId },
   );
 
-  return rows.map((row) => ({
-    id: row.id,
-    code: row.code,
-    name: row.name,
-    supports_pickup: row.supports_pickup === 1,
-    pickup_lead_minutes: row.pickup_lead_minutes,
-    address_line_1: row.address_line_1,
-    address_line_2: row.address_line_2,
-    city: row.city,
-    state: row.state,
-    postcode: row.postcode,
-    latitude: row.latitude == null ? null : Number(row.latitude),
-    longitude: row.longitude == null ? null : Number(row.longitude),
-    is_open_now: isStoreOpenNow(row),
-    temporarily_closed: row.temporarily_closed === 1,
-    weekly_hours: normalizeWeeklyHours(row.weekly_hours_json),
-    status: row.status,
-  }));
+  const now = new Date();
+  return rows.map((row) => {
+    const mobileOrdering = getMobileOrderingStatus(row, now);
+    return {
+      id: row.id,
+      code: row.code,
+      name: row.name,
+      supports_pickup: row.supports_pickup === 1,
+      pickup_lead_minutes: row.pickup_lead_minutes,
+      address_line_1: row.address_line_1,
+      address_line_2: row.address_line_2,
+      city: row.city,
+      state: row.state,
+      postcode: row.postcode,
+      latitude: row.latitude == null ? null : Number(row.latitude),
+      longitude: row.longitude == null ? null : Number(row.longitude),
+      is_open_now: isStoreOpenNow(row, now),
+      accepts_mobile_orders_now: isStoreAcceptingMobileOrdersNow(row, now),
+      mobile_ordering_status: mobileOrdering.status,
+      mobile_order_cutoff_at: mobileOrdering.cutoffAt,
+      temporarily_closed: row.temporarily_closed === 1,
+      weekly_hours: normalizeWeeklyHours(row.weekly_hours_json),
+      status: row.status,
+    };
+  });
 }
 
 async function listActiveHomeBanners(userId: number): Promise<

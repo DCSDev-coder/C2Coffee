@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { isStoreOpenNow, isStoreTradingNow } from '../dist/services/store-availability.js';
+import {
+  getMobileOrderingStatus,
+  isStoreAcceptingMobileOrdersNow,
+  isStoreOpenNow,
+  isStoreTradingNow,
+} from '../dist/services/store-availability.js';
 
 const everyDay = Object.fromEntries(
   ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].map((day) => [day, { closed: false, open: '08:00', close: '22:00' }]),
@@ -23,6 +28,16 @@ test('configured hours use the outlet timezone', () => {
   assert.equal(isStoreOpenNow(store, new Date('2026-10-01T15:00:00Z')), false);
 });
 
+test('mobile ordering stops ten minutes before closing while the store keeps trading', () => {
+  const store = { status: 'active', supports_pickup: 1, timezone: 'Asia/Kuala_Lumpur', weekly_hours_json: everyDay };
+  assert.equal(getMobileOrderingStatus(store, new Date('2026-10-01T13:39:59Z')).status, 'open');
+  assert.equal(getMobileOrderingStatus(store, new Date('2026-10-01T13:40:00Z')).status, 'closing_soon');
+  assert.equal(isStoreAcceptingMobileOrdersNow(store, new Date('2026-10-01T13:49:00Z')), true);
+  assert.equal(isStoreAcceptingMobileOrdersNow(store, new Date('2026-10-01T13:50:00Z')), false);
+  assert.equal(getMobileOrderingStatus(store, new Date('2026-10-01T13:50:00Z')).status, 'closed');
+  assert.equal(isStoreTradingNow(store, new Date('2026-10-01T13:55:00Z')), true);
+});
+
 test('temporary closure and overnight schedules are enforced', () => {
   assert.equal(isStoreOpenNow({ status: 'active', supports_pickup: 1, temporarily_closed: 1 }), false);
   const overnight = structuredClone(everyDay);
@@ -30,4 +45,7 @@ test('temporary closure and overnight schedules are enforced', () => {
   overnight.thu = { closed: true, open: '', close: '' };
   const store = { status: 'active', supports_pickup: 1, timezone: 'Asia/Kuala_Lumpur', weekly_hours_json: overnight };
   assert.equal(isStoreOpenNow(store, new Date('2026-09-30T17:00:00Z')), true);
+  assert.equal(isStoreAcceptingMobileOrdersNow(store, new Date('2026-09-30T17:49:00Z')), true);
+  assert.equal(isStoreAcceptingMobileOrdersNow(store, new Date('2026-09-30T17:50:00Z')), false);
+  assert.equal(isStoreTradingNow(store, new Date('2026-09-30T17:55:00Z')), true);
 });

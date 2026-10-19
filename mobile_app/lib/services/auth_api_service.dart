@@ -87,6 +87,8 @@ String friendlyCustomerErrorMessage(
       return 'A token return is already being processed for this order. Please check your wallet shortly.';
     case 'store_closed':
       return 'This outlet is currently closed. Choose an open outlet before ordering.';
+    case 'mobile_ordering_closed':
+      return 'Mobile ordering closes 10 minutes before the outlet closes. Please order earlier or visit the counter.';
     case 'store_not_available':
       return 'This outlet is not available right now. Please choose another outlet.';
     case 'voucher_not_active':

@@ -17,6 +17,27 @@ Future<void> showPaymentServiceNoticePopup(
   );
 }
 
+/// Shows the first pending payment-service notice at a payment decision point.
+///
+/// Notice loading is deliberately best-effort: an unavailable notification
+/// endpoint must not block wallet access or a token checkout.
+Future<void> showPendingPaymentServiceNotice(BuildContext context) async {
+  try {
+    final accessToken =
+        await SecureSessionService.instance.getValidAccessToken();
+    if (accessToken == null || accessToken.isEmpty) return;
+
+    final notices = await NotificationService.instance
+        .getPaymentServiceNotices(accessToken: accessToken);
+    final pending = notices.where((notice) => !notice.isPopupDismissed);
+    if (pending.isEmpty || !context.mounted) return;
+
+    await showPaymentServiceNoticePopup(context, pending.first);
+  } catch (_) {
+    // The pinned notice remains available in Notifications if loading fails.
+  }
+}
+
 class _PaymentServiceNoticeDialog extends StatefulWidget {
   final PaymentServiceNotice notice;
 
@@ -58,78 +79,84 @@ class _PaymentServiceNoticeDialogState
   Widget build(BuildContext context) {
     final formatter = DateFormat('d MMM yyyy, h:mm a');
     final notice = widget.notice;
-    return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      icon: Icon(
-        Icons.warning_amber_rounded,
-        color: Colors.amber.shade800,
-        size: 38,
-      ),
-      title: Text(
-        notice.title,
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          fontFamily: 'Recoleta',
-          fontWeight: FontWeight.bold,
-          color: AppColors.deepTeal,
+    return PopScope(
+      canPop: false,
+      child: AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        icon: Icon(
+          Icons.warning_amber_rounded,
+          color: Colors.amber.shade800,
+          size: 38,
         ),
-      ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            notice.message,
-            style: const TextStyle(fontFamily: 'Afacad', fontSize: 16, height: 1.35),
+        title: Text(
+          notice.title,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontFamily: 'Recoleta',
+            fontWeight: FontWeight.bold,
+            color: AppColors.deepTeal,
           ),
-          const SizedBox(height: 14),
-          Text(
-            'Affected payment method',
-            style: TextStyle(
-              fontFamily: 'Afacad',
-              fontWeight: FontWeight.bold,
-              color: AppColors.deepTeal,
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              notice.message,
+              style: const TextStyle(
+                  fontFamily: 'Afacad', fontSize: 16, height: 1.35),
             ),
-          ),
-          Text(
-            notice.paymentMethodLabel,
-            style: const TextStyle(fontFamily: 'Afacad', fontSize: 15),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            '${formatter.format(notice.startsAt)}\n– ${formatter.format(notice.endsAt)}',
-            style: const TextStyle(
-              fontFamily: 'Afacad',
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              height: 1.4,
+            const SizedBox(height: 14),
+            Text(
+              'Affected payment method',
+              style: TextStyle(
+                fontFamily: 'Afacad',
+                fontWeight: FontWeight.bold,
+                color: AppColors.deepTeal,
+              ),
             ),
+            Text(
+              notice.paymentMethodLabel,
+              style: const TextStyle(fontFamily: 'Afacad', fontSize: 15),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              '${formatter.format(notice.startsAt)}\n– ${formatter.format(notice.endsAt)}',
+              style: const TextStyle(
+                fontFamily: 'Afacad',
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'This notice remains in Notifications until the maintenance window ends.',
+              style: TextStyle(
+                  fontFamily: 'Afacad', fontSize: 14, color: Colors.black54),
+            ),
+          ],
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          TextButton(
+            onPressed: _dismissing ? null : () => Navigator.pop(context),
+            child: const Text('Close for now'),
           ),
-          const SizedBox(height: 10),
-          const Text(
-            'This notice remains in Notifications until the maintenance window ends.',
-            style: TextStyle(fontFamily: 'Afacad', fontSize: 14, color: Colors.black54),
+          FilledButton(
+            onPressed: _dismissing ? null : _dontRemind,
+            style: FilledButton.styleFrom(backgroundColor: AppColors.deepTeal),
+            child: _dismissing
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white),
+                  )
+                : const Text("Don't remind me"),
           ),
         ],
       ),
-      actionsAlignment: MainAxisAlignment.center,
-      actions: [
-        TextButton(
-          onPressed: _dismissing ? null : () => Navigator.pop(context),
-          child: const Text('Close for now'),
-        ),
-        FilledButton(
-          onPressed: _dismissing ? null : _dontRemind,
-          style: FilledButton.styleFrom(backgroundColor: AppColors.deepTeal),
-          child: _dismissing
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                )
-              : const Text("Don't remind me"),
-        ),
-      ],
     );
   }
 }

@@ -11,6 +11,7 @@ import '../services/secure_session_service.dart';
 import '../utils/app_colors.dart';
 import '../utils/global_state.dart';
 import '../widgets/catalog_product_image.dart';
+import '../widgets/payment_service_notice_popup.dart';
 import '../widgets/voucher_modal.dart';
 import '../widgets/app_page_shell.dart';
 import 'loading_order_page.dart';
@@ -699,6 +700,10 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
           code: 'session_not_found',
         );
       }
+
+      if (!mounted) return;
+      await showPendingPaymentServiceNotice(context);
+      if (!mounted) return;
 
       final checkoutResult = await CheckoutApiService.instance.createTokenOrder(
         accessToken: accessToken,

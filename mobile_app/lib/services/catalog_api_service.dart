@@ -49,6 +49,9 @@ class StoreSummary {
   final double? latitude;
   final double? longitude;
   final bool isOpenNow;
+  final bool acceptsMobileOrdersNow;
+  final String mobileOrderingStatus;
+  final DateTime? mobileOrderCutoffAt;
 
   const StoreSummary({
     required this.id,
@@ -65,6 +68,9 @@ class StoreSummary {
     this.latitude,
     this.longitude,
     this.isOpenNow = true,
+    this.acceptsMobileOrdersNow = true,
+    this.mobileOrderingStatus = 'open',
+    this.mobileOrderCutoffAt,
   });
 
   String get addressLabel => [
@@ -90,6 +96,13 @@ class StoreSummary {
       latitude: (json['latitude'] as num?)?.toDouble(),
       longitude: (json['longitude'] as num?)?.toDouble(),
       isOpenNow: json['is_open_now'] as bool? ?? true,
+      acceptsMobileOrdersNow: json['accepts_mobile_orders_now'] as bool? ??
+          json['is_open_now'] as bool? ??
+          true,
+      mobileOrderingStatus: json['mobile_ordering_status'] as String? ?? 'open',
+      mobileOrderCutoffAt: DateTime.tryParse(
+        json['mobile_order_cutoff_at'] as String? ?? '',
+      )?.toLocal(),
     );
   }
 }

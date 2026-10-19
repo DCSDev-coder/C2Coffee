@@ -20,7 +20,10 @@ import { resolveOrderLifecycleStatus } from '../order-lifecycle.js';
 import { getKualaLumpurDateParts } from '../../lib/kuala-lumpur-time.js';
 import { deliverPushToStaff } from '../../services/push-delivery.js';
 import { deliverQueuedOrderReceiptEmail, queueOrderReceiptEmail } from '../../services/order-receipt-email.js';
-import { isStoreOpenNow } from '../../services/store-availability.js';
+import {
+  isStoreAcceptingMobileOrdersNow,
+  isStoreOpenNow
+} from '../../services/store-availability.js';
 
 const createOrderSchema = z.object({
   store_id: z.coerce.number().int().positive(),
@@ -463,6 +466,13 @@ export async function registerCheckoutRoutes(
       }
       if (!isStoreOpenNow(store)) {
         throw new ApiError(409, 'store_closed', 'This outlet is currently closed and cannot accept orders.');
+      }
+      if (!isStoreAcceptingMobileOrdersNow(store)) {
+        throw new ApiError(
+          409,
+          'mobile_ordering_closed',
+          'Mobile ordering closes 10 minutes before the outlet closing time.'
+        );
       }
 
       const bootstrap = await getBootstrapForUser(request.auth.userId, connection);

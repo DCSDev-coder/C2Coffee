@@ -8,12 +8,10 @@ import 'package:c2_coffee/authorization/login.dart';
 import 'package:c2_coffee/services/app_session_service.dart';
 import 'package:c2_coffee/services/secure_session_service.dart';
 import 'package:c2_coffee/services/push_notification_service.dart';
-import 'package:c2_coffee/services/notification_service.dart';
 import 'package:c2_coffee/screens/home_page.dart';
 import 'package:c2_coffee/screens/splash_screen.dart';
 import 'package:c2_coffee/utils/app_colors.dart';
 import 'package:c2_coffee/utils/app_notification.dart';
-import 'package:c2_coffee/widgets/payment_service_notice_popup.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -78,48 +76,19 @@ class _AppLifecycleRefreshGateState extends State<AppLifecycleRefreshGate>
     with WidgetsBindingObserver {
   static const _refreshInterval = Duration(seconds: 45);
   Timer? _refreshTimer;
-  bool _checkingPaymentNotices = false;
-  final Set<int> _shownPaymentNoticeIds = <int>{};
-  int? _paymentNoticeUserId;
-  DateTime? _lastPaymentNoticeCheckAt;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    AppSessionService.instance.addListener(_handleSessionStateChanged);
     _startRefreshLoop();
   }
 
   @override
   void dispose() {
     _refreshTimer?.cancel();
-    AppSessionService.instance.removeListener(_handleSessionStateChanged);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
-  }
-
-  void _handleSessionStateChanged() {
-    final userId = AppSessionService.instance.user?.id;
-    if (userId == null) {
-      _paymentNoticeUserId = null;
-      _lastPaymentNoticeCheckAt = null;
-      _shownPaymentNoticeIds.clear();
-      return;
-    }
-    if (_paymentNoticeUserId != userId) {
-      _paymentNoticeUserId = userId;
-      _lastPaymentNoticeCheckAt = null;
-      _shownPaymentNoticeIds.clear();
-    }
-    unawaited(_checkPaymentNoticesForCurrentSession());
-  }
-
-  Future<void> _checkPaymentNoticesForCurrentSession() async {
-    final accessToken =
-        await SecureSessionService.instance.getValidAccessToken();
-    if (accessToken == null || accessToken.isEmpty) return;
-    await _showPaymentNoticeIfNeeded(accessToken);
   }
 
   @override
@@ -148,40 +117,8 @@ class _AppLifecycleRefreshGateState extends State<AppLifecycleRefreshGate>
           await SecureSessionService.instance.getValidAccessToken();
       if (accessToken == null || accessToken.isEmpty) return;
       await AppSessionService.instance.loadAuthenticatedState(force: true);
-      unawaited(_showPaymentNoticeIfNeeded(accessToken));
     } catch (_) {
       // Ignore refresh failures; the active screen will show the existing state.
-    }
-  }
-
-  Future<void> _showPaymentNoticeIfNeeded(String accessToken) async {
-    if (_checkingPaymentNotices) return;
-    final now = DateTime.now();
-    if (_lastPaymentNoticeCheckAt != null &&
-        now.difference(_lastPaymentNoticeCheckAt!) < _refreshInterval) {
-      return;
-    }
-    _lastPaymentNoticeCheckAt = now;
-    _checkingPaymentNotices = true;
-    try {
-      final notices = await NotificationService.instance
-          .getPaymentServiceNotices(accessToken: accessToken);
-      final pending = notices.where(
-        (notice) =>
-            !notice.isPopupDismissed &&
-            !_shownPaymentNoticeIds.contains(notice.id),
-      );
-      if (pending.isEmpty) return;
-
-      final notice = pending.first;
-      final popupContext = AppNotification.navigatorKey.currentContext;
-      if (popupContext == null || !popupContext.mounted) return;
-      _shownPaymentNoticeIds.add(notice.id);
-      await showPaymentServiceNoticePopup(popupContext, notice);
-    } catch (_) {
-      // The pinned inbox notice remains available if popup loading fails.
-    } finally {
-      _checkingPaymentNotices = false;
     }
   }
 

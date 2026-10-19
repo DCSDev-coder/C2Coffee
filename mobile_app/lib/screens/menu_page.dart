@@ -55,8 +55,10 @@ class _MenuPageState extends State<MenuPage> {
   int _selectedCategoryIndex = 0;
   int _voucherBannerIndex = 0;
   Timer? _voucherBannerTimer;
+  Timer? _orderingStatusTimer;
   List<RewardVoucher> _voucherBanners = const [];
   Map<int, double> _storeDistancesKm = const {};
+  bool _hasShownClosingSoonNotice = false;
 
   @override
   void initState() {
@@ -71,8 +73,12 @@ class _MenuPageState extends State<MenuPage> {
     _session.addListener(_onSessionChanged);
     Future.microtask(() async {
       try {
-        await _session.loadAuthenticatedState();
+        await _session.loadAuthenticatedState(force: true);
       } catch (_) {}
+      if (!mounted) return;
+      await _loadStoreDistances();
+      if (!mounted) return;
+      await _autoSelectNearestStoreIfNeeded();
       if (!mounted) return;
       await _loadMenuPreferences();
       if (!mounted) return;
@@ -91,6 +97,11 @@ class _MenuPageState extends State<MenuPage> {
                 .clamp(0, _uiSections.length - 1);
         _selectedCategoryIndex = safeIndex;
       }
+      if (!mounted) return;
+      await _showClosingSoonNoticeIfNeeded();
+    });
+    _orderingStatusTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() {});
     });
   }
 
@@ -115,6 +126,7 @@ class _MenuPageState extends State<MenuPage> {
     _sidebarScrollController.dispose();
     _searchController.dispose();
     _voucherBannerTimer?.cancel();
+    _orderingStatusTimer?.cancel();
     _voucherBannerController.dispose();
     super.dispose();
   }
@@ -1075,49 +1087,127 @@ class _MenuPageState extends State<MenuPage> {
       });
     final selected = await showModalBottomSheet<StoreSummary>(
       context: context,
-      showDragHandle: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
       builder: (sheetContext) => SafeArea(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-              maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.7),
-          child: Column(
-            children: [
-              const ListTile(
-                title: Text('Choose pickup outlet',
-                    style: TextStyle(
-                        fontFamily: 'Recoleta', fontWeight: FontWeight.bold)),
-                subtitle: Text('Nearest outlets appear first.'),
-              ),
-              Expanded(
-                  child: ListView(
-                      children: stores
-                          .map((store) => ListTile(
-                                leading: Icon(
-                                  store.id == _session.selectedStore?.id
-                                      ? Icons.radio_button_checked
-                                      : Icons.radio_button_off,
-                                  color: AppColors.deepTeal,
-                                ),
-                                title: Text(store.name),
-                                subtitle: Text(
-                                    '${store.isOpenNow ? 'Open' : 'Closed'}${_distanceLabel(store)}'),
-                                trailing: store.isOpenNow
-                                    ? const Icon(Icons.chevron_right)
-                                    : null,
-                                enabled: store.isOpenNow,
-                                onTap: store.isOpenNow
-                                    ? () => Navigator.pop(sheetContext, store)
-                                    : null,
-                              ))
-                          .toList())),
-            ],
+        top: false,
+        child: SizedBox(
+          height: MediaQuery.sizeOf(sheetContext).height * 0.72,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 44,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.border,
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Container(
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    gradient: AppColors.headerGradient,
+                    borderRadius: BorderRadius.circular(22),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.16),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: const Icon(
+                          Icons.storefront_rounded,
+                          color: Colors.white,
+                          size: 25,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Choose pickup outlet',
+                              style: TextStyle(
+                                fontFamily: 'Recoleta',
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              'Nearest outlets appear first',
+                              style: TextStyle(
+                                fontFamily: 'Afacad',
+                                fontSize: 16,
+                                color: Colors.white.withValues(alpha: 0.82),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Expanded(
+                  child: stores.isEmpty
+                      ? const Center(
+                          child: Text(
+                            'No pickup outlets are available right now.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontFamily: 'Afacad',
+                              fontSize: 16,
+                              color: Colors.black54,
+                            ),
+                          ),
+                        )
+                      : ListView.separated(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          itemCount: stores.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 12),
+                          itemBuilder: (context, index) {
+                            final store = stores[index];
+                            final isSelected =
+                                store.id == _session.selectedStore?.id;
+                            final isAvailable = _acceptsMobileOrders(store);
+                            return _StorePickerOption(
+                              title: store.name,
+                              subtitle:
+                                  '${_storeOrderingLabel(store)}${_distanceLabel(store)}',
+                              isSelected: isSelected,
+                              isAvailable: isAvailable,
+                              onTap: isAvailable
+                                  ? () => Navigator.pop(sheetContext, store)
+                                  : null,
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
-    if (!mounted ||
-        selected == null ||
-        selected.id == _session.selectedStore?.id) {
+    if (!mounted || selected == null) return;
+    if (selected.id == _session.selectedStore?.id) {
+      await _session.selectStore(selected);
       return;
     }
 
@@ -1160,6 +1250,15 @@ class _MenuPageState extends State<MenuPage> {
         : ' · ${distance.toStringAsFixed(1)} km';
   }
 
+  String _storeOrderingLabel(StoreSummary store) {
+    final minutes = _minutesUntilMobileOrderCutoff(store);
+    if (_isMobileOrderingClosingSoon(store) && minutes != null) {
+      return '$minutes ${minutes == 1 ? 'minute' : 'minutes'} before closing';
+    }
+    if (_acceptsMobileOrders(store)) return 'Open';
+    return 'Close';
+  }
+
   Future<void> _loadStoreDistances() async {
     try {
       if (!await Geolocator.isLocationServiceEnabled()) return;
@@ -1185,6 +1284,91 @@ class _MenuPageState extends State<MenuPage> {
     } catch (_) {
       // Manual outlet selection remains available if location cannot be read.
     }
+  }
+
+  Future<void> _autoSelectNearestStoreIfNeeded() async {
+    if (!_cart.isEmpty || _storeDistancesKm.isEmpty) return;
+    if (!await _session.shouldAutoSelectNearestStore()) return;
+
+    StoreSummary? nearest;
+    double? nearestDistance;
+    for (final store in _session.stores) {
+      final distance = _storeDistancesKm[store.id];
+      if (distance == null) continue;
+      if (nearestDistance == null || distance < nearestDistance) {
+        nearest = store;
+        nearestDistance = distance;
+      }
+    }
+    if (nearest == null || nearest.id == _session.selectedStore?.id) return;
+
+    await _session.selectStore(nearest, selectedManually: false);
+    if (!mounted) return;
+    _sectionKeys.clear();
+    setState(() => _selectedCategoryIndex = 0);
+  }
+
+  bool _acceptsMobileOrders(StoreSummary? store) {
+    if (store == null || !store.acceptsMobileOrdersNow) return false;
+    final cutoff = store.mobileOrderCutoffAt;
+    return cutoff == null || DateTime.now().isBefore(cutoff);
+  }
+
+  int? _minutesUntilMobileOrderCutoff(StoreSummary? store) {
+    final cutoff = store?.mobileOrderCutoffAt;
+    if (cutoff == null) return null;
+    final seconds = cutoff.difference(DateTime.now()).inSeconds;
+    if (seconds <= 0) return 0;
+    return (seconds / 60).ceil();
+  }
+
+  bool _isMobileOrderingClosingSoon(StoreSummary? store) {
+    final remaining = _minutesUntilMobileOrderCutoff(store);
+    return _acceptsMobileOrders(store) &&
+        remaining != null &&
+        remaining >= 1 &&
+        remaining <= 10;
+  }
+
+  Future<void> _showClosingSoonNoticeIfNeeded() async {
+    if (_hasShownClosingSoonNotice) return;
+    final store = _session.selectedStore;
+    if (!_isMobileOrderingClosingSoon(store) || store == null) return;
+    _hasShownClosingSoonNotice = true;
+    final minutes = _minutesUntilMobileOrderCutoff(store)!;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        icon: Icon(
+          Icons.schedule_rounded,
+          color: AppColors.deepTeal,
+          size: 38,
+        ),
+        title: const Text(
+          'Mobile ordering closes soon',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontFamily: 'Recoleta',
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Text(
+          '${store.name} will stop accepting mobile orders in $minutes ${minutes == 1 ? 'minute' : 'minutes'}. Please complete your order before the cutoff.',
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontFamily: 'Afacad', fontSize: 16),
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.deepTeal),
+            child: const Text('Continue ordering'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _openStoreDirection() {
@@ -1410,22 +1594,27 @@ class _MenuPageState extends State<MenuPage> {
                       width: 7,
                       height: 7,
                       decoration: BoxDecoration(
-                        color: _session.selectedStore?.isOpenNow == true
+                        color: _acceptsMobileOrders(_session.selectedStore)
                             ? const Color(0xFF10B981)
                             : Colors.grey,
                         shape: BoxShape.circle,
                       ),
                     ),
                     const SizedBox(width: 5),
-                    Text(
-                      _session.selectedStore?.isOpenNow == true
-                          ? 'Open for Store Pickup'
-                          : 'Closed',
-                      style: TextStyle(
-                        fontFamily: 'Afacad',
-                        fontSize: 15,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.black54,
+                    Expanded(
+                      child: Text(
+                        _session.selectedStore == null
+                            ? 'Choose a pickup outlet'
+                            : _storeOrderingLabel(_session.selectedStore!),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        softWrap: false,
+                        style: TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.black54,
+                        ),
                       ),
                     ),
                   ],
@@ -1475,7 +1664,7 @@ class _MenuPageState extends State<MenuPage> {
   }
 
   Widget _buildCheckoutBar() {
-    final isOpen = _session.selectedStore?.isOpenNow == true;
+    final isOpen = _acceptsMobileOrders(_session.selectedStore);
     final itemCount = _cart.items.length;
     return Material(
       color: isOpen ? AppColors.deepTeal : Colors.grey.shade600,
@@ -1493,7 +1682,9 @@ class _MenuPageState extends State<MenuPage> {
               }
             : () => AppNotification.showWarning(
                   context,
-                  'This outlet is currently closed. Choose an open outlet to order.',
+                  _session.selectedStore?.isOpenNow == true
+                      ? 'Mobile ordering closes 10 minutes before the outlet closes. Please order earlier or visit the counter.'
+                      : 'This outlet is currently closed. Choose an open outlet to order.',
                 ),
         child: Container(
           height: 54,
@@ -2057,6 +2248,113 @@ class _ResponsiveMenuItemName extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _StorePickerOption extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final bool isSelected;
+  final bool isAvailable;
+  final VoidCallback? onTap;
+
+  const _StorePickerOption({
+    required this.title,
+    required this.subtitle,
+    required this.isSelected,
+    required this.isAvailable,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final accentColor = isAvailable ? AppColors.primary : Colors.black38;
+    return Opacity(
+      opacity: isAvailable ? 1 : 0.62,
+      child: Material(
+        color: isSelected ? AppColors.surfaceLight : const Color(0xFFFAFAF8),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: BorderSide(
+            color: isSelected ? AppColors.primary : AppColors.border,
+            width: isSelected ? 1.5 : 1,
+          ),
+        ),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(18),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+            child: Row(
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: accentColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(
+                    Icons.location_on_rounded,
+                    color: accentColor,
+                    size: 25,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.brandText,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 14,
+                          color: Colors.black54,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                if (isSelected)
+                  Icon(
+                    Icons.check_circle_rounded,
+                    color: AppColors.primary,
+                    size: 25,
+                  )
+                else if (isAvailable)
+                  const Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    size: 15,
+                    color: Colors.black38,
+                  )
+                else
+                  const Icon(
+                    Icons.lock_outline_rounded,
+                    size: 20,
+                    color: Colors.black38,
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
