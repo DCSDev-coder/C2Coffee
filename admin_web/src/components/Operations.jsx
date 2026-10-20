@@ -272,7 +272,7 @@ export default function Operations() {
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#5C867F]">Store operations</p>
             <h1 className="mt-1 text-3xl font-bold text-slate-900">Store operations</h1>
-            <p className="mt-2 max-w-3xl text-sm text-slate-500">Publish the weekly staffing plan and review attendance. Receipt printers are set up directly on each Android Barista tablet.</p>
+            <p className="mt-2 max-w-3xl text-sm text-slate-500">Publish the weekly staffing plan and review attendance. Receipt printers are set up directly on each Android C2 Store device.</p>
           </div>
           <button type="button" onClick={() => void loadData()} disabled={loading} className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} /> Refresh

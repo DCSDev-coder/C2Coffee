@@ -83,6 +83,34 @@ test('approved order refunds reverse loyalty and referral qualification', async 
   assert.match(loyalty, /Tier reward voucher was already redeemed/);
 });
 
+test('direct printer jobs can be claimed only by the activated outlet device', async () => {
+  const guard = await source('src/counter/guard.ts');
+  assert.match(guard, /tenant\.code AS tenantCode/);
+
+  const counter = await source('src/http/routes/counter.ts');
+  assert.match(counter, /\/v1\/counter\/direct-printer\/configure/);
+  assert.match(counter, /\/v1\/counter\/direct-printer\/remove/);
+  assert.match(counter, /\/v1\/counter\/direct-print-jobs\/claim/);
+  assert.match(counter, /\/v1\/counter\/direct-print-jobs\/acknowledge/);
+  assert.match(counter, /preHandler: authenticateCounterDevice/);
+  assert.match(counter, /store_id = :storeId/);
+  assert.match(counter, /tenant_code = :tenantCode/);
+  assert.match(counter, /direct_print_device_key = :workstationKey/);
+  assert.match(counter, /printerReference = `counter-device-\$\{request\.counterAuth\.deviceId\}`/);
+  assert.match(counter, /o\.store_id = :storeId/);
+});
+
+test('side-work completion is due-time, attendance, tenant, and PIN guarded', async () => {
+  const baristaStaff = await source('src/http/routes/barista-staff.ts');
+  assert.match(baristaStaff, /\/v1\/barista\/side-work\/complete/);
+  assert.match(baristaStaff, /verifyPassword\(payload\.pin/);
+  assert.match(baristaStaff, /clocked_out_at IS NULL/);
+  assert.match(baristaStaff, /tenant_id = :tenantId/);
+  assert.match(baristaStaff, /TIMESTAMP\(scheduled_date, scheduled_time\) <= CONVERT_TZ/);
+  assert.match(baristaStaff, /AS is_due/);
+  assert.match(baristaStaff, /INSERT IGNORE INTO barista_side_work_completions/);
+});
+
 test('tier rewards require an explicit claim before checkout use', async () => {
   const rewards = await source('src/http/routes/customer-data.ts');
   assert.match(rewards, /user_tier_reward_entitlements/);

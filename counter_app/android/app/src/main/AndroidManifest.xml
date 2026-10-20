@@ -1,7 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET"/>
     <application
-        android:label="C2 Counter"
+        android:label="C2 Store"
         android:allowBackup="false"
         android:fullBackupContent="false"
         android:name="${applicationName}"

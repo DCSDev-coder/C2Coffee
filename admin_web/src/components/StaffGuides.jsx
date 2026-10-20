@@ -30,7 +30,7 @@ export default function StaffGuides() {
   };
   const removeGuide = async (id) => { if (!window.confirm('Delete this staff guide image?')) return; await adminRequest(`/v1/admin/barista-guides/${id}`, { method: 'DELETE' }); await load(); };
   return <div className="p-6 lg:p-10 space-y-7">
-    <div><h1 className="text-3xl font-bold text-gray-900">Staff Guides</h1><p className="mt-2 text-gray-500">Upload image-only attire, store-rule, and drink preparation guides for the Barista app.</p></div>
+    <div><h1 className="text-3xl font-bold text-gray-900">Staff Guides</h1><p className="mt-2 text-gray-500">Upload image-only attire, store-rule, and drink preparation guides for the C2 Store Barista Workspace.</p></div>
     <form onSubmit={addGuide} className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm grid gap-4 md:grid-cols-4 items-end">
       <label className="text-sm font-semibold text-gray-700">Guide type<select value={type} onChange={(event) => { setType(event.target.value); setFile(null); setMenuItemId(''); setGuideTitle(''); }} className="mt-2 w-full rounded-lg border border-gray-300 p-3"><option value="attire">Attire guide</option><option value="rules">Store rules</option><option value="drink">Drink preparation</option></select></label>
       {type === 'drink' && <label className="text-sm font-semibold text-gray-700">Drink<select value={menuItemId} onChange={(event) => setMenuItemId(event.target.value)} className="mt-2 w-full rounded-lg border border-gray-300 p-3"><option value="">Select drink</option>{menuItems.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>}

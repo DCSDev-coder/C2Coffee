@@ -34,6 +34,26 @@ const activateDeviceSchema = z.object({
   activation_code: z.string().trim().toUpperCase().min(8).max(64)
 });
 
+const workstationKeyPattern = /^C2-[A-Z0-9]{12}$/;
+const directPrinterConfigurationSchema = z.object({
+  network_host: z.string().trim().ip({ version: 'v4' }),
+  network_port: z.coerce.number().int().min(1).max(65535)
+});
+const directPrintAcknowledgementSchema = z.object({
+  job_ref: z.string().uuid(),
+  outcome: z.enum(['printed', 'failed']),
+  error_code: z.string().trim().max(100).optional()
+});
+
+function counterWorkstationKey(request: FastifyRequest): string {
+  const value = request.headers['x-c2-workstation-key'];
+  const key = typeof value === 'string' ? value.trim().toUpperCase() : '';
+  if (!workstationKeyPattern.test(key)) {
+    throw new ApiError(400, 'invalid_workstation_key', 'This device needs a valid workstation code.');
+  }
+  return key;
+}
+
 const counterQuoteSchema = z.object({
   applied_voucher_id: z.coerce.number().int().positive().nullish(),
   items: z.array(z.object({
@@ -263,6 +283,238 @@ export async function registerCounterRoutes(app: FastifyInstance): Promise<void>
       tenant_id: request.counterAuth.tenantId
     }
   }));
+
+  app.post('/v1/counter/direct-printer/configure', { preHandler: authenticateCounterDevice }, async (request, reply) => {
+    const key = counterWorkstationKey(request);
+    const body = directPrinterConfigurationSchema.parse(request.body);
+    const printerReference = `counter-device-${request.counterAuth.deviceId}`;
+    const connection = await mysqlPool.getConnection();
+    try {
+      await connection.beginTransaction();
+      await connection.execute(
+        `UPDATE printer_targets
+         SET is_default = 0
+         WHERE tenant_code = :tenantCode AND store_id = :storeId`,
+        {
+          tenantCode: request.counterAuth.tenantCode,
+          storeId: request.counterAuth.storeId
+        }
+      );
+      await connection.execute(
+        `UPDATE printer_targets
+         SET status = 'disabled', is_default = 0
+         WHERE tenant_code = :tenantCode AND store_id = :storeId
+           AND delivery_mode = 'android_direct'
+           AND direct_print_device_key = :workstationKey
+           AND printer_reference <> :printerReference`,
+        {
+          tenantCode: request.counterAuth.tenantCode,
+          storeId: request.counterAuth.storeId,
+          workstationKey: key,
+          printerReference
+        }
+      );
+      await connection.execute(
+        `INSERT INTO printer_targets (
+           tenant_code, store_id, integration_id, name, delivery_mode,
+           printer_reference, network_host, network_port,
+           direct_print_device_key, status, is_default
+         ) VALUES (
+           :tenantCode, :storeId, NULL, :name, 'android_direct',
+           :printerReference, :networkHost, :networkPort,
+           :workstationKey, 'pending', 1
+         )
+         ON DUPLICATE KEY UPDATE
+           store_id = VALUES(store_id), name = VALUES(name),
+           delivery_mode = 'android_direct', network_host = VALUES(network_host),
+           network_port = VALUES(network_port),
+           direct_print_device_key = VALUES(direct_print_device_key),
+           status = 'pending', is_default = 1,
+           last_checked_at = NULL, last_error_code = NULL`,
+        {
+          tenantCode: request.counterAuth.tenantCode,
+          storeId: request.counterAuth.storeId,
+          name: `${request.counterAuth.label} receipt printer`.slice(0, 120),
+          printerReference,
+          networkHost: body.network_host,
+          networkPort: body.network_port,
+          workstationKey: key
+        }
+      );
+      await connection.commit();
+      return reply.send({ configured: true, status: 'pending_test' });
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  });
+
+  app.post('/v1/counter/direct-printer/remove', { preHandler: authenticateCounterDevice }, async (request, reply) => {
+    const key = counterWorkstationKey(request);
+    await mysqlPool.execute(
+      `UPDATE printer_targets
+       SET status = 'disabled', is_default = 0,
+           last_checked_at = UTC_TIMESTAMP(), last_error_code = 'removed_on_device'
+       WHERE tenant_code = :tenantCode AND store_id = :storeId
+         AND delivery_mode = 'android_direct' AND direct_print_device_key = :workstationKey`,
+      {
+        tenantCode: request.counterAuth.tenantCode,
+        storeId: request.counterAuth.storeId,
+        workstationKey: key
+      }
+    );
+    return reply.send({ removed: true });
+  });
+
+  app.post('/v1/counter/direct-printer/tested', { preHandler: authenticateCounterDevice }, async (request, reply) => {
+    const key = counterWorkstationKey(request);
+    const [result] = await mysqlPool.execute<ResultSetHeader>(
+      `UPDATE printer_targets
+       SET status = 'connected', last_checked_at = UTC_TIMESTAMP(), last_error_code = NULL
+       WHERE tenant_code = :tenantCode AND store_id = :storeId
+         AND delivery_mode = 'android_direct' AND direct_print_device_key = :workstationKey`,
+      {
+        tenantCode: request.counterAuth.tenantCode,
+        storeId: request.counterAuth.storeId,
+        workstationKey: key
+      }
+    );
+    if (result.affectedRows !== 1) {
+      throw new ApiError(404, 'direct_printer_not_assigned', 'No direct printer is assigned to this outlet device.');
+    }
+    return reply.send({ connected: true });
+  });
+
+  app.post('/v1/counter/direct-print-jobs/claim', { preHandler: authenticateCounterDevice }, async (request, reply) => {
+    const key = counterWorkstationKey(request);
+    const connection = await mysqlPool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [printers] = await connection.execute<RowDataPacket[]>(
+        `SELECT id, name, network_host, network_port
+         FROM printer_targets
+         WHERE tenant_code = :tenantCode AND store_id = :storeId
+           AND delivery_mode = 'android_direct' AND status = 'connected'
+           AND direct_print_device_key = :workstationKey
+         LIMIT 1 FOR UPDATE`,
+        {
+          tenantCode: request.counterAuth.tenantCode,
+          storeId: request.counterAuth.storeId,
+          workstationKey: key
+        }
+      );
+      const printer = printers[0];
+      if (!printer?.network_host || !printer.network_port) {
+        await connection.commit();
+        return reply.code(204).send();
+      }
+
+      await connection.execute(
+        `UPDATE print_jobs
+         SET status = 'queued', last_error_code = 'device_claim_timed_out'
+         WHERE printer_target_id = :printerTargetId AND status = 'dispatching'
+           AND updated_at < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 2 MINUTE)`,
+        { printerTargetId: printer.id }
+      );
+      const [jobs] = await connection.execute<RowDataPacket[]>(
+        `SELECT j.id, j.job_ref, o.order_ref, o.created_at,
+                COALESCE(NULLIF(TRIM(up.display_name), ''), 'Guest') AS customer_name
+         FROM print_jobs j
+         JOIN orders o ON o.id = j.order_id AND o.store_id = :storeId
+         LEFT JOIN user_profiles up ON up.user_id = o.user_id
+         WHERE j.printer_target_id = :printerTargetId AND j.status = 'queued'
+         ORDER BY j.created_at ASC LIMIT 1 FOR UPDATE`,
+        { printerTargetId: printer.id, storeId: request.counterAuth.storeId }
+      );
+      const job = jobs[0];
+      if (!job) {
+        await connection.commit();
+        return reply.code(204).send();
+      }
+
+      await connection.execute(
+        `UPDATE print_jobs
+         SET status = 'dispatching', attempt_count = attempt_count + 1, last_error_code = NULL
+         WHERE id = :jobId`,
+        { jobId: job.id }
+      );
+      const [items] = await connection.execute<RowDataPacket[]>(
+        `SELECT oi.id, oi.item_name_snapshot, oi.quantity
+         FROM order_items oi
+         WHERE oi.order_id = (SELECT order_id FROM print_jobs WHERE id = :jobId)
+         ORDER BY oi.id ASC`,
+        { jobId: job.id }
+      );
+      const [modifiers] = await connection.execute<RowDataPacket[]>(
+        `SELECT oim.order_item_id, oim.modifier_group_name_snapshot, oim.modifier_option_name_snapshot
+         FROM order_item_modifiers oim
+         JOIN order_items oi ON oi.id = oim.order_item_id
+         WHERE oi.order_id = (SELECT order_id FROM print_jobs WHERE id = :jobId)
+         ORDER BY oim.id ASC`,
+        { jobId: job.id }
+      );
+      const detailsByItemId = new Map<number, string[]>();
+      for (const modifier of modifiers) {
+        const details = detailsByItemId.get(Number(modifier.order_item_id)) ?? [];
+        details.push(`${modifier.modifier_group_name_snapshot}: ${modifier.modifier_option_name_snapshot}`);
+        detailsByItemId.set(Number(modifier.order_item_id), details);
+      }
+      await connection.commit();
+      return reply.send({
+        job_ref: job.job_ref,
+        printer: {
+          name: printer.name,
+          host: printer.network_host,
+          port: Number(printer.network_port)
+        },
+        order: {
+          order_ref: job.order_ref,
+          customer_name: job.customer_name,
+          created_at: new Date(job.created_at).toISOString(),
+          items: items.map((item) => ({
+            name: item.item_name_snapshot,
+            quantity: Number(item.quantity),
+            details: detailsByItemId.get(Number(item.id)) ?? []
+          }))
+        }
+      });
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  });
+
+  app.post('/v1/counter/direct-print-jobs/acknowledge', { preHandler: authenticateCounterDevice }, async (request, reply) => {
+    const key = counterWorkstationKey(request);
+    const body = directPrintAcknowledgementSchema.parse(request.body);
+    const [result] = await mysqlPool.execute<ResultSetHeader>(
+      `UPDATE print_jobs j
+       JOIN printer_targets pt ON pt.id = j.printer_target_id
+       SET j.status = :status,
+           j.last_error_code = :errorCode,
+           j.printed_at = CASE WHEN :status = 'printed' THEN UTC_TIMESTAMP() ELSE NULL END
+       WHERE j.job_ref = :jobRef AND j.status = 'dispatching'
+         AND pt.tenant_code = :tenantCode AND pt.store_id = :storeId
+         AND pt.delivery_mode = 'android_direct'
+         AND pt.direct_print_device_key = :workstationKey`,
+      {
+        status: body.outcome,
+        errorCode: body.outcome === 'failed' ? body.error_code ?? 'device_print_failed' : null,
+        jobRef: body.job_ref,
+        tenantCode: request.counterAuth.tenantCode,
+        storeId: request.counterAuth.storeId,
+        workstationKey: key
+      }
+    );
+    if (result.affectedRows !== 1) {
+      throw new ApiError(409, 'print_job_not_dispatching', 'The print job is no longer available.');
+    }
+    return reply.send({ acknowledged: true });
+  });
 
   app.get('/v1/counter/menu', { preHandler: authenticateCounterDevice }, async (request) => {
     return loadCatalogMenu(request.counterAuth.storeId);

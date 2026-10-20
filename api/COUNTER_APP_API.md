@@ -1,7 +1,8 @@
 # Counter App API
 
-The Counter App authenticates as a registered counter device. It must never
-store a customer mobile-app access token or use Admin Web credentials.
+The C2 Store App authenticates as a registered counter device. It must never
+store a customer mobile-app access token or use Admin Web credentials for
+device-level work. Barista staff authentication remains a separate session.
 
 ## Device setup and login
 
@@ -53,6 +54,59 @@ GET /v1/counter/menu
 
 Returns the current menu, RM prices, availability, and modifier rules for the
 device's assigned outlet. The client does not send or choose a store ID.
+
+### Claim a durable printer job
+
+The activated outlet device configures its own local Wi-Fi printer. This keeps
+the printer IP and workstation key scoped to the same device credential:
+
+```http
+POST /v1/counter/direct-printer/configure
+Authorization: Bearer <device_token>
+X-C2-Workstation-Key: C2-XXXXXXXXXXXX
+Content-Type: application/json
+
+{ "network_host": "192.168.1.100", "network_port": 9100 }
+```
+
+The target remains pending until the app sends a physical test receipt and
+calls `POST /v1/counter/direct-printer/tested`. Removing the printer in the app
+calls `POST /v1/counter/direct-printer/remove`, which disables the server-side
+target before clearing local settings.
+
+```http
+POST /v1/counter/direct-print-jobs/claim
+Authorization: Bearer <device_token>
+X-C2-Workstation-Key: C2-XXXXXXXXXXXX
+Content-Type: application/json
+
+{}
+```
+
+The API only returns a job when the configured direct printer matches the
+device tenant, assigned outlet, and workstation key. It returns `204` when no
+job is waiting. A stale claim becomes available again after two minutes.
+
+After the ESC/POS socket attempt, acknowledge the exact job:
+
+```http
+POST /v1/counter/direct-print-jobs/acknowledge
+Authorization: Bearer <device_token>
+X-C2-Workstation-Key: C2-XXXXXXXXXXXX
+Content-Type: application/json
+
+{ "job_ref": "...", "outcome": "printed" }
+```
+
+Use `outcome: "failed"` with a safe `error_code` if the printer cannot be
+reached. The client cannot acknowledge jobs belonging to another tenant,
+outlet, printer, or workstation.
+
+After a successful physical test print, the same scoped credentials may call:
+
+```http
+POST /v1/counter/direct-printer/tested
+```
 
 ### Look up a customer
 

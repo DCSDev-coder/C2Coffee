@@ -1238,7 +1238,7 @@ const Menu = ({ onNavigate }) => {
                           <div className="rounded-lg bg-white p-2 text-[#2E5E58]"><ImagePlus size={18} /></div>
                           <div className="min-w-0 flex-1">
                             <p className="font-bold text-gray-900">Drink SOP</p>
-                            <p className="mt-1 text-xs leading-5 text-gray-600">Upload preparation images for {selectedItem.name}. They appear in the Barista app library and when this drink is being prepared.</p>
+                            <p className="mt-1 text-xs leading-5 text-gray-600">Upload preparation images for {selectedItem.name}. They appear in the C2 Store Barista Workspace library and when this drink is being prepared.</p>
                           </div>
                         </div>
                         <div className="mt-4 flex flex-col gap-2 sm:flex-row">

@@ -322,8 +322,8 @@ const AdminManagement = ({ currentUser, initialRole = 'All Admin' }) => {
           <h1 className="text-2xl font-bold text-gray-900">{initialRole === 'Barista' ? 'Barista Management' : 'Admin Management'}</h1>
           <p className="text-sm text-gray-500 mt-1">
             {initialRole === 'Barista'
-              ? 'Create and manage Barista app accounts. Each prepared order records the signed-in staff member.'
-              : 'Manage staff and admin accounts, including Barista app access.'}
+              ? 'Create and manage Barista Workspace accounts. Each prepared order records the signed-in staff member.'
+              : 'Manage staff and admin accounts, including Barista Workspace access.'}
           </p>
         </div>
 

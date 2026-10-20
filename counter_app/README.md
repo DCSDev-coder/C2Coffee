@@ -1,8 +1,8 @@
-# C2 Counter App Integration
+# C2 Store App
 
-This directory is the handoff boundary for the Flutter counter application.
-The UI application is intentionally not scaffolded here yet; its backend is
-implemented in `../api`.
+This Flutter application is the outlet workstation for both Counter and
+Barista operations. One installed device is activated against a tenant and
+outlet, then staff choose the Counter or Barista workspace.
 
 Build one Flutter project and produce Android and iOS variants from that shared
 codebase. Android can be released first when the selected kiosk, printer, and
@@ -22,7 +22,7 @@ Use HTTPS for every production deployment. Do not point a physical device at
 ## First-install login
 
 1. A Super Admin or Operations Admin creates a device in Admin Web under
-   **Counter Devices** and assigns it to an active outlet.
+   **C2 Store Devices** and assigns it to an active outlet.
 2. Admin Web displays a one-time activation code for 30 minutes.
 3. The installed app posts that code to `POST /v1/counter/activate`.
 4. The API returns a device token once.
@@ -32,9 +32,46 @@ Use HTTPS for every production deployment. Do not point a physical device at
 7. A `401` means the device was revoked, reset, or is no longer valid. Delete
    the local token and return to activation.
 
-Staff do not log in daily. The device remains logged in until an admin disables,
-revokes, or reissues its activation. Reissuing activation invalidates the old
-credential immediately.
+The device remains activated until an admin disables, revokes, or reissues its
+activation. Reissuing activation invalidates the old credential immediately.
+
+## Workspace and session boundaries
+
+- The device credential owns the outlet binding and printer worker.
+- Counter customer sessions last ten minutes, stay in memory, and are cleared
+  after checkout, cancellation, timeout, or leaving the Counter workflow.
+- Barista staff authenticate separately. Staff logout does not deactivate the
+  device or stop its printer worker.
+- Counter device, Barista staff, and customer credentials use separate secure
+  storage or memory namespaces and are never interchangeable.
+
+The durable printer worker starts after device verification and continues while
+the user moves between workspaces. It claims only jobs assigned to the same
+tenant, outlet, and workstation key.
+
+## Migrating an outlet from the standalone Barista app
+
+1. Install and activate C2 Store against the correct outlet.
+2. Open **Barista Workspace > Workstation**, enter the outlet printer IP address
+   and port, then save it. The activated device registers that printer against
+   its own tenant and outlet.
+3. Run a physical test print on the outlet Wi-Fi. The printer becomes active
+   for new orders only after that test succeeds.
+4. Confirm one real order prints once before removing the standalone
+   Barista app.
+
+The old Barista app and C2 Store have different package identities, so Android
+secure storage does not transfer the old workstation code automatically. Keep
+the standalone app available as a rollback during the pilot; do not let both
+apps claim the same printer queue at the same time.
+
+Direct ESC/POS network printing is currently enabled only on Android. The iOS
+app builds successfully, but it will not claim or send direct printer jobs.
+
+Firebase order push is intentionally not enabled in this merged package yet.
+The Counter Android/iOS application must first be registered in Firebase with
+its own package identifiers and configuration files. Five-second authorised
+queue polling remains active in the Barista workspace in the meantime.
 
 ## Customer session
 

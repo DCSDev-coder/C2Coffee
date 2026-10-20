@@ -408,7 +408,7 @@ const BaristaManagement = () => {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Six-digit attendance PIN</label>
                 <input type="password" inputMode="numeric" pattern="[0-9]{6}" minLength="6" maxLength="6" required={!editingBarista} value={formPin} onChange={(e) => setFormPin(e.target.value.replace(/\D/g, '').slice(0, 6))} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#2E5E58]" placeholder={editingBarista ? 'Leave empty to keep current PIN' : 'Six digits'} />
-                <p className="mt-1 text-xs text-gray-500">{editingBarista ? 'Enter a new PIN only to replace it. PINs are never displayed.' : 'Used only to clock in or out on the shared Barista workstation.'}</p>
+                <p className="mt-1 text-xs text-gray-500">{editingBarista ? 'Enter a new PIN only to replace it. PINs are never displayed.' : 'Used only for attendance and side-work confirmation on the shared C2 Store device.'}</p>
               </div>
               
               <div className="pt-6 flex justify-end space-x-3">

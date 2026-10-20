@@ -130,6 +130,7 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
     const [rows] = await mysqlPool.query<RowDataPacket[]>(
       `SELECT t.id, t.title, t.instructions, DATE_FORMAT(t.scheduled_date, '%Y-%m-%d') AS scheduled_date,
               TIME_FORMAT(t.scheduled_time, '%H:%i') AS scheduled_time,
+              TIMESTAMP(t.scheduled_date, t.scheduled_time) <= CONVERT_TZ(UTC_TIMESTAMP(), '+00:00', '+08:00') AS is_due,
               c.completed_at, c.barista_id AS completed_by_barista_id, b.name AS completed_by_barista_name
        FROM barista_side_work_tasks t
        LEFT JOIN barista_side_work_completions c ON c.task_id = t.id
@@ -138,7 +139,13 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
        ORDER BY t.scheduled_time ASC, t.id ASC`,
       { tenantId: request.adminAuth.tenantId, today }
     );
-    return { tasks: rows.map((row) => ({ ...row, id: Number(row.id) })) };
+    return {
+      tasks: rows.map((row) => ({
+        ...row,
+        id: Number(row.id),
+        is_due: Boolean(row.is_due)
+      }))
+    };
   });
 
   app.post('/v1/barista/side-work/complete', { preHandler: authenticateAdminRequest }, async (request, reply) => {

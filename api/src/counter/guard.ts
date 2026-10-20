@@ -9,6 +9,7 @@ import { ApiError } from '../http/errors.js';
 export interface CounterAuthContext {
   deviceId: number;
   tenantId: number;
+  tenantCode: string;
   storeId: number;
   label: string;
 }
@@ -34,7 +35,8 @@ export async function authenticateCounterDevice(
   }
 
   const [rows] = await mysqlPool.query<Array<RowDataPacket & CounterAuthContext>>(
-    `SELECT cd.id AS deviceId, cd.tenant_id AS tenantId, cd.store_id AS storeId, cd.label
+    `SELECT cd.id AS deviceId, cd.tenant_id AS tenantId, tenant.code AS tenantCode,
+            cd.store_id AS storeId, cd.label
      FROM counter_devices cd
      JOIN admin_tenants tenant ON tenant.id = cd.tenant_id AND tenant.status = 'active' AND tenant.code = :tenantCode
      JOIN stores store ON store.id = cd.store_id AND store.tenant_id = cd.tenant_id AND store.status = 'active'

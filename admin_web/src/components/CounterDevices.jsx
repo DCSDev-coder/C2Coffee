@@ -134,9 +134,9 @@ export default function CounterDevices({ currentUser }) {
     <div className="flex-1 overflow-y-auto bg-[#F9FAFB] p-6 lg:p-8">
       <div className="mx-auto max-w-6xl">
         <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#2E5E58]">Store network</p>
-        <h1 className="mt-1 text-3xl font-bold text-gray-900">Counter Devices</h1>
+        <h1 className="mt-1 text-3xl font-bold text-gray-900">C2 Store Devices</h1>
         <p className="mt-2 max-w-3xl text-sm text-gray-500">
-          Register each physical kiosk separately. A device is permanently scoped to one cafe deployment and one outlet.
+          Register each physical Counter and Barista workstation separately. A device is permanently scoped to one cafe deployment and one outlet.
         </p>
 
         {message && <p className="mt-5 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">{message}</p>}
@@ -147,7 +147,7 @@ export default function CounterDevices({ currentUser }) {
               <div>
                 <p className="text-xs font-bold uppercase tracking-widest text-emerald-700">One-time activation</p>
                 <h2 className="mt-1 text-lg font-bold text-gray-900">{activation.label}</h2>
-                <p className="mt-1 text-sm text-gray-600">Enter this code on the installed Counter App before {formatDate(activation.expiresAt)}. It is not shown again.</p>
+                <p className="mt-1 text-sm text-gray-600">Enter this code in the installed C2 Store app before {formatDate(activation.expiresAt)}. It is not shown again.</p>
                 <code className="mt-4 inline-block rounded-xl bg-white px-4 py-3 text-xl font-black tracking-wider text-[#1F3A34] shadow-sm">{activation.code}</code>
               </div>
               <button type="button" onClick={copyActivation} className="inline-flex items-center gap-2 rounded-lg bg-[#1F3A34] px-4 py-2 text-sm font-bold text-white">
@@ -178,7 +178,7 @@ export default function CounterDevices({ currentUser }) {
           <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between px-2 py-2"><h2 className="text-lg font-bold">Registered devices</h2><button type="button" onClick={load} className="rounded-lg p-2 text-gray-500 hover:bg-gray-100" aria-label="Refresh devices"><RefreshCw size={17} /></button></div>
             <div className="mt-2 space-y-3">
-              {devices.length === 0 && <p className="p-4 text-sm text-gray-500">No counter devices have been registered.</p>}
+              {devices.length === 0 && <p className="p-4 text-sm text-gray-500">No C2 Store devices have been registered.</p>}
               {devices.map((device) => (
                 <article key={device.id} className="rounded-xl border border-gray-200 p-4">
                   <div className="flex items-start gap-3">

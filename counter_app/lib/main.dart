@@ -1,10 +1,13 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'barista/main.dart' as barista;
 import 'auth_service.dart';
 import 'session_manager.dart';
 import 'api_client.dart';
 import 'app_colors.dart';
 import 'counter_menu.dart';
+import 'device_printer_worker.dart';
 import 'product_detail_modal.dart';
 
 void main() {
@@ -17,7 +20,7 @@ class CounterApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Counter App',
+      title: 'C2 Store',
       debugShowCheckedModeBanner: false,
       theme: AppColors.getThemeData(),
       home: const SplashOrLoginScreen(),
@@ -60,7 +63,12 @@ class _SplashOrLoginScreenState extends State<SplashOrLoginScreen> {
     }
 
     if (_isLoggedIn) {
-      return CounterHomeScreen(authService: _authService);
+      return WorkspaceSelectionScreen(
+        authService: _authService,
+        onDeviceDeactivated: () {
+          setState(() => _isLoggedIn = false);
+        },
+      );
     } else {
       return ActivationScreen(
         authService: _authService,
@@ -204,6 +212,262 @@ class _ActivationScreenState extends State<ActivationScreen> {
   }
 }
 
+class WorkspaceSelectionScreen extends StatefulWidget {
+  const WorkspaceSelectionScreen({
+    super.key,
+    required this.authService,
+    required this.onDeviceDeactivated,
+  });
+
+  final AuthService authService;
+  final VoidCallback onDeviceDeactivated;
+
+  @override
+  State<WorkspaceSelectionScreen> createState() =>
+      _WorkspaceSelectionScreenState();
+}
+
+class _WorkspaceSelectionScreenState extends State<WorkspaceSelectionScreen> {
+  bool _deactivating = false;
+  late final DevicePrinterWorker _printerWorker;
+
+  @override
+  void initState() {
+    super.initState();
+    _printerWorker = DevicePrinterWorker(authService: widget.authService)
+      ..start();
+  }
+
+  @override
+  void dispose() {
+    _printerWorker.dispose();
+    super.dispose();
+  }
+
+  Future<void> _openCounter() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => CounterHomeScreen(authService: widget.authService),
+      ),
+    );
+  }
+
+  Future<void> _openBarista() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(builder: (_) => const barista.BaristaWorkspace()),
+    );
+  }
+
+  Future<void> _deactivateDevice() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Deactivate this device?'),
+        content: const Text(
+          'This removes the outlet credential from this device. A new activation code will be required.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Deactivate'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _deactivating = true);
+    _printerWorker.stop();
+    await widget.authService.logout();
+    if (!mounted) return;
+    widget.onDeviceDeactivated();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.surfaceLight,
+      appBar: AppBar(
+        title: const Text('C2 Store'),
+        actions: [
+          IconButton(
+            tooltip: 'Device settings',
+            onPressed: _deactivating ? null : _deactivateDevice,
+            icon: const Icon(Icons.settings_outlined),
+          ),
+          const SizedBox(width: 12),
+        ],
+      ),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 900),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Image.asset(
+                      'assets/images/c2_logo.png',
+                      height: 120,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    'Choose workspace',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      fontFamily: 'Recoleta',
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'This device remains securely assigned to its outlet. Staff access is verified separately.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: 'Afacad',
+                      color: AppColors.charcoal,
+                      fontSize: 18,
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final stacked = constraints.maxWidth < 680;
+                      final counterCard = _WorkspaceCard(
+                        icon: Icons.point_of_sale_rounded,
+                        title: 'Counter',
+                        description:
+                            'Start a customer session, build an order and manage the counter cart.',
+                        buttonLabel: 'Open Counter',
+                        onPressed: _openCounter,
+                      );
+                      final baristaCard = _WorkspaceCard(
+                        icon: Icons.coffee_maker_rounded,
+                        title: 'Barista Workspace',
+                        description:
+                            'Sign in to manage orders, attendance, preparation and the outlet printer.',
+                        buttonLabel: 'Barista Login',
+                        onPressed: _openBarista,
+                      );
+                      if (!stacked) {
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(child: counterCard),
+                            const SizedBox(width: 20),
+                            Expanded(child: baristaCard),
+                          ],
+                        );
+                      }
+                      return Column(
+                        children: [
+                          counterCard,
+                          const SizedBox(height: 20),
+                          baristaCard,
+                        ],
+                      );
+                    },
+                  ),
+                  if (_deactivating) ...[
+                    const SizedBox(height: 24),
+                    const Center(child: CircularProgressIndicator()),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _WorkspaceCard extends StatelessWidget {
+  const _WorkspaceCard({
+    required this.icon,
+    required this.title,
+    required this.description,
+    required this.buttonLabel,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String title;
+  final String description;
+  final String buttonLabel;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minHeight: 290),
+      padding: const EdgeInsets.all(28),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.primary.withValues(alpha: .14)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x12000000),
+            blurRadius: 24,
+            offset: Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              color: AppColors.secondary.withValues(alpha: .18),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Icon(icon, size: 34, color: AppColors.primary),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            title,
+            style: const TextStyle(
+              fontFamily: 'Recoleta',
+              color: AppColors.primary,
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            description,
+            style: const TextStyle(
+              fontFamily: 'Afacad',
+              color: AppColors.charcoal,
+              fontSize: 18,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: onPressed,
+              icon: const Icon(Icons.arrow_forward_rounded),
+              label: Text(buttonLabel),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class CounterHomeScreen extends StatefulWidget {
   final AuthService authService;
 
@@ -256,9 +520,13 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
 
   @override
   void dispose() {
+    _sessionManager.onSessionEnded = null;
+    unawaited(_sessionManager.endSession());
+    _clearCart();
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     _selectedCategory.dispose();
+    _phoneController.dispose();
     _searchController.dispose();
     super.dispose();
   }

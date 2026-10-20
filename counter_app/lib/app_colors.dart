@@ -7,7 +7,7 @@ class AppColors {
   static const Color surfaceLight = Color(0xFFEDF4F3);
   static const Color background = Colors.white;
   static const Color charcoal = Color(0xFF2C2C2C);
-  
+
   static ThemeData getThemeData() {
     return ThemeData(
       useMaterial3: true,
@@ -29,7 +29,7 @@ class AppColors {
           foregroundColor: Colors.white,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-        )
+        ),
       ),
     );
   }

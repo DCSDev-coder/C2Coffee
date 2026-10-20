@@ -26,4 +26,22 @@ void main() {
     expect(find.text('Register POS Device'), findsOneWidget);
     expect(find.text('Activate Device'), findsOneWidget);
   });
+
+  testWidgets('activated devices choose Counter or Barista workspace', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: WorkspaceSelectionScreen(
+          authService: AuthService(),
+          onDeviceDeactivated: () {},
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Choose workspace'), findsOneWidget);
+    expect(find.text('Open Counter'), findsOneWidget);
+    expect(find.text('Barista Login'), findsOneWidget);
+  });
 }

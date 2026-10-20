@@ -87,7 +87,7 @@ function AppContent({
         {currentPage === 'Admin Management' && <AdminManagement currentUser={currentUser} />}
         {currentPage === 'Barista Management' && <BaristaManagement />}
         {currentPage === 'Outlets' && <Outlets currentUser={currentUser} />}
-        {currentPage === 'Counter Devices' && <CounterDevices currentUser={currentUser} />}
+        {currentPage === 'C2 Store Devices' && <CounterDevices currentUser={currentUser} />}
         {currentPage === 'Operations' && <Operations />}
         {currentPage === 'Staff Guides' && <StaffGuides />}
         {currentPage === 'Audit Logs' && <AuditLogs onNavigate={navigateWithPrompt} currentUser={currentUser} />}
