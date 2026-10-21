@@ -1,212 +1,100 @@
 import 'package:flutter/material.dart';
 
-enum NavPage { currentOrder, settings }
+enum NavPage { currentOrder, timetable, sideWork, settings }
 
 class FloatingBottomNav extends StatelessWidget {
-  final NavPage activePage;
-  final Function(int) onTabSelected;
-  final PageController pageController;
-
   const FloatingBottomNav({
     super.key,
     required this.activePage,
     required this.onTabSelected,
-    required this.pageController,
   });
+
+  final NavPage activePage;
+  final ValueChanged<int> onTabSelected;
+
+  static const _darkGreen = Color(0xFF304A3A);
 
   @override
   Widget build(BuildContext context) {
-    const Color darkGreen = Color(0xFF304A3A);
-
-    final double screenWidth = MediaQuery.of(context).size.width;
-    double barWidth = screenWidth - 48.0;
-    if (barWidth > 600.0) {
-      barWidth = 600.0;
-    }
-    final double horizontalOffset = (screenWidth - barWidth) / 2;
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final barWidth = (screenWidth - 32).clamp(0.0, 720.0);
+    final horizontalOffset = (screenWidth - barWidth) / 2;
+    const items = [
+      (Icons.shopping_basket_outlined, Icons.shopping_basket_rounded, 'Orders'),
+      (
+        Icons.calendar_month_outlined,
+        Icons.calendar_month_rounded,
+        'Timetable',
+      ),
+      (Icons.checklist_outlined, Icons.checklist_rounded, 'Side work'),
+      (Icons.settings_outlined, Icons.settings_rounded, 'Settings'),
+    ];
 
     return Positioned(
       left: horizontalOffset,
       right: horizontalOffset,
-      bottom: 24.0,
-      child: AnimatedBuilder(
-        animation: pageController,
-        child: Container(
-          height: 70,
-          decoration: BoxDecoration(
-            color: darkGreen, // Solid color for performance
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.2),
-              width: 1.5,
-            ),
-            borderRadius: BorderRadius.circular(35.0),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: activePage == NavPage.currentOrder
-                    ? const SizedBox.shrink()
-                    : _buildSideButton(
-                        icon: Icons.shopping_basket,
-                        label: 'Orders',
-                        onTap: () => onTabSelected(0),
-                      ),
-              ),
-              Expanded(
-                child: activePage == NavPage.settings
-                    ? const SizedBox.shrink()
-                    : _buildSideButton(
-                        icon: Icons.settings,
-                        label: 'Settings',
-                        onTap: () => onTabSelected(1),
-                      ),
-              ),
-            ],
-          ),
-        ),
-        builder: (context, child) {
-          // Determine exact scroll position (0.0 to 2.0)
-          double scrollPosition = 1.0; // default to center
-          if (pageController.hasClients &&
-              pageController.position.haveDimensions) {
-            scrollPosition = pageController.page ?? 1.0;
-          } else {
-            // Fallback for first frame before layout is complete
-            if (activePage == NavPage.currentOrder) scrollPosition = 0.0;
-            if (activePage == NavPage.settings) scrollPosition = 1.0;
-          }
-
-          // Calculate exact X center based on scroll position
-          // index 0 -> 1/4 (center of left half)
-          // index 1 -> 3/4 (center of right half)
-          final double fabXCenter =
-              barWidth * (1 / 4 + (scrollPosition * 2 / 4));
-          final double fabLeft = fabXCenter - 32.0;
-
-          return Stack(
-            clipBehavior: Clip.none,
-            children: [
-              // 1. A soft drop shadow for the entire bar
-              Container(
-                height: 70,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(35.0),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.15),
-                      blurRadius: 30,
-                      offset: const Offset(0, 10),
-                    ),
-                  ],
-                ),
-              ),
-
-              // 2. The clipped glassmorphic pill background with a dynamically positioned notch
-              ClipPath(
-                clipper: _NotchedClipper(notchCenterPoint: fabXCenter),
-                child: child,
-              ),
-
-              // 3. Floating Center Button synced with notch
-              Positioned(
-                left: fabLeft,
-                top: -24,
-                child: Transform.translate(
-                  offset: const Offset(0, -8),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.15),
-                          blurRadius: 15,
-                          offset: const Offset(0, 8),
+      bottom: 20,
+      child: SafeArea(
+        top: false,
+        child: Material(
+          color: _darkGreen,
+          elevation: 14,
+          shadowColor: Colors.black26,
+          borderRadius: BorderRadius.circular(30),
+          child: SizedBox(
+            height: 76,
+            child: Row(
+              children: List.generate(items.length, (index) {
+                final selected = activePage.index == index;
+                final item = items[index];
+                return Expanded(
+                  child: Semantics(
+                    selected: selected,
+                    button: true,
+                    label: item.$3,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(28),
+                      onTap: () => onTabSelected(index),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        margin: const EdgeInsets.symmetric(
+                          horizontal: 5,
+                          vertical: 8,
                         ),
-                      ],
-                    ),
-                    child: Material(
-                      elevation: 0,
-                      shape: const CircleBorder(),
-                      color: Colors.white, // Make it pop in white
-                      child: SizedBox(
-                        height: 64,
-                        width: 64,
-                        child: IconButton(
-                          icon: AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 200),
-                            child: Icon(
-                              activePage == NavPage.currentOrder
-                                  ? Icons.shopping_basket
-                                  : Icons.settings,
-                              key: ValueKey(activePage),
-                              color:
-                                  darkGreen, // High contrast with beige bubble
-                              size: 30,
+                        decoration: BoxDecoration(
+                          color: selected ? Colors.white : Colors.transparent,
+                          borderRadius: BorderRadius.circular(22),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              selected ? item.$2 : item.$1,
+                              color: selected ? _darkGreen : Colors.white70,
+                              size: 24,
                             ),
-                          ),
-                          onPressed:
-                              () {}, // Handled by pageView swipe or can be left empty
+                            const SizedBox(height: 3),
+                            Text(
+                              item.$3,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: selected ? _darkGreen : Colors.white70,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
                   ),
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildSideButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, color: Colors.white70),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 13,
-              fontFamily: 'Afacad',
-              fontWeight: FontWeight.bold,
+                );
+              }),
             ),
           ),
-        ],
+        ),
       ),
     );
   }
-}
-
-class _NotchedClipper extends CustomClipper<Path> {
-  final double notchCenterPoint;
-
-  _NotchedClipper({required this.notchCenterPoint});
-
-  @override
-  Path getClip(Size size) {
-    final host = Rect.fromLTWH(0, 0, size.width, size.height);
-    final guest = Rect.fromCenter(
-      center: Offset(notchCenterPoint, 0),
-      width: 80, // FAB size (64) + total notch margin (16)
-      height: 80,
-    );
-
-    // Skip the expensive Path.combine operation.
-    // The child Container already has rounded corners, so we only need to provide the notch cutout.
-    return const CircularNotchedRectangle().getOuterPath(host, guest);
-  }
-
-  @override
-  bool shouldReclip(covariant _NotchedClipper oldClipper) =>
-      oldClipper.notchCenterPoint != notchCenterPoint;
 }

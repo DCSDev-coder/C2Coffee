@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:counter_app/widgets/top_notice.dart';
 import '../services/api_service.dart';
 import '../main.dart';
 import '../widgets/order_card.dart';
@@ -301,10 +302,9 @@ class PickupReadyPage extends StatelessWidget {
                                     );
                                 if (!result.isSuccess) {
                                   if (!context.mounted) return;
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(result.errorMessage!),
-                                    ),
+                                  TopNotice.error(
+                                    context,
+                                    result.errorMessage!,
                                   );
                                   return;
                                 }

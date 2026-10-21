@@ -705,7 +705,7 @@ export async function registerAdminAuthRoutes(app: FastifyInstance): Promise<voi
           throw new ApiError(
             409,
             'barista_account_exists',
-            'This tenant already has a Barista App account. Update that shared account instead.'
+            'This tenant already has a Barista Workspace account. Update that shared account instead.'
           );
         }
       }

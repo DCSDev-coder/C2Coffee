@@ -49,7 +49,7 @@ The durable printer worker starts after device verification and continues while
 the user moves between workspaces. It claims only jobs assigned to the same
 tenant, outlet, and workstation key.
 
-## Migrating an outlet from the standalone Barista app
+## Barista workspace and printer
 
 1. Install and activate C2 Store against the correct outlet.
 2. Open **Barista Workspace > Workstation**, enter the outlet printer IP address
@@ -57,13 +57,8 @@ tenant, outlet, and workstation key.
    its own tenant and outlet.
 3. Run a physical test print on the outlet Wi-Fi. The printer becomes active
    for new orders only after that test succeeds.
-4. Confirm one real order prints once before removing the standalone
-   Barista app.
-
-The old Barista app and C2 Store have different package identities, so Android
-secure storage does not transfer the old workstation code automatically. Keep
-the standalone app available as a rollback during the pilot; do not let both
-apps claim the same printer queue at the same time.
+4. Confirm one real order prints once before putting the workstation into live
+   service.
 
 Direct ESC/POS network printing is currently enabled only on Android. The iOS
 app builds successfully, but it will not claim or send direct printer jobs.
@@ -72,6 +67,47 @@ Firebase order push is intentionally not enabled in this merged package yet.
 The Counter Android/iOS application must first be registered in Firebase with
 its own package identifiers and configuration files. Five-second authorised
 queue polling remains active in the Barista workspace in the meantime.
+
+## Android updates from cPanel
+
+On the **Choose workspace** page, open the settings icon and select **Update**.
+The app reads this HTTPS manifest by default:
+
+`https://www.c2coffeeandcandle.com/download/counterdownload/latest.json`
+
+Override it during a build only when another deployment owns its update files:
+
+```bash
+flutter build apk --release \
+  --dart-define=COUNTER_UPDATE_MANIFEST_URL=https://example.com/updates/c2-store/latest.json
+```
+
+Every release must have a larger build number in `pubspec.yaml`, for example
+`1.0.1+2`. Build it with the same Android release signing key as the installed
+app. Android rejects an APK signed by another key even if the manifest and
+checksum are valid.
+
+On Windows, prepare the two cPanel files after the release build:
+
+```powershell
+flutter build apk --release
+powershell -ExecutionPolicy Bypass -File scripts\prepare_cpanel_update.ps1
+```
+
+Upload everything from `build\cpanel-update` into:
+
+`public_html/download/counterdownload/`
+
+Upload the versioned APK first and `latest.json` last. This prevents a device
+from seeing a release before its APK is available. The app accepts only HTTPS
+APK URLs, verifies the SHA-256 after Android downloads it, and then opens the
+system installer. The first update requires the operator to allow C2 Store to
+install apps from this source.
+
+The same folder serves the unlisted staff download page at
+`https://www.c2coffeeandcandle.com/download/counterdownload`. The page is
+excluded from site navigation and marked `noindex`, but possession of the link
+is still the access boundary; it is not password authentication.
 
 ## Customer session
 

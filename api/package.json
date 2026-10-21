@@ -11,6 +11,7 @@
     "test:referrals": "npm run build && node --test test/referrals.test.mjs",
     "test:admin-isolation": "npm run build && node --test test/admin-isolation.test.mjs",
     "test:topups": "npm run build && node --test test/topup-request.test.mjs test/chip-callback-key.test.mjs",
+    "test:shift-access": "npm run build && node --test test/barista-shift-access.test.mjs",
     "migrate": "tsx src/db/migrate.ts",
     "migrate:prod": "node dist/db/migrate.js",
     "import:media": "tsx src/scripts/import-media-assets.ts",

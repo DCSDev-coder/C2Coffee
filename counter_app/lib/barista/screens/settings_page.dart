@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:counter_app/widgets/top_notice.dart';
 
 import '../services/api_service.dart';
 import '../services/direct_printer_service.dart';
 import '../services/push_notification_service.dart';
-import '../widgets/blinking_online_indicator.dart';
+import '../services/barista_sound_service.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key, required this.onSignedOut});
@@ -20,25 +21,18 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  late Future<OperationsContext> _operationsContext;
   late Future<BaristaAttendanceStatus> _attendance;
-  late Future<List<BaristaSideWorkTask>> _sideWork;
   bool _attendanceUpdating = false;
-  int? _completingSideWorkTaskId;
 
   @override
   void initState() {
     super.initState();
-    _operationsContext = ApiService.fetchOperationsContext();
     _attendance = ApiService.fetchAttendanceStatus();
-    _sideWork = ApiService.fetchSideWork();
   }
 
   void _refreshWorkstation() {
     setState(() {
-      _operationsContext = ApiService.fetchOperationsContext();
       _attendance = ApiService.fetchAttendanceStatus();
-      _sideWork = ApiService.fetchSideWork();
     });
   }
 
@@ -60,9 +54,16 @@ class _SettingsPageState extends State<SettingsPage> {
       _attendance = ApiService.fetchAttendanceStatus();
     });
     if (!result.isSuccess) {
-      ScaffoldMessenger.of(
+      TopNotice.error(context, result.errorMessage!);
+    } else {
+      await BaristaSoundService.instance.play(
+        clockIn ? BaristaSoundEvent.clockIn : BaristaSoundEvent.clockOut,
+      );
+      if (!mounted) return;
+      TopNotice.success(
         context,
-      ).showSnackBar(SnackBar(content: Text(result.errorMessage!)));
+        '${barista.name} clocked ${clockIn ? 'in' : 'out'}.',
+      );
     }
   }
 
@@ -89,58 +90,6 @@ class _SettingsPageState extends State<SettingsPage> {
     if (action != null && mounted) {
       await _updateAttendance(clockIn, action.barista, action.pin);
     }
-  }
-
-  Future<void> _openSideWorkSheet(BaristaSideWorkTask task) async {
-    if (_completingSideWorkTaskId != null) return;
-    BaristaAttendanceStatus attendance;
-    try {
-      attendance = await ApiService.fetchAttendanceStatus();
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Unable to check attendance. Refresh the workstation and try again.',
-          ),
-        ),
-      );
-      return;
-    }
-    if (!mounted) return;
-
-    final activeIds = attendance.activeAttendance
-        .map((item) => item.baristaId)
-        .toSet();
-    final choices = attendance.baristas
-        .where((item) => item.pinConfigured && activeIds.contains(item.id))
-        .toList();
-    final action = await showModalBottomSheet<_AttendanceAction>(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => _SideWorkPinSheet(task: task, baristas: choices),
-    );
-    if (action == null || !mounted) return;
-
-    setState(() => _completingSideWorkTaskId = task.id);
-    final result = await ApiService.completeSideWork(
-      taskId: task.id,
-      baristaId: action.barista.id,
-      pin: action.pin,
-    );
-    if (!mounted) return;
-    setState(() {
-      _completingSideWorkTaskId = null;
-      _sideWork = ApiService.fetchSideWork();
-      _attendance = ApiService.fetchAttendanceStatus();
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          result.isSuccess ? 'Side-work task completed.' : result.errorMessage!,
-        ),
-      ),
-    );
   }
 
   Future<void> _openGuides(String type, String title) async {
@@ -186,7 +135,7 @@ class _SettingsPageState extends State<SettingsPage> {
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 800),
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(24, 132, 24, 148),
+                padding: const EdgeInsets.fromLTRB(24, 32, 24, 148),
                 children: [
                   const Text(
                     'Workstation',
@@ -199,7 +148,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'View today\'s timetable and set up the receipt printer.',
+                    'Manage shift attendance, receipt printing and staff guides.',
                     style: TextStyle(
                       color: SettingsPage.ink.withValues(alpha: 0.65),
                       fontSize: 16,
@@ -216,24 +165,6 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  const _SectionLabel(label: 'TODAY\'S COVERAGE'),
-                  const SizedBox(height: 12),
-                  FutureBuilder<OperationsContext>(
-                    future: _operationsContext,
-                    builder: (context, snapshot) {
-                      if (snapshot.hasError) {
-                        return const _OperationsUnavailableCard();
-                      }
-                      if (!snapshot.hasData) {
-                        return const _OperationsLoadingCard();
-                      }
-                      return _OperationsStatusCard(
-                        context: snapshot.data!,
-                        onRefresh: _refreshWorkstation,
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 24),
                   const _SectionLabel(label: 'RECEIPT PRINTER'),
                   const SizedBox(height: 12),
                   const _DirectPrinterCard(),
@@ -332,53 +263,6 @@ class _SettingsPageState extends State<SettingsPage> {
                     },
                   ),
                   const SizedBox(height: 24),
-                  const _SectionLabel(label: 'TODAY\'S SIDE WORK'),
-                  const SizedBox(height: 12),
-                  FutureBuilder<List<BaristaSideWorkTask>>(
-                    future: _sideWork,
-                    builder: (context, snapshot) {
-                      if (snapshot.hasError) {
-                        return const _SideWorkMessageCard(
-                          icon: Icons.cloud_off_rounded,
-                          title: 'Side-work tasks are unavailable',
-                          subtitle:
-                              'Refresh the workstation to try loading them again.',
-                        );
-                      }
-                      if (!snapshot.hasData) {
-                        return const _SideWorkMessageCard(
-                          icon: Icons.sync_rounded,
-                          title: 'Loading today\'s side work',
-                          subtitle: 'Checking the task schedule.',
-                        );
-                      }
-                      final tasks = snapshot.data!;
-                      if (tasks.isEmpty) {
-                        return const _SideWorkMessageCard(
-                          icon: Icons.task_alt_rounded,
-                          title: 'No side-work tasks today',
-                          subtitle:
-                              'New tasks published by operations will appear here.',
-                        );
-                      }
-                      return Column(
-                        children: tasks
-                            .map(
-                              (task) => Padding(
-                                padding: const EdgeInsets.only(bottom: 10),
-                                child: _SideWorkTaskCard(
-                                  task: task,
-                                  completing:
-                                      _completingSideWorkTaskId == task.id,
-                                  onComplete: () => _openSideWorkSheet(task),
-                                ),
-                              ),
-                            )
-                            .toList(),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 14),
                   const _SectionLabel(label: 'STAFF GUIDES'),
                   const SizedBox(height: 12),
                   _GuideLink(
@@ -424,7 +308,6 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
           ),
-          const _WorkstationHeader(),
         ],
       ),
     );
@@ -477,11 +360,7 @@ class _DirectPrinterCardState extends State<_DirectPrinterCard> {
   Future<void> _save() async {
     final config = _formConfig();
     if (config == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Enter a valid printer IP address and port.'),
-        ),
-      );
+      TopNotice.error(context, 'Enter a valid printer IP address and port.');
       return;
     }
     setState(() => _working = true);
@@ -489,17 +368,15 @@ class _DirectPrinterCardState extends State<_DirectPrinterCard> {
       await DirectPrinterService.instance.saveConfig(config);
       if (!mounted) return;
       setState(() => _savedConfig = config);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Printer saved. Print a test receipt to activate it.'),
-        ),
+      TopNotice.success(
+        context,
+        'Printer saved. Print a test receipt to activate it.',
       );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error.toString().replaceFirst('Bad state: ', '')),
-        ),
+      TopNotice.error(
+        context,
+        error.toString().replaceFirst('Bad state: ', ''),
       );
     } finally {
       if (mounted) setState(() => _working = false);
@@ -516,15 +393,12 @@ class _DirectPrinterCardState extends State<_DirectPrinterCard> {
         _hostController.clear();
         _portController.text = '9100';
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Printer removed from this tablet.')),
-      );
+      TopNotice.success(context, 'Printer removed from this tablet.');
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error.toString().replaceFirst('Bad state: ', '')),
-        ),
+      TopNotice.error(
+        context,
+        error.toString().replaceFirst('Bad state: ', ''),
       );
     } finally {
       if (mounted) setState(() => _working = false);
@@ -538,19 +412,15 @@ class _DirectPrinterCardState extends State<_DirectPrinterCard> {
       await DirectPrinterService.instance.printTestReceipt(config);
       await DirectPrinterService.instance.confirmTestReceipt();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Test receipt printed and device connection confirmed.',
-          ),
-        ),
+      TopNotice.success(
+        context,
+        'Test receipt printed and device connection confirmed.',
       );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error.toString().replaceFirst('Bad state: ', '')),
-        ),
+      TopNotice.error(
+        context,
+        error.toString().replaceFirst('Bad state: ', ''),
       );
     } finally {
       if (mounted) setState(() => _working = false);
@@ -860,6 +730,8 @@ class _SideWorkPinSheetState extends State<_SideWorkPinSheet> {
   );
 }
 
+// Kept temporarily for compatibility with older workstation layouts.
+// ignore: unused_element
 class _SideWorkTaskCard extends StatelessWidget {
   final BaristaSideWorkTask task;
   final bool completing;
@@ -959,6 +831,7 @@ class _SideWorkTaskCard extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _SideWorkMessageCard extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -1171,43 +1044,6 @@ class _StaffGuidesSheetState extends State<_StaffGuidesSheet> {
   }
 }
 
-class _WorkstationHeader extends StatelessWidget {
-  const _WorkstationHeader();
-
-  @override
-  Widget build(BuildContext context) {
-    return Positioned(
-      top: 0,
-      left: 0,
-      right: 0,
-      child: Container(
-        height: 96,
-        padding: const EdgeInsets.fromLTRB(24, 37, 24, 16),
-        decoration: BoxDecoration(
-          color: SettingsPage.ink,
-          borderRadius: const BorderRadius.vertical(
-            bottom: Radius.circular(24),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: SettingsPage.ink.withValues(alpha: 0.15),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Image.asset('assets/images/c2_logo.png', height: 34),
-            const Spacer(),
-            const BlinkingOnlineIndicator(),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _SectionLabel extends StatelessWidget {
   final String label;
 
@@ -1227,6 +1063,7 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _OperationsLoadingCard extends StatelessWidget {
   const _OperationsLoadingCard();
 
@@ -1240,6 +1077,7 @@ class _OperationsLoadingCard extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _OperationsUnavailableCard extends StatelessWidget {
   const _OperationsUnavailableCard();
 
@@ -1247,13 +1085,14 @@ class _OperationsUnavailableCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return const _OperationsCard(
       icon: Icons.cloud_off_rounded,
-      title: 'Operational setup is not available yet',
+      title: 'Internet connection issue',
       subtitle:
-          'Today\'s timetable is not available right now. Order preparation remains available.',
+          'The published timetable could not be loaded from the server. Check the connection and refresh; no fallback timetable is shown.',
     );
   }
 }
 
+// ignore: unused_element
 class _OperationsStatusCard extends StatelessWidget {
   final OperationsContext context;
   final VoidCallback onRefresh;
@@ -1262,11 +1101,14 @@ class _OperationsStatusCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext buildContext) {
-    // Database weekday values follow Dart's Monday=1 through Sunday=7 convention.
-    final today = DateTime.now().weekday;
-    final todaySchedule = context.weeklySchedule
-        .where((entry) => entry.weekday == today)
-        .toList();
+    final now = DateTime.now();
+    final todayLabels =
+        (context.scheduledShifts
+                .where((entry) => entry.shiftDate == _dateKey(now))
+                .toList()
+              ..sort((left, right) => left.startsAt.compareTo(right.startsAt)))
+            .map(_datedScheduleLabel)
+            .toList();
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -1280,10 +1122,10 @@ class _OperationsStatusCard extends StatelessWidget {
           _OperationalRow(
             icon: Icons.calendar_month_outlined,
             title: 'Today\'s coverage',
-            value: todaySchedule.isEmpty
-                ? 'No weekly schedule published'
-                : todaySchedule.map(_scheduleLabel).join(' · '),
-            connected: todaySchedule.isNotEmpty,
+            value: todayLabels.isEmpty
+                ? 'No shift published for today'
+                : todayLabels.join(' · '),
+            connected: todayLabels.isNotEmpty,
           ),
           const Divider(height: 28),
           Align(
@@ -1294,7 +1136,7 @@ class _OperationsStatusCard extends StatelessWidget {
                 TextButton.icon(
                   onPressed: () => _showWeeklyTimetable(buildContext, context),
                   icon: const Icon(Icons.calendar_view_week_outlined),
-                  label: const Text('View weekly timetable'),
+                  label: const Text('View timetable'),
                 ),
                 IconButton(
                   tooltip: 'Refresh timetable',
@@ -1309,8 +1151,13 @@ class _OperationsStatusCard extends StatelessWidget {
     );
   }
 
-  static String _scheduleLabel(WeeklyScheduleEntry entry) =>
+  static String _datedScheduleLabel(DatedShiftEntry entry) =>
       '${entry.baristaName} ${entry.startsAt}-${entry.endsAt}';
+
+  static String _dateKey(DateTime value) {
+    String pad(int part) => part.toString().padLeft(2, '0');
+    return '${value.year}-${pad(value.month)}-${pad(value.day)}';
+  }
 
   static Future<void> _showWeeklyTimetable(
     BuildContext context,
@@ -1325,6 +1172,13 @@ class _OperationsStatusCard extends StatelessWidget {
       'Saturday',
       'Sunday',
     ];
+
+    final today = DateTime.now();
+    final monday = DateTime(
+      today.year,
+      today.month,
+      today.day,
+    ).subtract(Duration(days: today.weekday - 1));
 
     return showModalBottomSheet<void>(
       context: context,
@@ -1343,7 +1197,7 @@ class _OperationsStatusCard extends StatelessWidget {
                   children: [
                     const Expanded(
                       child: Text(
-                        'Weekly timetable',
+                        'Published timetable',
                         style: TextStyle(
                           color: SettingsPage.ink,
                           fontSize: 24,
@@ -1360,7 +1214,7 @@ class _OperationsStatusCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 6),
                 const Text(
-                  'Published by operations. This timetable is for team planning only.',
+                  'This week\'s dated shifts published by operations.',
                 ),
                 const SizedBox(height: 16),
                 Expanded(
@@ -1368,30 +1222,35 @@ class _OperationsStatusCard extends StatelessWidget {
                     itemCount: dayNames.length,
                     separatorBuilder: (_, _) => const Divider(height: 20),
                     itemBuilder: (_, index) {
-                      final weekday = index + 1;
-                      final shifts =
-                          operations.weeklySchedule
-                              .where((entry) => entry.weekday == weekday)
-                              .toList()
-                            ..sort(
-                              (left, right) =>
-                                  left.startsAt.compareTo(right.startsAt),
-                            );
+                      final date = monday.add(Duration(days: index));
+                      final labels =
+                          (operations.scheduledShifts
+                                  .where(
+                                    (entry) =>
+                                        entry.shiftDate == _dateKey(date),
+                                  )
+                                  .toList()
+                                ..sort(
+                                  (left, right) =>
+                                      left.startsAt.compareTo(right.startsAt),
+                                ))
+                              .map(_datedScheduleLabel)
+                              .toList();
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            dayNames[index],
+                            '${dayNames[index]} · ${date.day}/${date.month}',
                             style: const TextStyle(fontWeight: FontWeight.w800),
                           ),
                           const SizedBox(height: 6),
-                          if (shifts.isEmpty)
+                          if (labels.isEmpty)
                             const Text('No shift published')
                           else
-                            ...shifts.map(
-                              (entry) => Padding(
+                            ...labels.map(
+                              (label) => Padding(
                                 padding: const EdgeInsets.only(bottom: 4),
-                                child: Text(_scheduleLabel(entry)),
+                                child: Text(label),
                               ),
                             ),
                         ],
@@ -1557,7 +1416,7 @@ class _SignOutSheet extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'The next staff member will need the shared Barista App login before selecting their name.',
+              'The next staff member will need the shared Barista Workspace login before selecting their name.',
               style: TextStyle(
                 color: SettingsPage.ink.withValues(alpha: 0.62),
                 fontSize: 15,

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:counter_app/widgets/top_notice.dart';
 import '../main.dart';
 import '../widgets/order_card.dart';
 import 'order_details_page.dart';
 import '../services/api_service.dart';
-import '../widgets/blinking_online_indicator.dart';
 
 class CurrentOrderPage extends StatefulWidget {
   final VoidCallback? onSettingsTap;
@@ -53,9 +53,7 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
 
     setState(() => _updatingOrderIds.remove(order.orderId));
     if (!result.isSuccess) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(result.errorMessage!)));
+      TopNotice.error(context, result.errorMessage!);
       return;
     }
 
@@ -110,10 +108,7 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
                     color: darkGreen,
                     onRefresh: _refreshOrders,
                     child: ListView(
-                      padding: const EdgeInsets.only(
-                        top: 100,
-                        bottom: 180,
-                      ), // padding to scroll past the header and floating bottom bar
+                      padding: const EdgeInsets.only(top: 16, bottom: 180),
                       children: [
                         // Content
                         Padding(
@@ -272,42 +267,6 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
                         ),
                       ],
                     ),
-                  ),
-                ),
-              ),
-              // Dark Green Top Header (Fixed)
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                child: Container(
-                  height: 110,
-                  padding: const EdgeInsets.only(top: 40, left: 24, right: 24),
-                  decoration: BoxDecoration(
-                    color: darkGreen,
-                    borderRadius: const BorderRadius.only(
-                      bottomLeft: Radius.circular(16.0),
-                      bottomRight: Radius.circular(16.0),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.1),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Row(
-                        children: [
-                          Image.asset('assets/images/c2_logo.png', height: 40),
-                        ],
-                      ),
-                      const BlinkingOnlineIndicator(),
-                    ],
                   ),
                 ),
               ),

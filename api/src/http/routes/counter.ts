@@ -14,6 +14,7 @@ import { loadCatalogMenu } from './catalog.js';
 import { isStoreTradingNow } from '../../services/store-availability.js';
 import { sendOtpEmail } from '../../services/otp-email.js';
 import { getKualaLumpurDateParts } from '../../lib/kuala-lumpur-time.js';
+import { verifyPassword } from '../../lib/password.js';
 import {
   collectMatchedUnits,
   isVoucherAvailableNow,
@@ -32,6 +33,10 @@ const lookupCustomerSchema = z.object({
 
 const activateDeviceSchema = z.object({
   activation_code: z.string().trim().toUpperCase().min(8).max(64)
+});
+
+const administratorUnlockSchema = z.object({
+  password: z.string().min(8).max(200)
 });
 
 const workstationKeyPattern = /^C2-[A-Z0-9]{12}$/;
@@ -284,6 +289,58 @@ export async function registerCounterRoutes(app: FastifyInstance): Promise<void>
     }
   }));
 
+  app.post('/v1/counter/administrator-unlock', {
+    preHandler: authenticateCounterDevice,
+    config: { rateLimit: { max: 5, timeWindow: '15 minutes' } }
+  }, async (request) => {
+    const parsed = administratorUnlockSchema.safeParse(request.body);
+    if (!parsed.success) {
+      throw new ApiError(401, 'administrator_unlock_failed', 'Administrator password is incorrect.');
+    }
+
+    const [administrators] = await mysqlPool.query<RowDataPacket[]>(
+      `SELECT DISTINCT u.id, u.password_hash
+       FROM admin_users u
+       JOIN admin_user_roles ur ON ur.admin_user_id = u.id
+       JOIN admin_roles r ON r.id = ur.admin_role_id
+       WHERE u.tenant_id = :tenantId
+         AND u.status = 'active'
+         AND u.password_hash IS NOT NULL
+         AND r.code IN ('super_admin', 'operations_admin')`,
+      { tenantId: request.counterAuth.tenantId }
+    );
+
+    let administratorId: number | null = null;
+    for (const administrator of administrators) {
+      if (await verifyPassword(parsed.data.password, administrator.password_hash)) {
+        administratorId = Number(administrator.id);
+        break;
+      }
+    }
+    if (administratorId == null) {
+      throw new ApiError(401, 'administrator_unlock_failed', 'Administrator password is incorrect.');
+    }
+
+    await mysqlPool.execute(
+      `INSERT INTO admin_audit_logs
+         (admin_user_id, effective_roles_json, action_code, target_type, target_id,
+          after_json, ip_address, user_agent, created_at)
+       VALUES
+         (:adminUserId, :roles, 'counter_workspace_unlocked', 'counter_device', :deviceId,
+          :afterJson, :ipAddress, :userAgent, UTC_TIMESTAMP())`,
+      {
+        adminUserId: administratorId,
+        roles: JSON.stringify(['device_unlock']),
+        deviceId: String(request.counterAuth.deviceId),
+        afterJson: JSON.stringify({ store_id: request.counterAuth.storeId }),
+        ipAddress: request.ip,
+        userAgent: request.headers['user-agent'] ?? null
+      }
+    );
+
+    return { unlocked: true };
+  });
+
   app.post('/v1/counter/direct-printer/configure', { preHandler: authenticateCounterDevice }, async (request, reply) => {
     const key = counterWorkstationKey(request);
     const body = directPrinterConfigurationSchema.parse(request.body);
@@ -420,10 +477,14 @@ export async function registerCounterRoutes(app: FastifyInstance): Promise<void>
       );
       const [jobs] = await connection.execute<RowDataPacket[]>(
         `SELECT j.id, j.job_ref, o.order_ref, o.created_at,
-                COALESCE(NULLIF(TRIM(up.display_name), ''), 'Guest') AS customer_name
+                COALESCE(NULLIF(TRIM(up.display_name), ''), 'Guest') AS customer_name,
+                COALESCE(ctm.is_employee, 0) AS is_employee
          FROM print_jobs j
          JOIN orders o ON o.id = j.order_id AND o.store_id = :storeId
+         JOIN stores s ON s.id = o.store_id
          LEFT JOIN user_profiles up ON up.user_id = o.user_id
+         LEFT JOIN customer_tenant_memberships ctm
+           ON ctm.user_id = o.user_id AND ctm.tenant_id = s.tenant_id
          WHERE j.printer_target_id = :printerTargetId AND j.status = 'queued'
          ORDER BY j.created_at ASC LIMIT 1 FOR UPDATE`,
         { printerTargetId: printer.id, storeId: request.counterAuth.storeId }
@@ -472,6 +533,7 @@ export async function registerCounterRoutes(app: FastifyInstance): Promise<void>
         order: {
           order_ref: job.order_ref,
           customer_name: job.customer_name,
+          is_employee: Number(job.is_employee) === 1,
           created_at: new Date(job.created_at).toISOString(),
           items: items.map((item) => ({
             name: item.item_name_snapshot,

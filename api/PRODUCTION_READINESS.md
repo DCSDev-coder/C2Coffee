@@ -51,7 +51,7 @@ does not move the physical outlet or route orders elsewhere.
 
 The `038_add_single_outlet_routing.sql` migration marks `C2-BROGA` as the
 customer-facing outlet and assigns existing barista-only accounts to it. It
-also scopes the Barista App's order queue, status updates, print jobs, printer
+also scopes the Barista Workspace order queue, status updates, print jobs, printer
 readiness, and weekly timetable to that assignment.
 
 To launch another physical outlet later, create its store record, explicitly

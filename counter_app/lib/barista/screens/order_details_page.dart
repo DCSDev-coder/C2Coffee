@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:counter_app/widgets/top_notice.dart';
 import '../main.dart';
 import '../widgets/order_card.dart';
 import '../services/api_service.dart';
@@ -476,9 +477,7 @@ class _PreparationWorkspaceState extends State<_PreparationWorkspace> {
     if (!mounted) return;
     setState(() => _submitting = false);
     if (!result.isSuccess) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(result.errorMessage!)));
+      TopNotice.error(context, result.errorMessage!);
       return;
     }
     widget.order.status = status == 'preparing'

@@ -31,17 +31,17 @@ void main() {
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(
-      MaterialApp(
-        home: WorkspaceSelectionScreen(
-          authService: AuthService(),
-          onDeviceDeactivated: () {},
-        ),
-      ),
+      MaterialApp(home: WorkspaceSelectionScreen(authService: AuthService())),
     );
     await tester.pump();
 
     expect(find.text('Choose workspace'), findsOneWidget);
     expect(find.text('Open Counter'), findsOneWidget);
     expect(find.text('Barista Login'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Device settings'));
+    await tester.pumpAndSettle();
+    expect(find.text('Update'), findsOneWidget);
+    expect(find.text('Exit'), findsOneWidget);
   });
 }

@@ -15,6 +15,17 @@ class DeviceActivationResult {
   const DeviceActivationResult.failure(String message) : this._(false, message);
 }
 
+class AdministratorUnlockResult {
+  final bool success;
+  final String? message;
+
+  const AdministratorUnlockResult._(this.success, this.message);
+
+  const AdministratorUnlockResult.success() : this._(true, null);
+  const AdministratorUnlockResult.failure(String message)
+    : this._(false, message);
+}
+
 class AuthService {
   final ApiClient _apiClient = ApiClient();
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
@@ -44,6 +55,44 @@ class AuthService {
     } catch (e) {
       // Network error, you might want to handle this differently in a real app
       return false;
+    }
+  }
+
+  Future<AdministratorUnlockResult> verifyAdministratorPassword(
+    String password,
+  ) async {
+    final token = await getToken();
+    if (token == null) {
+      return const AdministratorUnlockResult.failure(
+        'This C2 Store device is no longer activated.',
+      );
+    }
+
+    try {
+      final response = await _apiClient.post(
+        '/v1/counter/administrator-unlock',
+        {'password': password},
+        token: token,
+      );
+      if (response.statusCode == 200) {
+        return const AdministratorUnlockResult.success();
+      }
+      if (response.statusCode == 429) {
+        return const AdministratorUnlockResult.failure(
+          'Too many attempts. Please wait 15 minutes before trying again.',
+        );
+      }
+      return const AdministratorUnlockResult.failure(
+        'Administrator password is incorrect.',
+      );
+    } on TimeoutException {
+      return const AdministratorUnlockResult.failure(
+        'The server took too long to respond. Check the internet connection and try again.',
+      );
+    } catch (_) {
+      return const AdministratorUnlockResult.failure(
+        'Unable to verify the administrator. Check the internet connection and try again.',
+      );
     }
   }
 

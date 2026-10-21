@@ -6,6 +6,10 @@ import { authenticateAdminRequest, requireAnyAdminRole } from '../../admin/guard
 import { requireAdminActionConfirmation } from '../../admin/action-confirmation.js';
 import { mysqlPool } from '../../db/mysql.js';
 import { generateDeviceActivationCode, hashSha256 } from '../../lib/crypto.js';
+import {
+  COUNTER_DEVICE_ONLINE_WINDOW_SECONDS,
+  resolveCounterDevicePresence
+} from '../../services/counter-device-presence.js';
 import { ApiError } from '../errors.js';
 
 const createDeviceSchema = z.object({
@@ -32,6 +36,7 @@ export async function registerAdminCounterDeviceRoutes(app: FastifyInstance): Pr
     const [devices] = await mysqlPool.query<RowDataPacket[]>(
       `SELECT cd.id, cd.label, cd.status, cd.store_id, store.name AS store_name,
               cd.last_seen_at, cd.activated_at, cd.activation_expires_at,
+              TIMESTAMPDIFF(SECOND, cd.last_seen_at, UTC_TIMESTAMP()) AS seconds_since_last_seen,
               cd.created_at, cd.updated_at
        FROM counter_devices cd
        JOIN stores store ON store.id = cd.store_id
@@ -39,7 +44,23 @@ export async function registerAdminCounterDeviceRoutes(app: FastifyInstance): Pr
        ORDER BY cd.created_at DESC`,
       { tenantId: request.adminAuth.tenantId }
     );
-    return { devices };
+    return {
+      devices: devices.map((device) => {
+        const presence = resolveCounterDevicePresence({
+          status: device.status,
+          activatedAt: device.activated_at,
+          secondsSinceLastSeen: device.seconds_since_last_seen
+        });
+        const { seconds_since_last_seen: _secondsSinceLastSeen, ...safeDevice } = device;
+        return {
+          ...safeDevice,
+          connection_status: presence.connectionStatus,
+          is_online: presence.isOnline,
+          last_seen_seconds_ago: presence.secondsSinceLastSeen
+        };
+      }),
+      online_window_seconds: COUNTER_DEVICE_ONLINE_WINDOW_SECONDS
+    };
   });
 
   app.post('/v1/admin/counter-devices', { preHandler: authenticateAdminRequest }, async (request, reply) => {

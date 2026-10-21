@@ -75,6 +75,22 @@ const attendanceQuerySchema = z.object({
   barista_id: z.coerce.number().int().positive().optional()
 });
 const workstationKeyPattern = /^C2-[A-Z0-9]{12}$/;
+const baristaSoundStyle = z.enum(['short', 'long', 'two_tone']);
+const baristaSoundSettingsSchema = z.object({
+  volume_percent: z.coerce.number().int().min(0).max(100),
+  clock_in_beeps: z.coerce.number().int().min(1).max(5),
+  clock_in_style: baristaSoundStyle.optional().default('short'),
+  clock_out_beeps: z.coerce.number().int().min(1).max(5),
+  clock_out_style: baristaSoundStyle.optional().default('long'),
+  side_work_beeps: z.coerce.number().int().min(1).max(5),
+  side_work_style: baristaSoundStyle.optional().default('two_tone')
+}).refine((value) => new Set([
+  value.clock_in_beeps,
+  value.clock_out_beeps,
+  value.side_work_beeps
+]).size === 3, {
+  message: 'Use a different beep count for clock-in, clock-out, and side work.'
+});
 
 function workstationKey(request: { headers: Record<string, string | string[] | undefined> }): string {
   const value = request.headers['x-c2-workstation-key'];
@@ -179,6 +195,79 @@ function integrationResponse(row: RowDataPacket) {
 }
 
 export async function registerOperationalIntegrationRoutes(app: FastifyInstance): Promise<void> {
+  app.get('/v1/admin/barista-sound-settings', { preHandler: authenticateAdminRequest }, async (request) => {
+    canConfigure(request);
+    const [rows] = await mysqlPool.query<RowDataPacket[]>(
+      `SELECT s.id AS store_id, s.name AS store_name,
+              COALESCE(bs.volume_percent, 70) AS volume_percent,
+              COALESCE(bs.clock_in_beeps, 1) AS clock_in_beeps,
+              COALESCE(bs.clock_in_style, 'short') AS clock_in_style,
+              COALESCE(bs.clock_out_beeps, 2) AS clock_out_beeps,
+              COALESCE(bs.clock_out_style, 'long') AS clock_out_style,
+              COALESCE(bs.side_work_beeps, 3) AS side_work_beeps,
+              COALESCE(bs.side_work_style, 'two_tone') AS side_work_style
+       FROM stores s
+       LEFT JOIN barista_sound_settings bs
+         ON bs.tenant_id = s.tenant_id AND bs.store_id = s.id
+       WHERE s.tenant_id = :tenantId AND s.status = 'active'
+       ORDER BY s.is_customer_facing DESC, s.name ASC`,
+      { tenantId: request.adminAuth.tenantId }
+    );
+    return {
+      outlets: rows.map((row) => ({
+        store_id: Number(row.store_id),
+        store_name: row.store_name,
+        volume_percent: Number(row.volume_percent),
+        clock_in_beeps: Number(row.clock_in_beeps),
+        clock_in_style: row.clock_in_style,
+        clock_out_beeps: Number(row.clock_out_beeps),
+        clock_out_style: row.clock_out_style,
+        side_work_beeps: Number(row.side_work_beeps),
+        side_work_style: row.side_work_style
+      }))
+    };
+  });
+
+  app.put('/v1/admin/barista-sound-settings/:storeId', { preHandler: authenticateAdminRequest }, async (request) => {
+    canConfigure(request);
+    const storeId = z.coerce.number().int().positive().parse((request.params as { storeId: string }).storeId);
+    const body = baristaSoundSettingsSchema.parse(request.body);
+    await assertStoreInTenant(storeId, request.adminAuth.tenantCode);
+    await mysqlPool.execute(
+      `INSERT INTO barista_sound_settings (
+         tenant_id, store_id, volume_percent, clock_in_beeps, clock_in_style,
+         clock_out_beeps, clock_out_style, side_work_beeps, side_work_style,
+         updated_by_admin_user_id
+       ) VALUES (
+         :tenantId, :storeId, :volumePercent, :clockInBeeps, :clockInStyle,
+         :clockOutBeeps, :clockOutStyle, :sideWorkBeeps, :sideWorkStyle,
+         :adminUserId
+       )
+       ON DUPLICATE KEY UPDATE
+         volume_percent = VALUES(volume_percent),
+         clock_in_beeps = VALUES(clock_in_beeps),
+         clock_in_style = VALUES(clock_in_style),
+         clock_out_beeps = VALUES(clock_out_beeps),
+         clock_out_style = VALUES(clock_out_style),
+         side_work_beeps = VALUES(side_work_beeps),
+         side_work_style = VALUES(side_work_style),
+         updated_by_admin_user_id = VALUES(updated_by_admin_user_id)`,
+      {
+        tenantId: request.adminAuth.tenantId,
+        storeId,
+        volumePercent: body.volume_percent,
+        clockInBeeps: body.clock_in_beeps,
+        clockInStyle: body.clock_in_style,
+        clockOutBeeps: body.clock_out_beeps,
+        clockOutStyle: body.clock_out_style,
+        sideWorkBeeps: body.side_work_beeps,
+        sideWorkStyle: body.side_work_style,
+        adminUserId: request.adminAuth.adminUserId
+      }
+    );
+    return { saved: true, store_id: storeId, ...body };
+  });
+
   app.get('/v1/admin/operations/attendance', { preHandler: authenticateAdminRequest }, async (request) => {
     canConfigure(request);
     const query = attendanceQuerySchema.parse(request.query);
@@ -379,6 +468,23 @@ export async function registerOperationalIntegrationRoutes(app: FastifyInstance)
          WHERE tenant_code = :tenantCode AND shift_date BETWEEN :from AND :to`,
         { tenantCode: request.adminAuth.tenantCode, from, to }
       );
+      await connection.execute(
+        `DELETE FROM barista_schedule_publications
+         WHERE tenant_code = :tenantCode AND store_id IS NULL AND schedule_date BETWEEN :from AND :to`,
+        { tenantCode: request.adminAuth.tenantCode, from, to }
+      );
+      for (const scheduleDate of datesBetween(from, to)) {
+        await connection.execute(
+          `INSERT INTO barista_schedule_publications (
+             tenant_code, store_id, schedule_date, published_by_admin_user_id, published_at
+           ) VALUES (:tenantCode, NULL, :scheduleDate, :adminUserId, UTC_TIMESTAMP())`,
+          {
+            tenantCode: request.adminAuth.tenantCode,
+            scheduleDate,
+            adminUserId: request.adminAuth.adminUserId
+          }
+        );
+      }
       for (const entry of body.entries) {
         await connection.execute(
           `INSERT INTO barista_dated_shifts (
@@ -622,7 +728,8 @@ export async function registerOperationalIntegrationRoutes(app: FastifyInstance)
   app.get('/v1/barista/operations/context', { preHandler: authenticateAdminRequest }, async (request, reply) => {
     canOperate(request);
     const key = workstationKey(request);
-    const [integrations, printers, schedules] = await Promise.all([
+    const { from, to } = planningWindow();
+    const [integrations, printers, datedShifts] = await Promise.all([
       mysqlPool.execute<RowDataPacket[]>(
         `SELECT provider_code, display_name, status, capabilities_json, last_checked_at, last_error_code
          FROM outlet_integrations oi
@@ -652,24 +759,34 @@ export async function registerOperationalIntegrationRoutes(app: FastifyInstance)
         { tenantCode: request.adminAuth.tenantCode, adminUserId: request.adminAuth.adminUserId, isBaristaOnly: request.adminAuth.isBaristaOnly ? 1 : 0, workstationKey: key }
       ),
       mysqlPool.execute<RowDataPacket[]>(
-        `SELECT s.weekday, s.starts_at, s.ends_at, b.id AS barista_id, b.name AS barista_name
-         FROM barista_weekly_schedules s
+        `SELECT DATE_FORMAT(s.shift_date, '%Y-%m-%d') AS shift_date,
+                s.starts_at, s.ends_at, b.id AS barista_id, b.name AS barista_name
+         FROM barista_dated_shifts s
          JOIN baristas b ON b.id = s.barista_id
-         WHERE s.tenant_code = :tenantCode AND s.is_active = 1
+         WHERE s.tenant_code = :tenantCode AND s.shift_date BETWEEN :from AND :to
            AND (
-           :isBaristaOnly = 0
+             :isBaristaOnly = 0
              OR s.store_id IS NULL
-             OR EXISTS (SELECT 1 FROM admin_user_store_assignments aus WHERE aus.admin_user_id = :adminUserId AND aus.store_id = s.store_id)
+             OR EXISTS (
+               SELECT 1 FROM admin_user_store_assignments aus
+               WHERE aus.admin_user_id = :adminUserId AND aus.store_id = s.store_id
+             )
            )
-         ORDER BY s.weekday ASC, s.starts_at ASC`,
-        { tenantCode: request.adminAuth.tenantCode, adminUserId: request.adminAuth.adminUserId, isBaristaOnly: request.adminAuth.isBaristaOnly ? 1 : 0 }
+         ORDER BY s.shift_date ASC, s.starts_at ASC, b.name ASC`,
+        {
+          tenantCode: request.adminAuth.tenantCode,
+          from,
+          to,
+          adminUserId: request.adminAuth.adminUserId,
+          isBaristaOnly: request.adminAuth.isBaristaOnly ? 1 : 0
+        }
       )
     ]);
 
     return reply.send({
       integrations: integrations[0].map(integrationResponse),
       printers: printers[0].map((row) => ({ ...row, is_default: !!row.is_default })),
-      weekly_schedule: schedules[0]
+      scheduled_shifts: datedShifts[0]
     });
   });
 
@@ -709,10 +826,14 @@ export async function registerOperationalIntegrationRoutes(app: FastifyInstance)
       );
       const [jobs] = await connection.execute<RowDataPacket[]>(
         `SELECT j.id, j.job_ref, o.order_ref, o.created_at,
-                COALESCE(NULLIF(TRIM(up.display_name), ''), 'Guest') AS customer_name
+                COALESCE(NULLIF(TRIM(up.display_name), ''), 'Guest') AS customer_name,
+                COALESCE(ctm.is_employee, 0) AS is_employee
          FROM print_jobs j
          JOIN orders o ON o.id = j.order_id
+         JOIN stores s ON s.id = o.store_id
          LEFT JOIN user_profiles up ON up.user_id = o.user_id
+         LEFT JOIN customer_tenant_memberships ctm
+           ON ctm.user_id = o.user_id AND ctm.tenant_id = s.tenant_id
          WHERE j.printer_target_id = :printerTargetId AND j.status = 'queued' ORDER BY j.created_at ASC LIMIT 1 FOR UPDATE`,
         { printerTargetId: printer.id }
       );
@@ -739,7 +860,7 @@ export async function registerOperationalIntegrationRoutes(app: FastifyInstance)
         detailsByItemId.set(Number(modifier.order_item_id), details);
       }
       await connection.commit();
-      return reply.send({ job_ref: job.job_ref, printer: { name: printer.name, host: printer.network_host, port: Number(printer.network_port) }, order: { order_ref: job.order_ref, customer_name: job.customer_name, created_at: new Date(job.created_at).toISOString(), items: items.map((item) => ({ name: item.item_name_snapshot, quantity: Number(item.quantity), details: detailsByItemId.get(Number(item.id)) ?? [] })) } });
+      return reply.send({ job_ref: job.job_ref, printer: { name: printer.name, host: printer.network_host, port: Number(printer.network_port) }, order: { order_ref: job.order_ref, customer_name: job.customer_name, is_employee: Number(job.is_employee) === 1, created_at: new Date(job.created_at).toISOString(), items: items.map((item) => ({ name: item.item_name_snapshot, quantity: Number(item.quantity), details: detailsByItemId.get(Number(item.id)) ?? [] })) } });
     } catch (error) {
       await connection.rollback();
       throw error;

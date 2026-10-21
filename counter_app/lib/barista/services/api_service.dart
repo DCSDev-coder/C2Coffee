@@ -41,10 +41,12 @@ class ApiService {
     String status,
   ) async {
     try {
+      final workstationKey = await DirectPrinterService.instance
+          .workstationKey();
       final response = await _authenticatedRequest(
         (headers) => http.patch(
           Uri.parse('$baseUrl/admin/orders/$orderId/status'),
-          headers: headers,
+          headers: {...headers, 'x-c2-workstation-key': workstationKey},
           body: json.encode({'status': status}),
         ),
       );
@@ -266,6 +268,17 @@ class ApiService {
             return 'This order has already been updated. Please refresh the order list.';
           case 'clock_in_required':
             return 'Clock in from Workstation before preparing orders.';
+          case 'shift_access_locked':
+            return error['message']?.toString() ??
+                'The workstation is locked until the scheduled shift clocks in.';
+          case 'handover_required':
+            return 'The incoming scheduled barista must clock in before this shift can clock out.';
+          case 'shift_coverage_required':
+            return 'The final scheduled barista must stay clocked in until the shift ends or another scheduled barista takes over.';
+          case 'active_orders_require_coverage':
+            return 'The final barista cannot clock out while active orders still need coverage.';
+          case 'workstation_outlet_required':
+            return 'Assign this C2 Store device to one outlet in Admin Web before using shift access.';
           case 'barista_not_clocked_in':
             return 'Clock in before completing this side-work task.';
           case 'invalid_barista_pin':
@@ -390,10 +403,11 @@ class ApiService {
   }
 
   static Future<BaristaAttendanceStatus> fetchAttendanceStatus() async {
+    final workstationKey = await DirectPrinterService.instance.workstationKey();
     final response = await _authenticatedRequest(
       (headers) => http.get(
         Uri.parse('$baseUrl/barista/attendance/status'),
-        headers: headers,
+        headers: {...headers, 'x-c2-workstation-key': workstationKey},
       ),
     );
     if (response.statusCode != 200) {
@@ -410,12 +424,14 @@ class ApiService {
     required String pin,
   }) async {
     try {
+      final workstationKey = await DirectPrinterService.instance
+          .workstationKey();
       final response = await _authenticatedRequest(
         (headers) => http.post(
           Uri.parse(
             '$baseUrl/barista/attendance/${clockIn ? 'clock-in' : 'clock-out'}',
           ),
-          headers: headers,
+          headers: {...headers, 'x-c2-workstation-key': workstationKey},
           body: json.encode({'barista_id': baristaId, 'pin': pin}),
         ),
       );
@@ -427,6 +443,22 @@ class ApiService {
         'Unable to update your shift. Check the connection and try again.',
       );
     }
+  }
+
+  static Future<WorkstationAccessState> fetchWorkstationAccessState() async {
+    final workstationKey = await DirectPrinterService.instance.workstationKey();
+    final response = await _authenticatedRequest(
+      (headers) => http.get(
+        Uri.parse('$baseUrl/barista/workstation/access-state'),
+        headers: {...headers, 'x-c2-workstation-key': workstationKey},
+      ),
+    );
+    if (response.statusCode != 200) {
+      throw StateError(_responseMessage(response));
+    }
+    return WorkstationAccessState.fromJson(
+      json.decode(response.body) as Map<String, dynamic>,
+    );
   }
 
   static Future<List<BaristaGuide>> fetchGuides({int? menuItemId}) async {
@@ -449,10 +481,18 @@ class ApiService {
         .toList();
   }
 
-  static Future<List<BaristaSideWorkTask>> fetchSideWork() async {
+  static Future<List<BaristaSideWorkTask>> fetchSideWork({
+    String? from,
+    String? to,
+  }) async {
+    final query = <String, String>{};
+    if (from != null) query['from'] = from;
+    if (to != null) query['to'] = to;
+    final uri = Uri.parse(
+      '$baseUrl/barista/side-work',
+    ).replace(queryParameters: query.isEmpty ? null : query);
     final response = await _authenticatedRequest(
-      (headers) =>
-          http.get(Uri.parse('$baseUrl/barista/side-work'), headers: headers),
+      (headers) => http.get(uri, headers: headers),
     );
     if (response.statusCode != 200) {
       throw StateError(_responseMessage(response));
@@ -527,6 +567,123 @@ class BaristaAttendance {
         baristaName: json['barista_name']?.toString() ?? 'Barista',
         clockedInAt: DateTime.parse(json['clocked_in_at'].toString()).toLocal(),
       );
+}
+
+class ShiftStaff {
+  final int baristaId;
+  final String baristaName;
+  final String? startsAt;
+  final String? endsAt;
+
+  const ShiftStaff({
+    required this.baristaId,
+    required this.baristaName,
+    this.startsAt,
+    this.endsAt,
+  });
+
+  factory ShiftStaff.fromJson(Map<String, dynamic> json) => ShiftStaff(
+    baristaId: (json['barista_id'] as num).toInt(),
+    baristaName: json['barista_name']?.toString() ?? 'Barista',
+    startsAt: json['starts_at']?.toString(),
+    endsAt: json['ends_at']?.toString(),
+  );
+}
+
+class WorkstationAccessState {
+  final String scheduleStatus;
+  final String accessState;
+  final bool canPrepareOrders;
+  final String message;
+  final String scheduleDate;
+  final List<ShiftStaff> currentStaff;
+  final List<ShiftStaff> missingStaff;
+  final List<BaristaAttendance> activeAttendance;
+  final int? minutesUntilShiftEnd;
+  final BaristaSoundSettings soundSettings;
+
+  const WorkstationAccessState({
+    required this.scheduleStatus,
+    required this.accessState,
+    required this.canPrepareOrders,
+    required this.message,
+    required this.scheduleDate,
+    required this.currentStaff,
+    required this.missingStaff,
+    required this.activeAttendance,
+    required this.minutesUntilShiftEnd,
+    required this.soundSettings,
+  });
+
+  factory WorkstationAccessState.fromJson(
+    Map<String, dynamic> json,
+  ) => WorkstationAccessState(
+    scheduleStatus: json['schedule_status']?.toString() ?? 'unpublished',
+    accessState: json['access_state']?.toString() ?? 'locked',
+    canPrepareOrders: json['can_prepare_orders'] == true,
+    message: json['message']?.toString() ?? 'Shift access is unavailable.',
+    scheduleDate: json['schedule_date']?.toString() ?? '',
+    currentStaff: (json['current_staff'] as List? ?? const [])
+        .map((item) => ShiftStaff.fromJson(item as Map<String, dynamic>))
+        .toList(),
+    missingStaff: (json['missing_staff'] as List? ?? const [])
+        .map((item) => ShiftStaff.fromJson(item as Map<String, dynamic>))
+        .toList(),
+    activeAttendance: (json['active_attendance'] as List? ?? const [])
+        .map((item) => BaristaAttendance.fromJson(item as Map<String, dynamic>))
+        .toList(),
+    minutesUntilShiftEnd: (json['minutes_until_shift_end'] as num?)?.toInt(),
+    soundSettings: BaristaSoundSettings.fromJson(
+      json['sound_settings'] as Map<String, dynamic>? ?? const {},
+    ),
+  );
+}
+
+class BaristaSoundSettings {
+  final int volumePercent;
+  final int clockInBeeps;
+  final String clockInStyle;
+  final int clockOutBeeps;
+  final String clockOutStyle;
+  final int sideWorkBeeps;
+  final String sideWorkStyle;
+
+  const BaristaSoundSettings({
+    required this.volumePercent,
+    required this.clockInBeeps,
+    required this.clockInStyle,
+    required this.clockOutBeeps,
+    required this.clockOutStyle,
+    required this.sideWorkBeeps,
+    required this.sideWorkStyle,
+  });
+
+  const BaristaSoundSettings.defaults()
+    : volumePercent = 70,
+      clockInBeeps = 1,
+      clockInStyle = 'short',
+      clockOutBeeps = 2,
+      clockOutStyle = 'long',
+      sideWorkBeeps = 3,
+      sideWorkStyle = 'two_tone';
+
+  factory BaristaSoundSettings.fromJson(Map<String, dynamic> json) =>
+      BaristaSoundSettings(
+        volumePercent: (json['volume_percent'] as num?)?.toInt() ?? 70,
+        clockInBeeps: (json['clock_in_beeps'] as num?)?.toInt() ?? 1,
+        clockInStyle: _soundStyle(json['clock_in_style'], 'short'),
+        clockOutBeeps: (json['clock_out_beeps'] as num?)?.toInt() ?? 2,
+        clockOutStyle: _soundStyle(json['clock_out_style'], 'long'),
+        sideWorkBeeps: (json['side_work_beeps'] as num?)?.toInt() ?? 3,
+        sideWorkStyle: _soundStyle(json['side_work_style'], 'two_tone'),
+      );
+
+  static String _soundStyle(Object? value, String fallback) {
+    final style = value?.toString();
+    return const {'short', 'long', 'two_tone'}.contains(style)
+        ? style!
+        : fallback;
+  }
 }
 
 class AttendanceBarista {
@@ -657,33 +814,38 @@ class OrdersFetchResult {
 class OperationsContext {
   final List<OperationalIntegration> integrations;
   final List<PrinterTarget> printers;
-  final List<WeeklyScheduleEntry> weeklySchedule;
+  final List<DatedShiftEntry> scheduledShifts;
 
   const OperationsContext({
     required this.integrations,
     required this.printers,
-    required this.weeklySchedule,
+    required this.scheduledShifts,
   });
 
-  factory OperationsContext.fromJson(
-    Map<String, dynamic> json,
-  ) => OperationsContext(
-    integrations: (json['integrations'] as List? ?? const [])
-        .map(
-          (entry) =>
-              OperationalIntegration.fromJson(entry as Map<String, dynamic>),
-        )
-        .toList(),
-    printers: (json['printers'] as List? ?? const [])
-        .map((entry) => PrinterTarget.fromJson(entry as Map<String, dynamic>))
-        .toList(),
-    weeklySchedule: (json['weekly_schedule'] as List? ?? const [])
-        .map(
-          (entry) =>
-              WeeklyScheduleEntry.fromJson(entry as Map<String, dynamic>),
-        )
-        .toList(),
-  );
+  factory OperationsContext.fromJson(Map<String, dynamic> json) {
+    final scheduledShifts = json['scheduled_shifts'];
+    if (scheduledShifts is! List) {
+      throw const FormatException(
+        'The timetable service did not return a published dated schedule.',
+      );
+    }
+    return OperationsContext(
+      integrations: (json['integrations'] as List? ?? const [])
+          .map(
+            (entry) =>
+                OperationalIntegration.fromJson(entry as Map<String, dynamic>),
+          )
+          .toList(),
+      printers: (json['printers'] as List? ?? const [])
+          .map((entry) => PrinterTarget.fromJson(entry as Map<String, dynamic>))
+          .toList(),
+      scheduledShifts: scheduledShifts
+          .map(
+            (entry) => DatedShiftEntry.fromJson(entry as Map<String, dynamic>),
+          )
+          .toList(),
+    );
+  }
 }
 
 class OperationalIntegration {
@@ -735,25 +897,25 @@ class PrinterTarget {
   );
 }
 
-class WeeklyScheduleEntry {
+class DatedShiftEntry {
   final int baristaId;
-  final int weekday;
+  final String shiftDate;
   final String startsAt;
   final String endsAt;
   final String baristaName;
 
-  const WeeklyScheduleEntry({
+  const DatedShiftEntry({
     required this.baristaId,
-    required this.weekday,
+    required this.shiftDate,
     required this.startsAt,
     required this.endsAt,
     required this.baristaName,
   });
 
-  factory WeeklyScheduleEntry.fromJson(Map<String, dynamic> json) =>
-      WeeklyScheduleEntry(
+  factory DatedShiftEntry.fromJson(Map<String, dynamic> json) =>
+      DatedShiftEntry(
         baristaId: (json['barista_id'] as num?)?.toInt() ?? 0,
-        weekday: (json['weekday'] as num?)?.toInt() ?? 0,
+        shiftDate: json['shift_date']?.toString().split('T').first ?? '',
         startsAt: json['starts_at']?.toString() ?? '',
         endsAt: json['ends_at']?.toString() ?? '',
         baristaName: json['barista_name']?.toString() ?? 'Unassigned',

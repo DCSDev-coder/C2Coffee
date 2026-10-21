@@ -569,17 +569,6 @@ class _OrdersPageState extends State<OrdersPage>
               color: Colors.black54,
             ),
           ),
-          if ((order.baristaName ?? '').trim().isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text(
-              'Prepared by: ${order.baristaName!.trim()}',
-              style: const TextStyle(
-                fontFamily: 'Afacad',
-                fontSize: 16,
-                color: Colors.black54,
-              ),
-            ),
-          ],
           const SizedBox(height: 4),
           Text(
             'Created: $createdLabel',

@@ -26,6 +26,7 @@ class DirectPrintJob {
     required this.config,
     required this.orderRef,
     required this.customerName,
+    required this.customerIsEmployee,
     required this.createdAt,
     required this.items,
   });
@@ -34,8 +35,12 @@ class DirectPrintJob {
   final DirectPrinterConfig config;
   final String orderRef;
   final String customerName;
+  final bool customerIsEmployee;
   final DateTime createdAt;
   final List<DirectPrintItem> items;
+
+  String get printedCustomerName =>
+      customerIsEmployee ? '$customerName (Employee)' : customerName;
 }
 
 class DirectPrintItem {
@@ -213,7 +218,7 @@ class DirectPrinterService {
     buffer.add(const [0x1B, 0x45, 0x00]);
     write('${order.orderRef}\n${_formatPrintedTime(order.createdAt)}\n');
     buffer.add(const [0x1B, 0x61, 0x00]); // Left.
-    _writeWrapped(buffer, 'Customer: ${order.customerName}');
+    _writeWrapped(buffer, 'Customer: ${order.printedCustomerName}');
     write('--------------------------------\n');
     for (final item in order.items) {
       final parsed = _printedItem(item);

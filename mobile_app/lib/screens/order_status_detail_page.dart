@@ -655,19 +655,6 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
                 height: 1.35,
               ),
             ),
-            if ((_order.baristaName ?? '').trim().isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Text(
-                'Prepared by ${_order.baristaName!.trim()}',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontFamily: 'Afacad',
-                  fontSize: 17,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.deepTeal,
-                ),
-              ),
-            ],
             if (_errorMessage != null) ...[
               const SizedBox(height: 18),
               Text(

@@ -1801,17 +1801,13 @@ export async function registerCustomerDataRoutes(
           o.updated_at,
           s.id AS store_id,
           s.name AS store_name,
-          COALESCE(ready_barista.name, preparing_barista.name) AS barista_name,
+          NULL AS barista_name,
           NULL AS barista_username,
           COUNT(oi.id) AS item_count,
           MIN(oi.item_name_snapshot) AS primary_item_name
         FROM orders o
         JOIN stores s
           ON s.id = o.store_id
-        LEFT JOIN baristas preparing_barista
-          ON preparing_barista.id = o.preparing_by_barista_id
-        LEFT JOIN baristas ready_barista
-          ON ready_barista.id = o.ready_by_barista_id
         LEFT JOIN order_items oi
           ON oi.order_id = o.id
         WHERE o.user_id = :userId
@@ -1831,9 +1827,7 @@ export async function registerCustomerDataRoutes(
           o.created_at,
           o.updated_at,
           s.id,
-          s.name,
-          ready_barista.name,
-          preparing_barista.name
+          s.name
         ORDER BY o.id DESC
         LIMIT :limit
       `,

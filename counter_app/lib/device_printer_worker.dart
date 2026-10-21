@@ -116,6 +116,7 @@ class DevicePrinterWorker {
       customerName: order['customer_name']?.toString().trim().isNotEmpty == true
           ? order['customer_name'].toString().trim()
           : 'Guest',
+      customerIsEmployee: order['is_employee'] == true,
       createdAt: DateTime.parse(order['created_at'].toString()),
       items: (order['items'] as List).map((item) {
         final value = item as Map<String, dynamic>;

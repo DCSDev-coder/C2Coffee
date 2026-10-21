@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:counter_app/widgets/top_notice.dart';
 import 'barista/main.dart' as barista;
+import 'app_update_service.dart';
 import 'auth_service.dart';
 import 'session_manager.dart';
 import 'api_client.dart';
@@ -63,12 +66,7 @@ class _SplashOrLoginScreenState extends State<SplashOrLoginScreen> {
     }
 
     if (_isLoggedIn) {
-      return WorkspaceSelectionScreen(
-        authService: _authService,
-        onDeviceDeactivated: () {
-          setState(() => _isLoggedIn = false);
-        },
-      );
+      return WorkspaceSelectionScreen(authService: _authService);
     } else {
       return ActivationScreen(
         authService: _authService,
@@ -213,14 +211,9 @@ class _ActivationScreenState extends State<ActivationScreen> {
 }
 
 class WorkspaceSelectionScreen extends StatefulWidget {
-  const WorkspaceSelectionScreen({
-    super.key,
-    required this.authService,
-    required this.onDeviceDeactivated,
-  });
+  const WorkspaceSelectionScreen({super.key, required this.authService});
 
   final AuthService authService;
-  final VoidCallback onDeviceDeactivated;
 
   @override
   State<WorkspaceSelectionScreen> createState() =>
@@ -228,8 +221,8 @@ class WorkspaceSelectionScreen extends StatefulWidget {
 }
 
 class _WorkspaceSelectionScreenState extends State<WorkspaceSelectionScreen> {
-  bool _deactivating = false;
   late final DevicePrinterWorker _printerWorker;
+  final AppUpdateService _appUpdateService = AppUpdateService();
 
   @override
   void initState() {
@@ -241,6 +234,7 @@ class _WorkspaceSelectionScreenState extends State<WorkspaceSelectionScreen> {
   @override
   void dispose() {
     _printerWorker.dispose();
+    _appUpdateService.dispose();
     super.dispose();
   }
 
@@ -254,36 +248,173 @@ class _WorkspaceSelectionScreenState extends State<WorkspaceSelectionScreen> {
 
   Future<void> _openBarista() async {
     await Navigator.of(context).push<void>(
-      MaterialPageRoute(builder: (_) => const barista.BaristaWorkspace()),
+      MaterialPageRoute(
+        builder: (_) => barista.BaristaWorkspace(
+          onExitRequested: () =>
+              _confirmAdministratorWorkspaceExit(context, widget.authService),
+        ),
+      ),
     );
   }
 
-  Future<void> _deactivateDevice() async {
-    final confirmed = await showDialog<bool>(
+  Future<void> _checkForUpdate() async {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 20),
+            Expanded(child: Text('Checking for updates…')),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      final check = await _appUpdateService.checkForUpdate();
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      if (!check.updateAvailable) {
+        await showDialog<void>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            icon: const Icon(Icons.check_circle_outline_rounded),
+            title: const Text('C2 Store is up to date'),
+            content: Text(
+              'Installed version ${check.installedVersionName} is the latest available version.',
+            ),
+            actions: [
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Close'),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
+      await _showAvailableUpdate(check);
+    } catch (error) {
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          icon: const Icon(Icons.cloud_off_outlined),
+          title: const Text('Unable to check for updates'),
+          content: Text(_friendlyUpdateError(error)),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  Future<void> _showAvailableUpdate(AppUpdateCheck check) async {
+    await showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Deactivate this device?'),
-        content: const Text(
-          'This removes the outlet credential from this device. A new activation code will be required.',
+        icon: const Icon(Icons.system_update_alt_rounded),
+        title: Text('C2 Store ${check.release.versionName} is available'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Installed version: ${check.installedVersionName}'),
+            if (check.release.releaseNotes != null) ...[
+              const SizedBox(height: 16),
+              const Text(
+                'What’s new',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 4),
+              Text(check.release.releaseNotes!),
+            ],
+          ],
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancel'),
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Later'),
           ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Deactivate'),
+          FilledButton.icon(
+            onPressed: () async {
+              Navigator.pop(dialogContext);
+              await _installUpdate(check.release);
+            },
+            icon: const Icon(Icons.download_rounded),
+            label: const Text('Download update'),
           ),
         ],
       ),
     );
-    if (confirmed != true || !mounted) return;
-    setState(() => _deactivating = true);
-    _printerWorker.stop();
-    await widget.authService.logout();
-    if (!mounted) return;
-    widget.onDeviceDeactivated();
+  }
+
+  Future<void> _installUpdate(AppRelease release) async {
+    try {
+      if (!await _appUpdateService.canInstallPackages()) {
+        await _appUpdateService.openInstallPermissionSettings();
+        if (!mounted) return;
+        TopNotice.info(
+          context,
+          'Allow C2 Store to install apps, then return and select Update again.',
+          duration: const Duration(seconds: 6),
+        );
+        return;
+      }
+
+      await _appUpdateService.downloadAndInstall(release);
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          icon: const Icon(Icons.downloading_rounded),
+          title: const Text('Update download started'),
+          content: const Text(
+            'Android will open the installer after the APK is downloaded and verified. Keep C2 Store open or watch the download notification.',
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          icon: const Icon(Icons.error_outline_rounded),
+          title: const Text('Update could not start'),
+          content: Text(_friendlyUpdateError(error)),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  String _friendlyUpdateError(Object error) {
+    if (error is TimeoutException) {
+      return 'The update server did not respond. Check the internet connection and try again.';
+    }
+    if (error is PlatformException && error.message?.isNotEmpty == true) {
+      return error.message!;
+    }
+    if (error is FormatException) return error.message;
+    return 'Check the internet connection and the cPanel update files, then try again.';
   }
 
   @override
@@ -293,10 +424,35 @@ class _WorkspaceSelectionScreenState extends State<WorkspaceSelectionScreen> {
       appBar: AppBar(
         title: const Text('C2 Store'),
         actions: [
-          IconButton(
+          PopupMenuButton<_WorkspaceMenuAction>(
             tooltip: 'Device settings',
-            onPressed: _deactivating ? null : _deactivateDevice,
             icon: const Icon(Icons.settings_outlined),
+            onSelected: (action) async {
+              switch (action) {
+                case _WorkspaceMenuAction.update:
+                  await _checkForUpdate();
+                case _WorkspaceMenuAction.exit:
+                  await SystemNavigator.pop();
+              }
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: _WorkspaceMenuAction.update,
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.system_update_alt_rounded),
+                  title: Text('Update'),
+                ),
+              ),
+              PopupMenuItem(
+                value: _WorkspaceMenuAction.exit,
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.exit_to_app_rounded),
+                  title: Text('Exit'),
+                ),
+              ),
+            ],
           ),
           const SizedBox(width: 12),
         ],
@@ -375,10 +531,6 @@ class _WorkspaceSelectionScreenState extends State<WorkspaceSelectionScreen> {
                       );
                     },
                   ),
-                  if (_deactivating) ...[
-                    const SizedBox(height: 24),
-                    const Center(child: CircularProgressIndicator()),
-                  ],
                 ],
               ),
             ),
@@ -388,6 +540,8 @@ class _WorkspaceSelectionScreenState extends State<WorkspaceSelectionScreen> {
     );
   }
 }
+
+enum _WorkspaceMenuAction { update, exit }
 
 class _WorkspaceCard extends StatelessWidget {
   const _WorkspaceCard({
@@ -468,6 +622,129 @@ class _WorkspaceCard extends StatelessWidget {
   }
 }
 
+Future<bool> _confirmAdministratorWorkspaceExit(
+  BuildContext context,
+  AuthService authService,
+) async {
+  return await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) =>
+            _AdministratorWorkspaceExitDialog(authService: authService),
+      ) ??
+      false;
+}
+
+class _AdministratorWorkspaceExitDialog extends StatefulWidget {
+  const _AdministratorWorkspaceExitDialog({required this.authService});
+
+  final AuthService authService;
+
+  @override
+  State<_AdministratorWorkspaceExitDialog> createState() =>
+      _AdministratorWorkspaceExitDialogState();
+}
+
+class _AdministratorWorkspaceExitDialogState
+    extends State<_AdministratorWorkspaceExitDialog> {
+  final TextEditingController _passwordController = TextEditingController();
+  bool _submitting = false;
+  bool _obscurePassword = true;
+  String? _errorMessage;
+
+  @override
+  void dispose() {
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _confirm() async {
+    if (_submitting || _passwordController.text.isEmpty) return;
+    setState(() {
+      _submitting = true;
+      _errorMessage = null;
+    });
+    final result = await widget.authService.verifyAdministratorPassword(
+      _passwordController.text,
+    );
+    if (!mounted) return;
+    if (result.success) {
+      Navigator.of(context).pop(true);
+      return;
+    }
+    setState(() {
+      _submitting = false;
+      _errorMessage = result.message;
+      _passwordController.clear();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      icon: const Icon(Icons.admin_panel_settings_outlined),
+      title: const Text('Are you sure?'),
+      content: SizedBox(
+        width: 420,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'Returning to workspace selection allows access to another workspace. Please call an administrator to continue.',
+            ),
+            const SizedBox(height: 18),
+            TextField(
+              controller: _passwordController,
+              autofocus: true,
+              enabled: !_submitting,
+              obscureText: _obscurePassword,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => _confirm(),
+              decoration: InputDecoration(
+                labelText: 'Administrator password',
+                prefixIcon: const Icon(Icons.lock_outline_rounded),
+                suffixIcon: IconButton(
+                  onPressed: _submitting
+                      ? null
+                      : () => setState(
+                          () => _obscurePassword = !_obscurePassword,
+                        ),
+                  icon: Icon(
+                    _obscurePassword
+                        ? Icons.visibility_outlined
+                        : Icons.visibility_off_outlined,
+                  ),
+                ),
+                border: const OutlineInputBorder(),
+                errorText: _errorMessage,
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _submitting
+              ? null
+              : () => Navigator.of(context).pop(false),
+          child: const Text('Stay here'),
+        ),
+        FilledButton.icon(
+          onPressed: _submitting ? null : _confirm,
+          icon: _submitting
+              ? const SizedBox.square(
+                  dimension: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.lock_open_rounded),
+          label: Text(_submitting ? 'Verifying…' : 'Return to workspaces'),
+        ),
+      ],
+    );
+  }
+}
+
 class CounterHomeScreen extends StatefulWidget {
   final AuthService authService;
 
@@ -497,6 +774,14 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
 
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+
+  Future<void> _requestWorkspaceExit() async {
+    final allowed = await _confirmAdministratorWorkspaceExit(
+      context,
+      widget.authService,
+    );
+    if (allowed && mounted) Navigator.of(context).pop();
+  }
 
   @override
   void initState() {
@@ -737,101 +1022,113 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Listener(
-      onPointerDown: (_) => _sessionManager.onUserInteraction(),
-      behavior: HitTestBehavior.translucent,
-      child: Scaffold(
-        appBar: AppBar(
-          title: Row(
-            children: [Image.asset('assets/images/c2_logo.png', height: 32)],
-          ),
-          actions: [
-            if (_sessionManager.currentSession != null)
-              Padding(
-                padding: const EdgeInsets.only(right: 16.0),
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        _sessionManager
-                                .currentSession!
-                                .customerSummary['username'] ??
-                            _sessionManager
-                                .currentSession!
-                                .customerSummary['customer_name'] ??
-                            _sessionManager.currentSession!.phone,
-                        style: const TextStyle(
-                          fontFamily: 'Afacad',
-                          fontWeight: FontWeight.bold,
-                          fontSize: 20,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) unawaited(_requestWorkspaceExit());
+      },
+      child: Listener(
+        onPointerDown: (_) => _sessionManager.onUserInteraction(),
+        behavior: HitTestBehavior.translucent,
+        child: Scaffold(
+          appBar: AppBar(
+            automaticallyImplyLeading: false,
+            leading: IconButton(
+              tooltip: 'Return to workspace selection',
+              onPressed: _requestWorkspaceExit,
+              icon: const Icon(Icons.arrow_back_rounded),
+            ),
+            title: Row(
+              children: [Image.asset('assets/images/c2_logo.png', height: 32)],
+            ),
+            actions: [
+              if (_sessionManager.currentSession != null)
+                Padding(
+                  padding: const EdgeInsets.only(right: 16.0),
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          _sessionManager
+                                  .currentSession!
+                                  .customerSummary['username'] ??
+                              _sessionManager
+                                  .currentSession!
+                                  .customerSummary['customer_name'] ??
+                              _sessionManager.currentSession!.phone,
+                          style: const TextStyle(
+                            fontFamily: 'Afacad',
+                            fontWeight: FontWeight.bold,
+                            fontSize: 20,
+                          ),
                         ),
-                      ),
-                      Text(
-                        'Tier: ${_sessionManager.currentSession!.customerSummary['loyalty_tier'] ?? 'None'}',
-                      ),
-                    ],
+                        Text(
+                          'Tier: ${_sessionManager.currentSession!.customerSummary['loyalty_tier'] ?? 'None'}',
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            const SizedBox(width: 8),
-          ],
-        ),
-        endDrawer: Drawer(width: 350, child: _buildCartUI()),
-        floatingActionButton: _sessionManager.currentSession == null
-            ? null
-            : Builder(
-                builder: (context) => FloatingActionButton(
-                  onPressed: () => Scaffold.of(context).openEndDrawer(),
-                  backgroundColor: AppColors.primary,
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      const Center(
-                        child: Icon(
-                          Icons.shopping_bag_outlined,
-                          color: Colors.white,
-                          size: 28,
+              const SizedBox(width: 8),
+            ],
+          ),
+          endDrawer: Drawer(width: 350, child: _buildCartUI()),
+          floatingActionButton: _sessionManager.currentSession == null
+              ? null
+              : Builder(
+                  builder: (context) => FloatingActionButton(
+                    onPressed: () => Scaffold.of(context).openEndDrawer(),
+                    backgroundColor: AppColors.primary,
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        const Center(
+                          child: Icon(
+                            Icons.shopping_bag_outlined,
+                            color: Colors.white,
+                            size: 28,
+                          ),
                         ),
-                      ),
-                      if (_cart.isNotEmpty)
-                        Positioned(
-                          top: -4,
-                          right: -4,
-                          child: Container(
-                            width: 22,
-                            height: 22,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFE5A93C),
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: Colors.white,
-                                width: 1.5,
+                        if (_cart.isNotEmpty)
+                          Positioned(
+                            top: -4,
+                            right: -4,
+                            child: Container(
+                              width: 22,
+                              height: 22,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFE5A93C),
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 1.5,
+                                ),
                               ),
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              '${_cart.fold<int>(0, (sum, item) => sum + (item['quantity'] as int? ?? 1))}',
-                              style: const TextStyle(
-                                fontFamily: 'Afacad',
-                                fontSize: 17,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                                height: 1,
+                              alignment: Alignment.center,
+                              child: Text(
+                                '${_cart.fold<int>(0, (sum, item) => sum + (item['quantity'] as int? ?? 1))}',
+                                style: const TextStyle(
+                                  fontFamily: 'Afacad',
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                  height: 1,
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
-        body: _sessionManager.currentSession == null
-            ? _buildSessionStartForm()
-            : _orderType == null
-            ? _buildOrderTypeSelection()
-            : _buildPOSView(),
+          body: _sessionManager.currentSession == null
+              ? _buildSessionStartForm()
+              : _orderType == null
+              ? _buildOrderTypeSelection()
+              : _buildPOSView(),
+        ),
       ),
     );
   }

@@ -51,8 +51,12 @@ export async function authenticateCounterDevice(
   }
 
   request.counterAuth = device;
-  void mysqlPool.execute(
-    'UPDATE counter_devices SET last_seen_at = UTC_TIMESTAMP() WHERE id = :deviceId',
-    { deviceId: device.deviceId }
-  ).catch((error) => request.log.warn({ error, deviceId: device.deviceId }, 'counter device heartbeat update failed'));
+  try {
+    await mysqlPool.execute(
+      'UPDATE counter_devices SET last_seen_at = UTC_TIMESTAMP() WHERE id = :deviceId',
+      { deviceId: device.deviceId }
+    );
+  } catch (error) {
+    request.log.warn({ error, deviceId: device.deviceId }, 'counter device heartbeat update failed');
+  }
 }

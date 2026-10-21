@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'package:counter_app/widgets/top_notice.dart';
 import 'package:flutter/material.dart';
 import 'screens/main_layout.dart';
 import 'widgets/order_card.dart';
@@ -18,8 +19,13 @@ final ValueNotifier<List<CurrentOrder>> globalCurrentOrders =
 final ValueNotifier<List<CurrentOrder>> globalHistoryOrders =
     ValueNotifier<List<CurrentOrder>>([]);
 
+final ValueNotifier<WorkstationAccessState?> globalWorkstationAccess =
+    ValueNotifier<WorkstationAccessState?>(null);
+
 class BaristaWorkspace extends StatefulWidget {
-  const BaristaWorkspace({super.key});
+  const BaristaWorkspace({super.key, this.onExitRequested});
+
+  final Future<bool> Function()? onExitRequested;
 
   @override
   State<BaristaWorkspace> createState() => _BaristaWorkspaceState();
@@ -44,23 +50,39 @@ class _BaristaWorkspaceState extends State<BaristaWorkspace> {
     });
   }
 
+  Future<void> _requestExit() async {
+    final allowed = await widget.onExitRequested?.call() ?? true;
+    if (allowed && mounted) Navigator.of(context).pop();
+  }
+
   @override
   Widget build(BuildContext context) {
+    late final Widget content;
     if (_restoring) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
-    if (_signedIn) {
-      return MainLayout(
+      content = const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    } else if (_signedIn) {
+      content = MainLayout(
         onSignedOut: () {
           if (mounted) setState(() => _signedIn = false);
         },
       );
+    } else {
+      content = LoginPage(
+        onSignedIn: () {
+          if (mounted) setState(() => _signedIn = true);
+        },
+        onBack: _requestExit,
+      );
     }
-    return LoginPage(
-      onSignedIn: () {
-        if (mounted) setState(() => _signedIn = true);
+
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _requestExit();
       },
-      onBack: () => Navigator.of(context).pop(),
+      child: content,
     );
   }
 }
@@ -69,7 +91,7 @@ class LoginPage extends StatefulWidget {
   const LoginPage({super.key, required this.onSignedIn, required this.onBack});
 
   final VoidCallback onSignedIn;
-  final VoidCallback onBack;
+  final Future<void> Function() onBack;
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -107,7 +129,7 @@ class _LoginPageState extends State<LoginPage> {
                 padding: const EdgeInsets.all(16),
                 child: IconButton.filledTonal(
                   tooltip: 'Back to workspaces',
-                  onPressed: widget.onBack,
+                  onPressed: () => widget.onBack(),
                   icon: const Icon(Icons.arrow_back_rounded),
                 ),
               ),
@@ -282,18 +304,9 @@ class _LoginPageState extends State<LoginPage> {
 
                                           if (username.isEmpty ||
                                               password.isEmpty) {
-                                            ScaffoldMessenger.of(
+                                            TopNotice.error(
                                               context,
-                                            ).showSnackBar(
-                                              const SnackBar(
-                                                content: Text(
-                                                  'Please enter both username and password',
-                                                ),
-                                                backgroundColor:
-                                                    Colors.redAccent,
-                                                behavior:
-                                                    SnackBarBehavior.floating,
-                                              ),
+                                              'Please enter both username and password.',
                                             );
                                             return;
                                           }
@@ -305,19 +318,10 @@ class _LoginPageState extends State<LoginPage> {
                                           );
                                           if (!result.isSuccess) {
                                             if (!context.mounted) return;
-                                            ScaffoldMessenger.of(
+                                            TopNotice.error(
                                               context,
-                                            ).showSnackBar(
-                                              SnackBar(
-                                                content: Text(
-                                                  result.errorMessage ??
-                                                      'Unable to sign in. Please try again.',
-                                                ),
-                                                backgroundColor:
-                                                    Colors.redAccent,
-                                                behavior:
-                                                    SnackBarBehavior.floating,
-                                              ),
+                                              result.errorMessage ??
+                                                  'Unable to sign in. Please try again.',
                                             );
                                             setState(
                                               () => _isSubmitting = false,

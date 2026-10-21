@@ -1,0 +1,11 @@
+AddType application/vnd.android.package-archive .apk
+AddType application/json .json
+
+<IfModule mod_headers.c>
+  <Files "latest.json">
+    Header set Cache-Control "no-store, no-cache, must-revalidate"
+  </Files>
+  <FilesMatch "\.apk$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+</IfModule>

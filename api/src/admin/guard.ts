@@ -166,6 +166,8 @@ function enforceBaristaRouteAccess(request: FastifyRequest): void {
     /^\/v1\/admin\/orders\/[^/]+\/status$/.test(path);
   const canReadOperationalContext =
     request.method === 'GET' && path === '/v1/barista/operations/context';
+  const canReadWorkstationAccess =
+    request.method === 'GET' && path === '/v1/barista/workstation/access-state';
   const canReadWeeklySchedule =
     request.method === 'GET' && path === '/v1/barista/weekly-schedule';
   const canUseStaffAttendance =
@@ -196,6 +198,7 @@ function enforceBaristaRouteAccess(request: FastifyRequest): void {
     !canReadBaristaRoster &&
     !canUpdateOrderStatus &&
     !canReadOperationalContext &&
+    !canReadWorkstationAccess &&
     !canReadWeeklySchedule &&
     !canUseStaffAttendance &&
     !canReadStaffGuides &&

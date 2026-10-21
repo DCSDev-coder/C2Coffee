@@ -511,7 +511,10 @@ export default function BaristaConsole({ currentUser, view = 'orders' }) {
       const datedShifts = Array.isArray(scheduleResult.value?.scheduled_shifts)
         ? scheduleResult.value.scheduled_shifts.map((shift) => ({ ...shift, shift_date: dateKey(shift.shift_date) }))
         : [];
-      setWeeklySchedule(datedShifts.length > 0 ? datedShifts : (Array.isArray(scheduleResult.value?.weekly_schedule) ? scheduleResult.value.weekly_schedule : []));
+      setWeeklySchedule(datedShifts);
+    } else {
+      setWeeklySchedule([]);
+      setError(scheduleResult.reason?.message || 'Internet connection issue. The published timetable could not be loaded.');
     }
     if (guidesResult.status === 'fulfilled') setGuides(Array.isArray(guidesResult.value?.guides) ? guidesResult.value.guides : []);
     if (sideWorkResult.status === 'fulfilled') setSideWork(Array.isArray(sideWorkResult.value?.tasks) ? sideWorkResult.value.tasks : []);
@@ -664,12 +667,8 @@ export default function BaristaConsole({ currentUser, view = 'orders' }) {
     overdueOrderIds.forEach((orderId) => lastReminderAtByOrderId.current.set(orderId, now));
   }, [canOperate, isWorkspace, overdueOrderIds]);
 
-  const todayWeekday = new Date().getDay() || 7;
-  const hasDatedSchedule = weeklySchedule.some((entry) => entry.shift_date);
-  const todayCoverage = hasDatedSchedule
-    ? weeklySchedule.filter((entry) => entry.shift_date === malaysiaDate())
-    : weeklySchedule.filter((entry) => Number(entry.weekday) === todayWeekday);
-  const upcomingSchedule = hasDatedSchedule ? weeklySchedule : [];
+  const todayCoverage = weeklySchedule.filter((entry) => entry.shift_date === malaysiaDate());
+  const upcomingSchedule = weeklySchedule;
   const activeAttendance = attendance?.active_attendance || [];
   const dueSideWork = sideWork.filter((task) => !task.completed_at && currentTime >= new Date(`${task.scheduled_date}T${task.scheduled_time}:00+08:00`).getTime());
 

@@ -617,7 +617,7 @@ const AdminManagement = ({ currentUser, initialRole = 'All Admin' }) => {
                   required
                   value={formFullName}
                   onChange={(e) => setFormFullName(e.target.value)}
-                  placeholder="Name shown on prepared orders"
+                  placeholder="Staff member's full name"
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
                 />
               </div>
@@ -636,7 +636,7 @@ const AdminManagement = ({ currentUser, initialRole = 'All Admin' }) => {
               
               <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {formRole === 'barista' ? 'Barista App Password' : editingAdmin ? 'New Password (optional)' : 'Initial Password'}
+                    {formRole === 'barista' ? 'Barista Workspace Password' : editingAdmin ? 'New Password (optional)' : 'Initial Password'}
                   </label>
                   <input
                     type="password"

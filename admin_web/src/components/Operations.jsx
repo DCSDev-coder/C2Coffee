@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { CalendarDays, Check, CircleAlert, ClipboardCheck, Clock3, Plus, RefreshCw, Save, Trash2, X } from 'lucide-react';
+import { CalendarDays, Check, CircleAlert, ClipboardCheck, Clock3, Plus, RefreshCw, Save, Trash2, Volume2, X } from 'lucide-react';
 import {
   adminRequest,
   loadAdminAttendance,
@@ -10,6 +10,55 @@ import {
 
 const initialShift = { barista_id: '', shift_date: isoDate(), starts_at: '09:00', ends_at: '17:00' };
 const initialSideWork = { title: '', instructions: '', scheduled_date: isoDate(), scheduled_time: '14:00' };
+const initialSoundSettings = {
+  volume_percent: 70,
+  clock_in_beeps: 1,
+  clock_in_style: 'short',
+  clock_out_beeps: 2,
+  clock_out_style: 'long',
+  side_work_beeps: 3,
+  side_work_style: 'two_tone'
+};
+
+const soundStyleLabels = {
+  short: 'Short beep',
+  long: 'Long beep',
+  two_tone: 'Two-tone beep'
+};
+
+function previewBeeps(count, volumePercent, style) {
+  const AudioContextConstructor = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextConstructor) return;
+  const context = new AudioContextConstructor();
+  const volume = Math.max(0, Math.min(100, Number(volumePercent))) / 100;
+  const interval = style === 'long' ? 0.76 : style === 'two_tone' ? 0.52 : 0.24;
+  const scheduleTone = (startsAt, frequency, duration) => {
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.type = 'sine';
+    oscillator.frequency.value = frequency;
+    gain.gain.setValueAtTime(0, startsAt);
+    gain.gain.linearRampToValueAtTime(volume * 0.22, startsAt + 0.01);
+    gain.gain.setValueAtTime(volume * 0.22, startsAt + Math.max(0.02, duration - 0.03));
+    gain.gain.linearRampToValueAtTime(0, startsAt + duration);
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.start(startsAt);
+    oscillator.stop(startsAt + duration + 0.01);
+  };
+  Array.from({ length: Number(count) }, (_, index) => index).forEach((index) => {
+    const startsAt = context.currentTime + index * interval;
+    if (style === 'long') {
+      scheduleTone(startsAt, 780, 0.65);
+    } else if (style === 'two_tone') {
+      scheduleTone(startsAt, 880, 0.16);
+      scheduleTone(startsAt + 0.19, 660, 0.22);
+    } else {
+      scheduleTone(startsAt, 880, 0.14);
+    }
+  });
+  window.setTimeout(() => void context.close(), Number(count) * interval * 1000 + 400);
+}
 
 function displayTime(value) {
   return value?.slice(0, 5) || '--:--';
@@ -92,6 +141,10 @@ export default function Operations() {
   const [sideWork, setSideWork] = useState([]);
   const [sideWorkForm, setSideWorkForm] = useState(initialSideWork);
   const [savingSideWork, setSavingSideWork] = useState(false);
+  const [soundOutlets, setSoundOutlets] = useState([]);
+  const [selectedSoundStoreId, setSelectedSoundStoreId] = useState('');
+  const [soundForm, setSoundForm] = useState(initialSoundSettings);
+  const [savingSound, setSavingSound] = useState(false);
   const [selectedDate, setSelectedDate] = useState(null);
   const [loading, setLoading] = useState(true);
   const [savingSchedule, setSavingSchedule] = useState(false);
@@ -102,10 +155,11 @@ export default function Operations() {
     setLoading(true);
     setError('');
     try {
-      const [operations, baristaResponse, sideWorkResponse] = await Promise.all([
+      const [operations, baristaResponse, sideWorkResponse, soundResponse] = await Promise.all([
         loadAdminOperationalSetup(),
         adminRequest('/v1/admin/baristas'),
-        adminRequest(`/v1/admin/side-work?from=${isoDate()}&to=${isoDate(30)}`)
+        adminRequest(`/v1/admin/side-work?from=${isoDate()}&to=${isoDate(30)}`),
+        adminRequest('/v1/admin/barista-sound-settings')
       ]);
       setSchedule((operations.scheduled_shifts || []).map((shift) => ({
         ...shift,
@@ -113,6 +167,21 @@ export default function Operations() {
       })));
       setBaristas((baristaResponse.baristas || []).filter((barista) => barista.is_active));
       setSideWork(Array.isArray(sideWorkResponse.tasks) ? sideWorkResponse.tasks : []);
+      const outlets = Array.isArray(soundResponse.outlets) ? soundResponse.outlets : [];
+      setSoundOutlets(outlets);
+      const selected = outlets.find((outlet) => String(outlet.store_id) === String(selectedSoundStoreId)) || outlets[0];
+      if (selected) {
+        setSelectedSoundStoreId(String(selected.store_id));
+        setSoundForm({
+          volume_percent: Number(selected.volume_percent),
+          clock_in_beeps: Number(selected.clock_in_beeps),
+          clock_in_style: selected.clock_in_style || 'short',
+          clock_out_beeps: Number(selected.clock_out_beeps),
+          clock_out_style: selected.clock_out_style || 'long',
+          side_work_beeps: Number(selected.side_work_beeps),
+          side_work_style: selected.side_work_style || 'two_tone'
+        });
+      }
     } catch (loadError) {
       setError(loadError.message || 'Unable to load operations setup.');
     } finally {
@@ -230,6 +299,53 @@ export default function Operations() {
     }
   };
 
+  const chooseSoundOutlet = (storeId) => {
+    setSelectedSoundStoreId(storeId);
+    const outlet = soundOutlets.find((item) => String(item.store_id) === String(storeId));
+    if (outlet) setSoundForm({
+      volume_percent: Number(outlet.volume_percent),
+      clock_in_beeps: Number(outlet.clock_in_beeps),
+      clock_in_style: outlet.clock_in_style || 'short',
+      clock_out_beeps: Number(outlet.clock_out_beeps),
+      clock_out_style: outlet.clock_out_style || 'long',
+      side_work_beeps: Number(outlet.side_work_beeps),
+      side_work_style: outlet.side_work_style || 'two_tone'
+    });
+  };
+
+  const saveSoundSettings = async (event) => {
+    event.preventDefault();
+    const patterns = [soundForm.clock_in_beeps, soundForm.clock_out_beeps, soundForm.side_work_beeps].map(Number);
+    if (new Set(patterns).size !== patterns.length) {
+      setError('Use a different beep count for clock-in, clock-out, and side work.');
+      setNotice('');
+      return;
+    }
+    setSavingSound(true);
+    setError('');
+    setNotice('');
+    try {
+      await adminRequest(`/v1/admin/barista-sound-settings/${selectedSoundStoreId}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          volume_percent: Number(soundForm.volume_percent),
+          clock_in_beeps: Number(soundForm.clock_in_beeps),
+          clock_in_style: soundForm.clock_in_style,
+          clock_out_beeps: Number(soundForm.clock_out_beeps),
+          clock_out_style: soundForm.clock_out_style,
+          side_work_beeps: Number(soundForm.side_work_beeps),
+          side_work_style: soundForm.side_work_style
+        })
+      });
+      setSoundOutlets((current) => current.map((outlet) => String(outlet.store_id) === String(selectedSoundStoreId) ? { ...outlet, ...soundForm } : outlet));
+      setNotice('Barista beep patterns saved. The C2 Store device will receive them automatically.');
+    } catch (saveError) {
+      setError(saveError.message || 'Unable to save the barista beep patterns.');
+    } finally {
+      setSavingSound(false);
+    }
+  };
+
   const publishSchedule = async () => {
     if (schedule.length === 0) {
       setError('Add at least one shift before publishing the timetable.');
@@ -279,7 +395,7 @@ export default function Operations() {
           </button>
         </div>
 
-        <div className="mt-6 flex gap-2 border-b border-slate-200">
+        <div className="mt-6 flex gap-2 overflow-x-auto border-b border-slate-200">
           <button type="button" onClick={() => selectTab('timetable')} className={`inline-flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-bold ${activeTab === 'timetable' ? 'border-[#2E5E58] text-[#2E5E58]' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
             <CalendarDays size={17} /> Timetable
           </button>
@@ -288,6 +404,9 @@ export default function Operations() {
           </button>
           <button type="button" onClick={() => selectTab('side-work')} className={`inline-flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-bold ${activeTab === 'side-work' ? 'border-[#2E5E58] text-[#2E5E58]' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
             <ClipboardCheck size={17} /> Side work
+          </button>
+          <button type="button" onClick={() => selectTab('sounds')} className={`inline-flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-bold ${activeTab === 'sounds' ? 'border-[#2E5E58] text-[#2E5E58]' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
+            <Volume2 size={17} /> Sounds
           </button>
         </div>
 
@@ -374,6 +493,21 @@ export default function Operations() {
             <div><h2 className="text-lg font-bold text-slate-900">Next 31 days</h2><p className="mt-1 text-sm text-slate-500">Completion is recorded against the clocked-in barista who confirms the task.</p></div>
             <div className="mt-5 space-y-3">{sideWork.length === 0 ? <p className="rounded-xl border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-500">No side work scheduled.</p> : sideWork.map((task) => <div key={task.id} className="flex items-start justify-between gap-4 rounded-xl border border-slate-200 p-4"><div><div className="flex flex-wrap items-center gap-2"><p className="font-bold text-slate-900">{task.title}</p>{task.completed_at && <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700">Completed by {task.completed_by_barista_name}</span>}</div><p className="mt-1 text-sm font-semibold text-[#2E5E58]">{displayDate(task.scheduled_date)} at {displayTime(task.scheduled_time)}</p>{task.instructions && <p className="mt-2 text-sm leading-6 text-slate-600">{task.instructions}</p>}</div><button type="button" onClick={() => void removeSideWork(task.id)} className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label={`Remove ${task.title}`}><Trash2 size={17} /></button></div>)}</div>
           </article>
+        </section>}
+
+        {activeTab === 'sounds' && <section className="mt-6">
+          <form onSubmit={saveSoundSettings} className="max-w-3xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex items-start gap-4"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#F0F8F6] text-[#1F3A34]"><Volume2 size={22} /></div><div><h2 className="text-lg font-bold text-slate-900">Barista beep patterns</h2><p className="mt-1 text-sm leading-6 text-slate-500">Give clock-in, clock-out, and side-work reminders a distinct sound style and number of beeps. The tablet's media volume remains the final hardware limit.</p></div></div>
+            <label className="mt-6 block text-sm font-bold text-slate-700">Outlet<select value={selectedSoundStoreId} onChange={(event) => chooseSoundOutlet(event.target.value)} className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm" disabled={!soundOutlets.length}>{soundOutlets.map((outlet) => <option key={outlet.store_id} value={outlet.store_id}>{outlet.store_name}</option>)}</select></label>
+            <label className="mt-5 block text-sm font-bold text-slate-700"><span className="flex items-center justify-between"><span>Beep volume</span><span className="text-[#2E5E58]">{soundForm.volume_percent}%</span></span><input type="range" min="0" max="100" step="5" value={soundForm.volume_percent} onChange={(event) => setSoundForm((current) => ({ ...current, volume_percent: Number(event.target.value) }))} className="mt-3 w-full accent-[#2E5E58]" /></label>
+            <div className="mt-6 grid gap-4 md:grid-cols-3">{[
+              ['Clock in', 'clock_in_beeps', 'clock_in_style'],
+              ['Clock out', 'clock_out_beeps', 'clock_out_style'],
+              ['Side work due', 'side_work_beeps', 'side_work_style']
+            ].map(([label, countKey, styleKey]) => <div key={countKey} className="rounded-xl border border-slate-200 bg-slate-50 p-4"><p className="text-sm font-bold text-slate-800">{label}</p><label className="mt-3 block text-xs font-semibold uppercase tracking-wide text-slate-500">Sound style<select value={soundForm[styleKey]} onChange={(event) => setSoundForm((current) => ({ ...current, [styleKey]: event.target.value }))} className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm normal-case tracking-normal text-slate-800">{Object.entries(soundStyleLabels).map(([value, optionLabel]) => <option key={value} value={value}>{optionLabel}</option>)}</select></label><label className="mt-3 block text-xs font-semibold uppercase tracking-wide text-slate-500">Repeat<select value={soundForm[countKey]} onChange={(event) => setSoundForm((current) => ({ ...current, [countKey]: Number(event.target.value) }))} className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm normal-case tracking-normal text-slate-800">{[1, 2, 3, 4, 5].map((count) => <option key={count} value={count}>{count} time{count === 1 ? '' : 's'}</option>)}</select></label><button type="button" onClick={() => previewBeeps(soundForm[countKey], soundForm.volume_percent, soundForm[styleKey])} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[#5C867F] px-3 py-2 text-sm font-bold text-[#2E5E58] hover:bg-white"><Volume2 size={15} /> Preview</button></div>)}</div>
+            <p className="mt-4 text-xs leading-5 text-slate-500">Each event must use a different count so staff can identify it without looking at the screen. Setting volume to 0% mutes these three patterns.</p>
+            <button type="submit" disabled={savingSound || !selectedSoundStoreId} className="mt-6 inline-flex items-center justify-center gap-2 rounded-xl bg-[#1F3A34] px-5 py-2.5 text-sm font-bold text-white disabled:opacity-50"><Save size={16} />{savingSound ? 'Saving...' : 'Save beep patterns'}</button>
+          </form>
         </section>}
 
         {activeTab === 'attendance' && <section className="mt-6 space-y-5">

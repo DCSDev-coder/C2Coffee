@@ -177,7 +177,7 @@ const BaristaManagement = () => {
       <div className="p-6 lg:p-8 w-full h-full flex flex-col">
         <div className="mb-6 shrink-0">
           <h1 className="text-2xl font-bold text-gray-900">Barista Management</h1>
-          <p className="text-sm text-gray-500 mt-1">Manage staff profiles used on prepared orders and quick six-digit PIN clock-ins. Profiles do not need email, phone number, or separate app credentials.</p>
+          <p className="text-sm text-gray-500 mt-1">Manage staff profiles used for timetable attendance and six-digit PIN clock-ins on the shared workstation. Profiles do not need email, phone number, or separate app credentials.</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 shrink-0">

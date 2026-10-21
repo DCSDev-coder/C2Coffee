@@ -11,6 +11,7 @@ import { deliverPushToUser } from '../../services/push-delivery.js';
 import { ApiError } from '../errors.js';
 import { createUserNotification } from '../notifications.js';
 import { z } from 'zod';
+import { resolveBaristaShiftAccess } from '../../services/barista-shift-access.js';
 
 function formatDisplayDate(dateObj: Date): string {
   if (!dateObj) return '';
@@ -211,7 +212,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           p.provider as paymentProvider,
           p.status as paymentStatus,
           p.provider_payment_ref as txnId,
-          COALESCE(ready_barista.name, preparing_barista.name) as baristaName,
+          NULL as baristaName,
           o.ready_at,
           o.created_at,
           s.id as storeId,
@@ -222,8 +223,6 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
         JOIN stores s ON s.id = o.store_id
         JOIN admin_tenants t ON t.id = s.tenant_id
         LEFT JOIN payments p ON o.id = p.order_id
-        LEFT JOIN baristas preparing_barista ON preparing_barista.id = o.preparing_by_barista_id
-        LEFT JOIN baristas ready_barista ON ready_barista.id = o.ready_by_barista_id
         WHERE t.code = :tenantCode
           AND (:storeId IS NULL OR s.id = :storeId)
           AND (
@@ -929,7 +928,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
     try {
       await connection.beginTransaction();
       const [rows] = await connection.execute<RowDataPacket[]>(
-        `SELECT o.id, o.user_id, o.status
+        `SELECT o.id, o.user_id, o.status, o.store_id
          FROM orders o
          JOIN stores s ON s.id = o.store_id
          JOIN admin_tenants t ON t.id = s.tenant_id
@@ -960,8 +959,18 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
       const internalId = rows[0].id;
       const fromStatus = rows[0].status;
 
-      // Attendance is an operational record, not a customer-service blocker.
-      // A missed clock-in is surfaced in Operations for manager follow-up.
+      const workstationKey = request.headers['x-c2-workstation-key'];
+      const isWorkstationRequest = typeof workstationKey === 'string' && /^C2-[A-Z0-9]{12}$/.test(workstationKey.trim().toUpperCase());
+      if (request.adminAuth.roles.includes('barista') || isWorkstationRequest) {
+        const access = await resolveBaristaShiftAccess(connection, {
+          tenantId: request.adminAuth.tenantId,
+          tenantCode: request.adminAuth.tenantCode,
+          storeId: Number(rows[0].store_id)
+        });
+        if (!access.can_prepare_orders) {
+          throw new ApiError(409, 'shift_access_locked', access.message);
+        }
+      }
 
       if (fromStatus === effectiveStatus) {
         await connection.commit();

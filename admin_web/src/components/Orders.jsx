@@ -328,16 +328,6 @@ const OrderDetailPanel = ({ order, onClose, onViewProfile }) => {
 
       {/* Order Items Section */}
       <div>
-        <p className="text-xs font-bold text-gray-900 mb-1">Prepared By</p>
-        <p className="text-sm font-semibold text-[#1F3A34]">
-          {order.baristaName || 'Not assigned yet'}
-        </p>
-        {order.baristaUsername && (
-          <p className="text-xs text-gray-500 mt-0.5">@{order.baristaUsername}</p>
-        )}
-      </div>
-
-      <div>
         <p className="text-xs font-bold text-gray-900 mb-1">Outlet</p>
         <p className="text-sm font-semibold text-[#1F3A34]">{order.storeName || 'Not recorded'}</p>
       </div>
@@ -778,7 +768,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-white">
                 <tr>
-                  {["Order ID", "Username", "Outlet", "Items", "Total", "Barista", "Status", "Payment", "Time"].map((h) => (
+                  {["Order ID", "Username", "Outlet", "Items", "Total", "Status", "Payment", "Time"].map((h) => (
                     <th key={h} className="px-6 py-4 text-left text-xs font-bold text-gray-900">
                       {h}
                     </th>
@@ -819,9 +809,6 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
                         <td className="px-6 py-3 whitespace-nowrap text-sm font-bold text-gray-900">
                           <OrderValueStack tokenValue={rowTokenTotal} rmValue={rowTotal} />
                         </td>
-                        <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-700 font-medium">
-                          {order.baristaName || 'Unassigned'}
-                        </td>
                         <td className="px-6 py-3 whitespace-nowrap">
                           {getStatusBadge(order.status)}
                         </td>
@@ -836,7 +823,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
                   })
                 ) : (
                   <tr>
-                    <td colSpan="9" className="px-6 py-8 text-center text-gray-500 text-sm">
+                    <td colSpan="8" className="px-6 py-8 text-center text-gray-500 text-sm">
                       No orders found matching your criteria.
                     </td>
                   </tr>
@@ -858,12 +845,12 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
             <button
               onClick={() => {
                 const rows = [
-                  ["Order ID", "Username", "Email", "Outlet", "Barista", "Status", "Payment Status", "Date", "Time", "Total (Tokens)", "Total (RM)"],
+                  ["Order ID", "Username", "Email", "Outlet", "Status", "Payment Status", "Date", "Time", "Total (Tokens)", "Total (RM)"],
                   ...filtered.map(o => {
                     const subtotal = o.items.reduce((s, i) => s + i.unitPrice * i.qty, 0);
                     const rmTotal = Number(o.total ?? (subtotal - Number(o.discount || 0)));
                     const tokenTotal = o.tokenAmountCharged ?? rmTotal;
-                    return [`"${o.id}"`, `"${o.customer}"`, `"${o.email}"`, `"${o.storeName || ''}"`, `"${o.baristaName || ''}"`, `"${o.status}"`, `"${o.paymentStatus}"`, `"${o.date}"`, `"${o.time}"`, `"${formatTokens(tokenTotal)}"`, `"${formatRm(rmTotal)}"`];
+                    return [`"${o.id}"`, `"${o.customer}"`, `"${o.email}"`, `"${o.storeName || ''}"`, `"${o.status}"`, `"${o.paymentStatus}"`, `"${o.date}"`, `"${o.time}"`, `"${formatTokens(tokenTotal)}"`, `"${formatRm(rmTotal)}"`];
                   })
                 ];
                 exportToCSV(rows, "orders.csv");

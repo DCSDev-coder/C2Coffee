@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Check, Copy, KeyRound, MonitorSmartphone, Plus, RefreshCw, ShieldOff } from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Check, Copy, KeyRound, MonitorSmartphone, Plus, RefreshCw, ShieldOff, Wifi, WifiOff } from 'lucide-react';
 
 import {
   createAdminCounterDevice,
@@ -25,26 +25,56 @@ export default function CounterDevices({ currentUser }) {
   const [message, setMessage] = useState('');
   const [busyId, setBusyId] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [presenceError, setPresenceError] = useState('');
+  const [onlineWindowSeconds, setOnlineWindowSeconds] = useState(30);
+  const devicesRequestInFlight = useRef(false);
 
   const canManage = Array.isArray(currentUser?.roles) &&
     currentUser.roles.some((role) => ['super_admin', 'operations_admin'].includes(role));
 
-  const load = async () => {
+  const loadDevices = useCallback(async ({ showError = true } = {}) => {
+    if (devicesRequestInFlight.current) return;
+    devicesRequestInFlight.current = true;
     try {
-      const [deviceResponse, storeResponse] = await Promise.all([
-        loadAdminCounterDevices(),
+      const deviceResponse = await loadAdminCounterDevices();
+      setDevices(deviceResponse.devices || []);
+      setOnlineWindowSeconds(deviceResponse.online_window_seconds || 30);
+      setPresenceError('');
+    } catch (error) {
+      setPresenceError('Live device status is temporarily unavailable. The last displayed state may be stale.');
+      if (showError) setMessage(error?.message || 'Counter devices could not be loaded.');
+    } finally {
+      devicesRequestInFlight.current = false;
+    }
+  }, []);
+
+  const load = useCallback(async () => {
+    try {
+      const [, storeResponse] = await Promise.all([
+        loadDevices(),
         loadAdminStores(),
       ]);
-      setDevices(deviceResponse.devices || []);
       const activeStores = (storeResponse.stores || []).filter((store) => store.status === 'active');
       setStores(activeStores);
       setStoreId((current) => current || String(activeStores[0]?.id || ''));
     } catch (error) {
       setMessage(error?.message || 'Counter devices could not be loaded.');
     }
-  };
+  }, [loadDevices]);
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    const refreshPresence = () => {
+      if (document.visibilityState === 'visible') void loadDevices({ showError: false });
+    };
+    const interval = window.setInterval(refreshPresence, 10000);
+    document.addEventListener('visibilitychange', refreshPresence);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', refreshPresence);
+    };
+  }, [loadDevices]);
 
   const requirePassword = () => {
     if (password.length < 8) {
@@ -176,7 +206,8 @@ export default function CounterDevices({ currentUser }) {
           </form>
 
           <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-            <div className="flex items-center justify-between px-2 py-2"><h2 className="text-lg font-bold">Registered devices</h2><button type="button" onClick={load} className="rounded-lg p-2 text-gray-500 hover:bg-gray-100" aria-label="Refresh devices"><RefreshCw size={17} /></button></div>
+            <div className="flex items-center justify-between px-2 py-2"><div><h2 className="text-lg font-bold">Registered devices</h2><p className="mt-1 text-xs text-gray-500">Live status refreshes every 10 seconds. Online requires contact within {onlineWindowSeconds} seconds.</p></div><button type="button" onClick={() => loadDevices()} className="rounded-lg p-2 text-gray-500 hover:bg-gray-100" aria-label="Refresh devices"><RefreshCw size={17} /></button></div>
+            {presenceError && <p className="mx-2 mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">{presenceError}</p>}
             <div className="mt-2 space-y-3">
               {devices.length === 0 && <p className="p-4 text-sm text-gray-500">No C2 Store devices have been registered.</p>}
               {devices.map((device) => (
@@ -184,7 +215,15 @@ export default function CounterDevices({ currentUser }) {
                   <div className="flex items-start gap-3">
                     <div className="rounded-xl bg-[#E8F1EE] p-2.5 text-[#2E5E58]"><MonitorSmartphone size={20} /></div>
                     <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2"><h3 className="font-bold text-gray-900">{device.label}</h3><span className={`rounded-full px-2 py-0.5 text-xs font-bold ${device.status === 'active' ? 'bg-emerald-100 text-emerald-700' : device.status === 'revoked' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'}`}>{device.status}</span></div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="font-bold text-gray-900">{device.label}</h3>
+                        {device.connection_status === 'online' && <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700"><Wifi size={12} />Online</span>}
+                        {device.connection_status === 'offline' && <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-bold text-gray-600"><WifiOff size={12} />Offline</span>}
+                        {device.connection_status === 'awaiting_activation' && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-700">Awaiting activation</span>}
+                        {device.connection_status === 'disabled' && <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-bold text-gray-600">Disabled</span>}
+                        {device.connection_status === 'revoked' && <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700">Revoked</span>}
+                        {device.status === 'active' && <span className="rounded-full border border-gray-200 px-2 py-0.5 text-xs font-semibold text-gray-500">Access enabled</span>}
+                      </div>
                       <p className="mt-1 text-sm text-gray-500">{device.store_name}</p>
                       <p className="mt-1 text-xs text-gray-400">Activated: {formatDate(device.activated_at)} · Last seen: {formatDate(device.last_seen_at)}</p>
                     </div>

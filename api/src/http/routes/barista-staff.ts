@@ -8,6 +8,8 @@ import { mysqlPool } from '../../db/mysql.js';
 import { ApiError } from '../errors.js';
 import { saveMediaAsset } from '../../lib/media-assets.js';
 import { verifyPassword } from '../../lib/password.js';
+import { resolveBaristaShiftAccess } from '../../services/barista-shift-access.js';
+import { loadBaristaSoundSettings } from '../../services/barista-sound-settings.js';
 
 const guideTypeSchema = z.enum(['attire', 'rules', 'drink']);
 const imageUploadSchema = z.object({
@@ -48,6 +50,51 @@ const guideSchema = z.object({
 
 function assertStaffAccess(request: { adminAuth: { roles: string[] } }) {
   requireAnyAdminRole(request as never, ['super_admin', 'operations_admin', 'barista']);
+}
+
+async function resolveAttendanceStoreId(request: {
+  headers: Record<string, string | string[] | undefined>;
+  adminAuth: { adminUserId: number; tenantId: number; tenantCode: string; isBaristaOnly: boolean };
+}): Promise<number> {
+  const rawKey = request.headers['x-c2-workstation-key'];
+  const key = typeof rawKey === 'string' ? rawKey.trim().toUpperCase() : '';
+  if (key) {
+    if (!/^C2-[A-Z0-9]{12}$/.test(key)) {
+      throw new ApiError(400, 'invalid_workstation_key', 'This tablet needs a valid C2 Store device code.');
+    }
+    const [devices] = await mysqlPool.query<RowDataPacket[]>(
+      `SELECT store_id FROM printer_targets
+       WHERE tenant_code = :tenantCode AND direct_print_device_key = :workstationKey
+         AND store_id IS NOT NULL
+       ORDER BY is_default DESC, id ASC LIMIT 1`,
+      { tenantCode: request.adminAuth.tenantCode, workstationKey: key }
+    );
+    if (devices[0]?.store_id) return Number(devices[0].store_id);
+  }
+
+  const [stores] = await mysqlPool.query<RowDataPacket[]>(
+    `SELECT s.id
+     FROM stores s
+     WHERE s.tenant_id = :tenantId AND s.status = 'active'
+       AND (
+         :isBaristaOnly = 0 AND s.is_customer_facing = 1
+         OR EXISTS (
+           SELECT 1 FROM admin_user_store_assignments aus
+           WHERE aus.admin_user_id = :adminUserId AND aus.store_id = s.id
+         )
+       )
+     ORDER BY s.is_customer_facing DESC, s.id ASC
+     LIMIT 2`,
+    {
+      tenantId: request.adminAuth.tenantId,
+      adminUserId: request.adminAuth.adminUserId,
+      isBaristaOnly: request.adminAuth.isBaristaOnly ? 1 : 0
+    }
+  );
+  if (stores.length !== 1) {
+    throw new ApiError(409, 'workstation_outlet_required', 'Assign this C2 Store device to exactly one outlet before using shift access.');
+  }
+  return Number(stores[0].id);
 }
 
 function guideResponse(row: RowDataPacket) {
@@ -122,11 +169,17 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
 
   app.get('/v1/barista/side-work', { preHandler: authenticateAdminRequest }, async (request) => {
     assertStaffAccess(request);
+    const query = z.object({
+      from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()
+    }).parse(request.query);
     const dateParts = new Intl.DateTimeFormat('en-CA', {
       timeZone: 'Asia/Kuala_Lumpur', year: 'numeric', month: '2-digit', day: '2-digit'
     }).formatToParts(new Date());
     const parts = Object.fromEntries(dateParts.map((part) => [part.type, part.value]));
     const today = `${parts.year}-${parts.month}-${parts.day}`;
+    const fromDate = query.from ?? today;
+    const toDate = query.to ?? fromDate;
     const [rows] = await mysqlPool.query<RowDataPacket[]>(
       `SELECT t.id, t.title, t.instructions, DATE_FORMAT(t.scheduled_date, '%Y-%m-%d') AS scheduled_date,
               TIME_FORMAT(t.scheduled_time, '%H:%i') AS scheduled_time,
@@ -135,9 +188,11 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
        FROM barista_side_work_tasks t
        LEFT JOIN barista_side_work_completions c ON c.task_id = t.id
        LEFT JOIN baristas b ON b.id = c.barista_id
-       WHERE t.tenant_id = :tenantId AND t.scheduled_date = :today AND t.is_active = 1
-       ORDER BY t.scheduled_time ASC, t.id ASC`,
-      { tenantId: request.adminAuth.tenantId, today }
+       WHERE t.tenant_id = :tenantId
+         AND t.scheduled_date BETWEEN :fromDate AND :toDate
+         AND t.is_active = 1
+       ORDER BY t.scheduled_date ASC, t.scheduled_time ASC, t.id ASC`,
+      { tenantId: request.adminAuth.tenantId, fromDate, toDate }
     );
     return {
       tasks: rows.map((row) => ({
@@ -148,7 +203,10 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
     };
   });
 
-  app.post('/v1/barista/side-work/complete', { preHandler: authenticateAdminRequest }, async (request, reply) => {
+  app.post('/v1/barista/side-work/complete', {
+    preHandler: authenticateAdminRequest,
+    config: { rateLimit: { max: 12, timeWindow: '15 minutes' } }
+  }, async (request, reply) => {
     assertStaffAccess(request);
     const payload = sideWorkCompletionSchema.parse(request.body);
     const connection = await mysqlPool.getConnection();
@@ -196,6 +254,7 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
 
   app.get('/v1/barista/attendance/status', { preHandler: authenticateAdminRequest }, async (request) => {
     assertStaffAccess(request);
+    const storeId = await resolveAttendanceStoreId(request);
     const [baristas, attendance] = await Promise.all([
       mysqlPool.query<RowDataPacket[]>(
         `SELECT b.id, b.name, b.pin_hash IS NOT NULL AS pin_configured FROM baristas b
@@ -211,8 +270,9 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
         `SELECT a.id, a.barista_id, b.name AS barista_name, a.clocked_in_at
          FROM barista_attendance a JOIN baristas b ON b.id = a.barista_id
          WHERE a.tenant_id = :tenantId AND a.clocked_out_at IS NULL AND a.barista_id IS NOT NULL
+           AND (a.store_id = :storeId OR a.store_id IS NULL)
          ORDER BY a.clocked_in_at ASC`,
-        { tenantId: request.adminAuth.tenantId }
+        { tenantId: request.adminAuth.tenantId, storeId }
       )
     ]);
     return {
@@ -221,9 +281,34 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
     };
   });
 
-  app.post('/v1/barista/attendance/clock-in', { preHandler: authenticateAdminRequest }, async (request, reply) => {
+  app.get('/v1/barista/workstation/access-state', { preHandler: authenticateAdminRequest }, async (request) => {
+    assertStaffAccess(request);
+    const storeId = await resolveAttendanceStoreId(request);
+    const connection = await mysqlPool.getConnection();
+    try {
+      const access = await resolveBaristaShiftAccess(connection, {
+        tenantId: request.adminAuth.tenantId,
+        tenantCode: request.adminAuth.tenantCode,
+        storeId
+      });
+      const soundSettings = await loadBaristaSoundSettings(
+        connection,
+        request.adminAuth.tenantId,
+        storeId
+      );
+      return { ...access, sound_settings: soundSettings };
+    } finally {
+      connection.release();
+    }
+  });
+
+  app.post('/v1/barista/attendance/clock-in', {
+    preHandler: authenticateAdminRequest,
+    config: { rateLimit: { max: 12, timeWindow: '15 minutes' } }
+  }, async (request, reply) => {
     assertStaffAccess(request);
     const payload = attendanceActionSchema.parse(request.body);
+    const storeId = await resolveAttendanceStoreId(request);
     const connection = await mysqlPool.getConnection();
     try {
       await connection.beginTransaction();
@@ -237,16 +322,18 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
       }
       const [existing] = await connection.query<RowDataPacket[]>(
         `SELECT id, clocked_in_at FROM barista_attendance WHERE tenant_id = :tenantId AND barista_id = :baristaId
+         AND (store_id = :storeId OR store_id IS NULL)
          AND clocked_out_at IS NULL ORDER BY clocked_in_at DESC LIMIT 1 FOR UPDATE`,
-        { tenantId: request.adminAuth.tenantId, baristaId: payload.barista_id }
+        { tenantId: request.adminAuth.tenantId, baristaId: payload.barista_id, storeId }
       );
       if (existing[0]) {
         await connection.commit();
         return reply.send({ attendance: { id: Number(existing[0].id), clocked_in_at: existing[0].clocked_in_at, clocked_out_at: null }, unchanged: true });
       }
       const [result] = await connection.execute<ResultSetHeader>(
-        `INSERT INTO barista_attendance (tenant_id, barista_id, recorded_by_admin_user_id, clocked_in_at) VALUES (:tenantId, :baristaId, :adminUserId, UTC_TIMESTAMP())`,
-        { tenantId: request.adminAuth.tenantId, baristaId: payload.barista_id, adminUserId: request.adminAuth.adminUserId }
+        `INSERT INTO barista_attendance (tenant_id, store_id, barista_id, recorded_by_admin_user_id, clocked_in_at)
+         VALUES (:tenantId, :storeId, :baristaId, :adminUserId, UTC_TIMESTAMP())`,
+        { tenantId: request.adminAuth.tenantId, storeId, baristaId: payload.barista_id, adminUserId: request.adminAuth.adminUserId }
       );
       const [rows] = await connection.query<RowDataPacket[]>('SELECT id, clocked_in_at, clocked_out_at FROM barista_attendance WHERE id = ?', [result.insertId]);
       await connection.commit();
@@ -254,9 +341,13 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
     } catch (error) { await connection.rollback(); throw error; } finally { connection.release(); }
   });
 
-  app.post('/v1/barista/attendance/clock-out', { preHandler: authenticateAdminRequest }, async (request, reply) => {
+  app.post('/v1/barista/attendance/clock-out', {
+    preHandler: authenticateAdminRequest,
+    config: { rateLimit: { max: 12, timeWindow: '15 minutes' } }
+  }, async (request, reply) => {
     assertStaffAccess(request);
     const payload = attendanceActionSchema.parse(request.body);
+    const storeId = await resolveAttendanceStoreId(request);
     const [baristas] = await mysqlPool.query<RowDataPacket[]>(
       `SELECT pin_hash FROM baristas WHERE id = :baristaId AND tenant_code = :tenantCode LIMIT 1`,
       { baristaId: payload.barista_id, tenantCode: request.adminAuth.tenantCode }
@@ -264,12 +355,76 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
     if (!baristas[0]?.pin_hash || !(await verifyPassword(payload.pin, baristas[0].pin_hash))) {
       throw new ApiError(401, 'invalid_barista_pin', 'The selected barista or PIN is not valid.');
     }
-    const [result] = await mysqlPool.execute<ResultSetHeader>(
-      `UPDATE barista_attendance SET clocked_out_at = UTC_TIMESTAMP()
-       WHERE tenant_id = :tenantId AND barista_id = :baristaId AND clocked_out_at IS NULL`,
-      { tenantId: request.adminAuth.tenantId, baristaId: payload.barista_id }
-    );
-    return reply.send({ success: true, unchanged: result.affectedRows === 0 });
+    const connection = await mysqlPool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [activeRows] = await connection.query<RowDataPacket[]>(
+        `SELECT id FROM barista_attendance
+         WHERE tenant_id = :tenantId AND store_id = :storeId AND barista_id = :baristaId
+           AND clocked_out_at IS NULL
+         LIMIT 1 FOR UPDATE`,
+        { tenantId: request.adminAuth.tenantId, storeId, baristaId: payload.barista_id }
+      );
+      if (!activeRows[0]) {
+        await connection.commit();
+        return reply.send({ success: true, unchanged: true });
+      }
+
+      const [otherCoverage, activeOrders] = await Promise.all([
+        connection.query<RowDataPacket[]>(
+          `SELECT id FROM barista_attendance
+           WHERE tenant_id = :tenantId AND store_id = :storeId AND barista_id <> :baristaId
+             AND clocked_out_at IS NULL LIMIT 1`,
+          { tenantId: request.adminAuth.tenantId, storeId, baristaId: payload.barista_id }
+        ),
+        connection.query<RowDataPacket[]>(
+          `SELECT COUNT(*) AS total FROM orders
+           WHERE store_id = :storeId AND status IN ('paid', 'accepted', 'preparing', 'ready_for_pickup')`,
+          { storeId }
+        )
+      ]);
+      const access = await resolveBaristaShiftAccess(connection, {
+        tenantId: request.adminAuth.tenantId,
+        tenantCode: request.adminAuth.tenantCode,
+        storeId
+      });
+      const otherActiveIds = new Set<number>();
+      const [otherRows] = await connection.query<RowDataPacket[]>(
+        `SELECT barista_id FROM barista_attendance
+         WHERE tenant_id = :tenantId AND store_id = :storeId AND barista_id <> :baristaId
+           AND clocked_out_at IS NULL`,
+        { tenantId: request.adminAuth.tenantId, storeId, baristaId: payload.barista_id }
+      );
+      otherRows.forEach((row) => otherActiveIds.add(Number(row.barista_id)));
+      const incomingRequired = access.current_staff.some(
+        (staff) => staff.barista_id !== payload.barista_id && !otherActiveIds.has(staff.barista_id)
+      );
+      if (incomingRequired) {
+        throw new ApiError(409, 'handover_required', 'The incoming scheduled barista must clock in before this shift can clock out.');
+      }
+      const currentShiftStillActive = access.current_staff.some(
+        (staff) => staff.barista_id === payload.barista_id
+      );
+      if (otherCoverage[0].length === 0 && currentShiftStillActive) {
+        throw new ApiError(409, 'shift_coverage_required', 'The final scheduled barista must remain clocked in until the shift ends or another scheduled barista takes over.');
+      }
+      if (otherCoverage[0].length === 0 && Number(activeOrders[0][0]?.total ?? 0) > 0) {
+        throw new ApiError(409, 'active_orders_require_coverage', 'The final barista cannot clock out while active orders still need outlet coverage.');
+      }
+
+      const [result] = await connection.execute<ResultSetHeader>(
+        `UPDATE barista_attendance SET clocked_out_at = UTC_TIMESTAMP()
+         WHERE id = :attendanceId AND clocked_out_at IS NULL`,
+        { attendanceId: activeRows[0].id }
+      );
+      await connection.commit();
+      return reply.send({ success: true, unchanged: result.affectedRows === 0 });
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
   });
 
   app.get('/v1/admin/barista-guides', { preHandler: authenticateAdminRequest }, async (request) => {
