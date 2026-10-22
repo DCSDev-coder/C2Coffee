@@ -91,11 +91,11 @@ class SessionManager {
   }
 
   /// Ends the session, communicating the DELETE request to the backend
-  Future<void> endSession() async {
+  Future<void> endSession({bool notify = true}) async {
     final session = _currentSession;
     _currentSession = null;
     _idleTimer?.cancel();
-    onSessionEnded?.call();
+    if (notify) onSessionEnded?.call();
 
     if (session != null && !session.isGuest) {
       try {

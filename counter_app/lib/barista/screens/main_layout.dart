@@ -129,8 +129,8 @@ class _MainLayoutState extends State<MainLayout> {
         .where(
           (item) =>
               item.pinConfigured &&
-              !activeIds.contains(item.id) &&
-              (missingIds.isEmpty || missingIds.contains(item.id)),
+              (missingIds.contains(item.id) ||
+                  (!activeIds.contains(item.id) && missingIds.isEmpty)),
         )
         .toList();
     if (choices.isEmpty) {
@@ -220,6 +220,7 @@ class _MainLayoutState extends State<MainLayout> {
     return Scaffold(
       backgroundColor: Colors.white,
       body: Stack(
+        fit: StackFit.expand,
         children: [
           Positioned(
             top: 110,

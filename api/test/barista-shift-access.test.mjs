@@ -33,14 +33,27 @@ test('locks when today timetable is not published', async () => {
   assert.equal(state.can_prepare_orders, false);
 });
 
-test('requires every opening barista to clock in once', async () => {
+test('locks when no opening barista has clocked in yet', async () => {
+  const state = await resolveBaristaShiftAccess(connectionFixture({
+    publications: [{ schedule_date: '2026-10-20' }],
+    shifts: openingShifts,
+    attendance: [],
+    history: []
+  }), input);
+  assert.equal(state.access_state, 'locked');
+  assert.equal(state.can_prepare_orders, false);
+  assert.deepEqual(state.missing_staff.map((staff) => staff.barista_name), ['Aina', 'Mira']);
+});
+
+test('unlocks immediately when one of the scheduled opening baristas clocks in', async () => {
   const state = await resolveBaristaShiftAccess(connectionFixture({
     publications: [{ schedule_date: '2026-10-20' }],
     shifts: openingShifts,
     attendance: [{ id: 1, barista_id: 1, barista_name: 'Aina', clocked_in_at: '2026-10-20T01:00:00.000Z' }],
     history: [{ barista_id: 1 }]
   }), input);
-  assert.equal(state.access_state, 'locked');
+  assert.equal(state.access_state, 'handover');
+  assert.equal(state.can_prepare_orders, true);
   assert.deepEqual(state.missing_staff.map((staff) => staff.barista_name), ['Mira']);
 });
 
@@ -66,4 +79,19 @@ test('raises the five-minute closing notice without locking preparation', async 
   assert.equal(state.access_state, 'closing');
   assert.equal(state.minutes_until_shift_end, 4);
   assert.equal(state.can_prepare_orders, true);
+});
+
+test('ignores unclosed attendance from a previous day when no overnight shift is active', async () => {
+  const state = await resolveBaristaShiftAccess(connectionFixture({
+    publications: [{ schedule_date: '2026-10-20' }],
+    shifts: [
+      { barista_id: 1, barista_name: 'Aina', shift_date: '2026-10-19', starts_at: '17:00', ends_at: '22:00' },
+      { barista_id: 1, barista_name: 'Aina', shift_date: '2026-10-20', starts_at: '09:00', ends_at: '17:00' }
+    ],
+    attendance: [{ id: 9, barista_id: 1, barista_name: 'Aina', clocked_in_at: '2026-10-19T09:05:00.000Z' }],
+    history: []
+  }), input);
+  assert.equal(state.access_state, 'locked');
+  assert.deepEqual(state.active_attendance, []);
+  assert.deepEqual(state.missing_staff.map((staff) => staff.barista_name), ['Aina']);
 });

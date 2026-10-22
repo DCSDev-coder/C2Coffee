@@ -37,4 +37,23 @@ void main() {
     expect(session.isGuest, isTrue);
     expect(session.activeVouchers, isEmpty);
   });
+
+  test('ending session resets state and notifies listeners', () async {
+    final manager = SessionManager();
+    bool ended = false;
+    manager.onSessionEnded = () {
+      ended = true;
+    };
+
+    manager.startGuestSession();
+    expect(manager.currentSession, isNotNull);
+    expect(manager.currentSession!.isGuest, isTrue);
+
+    await manager.endSession();
+    expect(manager.currentSession, isNull);
+    expect(ended, isTrue);
+
+    manager.startGuestSession();
+    expect(manager.currentSession!.phone, 'Guest');
+  });
 }

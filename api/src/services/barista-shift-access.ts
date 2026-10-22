@@ -111,11 +111,21 @@ export async function resolveBaristaShiftAccess(
   const allShifts = shiftRows[0].map(shiftWindow);
   const todayShifts = allShifts.filter((shift) => shift.shift_date === today);
   const activeWindows = allShifts.filter((shift) => shift.startMs <= nowMs && nowMs < shift.endMs);
+  const activeOvernightBaristaIds = new Set(
+    activeWindows
+      .filter((shift) => shift.shift_date === yesterday)
+      .map((shift) => shift.barista_id)
+  );
   const publicationExists = publicationRows[0].length > 0 || todayShifts.length > 0;
-  const activeAttendance = attendanceRows[0].map((row) => ({
-    id: Number(row.id), barista_id: Number(row.barista_id), barista_name: String(row.barista_name),
-    clocked_in_at: new Date(row.clocked_in_at).toISOString()
-  }));
+  const activeAttendance = attendanceRows[0]
+    .filter((row) => {
+      const clockInDate = malaysiaParts(new Date(row.clocked_in_at)).date;
+      return clockInDate >= today || activeOvernightBaristaIds.has(Number(row.barista_id));
+    })
+    .map((row) => ({
+      id: Number(row.id), barista_id: Number(row.barista_id), barista_name: String(row.barista_name),
+      clocked_in_at: new Date(row.clocked_in_at).toISOString()
+    }));
 
   if (!publicationExists) {
     return {
@@ -150,16 +160,16 @@ export async function resolveBaristaShiftAccess(
   const earliestStart = Math.min(...todayShifts.map((shift) => shift.startMs));
   const openingIds = new Set(todayShifts.filter((shift) => shift.startMs === earliestStart).map((shift) => shift.barista_id));
   const attendedTodayIds = new Set(attendanceHistoryRows[0].map((row) => Number(row.barista_id)));
-  const openingComplete = [...openingIds].every((id) => attendedTodayIds.has(id));
+  const openingStarted = [...openingIds].some((id) => attendedTodayIds.has(id) || activeIds.has(id));
   const overnightCoverage = activeWindows.some((shift) => shift.shift_date === yesterday && activeIds.has(shift.barista_id));
 
-  if (!openingComplete && !overnightCoverage) {
+  if (!openingStarted && !overnightCoverage) {
     const openingMissing = todayShifts
-      .filter((shift) => shift.startMs === earliestStart && !attendedTodayIds.has(shift.barista_id))
+      .filter((shift) => shift.startMs === earliestStart && !attendedTodayIds.has(shift.barista_id) && !activeIds.has(shift.barista_id))
       .map((shift) => ({ barista_id: shift.barista_id, barista_name: shift.barista_name }));
     return {
       schedule_status: 'published', access_state: 'locked', can_prepare_orders: false,
-      message: 'All opening-shift baristas must clock in once before order preparation unlocks.', schedule_date: today,
+      message: 'An opening-shift barista must clock in before order preparation unlocks.', schedule_date: today,
       current_staff: activeWindows.map(({ barista_id, barista_name, starts_at, ends_at }) => ({ barista_id, barista_name, starts_at, ends_at })),
       missing_staff: openingMissing, active_attendance: activeAttendance, minutes_until_shift_end: null
     };

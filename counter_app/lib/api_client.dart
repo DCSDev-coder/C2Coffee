@@ -34,14 +34,19 @@ class ApiClient {
         .timeout(_requestTimeout);
   }
 
-  Future<http.Response> get(String path, {String? token}) async {
-    final headers = {'Content-Type': 'application/json'};
+  Future<http.Response> get(
+    String path, {
+    String? token,
+    Map<String, String>? headers,
+  }) async {
+    final requestHeaders = {'Content-Type': 'application/json'};
     if (token != null) {
-      headers['Authorization'] = 'Bearer $token';
+      requestHeaders['Authorization'] = 'Bearer $token';
     }
+    if (headers != null) requestHeaders.addAll(headers);
 
     return http
-        .get(Uri.parse('$baseUrl$path'), headers: headers)
+        .get(Uri.parse('$baseUrl$path'), headers: requestHeaders)
         .timeout(_requestTimeout);
   }
 

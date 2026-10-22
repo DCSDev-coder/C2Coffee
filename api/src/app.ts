@@ -35,6 +35,7 @@ import { registerTopUpRoutes } from './http/routes/topups.js';
 import { registerAdminReferralRoutes } from './http/routes/admin-referrals.js';
 import { registerAdminCounterDeviceRoutes } from './http/routes/admin-counter-devices.js';
 import { registerCounterRoutes } from './http/routes/counter.js';
+import { registerCounterPaymentRoutes } from './http/routes/counter-payments.js';
 import { registerAdminTenantStoreRoutes } from './http/routes/admin-tenants-stores.js';
 import { registerWebsiteContactRoutes } from './http/routes/website-contact.js';
 
@@ -164,6 +165,7 @@ export async function buildApp() {
   await registerCustomerDataRoutes(app);
   await registerTopUpRoutes(app);
   await registerCounterRoutes(app);
+  await registerCounterPaymentRoutes(app);
 
   return app;
 }

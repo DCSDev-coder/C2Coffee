@@ -928,7 +928,9 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
     try {
       await connection.beginTransaction();
       const [rows] = await connection.execute<RowDataPacket[]>(
-        `SELECT o.id, o.user_id, o.status, o.store_id
+        `SELECT o.id, o.user_id, o.status, o.store_id,
+                COALESCE(o.is_guest, 0) AS is_guest,
+                COALESCE(o.order_channel, 'mobile') AS order_channel
          FROM orders o
          JOIN stores s ON s.id = o.store_id
          JOIN admin_tenants t ON t.id = s.tenant_id
@@ -984,7 +986,8 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
         collected: ['ready_for_pickup']
       };
 
-      if (request.adminAuth.roles.includes('barista') && effectiveStatus === 'collected') {
+      if (request.adminAuth.roles.includes('barista') && effectiveStatus === 'collected' &&
+          rows[0].order_channel !== 'counter') {
         throw new ApiError(403, 'collection_customer_only', 'Customers confirm collection in the mobile app.');
       }
 
@@ -1059,7 +1062,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
         }
       );
 
-      if (effectiveStatus === 'ready_for_pickup') {
+      if (effectiveStatus === 'ready_for_pickup' && Number(rows[0].is_guest) !== 1) {
         await createUserNotification(connection, {
           userId: Number(rows[0].user_id),
           type: 'order_ready',
@@ -1070,7 +1073,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
 
       // Super admins may record collection on behalf of a customer. Keep the
       // reward outcome identical to customer-confirmed collection.
-      if (effectiveStatus === 'collected') {
+      if (effectiveStatus === 'collected' && Number(rows[0].is_guest) !== 1) {
         await processOrderLoyalty(internalId, Number(rows[0].user_id), connection);
         await awardReferralForCollectedOrder(connection, Number(rows[0].user_id), internalId);
       }
@@ -1078,7 +1081,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
       await connection.commit();
       committed = true;
 
-      if (effectiveStatus === 'ready_for_pickup') {
+      if (effectiveStatus === 'ready_for_pickup' && Number(rows[0].is_guest) !== 1) {
         try {
           await deliverPushToUser({
             userId: Number(rows[0].user_id),

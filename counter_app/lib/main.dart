@@ -10,6 +10,7 @@ import 'session_manager.dart';
 import 'api_client.dart';
 import 'app_colors.dart';
 import 'counter_menu.dart';
+import 'counter_payment_service.dart';
 import 'device_printer_worker.dart';
 import 'product_detail_modal.dart';
 
@@ -757,6 +758,7 @@ class CounterHomeScreen extends StatefulWidget {
 class _CounterHomeScreenState extends State<CounterHomeScreen> {
   final SessionManager _sessionManager = SessionManager();
   final ApiClient _apiClient = ApiClient();
+  final CounterPaymentService _paymentService = CounterPaymentService();
   final TextEditingController _phoneController = TextEditingController();
 
   bool _isLoading = false;
@@ -786,11 +788,15 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
   @override
   void initState() {
     super.initState();
+    _sessionManager.startGuestSession();
     _scrollController.addListener(_onScroll);
     _sessionManager.onSessionEnded = () {
       if (mounted) {
         setState(() {
           _clearCart();
+          _orderType = null;
+          _selectedVoucher = null;
+          _phoneController.clear();
           _searchController.clear();
         });
       }
@@ -908,6 +914,8 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
     setState(() {});
   }
 
+  // Kept for the legacy session form while checkout identification is rolled out.
+  // ignore: unused_element
   Future<void> _endSession() async {
     await _sessionManager.endSession();
     if (mounted) {
@@ -1041,91 +1049,55 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
             title: Row(
               children: [Image.asset('assets/images/c2_logo.png', height: 32)],
             ),
-            actions: [
-              if (_sessionManager.currentSession != null)
-                Padding(
-                  padding: const EdgeInsets.only(right: 16.0),
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          _sessionManager
-                                  .currentSession!
-                                  .customerSummary['username'] ??
-                              _sessionManager
-                                  .currentSession!
-                                  .customerSummary['customer_name'] ??
-                              _sessionManager.currentSession!.phone,
-                          style: const TextStyle(
-                            fontFamily: 'Afacad',
-                            fontWeight: FontWeight.bold,
-                            fontSize: 20,
-                          ),
-                        ),
-                        Text(
-                          'Tier: ${_sessionManager.currentSession!.customerSummary['loyalty_tier'] ?? 'None'}',
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              const SizedBox(width: 8),
+            actions: const [
+              SizedBox(width: 16),
             ],
           ),
           endDrawer: Drawer(width: 350, child: _buildCartUI()),
-          floatingActionButton: _sessionManager.currentSession == null
-              ? null
-              : Builder(
-                  builder: (context) => FloatingActionButton(
-                    onPressed: () => Scaffold.of(context).openEndDrawer(),
-                    backgroundColor: AppColors.primary,
-                    child: Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        const Center(
-                          child: Icon(
-                            Icons.shopping_bag_outlined,
-                            color: Colors.white,
-                            size: 28,
-                          ),
-                        ),
-                        if (_cart.isNotEmpty)
-                          Positioned(
-                            top: -4,
-                            right: -4,
-                            child: Container(
-                              width: 22,
-                              height: 22,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFE5A93C),
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: Colors.white,
-                                  width: 1.5,
-                                ),
-                              ),
-                              alignment: Alignment.center,
-                              child: Text(
-                                '${_cart.fold<int>(0, (sum, item) => sum + (item['quantity'] as int? ?? 1))}',
-                                style: const TextStyle(
-                                  fontFamily: 'Afacad',
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                  height: 1,
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
+          floatingActionButton: Builder(
+            builder: (context) => FloatingActionButton(
+              onPressed: () => Scaffold.of(context).openEndDrawer(),
+              backgroundColor: AppColors.primary,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  const Center(
+                    child: Icon(
+                      Icons.shopping_bag_outlined,
+                      color: Colors.white,
+                      size: 28,
                     ),
                   ),
-                ),
-          body: _sessionManager.currentSession == null
-              ? _buildSessionStartForm()
-              : _orderType == null
+                  if (_cart.isNotEmpty)
+                    Positioned(
+                      top: -4,
+                      right: -4,
+                      child: Container(
+                        width: 22,
+                        height: 22,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE5A93C),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 1.5),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          '${_cart.fold<int>(0, (sum, item) => sum + (item['quantity'] as int? ?? 1))}',
+                          style: const TextStyle(
+                            fontFamily: 'Afacad',
+                            fontSize: 17,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            height: 1,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          body: _orderType == null
               ? _buildOrderTypeSelection()
               : _buildPOSView(),
         ),
@@ -1263,24 +1235,10 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
           ),
           child: Column(
             children: [
-              if (true) // Always show voucher button
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: _showVoucherSelectionDialog,
-                    icon: const Icon(Icons.local_offer_outlined),
-                    label: Text(
-                      _selectedVoucher != null
-                          ? 'Change Voucher'
-                          : 'Apply Voucher',
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.primary,
-                      side: const BorderSide(color: AppColors.primary),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                  ),
-                ),
+              const Text(
+                'Customer account and vouchers are checked at checkout.',
+                style: TextStyle(fontFamily: 'Afacad', color: Colors.black54),
+              ),
               const SizedBox(height: 12),
               if (_selectedVoucher != null)
                 Row(
@@ -1335,7 +1293,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                       ? null
                       : () {
                           Navigator.pop(context); // close drawer
-                          _showOrderConfirmationDialog();
+                          _beginCheckout();
                         },
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
@@ -1352,7 +1310,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                 child: TextButton(
                   onPressed: () {
                     Navigator.pop(context);
-                    _endSession();
+                    _resetCounterOrder();
                   },
                   style: TextButton.styleFrom(foregroundColor: Colors.red),
                   child: const Text('Cancel Order'),
@@ -1365,6 +1323,1037 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
     );
   }
 
+  List<Map<String, dynamic>> _checkoutItems() {
+    return _cart.map((cartItem) {
+      final item = cartItem['item'] as CounterMenuItem;
+      final customization = cartItem['customization'] as Map<String, dynamic>;
+      final selections =
+          customization['librarySelections'] as Map<int, List<int>>? ?? {};
+      final modifiers = <Map<String, dynamic>>[];
+      for (final group in item.modifierGroups) {
+        var selectedOptionIds = selections[group.id] ?? const <int>[];
+        if (group.name.trim().toLowerCase() == 'order type' &&
+            _orderType != null) {
+          final selectedOrderType = group.options
+              .where(
+                (option) =>
+                    option.name.trim().toLowerCase() ==
+                    _orderType!.trim().toLowerCase(),
+              )
+              .toList();
+          if (selectedOrderType.isNotEmpty) {
+            selectedOptionIds = [selectedOrderType.first.id];
+          }
+        }
+        for (final optionId in selectedOptionIds) {
+          final option = group.options.firstWhere(
+            (value) => value.id == optionId,
+          );
+          modifiers.add({
+            'group_name': group.name,
+            'option_name': option.name,
+            'price_delta_rm': option.priceDeltaRm,
+            'token_price_delta': 0,
+            'calorie_delta_kcal': 0,
+          });
+        }
+      }
+      return {
+        'menu_item_id': int.parse(item.id),
+        'quantity': cartItem['quantity'] as int? ?? 1,
+        'remarks': null,
+        'modifiers': modifiers,
+      };
+    }).toList();
+  }
+
+  Future<void> _resetCounterOrder() async {
+    await _sessionManager.endSession();
+    _sessionManager.startGuestSession();
+    if (!mounted) return;
+    setState(() {
+      _clearCart();
+      _orderType = null;
+      _selectedVoucher = null;
+      _phoneController.clear();
+      _searchController.clear();
+    });
+  }
+
+  Widget _checkoutStep(
+    int step,
+    String label, {
+    bool active = false,
+    bool completed = false,
+  }) {
+    return Expanded(
+      child: Row(
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            width: 30,
+            height: 30,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: active || completed
+                  ? AppColors.primary
+                  : AppColors.surfaceLight,
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: active || completed
+                    ? AppColors.primary
+                    : AppColors.secondary.withValues(alpha: 0.45),
+              ),
+            ),
+            child: completed
+                ? const Icon(Icons.check_rounded, size: 19, color: Colors.white)
+                : Text(
+                    '$step',
+                    style: TextStyle(
+                      fontFamily: 'Afacad',
+                      fontWeight: FontWeight.w800,
+                      color: active ? Colors.white : AppColors.primary,
+                    ),
+                  ),
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              label,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: 'Afacad',
+                fontSize: 16,
+                fontWeight: active ? FontWeight.w800 : FontWeight.w600,
+                color: active ? AppColors.primary : Colors.black45,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _checkoutDialog({
+    required int activeStep,
+    required IconData icon,
+    required String eyebrow,
+    required String title,
+    required String subtitle,
+    required Widget body,
+  }) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 620),
+        child: Material(
+          color: Colors.white,
+          elevation: 18,
+          shadowColor: AppColors.primary.withValues(alpha: 0.18),
+          borderRadius: BorderRadius.circular(28),
+          clipBehavior: Clip.antiAlias,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  padding: const EdgeInsets.fromLTRB(28, 24, 28, 22),
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Color(0xFF173F3A), AppColors.primary],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 58,
+                        height: 58,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.2),
+                          ),
+                        ),
+                        child: Icon(icon, color: Colors.white, size: 31),
+                      ),
+                      const SizedBox(width: 18),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              eyebrow.toUpperCase(),
+                              style: const TextStyle(
+                                fontFamily: 'Afacad',
+                                fontSize: 13,
+                                letterSpacing: 1.7,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFFBFE6DE),
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              title,
+                              style: const TextStyle(
+                                fontFamily: 'Recoleta',
+                                fontSize: 29,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                                height: 1.05,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(28, 22, 28, 28),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          _checkoutStep(
+                            1,
+                            'Customer',
+                            active: activeStep == 1,
+                            completed: activeStep > 1,
+                          ),
+                          _checkoutStep(
+                            2,
+                            'Savings',
+                            active: activeStep == 2,
+                            completed: activeStep > 2,
+                          ),
+                          _checkoutStep(3, 'Payment', active: activeStep == 3),
+                        ],
+                      ),
+                      const SizedBox(height: 22),
+                      Text(
+                        subtitle,
+                        style: const TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 18,
+                          color: Colors.black54,
+                          height: 1.35,
+                        ),
+                      ),
+                      const SizedBox(height: 22),
+                      body,
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<String?> _askCheckoutPhone() async {
+    _phoneController.clear();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => _checkoutDialog(
+        activeStep: 1,
+        icon: Icons.loyalty_outlined,
+        eyebrow: 'Checkout · Step 1 of 3',
+        title: 'Customer Account',
+        subtitle: 'Enter phone number to earn points and use vouchers.',
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceLight,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: AppColors.secondary.withValues(alpha: 0.28),
+                ),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.stars_rounded, color: AppColors.primary),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Points and vouchers apply automatically at checkout.',
+                      style: TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.charcoal,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
+            TextField(
+              controller: _phoneController,
+              autofocus: true,
+              keyboardType: TextInputType.phone,
+              textInputAction: TextInputAction.done,
+              decoration: InputDecoration(
+                labelText: 'Phone number',
+                hintText: '+6012 345 6789',
+                prefixIcon: const Icon(Icons.phone_iphone_rounded),
+                filled: true,
+                fillColor: const Color(0xFFF8FAF9),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide.none,
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(
+                    color: AppColors.secondary.withValues(alpha: 0.35),
+                  ),
+                ),
+              ),
+              onSubmitted: (_) {
+                final phone = _phoneController.text.trim();
+                if (phone.isNotEmpty) Navigator.pop(dialogContext, phone);
+              },
+            ),
+            const SizedBox(height: 18),
+            FilledButton.icon(
+              onPressed: () {
+                final phone = _phoneController.text.trim();
+                if (phone.isNotEmpty) Navigator.pop(dialogContext, phone);
+              },
+              icon: const Icon(Icons.check_circle_outline_rounded),
+              label: const Text('Enter'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(54),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                textStyle: const TextStyle(
+                  fontFamily: 'Afacad',
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.pop(dialogContext, 'guest'),
+              icon: const Icon(Icons.person_outline_rounded),
+              label: const Text('Continue as guest'),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(52),
+                foregroundColor: AppColors.primary,
+                side: BorderSide(
+                  color: AppColors.primary.withValues(alpha: 0.35),
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                textStyle: const TextStyle(
+                  fontFamily: 'Afacad',
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Return'),
+            ),
+          ],
+        ),
+      ),
+    );
+    _phoneController.clear();
+    return result;
+  }
+
+  Future<Map<String, dynamic>?> _chooseRealVoucher(
+    List<Map<String, dynamic>> vouchers,
+  ) {
+    return showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (dialogContext) => _checkoutDialog(
+        activeStep: 2,
+        icon: Icons.confirmation_number_outlined,
+        eyebrow: 'Checkout · Step 2 of 3',
+        title: vouchers.isEmpty ? 'No Vouchers' : 'Select Voucher',
+        subtitle: vouchers.isEmpty
+            ? 'Points will be collected after payment.'
+            : 'Select a voucher or continue to payment.',
+        body: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (vouchers.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceLight,
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: const Column(
+                  children: [
+                    Icon(
+                      Icons.savings_outlined,
+                      color: AppColors.primary,
+                      size: 44,
+                    ),
+                    SizedBox(height: 10),
+                    Text(
+                      'No vouchers available for this account.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 330),
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: vouchers.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 10),
+                  itemBuilder: (_, index) {
+                    final voucher = vouchers[index];
+                    return InkWell(
+                      onTap: () => Navigator.pop(dialogContext, voucher),
+                      borderRadius: BorderRadius.circular(18),
+                      child: Ink(
+                        padding: const EdgeInsets.all(18),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFFBF2),
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(color: const Color(0xFFE9C77C)),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 48,
+                              height: 48,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFFE7AC),
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: const Icon(
+                                Icons.local_offer_rounded,
+                                color: Color(0xFF825C08),
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    voucher['name']?.toString() ?? 'Voucher',
+                                    style: const TextStyle(
+                                      fontFamily: 'Recoleta',
+                                      fontSize: 19,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.charcoal,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    voucher['code']?.toString() ?? '',
+                                    style: const TextStyle(
+                                      fontFamily: 'Afacad',
+                                      fontSize: 15,
+                                      color: Colors.black54,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Icon(
+                              Icons.arrow_forward_rounded,
+                              color: AppColors.primary,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            const SizedBox(height: 16),
+            OutlinedButton(
+              onPressed: () =>
+                  Navigator.pop(dialogContext, <String, dynamic>{}),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(52),
+                foregroundColor: AppColors.primary,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              child: Text(
+                vouchers.isEmpty
+                    ? 'Continue to payment'
+                    : 'Continue without voucher',
+                style: const TextStyle(
+                  fontFamily: 'Afacad',
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Return'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<String?> _askVoucherOtp(String destination) async {
+    final controller = TextEditingController();
+    final value = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Voucher Verification'),
+        content: SizedBox(
+          width: 380,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Enter 6-digit code sent to $destination.'),
+              const SizedBox(height: 16),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                maxLength: 6,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                decoration: const InputDecoration(labelText: 'Verification code'),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Return'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (controller.text.length == 6) {
+                Navigator.pop(dialogContext, controller.text);
+              }
+            },
+            child: const Text('Enter'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    return value;
+  }
+
+  Future<bool> _confirmMemberQuote(Map<String, dynamic> quote) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => _checkoutDialog(
+        activeStep: 2,
+        icon: Icons.receipt_long_outlined,
+        eyebrow: 'Review',
+        title: 'Order Summary',
+        subtitle: 'Confirm total before applying voucher.',
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceLight,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Column(
+                children: [
+                  _checkoutAmountRow('Subtotal', 'RM ${quote['subtotal_rm']}'),
+                  if (quote['applied_voucher_id'] != null) ...[
+                    const SizedBox(height: 12),
+                    _checkoutAmountRow(
+                      quote['applied_voucher_name']?.toString() ?? 'Voucher',
+                      '- RM ${quote['discount_rm']}',
+                      valueColor: const Color(0xFF16815F),
+                    ),
+                  ],
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    child: Divider(height: 1),
+                  ),
+                  _checkoutAmountRow(
+                    'Amount to pay',
+                    'RM ${quote['final_total_rm']}',
+                    emphasized: true,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
+            FilledButton.icon(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              icon: const Icon(Icons.arrow_forward_rounded),
+              label: const Text('Confirm'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(54),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Return'),
+            ),
+          ],
+        ),
+      ),
+    );
+    return confirmed == true;
+  }
+
+  Widget _checkoutAmountRow(
+    String label,
+    String value, {
+    Color? valueColor,
+    bool emphasized = false,
+  }) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontFamily: emphasized ? 'Recoleta' : 'Afacad',
+              fontSize: emphasized ? 20 : 17,
+              fontWeight: emphasized ? FontWeight.bold : FontWeight.w600,
+              color: AppColors.charcoal,
+            ),
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            fontFamily: 'Afacad',
+            fontSize: emphasized ? 25 : 18,
+            fontWeight: FontWeight.w800,
+            color:
+                valueColor ??
+                (emphasized ? AppColors.primary : AppColors.charcoal),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<String?> _choosePaymentMethod(
+    List<String> methods, {
+    required String amountRm,
+  }) {
+    return showDialog<String>(
+      context: context,
+      builder: (dialogContext) => _checkoutDialog(
+        activeStep: 3,
+        icon: Icons.lock_outline_rounded,
+        eyebrow: 'Checkout · Step 3 of 3',
+        title: 'Select Payment',
+        subtitle: 'Choose a payment method to complete the order.',
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF8E8),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFEACB82)),
+              ),
+              child: _checkoutAmountRow(
+                'Amount due',
+                'RM $amountRm',
+                emphasized: true,
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (methods.contains('duitnow_qr'))
+              _paymentChoiceCard(
+                icon: Icons.qr_code_2_rounded,
+                title: 'DuitNow QR',
+                subtitle: 'Scan with any participating Malaysian banking app',
+                badge: 'Recommended',
+                onTap: () => Navigator.pop(dialogContext, 'duitnow_qr'),
+              ),
+            if (methods.contains('duitnow_qr') && methods.contains('ewallet'))
+              const SizedBox(height: 12),
+            if (methods.contains('ewallet'))
+              _paymentChoiceCard(
+                icon: Icons.account_balance_wallet_outlined,
+                title: 'E-Wallet',
+                subtitle: 'Continue to an available supported wallet',
+                onTap: () => Navigator.pop(dialogContext, 'ewallet'),
+              ),
+            const SizedBox(height: 16),
+            const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.verified_user_outlined,
+                  size: 18,
+                  color: Colors.black45,
+                ),
+                SizedBox(width: 7),
+                Text(
+                  'Secure checkout powered by CHIP',
+                  style: TextStyle(
+                    fontFamily: 'Afacad',
+                    fontSize: 15,
+                    color: Colors.black45,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Return'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _paymentChoiceCard({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+    String? badge,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Ink(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: AppColors.secondary.withValues(alpha: 0.45),
+            width: 1.4,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primary.withValues(alpha: 0.06),
+              blurRadius: 12,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: AppColors.surfaceLight,
+                borderRadius: BorderRadius.circular(17),
+              ),
+              child: Icon(icon, size: 31, color: AppColors.primary),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          title,
+                          style: const TextStyle(
+                            fontFamily: 'Recoleta',
+                            fontSize: 21,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ),
+                      if (badge != null) ...[
+                        const SizedBox(width: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 9,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE3F7EC),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            badge,
+                            style: const TextStyle(
+                              fontFamily: 'Afacad',
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF16704F),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontFamily: 'Afacad',
+                      fontSize: 15,
+                      color: Colors.black54,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward_rounded, color: AppColors.primary),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<bool> _waitForPayment(String deviceToken, String orderRef) async {
+    while (mounted) {
+      if (!mounted) return false;
+      final check = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Complete payment'),
+          content: Text(
+            'Order $orderRef is waiting for payment. Complete it in the payment page, then return here.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel waiting'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Check payment'),
+            ),
+          ],
+        ),
+      );
+      if (check != true) return false;
+      final status = await _paymentService.paymentStatus(
+        deviceToken: deviceToken,
+        orderRef: orderRef,
+      );
+      if (status['payment_status'] == 'paid' || status['status'] == 'paid') {
+        return true;
+      }
+      if (['failed', 'cancelled'].contains(status['payment_status']) ||
+          ['payment_failed', 'cancelled'].contains(status['status'])) {
+        throw const CounterPaymentException('The payment was not completed.');
+      }
+      if (mounted) TopNotice.info(context, 'Payment is still pending.');
+    }
+    return false;
+  }
+
+  Future<void> _beginCheckout() async {
+    if (_isLoading || _cart.isEmpty) return;
+    final selection = await _askCheckoutPhone();
+    if (selection == null || !mounted) {
+      await _sessionManager.endSession(notify: false);
+      _sessionManager.startGuestSession();
+      _phoneController.clear();
+      return;
+    }
+    setState(() => _isLoading = true);
+    try {
+      final deviceToken = await widget.authService.getToken();
+      if (deviceToken == null) {
+        throw const CounterPaymentException(
+          'This device is no longer activated.',
+        );
+      }
+      if (selection == 'guest') {
+        if (_sessionManager.currentSession?.isGuest == false) {
+          await _sessionManager.endSession(notify: false);
+        }
+        _sessionManager.startGuestSession();
+      } else {
+        if (_sessionManager.currentSession?.isGuest == false) {
+          await _sessionManager.endSession(notify: false);
+        }
+        final found = await _sessionManager.startSession(
+          selection,
+          deviceToken,
+        );
+        if (!found) {
+          _sessionManager.startGuestSession();
+          _phoneController.clear();
+          throw const CounterPaymentException(
+            'No active account was found. Check the number or continue without points.',
+          );
+        }
+      }
+      final session = _sessionManager.currentSession!;
+      final items = _checkoutItems();
+      String? voucherAuthorizationToken;
+      Map<String, dynamic>? selectedVoucher;
+      var amountRm = _getCartTotal().toStringAsFixed(2);
+      if (!session.isGuest) {
+        final chosen = await _chooseRealVoucher(session.activeVouchers);
+        if (chosen == null) {
+          await _sessionManager.endSession(notify: false);
+          _sessionManager.startGuestSession();
+          _phoneController.clear();
+          return;
+        }
+        if (chosen.isNotEmpty) {
+          selectedVoucher = chosen;
+          final voucherId = (chosen['id'] as num).toInt();
+          final quote = await _paymentService.quote(
+            deviceToken: deviceToken,
+            sessionToken: session.sessionToken,
+            items: items,
+            voucherId: voucherId,
+          );
+          amountRm = quote['final_total_rm']?.toString() ?? amountRm;
+          if (!await _confirmMemberQuote(quote)) {
+            await _sessionManager.endSession(notify: false);
+            _sessionManager.startGuestSession();
+            _phoneController.clear();
+            return;
+          }
+          final otpRequest = await _paymentService.requestVoucherOtp(
+            deviceToken: deviceToken,
+            sessionToken: session.sessionToken,
+            items: items,
+            voucherId: voucherId,
+          );
+          final otp = await _askVoucherOtp(
+            otpRequest['sent_to']?.toString() ?? 'the registered email',
+          );
+          if (otp == null) {
+            await _sessionManager.endSession(notify: false);
+            _sessionManager.startGuestSession();
+            _phoneController.clear();
+            return;
+          }
+          voucherAuthorizationToken = await _paymentService.verifyVoucherOtp(
+            deviceToken: deviceToken,
+            sessionToken: session.sessionToken,
+            requestId: otpRequest['request_id'].toString(),
+            otpCode: otp,
+          );
+        } else {
+          final quote = await _paymentService.quote(
+            deviceToken: deviceToken,
+            sessionToken: session.sessionToken,
+            items: items,
+          );
+          amountRm = quote['final_total_rm']?.toString() ?? amountRm;
+          if (!await _confirmMemberQuote(quote)) {
+            await _sessionManager.endSession(notify: false);
+            _sessionManager.startGuestSession();
+            _phoneController.clear();
+            return;
+          }
+        }
+      }
+      final methods = await _paymentService.paymentMethods(deviceToken);
+      if (methods.isEmpty) {
+        throw const CounterPaymentException(
+          'QR and e-wallet payments are currently unavailable.',
+        );
+      }
+      final method = await _choosePaymentMethod(methods, amountRm: amountRm);
+      if (method == null) {
+        await _sessionManager.endSession(notify: false);
+        _sessionManager.startGuestSession();
+        _phoneController.clear();
+        return;
+      }
+      final payment = await _paymentService.createPayment(
+        deviceToken: deviceToken,
+        sessionToken: session.isGuest ? null : session.sessionToken,
+        paymentMethod: method,
+        fulfillmentType: _orderType == 'Dine In' ? 'dine_in' : 'take_away',
+        items: items,
+        voucherId: selectedVoucher == null
+            ? null
+            : (selectedVoucher['id'] as num).toInt(),
+        voucherAuthorizationToken: voucherAuthorizationToken,
+      );
+      await _paymentService.openCheckout(payment['checkout_url'].toString());
+      final paid = await _waitForPayment(
+        deviceToken,
+        payment['order_ref'].toString(),
+      );
+      if (paid && mounted) {
+        TopNotice.success(
+          context,
+          'Payment received. Order sent to the barista.',
+        );
+        await _resetCounterOrder();
+      } else {
+        await _sessionManager.endSession(notify: false);
+        _sessionManager.startGuestSession();
+        _phoneController.clear();
+      }
+    } on CounterPaymentException catch (error) {
+      await _sessionManager.endSession(notify: false);
+      _sessionManager.startGuestSession();
+      _phoneController.clear();
+      if (mounted) TopNotice.error(context, error.message);
+    } catch (error, stackTrace) {
+      await _sessionManager.endSession(notify: false);
+      _sessionManager.startGuestSession();
+      _phoneController.clear();
+      debugPrint('Counter checkout failed: $error\n$stackTrace');
+      if (mounted) {
+        TopNotice.error(
+          context,
+          'Checkout could not be completed. Please try again.',
+        );
+      }
+    } finally {
+      _phoneController.clear();
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // ignore: unused_element
   void _showVoucherSelectionDialog() {
     if (_sessionManager.currentSession?.phone == 'Guest' &&
         _selectedVoucher == null) {
@@ -1622,6 +2611,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
     );
   }
 
+  // ignore: unused_element
   void _showOrderConfirmationDialog() {
     showDialog(
       context: context,
@@ -1826,6 +2816,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
     );
   }
 
+  // ignore: unused_element
   Widget _buildSessionStartForm() {
     return Center(
       child: SingleChildScrollView(
@@ -2025,7 +3016,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
             ),
             const SizedBox(height: 16),
             const Text(
-              'Is this order for Dine In or Take Away?',
+              'Dine In or Take Away?',
               style: TextStyle(
                 fontFamily: 'Afacad',
                 fontSize: 24,

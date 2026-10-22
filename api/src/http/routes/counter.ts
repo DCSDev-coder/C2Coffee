@@ -25,7 +25,7 @@ import {
   verifyCheckoutModifiers,
   type AppliedVoucherRow
 } from './checkout.js';
-import { getActiveChipMethods } from '../../payments/chip-client.js';
+import { getActiveChipMethods, type ChipPaymentMethod } from '../../payments/chip-client.js';
 
 const lookupCustomerSchema = z.object({
   phone: z.string().trim().min(1).max(32)
@@ -587,10 +587,8 @@ export async function registerCounterRoutes(app: FastifyInstance): Promise<void>
       return { methods: [] };
     }
     const active = await getActiveChipMethods();
-    // Counter checkout is intentionally restricted to DuitNow QR for now.
-    // E-wallet can be added only after CHIP marks it active and the counter
-    // order-payment callback flow has passed end-to-end testing.
-    return { methods: active.has('duitnow_qr') ? ['duitnow_qr'] : [] };
+    const allowed: ChipPaymentMethod[] = ['duitnow_qr', 'ewallet'];
+    return { methods: allowed.filter((method) => active.has(method)) };
   });
 
   app.post('/v1/counter/orders/quote', { preHandler: authenticateCounterDevice }, async (request) => {
