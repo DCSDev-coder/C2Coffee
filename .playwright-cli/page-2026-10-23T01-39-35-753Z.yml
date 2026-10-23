@@ -1,0 +1,196 @@
+- generic [ref=e3]:
+  - generic [ref=e4]:
+    - generic [ref=e5] [cursor=pointer]:
+      - img "C2 Logo" [ref=e6]
+      - generic [ref=e7]:
+        - paragraph [ref=e8]: Tenant
+        - paragraph [ref=e9]: C2 Coffee & Candle
+    - navigation [ref=e10]:
+      - paragraph [ref=e11]: Daily work
+      - link "Barista Console" [ref=e12] [cursor=pointer]:
+        - /url: "#"
+      - link "Barista Workspace" [ref=e17] [cursor=pointer]:
+        - /url: "#"
+      - link "Dashboard" [ref=e22] [cursor=pointer]:
+        - /url: "#"
+      - link "Orders" [ref=e30] [cursor=pointer]:
+        - /url: "#"
+      - link "Customers" [ref=e36] [cursor=pointer]:
+        - /url: "#"
+      - paragraph [ref=e44]: Menu setup
+      - link "Menu" [ref=e45] [cursor=pointer]:
+        - /url: "#"
+      - link "Options & Nutrition" [ref=e50] [cursor=pointer]:
+        - /url: "#"
+      - paragraph [ref=e54]: Marketing & loyalty
+      - link "Marketing" [ref=e55] [cursor=pointer]:
+        - /url: "#"
+      - link "Voucher" [ref=e61] [cursor=pointer]:
+        - /url: "#"
+      - link "Referral Program" [ref=e66] [cursor=pointer]:
+        - /url: "#"
+      - link "Token Ledger" [ref=e75] [cursor=pointer]:
+        - /url: "#"
+      - link "Tier Management" [ref=e83] [cursor=pointer]:
+        - /url: "#"
+      - paragraph [ref=e88]: Reports
+      - link "Finance" [ref=e89] [cursor=pointer]:
+        - /url: "#"
+      - link "Product Report" [ref=e95] [cursor=pointer]:
+        - /url: "#"
+      - paragraph [ref=e102]: Staff & store
+      - link "Barista Management" [ref=e103] [cursor=pointer]:
+        - /url: "#"
+      - link "Outlets" [ref=e110] [cursor=pointer]:
+        - /url: "#"
+      - link "C2 Store Devices" [ref=e116] [cursor=pointer]:
+        - /url: "#"
+      - link "Staff Guides" [ref=e122] [cursor=pointer]:
+        - /url: "#"
+      - link "Operations" [ref=e127] [cursor=pointer]:
+        - /url: "#"
+      - paragraph [ref=e134]: Administration
+      - link "Admin Management" [ref=e135] [cursor=pointer]:
+        - /url: "#"
+      - link "Deployment" [ref=e150] [cursor=pointer]:
+        - /url: "#"
+      - link "Audit Logs" [ref=e157] [cursor=pointer]:
+        - /url: "#"
+      - link "Data Retention 63" [active] [ref=e163] [cursor=pointer]:
+        - /url: "#"
+        - generic [ref=e170]: Data Retention
+        - generic "63 retention item(s) need attention" [ref=e171]: "63"
+      - link "Settings" [ref=e172] [cursor=pointer]:
+        - /url: "#"
+    - link "Log Out" [ref=e179] [cursor=pointer]:
+      - /url: "#"
+  - generic [ref=e184]:
+    - banner [ref=e186]:
+      - generic [ref=e187]:
+        - generic [ref=e188]:
+          - paragraph [ref=e189]: Active tenant
+          - paragraph [ref=e190]: C2 Coffee & Candle
+        - generic "View Profile" [ref=e191] [cursor=pointer]:
+          - generic [ref=e192]: B
+          - generic [ref=e193]:
+            - paragraph [ref=e194]: Boss
+            - paragraph [ref=e195]: admin@example.com
+    - main [ref=e196]:
+      - generic [ref=e324]:
+        - generic [ref=e325]:
+          - generic [ref=e326]:
+            - paragraph [ref=e327]: System maintenance
+            - heading "Data Retention Centre" [level=1] [ref=e328]
+            - paragraph [ref=e329]: Review archived records, monitor database storage, and safely clean temporary data. Financial, loyalty, voucher usage, referral, and audit history stays protected.
+          - button "Refresh review" [ref=e330]
+        - generic [ref=e336]:
+          - generic [ref=e337]:
+            - paragraph [ref=e343]: Database size
+            - paragraph [ref=e344]: 127.9 MB
+            - paragraph [ref=e345]: Tables and indexes currently stored.
+          - generic [ref=e346]:
+            - paragraph [ref=e350]: Media storage
+            - paragraph [ref=e351]: 118.4 MB
+            - paragraph [ref=e352]: 156 media assets in the database.
+          - generic [ref=e353]:
+            - paragraph [ref=e358]: Five-year reviews due
+            - paragraph [ref=e359]: "2"
+            - paragraph [ref=e360]: A reminder to review; never an automatic deletion.
+          - generic [ref=e361]:
+            - paragraph [ref=e366]: Protected records
+            - paragraph [ref=e367]: 2,036
+            - paragraph [ref=e368]: Operational and financial history excluded from cleanup.
+        - generic [ref=e369]:
+          - generic [ref=e375]:
+            - heading "Archive review reminders" [level=2] [ref=e376]
+            - paragraph [ref=e377]: Archived setup records are retained for history. Records older than five years are flagged for a human review.
+          - generic [ref=e378]:
+            - generic [ref=e379]:
+              - paragraph [ref=e380]: Menu items
+              - paragraph [ref=e381]: "12"
+              - paragraph [ref=e382]: 1 due for review
+            - generic [ref=e383]:
+              - paragraph [ref=e384]: Voucher templates
+              - paragraph [ref=e385]: "7"
+              - paragraph [ref=e386]: 1 due for review
+            - generic [ref=e387]:
+              - paragraph [ref=e388]: Tier definitions
+              - paragraph [ref=e389]: "1"
+              - paragraph [ref=e390]: 0 due for review
+            - generic [ref=e391]:
+              - paragraph [ref=e392]: Referral programs
+              - paragraph [ref=e393]: "0"
+              - paragraph [ref=e394]: 0 due for review
+            - generic [ref=e395]:
+              - paragraph [ref=e396]: Marketing banners
+              - paragraph [ref=e397]: "3"
+              - paragraph [ref=e398]: 0 due for review
+        - generic [ref=e399]:
+          - generic [ref=e405]:
+            - heading "Safe cleanup" [level=2] [ref=e406]
+            - paragraph [ref=e407]: Every cleanup starts with a dry run. Execution requires the current administrator password and creates an audit entry.
+          - generic [ref=e408]:
+            - generic [ref=e409]:
+              - generic [ref=e410]:
+                - generic [ref=e411]:
+                  - heading "Temporary security records" [level=3] [ref=e412]
+                  - generic [ref=e413]: "14"
+                - paragraph [ref=e414]: 201 records are expired. Only records beyond the 90-day safety window are eligible.
+              - button "Preview cleanup" [ref=e415]
+            - generic [ref=e420]:
+              - generic [ref=e421]:
+                - generic [ref=e422]:
+                  - heading "Old customer notifications" [level=3] [ref=e423]
+                  - generic [ref=e424]: "36"
+                - paragraph [ref=e425]: Only notification copies older than 24 months are eligible. Customer orders and loyalty history are untouched.
+              - button "Preview cleanup" [ref=e426]
+            - generic [ref=e431]:
+              - generic [ref=e432]:
+                - generic [ref=e433]:
+                  - heading "Unreferenced media" [level=3] [ref=e434]
+                  - generic [ref=e435]: "11"
+                - paragraph [ref=e436]: 83 possible orphan assets (99.2 MB). 83 are in review; only unchanged assets past 30 days can be removed.
+              - button "Preview cleanup" [ref=e437]
+          - generic [ref=e442]:
+            - generic [ref=e443]:
+              - paragraph [ref=e444]: Media safety review
+              - paragraph [ref=e445]: Register current orphan candidates and begin their 30-day quarantine. Re-running this does not reset the original review date.
+            - button "Start media review" [ref=e446]
+        - generic [ref=e447]:
+          - generic [ref=e448]:
+            - heading "Protected history" [level=2] [ref=e449]
+            - generic [ref=e454]:
+              - generic [ref=e455]:
+                - paragraph [ref=e456]: orders
+                - paragraph [ref=e457]: "438"
+              - generic [ref=e458]:
+                - paragraph [ref=e459]: payments
+                - paragraph [ref=e460]: "286"
+              - generic [ref=e461]:
+                - paragraph [ref=e462]: refunds
+                - paragraph [ref=e463]: "4"
+              - generic [ref=e464]:
+                - paragraph [ref=e465]: token ledger
+                - paragraph [ref=e466]: "729"
+              - generic [ref=e467]:
+                - paragraph [ref=e468]: voucher redemptions
+                - paragraph [ref=e469]: "17"
+              - generic [ref=e470]:
+                - paragraph [ref=e471]: loyalty events
+                - paragraph [ref=e472]: "362"
+              - generic [ref=e473]:
+                - paragraph [ref=e474]: referral outcomes
+                - paragraph [ref=e475]: "6"
+              - generic [ref=e476]:
+                - paragraph [ref=e477]: audit logs
+                - paragraph [ref=e478]: "194"
+          - generic [ref=e479]:
+            - heading "Customer retention dates" [level=2] [ref=e480]
+            - paragraph [ref=e481]: Closed customer accounts follow the configured 7-year retention period. They are shown for review and are not automatically erased by this page.
+            - generic [ref=e482]:
+              - generic [ref=e483]:
+                - paragraph [ref=e484]: Due now
+                - paragraph [ref=e485]: "0"
+              - generic [ref=e486]:
+                - paragraph [ref=e487]: Next 90 days
+                - paragraph [ref=e488]: "2"

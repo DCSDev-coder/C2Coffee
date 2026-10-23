@@ -54,6 +54,9 @@ class _NotificationPageState extends State<NotificationPage> {
         limit: 20,
       ),
     ]);
+    await NotificationService.instance.refreshIndicator(
+      accessToken: accessToken,
+    );
     return _NotificationInboxData(
       paymentNotices: results[0] as List<PaymentServiceNotice>,
       notifications: results[1] as List<InAppNotification>,
@@ -69,21 +72,133 @@ class _NotificationPageState extends State<NotificationPage> {
   Future<void> _clearAll() async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Clear notifications'),
-        content: const Text(
-          'This removes all current notifications from your inbox. New updates will still appear here.',
+      barrierColor: Colors.black.withValues(alpha: 0.58),
+      builder: (dialogContext) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 18),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFF8FC),
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(
+              color: AppColors.deepTeal.withValues(alpha: 0.14),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.2),
+                blurRadius: 28,
+                offset: const Offset(0, 14),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: AppColors.deepTeal,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: const Icon(
+                      Icons.notifications_off_outlined,
+                      color: Colors.white,
+                      size: 25,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Text(
+                      'Clear latest updates?',
+                      style: TextStyle(
+                        fontFamily: 'Recoleta',
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.deepTeal,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              const Text(
+                'This removes the current updates from your inbox. New order, reward, and account updates will continue to appear here.',
+                style: TextStyle(
+                  fontFamily: 'Afacad',
+                  fontSize: 16,
+                  height: 1.4,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF4EAF2),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.info_outline_rounded,
+                      color: AppColors.deepTeal,
+                      size: 19,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Active service warnings will stay visible until they expire or are resolved.',
+                        style: TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 14,
+                          height: 1.3,
+                          color: AppColors.deepTeal,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext, false),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.deepTeal,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                    ),
+                    child: const Text('Back'),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton.icon(
+                    onPressed: () => Navigator.pop(dialogContext, true),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.deepTeal,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                    ),
+                    icon: const Icon(Icons.check_rounded, size: 18),
+                    label: const Text('Clear'),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Clear all'),
-          ),
-        ],
       ),
     );
     if (confirmed != true || !mounted) return;
@@ -96,6 +211,9 @@ class _NotificationPageState extends State<NotificationPage> {
         throw Exception('Please sign in again to clear notifications.');
       }
       await NotificationService.instance.clearNotifications(
+        accessToken: accessToken,
+      );
+      await NotificationService.instance.refreshIndicator(
         accessToken: accessToken,
       );
       if (!mounted) return;
@@ -151,10 +269,11 @@ class _NotificationPageState extends State<NotificationPage> {
               );
             }
 
-            final inbox = snapshot.data ?? const _NotificationInboxData(
-              paymentNotices: [],
-              notifications: [],
-            );
+            final inbox = snapshot.data ??
+                const _NotificationInboxData(
+                  paymentNotices: [],
+                  notifications: [],
+                );
             final notifications = inbox.notifications;
             if (notifications.isEmpty && inbox.paymentNotices.isEmpty) {
               return _buildStateCard(
@@ -203,7 +322,9 @@ class _NotificationPageState extends State<NotificationPage> {
         const SizedBox(width: 8),
         Expanded(
           child: Text(
-            count == 1 ? 'Payment service notice' : 'Payment service notices ($count)',
+            count == 1
+                ? 'Payment service notice'
+                : 'Payment service notices ($count)',
             style: TextStyle(
               fontFamily: 'Recoleta',
               fontSize: 20,
@@ -241,17 +362,24 @@ class _NotificationPageState extends State<NotificationPage> {
           const SizedBox(height: 7),
           Text(
             notice.message,
-            style: const TextStyle(fontFamily: 'Afacad', fontSize: 16, height: 1.35),
+            style: const TextStyle(
+                fontFamily: 'Afacad', fontSize: 16, height: 1.35),
           ),
           const SizedBox(height: 12),
           Text(
             'Affected: ${notice.paymentMethodLabel}',
-            style: const TextStyle(fontFamily: 'Afacad', fontSize: 15, fontWeight: FontWeight.w700),
+            style: const TextStyle(
+                fontFamily: 'Afacad',
+                fontSize: 15,
+                fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 4),
           Text(
             '${formatter.format(notice.startsAt)} – ${formatter.format(notice.endsAt)}',
-            style: TextStyle(fontFamily: 'Afacad', fontSize: 14, color: Colors.grey.shade800),
+            style: TextStyle(
+                fontFamily: 'Afacad',
+                fontSize: 14,
+                color: Colors.grey.shade800),
           ),
         ],
       ),
@@ -468,6 +596,9 @@ class _NotificationPageState extends State<NotificationPage> {
         await NotificationService.instance.markRead(
           accessToken: accessToken,
           notificationId: notification.id,
+        );
+        await NotificationService.instance.refreshIndicator(
+          accessToken: accessToken,
         );
       }
     } catch (_) {

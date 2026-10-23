@@ -1,11 +1,12 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, ChevronDown, Download, Plus, MoreVertical, Coffee, CheckCircle, XCircle, X, Edit3, Trash2 } from 'lucide-react';
-import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { exportToCSV } from '../utils/exportToCSV';
 import Pagination from './Pagination';
 import { adminRequest } from '../lib/adminApi';
+import { requestAdminConfirm } from '../lib/adminDialog';
+import { showAdminError } from '../lib/adminToast';
 
 const StatCard = ({ title, value, subtitle, icon: Icon, iconBgColor, iconColor }) => (
   <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center space-x-4 min-w-0">
@@ -125,13 +126,13 @@ const BaristaManagement = () => {
   };
   
   const handleDeleteBarista = async (id, name) => {
-    if (!window.confirm(`Are you sure you want to delete barista ${name}?`)) return;
+    if (!await requestAdminConfirm({ title: 'Delete barista?', message: `${name} will lose access. Historical attendance records will remain protected.`, confirmLabel: 'Delete', tone: 'danger' })) return;
     
     try {
       await adminRequest(`/v1/admin/baristas/${id}`, { method: 'DELETE' });
       setBaristas(baristas.filter(a => a.id !== id));
     } catch (err) {
-      alert(err.message || "Failed to delete barista");
+      showAdminError(err.message || "Failed to delete barista");
     }
   };
 

@@ -45,6 +45,8 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
   bool _isLoading = true;
   String? _error;
   List<RewardVoucher> _vouchers = [];
+  List<TierRewardEntitlement> _claimableTierRewards = [];
+  final Set<int> _claimingTierRewardIds = <int>{};
   final Set<int> _expandedVoucherIds = <int>{};
 
   @override
@@ -61,14 +63,16 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
         throw Exception('Missing access token.');
       }
 
-      final list = await CustomerDataService.instance.getRewardVouchers(
+      final rewards = await CustomerDataService.instance.getRewardsCenter(
         accessToken: accessToken,
-        onlyActive: true,
       );
+      final list =
+          rewards.vouchers.where((voucher) => voucher.isActive).toList();
 
       if (mounted) {
         setState(() {
           _vouchers = list;
+          _claimableTierRewards = rewards.claimableTierRewards;
           _expandedVoucherIds.removeWhere(
             (voucherId) => !list.any((voucher) => voucher.id == voucherId),
           );
@@ -82,6 +86,48 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
           _isLoading = false;
         });
       }
+    }
+  }
+
+  Future<void> _claimAndApplyTierReward(
+    TierRewardEntitlement reward,
+  ) async {
+    if (_claimingTierRewardIds.contains(reward.id)) return;
+    setState(() {
+      _claimingTierRewardIds.add(reward.id);
+      _error = null;
+    });
+
+    try {
+      final accessToken =
+          await SecureSessionService.instance.getValidAccessToken();
+      if (accessToken == null || accessToken.isEmpty) {
+        throw Exception('Missing access token.');
+      }
+      final voucherId = await CustomerDataService.instance.claimTierReward(
+        accessToken: accessToken,
+        entitlementId: reward.id,
+      );
+      final vouchers = await CustomerDataService.instance.getRewardVouchers(
+        accessToken: accessToken,
+        onlyActive: true,
+      );
+      final claimedVoucher = vouchers.cast<RewardVoucher?>().firstWhere(
+            (voucher) => voucher?.id == voucherId,
+            orElse: () => null,
+          );
+      if (claimedVoucher == null) {
+        throw Exception('Claimed voucher was not returned.');
+      }
+      if (!mounted) return;
+      widget.onVoucherSelected(claimedVoucher);
+      Navigator.pop(context);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Unable to claim this tier reward. Please try again.';
+        _claimingTierRewardIds.remove(reward.id);
+      });
     }
   }
 
@@ -231,8 +277,18 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
     }).toList();
     final nonTokenCheckoutVouchers =
         _vouchers.where((v) => !tokenCheckoutVouchers.contains(v)).toList();
+    final claimableTierRewards = _claimableTierRewards.where((reward) {
+      if (!reward.template.isTokenCheckoutCompatible ||
+          !reward.template.isAvailableNow) {
+        return false;
+      }
+      final snapshot = widget.cartSnapshot;
+      return snapshot == null || reward.template.matchesCartSnapshot(snapshot);
+    }).toList();
 
-    if (tokenCheckoutVouchers.isEmpty && nonTokenCheckoutVouchers.isEmpty) {
+    if (tokenCheckoutVouchers.isEmpty &&
+        nonTokenCheckoutVouchers.isEmpty &&
+        claimableTierRewards.isEmpty) {
       return _buildEmptyState(
         title: 'No vouchers available',
         message:
@@ -240,7 +296,7 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
       );
     }
 
-    if (tokenCheckoutVouchers.isEmpty) {
+    if (tokenCheckoutVouchers.isEmpty && claimableTierRewards.isEmpty) {
       return SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -305,12 +361,17 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
             ),
             const SizedBox(height: 12),
           ],
-          _buildVoucherSection(
-            title: 'Available now',
-            subtitle: 'These vouchers can be applied to the current order.',
-            vouchers: tokenCheckoutVouchers,
-            enabled: true,
-          ),
+          if (claimableTierRewards.isNotEmpty) ...[
+            _buildClaimableTierRewardSection(claimableTierRewards),
+            const SizedBox(height: 14),
+          ],
+          if (tokenCheckoutVouchers.isNotEmpty)
+            _buildVoucherSection(
+              title: 'Available now',
+              subtitle: 'These vouchers can be applied to the current order.',
+              vouchers: tokenCheckoutVouchers,
+              enabled: true,
+            ),
           if (nonTokenCheckoutVouchers.isNotEmpty) ...[
             const SizedBox(height: 14),
             _buildVoucherSection(
@@ -320,6 +381,105 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
               enabled: false,
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildClaimableTierRewardSection(
+    List<TierRewardEntitlement> rewards,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Tier reward available',
+          style: TextStyle(
+            fontFamily: 'Recoleta',
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: AppColors.deepTeal,
+          ),
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'Claiming applies this reward to your current order.',
+          style: TextStyle(
+            fontFamily: 'Afacad',
+            fontSize: 14,
+            color: Colors.black54,
+          ),
+        ),
+        const SizedBox(height: 10),
+        for (final reward in rewards) _buildClaimableTierRewardTile(reward),
+      ],
+    );
+  }
+
+  Widget _buildClaimableTierRewardTile(TierRewardEntitlement reward) {
+    final isClaiming = _claimingTierRewardIds.contains(reward.id);
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.gold.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.gold.withValues(alpha: 0.5)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.workspace_premium_outlined,
+              color: AppColors.deepTeal, size: 30),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  reward.template.displayLabel,
+                  style: TextStyle(
+                    fontFamily: 'Afacad',
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.deepTeal,
+                  ),
+                ),
+                Text(
+                  reward.template.benefitLabel,
+                  style: const TextStyle(
+                    fontFamily: 'Afacad',
+                    fontSize: 14,
+                    color: Colors.black54,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          FilledButton(
+            onPressed:
+                isClaiming ? null : () => _claimAndApplyTierReward(reward),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.deepTeal,
+              foregroundColor: Colors.white,
+              shape: const StadiumBorder(),
+            ),
+            child: isClaiming
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Text(
+                    'Claim & apply',
+                    style: TextStyle(
+                      fontFamily: 'Afacad',
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+          ),
         ],
       ),
     );

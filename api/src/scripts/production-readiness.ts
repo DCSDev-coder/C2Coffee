@@ -163,6 +163,25 @@ async function requirePaymentServiceNoticeIntegrity(): Promise<void> {
   }
 }
 
+async function requireLatestSchema(): Promise<void> {
+  const required = [
+    '108_remove_fixed_expiry_from_tier_rewards.sql',
+    '109_add_menu_item_archive_retention.sql',
+    '110_create_data_retention_reviews.sql',
+    '111_add_incoming_order_beep.sql',
+    '112_add_schedule_revision_guard.sql'
+  ];
+  const [rows] = await mysqlPool.query<Array<RowDataPacket & { filename: string }>>(
+    `SELECT filename FROM schema_migrations WHERE filename IN (:required)`,
+    { required }
+  );
+  const applied = new Set(rows.map((row) => row.filename));
+  const missing = required.filter((filename) => !applied.has(filename));
+  if (missing.length > 0) {
+    throw new Error(`Latest schema migrations are missing: ${missing.join(', ')}.`);
+  }
+}
+
 async function main(): Promise<void> {
   const publicOrigin = env.PUBLIC_API_BASE_URL.replace(/\/v1\/?$/, '');
   const fcmReadinessDetail = env.FCM_DELIVERY_ENABLED
@@ -172,6 +191,11 @@ async function main(): Promise<void> {
     ? `Top-up gateway ${env.TOPUP_GATEWAY_PROVIDER} allowlist is ${env.TOPUP_GATEWAY_ALLOWED_METHODS.join(', ')}. Brand-level activation is verified for every allowed method.`
     : 'Online token top-up is intentionally disabled. Counter/admin token credits remain the only available top-up route.';
   const checks: Check[] = [
+    {
+      name: 'Latest schema migrations',
+      detail: 'Tier rewards, retention, incoming-order sounds, and timetable concurrency migrations must be applied.',
+      run: requireLatestSchema
+    },
     {
       name: 'Production environment',
       detail: 'Production mode, secure OTP configuration, and non-placeholder session secrets are required.',

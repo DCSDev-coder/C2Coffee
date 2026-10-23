@@ -22,6 +22,7 @@ import {
   loadAdminTierConfigs
 } from '../lib/adminApi';
 
+// oxlint-disable-next-line react/only-export-components
 export const calculateTierProgress = (cupsStr, tiers = []) => {
   const cups = parseInt(cupsStr.toString().replace(/,/g, ''), 10) || 0;
   const activeTiers = Array.isArray(tiers) && tiers.length > 0
@@ -63,6 +64,7 @@ export const calculateTierProgress = (cupsStr, tiers = []) => {
   };
 };
 
+// oxlint-disable-next-line react/only-export-components
 export const resolveTierProgress = (customer, tiers = []) => customer?.tierProgress ?? calculateTierProgress(customer?.cupsLast180d ?? customer?.orders, tiers);
 
 const KPICard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-white" }) => (

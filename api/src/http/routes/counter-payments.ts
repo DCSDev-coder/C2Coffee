@@ -18,6 +18,7 @@ import { isStoreTradingNow } from '../../services/store-availability.js';
 import { ApiError } from '../errors.js';
 import {
   collectMatchedUnits,
+  assertTierVoucherStillEligible,
   isVoucherAvailableNow,
   loadCheckoutMenuItems,
   normalizeMoney,
@@ -263,7 +264,7 @@ export async function registerCounterPaymentRoutes(app: FastifyInstance): Promis
           throw new ApiError(401, 'voucher_authorization_invalid', 'Voucher approval has expired or does not match this basket.');
         }
         const [voucherRows] = await connection.query<AppliedVoucherRow[]>(
-          `SELECT uv.id, uv.user_id, uv.status, uv.issue_case_ref, uv.expires_at,
+          `SELECT uv.id, uv.user_id, uv.status, uv.issue_case_ref, uv.tier_at_issue, uv.expires_at,
                   vt.id AS template_id, vt.tenant_id AS template_tenant_id,
                   vt.code AS template_code, vt.name AS template_name, vt.voucher_type,
                   vt.discount_mode, CAST(vt.discount_value AS CHAR) AS discount_value,
@@ -289,10 +290,6 @@ export async function registerCounterPaymentRoutes(app: FastifyInstance): Promis
         if (voucherOrders[0]) {
           throw new ApiError(409, 'voucher_checkout_in_progress', 'This voucher is already attached to another checkout.');
         }
-        if ((voucher.template_valid_until && new Date(voucher.template_valid_until).getTime() <= Date.now()) ||
-            new Date(voucher.expires_at).getTime() <= Date.now()) {
-          throw new ApiError(400, 'voucher_expired', 'Selected voucher has expired.');
-        }
         const scope = parseVoucherScope(voucher.eligible_scope_json);
         const rule = parsePromotionRule(scope);
         let birthdayMonthDay: string | null = null;
@@ -300,6 +297,11 @@ export async function registerCounterPaymentRoutes(app: FastifyInstance): Promis
           ? scope.schedule as Record<string, unknown> : null;
         const isBirthdayVoucher = (voucher.issue_case_ref?.startsWith('tier_birthday:') ?? false) ||
           voucher.voucher_type === 'birthday_treat' || String(schedule?.mode ?? 'always') === 'birthday';
+        if ((!isBirthdayVoucher && voucher.template_valid_until && new Date(voucher.template_valid_until).getTime() <= Date.now()) ||
+            new Date(voucher.expires_at).getTime() <= Date.now()) {
+          throw new ApiError(400, 'voucher_expired', 'Selected voucher has expired.');
+        }
+        await assertTierVoucherStillEligible(connection, voucher);
         if (isBirthdayVoucher) {
           const [birthdays] = await connection.query<Array<RowDataPacket & { birthday_month_day: string | null }>>(
             `SELECT DATE_FORMAT(birthday, '%m-%d') AS birthday_month_day FROM user_profiles WHERE user_id = :userId LIMIT 1`,

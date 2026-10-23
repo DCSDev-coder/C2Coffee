@@ -265,7 +265,7 @@ export function buildFinanceOverview(orders = [], refunds = []) {
 
   const orderedTransactions = recentTransactions
     .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
-    .map(({ timestamp, ...row }) => row);
+    .map(({ timestamp: _timestamp, ...row }) => row);
 
   const totalNetRevenueRm = Number((totalRevenueRm - totalRefundAmountRm).toFixed(2));
   const averageOrderValueRm = totalOrders > 0 ? Number((totalRevenueRm / totalOrders).toFixed(2)) : 0;

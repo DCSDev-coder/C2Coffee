@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import 'api_config.dart';
@@ -85,12 +86,50 @@ class PaymentServiceNotice {
       }).join(', ');
 }
 
+class NotificationIndicatorState {
+  final bool hasUnreadUpdates;
+  final bool hasActiveWarnings;
+
+  const NotificationIndicatorState({
+    this.hasUnreadUpdates = false,
+    this.hasActiveWarnings = false,
+  });
+
+  bool get hasIndicator => hasUnreadUpdates || hasActiveWarnings;
+}
+
 class NotificationService {
   NotificationService._();
 
   static final NotificationService instance = NotificationService._();
 
   final http.Client _client = http.Client();
+  final ValueNotifier<NotificationIndicatorState> indicator =
+      ValueNotifier(const NotificationIndicatorState());
+
+  Future<void> refreshIndicator({String? accessToken}) async {
+    final token = accessToken ??
+        await SecureSessionService.instance.getValidAccessToken();
+    if (token == null || token.isEmpty) return;
+
+    try {
+      final results = await Future.wait([
+        getNotifications(accessToken: token, limit: 50),
+        getPaymentServiceNotices(accessToken: token),
+      ]);
+      final notifications = results[0] as List<InAppNotification>;
+      final notices = results[1] as List<PaymentServiceNotice>;
+      indicator.value = NotificationIndicatorState(
+        hasUnreadUpdates:
+            notifications.any((notification) => !notification.isRead),
+        hasActiveWarnings:
+            notices.any((notice) => notice.endsAt.isAfter(DateTime.now())),
+      );
+    } catch (_) {
+      // Keep the last known state. A transient refresh failure must not make
+      // an active warning appear resolved or erase an unread update marker.
+    }
+  }
 
   Future<List<InAppNotification>> getNotifications({
     required String accessToken,
@@ -221,16 +260,38 @@ class NotificationService {
     required String accessToken,
     Map<String, dynamic>? body,
   }) async {
-    final request = http.Request(method, Uri.parse('${ApiConfig.baseUrl}$path'))
-      ..headers.addAll({
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $accessToken',
-      })
-      ..body = body == null ? '' : jsonEncode(body);
-    final response = await http.Response.fromStream(
-      await _client.send(request).timeout(const Duration(seconds: 15)),
-    );
+    Future<http.Response> send(String token) async {
+      final request = http.Request(method, Uri.parse('${ApiConfig.baseUrl}$path'))
+        ..headers['Authorization'] = 'Bearer $token';
+      if (body != null) {
+        request.headers['Content-Type'] = 'application/json';
+        request.body = jsonEncode(body);
+      }
+      return http.Response.fromStream(
+        await _client.send(request).timeout(const Duration(seconds: 15)),
+      );
+    }
+
+    http.Response response = await send(accessToken);
+    if (response.statusCode == 401) {
+      final refreshed = await SecureSessionService.instance.refreshTokenSilently();
+      if (refreshed != null && refreshed.isNotEmpty) {
+        response = await send(refreshed);
+      }
+    }
     if (response.statusCode >= 200 && response.statusCode < 300) return;
+
+    final text = utf8.decode(response.bodyBytes);
+    final decoded = text.isEmpty ? <String, dynamic>{} : jsonDecode(text);
+    if (decoded is Map) {
+      final error = decoded['error'];
+      if (error is Map) {
+        throw ApiException(
+          error['message'] as String? ?? 'Unable to update notifications.',
+          code: error['code'] as String?,
+        );
+      }
+    }
     throw ApiException('Unable to update notifications.');
   }
 }

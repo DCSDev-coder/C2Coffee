@@ -27,10 +27,44 @@ const sideWorkSchema = z.object({
   scheduled_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   scheduled_time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/)
 });
+const sideWorkBatchSchema = z.object({
+  title: z.string().trim().min(1).max(120),
+  instructions: z.string().trim().max(500).nullable().optional(),
+  scheduled_dates: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).min(1).max(31),
+  scheduled_time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/)
+});
 
 const sideWorkCompletionSchema = attendanceActionSchema.extend({
   task_id: z.coerce.number().int().positive()
 });
+
+function malaysiaDate(value = new Date()): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kuala_Lumpur', year: 'numeric', month: '2-digit', day: '2-digit'
+  }).formatToParts(value);
+  const date = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${date.year}-${date.month}-${date.day}`;
+}
+
+function addDays(date: string, days: number): string {
+  return malaysiaDate(new Date(new Date(`${date}T12:00:00+08:00`).getTime() + days * 86400000));
+}
+
+function isRealIsoDate(value: string): boolean {
+  const [year, month, day] = value.split('-').map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  return parsed.getUTCFullYear() === year && parsed.getUTCMonth() === month - 1 && parsed.getUTCDate() === day;
+}
+
+function validateSideWorkDates(values: string[]): void {
+  const from = malaysiaDate();
+  const to = addDays(from, 30);
+  for (const value of values) {
+    if (!isRealIsoDate(value) || value < from || value > to) {
+      throw new ApiError(400, 'side_work_date_out_of_range', 'Side work can be scheduled from today through the next 30 days.');
+    }
+  }
+}
 
 const guideSchema = z.object({
   guide_type: guideTypeSchema,
@@ -131,6 +165,7 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
   app.post('/v1/admin/side-work', { preHandler: authenticateAdminRequest }, async (request, reply) => {
     requireAnyAdminRole(request, ['super_admin', 'operations_admin']);
     const payload = sideWorkSchema.parse(request.body);
+    validateSideWorkDates([payload.scheduled_date]);
     const [result] = await mysqlPool.execute<ResultSetHeader>(
       `INSERT INTO barista_side_work_tasks
          (tenant_id, title, instructions, scheduled_date, scheduled_time, created_by_admin_user_id)
@@ -145,6 +180,60 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
       }
     );
     return reply.code(201).send({ id: Number(result.insertId) });
+  });
+
+  app.post('/v1/admin/side-work/bulk', { preHandler: authenticateAdminRequest }, async (request, reply) => {
+    requireAnyAdminRole(request, ['super_admin', 'operations_admin']);
+    const payload = sideWorkBatchSchema.parse(request.body);
+    const scheduledDates = [...new Set(payload.scheduled_dates)].sort();
+    validateSideWorkDates(scheduledDates);
+    const connection = await mysqlPool.getConnection();
+
+    try {
+      await connection.beginTransaction();
+      const ids: number[] = [];
+      let skipped = 0;
+      for (const scheduledDate of scheduledDates) {
+        const [existing] = await connection.execute<RowDataPacket[]>(
+          `SELECT id FROM barista_side_work_tasks
+           WHERE tenant_id = :tenantId AND title = :title
+             AND scheduled_date = :scheduledDate AND scheduled_time = :scheduledTime
+             AND is_active = 1
+           LIMIT 1 FOR UPDATE`,
+          {
+            tenantId: request.adminAuth.tenantId,
+            title: payload.title,
+            scheduledDate,
+            scheduledTime: payload.scheduled_time
+          }
+        );
+        if (existing.length > 0) {
+          skipped += 1;
+          continue;
+        }
+        const [result] = await connection.execute<ResultSetHeader>(
+          `INSERT INTO barista_side_work_tasks
+             (tenant_id, title, instructions, scheduled_date, scheduled_time, created_by_admin_user_id)
+           VALUES (:tenantId, :title, :instructions, :scheduledDate, :scheduledTime, :adminUserId)`,
+          {
+            tenantId: request.adminAuth.tenantId,
+            title: payload.title,
+            instructions: payload.instructions || null,
+            scheduledDate,
+            scheduledTime: payload.scheduled_time,
+            adminUserId: request.adminAuth.adminUserId
+          }
+        );
+        ids.push(Number(result.insertId));
+      }
+      await connection.commit();
+      return reply.code(201).send({ ids, saved: ids.length, skipped });
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
   });
 
   app.delete('/v1/admin/side-work/:taskId', { preHandler: authenticateAdminRequest }, async (request, reply) => {

@@ -14,10 +14,14 @@ import '../../auth_service.dart';
 class DirectPrinterConfig {
   const DirectPrinterConfig({required this.host, required this.port});
 
+  static const sunmiHost = 'sunmi_inner';
+
   final String host;
   final int port;
 
   bool get isConfigured => host.isNotEmpty;
+  bool get isSunmi => host == sunmiHost;
+  String get displayName => isSunmi ? 'Sunmi Inner Printer (Built-in)' : '$host:$port';
 }
 
 class DirectPrintJob {
@@ -67,6 +71,27 @@ class DirectPrinterService {
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
   final ApiClient _apiClient = ApiClient();
   final AuthService _authService = AuthService();
+  static const MethodChannel _sunmiChannel =
+      MethodChannel('com.c2coffee.counter/sunmi_printer');
+
+  Future<bool> isSunmiAvailable() async {
+    if (kIsWeb || !Platform.isAndroid) return false;
+    try {
+      final available = await _sunmiChannel.invokeMethod<bool>('isAvailable');
+      return available ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<String?> getSunmiStatus() async {
+    if (kIsWeb || !Platform.isAndroid) return null;
+    try {
+      return await _sunmiChannel.invokeMethod<String>('getStatus');
+    } catch (_) {
+      return null;
+    }
+  }
 
   Future<String> workstationKey() async {
     final current = await _storage.read(key: _workstationKey);
@@ -183,10 +208,25 @@ class DirectPrinterService {
         'Save the printer IP address before printing a test receipt.',
       );
     }
-    await _send(config, await _testDocket());
+    await _send(config, await _testDocket(isSunmi: config.isSunmi));
   }
 
   Future<void> _send(DirectPrinterConfig config, List<int> bytes) async {
+    if (config.isSunmi) {
+      try {
+        final success = await _sunmiChannel.invokeMethod<bool>(
+          'printRawData',
+          {'data': Uint8List.fromList(bytes)},
+        );
+        if (success != true) {
+          throw StateError('Sunmi inner printer did not accept print data.');
+        }
+        return;
+      } on PlatformException catch (e) {
+        throw StateError('Sunmi inner printer error: ${e.message ?? e.code}');
+      }
+    }
+
     Socket? socket;
     try {
       socket = await Socket.connect(
@@ -307,7 +347,7 @@ class DirectPrinterService {
     }
   }
 
-  Future<List<int>> _testDocket() async {
+  Future<List<int>> _testDocket({bool isSunmi = false}) async {
     final buffer = BytesBuilder();
     buffer.add(const [0x1B, 0x40, 0x1B, 0x61, 0x01]);
     buffer.add(await _logoRaster());
@@ -315,7 +355,9 @@ class DirectPrinterService {
     buffer.add(const [0x1B, 0x61, 0x00]);
     buffer.add(
       latin1.encode(
-        'Connection successful.\nThis printer is ready for new orders.\n\n\n',
+        isSunmi
+            ? 'Sunmi D3 Mini Inner Printer.\nConnection successful.\nReady for new orders.\n\n\n'
+            : 'Connection successful.\nThis printer is ready for new orders.\n\n\n',
       ),
     );
     buffer.add(const [0x1D, 0x56, 0x00]);

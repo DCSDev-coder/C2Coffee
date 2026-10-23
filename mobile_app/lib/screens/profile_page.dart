@@ -10,6 +10,7 @@ import '../services/secure_session_service.dart';
 import '../widgets/custom_bottom_nav.dart';
 import '../services/app_session_service.dart';
 import '../services/user_service.dart';
+import '../services/notification_service.dart';
 import 'home_page.dart';
 import 'menu_page.dart';
 import 'loading_order_page.dart';
@@ -25,6 +26,7 @@ import '../widgets/catalog_product_image.dart';
 import '../utils/app_colors.dart';
 import '../widgets/app_page_shell.dart';
 import '../widgets/profile_avatar_style.dart';
+import '../widgets/notification_indicator.dart';
 
 class ProfilePage extends StatefulWidget {
   final File? initialPickedImage;
@@ -73,6 +75,7 @@ class _ProfilePageState extends State<ProfilePage> {
     Future.microtask(() async {
       try {
         await _session.loadAuthenticatedState();
+        await NotificationService.instance.refreshIndicator();
       } catch (_) {}
       await Future.wait([
         _loadCalendarMarkers(),
@@ -393,8 +396,10 @@ class _ProfilePageState extends State<ProfilePage> {
         child: Stack(
           clipBehavior: Clip.none,
           children: [
-            const Icon(Icons.notifications_outlined,
-                color: Colors.white, size: 26),
+            NotificationIndicator(
+              child: const Icon(Icons.notifications_outlined,
+                  color: Colors.white, size: 26),
+            ),
           ],
         ),
       ),

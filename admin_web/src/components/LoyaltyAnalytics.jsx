@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import {
   ArrowLeft, ChevronRight
 } from "lucide-react";
@@ -17,8 +17,6 @@ const formatDateLabel = (value) => (typeof value === "string" && value.trim() ? 
 
 //Main Component
 const LoyaltyAnalytics = ({ overview, onBack, onViewSummary }) => {
-  const [searchQuery, setSearchQuery] = useState("");
-
   const summary = overview?.summary || {};
   const issuedVsRedeemedData = (Array.isArray(overview?.issuedVsRedeemed) ? overview.issuedVsRedeemed : []).map((entry) => ({
     day: formatDateLabel(entry.day),

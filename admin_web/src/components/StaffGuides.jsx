@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ImagePlus, Trash2, BookOpen } from 'lucide-react';
 import { adminRequest, getAdminApiBaseUrl } from '../lib/adminApi';
+import { requestAdminConfirm } from '../lib/adminDialog';
 
 const guideLabels = { attire: 'Attire guide', rules: 'Store rules', drink: 'Drink preparation' };
 
@@ -28,7 +29,7 @@ export default function StaffGuides() {
       setFile(null); setMenuItemId(''); setGuideTitle(''); await load();
     } catch (err) { setError(err.message || 'Unable to save the guide image.'); } finally { setSaving(false); }
   };
-  const removeGuide = async (id) => { if (!window.confirm('Delete this staff guide image?')) return; await adminRequest(`/v1/admin/barista-guides/${id}`, { method: 'DELETE' }); await load(); };
+  const removeGuide = async (id) => { if (!await requestAdminConfirm({ title: 'Delete staff guide?', message: 'This image will be removed from the C2 Store guide library.', confirmLabel: 'Delete', tone: 'danger' })) return; await adminRequest(`/v1/admin/barista-guides/${id}`, { method: 'DELETE' }); await load(); };
   return <div className="p-6 lg:p-10 space-y-7">
     <div><h1 className="text-3xl font-bold text-gray-900">Staff Guides</h1><p className="mt-2 text-gray-500">Upload image-only attire, store-rule, and drink preparation guides for the C2 Store Barista Workspace.</p></div>
     <form onSubmit={addGuide} className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm grid gap-4 md:grid-cols-4 items-end">

@@ -11,7 +11,9 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterActivity() {
     private val soundChannel = "com.c2coffee.counter/barista_sounds"
     private val updateChannel = "com.c2coffee.counter/app_updates"
+    private val sunmiChannel = "com.c2coffee.counter/sunmi_printer"
     private val soundHandler = Handler(Looper.getMainLooper())
+    private var sunmiHandler: SunmiPrinterHandler? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -34,6 +36,16 @@ class MainActivity : FlutterActivity() {
         val updateHandler = AppUpdateHandler(this)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, updateChannel)
             .setMethodCallHandler(updateHandler::handle)
+
+        val handler = SunmiPrinterHandler(this)
+        sunmiHandler = handler
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, sunmiChannel)
+            .setMethodCallHandler(handler::handle)
+    }
+
+    override fun onDestroy() {
+        sunmiHandler?.unbind()
+        super.onDestroy()
     }
 
     private fun playBeeps(count: Int, volumePercent: Int, style: String) {

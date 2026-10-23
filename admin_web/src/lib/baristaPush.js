@@ -121,6 +121,7 @@ export async function registerBaristaBrowserPush({ requestPermission = false, on
 
   await adminRequest('/v1/admin/devices/push-token', {
     method: 'POST',
+    suppressSuccessToast: true,
     body: JSON.stringify({ platform: 'web', push_token: pushToken }),
   });
   attachForegroundHandler(messaging, onOrderAlert);

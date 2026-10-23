@@ -10,7 +10,6 @@ for (const file of files) {
   const filePath = path.join(dir, file);
   let code = fs.readFileSync(filePath, 'utf8');
   
-  const regex = /const (KPICard|StatCard|SummaryCard) = \(\{.*?\}\) => \([\s\S]*?<\/(div|div)>\n\);\n/g;
   const regexFallback = /const (KPICard|StatCard|SummaryCard) = \(\{.*?\}\) => \([\s\S]*?\);\n/g;
 
   let replaced = false;

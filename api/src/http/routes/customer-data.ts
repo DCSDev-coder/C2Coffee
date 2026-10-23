@@ -13,7 +13,8 @@ import {
 } from '../order-lifecycle.js';
 import {
   getKualaLumpurDateParts,
-  getKualaLumpurDayEndUtc
+  getKualaLumpurDayEndUtc,
+  getKualaLumpurOccurrenceEndUtc
 } from '../../lib/kuala-lumpur-time.js';
 import { getActiveLoyaltyTiers, getTierByCode, loadLoyaltyTiers, type LoyaltyTierConfig } from '../../services/loyalty-tiers.js';
 import { deliverQueuedOrderReceiptEmail, queueOrderReceiptEmail } from '../../services/order-receipt-email.js';
@@ -75,6 +76,7 @@ type VoucherRow = RowDataPacket & {
   tier_at_issue: string | null;
   issued_at: Date;
   expires_at: Date;
+  template_valid_until: Date | null;
   redeemed_at: Date | null;
   revoked_at: Date | null;
   revoked_reason: string | null;
@@ -374,7 +376,13 @@ async function issueAutoVisibleVoucherAtomically(input: {
     }>>(
       `
         SELECT
-          COUNT(*) AS total_count,
+          COALESCE(SUM(
+            CASE
+              WHEN :isRecurring = 0 OR issue_case_ref = :issueCaseRef
+              THEN 1
+              ELSE 0
+            END
+          ), 0) AS total_count,
           COALESCE(SUM(
             CASE
               WHEN user_id = :userId
@@ -501,6 +509,50 @@ function getKualaLumpurMonthEndUtc(now = new Date()): Date {
   return new Date(
     Date.UTC(Number(parts.year), Number(parts.month), 1) - 8 * 60 * 60 * 1000
   );
+}
+
+function earliestDate(first: Date, second: Date | null): Date {
+  return second && second.getTime() < first.getTime() ? second : first;
+}
+
+function formatVoucherTime(value: unknown): string | null {
+  const normalized = typeof value === 'string' ? value.trim() : '';
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(normalized)) return null;
+  const [hourRaw, minute] = normalized.split(':');
+  const hour = Number(hourRaw);
+  const suffix = hour >= 12 ? 'PM' : 'AM';
+  const displayHour = hour % 12 === 0 ? 12 : hour % 12;
+  return `${displayHour}:${minute} ${suffix}`;
+}
+
+function formatVoucherDate(value: Date): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'Asia/Kuala_Lumpur'
+  }).format(value);
+}
+
+function buildCustomerVoucherValidityLabel(
+  schedule: Record<string, unknown>,
+  effectiveExpiresAt: Date,
+  hasFixedExpiry: boolean
+): string {
+  if (!hasFixedExpiry) return 'Valid while your current tier remains active';
+
+  const mode = String(schedule.mode || 'always').trim();
+  if (mode === 'daily' || mode === 'weekly' || mode === 'monthly' || mode === 'annual') {
+    const start = formatVoucherTime(schedule.startTime);
+    const end = formatVoucherTime(schedule.endTime);
+    return start && end ? `Today, ${start} - ${end}` : 'Available today';
+  }
+
+  if (mode === 'birthday') {
+    return `Birthday reward · redeem by ${formatVoucherDate(effectiveExpiresAt)}`;
+  }
+
+  return `Redeem by ${formatVoucherDate(effectiveExpiresAt)}`;
 }
 
 async function syncCurrentTierAchievementRewards(
@@ -855,7 +907,12 @@ async function syncAutoVisibleVoucherTemplates(
     const expiresAt = scheduleMode === 'birthday'
       ? getKualaLumpurMonthEndUtc()
       : scheduleMode === 'annual' || scheduleMode === 'monthly' || scheduleMode === 'weekly' || scheduleMode === 'daily'
-        ? getKualaLumpurDayEndUtc()
+        ? earliestDate(
+            getKualaLumpurOccurrenceEndUtc(
+              typeof schedule.endTime === 'string' ? schedule.endTime : null
+            ),
+            template.valid_until
+          )
         : resolveAutoIssuedVoucherExpiry(template);
     if (expiresAt.getTime() <= Date.now()) {
       continue;
@@ -1245,7 +1302,11 @@ export async function registerCustomerDataRoutes(
           AND uv.revoked_at IS NULL
           AND uv.expires_at > UTC_TIMESTAMP()
           AND vt.is_active = 1
-          AND (vt.valid_until IS NULL OR vt.valid_until > UTC_TIMESTAMP())
+          AND (
+            vt.voucher_type = 'birthday_treat'
+            OR vt.valid_until IS NULL
+            OR vt.valid_until > UTC_TIMESTAMP()
+          )
         `;
 
     const tierRewardFilter = includeTierRewards
@@ -1262,6 +1323,7 @@ export async function registerCustomerDataRoutes(
           uv.tier_at_issue,
           uv.issued_at,
           uv.expires_at,
+          vt.valid_until AS template_valid_until,
           uv.redeemed_at,
           uv.revoked_at,
           uv.revoked_reason,
@@ -1372,42 +1434,59 @@ export async function registerCustomerDataRoutes(
           exclude_scope_json: row.exclude_scope_json
         }
       })),
-      vouchers: visibleVoucherRows.map((row) => ({
-        id: row.id,
-        status: row.redeemed_at !== null
-          ? 'redeemed'
-          : row.revoked_at !== null
-            ? 'revoked'
-            : row.expires_at <= new Date()
-              ? 'expired'
-              : row.status,
-        issued_reason: row.issued_reason,
-        issue_case_ref: row.issue_case_ref,
-        tier_at_issue: row.tier_at_issue,
-        issued_at: row.issued_at.toISOString(),
-        expires_at: row.expires_at.toISOString(),
-        redeemed_at: row.redeemed_at?.toISOString() ?? null,
-        revoked_at: row.revoked_at?.toISOString() ?? null,
-        revoked_reason: row.revoked_reason,
-        reward_kind: row.issue_case_ref?.startsWith('tier_birthday:')
-          ? 'tier_birthday'
-          : row.issue_case_ref?.startsWith('tier_unlock:')
-            ? 'tier_achievement'
-            : 'voucher',
-        template: {
-          code: row.template_code,
-          name: row.template_name,
-          image_url: row.template_image_url,
-          voucher_type: row.voucher_type,
-          discount_mode: row.discount_mode,
-          discount_value: row.discount_value,
-          token_value: row.token_value,
-          min_spend_rm: row.min_spend_rm,
-          requires_drink_in_cart: row.requires_drink_in_cart === 1,
-          eligible_scope_json: row.eligible_scope_json,
-          exclude_scope_json: row.exclude_scope_json
-        }
-      }))
+      vouchers: visibleVoucherRows.map((row) => {
+        const effectiveExpiresAt = row.voucher_type !== 'birthday_treat'
+          && row.template_valid_until !== null
+          && row.template_valid_until < row.expires_at
+          ? row.template_valid_until
+          : row.expires_at;
+
+        const scope = parseVoucherScope(row.eligible_scope_json);
+        const hasFixedExpiry = row.voucher_type !== 'tier_reward';
+
+        return {
+          id: row.id,
+          status: row.redeemed_at !== null
+            ? 'redeemed'
+            : row.revoked_at !== null
+              ? 'revoked'
+              : effectiveExpiresAt <= new Date()
+                ? 'expired'
+                : row.status,
+          issued_reason: row.issued_reason,
+          issue_case_ref: row.issue_case_ref,
+          tier_at_issue: row.tier_at_issue,
+          issued_at: row.issued_at.toISOString(),
+          expires_at: effectiveExpiresAt.toISOString(),
+          redeemed_at: row.redeemed_at?.toISOString() ?? null,
+          revoked_at: row.revoked_at?.toISOString() ?? null,
+          revoked_reason: row.revoked_reason,
+          reward_kind: row.issue_case_ref?.startsWith('tier_birthday:')
+            ? 'tier_birthday'
+            : row.issue_case_ref?.startsWith('tier_unlock:') || row.issue_case_ref?.startsWith('tier_claim:')
+              ? 'tier_achievement'
+              : 'voucher',
+          has_fixed_expiry: hasFixedExpiry,
+          validity_label: buildCustomerVoucherValidityLabel(
+            getVoucherSchedule(scope),
+            effectiveExpiresAt,
+            hasFixedExpiry
+          ),
+          template: {
+            code: row.template_code,
+            name: row.template_name,
+            image_url: row.template_image_url,
+            voucher_type: row.voucher_type,
+            discount_mode: row.discount_mode,
+            discount_value: row.discount_value,
+            token_value: row.token_value,
+            min_spend_rm: row.min_spend_rm,
+            requires_drink_in_cart: row.requires_drink_in_cart === 1,
+            eligible_scope_json: row.eligible_scope_json,
+            exclude_scope_json: row.exclude_scope_json
+          }
+        };
+      })
     };
   });
 
@@ -1420,9 +1499,7 @@ export async function registerCustomerDataRoutes(
 
     try {
       await connection.beginTransaction();
-      const [rows] = await connection.query<Array<TierRewardEntitlementRow & {
-        expires_in_days: number | null;
-      }>>(
+      const [rows] = await connection.query<Array<TierRewardEntitlementRow>>(
         `
           SELECT
             utre.id,
@@ -1442,7 +1519,6 @@ export async function registerCustomerDataRoutes(
             vt.requires_drink_in_cart,
             vt.eligible_scope_json,
             vt.exclude_scope_json,
-            vt.expires_in_days,
             vt.total_quantity,
             vt.limit_per_user
           FROM user_tier_reward_entitlements utre
@@ -1524,7 +1600,7 @@ export async function registerCustomerDataRoutes(
           ) VALUES (
             :userId, :voucherTemplateId, 'active', 'system', :issuedReason,
             :issueCaseRef, :tierCode, UTC_TIMESTAMP(),
-            DATE_ADD(UTC_TIMESTAMP(), INTERVAL :expiresInDays DAY)
+            '9999-12-31 23:59:59'
           )
         `,
         {
@@ -1532,8 +1608,7 @@ export async function registerCustomerDataRoutes(
           voucherTemplateId: entitlement.template_id,
           issuedReason: `Claimed tier reward: ${entitlement.template_name}`,
           issueCaseRef: `tier_claim:${entitlement.id}`,
-          tierCode: entitlement.tier_code,
-          expiresInDays: Math.max(1, Number(entitlement.expires_in_days ?? 30))
+          tierCode: entitlement.tier_code
         }
       );
 

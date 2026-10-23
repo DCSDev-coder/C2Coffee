@@ -641,6 +641,9 @@ class WorkstationAccessState {
 
 class BaristaSoundSettings {
   final int volumePercent;
+  final bool incomingOrderEnabled;
+  final int incomingOrderBeeps;
+  final String incomingOrderStyle;
   final int clockInBeeps;
   final String clockInStyle;
   final int clockOutBeeps;
@@ -650,6 +653,9 @@ class BaristaSoundSettings {
 
   const BaristaSoundSettings({
     required this.volumePercent,
+    required this.incomingOrderEnabled,
+    required this.incomingOrderBeeps,
+    required this.incomingOrderStyle,
     required this.clockInBeeps,
     required this.clockInStyle,
     required this.clockOutBeeps,
@@ -660,6 +666,9 @@ class BaristaSoundSettings {
 
   const BaristaSoundSettings.defaults()
     : volumePercent = 70,
+      incomingOrderEnabled = true,
+      incomingOrderBeeps = 4,
+      incomingOrderStyle = 'two_tone',
       clockInBeeps = 1,
       clockInStyle = 'short',
       clockOutBeeps = 2,
@@ -670,6 +679,9 @@ class BaristaSoundSettings {
   factory BaristaSoundSettings.fromJson(Map<String, dynamic> json) =>
       BaristaSoundSettings(
         volumePercent: (json['volume_percent'] as num?)?.toInt() ?? 70,
+        incomingOrderEnabled: _soundEnabled(json['incoming_order_enabled']),
+        incomingOrderBeeps: (json['incoming_order_beeps'] as num?)?.toInt() ?? 4,
+        incomingOrderStyle: _soundStyle(json['incoming_order_style'], 'two_tone'),
         clockInBeeps: (json['clock_in_beeps'] as num?)?.toInt() ?? 1,
         clockInStyle: _soundStyle(json['clock_in_style'], 'short'),
         clockOutBeeps: (json['clock_out_beeps'] as num?)?.toInt() ?? 2,
@@ -683,6 +695,13 @@ class BaristaSoundSettings {
     return const {'short', 'long', 'two_tone'}.contains(style)
         ? style!
         : fallback;
+  }
+
+  static bool _soundEnabled(Object? value) {
+    if (value == null) return true;
+    if (value is bool) return value;
+    if (value is num) return value != 0;
+    return value.toString().toLowerCase() != 'false' && value.toString() != '0';
   }
 }
 

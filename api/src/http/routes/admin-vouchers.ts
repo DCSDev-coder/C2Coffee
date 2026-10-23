@@ -31,9 +31,11 @@ const voucherCreateUpdateSchema = z.object({
   discountValue: z.coerce.number().finite().min(0).max(1_000_000).optional(),
   productKinds: z.array(z.string()).optional().default([]),
   subcategoryCodes: z.array(z.string()).optional().default([]),
+  categoryCodes: z.array(z.string()).optional().default([]),
   eligibleItems: z.array(z.string()),
   rewardProductKinds: z.array(z.string()).optional().default([]),
   rewardSubcategoryCodes: z.array(z.string()).optional().default([]),
+  rewardCategoryCodes: z.array(z.string()).optional().default([]),
   rewardItems: z.array(z.string()).optional().default([]),
   qualifyingQuantity: z.number().int().min(1).max(20).optional().default(1),
   rewardQuantity: z.number().int().min(1).max(20).optional().default(1),
@@ -110,6 +112,14 @@ const voucherCreateUpdateSchema = z.object({
     });
   }
 
+  if (value.startTime && value.endTime && value.startTime >= value.endTime) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['endTime'],
+      message: 'End time must be later than start time on the same day.'
+    });
+  }
+
   if (value.totalQty != null && value.limitPerUser != null && value.limitPerUser > value.totalQty) {
     context.addIssue({
       code: z.ZodIssueCode.custom,
@@ -125,6 +135,10 @@ const voucherCreateUpdateSchema = z.object({
       message: 'Automatic vouchers support one voucher per customer per availability period. Use manual issuance for larger per-customer limits.'
     });
   }
+});
+
+const voucherExpiryUpdateSchema = z.object({
+  expiry: z.string().trim().optional().nullable()
 });
 
 const customerSearchQuerySchema = z.object({
@@ -160,6 +174,7 @@ type VoucherPayload = z.infer<typeof voucherCreateUpdateSchema>;
 type ScopeSelection = {
   product_kind_codes: string[];
   subcategory_codes: string[];
+  category_codes: string[];
   items: string[];
 };
 
@@ -326,6 +341,12 @@ function canonicalJson(value: unknown): string {
   return JSON.stringify(normalize(parseScopeJson(value)));
 }
 
+function canonicalVoucherRules(value: unknown): string {
+  const scope = parseScopeJson(value);
+  const { expiry_string: _expiryString, ...rules } = scope;
+  return canonicalJson(rules);
+}
+
 function sameNullableNumber(left: unknown, right: unknown): boolean {
   if (left == null && right == null) return true;
   return Number(left) === Number(right);
@@ -350,6 +371,11 @@ function parseScopeSelection(value: unknown): ScopeSelection {
     subcategory_codes: Array.isArray(scope.subcategory_codes)
       ? normalizeScopeCodes(scope.subcategory_codes.map((item) => String(item)))
       : [],
+    category_codes: Array.isArray(scope.category_codes)
+      ? normalizeScopeCodes(scope.category_codes.map((item) => String(item)))
+      : Array.isArray(scope.categories)
+        ? normalizeScopeCodes(scope.categories.map((item) => String(item)))
+        : [],
     items: items.length === 1 && items[0] === 'All Items' ? [] : items
   };
 }
@@ -377,18 +403,21 @@ function parsePromotionRule(scope: Record<string, unknown>): PromotionRule {
       : 1,
     qualifying_scope: qualifyingScope.items.length > 0 ||
       qualifyingScope.product_kind_codes.length > 0 ||
-      qualifyingScope.subcategory_codes.length > 0
+      qualifyingScope.subcategory_codes.length > 0 ||
+      qualifyingScope.category_codes.length > 0
       ? qualifyingScope
       : fallbackScope,
     reward_scope:
       kind === 'bundle' &&
       (rewardScope.items.length > 0 ||
         rewardScope.product_kind_codes.length > 0 ||
-        rewardScope.subcategory_codes.length > 0)
+        rewardScope.subcategory_codes.length > 0 ||
+        rewardScope.category_codes.length > 0)
         ? rewardScope
         : qualifyingScope.items.length > 0 ||
             qualifyingScope.product_kind_codes.length > 0 ||
-            qualifyingScope.subcategory_codes.length > 0
+            qualifyingScope.subcategory_codes.length > 0 ||
+            qualifyingScope.category_codes.length > 0
           ? qualifyingScope
           : fallbackScope
   };
@@ -399,6 +428,15 @@ function parseDateValue(value: unknown): Date | null {
 
   const date = value instanceof Date ? value : new Date(value as string);
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function parseVoucherExpiry(value: unknown): Date | null {
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value.trim())) {
+    const date = new Date(`${value.trim()}T23:59:59.999+08:00`);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  return parseDateValue(value);
 }
 
 function titleCaseTier(tierCode: string | null | undefined): string {
@@ -492,6 +530,10 @@ function voucherScopeLabel(payload: VoucherPayload): string {
   if (subcategories.length === 1) return formatScopeLabel(subcategories[0]);
   if (subcategories.length > 1) return 'Selected menu types';
 
+  const categories = normalizeScopeCodes(payload.categoryCodes);
+  if (categories.length === 1) return formatScopeLabel(categories[0]);
+  if (categories.length > 1) return 'Selected categories';
+
   const productKinds = normalizeScopeCodes(payload.productKinds).map((value) => value.toLowerCase());
   const includesEveryCoreKind = ALL_MENU_PRODUCT_KINDS.every((kind) => productKinds.includes(kind));
   if (includesEveryCoreKind) return 'All menu items';
@@ -540,12 +582,14 @@ function deriveReward(payload: VoucherPayload): string {
 function buildScopeSelection(
   items: string[],
   productKinds: string[],
-  subcategoryCodes: string[]
+  subcategoryCodes: string[],
+  categoryCodes: string[]
 ): ScopeSelection {
   const normalizedItems = normalizeEligibleItems(items);
   return {
     product_kind_codes: normalizeScopeCodes(productKinds),
     subcategory_codes: normalizeScopeCodes(subcategoryCodes),
+    category_codes: normalizeScopeCodes(categoryCodes),
     items: normalizedItems.length === 1 && normalizedItems[0] === 'All Items' ? [] : normalizedItems
   };
 }
@@ -554,7 +598,8 @@ function applySafeBenefitScopeDefaults(payload: VoucherPayload): VoucherPayload 
   const hasExplicitQualifyingScope =
     normalizeEligibleItems(payload.eligibleItems).some((item) => item !== 'All Items') ||
     normalizeScopeCodes(payload.productKinds).length > 0 ||
-    normalizeScopeCodes(payload.subcategoryCodes).length > 0;
+    normalizeScopeCodes(payload.subcategoryCodes).length > 0 ||
+    normalizeScopeCodes(payload.categoryCodes).length > 0;
 
   if (hasExplicitQualifyingScope) return payload;
 
@@ -573,13 +618,15 @@ function buildPromotionRule(payload: VoucherPayload): PromotionRule {
   const qualifyingScope = buildScopeSelection(
     payload.eligibleItems,
     payload.productKinds,
-    payload.subcategoryCodes
+    payload.subcategoryCodes,
+    payload.categoryCodes
   );
 
   const rewardScope = buildScopeSelection(
     payload.rewardItems.length > 0 ? payload.rewardItems : payload.eligibleItems,
     payload.rewardProductKinds.length > 0 ? payload.rewardProductKinds : payload.productKinds,
-    payload.rewardSubcategoryCodes.length > 0 ? payload.rewardSubcategoryCodes : payload.subcategoryCodes
+    payload.rewardSubcategoryCodes.length > 0 ? payload.rewardSubcategoryCodes : payload.subcategoryCodes,
+    payload.rewardCategoryCodes.length > 0 ? payload.rewardCategoryCodes : payload.categoryCodes
   );
 
   return {
@@ -786,41 +833,40 @@ function buildAvailabilitySummary(schedule: VoucherSchedule, expiryDate: Date | 
   const toTime = formatTimeLabel(schedule.endTime);
   const timeLabel = fromTime && toTime ? `${fromTime} - ${toTime}` : fromTime || toTime;
 
+  const withExpiry = (label: string) => {
+    if (schedule.mode === 'birthday' || !expiryDate) return label;
+    return `${label}; redeem until ${expiryDate.toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      timeZone: 'Asia/Kuala_Lumpur'
+    })}`;
+  };
+
   if (schedule.mode === 'daily') {
-    return timeLabel ? `Every day, ${timeLabel}` : 'Every day';
+    return withExpiry(timeLabel ? `Every day, ${timeLabel}` : 'Every day');
   }
 
   if (schedule.mode === 'weekly') {
     const dayLabel = schedule.activeDays.length > 0 ? schedule.activeDays.join(', ') : 'selected days';
-    return timeLabel ? `Every ${dayLabel}, ${timeLabel}` : `Every ${dayLabel}`;
+    return withExpiry(timeLabel ? `Every ${dayLabel}, ${timeLabel}` : `Every ${dayLabel}`);
   }
 
   if (schedule.mode === 'annual') {
     const annualDateLabel = formatAnnualDateLabel(schedule.annualDate) || 'selected date';
-    return timeLabel ? `Every ${annualDateLabel}, ${timeLabel}` : `Every ${annualDateLabel}`;
+    return withExpiry(timeLabel ? `Every ${annualDateLabel}, ${timeLabel}` : `Every ${annualDateLabel}`);
   }
 
   if (schedule.mode === 'monthly') {
     const dayLabel = schedule.monthlyDay ?? 'selected day';
-    return timeLabel ? `Every month on day ${dayLabel}, ${timeLabel}` : `Every month on day ${dayLabel}`;
+    return withExpiry(timeLabel ? `Every month on day ${dayLabel}, ${timeLabel}` : `Every month on day ${dayLabel}`);
   }
 
   if (schedule.mode === 'birthday') {
     return timeLabel ? `On customer birthday, ${timeLabel}` : 'On customer birthday';
   }
 
-  if (expiryDate) {
-    return expiryDate.toLocaleString('en-GB', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: 'numeric',
-      hour12: true
-    });
-  }
-
-  return 'Always available';
+  return withExpiry('Always available');
 }
 
 function getVoucherExpiryDate(scope: Record<string, unknown>, row: VoucherTemplateRow): Date | null {
@@ -1115,8 +1161,8 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
       const type = normalizeFrontendType(scope, templateRow);
       const benefitType = normalizeBenefitType(scope, templateRow);
       const audience = normalizeAudience(scope);
-      const expiryDate = getVoucherExpiryDate(scope, templateRow);
       const schedule = getScheduleFromScope(scope);
+      const expiryDate = schedule.mode === 'birthday' ? null : getVoucherExpiryDate(scope, templateRow);
       const availabilityLabel = buildAvailabilitySummary(schedule, expiryDate);
       const createdDate = parseDateValue(templateRow.created_at);
       const issuedCount = Number(templateRow.issued_count || 0);
@@ -1136,12 +1182,14 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
         eligibleItems: promotionRule.qualifying_scope.items,
         productKinds: promotionRule.qualifying_scope.product_kind_codes,
         subcategoryCodes: promotionRule.qualifying_scope.subcategory_codes,
+        categoryCodes: promotionRule.qualifying_scope.category_codes,
         rewardItems: promotionRule.reward_scope.items,
         rewardProductKinds: promotionRule.reward_scope.product_kind_codes,
         rewardSubcategoryCodes: promotionRule.reward_scope.subcategory_codes,
+        rewardCategoryCodes: promotionRule.reward_scope.category_codes,
         qualifyingQuantity: promotionRule.qualifying_quantity,
         rewardQuantity: promotionRule.reward_quantity,
-        expiry: expiryDate ? expiryDate.toISOString() : String(scope.expiry_string || ''),
+        expiry: expiryDate ? expiryDate.toISOString() : '',
         expiryFull: availabilityLabel,
         availabilityMode: schedule.mode,
         activeDays: schedule.activeDays,
@@ -1336,17 +1384,20 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
     const eligibleItems = normalizeEligibleItems(payload.eligibleItems);
     const productKinds = normalizeScopeCodes(payload.productKinds);
     const subcategoryCodes = normalizeScopeCodes(payload.subcategoryCodes);
+    const categoryCodes = normalizeScopeCodes(payload.categoryCodes);
     const promotionRule = buildPromotionRule(payload);
     const derivedReward = deriveReward(payload);
-    const validUntil = parseDateValue(payload.expiry);
-    const isActive = payload.status === 'Draft' ? 0 : 1;
+    const validUntil = parseVoucherExpiry(payload.expiry);
+    const isActive = payload.status === 'Active' ? 1 : 0;
     const schedule = buildScheduleFromPayload(payload);
     const effectiveValidUntil =
-      payload.status === 'Expired'
+      voucherType === 'tier_reward'
+        ? null
+        : payload.status === 'Expired'
         ? new Date(Date.now() - 60 * 1000)
-        : schedule.mode === 'always'
-          ? validUntil
-          : null;
+        : schedule.mode === 'birthday'
+          ? null
+          : validUntil;
     const scopeJson = JSON.stringify({
       frontend_type: payload.benefitType,
       type_label: payload.type,
@@ -1355,6 +1406,7 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
       reward: derivedReward,
       product_kind_codes: productKinds,
       subcategory_codes: subcategoryCodes,
+      category_codes: categoryCodes,
       items: eligibleItems,
       promotion_rule: promotionRule,
       description: payload.description,
@@ -1438,17 +1490,20 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
     const eligibleItems = normalizeEligibleItems(payload.eligibleItems);
     const productKinds = normalizeScopeCodes(payload.productKinds);
     const subcategoryCodes = normalizeScopeCodes(payload.subcategoryCodes);
+    const categoryCodes = normalizeScopeCodes(payload.categoryCodes);
     const promotionRule = buildPromotionRule(payload);
     const derivedReward = deriveReward(payload);
-    const validUntil = parseDateValue(payload.expiry);
-    const isActive = payload.status === 'Draft' ? 0 : 1;
+    const validUntil = parseVoucherExpiry(payload.expiry);
+    const isActive = payload.status === 'Active' ? 1 : 0;
     const schedule = buildScheduleFromPayload(payload);
     const effectiveValidUntil =
-      payload.status === 'Expired'
+      voucherType === 'tier_reward'
+        ? null
+        : payload.status === 'Expired'
         ? new Date(Date.now() - 60 * 1000)
-        : schedule.mode === 'always'
-          ? validUntil
-          : null;
+        : schedule.mode === 'birthday'
+          ? null
+          : validUntil;
     const scopeJson = JSON.stringify({
       frontend_type: payload.benefitType,
       type_label: payload.type,
@@ -1457,6 +1512,7 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
       reward: derivedReward,
       product_kind_codes: productKinds,
       subcategory_codes: subcategoryCodes,
+      category_codes: categoryCodes,
       items: eligibleItems,
       promotion_rule: promotionRule,
       description: payload.description,
@@ -1506,13 +1562,12 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
         throw new ApiError(404, 'voucher_not_found', 'Voucher was not found.');
       }
 
-      const materialChange =
+      const protectedRuleChange =
         current.voucher_type !== voucherType ||
         current.discount_mode !== discountMode ||
         !sameNullableNumber(current.discount_value, discountValue) ||
         !sameNullableNumber(current.token_value, tokenValue) ||
-        canonicalJson(current.eligible_scope_json) !== canonicalJson(scopeJson) ||
-        (hasColumn(voucherColumns, 'valid_until') && !sameNullableDate(current.valid_until, effectiveValidUntil)) ||
+        canonicalVoucherRules(current.eligible_scope_json) !== canonicalVoucherRules(scopeJson) ||
         (hasColumn(voucherColumns, 'total_quantity') && !sameNullableNumber(current.total_quantity, payload.totalQty ?? null)) ||
         (hasColumn(voucherColumns, 'limit_per_user') && !sameNullableNumber(current.limit_per_user, limitPerUser));
       const remainsUsable = isActive === 1 &&
@@ -1520,13 +1575,15 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
 
       // Issued vouchers intentionally use the live template at checkout. To
       // prevent an administrator silently changing a customer's issued value,
-      // material changes require a new campaign. Disabling/expiring remains
+      // reward, eligibility, schedule, and quantity changes require a new
+      // campaign. The campaign redeem-until date remains editable so admins
+      // can extend or shorten the redemption window. Disabling/expiring remains
       // allowed and revokes every unused issuance below.
-      if (Number(current.issuance_count ?? 0) > 0 && remainsUsable && materialChange) {
+      if (Number(current.issuance_count ?? 0) > 0 && remainsUsable && protectedRuleChange) {
         throw new ApiError(
           409,
           'voucher_has_issuances',
-          'This voucher has already been issued. Create a new voucher for benefit, eligibility, schedule, expiry, or limit changes.'
+          'This voucher has already been issued. Create a new voucher for benefit, eligibility, schedule, or limit changes. You may still change its redeem-until date.'
         );
       }
 
@@ -1583,6 +1640,83 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
       );
       await connection.commit();
       return { success: true, imageUrl: updatedRows[0]?.image_url ?? null };
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  });
+
+  app.patch<{ Params: { id: string } }>('/v1/admin/vouchers/:id/expiry', { preHandler: [authenticateAdminRequest] }, async (request) => {
+    requireAdminRole(request, 'super_admin');
+    const code = request.params.id;
+    const payload = voucherExpiryUpdateSchema.parse(request.body);
+    const validUntil = parseVoucherExpiry(payload.expiry);
+    const voucherColumns = await getVoucherTemplateColumns();
+    const connection = await getUtcConnection();
+
+    try {
+      await connection.beginTransaction();
+      const [rows] = await connection.query<Array<VoucherTemplateRow>>(
+        `
+          SELECT *
+          FROM voucher_templates
+          WHERE code = :code AND tenant_id = :tenantId
+          LIMIT 1
+          FOR UPDATE
+        `,
+        { code, tenantId: request.adminAuth.tenantId }
+      );
+      const current = rows[0];
+      if (!current) {
+        throw new ApiError(404, 'voucher_not_found', 'Voucher was not found.');
+      }
+
+      const scope = parseScopeJson(current.eligible_scope_json);
+      const schedule = getScheduleFromScope(scope);
+      if (schedule.mode === 'birthday' || current.voucher_type === 'birthday_treat') {
+        throw new ApiError(400, 'birthday_voucher_expiry_not_allowed', 'Birthday vouchers are available during the customer birthday month and do not use a fixed redeem-until date.');
+      }
+      if (current.voucher_type === 'tier_reward') {
+        throw new ApiError(400, 'tier_reward_expiry_not_allowed', 'Tier rewards follow the customer current cup-progress tier and do not use a fixed redeem-until date.');
+      }
+
+      scope.expiry_string = validUntil?.toISOString() ?? '';
+      const assignments = ['eligible_scope_json = :scopeJson'];
+      if (hasColumn(voucherColumns, 'valid_until')) assignments.push('valid_until = :validUntil');
+
+      await connection.execute(
+        `UPDATE voucher_templates SET ${assignments.join(', ')} WHERE code = :code AND tenant_id = :tenantId`,
+        {
+          code,
+          tenantId: request.adminAuth.tenantId,
+          scopeJson: JSON.stringify(scope),
+          validUntil
+        }
+      );
+
+      if (validUntil && validUntil.getTime() <= Date.now()) {
+        await connection.execute(
+          `
+            UPDATE user_vouchers uv
+            JOIN voucher_templates vt ON vt.id = uv.voucher_template_id
+            SET uv.status = 'revoked',
+                uv.revoked_by_admin_id = :adminUserId,
+                uv.revoked_reason = 'Voucher campaign redeem-until date has passed.',
+                uv.revoked_at = UTC_TIMESTAMP()
+            WHERE vt.code = :code
+              AND vt.tenant_id = :tenantId
+              AND uv.status = 'active'
+              AND uv.redeemed_at IS NULL
+              AND uv.revoked_at IS NULL
+          `,
+          { code, tenantId: request.adminAuth.tenantId, adminUserId: request.adminAuth.adminUserId }
+        );
+      }
+
+      await connection.commit();
+      return { success: true, expiry: validUntil?.toISOString() ?? '' };
     } catch (error) {
       await connection.rollback();
       throw error;

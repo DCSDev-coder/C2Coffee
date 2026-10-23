@@ -59,6 +59,7 @@ const weeklyScheduleSchema = z.object({
   })).max(200)
 });
 const datedScheduleSchema = z.object({
+  expected_revision: z.coerce.number().int().min(0),
   entries: z.array(z.object({
     barista_id: z.coerce.number().int().positive(),
     shift_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Choose a valid shift date.'),
@@ -67,7 +68,7 @@ const datedScheduleSchema = z.object({
   }).refine((entry) => entry.ends_at !== entry.starts_at, {
     message: 'Start and end time cannot be the same.',
     path: ['ends_at']
-  })).min(1, 'Add at least one shift before publishing.').max(400)
+  })).max(400)
 });
 const attendanceQuerySchema = z.object({
   from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
@@ -78,18 +79,22 @@ const workstationKeyPattern = /^C2-[A-Z0-9]{12}$/;
 const baristaSoundStyle = z.enum(['short', 'long', 'two_tone']);
 const baristaSoundSettingsSchema = z.object({
   volume_percent: z.coerce.number().int().min(0).max(100),
+  incoming_order_enabled: z.coerce.boolean().default(true),
   clock_in_beeps: z.coerce.number().int().min(1).max(5),
   clock_in_style: baristaSoundStyle.optional().default('short'),
   clock_out_beeps: z.coerce.number().int().min(1).max(5),
   clock_out_style: baristaSoundStyle.optional().default('long'),
   side_work_beeps: z.coerce.number().int().min(1).max(5),
-  side_work_style: baristaSoundStyle.optional().default('two_tone')
+  side_work_style: baristaSoundStyle.optional().default('two_tone'),
+  incoming_order_beeps: z.coerce.number().int().min(1).max(5),
+  incoming_order_style: baristaSoundStyle.optional().default('two_tone')
 }).refine((value) => new Set([
+  value.incoming_order_beeps,
   value.clock_in_beeps,
   value.clock_out_beeps,
   value.side_work_beeps
 ]).size === 3, {
-  message: 'Use a different beep count for clock-in, clock-out, and side work.'
+  message: 'Use a different beep count for incoming orders, clock-in, clock-out, and side work.'
 });
 
 function workstationKey(request: { headers: Record<string, string | string[] | undefined> }): string {
@@ -200,12 +205,15 @@ export async function registerOperationalIntegrationRoutes(app: FastifyInstance)
     const [rows] = await mysqlPool.query<RowDataPacket[]>(
       `SELECT s.id AS store_id, s.name AS store_name,
               COALESCE(bs.volume_percent, 70) AS volume_percent,
+              COALESCE(bs.incoming_order_enabled, 1) AS incoming_order_enabled,
               COALESCE(bs.clock_in_beeps, 1) AS clock_in_beeps,
               COALESCE(bs.clock_in_style, 'short') AS clock_in_style,
               COALESCE(bs.clock_out_beeps, 2) AS clock_out_beeps,
               COALESCE(bs.clock_out_style, 'long') AS clock_out_style,
               COALESCE(bs.side_work_beeps, 3) AS side_work_beeps,
-              COALESCE(bs.side_work_style, 'two_tone') AS side_work_style
+              COALESCE(bs.side_work_style, 'two_tone') AS side_work_style,
+              COALESCE(bs.incoming_order_beeps, 4) AS incoming_order_beeps,
+              COALESCE(bs.incoming_order_style, 'two_tone') AS incoming_order_style
        FROM stores s
        LEFT JOIN barista_sound_settings bs
          ON bs.tenant_id = s.tenant_id AND bs.store_id = s.id
@@ -218,12 +226,15 @@ export async function registerOperationalIntegrationRoutes(app: FastifyInstance)
         store_id: Number(row.store_id),
         store_name: row.store_name,
         volume_percent: Number(row.volume_percent),
+        incoming_order_enabled: Number(row.incoming_order_enabled),
         clock_in_beeps: Number(row.clock_in_beeps),
         clock_in_style: row.clock_in_style,
         clock_out_beeps: Number(row.clock_out_beeps),
         clock_out_style: row.clock_out_style,
         side_work_beeps: Number(row.side_work_beeps),
-        side_work_style: row.side_work_style
+        side_work_style: row.side_work_style,
+        incoming_order_beeps: Number(row.incoming_order_beeps),
+        incoming_order_style: row.incoming_order_style
       }))
     };
   });
@@ -235,33 +246,41 @@ export async function registerOperationalIntegrationRoutes(app: FastifyInstance)
     await assertStoreInTenant(storeId, request.adminAuth.tenantCode);
     await mysqlPool.execute(
       `INSERT INTO barista_sound_settings (
-         tenant_id, store_id, volume_percent, clock_in_beeps, clock_in_style,
-         clock_out_beeps, clock_out_style, side_work_beeps, side_work_style,
+         tenant_id, store_id, volume_percent, incoming_order_enabled,
+         clock_in_beeps, clock_in_style, clock_out_beeps, clock_out_style,
+         side_work_beeps, side_work_style, incoming_order_beeps, incoming_order_style,
          updated_by_admin_user_id
        ) VALUES (
-         :tenantId, :storeId, :volumePercent, :clockInBeeps, :clockInStyle,
-         :clockOutBeeps, :clockOutStyle, :sideWorkBeeps, :sideWorkStyle,
+         :tenantId, :storeId, :volumePercent, :incomingOrderEnabled,
+         :clockInBeeps, :clockInStyle, :clockOutBeeps, :clockOutStyle,
+         :sideWorkBeeps, :sideWorkStyle, :incomingOrderBeeps, :incomingOrderStyle,
          :adminUserId
        )
        ON DUPLICATE KEY UPDATE
          volume_percent = VALUES(volume_percent),
+         incoming_order_enabled = VALUES(incoming_order_enabled),
          clock_in_beeps = VALUES(clock_in_beeps),
          clock_in_style = VALUES(clock_in_style),
          clock_out_beeps = VALUES(clock_out_beeps),
          clock_out_style = VALUES(clock_out_style),
          side_work_beeps = VALUES(side_work_beeps),
          side_work_style = VALUES(side_work_style),
+         incoming_order_beeps = VALUES(incoming_order_beeps),
+         incoming_order_style = VALUES(incoming_order_style),
          updated_by_admin_user_id = VALUES(updated_by_admin_user_id)`,
       {
         tenantId: request.adminAuth.tenantId,
         storeId,
         volumePercent: body.volume_percent,
+        incomingOrderEnabled: body.incoming_order_enabled ? 1 : 0,
         clockInBeeps: body.clock_in_beeps,
         clockInStyle: body.clock_in_style,
         clockOutBeeps: body.clock_out_beeps,
         clockOutStyle: body.clock_out_style,
         sideWorkBeeps: body.side_work_beeps,
         sideWorkStyle: body.side_work_style,
+        incomingOrderBeeps: body.incoming_order_beeps,
+        incomingOrderStyle: body.incoming_order_style,
         adminUserId: request.adminAuth.adminUserId
       }
     );
@@ -390,7 +409,7 @@ export async function registerOperationalIntegrationRoutes(app: FastifyInstance)
   app.get('/v1/admin/operational-integrations', { preHandler: authenticateAdminRequest }, async (request, reply) => {
     canConfigure(request);
     const { from, to } = planningWindow();
-    const [integrations, printers, schedules, datedShifts] = await Promise.all([
+    const [integrations, printers, schedules, datedShifts, revisionRows] = await Promise.all([
       mysqlPool.execute<RowDataPacket[]>(
         `SELECT id, store_id, provider_code, display_name, status, capabilities_json,
                 connection_reference, last_checked_at, last_error_code, created_at, updated_at
@@ -423,6 +442,10 @@ export async function registerOperationalIntegrationRoutes(app: FastifyInstance)
            AND s.shift_date BETWEEN :from AND :to
          ORDER BY s.shift_date ASC, s.starts_at ASC, b.name ASC`,
         { tenantCode: request.adminAuth.tenantCode, from, to }
+      ),
+      mysqlPool.execute<RowDataPacket[]>(
+        `SELECT revision FROM barista_schedule_revisions WHERE tenant_code = :tenantCode`,
+        { tenantCode: request.adminAuth.tenantCode }
       )
     ]);
 
@@ -430,7 +453,8 @@ export async function registerOperationalIntegrationRoutes(app: FastifyInstance)
       integrations: integrations[0].map(integrationResponse),
       printers: printers[0].map((row) => ({ ...row, is_default: !!row.is_default })),
       weekly_schedule: schedules[0].map((row) => ({ ...row, is_active: !!row.is_active })),
-      scheduled_shifts: datedShifts[0]
+      scheduled_shifts: datedShifts[0],
+      schedule_revision: Number(revisionRows[0][0]?.revision ?? 0)
     });
   });
 
@@ -442,6 +466,20 @@ export async function registerOperationalIntegrationRoutes(app: FastifyInstance)
 
     try {
       await connection.beginTransaction();
+      await connection.execute(
+        `INSERT IGNORE INTO barista_schedule_revisions (tenant_code, revision)
+         VALUES (:tenantCode, 0)`,
+        { tenantCode: request.adminAuth.tenantCode }
+      );
+      const [revisionRows] = await connection.execute<RowDataPacket[]>(
+        `SELECT revision FROM barista_schedule_revisions
+         WHERE tenant_code = :tenantCode FOR UPDATE`,
+        { tenantCode: request.adminAuth.tenantCode }
+      );
+      const currentRevision = Number(revisionRows[0]?.revision ?? 0);
+      if (currentRevision !== body.expected_revision) {
+        throw new ApiError(409, 'schedule_changed', 'The timetable changed after you opened it. Refresh and review the latest shifts before publishing.');
+      }
       const [baristas] = await connection.execute<RowDataPacket[]>(
         'SELECT id FROM baristas WHERE tenant_code = :tenantCode AND is_active = 1',
         { tenantCode: request.adminAuth.tenantCode }
@@ -502,8 +540,19 @@ export async function registerOperationalIntegrationRoutes(app: FastifyInstance)
           }
         );
       }
+      const nextRevision = currentRevision + 1;
+      await connection.execute(
+        `UPDATE barista_schedule_revisions
+         SET revision = :nextRevision, updated_by_admin_user_id = :adminUserId, updated_at = UTC_TIMESTAMP()
+         WHERE tenant_code = :tenantCode`,
+        {
+          nextRevision,
+          adminUserId: request.adminAuth.adminUserId,
+          tenantCode: request.adminAuth.tenantCode
+        }
+      );
       await connection.commit();
-      return reply.send({ saved: body.entries.length, from, to });
+      return reply.send({ saved: body.entries.length, from, to, schedule_revision: nextRevision });
     } catch (error) {
       await connection.rollback();
       throw error;

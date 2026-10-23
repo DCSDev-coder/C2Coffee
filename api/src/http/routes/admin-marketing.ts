@@ -28,6 +28,11 @@ const marketingUploadSchema = z.object({
 });
 
 const paymentMethodSchema = z.enum(["fpx", "duitnow_qr"]);
+const customerMessageSchema = z.object({
+  title: z.string().trim().min(1).max(120),
+  body: z.string().trim().min(1).max(420),
+  idempotency_key: z.string().uuid(),
+});
 const paymentServiceNoticeCreateSchema = z
   .object({
     title: z.string().trim().min(1).max(160).default("Payment service maintenance"),
@@ -850,6 +855,142 @@ async function notifyCustomersAboutPoster(input: {
 export async function registerAdminMarketingRoutes(
   app: FastifyInstance,
 ): Promise<void> {
+  app.post(
+    "/v1/admin/marketing/customer-messages",
+    {
+      preHandler: authenticateAdminRequest,
+      config: { rateLimit: { max: 5, timeWindow: "1 hour" } },
+    },
+    async (request) => {
+      requireMarketingAccess(request);
+      const payload = customerMessageSchema.parse(request.body);
+      const deliveryKey = `admin-message:${request.adminAuth.tenantId}:${payload.idempotency_key}`;
+      const data = {
+        type: "customer_message",
+        source: "admin_marketing",
+      };
+      const connection = await mysqlPool.getConnection();
+      let recipients = 0;
+      let idempotentReplay = false;
+      try {
+        await connection.beginTransaction();
+        const [existingDelivery] = await connection.execute<RowDataPacket[]>(
+          `SELECT id FROM notifications
+           WHERE type = 'customer_message' AND delivery_key = :deliveryKey
+           LIMIT 1 FOR UPDATE`,
+          { deliveryKey },
+        );
+        idempotentReplay = existingDelivery.length > 0;
+        const [result] = idempotentReplay
+          ? [{ affectedRows: 0 } as ResultSetHeader]
+          : await connection.execute<ResultSetHeader>(
+          `
+            INSERT INTO notifications (
+              user_id, type, title, body, data_json, delivery_key, sent_at, created_at
+            )
+            SELECT ctm.user_id, 'customer_message', :title, :body, :dataJson,
+                   :deliveryKey, UTC_TIMESTAMP(), UTC_TIMESTAMP()
+            FROM customer_tenant_memberships ctm
+            JOIN users u ON u.id = ctm.user_id
+            LEFT JOIN customer_notification_preferences cnp
+              ON cnp.user_id = ctm.user_id
+            WHERE ctm.tenant_id = :tenantId
+              AND u.status = 'active'
+              AND COALESCE(cnp.marketing_enabled, 1) = 1
+            ON DUPLICATE KEY UPDATE id = id
+          `,
+          {
+            tenantId: request.adminAuth.tenantId,
+            title: payload.title,
+            body: payload.body,
+            dataJson: JSON.stringify(data),
+            deliveryKey,
+          },
+        );
+        recipients = result.affectedRows;
+        if (recipients > 0) {
+          await connection.execute(
+            `INSERT INTO admin_audit_logs (
+               admin_user_id, effective_roles_json, action_code, target_type,
+               after_json, ip_address, user_agent, created_at
+             ) VALUES (
+               :adminUserId, :roles, 'customer_message_broadcast', 'customer_notification',
+               :afterJson, :ipAddress, :userAgent, UTC_TIMESTAMP()
+             )`,
+            {
+              adminUserId: request.adminAuth.adminUserId,
+              roles: JSON.stringify(request.adminAuth.roles),
+              afterJson: JSON.stringify({
+                tenant_id: request.adminAuth.tenantId,
+                title: payload.title,
+                recipients,
+                delivery_key: deliveryKey,
+              }),
+              ipAddress: request.ip,
+              userAgent: request.headers["user-agent"] ?? null,
+            },
+          );
+        }
+        await connection.commit();
+      } catch (error) {
+        await connection.rollback();
+        throw error;
+      } finally {
+        connection.release();
+      }
+
+      let delivery = {
+        attemptedTokens: 0,
+        deliveredTokens: 0,
+        failedTokens: 0,
+      };
+      try {
+        // An idempotent replay has no new inbox rows and must not send push
+        // notifications a second time.
+        if (idempotentReplay || recipients === 0) {
+          return {
+            success: true,
+            idempotent_replay: idempotentReplay,
+            message: { recipients: 0, attemptedDevices: 0, deliveredDevices: 0, failedDevices: 0 },
+          };
+        }
+        const pushResult = await deliverPushToCustomerTenant({
+          tenantId: request.adminAuth.tenantId,
+          title: payload.title,
+          body: payload.body,
+          data,
+        });
+        delivery = {
+          attemptedTokens: pushResult.attemptedTokens,
+          deliveredTokens: pushResult.deliveredTokens,
+          failedTokens: pushResult.failedTokens,
+        };
+      } catch (error) {
+        request.log.warn({ err: error }, "Standalone customer push delivery failed after notification creation.");
+      }
+
+      request.log.info(
+        {
+          recipients,
+          attemptedDevices: delivery.attemptedTokens,
+          deliveredDevices: delivery.deliveredTokens,
+          failedDevices: delivery.failedTokens,
+        },
+        "Standalone customer message sent.",
+      );
+
+      return {
+        success: true,
+        message: {
+          recipients,
+          attemptedDevices: delivery.attemptedTokens,
+          deliveredDevices: delivery.deliveredTokens,
+          failedDevices: delivery.failedTokens,
+        },
+      };
+    },
+  );
+
   app.get(
     "/v1/admin/marketing/payment-service-notices",
     { preHandler: authenticateAdminRequest },

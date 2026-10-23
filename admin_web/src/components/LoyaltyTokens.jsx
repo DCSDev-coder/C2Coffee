@@ -3,9 +3,8 @@ import { createPortal } from "react-dom";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import {
-  Search, ChevronDown, Download, Users, Coins, ArrowUp,
-  CreditCard, ShoppingBag, MoreVertical, X, Eye,
-  Edit3, BarChart3, ChevronRight, CheckCircle2, Ticket, Percent, ArrowRight
+  Search, ChevronDown, Download, Users, Coins, ShoppingBag, X, Eye,
+  Edit3, CheckCircle2, Ticket, Percent, ArrowRight
 } from "lucide-react";
 import Pagination from './Pagination';
 import TokenTransaction from './TokenTransaction';
@@ -71,8 +70,6 @@ const getTypeColor = (type) => {
   }
 };
 
-const formatMemberId = (userId) => `C2-${String(Number(userId) || 0).padStart(3, '0')}`;
-
 //KPI Card Component
 const KPICard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-white" }) => (
   <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center space-x-4 min-w-0">
@@ -96,7 +93,7 @@ const KPICard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-w
 );
 
 //Main Component
-const LoyaltyTokens = ({ onBack, onNavigate }) => {
+const LoyaltyTokens = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedType, setSelectedType] = useState("All Transaction Types");
   const [currentPage, setCurrentPage] = useState(1);
@@ -115,7 +112,7 @@ const LoyaltyTokens = ({ onBack, onNavigate }) => {
   const [editTokenPassword, setEditTokenPassword] = useState("");
   const [editTokenError, setEditTokenError] = useState("");
   const [isSavingTokenAdjustment, setIsSavingTokenAdjustment] = useState(false);
-  const [menuOpenId, setMenuOpenId] = useState(null);
+  const [, setMenuOpenId] = useState(null);
   const [activeView, setActiveView] = useState("list");
   const [selectedDate, setSelectedDate] = useState(null);
 

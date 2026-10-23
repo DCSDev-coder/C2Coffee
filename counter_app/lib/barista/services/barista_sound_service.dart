@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 
 import 'api_service.dart';
 
-enum BaristaSoundEvent { clockIn, clockOut, sideWork }
+enum BaristaSoundEvent { incomingOrder, clockIn, clockOut, sideWork }
 
 class BaristaSoundService {
   BaristaSoundService._();
@@ -21,12 +21,18 @@ class BaristaSoundService {
   }
 
   Future<void> play(BaristaSoundEvent event) async {
+    if (event == BaristaSoundEvent.incomingOrder &&
+        !_settings.incomingOrderEnabled) {
+      return;
+    }
     final count = switch (event) {
+      BaristaSoundEvent.incomingOrder => _settings.incomingOrderBeeps,
       BaristaSoundEvent.clockIn => _settings.clockInBeeps,
       BaristaSoundEvent.clockOut => _settings.clockOutBeeps,
       BaristaSoundEvent.sideWork => _settings.sideWorkBeeps,
     };
     final style = switch (event) {
+      BaristaSoundEvent.incomingOrder => _settings.incomingOrderStyle,
       BaristaSoundEvent.clockIn => _settings.clockInStyle,
       BaristaSoundEvent.clockOut => _settings.clockOutStyle,
       BaristaSoundEvent.sideWork => _settings.sideWorkStyle,

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertTriangle, Gift, Pencil, Plus, RefreshCw, Share2, Trash2, Users, X } from 'lucide-react';
 import { adminRequest, loadAdminVouchers } from '../lib/adminApi';
+import { requestAdminConfirm, requestAdminPrompt } from '../lib/adminDialog';
 
 const emptyProgram = () => ({
   id: null,
@@ -206,7 +207,7 @@ export default function ReferralProgram() {
     void refresh();
   }, []);
   const remove = async (program) => {
-    if (!window.confirm(`Delete "${program.name}"? Programs that have already been used cannot be deleted.`)) return;
+    if (!await requestAdminConfirm({ title: 'Delete referral program?', message: `Delete “${program.name}”? Programs already used by customers remain protected.`, confirmLabel: 'Delete', tone: 'danger' })) return;
     try { await referralRequest(`/v1/admin/referral-programs/${program.id}`, { method: 'DELETE' }); await refresh(); } catch (requestError) { setError(requestError.message || 'Unable to delete this referral program.'); }
   };
   const saveComplete = async () => { setEditing(null); await refresh(); };
@@ -221,9 +222,9 @@ export default function ReferralProgram() {
     }
   };
   const waiveReward = async (job) => {
-    const note = window.prompt('Explain why this reward will not be issued. This is saved in the audit record.');
+    const note = await requestAdminPrompt({ title: 'Waive referral reward', message: 'Explain why this reward will not be issued. This explanation is saved in the audit record.', inputLabel: 'Reason', multiline: true, confirmLabel: 'Continue' });
     if (!note) return;
-    const password = window.prompt('Confirm with your current Super Admin password.');
+    const password = await requestAdminPrompt({ title: 'Confirm protected action', message: 'Enter your current Super Admin password to waive this reward.', inputLabel: 'Password', inputType: 'password', confirmLabel: 'Confirm', tone: 'secure' });
     if (!password) return;
     try {
       await referralRequest(`/v1/admin/referral-reward-jobs/${job.id}/waive`, {

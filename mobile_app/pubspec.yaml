@@ -2,7 +2,7 @@ name: c2_coffee
 description: "A new Flutter project for C2 Coffee."
 publish_to: 'none'
 
-version: 1.0.0+22
+version: 1.0.1+24
 
 environment:
   sdk: ">=3.2.0 <4.0.0"
@@ -42,10 +42,17 @@ dev_dependencies:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/images/c2_logo_black.png"
+  image_path: "assets/images/icon_app_2_1024.png"
   remove_alpha_ios: true
 
 flutter:
+  # geolocator_apple's Swift package currently compiles the background-location
+  # selector unconditionally. Keep CocoaPods for now so the Podfile can apply
+  # BYPASS_PERMISSION_LOCATION_ALWAYS and the App Store does not require an
+  # unnecessary Always location purpose string.
+  config:
+    enable-swift-package-manager: false
+
   uses-material-design: true
 
   assets:

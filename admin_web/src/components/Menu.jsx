@@ -11,6 +11,8 @@ import {
   Edit2,
   Copy,
   Archive,
+  AlertTriangle,
+  CalendarClock,
   ImagePlus,
   Trash2,
   X,
@@ -34,9 +36,10 @@ import {
   loadAdminHomeFeatured,
   saveAdminHomeFeaturedGroups
 } from '../lib/adminApi';
+import { showAdminSuccess } from '../lib/adminToast';
+import { requestAdminConfirm } from '../lib/adminDialog';
 import { adminRequest } from '../lib/adminApi';
 
-const RESTRICTED_CATEGORIES = new Set(['C2 Pastries', 'C2 Merchandise', '5luxes Candles']);
 const ITEMS_PER_PAGE = 10;
 const LAST_SELECTED_ITEM_KEY = 'c2_admin_menu_last_selected_item_id';
 const MENU_PANEL_DISMISSED_KEY = 'c2_admin_menu_panel_dismissed';
@@ -64,18 +67,6 @@ const MenuStat = ({ title, value, change, icon: Icon, iconBg, iconColor = 'text-
     </div>
   </div>
 );
-
-const formatMoney = (value) => {
-  const numericValue = Number(value);
-  if (!Number.isFinite(numericValue)) {
-    return 'Tokens 0.00';
-  }
-
-  return `Tokens ${numericValue.toLocaleString('en-MY', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  })}`;
-};
 
 const formatToken = (value) => {
   if (value === null || value === undefined || value === '') {
@@ -249,13 +240,6 @@ const resolveMenuImageUrl = (imageUrl) => {
   return `${getAdminApiBaseUrl()}${normalizedPath}`;
 };
 
-const createTempId = (prefix) => {
-  const suffix = typeof crypto !== 'undefined' && crypto.randomUUID
-    ? crypto.randomUUID().slice(0, 8)
-    : Math.random().toString(16).slice(2, 10);
-  return `${prefix}-${suffix}`;
-};
-
 const fileToDataUrl = (file) => new Promise((resolve, reject) => {
   const reader = new FileReader();
   reader.onload = () => resolve(reader.result);
@@ -332,7 +316,7 @@ const flattenMenuData = (categories) =>
     )
     .sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }));
 
-const Menu = ({ onNavigate }) => {
+const Menu = () => {
   const [menuCategories, setMenuCategories] = useState([]);
   const [menuSubcategories, setMenuSubcategories] = useState([]);
   const [optionGroups, setOptionGroups] = useState([]);
@@ -374,6 +358,7 @@ const Menu = ({ onNavigate }) => {
   const [drinkGuides, setDrinkGuides] = useState([]);
   const [sopFile, setSopFile] = useState(null);
   const [isSavingSop, setIsSavingSop] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState(null);
   const [categoryForm, setCategoryForm] = useState({
     id: null,
     code: '',
@@ -529,6 +514,19 @@ const Menu = ({ onNavigate }) => {
   const totalMenuItems = allMenuItems.length;
   const activeItems = allMenuItems.filter((item) => item.is_active).length;
   const archivedItems = totalMenuItems - activeItems;
+  const archivedItemsDueForReview = allMenuItems.filter((item) =>
+    !item.is_active && item.retention_review_due
+  );
+
+  const showArchiveReviewItems = () => {
+    setSearchQuery('');
+    setSelectedCategory('All');
+    setSelectedStatus('Archived');
+    setCurrentPage(1);
+    if (archivedItemsDueForReview[0]) {
+      openSelectedItem(archivedItemsDueForReview[0].id);
+    }
+  };
 
   useEffect(() => {
     setCurrentPage(1);
@@ -553,8 +551,6 @@ const Menu = ({ onNavigate }) => {
   useEffect(() => {
     setSopFile(null);
   }, [selectedItemId]);
-
-  const resetPage = () => setCurrentPage(1);
 
   const refreshAndSelect = async (itemId = null) => {
     await loadMenu();
@@ -634,7 +630,7 @@ const Menu = ({ onNavigate }) => {
 
   const handleArchive = async (item) => {
     if (item.is_active) {
-      if (!window.confirm(`Archive "${item.name}"? It will move to the archive section and stop appearing in the active menu.`)) {
+      if (!await requestAdminConfirm({ title: 'Archive menu item?', message: `“${item.name}” will stop appearing in the active menu and remain available in history.`, confirmLabel: 'Archive', tone: 'danger' })) {
         return;
       }
 
@@ -651,7 +647,7 @@ const Menu = ({ onNavigate }) => {
       return;
     }
 
-    if (!window.confirm(`Restore "${item.name}" to the active menu?`)) {
+    if (!await requestAdminConfirm({ title: 'Restore menu item?', message: `Restore “${item.name}” to the active customer menu?`, confirmLabel: 'Restore' })) {
       return;
     }
 
@@ -665,6 +661,17 @@ const Menu = ({ onNavigate }) => {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handlePermanentDelete = (item) => {
+    setDeleteConfirmation({
+      type: 'menu-item',
+      id: item.id,
+      name: item.name,
+      itemCount: 0,
+      subcategoryCount: 0,
+      willArchive: false
+    });
   };
 
   const uploadDrinkSop = async () => {
@@ -689,7 +696,7 @@ const Menu = ({ onNavigate }) => {
   };
 
   const deleteDrinkSop = async (guideId) => {
-    if (!window.confirm('Delete this drink SOP image?')) return;
+    if (!await requestAdminConfirm({ title: 'Delete SOP image?', message: 'This preparation image will be removed from the barista library.', confirmLabel: 'Delete', tone: 'danger' })) return;
     try {
       await adminRequest(`/v1/admin/barista-guides/${guideId}`, { method: 'DELETE' });
       await loadDrinkGuides();
@@ -873,52 +880,113 @@ const Menu = ({ onNavigate }) => {
     }
   };
 
-  const handleDeleteCategory = async () => {
+  const handleDeleteCategory = () => {
     if (!categoryForm.id) {
       return;
     }
 
-    const confirmMessage = 'Delete this main type? If it is still used by menu items or subcategories, it will be archived instead.';
-    if (!window.confirm(confirmMessage)) {
-      return;
-    }
+    const category = menuCategories.find((entry) => entry.id === categoryForm.id);
+    const itemCount = category?.items?.length || 0;
+    const subcategoryCount = menuSubcategories.filter((subcategory) => subcategory.category_id === categoryForm.id).length;
 
+    setDeleteConfirmation({
+      type: 'category',
+      id: categoryForm.id,
+      name: category?.name || categoryForm.name || 'this category',
+      itemCount,
+      subcategoryCount,
+      willArchive: itemCount > 0 || subcategoryCount > 0
+    });
+  };
+
+  const confirmDeleteCategory = async (confirmation) => {
     setIsSubmitting(true);
     setErrorMessage('');
 
     try {
-      await deleteAdminMenuCategory(categoryForm.id);
+      const result = await deleteAdminMenuCategory(confirmation.id, { suppressSuccessToast: true });
+      setDeleteConfirmation(null);
       setIsCategoryModalOpen(false);
       await loadMenu();
+      showAdminSuccess(result.mode === 'archived'
+        ? `${confirmation.name} was archived. Existing menu and sales history remain safely stored.`
+        : `${confirmation.name} was permanently deleted.`);
     } catch (error) {
-      setErrorMessage(error.message || 'Unable to delete main type.');
+      setDeleteConfirmation(null);
+      setErrorMessage(error.message || 'We could not remove this category. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleDeleteSubcategory = async () => {
+  const handleDeleteSubcategory = () => {
     if (!subcategoryForm.id) {
       return;
     }
 
-    const confirmMessage = 'Delete this family? If it is still used by menu items, it will be archived instead.';
-    if (!window.confirm(confirmMessage)) {
-      return;
-    }
+    const itemCount = menuCategories
+      .flatMap((category) => category.items || [])
+      .filter((item) => item.subcategory_id === subcategoryForm.id).length;
 
+    setDeleteConfirmation({
+      type: 'subcategory',
+      id: subcategoryForm.id,
+      name: subcategoryForm.name || 'this family',
+      itemCount,
+      subcategoryCount: 0,
+      willArchive: itemCount > 0
+    });
+  };
+
+  const confirmDeleteSubcategory = async (confirmation) => {
     setIsSubmitting(true);
     setErrorMessage('');
 
     try {
-      await deleteAdminMenuSubcategory(subcategoryForm.id);
+      const result = await deleteAdminMenuSubcategory(confirmation.id, { suppressSuccessToast: true });
+      setDeleteConfirmation(null);
       setIsSubcategoryModalOpen(false);
       await loadMenu();
+      showAdminSuccess(result.mode === 'archived'
+        ? `${confirmation.name} was hidden. Existing menu and sales history remain safely stored.`
+        : `${confirmation.name} was permanently deleted.`);
     } catch (error) {
-      setErrorMessage(error.message || 'Unable to delete family.');
+      setDeleteConfirmation(null);
+      setErrorMessage(error.message || 'We could not remove this family. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const confirmDeleteSelection = () => {
+    if (!deleteConfirmation || isSubmitting) {
+      return;
+    }
+
+    if (deleteConfirmation.type === 'category') {
+      void confirmDeleteCategory(deleteConfirmation);
+      return;
+    }
+
+    if (deleteConfirmation.type === 'menu-item') {
+      setIsSubmitting(true);
+      setErrorMessage('');
+      void deleteAdminMenuItem(deleteConfirmation.id, { permanent: true })
+        .then(async () => {
+          setDeleteConfirmation(null);
+          setSelectedItemId(null);
+          await loadMenu();
+          showAdminSuccess(`${deleteConfirmation.name} was permanently deleted.`);
+        })
+        .catch((error) => {
+          setDeleteConfirmation(null);
+          setErrorMessage(error.message || 'We could not permanently delete this menu item.');
+        })
+        .finally(() => setIsSubmitting(false));
+      return;
+    }
+
+    void confirmDeleteSubcategory(deleteConfirmation);
   };
 
   const applyMenuTemplate = (templateKey) => {
@@ -958,6 +1026,29 @@ const Menu = ({ onNavigate }) => {
           <MenuStat title="Active Items" value={String(activeItems)} change={`${totalMenuItems > 0 ? ((activeItems / totalMenuItems) * 100).toFixed(1) : '0.0'}% active`} icon={CheckCircle2} iconBg="bg-[#6F9F96]" />
           <MenuStat title="Archived Items" value={String(archivedItems)} change="Soft-archived items" icon={XCircle} iconBg="bg-[#E07A5F]" />
         </div>
+
+        {archivedItemsDueForReview.length > 0 && (
+          <div className="flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-950 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <CalendarClock className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
+              <div>
+                <p className="text-sm font-bold">
+                  {archivedItemsDueForReview.length} archived menu {archivedItemsDueForReview.length === 1 ? 'item is' : 'items are'} due for review
+                </p>
+                <p className="mt-0.5 text-xs text-amber-800">
+                  These items have been archived for at least five years. Review them before permanent deletion; protected order and loyalty history will remain archived.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={showArchiveReviewItems}
+              className="shrink-0 rounded-xl border border-amber-300 bg-white px-4 py-2 text-xs font-bold text-amber-900 hover:bg-amber-100"
+            >
+              Review archived items
+            </button>
+          </div>
+        )}
 
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="relative w-full lg:max-w-[400px]">
@@ -1086,12 +1177,19 @@ const Menu = ({ onNavigate }) => {
                       <td className="px-6 py-3 font-medium text-gray-900">{item.base_price_rm}</td>
                       <td className="px-6 py-3 font-medium text-gray-900">{formatToken(item.base_price_token)}</td>
                       <td className="px-6 py-3">
-                        <span
-                          className={`px-2 py-1 rounded-md text-[10px] font-bold ${item.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
-                            }`}
-                        >
-                          {item.is_active ? 'Active' : 'Archived'}
-                        </span>
+                        <div className="flex flex-col items-start gap-1">
+                          <span
+                            className={`px-2 py-1 rounded-md text-[10px] font-bold ${item.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                              }`}
+                          >
+                            {item.is_active ? 'Active' : 'Archived'}
+                          </span>
+                          {item.retention_review_due && (
+                            <span className="rounded-md bg-amber-100 px-2 py-1 text-[10px] font-bold text-amber-800">
+                              5-year review due
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-3 text-gray-600">{(item.sales_count || 0).toLocaleString()}</td>
                     </tr>
@@ -1153,6 +1251,30 @@ const Menu = ({ onNavigate }) => {
                   <X size={20} />
                 </button>
               </div>
+
+              {!selectedItem.is_active && selectedItem.archived_at && (
+                <div className={`mb-4 rounded-xl border px-4 py-3 ${selectedItem.retention_review_due
+                  ? 'border-amber-200 bg-amber-50 text-amber-950'
+                  : 'border-gray-200 bg-gray-50 text-gray-700'
+                }`}>
+                  <div className="flex items-start gap-2.5">
+                    <CalendarClock className={`mt-0.5 h-4 w-4 shrink-0 ${selectedItem.retention_review_due ? 'text-amber-700' : 'text-gray-500'}`} />
+                    <div>
+                      <p className="text-xs font-bold">
+                        {selectedItem.retention_review_due ? 'Archive review due' : 'Archive retention review'}
+                      </p>
+                      <p className="mt-1 text-[11px] leading-relaxed">
+                        Archived on {new Date(selectedItem.archived_at).toLocaleDateString('en-MY', {
+                          day: '2-digit', month: 'short', year: 'numeric'
+                        })}. {selectedItem.retention_review_due
+                          ? 'Review whether it can be permanently deleted.'
+                          : `Review from ${new Date(selectedItem.retention_review_at).toLocaleDateString('en-MY', { day: '2-digit', month: 'short', year: 'numeric' })}.`}
+                        {' '}Items linked to orders or loyalty records must remain archived.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="flex gap-6 border-b border-gray-200 mb-5 shrink-0 text-sm">
                 <button
@@ -1322,6 +1444,14 @@ const Menu = ({ onNavigate }) => {
                 >
                   <Archive size={14} /> {selectedItem.is_active ? 'Archive' : 'Restore'}
                 </button>
+                {!selectedItem.is_active && (
+                  <button
+                    onClick={() => handlePermanentDelete(selectedItem)}
+                    className="col-span-3 flex items-center justify-center gap-1.5 rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50"
+                  >
+                    <Trash2 size={14} /> Delete permanently
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -1908,6 +2038,91 @@ const Menu = ({ onNavigate }) => {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {deleteConfirmation && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm animate-in fade-in duration-200"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="menu-delete-confirmation-title"
+        >
+          <div className="w-full max-w-md overflow-hidden rounded-3xl border border-white/70 bg-white shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="p-6 sm:p-7">
+              <div className={`mb-5 flex h-12 w-12 items-center justify-center rounded-2xl ${deleteConfirmation.willArchive ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-600'}`}>
+                {deleteConfirmation.willArchive
+                  ? <Archive className="h-6 w-6" aria-hidden="true" />
+                  : <AlertTriangle className="h-6 w-6" aria-hidden="true" />}
+              </div>
+
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#2E5E58]">
+                {deleteConfirmation.type === 'category'
+                  ? 'Menu category'
+                  : deleteConfirmation.type === 'subcategory'
+                    ? 'Menu family'
+                    : 'Menu item'}
+              </p>
+              <h3 id="menu-delete-confirmation-title" className="mt-1 text-xl font-bold text-gray-900">
+                {deleteConfirmation.type === 'menu-item'
+                  ? `Delete ${deleteConfirmation.name} permanently?`
+                  : deleteConfirmation.willArchive
+                  ? `Archive ${deleteConfirmation.name}?`
+                  : `Delete ${deleteConfirmation.name}?`}
+              </h3>
+
+              <p className="mt-3 text-sm leading-6 text-gray-600">
+                {deleteConfirmation.type === 'menu-item'
+                  ? 'This permanently removes the archived item from the menu catalog. The system will allow this only when no order or loyalty history refers to it.'
+                  : deleteConfirmation.willArchive
+                  ? 'This group has existing menu information, so it will be hidden from active selections while its sales and order history remain safely stored.'
+                  : 'This group is empty and can be permanently deleted. This action cannot be undone.'}
+              </p>
+
+              {deleteConfirmation.willArchive && (
+                <div className="mt-5 rounded-2xl border border-amber-100 bg-amber-50/70 px-4 py-3">
+                  <p className="text-sm font-semibold text-amber-900">
+                    {deleteConfirmation.itemCount} menu {deleteConfirmation.itemCount === 1 ? 'item' : 'items'}
+                    {deleteConfirmation.type === 'category' && (
+                      <> · {deleteConfirmation.subcategoryCount} {deleteConfirmation.subcategoryCount === 1 ? 'family' : 'families'}</>
+                    )}
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-amber-800">
+                    You can review this group later under hidden or archived records.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-col-reverse gap-2 border-t border-gray-100 bg-gray-50/80 px-6 py-4 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmation(null)}
+                disabled={isSubmitting}
+                className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-bold text-gray-700 transition hover:bg-gray-100 disabled:opacity-50"
+              >
+                {deleteConfirmation.type === 'menu-item'
+                  ? 'Keep item archived'
+                  : deleteConfirmation.type === 'category' ? 'Keep category' : 'Keep family'}
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeleteSelection}
+                disabled={isSubmitting}
+                autoFocus
+                className={`rounded-xl px-5 py-2.5 text-sm font-bold text-white shadow-sm transition disabled:opacity-60 ${deleteConfirmation.willArchive ? 'bg-[#1F3A34] hover:bg-[#2E5E58]' : 'bg-red-600 hover:bg-red-700'}`}
+              >
+                {isSubmitting
+                  ? 'Please wait...'
+                  : deleteConfirmation.type === 'menu-item'
+                    ? 'Delete permanently'
+                    : deleteConfirmation.willArchive
+                    ? (deleteConfirmation.type === 'category' ? 'Archive category' : 'Hide family')
+                    : (deleteConfirmation.type === 'category' ? 'Delete category' : 'Delete family')}
+              </button>
             </div>
           </div>
         </div>,

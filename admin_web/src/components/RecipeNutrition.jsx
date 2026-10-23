@@ -6,6 +6,7 @@ import {
   saveAdminOptionNutritionOverrides,
   updateAdminMenuNutrition
 } from '../lib/adminApi';
+import { requestAdminConfirm } from '../lib/adminDialog';
 
 export default function RecipeNutrition({ drinks, groups }) {
   const [selectedItemId, setSelectedItemId] = useState(null);
@@ -48,19 +49,19 @@ export default function RecipeNutrition({ drinks, groups }) {
       JSON.stringify(Object.entries(savedNutrition.optionCalories).map(([id, value]) => [id, Math.round(Number(value) || 0)]).sort())
   );
 
-  const closeEditor = () => {
+  const closeEditor = async () => {
     if (saving) return;
-    if (hasUnsavedChanges && !window.confirm('Close without saving? Your nutrition changes for this drink will be discarded.')) return;
+    if (hasUnsavedChanges && !await requestAdminConfirm({ title: 'Discard nutrition changes?', message: 'Your unsaved nutrition changes for this drink will be lost.', confirmLabel: 'Discard', tone: 'danger' })) return;
     setSelectedItemId(null);
     setMessage('');
   };
 
-  const selectDrink = (drinkId) => {
+  const selectDrink = async (drinkId) => {
     if (selectedItemId === drinkId) {
-      closeEditor();
+      await closeEditor();
       return;
     }
-    if (hasUnsavedChanges && !window.confirm('Switch drinks without saving? Your nutrition changes for this drink will be discarded.')) return;
+    if (hasUnsavedChanges && !await requestAdminConfirm({ title: 'Switch drinks?', message: 'Your unsaved nutrition changes for the current drink will be lost.', confirmLabel: 'Switch', tone: 'danger' })) return;
     setSelectedItemId(drinkId);
   };
 
@@ -83,7 +84,7 @@ export default function RecipeNutrition({ drinks, groups }) {
   };
 
   const applyOptionToAll = async (option) => {
-    if (!window.confirm(`Apply ${optionCalories[option.id] ?? 0} kcal for ${option.name} to every applicable drink? This changes only ${option.name}; every other option and base calorie stays unchanged.`)) return;
+    if (!await requestAdminConfirm({ title: 'Apply nutrition value?', message: `Apply ${optionCalories[option.id] ?? 0} kcal for ${option.name} to every applicable drink? Other options and base calories remain unchanged.`, confirmLabel: 'Apply' })) return;
     setSaving(true); setMessage('');
     try {
       const result = await applyAdminOptionNutritionToDrinks(option.id, Math.round(Number(optionCalories[option.id]) || 0));

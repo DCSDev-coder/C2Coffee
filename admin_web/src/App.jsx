@@ -38,6 +38,7 @@ const StaffGuides = lazy(() => import('./components/StaffGuides'));
 const Outlets = lazy(() => import('./components/Outlets'));
 const CounterDevices = lazy(() => import('./components/CounterDevices'));
 const PlatformTenants = lazy(() => import('./components/PlatformTenants'));
+const DataRetention = lazy(() => import('./components/DataRetention'));
 
 function AppContent({
   layoutCurrentPage,
@@ -93,6 +94,7 @@ function AppContent({
         {currentPage === 'Audit Logs' && <AuditLogs onNavigate={navigateWithPrompt} currentUser={currentUser} />}
         {currentPage === 'Settings' && <Settings setCurrentPage={navigateWithPrompt} currentUser={currentUser} />}
         {currentPage === 'Deployment' && <PlatformTenants currentUser={currentUser} />}
+        {currentPage === 'Data Retention' && <DataRetention />}
       </Suspense>
     </Layout>
   );

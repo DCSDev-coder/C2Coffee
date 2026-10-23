@@ -71,3 +71,28 @@ export function getKualaLumpurDayEndUtc(now = new Date()): Date {
 
   return new Date(localMidnightNextDayUtcMs);
 }
+
+export function getKualaLumpurOccurrenceEndUtc(
+  endTime: string | null | undefined,
+  now = new Date()
+): Date {
+  const normalizedEndTime = String(endTime ?? '').trim();
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(normalizedEndTime)) {
+    return getKualaLumpurDayEndUtc(now);
+  }
+
+  const parts = getKualaLumpurDateParts(now);
+  const [hour, minute] = normalizedEndTime.split(':').map(Number);
+  const occurrenceEndUtcMs =
+    Date.UTC(
+      Number(parts.year),
+      Number(parts.month) - 1,
+      Number(parts.day),
+      hour,
+      minute + 1,
+      0,
+      0
+    ) - KUALA_LUMPUR_UTC_OFFSET_MS - 1;
+
+  return new Date(occurrenceEndUtcMs);
+}

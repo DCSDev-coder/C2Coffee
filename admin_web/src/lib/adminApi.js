@@ -4,6 +4,7 @@ import {
   shouldAttachStoredAdminAccessToken,
   shouldAttemptAdminSessionRefresh,
 } from "./adminAuthRequestPolicy";
+import { showAdminSuccess } from "./adminToast";
 
 const ADMIN_API_BASE_URL = (
   import.meta.env.VITE_API_BASE_URL || "https://api.c2coffeeandcandle.com"
@@ -169,6 +170,8 @@ function formatAdminErrorMessage(body, response) {
       return "This voucher is for employees only. In Customers, choose the customer menu, select Set employee, tick Employee account, then save with your admin password.";
     case "voucher_limit_per_user_reached":
       return "This customer has already received the maximum allowed number of this voucher.";
+    case "voucher_has_issuances":
+      return body?.error?.message || "This voucher has already been issued. Create a new voucher to change its reward rules.";
     case "customer_not_found":
       return "No active customer account was found for that phone number.";
     default:
@@ -497,6 +500,13 @@ export async function notifyAdminMarketingBanner(bannerId) {
   });
 }
 
+export async function sendAdminCustomerMessage(payload) {
+  return adminRequest("/v1/admin/marketing/customer-messages", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function loadAdminPaymentServiceNotices() {
   return adminRequest("/v1/admin/marketing/payment-service-notices");
 }
@@ -621,14 +631,16 @@ export async function updateAdminMenuSubcategory(subcategoryId, payload) {
   });
 }
 
-export async function deleteAdminMenuCategory(categoryId) {
+export async function deleteAdminMenuCategory(categoryId, options = {}) {
   return adminRequest(`/v1/admin/menu/categories/${categoryId}`, {
+    ...options,
     method: "DELETE",
   });
 }
 
-export async function deleteAdminMenuSubcategory(subcategoryId) {
+export async function deleteAdminMenuSubcategory(subcategoryId, options = {}) {
   return adminRequest(`/v1/admin/menu/subcategories/${subcategoryId}`, {
+    ...options,
     method: "DELETE",
   });
 }
@@ -640,8 +652,9 @@ export async function updateAdminMenuItem(menuItemId, payload) {
   });
 }
 
-export async function deleteAdminMenuItem(menuItemId) {
-  return adminRequest(`/v1/admin/menu/items/${menuItemId}`, {
+export async function deleteAdminMenuItem(menuItemId, { permanent = false } = {}) {
+  const query = permanent ? '?permanent=true' : '';
+  return adminRequest(`/v1/admin/menu/items/${menuItemId}${query}`, {
     method: "DELETE",
   });
 }
@@ -745,10 +758,17 @@ export async function saveAdminWeeklySchedule(entries) {
   });
 }
 
-export async function saveAdminShiftSchedule(entries) {
+export async function saveAdminShiftSchedule(entries, expectedRevision) {
   return adminRequest("/v1/admin/shift-schedule", {
     method: "PUT",
-    body: JSON.stringify({ entries }),
+    body: JSON.stringify({ entries, expected_revision: expectedRevision }),
+  });
+}
+
+export async function createAdminSideWorkBatch(payload) {
+  return adminRequest("/v1/admin/side-work/bulk", {
+    method: "POST",
+    body: JSON.stringify(payload),
   });
 }
 
@@ -841,7 +861,12 @@ export async function adminRequest(
   options = {},
   retryOnUnauthorized = true,
 ) {
-  const { headers: optionHeaders, ...requestOptions } = options;
+  const {
+    headers: optionHeaders,
+    successMessage,
+    suppressSuccessToast = false,
+    ...requestOptions
+  } = options;
   const { accessToken } = loadAdminTokens();
   const headers = {
     Accept: "application/json",
@@ -912,6 +937,20 @@ export async function adminRequest(
     const message = formatAdminErrorMessage(body, response);
     const code = body?.error?.code || "unexpected_error";
     throw buildAdminError(message, code, response.status);
+  }
+
+  const method = String(requestOptions.method || "GET").toUpperCase();
+  const isUiMutation =
+    path.startsWith("/v1/") &&
+    !path.startsWith("/v1/admin/auth/") &&
+    ["POST", "PUT", "PATCH", "DELETE"].includes(method);
+
+  if (isUiMutation && !suppressSuccessToast) {
+    showAdminSuccess(successMessage || (
+      method === "DELETE"
+        ? "Removed successfully."
+        : "Changes saved successfully."
+    ));
   }
 
   return body;

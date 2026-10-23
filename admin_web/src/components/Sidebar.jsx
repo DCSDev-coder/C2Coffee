@@ -1,14 +1,16 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   LayoutDashboard, Users, ShoppingBag, Ticket, Coins, Crown, Package,
-  Coffee, Megaphone, LineChart, UserCog, ClipboardList, Settings, LogOut, UserCheck, Printer, SlidersHorizontal, BookOpen, CalendarDays, Share2, MapPin, Building2, MonitorSmartphone
+  Coffee, Megaphone, LineChart, UserCog, ClipboardList, Settings, LogOut, UserCheck, Printer, SlidersHorizontal, BookOpen, CalendarDays, Share2, MapPin, Building2, MonitorSmartphone, DatabaseZap
 } from 'lucide-react';
 
 import { canAccessAdminPage } from '../lib/adminPermissions';
+import { adminRequest } from '../lib/adminApi';
 
 const Sidebar = ({ currentPage, setCurrentPage, onLogout, currentTenant, currentUser }) => {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [retentionDueCount, setRetentionDueCount] = useState(0);
   const menuItems = [
     { name: 'Barista Console', icon: Coffee, section: 'Daily work' },
     { name: 'Barista Workspace', icon: CalendarDays, section: 'Daily work' },
@@ -32,10 +34,33 @@ const Sidebar = ({ currentPage, setCurrentPage, onLogout, currentTenant, current
     { name: 'Admin Management', icon: UserCog, section: 'Administration' },
     { name: 'Deployment', icon: Building2, section: 'Administration' },
     { name: 'Audit Logs', icon: ClipboardList, section: 'Administration' },
+    { name: 'Data Retention', icon: DatabaseZap, section: 'Administration' },
     { name: 'Settings', icon: Settings, section: 'Administration' }
   ];
 
   const visibleMenuItems = menuItems.filter((item) => canAccessAdminPage(currentUser?.roles, item.name));
+
+  useEffect(() => {
+    if (!currentUser?.roles?.includes('super_admin')) return;
+    let active = true;
+    adminRequest('/v1/admin/data-retention/summary')
+      .then((summary) => {
+        if (!active) return;
+        setRetentionDueCount(
+          Number(summary.archive_review?.due_now || 0) +
+          Number(summary.customer_retention?.due_now || 0) +
+          Number(summary.cleanup_candidates?.temporary?.eligible_now || 0) +
+          Number(summary.cleanup_candidates?.old_notifications || 0) +
+          Number(summary.orphan_media?.eligible_count || 0)
+        );
+      })
+      .catch(() => {
+        // The page itself shows actionable errors; navigation remains usable.
+      });
+    return () => {
+      active = false;
+    };
+  }, [currentUser?.roles]);
 
   return (
     <div className="w-56 bg-[#2E5E58] text-white h-[calc(100vh-2rem)] fixed left-4 top-4 bottom-4 flex flex-col p-4 rounded-3xl z-10 shadow-xl overflow-y-auto" style={{ fontFamily: 'Afacad, sans-serif' }}>
@@ -82,6 +107,11 @@ const Sidebar = ({ currentPage, setCurrentPage, onLogout, currentTenant, current
                   <Icon size={18} strokeWidth={2.5} className="opacity-90" />
                 </div>
                 <span>{item.name}</span>
+                {item.name === 'Data Retention' && retentionDueCount > 0 && (
+                  <span className="ml-auto rounded-full bg-amber-300 px-2 py-0.5 text-[10px] font-bold text-amber-950" title={`${retentionDueCount} retention item(s) need attention`}>
+                    {retentionDueCount > 99 ? '99+' : retentionDueCount}
+                  </span>
+                )}
               </a>
             </React.Fragment>
           );

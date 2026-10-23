@@ -13,6 +13,7 @@ import {
 } from '../lib/adminApi';
 import { useUnsavedChanges } from '../utils/UnsavedChangesContext';
 import RecipeNutrition from './RecipeNutrition';
+import { requestAdminConfirm } from '../lib/adminDialog';
 
 const emptyGroup = () => ({
   name: '',
@@ -143,7 +144,7 @@ export default function OptionsNutrition() {
     const selectedIds = group.applies_to === 'all_drinks'
       ? allDrinkIds
       : (group.menu_item_ids || []);
-    const options = (group.options || []).map((option, index) => ({
+    const options = (group.options || []).map((option) => ({
       ...option,
       is_default: Boolean(option.is_default)
     }));
@@ -277,7 +278,7 @@ export default function OptionsNutrition() {
   }, [hasUnsavedNutrition, form, registerUnsavedHandler, saveAllBaseCalories, saveOptionGroup, initialNutrition]);
 
   const removeGroup = async (group) => {
-    if (!window.confirm(`Delete "${group.name}"? It will no longer be available for new customer orders.`)) return;
+    if (!await requestAdminConfirm({ title: 'Delete option group?', message: `“${group.name}” will no longer be available for new customer orders.`, confirmLabel: 'Delete', tone: 'danger' })) return;
     try {
       await deleteAdminOptionGroup(group.id);
       setMessage('Option group deleted.');

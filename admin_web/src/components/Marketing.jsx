@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   ChevronDown,
   Bell,
+  MessageSquare,
   Plus,
   RefreshCw,
   Search,
@@ -11,6 +12,8 @@ import {
 } from "lucide-react";
 import Pagination from "./Pagination";
 import PaymentServiceNotices from "./PaymentServiceNotices";
+import { showAdminSuccess } from "../lib/adminToast";
+import { requestAdminConfirm } from "../lib/adminDialog";
 import {
   createAdminMarketingBanner,
   deleteAdminMarketingBanner,
@@ -19,6 +22,7 @@ import {
   loadAdminMenu,
   loadAdminVouchers,
   notifyAdminMarketingBanner,
+  sendAdminCustomerMessage,
   updateAdminMarketingBanner,
   uploadAdminMarketingPoster,
 } from "../lib/adminApi";
@@ -89,22 +93,6 @@ function resolveImageUrl(imageSource) {
 
   const normalized = value.startsWith("/") ? value : `/${value}`;
   return `${getAdminApiBaseUrl()}${normalized}`;
-}
-
-function formatDateTimeLabel(value) {
-  if (!value) {
-    return "";
-  }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return "";
-  }
-
-  return new Intl.DateTimeFormat("en-MY", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date);
 }
 
 function toDateTimeLocalValue(value) {
@@ -199,6 +187,7 @@ function routeLabel(banner) {
 }
 
 const Marketing = () => {
+  const customerMessageRequestKey = useRef(null);
   const [banners, setBanners] = useState([]);
   const [menuItems, setMenuItems] = useState([]);
   const [voucherTemplates, setVoucherTemplates] = useState([]);
@@ -210,8 +199,9 @@ const Marketing = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
   const [notifyingBannerId, setNotifyingBannerId] = useState(null);
+  const [sendingCustomerMessage, setSendingCustomerMessage] = useState(false);
+  const [customerMessage, setCustomerMessage] = useState({ title: "", body: "" });
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingBanner, setEditingBanner] = useState(null);
   const [selectedImageFile, setSelectedImageFile] = useState(null);
@@ -520,7 +510,7 @@ const Marketing = () => {
         const response = await createAdminMarketingBanner(payload);
         const recipients = Number(response?.notification?.recipients || 0);
         if (response?.notification) {
-          setNotice(
+          showAdminSuccess(
             `Poster created and added to notifications for ${recipients} customer${recipients === 1 ? "" : "s"}.`,
           );
         }
@@ -536,7 +526,7 @@ const Marketing = () => {
   };
 
   const removeBanner = async (banner) => {
-    if (!window.confirm(`Delete poster "${banner.title}"?`)) {
+    if (!await requestAdminConfirm({ title: "Delete poster?", message: `Delete “${banner.title}”?`, confirmLabel: "Delete", tone: "danger" })) {
       return;
     }
 
@@ -553,14 +543,13 @@ const Marketing = () => {
 
   const notifyCustomers = async (banner) => {
     if (
-      !window.confirm(`Send "${banner.title}" to all active customers again?`)
+      !await requestAdminConfirm({ title: "Send poster notification?", message: `Send “${banner.title}” to all active customers again?`, confirmLabel: "Send" })
     ) {
       return;
     }
 
     try {
       setError("");
-      setNotice("");
       setNotifyingBannerId(banner.id);
       const response = await notifyAdminMarketingBanner(banner.id);
       const recipients = Number(response?.notification?.recipients || 0);
@@ -571,7 +560,7 @@ const Marketing = () => {
         response?.notification?.deliveredDevices || 0,
       );
       const failedDevices = Number(response?.notification?.failedDevices || 0);
-      setNotice(
+      showAdminSuccess(
         `Notification added for ${recipients} customer${recipients === 1 ? "" : "s"}; push attempted on ${attemptedDevices} device${attemptedDevices === 1 ? "" : "s"}, delivered to ${deliveredDevices}, failed on ${failedDevices}.`,
       );
     } catch (err) {
@@ -582,6 +571,39 @@ const Marketing = () => {
       );
     } finally {
       setNotifyingBannerId(null);
+    }
+  };
+
+  const sendCustomerMessage = async (event) => {
+    event.preventDefault();
+    const title = customerMessage.title.trim();
+    const body = customerMessage.body.trim();
+    if (!title || !body) return;
+
+    if (!await requestAdminConfirm({ title: "Send customer message?", message: "This message will be sent to every active customer who allows marketing notifications.", confirmLabel: "Send message" })) {
+      return;
+    }
+
+    try {
+      setError("");
+      setSendingCustomerMessage(true);
+      customerMessageRequestKey.current ||= crypto.randomUUID();
+      const response = await sendAdminCustomerMessage({
+        title,
+        body,
+        idempotency_key: customerMessageRequestKey.current,
+      });
+      const recipients = Number(response?.message?.recipients || 0);
+      const deliveredDevices = Number(response?.message?.deliveredDevices || 0);
+      showAdminSuccess(
+        `Message sent to ${recipients} customer${recipients === 1 ? "" : "s"}. Push delivered to ${deliveredDevices} device${deliveredDevices === 1 ? "" : "s"}.`,
+      );
+      setCustomerMessage({ title: "", body: "" });
+      customerMessageRequestKey.current = null;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to send the customer message.");
+    } finally {
+      setSendingCustomerMessage(false);
     }
   };
 
@@ -628,6 +650,24 @@ const Marketing = () => {
         </div>
 
         <PaymentServiceNotices />
+
+        <form onSubmit={sendCustomerMessage} className="rounded-2xl border border-[#D8E8E3] bg-[#F5FBF9] p-5 shadow-sm">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#1F3A34] text-white"><MessageSquare size={19} /></div>
+              <div>
+                <h2 className="text-lg font-bold text-[#1F3A34]">Send customer message</h2>
+                <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">Send a short update such as “Don’t forget to come by today.” It will appear in Notifications and be pushed to active customers who have marketing notifications enabled.</p>
+              </div>
+            </div>
+            <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-[#2E5E58]">In-app + push</span>
+          </div>
+          <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)]">
+            <label className="text-sm font-semibold text-gray-700">Title<input required maxLength={120} value={customerMessage.title} onChange={(event) => setCustomerMessage((current) => ({ ...current, title: event.target.value }))} placeholder="A little reminder from C2 Coffee" className="mt-1.5 w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#2E5E58]" /></label>
+            <label className="text-sm font-semibold text-gray-700">Message<textarea required maxLength={420} rows={2} value={customerMessage.body} onChange={(event) => setCustomerMessage((current) => ({ ...current, body: event.target.value }))} placeholder="Don't forget to come by and enjoy your favourite drink today." className="mt-1.5 w-full resize-none rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#2E5E58]" /></label>
+          </div>
+          <div className="mt-3 flex justify-end"><button type="submit" disabled={sendingCustomerMessage || !customerMessage.title.trim() || !customerMessage.body.trim()} className="inline-flex items-center gap-2 rounded-xl bg-[#1F3A34] px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-[#2E5E58] disabled:cursor-not-allowed disabled:opacity-50"><Bell size={16} />{sendingCustomerMessage ? "Sending..." : "Send message"}</button></div>
+        </form>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 shrink-0">
           {summaryCards.map((card) => (
@@ -1538,14 +1578,6 @@ const Marketing = () => {
           className="fixed top-5 left-1/2 z-[60] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow-lg"
         >
           {error}
-        </div>
-      )}
-      {notice && (
-        <div
-          role="status"
-          className="fixed top-5 left-1/2 z-[60] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-xl border border-[#B7D7CC] bg-[#EAF2EF] px-4 py-3 text-sm text-[#1F3A34] shadow-lg"
-        >
-          {notice}
         </div>
       )}
     </div>

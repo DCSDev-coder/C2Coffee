@@ -664,6 +664,8 @@ class RewardVoucher {
   final String? issueCaseRef;
   final String? tierAtIssue;
   final String rewardKind;
+  final bool hasFixedExpiry;
+  final String validityLabel;
   final DateTime issuedAt;
   final DateTime expiresAt;
   final DateTime? redeemedAt;
@@ -678,6 +680,8 @@ class RewardVoucher {
     required this.issueCaseRef,
     required this.tierAtIssue,
     required this.rewardKind,
+    required this.hasFixedExpiry,
+    required this.validityLabel,
     required this.issuedAt,
     required this.expiresAt,
     required this.redeemedAt,
@@ -690,7 +694,7 @@ class RewardVoucher {
       status == 'active' &&
       redeemedAt == null &&
       revokedAt == null &&
-      expiresAt.isAfter(DateTime.now());
+      (!hasFixedExpiry || expiresAt.isAfter(DateTime.now()));
 
   bool get isRedeemed =>
       redeemedAt != null || status == 'redeemed' || status == 'used';
@@ -732,6 +736,8 @@ class RewardVoucher {
       issueCaseRef: json['issue_case_ref'] as String?,
       tierAtIssue: json['tier_at_issue'] as String?,
       rewardKind: json['reward_kind'] as String? ?? 'voucher',
+      hasFixedExpiry: json['has_fixed_expiry'] as bool? ?? true,
+      validityLabel: json['validity_label'] as String? ?? '',
       issuedAt: _parseApiDate(json['issued_at'] as String),
       expiresAt: _parseApiDate(json['expires_at'] as String),
       redeemedAt: _parseNullableDate(json['redeemed_at'] as String?),
@@ -1193,15 +1199,16 @@ class CustomerDataService {
     );
   }
 
-  Future<void> claimTierReward({
+  Future<int> claimTierReward({
     required String accessToken,
     required int entitlementId,
   }) async {
-    await _post(
+    final response = await _post(
       '/rewards/tier-entitlements/$entitlementId/claim',
       accessToken: accessToken,
       body: const {},
     );
+    return (response['user_voucher_id'] as num).toInt();
   }
 
   Future<CustomerOrdersSnapshot> getOrders({

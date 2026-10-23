@@ -1,10 +1,7 @@
 import React, { useState, forwardRef, useEffect } from "react";
 import {
-  Search, Filter, ChevronDown, Download, CheckCircle, Clock, CheckCircle2,
-  MapPin, Phone, MessageSquare, Printer, Receipt, Share2, CornerUpLeft, MessageCircle,
-  X, ShoppingBag, Ban, RotateCcw, XCircle,
-  Coins, Wallet, Users, Package, Square,
-  FileText, CheckSquare, ArrowUp, Edit3, Navigation, Plus
+  Search, ChevronDown, Download, Clock, Printer,
+  X, ShoppingBag, Ban, RotateCcw, Coins
 } from "lucide-react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -492,7 +489,7 @@ const OrderDetailPanel = ({ order, onClose, onViewProfile }) => {
 
 const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => {
   const [ordersList, setOrdersList] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All Status");
@@ -777,7 +774,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
               </thead>
               <tbody className="bg-white divide-y divide-gray-100">
                 {paginated.length > 0 ? (
-                  paginated.map((order, idx) => {
+                  paginated.map((order) => {
                     const isSelected = selectedOrder?.id === order.id;
                     const itemsLabel = order.items.map((i) => `${i.qty}x ${i.name}`).join(", ");
                     const rowSubtotal = order.items.reduce((s, i) => s + i.unitPrice * i.qty, 0);

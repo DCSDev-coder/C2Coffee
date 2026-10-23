@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, BellRing, CalendarClock, Plus, X } from "lucide-react";
+import { requestAdminConfirm } from "../lib/adminDialog";
 
 import {
   cancelAdminPaymentServiceNotice,
@@ -109,7 +110,7 @@ export default function PaymentServiceNotices() {
   }
 
   async function cancelNotice(notice) {
-    if (!window.confirm("Cancel this customer payment notice? It will disappear from the mobile app.")) return;
+    if (!await requestAdminConfirm({ title: "Cancel payment notice?", message: "The warning will disappear from the mobile app immediately.", confirmLabel: "Cancel notice", tone: "danger" })) return;
     setError("");
     setSuccess("");
     try {

@@ -157,12 +157,13 @@ export const UnsavedChangesProvider = ({ children, onNavigate }) => {
   );
 };
 
+// oxlint-disable-next-line react/only-export-components
 export const useUnsavedChanges = () => {
   const context = useContext(UnsavedChangesContext);
   return context || {
     registerUnsavedHandler: () => () => {},
     clearUnsavedHandler: () => {},
-    navigateWithPrompt: (page) => true,
+    navigateWithPrompt: (_page) => true,
     hasUnsavedChanges: () => false,
   };
 };

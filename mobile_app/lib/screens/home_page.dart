@@ -11,6 +11,7 @@ import '../services/catalog_api_service.dart';
 import '../services/catalog_presentation.dart';
 import '../services/user_service.dart';
 import '../services/secure_session_service.dart';
+import '../services/notification_service.dart';
 import '../utils/app_colors.dart';
 import '../widgets/catalog_product_image.dart';
 import '../widgets/custom_bottom_nav.dart';
@@ -18,6 +19,7 @@ import '../widgets/order_status_banner.dart';
 import '../widgets/poster_popup.dart';
 import '../widgets/app_tutorial.dart';
 import '../widgets/profile_avatar_style.dart';
+import '../widgets/notification_indicator.dart';
 import 'loading_order_page.dart';
 import 'menu_page.dart';
 import 'notification_page.dart';
@@ -88,6 +90,7 @@ class _HomePageState extends State<HomePage> {
     Future.microtask(() async {
       try {
         await _session.loadAuthenticatedState();
+        await NotificationService.instance.refreshIndicator();
       } catch (_) {}
       if (!mounted) return;
       WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -627,10 +630,13 @@ class _HomePageState extends State<HomePage> {
                     targetPage: const NotificationPage(),
                   );
                 },
-                child: Icon(
-                  Icons.notifications_outlined,
-                  color: AppColors.deepTeal,
-                  size: 26,
+                child: NotificationIndicator(
+                  lightBackground: true,
+                  child: Icon(
+                    Icons.notifications_outlined,
+                    color: AppColors.deepTeal,
+                    size: 26,
+                  ),
                 ),
               ),
             ],

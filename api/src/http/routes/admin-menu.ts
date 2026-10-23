@@ -169,6 +169,7 @@ type AdminMenuRow = RowDataPacket & {
   item_sort_order: number;
   item_created_at: Date;
   item_updated_at: Date;
+  item_archived_at: Date | null;
   tier_code: string | null;
   token_price: number | null;
   total_units_sold: number | null;
@@ -238,6 +239,9 @@ type AdminMenuItem = {
   sort_order: number;
   created_at: string;
   updated_at: string;
+  archived_at: string | null;
+  retention_review_at: string | null;
+  retention_review_due: boolean;
   sales_count: number;
   total_revenue_rm: string;
   last_ordered_at: string | null;
@@ -355,6 +359,7 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
           i.sort_order AS item_sort_order,
           i.created_at AS item_created_at,
           i.updated_at AS item_updated_at,
+          i.archived_at AS item_archived_at,
           tp.tier_code,
           tp.token_price,
           sales.total_units_sold,
@@ -462,6 +467,7 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
           i.sort_order AS item_sort_order,
           i.created_at AS item_created_at,
           i.updated_at AS item_updated_at,
+          i.archived_at AS item_archived_at,
           tp.tier_code,
           tp.token_price,
           sales.total_units_sold,
@@ -752,6 +758,9 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
       }
       if (payload.is_active !== undefined) {
         updateFields.push('is_active = :isActive');
+        updateFields.push(payload.is_active
+          ? 'archived_at = NULL'
+          : 'archived_at = COALESCE(archived_at, UTC_TIMESTAMP())');
         updateParams.isActive = payload.is_active ? 1 : 0;
       }
       if (payload.is_handcrafted_drink !== undefined) {
@@ -805,20 +814,19 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
 
       if (updateFields.length > 0) {
         updateFields.push('updated_at = UTC_TIMESTAMP()');
-        const updateValues = updateFields
+        const updateAssignments = updateFields
           .filter((field) => field !== 'updated_at = UTC_TIMESTAMP()')
+          .map((field) => field.replace(/:([A-Za-z0-9_]+)/g, '?'));
+        const updateValues = updateFields
+          .filter((field) => field.includes(':'))
           .map((field) => {
-            const paramName = field.split(' = ')[1].replace(/^:/, '');
-            return updateParams[paramName as keyof typeof updateParams];
+            const paramName = field.match(/:([A-Za-z0-9_]+)/)?.[1];
+            return paramName ? updateParams[paramName as keyof typeof updateParams] : undefined;
           });
         await connection.execute(
           `
             UPDATE menu_items
-            SET ${updateFields
-              .filter((field) => field !== 'updated_at = UTC_TIMESTAMP()')
-              .map((field) => field.replace(/:([A-Za-z0-9_]+)/g, '?'))
-              .concat('updated_at = UTC_TIMESTAMP()')
-              .join(', ')}
+            SET ${updateAssignments.concat('updated_at = UTC_TIMESTAMP()').join(', ')}
             WHERE id = ?
           `,
           [...updateValues, menuItemId] as any
@@ -848,10 +856,65 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
     requireAnyAdminRole(request, ['super_admin', 'marketing_admin']);
     const menuItemId = z.coerce.number().int().positive().parse((request.params as { menuItemId: string }).menuItemId);
 
+    const permanent = String((request.query as { permanent?: string }).permanent || '').toLowerCase() === 'true';
+
+    if (permanent) {
+      const [rows] = await mysqlPool.query<Array<RowDataPacket & {
+        is_active: number;
+        order_count: number;
+        cup_event_count: number;
+      }>>(
+        `
+          SELECT
+            i.is_active,
+            (
+              SELECT COUNT(*)
+              FROM order_items oi
+              WHERE oi.menu_item_id = i.id
+            ) AS order_count,
+            (
+              SELECT COUNT(*)
+              FROM loyalty_cup_events lce
+              WHERE lce.menu_item_id = i.id
+            ) AS cup_event_count
+          FROM menu_items i
+          WHERE i.id = :menuItemId
+        `,
+        { menuItemId }
+      );
+
+      const item = rows[0];
+      if (!item) {
+        throw new ApiError(404, 'menu_item_not_found', 'Menu item was not found.');
+      }
+
+      if (Number(item.is_active) === 1) {
+        throw new ApiError(409, 'menu_item_must_be_archived', 'Archive this menu item before permanently deleting it.');
+      }
+
+      const orderCount = Number(item.order_count);
+      const cupEventCount = Number(item.cup_event_count);
+      if (orderCount > 0 || cupEventCount > 0) {
+        throw new ApiError(
+          409,
+          'menu_item_referenced',
+          'This archived item is kept because historical orders or loyalty records refer to it.'
+        );
+      }
+
+      await mysqlPool.execute(
+        `DELETE FROM menu_items WHERE id = :menuItemId`,
+        { menuItemId }
+      );
+
+      return { ok: true, mode: 'deleted' };
+    }
+
     const [result] = await mysqlPool.execute<ResultSetHeader>(
       `
         UPDATE menu_items
         SET is_active = 0,
+            archived_at = COALESCE(archived_at, UTC_TIMESTAMP()),
             updated_at = UTC_TIMESTAMP()
         WHERE id = :menuItemId
       `,
@@ -1008,11 +1071,17 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
     const categoryId = z.coerce.number().int().positive().parse((request.params as { categoryId: string }).categoryId);
 
     const [rows] = await mysqlPool.query<Array<RowDataPacket & {
+      category_exists: number;
       item_count: number;
       subcategory_count: number;
     }>>(
       `
         SELECT
+          EXISTS(
+            SELECT 1
+            FROM menu_categories
+            WHERE id = :categoryId
+          ) AS category_exists,
           (
             SELECT COUNT(*)
             FROM menu_items
@@ -1028,35 +1097,50 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
     );
 
     const counts = rows[0];
-    if (!counts) {
+    if (!counts || Number(counts.category_exists) !== 1) {
       throw new ApiError(404, 'menu_category_not_found', 'Menu category was not found.');
     }
 
     const canHardDelete = Number(counts.item_count) === 0 && Number(counts.subcategory_count) === 0;
 
     if (canHardDelete) {
-      await mysqlPool.query(
-        `
-          DELETE FROM menu_categories
-          WHERE id = :categoryId
-        `,
-        { categoryId }
-      );
+      try {
+        await mysqlPool.query(
+          `
+            DELETE FROM menu_categories
+            WHERE id = :categoryId
+          `,
+          { categoryId }
+        );
 
-      return { ok: true, mode: 'deleted' };
+        return { ok: true, mode: 'deleted', item_count: 0, subcategory_count: 0 };
+      } catch (error) {
+        if (['ER_ROW_IS_REFERENCED', 'ER_ROW_IS_REFERENCED_2'].includes((error as { code?: string }).code ?? '')) {
+          throw new ApiError(
+            409,
+            'menu_category_referenced',
+            'This category is referenced by stored data and cannot be permanently removed. It was not changed; archive it instead.'
+          );
+        }
+        throw error;
+      }
     }
 
     await mysqlPool.query(
       `
         UPDATE menu_categories
-        SET is_active = 0,
-            updated_at = UTC_TIMESTAMP()
+        SET is_active = 0
         WHERE id = :categoryId
       `,
       { categoryId }
     );
 
-    return { ok: true, mode: 'archived' };
+    return {
+      ok: true,
+      mode: 'archived',
+      item_count: Number(counts.item_count),
+      subcategory_count: Number(counts.subcategory_count)
+    };
   });
 
   app.patch('/v1/admin/menu/subcategories/:subcategoryId', { preHandler: authenticateAdminRequest }, async (request) => {
@@ -1115,9 +1199,17 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
     requireAnyAdminRole(request, ['super_admin', 'marketing_admin']);
     const subcategoryId = z.coerce.number().int().positive().parse((request.params as { subcategoryId: string }).subcategoryId);
 
-    const [rows] = await mysqlPool.query<Array<RowDataPacket & { item_count: number }>>(
+    const [rows] = await mysqlPool.query<Array<RowDataPacket & {
+      subcategory_exists: number;
+      item_count: number;
+    }>>(
       `
         SELECT
+          EXISTS(
+            SELECT 1
+            FROM menu_subcategories
+            WHERE id = :subcategoryId
+          ) AS subcategory_exists,
           (
             SELECT COUNT(*)
             FROM menu_items
@@ -1128,20 +1220,31 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
     );
 
     const counts = rows[0];
-    if (!counts) {
+    if (!counts || Number(counts.subcategory_exists) !== 1) {
       throw new ApiError(404, 'menu_subcategory_not_found', 'Menu subcategory was not found.');
     }
 
     if (Number(counts.item_count) === 0) {
-      await mysqlPool.query(
-        `
-          DELETE FROM menu_subcategories
-          WHERE id = :subcategoryId
-        `,
-        { subcategoryId }
-      );
+      try {
+        await mysqlPool.query(
+          `
+            DELETE FROM menu_subcategories
+            WHERE id = :subcategoryId
+          `,
+          { subcategoryId }
+        );
 
-      return { ok: true, mode: 'deleted' };
+        return { ok: true, mode: 'deleted', item_count: 0 };
+      } catch (error) {
+        if (['ER_ROW_IS_REFERENCED', 'ER_ROW_IS_REFERENCED_2'].includes((error as { code?: string }).code ?? '')) {
+          throw new ApiError(
+            409,
+            'menu_subcategory_referenced',
+            'This family is referenced by stored data and cannot be permanently removed. It was not changed; hide it instead.'
+          );
+        }
+        throw error;
+      }
     }
 
     await mysqlPool.query(
@@ -1154,7 +1257,7 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
       { subcategoryId }
     );
 
-    return { ok: true, mode: 'archived' };
+    return { ok: true, mode: 'archived', item_count: Number(counts.item_count) };
   });
 }
 
@@ -1204,6 +1307,9 @@ function buildMenuResponse(rows: Array<AdminMenuRow>): AdminMenuResponse {
     let item = category.items.find((candidate) => candidate.id === row.item_id);
       if (!item) {
       const productKind = resolveProductKind(row.category_product_kind_code, row.category_code);
+      const archivedAt = row.item_archived_at ? new Date(row.item_archived_at) : null;
+      const retentionReviewAt = archivedAt ? new Date(archivedAt) : null;
+      retentionReviewAt?.setUTCFullYear(retentionReviewAt.getUTCFullYear() + 5);
       item = {
         id: row.item_id,
         code: row.item_code,
@@ -1229,6 +1335,9 @@ function buildMenuResponse(rows: Array<AdminMenuRow>): AdminMenuResponse {
         sort_order: row.item_sort_order,
         created_at: row.item_created_at instanceof Date ? row.item_created_at.toISOString() : new Date(row.item_created_at).toISOString(),
         updated_at: row.item_updated_at instanceof Date ? row.item_updated_at.toISOString() : new Date(row.item_updated_at).toISOString(),
+        archived_at: archivedAt?.toISOString() ?? null,
+        retention_review_at: retentionReviewAt?.toISOString() ?? null,
+        retention_review_due: retentionReviewAt ? retentionReviewAt.getTime() <= Date.now() : false,
         sales_count: row.total_units_sold ?? 0,
         total_revenue_rm: row.total_revenue_rm ?? '0.00',
         last_ordered_at: row.last_ordered_at ? new Date(row.last_ordered_at).toISOString() : null,
@@ -1425,6 +1534,7 @@ async function loadMenuItemById(menuItemId: number): Promise<AdminMenuItem | nul
         i.sort_order AS item_sort_order,
         i.created_at AS item_created_at,
         i.updated_at AS item_updated_at,
+        i.archived_at AS item_archived_at,
         tp.tier_code,
         tp.token_price,
         sales.total_units_sold,

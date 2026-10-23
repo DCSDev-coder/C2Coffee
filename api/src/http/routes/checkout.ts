@@ -141,6 +141,7 @@ export type AppliedVoucherRow = RowDataPacket & {
   user_id: number;
   status: 'active' | 'redeemed' | 'expired' | 'revoked';
   issue_case_ref: string | null;
+  tier_at_issue: string | null;
   expires_at: Date;
   template_id: number;
   template_tenant_id: number;
@@ -157,6 +158,35 @@ export type AppliedVoucherRow = RowDataPacket & {
   template_is_active: number;
   template_valid_until: Date | null;
 };
+
+export async function assertTierVoucherStillEligible(
+  connection: PoolConnection,
+  voucher: AppliedVoucherRow
+): Promise<void> {
+  const isTierProgressReward = voucher.voucher_type === 'tier_reward' ||
+    voucher.issue_case_ref?.startsWith('tier_claim:') === true ||
+    voucher.issue_case_ref?.startsWith('tier_unlock:') === true;
+  if (!isTierProgressReward) return;
+
+  const [rows] = await connection.query<Array<RowDataPacket & { tier_code: string }>>(
+    `
+      SELECT tier_code
+      FROM loyalty_tier_snapshots
+      WHERE user_id = :userId
+      ORDER BY effective_at DESC, id DESC
+      LIMIT 1
+    `,
+    { userId: voucher.user_id }
+  );
+  const currentTierCode = rows[0]?.tier_code ?? null;
+  if (!voucher.tier_at_issue || currentTierCode !== voucher.tier_at_issue) {
+    throw new ApiError(
+      400,
+      'tier_reward_not_eligible',
+      'This tier reward is no longer available for your current cup progress.'
+    );
+  }
+}
 
 function calculateTokenEquivalentDiscount(
   totalBeforeDiscountRm: number,
@@ -571,6 +601,7 @@ export async function registerCheckoutRoutes(
               uv.user_id,
               uv.status,
               uv.issue_case_ref,
+              uv.tier_at_issue,
               uv.expires_at,
               vt.id AS template_id,
               vt.tenant_id AS template_tenant_id,
@@ -626,17 +657,6 @@ export async function registerCheckoutRoutes(
           );
         }
 
-        if (
-          appliedVoucher.template_valid_until !== null &&
-          new Date(appliedVoucher.template_valid_until).getTime() <= Date.now()
-        ) {
-          throw new ApiError(
-            400,
-            'voucher_expired',
-            'Selected voucher campaign has ended.'
-          );
-        }
-
         if (new Date(appliedVoucher.expires_at).getTime() < Date.now()) {
           throw new ApiError(
             400,
@@ -644,6 +664,8 @@ export async function registerCheckoutRoutes(
             'Selected voucher has expired.'
           );
         }
+
+        await assertTierVoucherStillEligible(connection, appliedVoucher);
 
         const voucherScope = parseVoucherScope(appliedVoucher.eligible_scope_json);
         const promotionRule = parsePromotionRule(voucherScope);
@@ -656,6 +678,18 @@ export async function registerCheckoutRoutes(
         const isBirthdayVoucher = isTierBirthdayReward ||
           appliedVoucher.voucher_type === 'birthday_treat' ||
           voucherMode === 'birthday';
+
+        if (
+          !isBirthdayVoucher &&
+          appliedVoucher.template_valid_until !== null &&
+          new Date(appliedVoucher.template_valid_until).getTime() <= Date.now()
+        ) {
+          throw new ApiError(
+            400,
+            'voucher_expired',
+            'Selected voucher campaign has ended.'
+          );
+        }
         let customerBirthdayMonthDay: string | null = null;
 
         if (isBirthdayVoucher) {

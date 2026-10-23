@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 
 import 'api_client.dart';
 import 'auth_service.dart';
+import 'barista/services/barista_sound_service.dart';
+import 'barista/services/api_service.dart';
 import 'barista/services/direct_printer_service.dart';
 
 /// Polls the durable print queue with the activated outlet-device credential.
@@ -68,9 +70,22 @@ class DevicePrinterWorker {
           return;
         }
 
-        final job = _parseJob(response.body);
+        final payload = jsonDecode(response.body) as Map<String, dynamic>;
+        final soundSettings = BaristaSoundSettings.fromJson(
+          payload['sound_settings'] as Map<String, dynamic>? ?? const {},
+        );
+        BaristaSoundService.instance.configure(soundSettings);
+        final job = _parseJobPayload(payload);
         try {
-          await DirectPrinterService.instance.printJob(job);
+          // Start both actions from the same claimed print job. A sound
+          // failure must never prevent the order from being printed.
+          final beep = BaristaSoundService.instance
+              .play(BaristaSoundEvent.incomingOrder)
+              .catchError((_) {});
+          await Future.wait<void>([
+            beep,
+            DirectPrinterService.instance.printJob(job),
+          ]);
           await _acknowledge(
             token: token,
             workstationKey: workstationKey,
@@ -102,8 +117,7 @@ class DevicePrinterWorker {
     }
   }
 
-  DirectPrintJob _parseJob(String body) {
-    final json = jsonDecode(body) as Map<String, dynamic>;
+  DirectPrintJob _parseJobPayload(Map<String, dynamic> json) {
     final printer = json['printer'] as Map<String, dynamic>;
     final order = json['order'] as Map<String, dynamic>;
     return DirectPrintJob(

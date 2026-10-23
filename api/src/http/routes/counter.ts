@@ -17,6 +17,7 @@ import { getKualaLumpurDateParts } from '../../lib/kuala-lumpur-time.js';
 import { verifyPassword } from '../../lib/password.js';
 import {
   collectMatchedUnits,
+  assertTierVoucherStillEligible,
   isVoucherAvailableNow,
   loadCheckoutMenuItems,
   normalizeMoney,
@@ -41,7 +42,13 @@ const administratorUnlockSchema = z.object({
 
 const workstationKeyPattern = /^C2-[A-Z0-9]{12}$/;
 const directPrinterConfigurationSchema = z.object({
-  network_host: z.string().trim().ip({ version: 'v4' }),
+  // The Sunmi D3 Mini uses the device's internal printer service and does
+  // not have a network IP. External printers must still provide an IPv4
+  // address so they cannot be configured with an unrouteable placeholder.
+  network_host: z.union([
+    z.literal('sunmi_inner'),
+    z.string().trim().ip({ version: 'v4' })
+  ]),
   network_port: z.coerce.number().int().min(1).max(65535)
 });
 const directPrintAcknowledgementSchema = z.object({
@@ -450,11 +457,24 @@ export async function registerCounterRoutes(app: FastifyInstance): Promise<void>
     try {
       await connection.beginTransaction();
       const [printers] = await connection.execute<RowDataPacket[]>(
-        `SELECT id, name, network_host, network_port
-         FROM printer_targets
-         WHERE tenant_code = :tenantCode AND store_id = :storeId
-           AND delivery_mode = 'android_direct' AND status = 'connected'
-           AND direct_print_device_key = :workstationKey
+        `SELECT pt.id, pt.name, pt.network_host, pt.network_port,
+                COALESCE(bs.volume_percent, 70) AS volume_percent,
+                COALESCE(bs.incoming_order_enabled, 1) AS incoming_order_enabled,
+                COALESCE(bs.incoming_order_beeps, 4) AS incoming_order_beeps,
+                COALESCE(bs.incoming_order_style, 'two_tone') AS incoming_order_style,
+                COALESCE(bs.clock_in_beeps, 1) AS clock_in_beeps,
+                COALESCE(bs.clock_in_style, 'short') AS clock_in_style,
+                COALESCE(bs.clock_out_beeps, 2) AS clock_out_beeps,
+                COALESCE(bs.clock_out_style, 'long') AS clock_out_style,
+                COALESCE(bs.side_work_beeps, 3) AS side_work_beeps,
+                COALESCE(bs.side_work_style, 'two_tone') AS side_work_style
+         FROM printer_targets pt
+         JOIN stores s ON s.id = pt.store_id
+         LEFT JOIN barista_sound_settings bs
+           ON bs.tenant_id = s.tenant_id AND bs.store_id = s.id
+         WHERE pt.tenant_code = :tenantCode AND pt.store_id = :storeId
+           AND pt.delivery_mode = 'android_direct' AND pt.status = 'connected'
+           AND pt.direct_print_device_key = :workstationKey
          LIMIT 1 FOR UPDATE`,
         {
           tenantCode: request.counterAuth.tenantCode,
@@ -529,6 +549,18 @@ export async function registerCounterRoutes(app: FastifyInstance): Promise<void>
           name: printer.name,
           host: printer.network_host,
           port: Number(printer.network_port)
+        },
+        sound_settings: {
+          volume_percent: Number(printer.volume_percent),
+          incoming_order_enabled: Number(printer.incoming_order_enabled) === 1,
+          incoming_order_beeps: Number(printer.incoming_order_beeps),
+          incoming_order_style: printer.incoming_order_style,
+          clock_in_beeps: Number(printer.clock_in_beeps),
+          clock_in_style: printer.clock_in_style,
+          clock_out_beeps: Number(printer.clock_out_beeps),
+          clock_out_style: printer.clock_out_style,
+          side_work_beeps: Number(printer.side_work_beeps),
+          side_work_style: printer.side_work_style
         },
         order: {
           order_ref: job.order_ref,
@@ -669,7 +701,7 @@ export async function registerCounterRoutes(app: FastifyInstance): Promise<void>
       let voucherName: string | null = null;
       if (payload.applied_voucher_id) {
         const [voucherRows] = await connection.query<AppliedVoucherRow[]>(
-          `SELECT uv.id, uv.user_id, uv.status, uv.issue_case_ref, uv.expires_at,
+          `SELECT uv.id, uv.user_id, uv.status, uv.issue_case_ref, uv.tier_at_issue, uv.expires_at,
                   vt.id AS template_id, vt.tenant_id AS template_tenant_id,
                   vt.code AS template_code, vt.name AS template_name, vt.voucher_type,
                   vt.discount_mode, CAST(vt.discount_value AS CHAR) AS discount_value,
@@ -692,6 +724,7 @@ export async function registerCounterRoutes(app: FastifyInstance): Promise<void>
             new Date(voucher.expires_at).getTime() <= Date.now()) {
           throw new ApiError(400, 'voucher_expired', 'Selected voucher has expired.');
         }
+        await assertTierVoucherStillEligible(connection, voucher);
         if (voucher.discount_mode === 'fixed_token') {
           throw new ApiError(400, 'voucher_payment_mode_mismatch', 'This token voucher cannot be used for an RM counter order.');
         }

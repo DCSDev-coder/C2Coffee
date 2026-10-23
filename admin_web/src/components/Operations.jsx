@@ -1,17 +1,21 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { CalendarDays, Check, CircleAlert, ClipboardCheck, Clock3, Plus, RefreshCw, Save, Trash2, Volume2, X } from 'lucide-react';
 import {
   adminRequest,
+  createAdminSideWorkBatch,
   loadAdminAttendance,
   loadAdminOperationalSetup,
   saveAdminShiftSchedule
 } from '../lib/adminApi';
 
-const initialShift = { barista_id: '', shift_date: isoDate(), starts_at: '09:00', ends_at: '17:00' };
-const initialSideWork = { title: '', instructions: '', scheduled_date: isoDate(), scheduled_time: '14:00' };
+const initialShift = { barista_id: '', shift_date: isoDate(), starts_at: '09:00', ends_at: '17:00', repeat: false, repeat_until: isoDate(30), repeat_weekdays: [weekdayForDate(isoDate())] };
+const initialSideWork = { title: '', instructions: '', scheduled_date: isoDate(), scheduled_time: '14:00', repeat: false, repeat_until: isoDate(30), repeat_weekdays: [weekdayForDate(isoDate())] };
 const initialSoundSettings = {
   volume_percent: 70,
+  incoming_order_enabled: true,
+  incoming_order_beeps: 4,
+  incoming_order_style: 'two_tone',
   clock_in_beeps: 1,
   clock_in_style: 'short',
   clock_out_beeps: 2,
@@ -122,6 +126,20 @@ function planningDates() {
   return Array.from({ length: 31 }, (_, index) => isoDate(index));
 }
 
+function weekdayForDate(value) {
+  const day = new Date(`${value}T12:00:00+08:00`).getUTCDay();
+  return day === 0 ? 7 : day;
+}
+
+function datesForRepeat(startDate, endDate, weekdays) {
+  const selected = new Set(weekdays.map(Number));
+  return planningDates().filter((date) => date >= startDate && date <= endDate && selected.has(weekdayForDate(date)));
+}
+
+const weekdayOptions = [
+  [1, 'Mon'], [2, 'Tue'], [3, 'Wed'], [4, 'Thu'], [5, 'Fri'], [6, 'Sat'], [7, 'Sun']
+];
+
 function displayDate(value) {
   return new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 'short', day: 'numeric' }).format(new Date(`${value}T12:00:00`));
 }
@@ -132,6 +150,7 @@ export default function Operations() {
   const [activeTab, setActiveTab] = useState('timetable');
   const [baristas, setBaristas] = useState([]);
   const [schedule, setSchedule] = useState([]);
+  const [scheduleRevision, setScheduleRevision] = useState(0);
   const [attendance, setAttendance] = useState([]);
   const [attendanceSummary, setAttendanceSummary] = useState({ active_now: 0, late_arrivals: 0, missing_clock_out: 0, missed_clock_in: 0 });
   const [attendanceFrom, setAttendanceFrom] = useState(isoDate(-29));
@@ -151,7 +170,7 @@ export default function Operations() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
@@ -165,6 +184,7 @@ export default function Operations() {
         ...shift,
         shift_date: dateKey(shift.shift_date)
       })));
+      setScheduleRevision(Number(operations.schedule_revision || 0));
       setBaristas((baristaResponse.baristas || []).filter((barista) => barista.is_active));
       setSideWork(Array.isArray(sideWorkResponse.tasks) ? sideWorkResponse.tasks : []);
       const outlets = Array.isArray(soundResponse.outlets) ? soundResponse.outlets : [];
@@ -174,6 +194,9 @@ export default function Operations() {
         setSelectedSoundStoreId(String(selected.store_id));
         setSoundForm({
           volume_percent: Number(selected.volume_percent),
+          incoming_order_enabled: selected.incoming_order_enabled !== false && Number(selected.incoming_order_enabled) !== 0,
+          incoming_order_beeps: Number(selected.incoming_order_beeps || 4),
+          incoming_order_style: selected.incoming_order_style || 'two_tone',
           clock_in_beeps: Number(selected.clock_in_beeps),
           clock_in_style: selected.clock_in_style || 'short',
           clock_out_beeps: Number(selected.clock_out_beeps),
@@ -187,11 +210,11 @@ export default function Operations() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedSoundStoreId]);
 
   useEffect(() => {
     void loadData();
-  }, []);
+  }, [loadData]);
 
   const loadAttendance = async () => {
     setLoading(true);
@@ -235,29 +258,37 @@ export default function Operations() {
       setError('Choose a date from today through the next 30 days.');
       return;
     }
-    const duplicate = schedule.some((item) => Number(item.barista_id) === baristaId
-      && item.shift_date === shiftForm.shift_date
-      && displayTime(item.starts_at) === shiftForm.starts_at);
+    const dates = shiftForm.repeat
+      ? datesForRepeat(shiftForm.shift_date, shiftForm.repeat_until, shiftForm.repeat_weekdays)
+      : [shiftForm.shift_date];
+    if (shiftForm.repeat && dates.length === 0) {
+      setError('Choose at least one weekday within the repeat period.');
+      return;
+    }
+    const duplicate = dates.some((date) => schedule.some((item) => Number(item.barista_id) === baristaId
+      && item.shift_date === date
+      && displayTime(item.starts_at) === shiftForm.starts_at));
     if (duplicate) {
       setError('This barista already has a shift with the same start time.');
       return;
     }
 
-    setSchedule((current) => [...current, {
-      id: `draft-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    setSchedule((current) => [...current, ...dates.map((date) => ({
+      id: `draft-${Date.now()}-${date}-${Math.random().toString(36).slice(2, 7)}`,
       barista_id: baristaId,
       barista_name: barista?.name || 'Barista',
-      shift_date: shiftForm.shift_date,
+      shift_date: date,
       starts_at: shiftForm.starts_at,
       ends_at: shiftForm.ends_at,
       is_active: true
-    }]);
-    setShiftForm({ ...initialShift, shift_date: selectedDate || shiftForm.shift_date });
+    }))]);
+    setNotice(shiftForm.repeat ? `Added ${dates.length} repeated shifts.` : 'Shift added.');
+    setShiftForm({ ...initialShift, shift_date: selectedDate || shiftForm.shift_date, repeat_weekdays: [weekdayForDate(selectedDate || shiftForm.shift_date)] });
   };
 
   const openShiftEditor = (date) => {
     setSelectedDate(date);
-    setShiftForm({ ...initialShift, shift_date: date });
+    setShiftForm({ ...initialShift, shift_date: date, repeat_until: isoDate(30), repeat_weekdays: [weekdayForDate(date)] });
     setError('');
     setNotice('');
   };
@@ -273,12 +304,22 @@ export default function Operations() {
     setError('');
     setNotice('');
     try {
-      await adminRequest('/v1/admin/side-work', {
-        method: 'POST',
-        body: JSON.stringify(sideWorkForm)
+      const dates = sideWorkForm.repeat
+        ? datesForRepeat(sideWorkForm.scheduled_date, sideWorkForm.repeat_until, sideWorkForm.repeat_weekdays)
+        : [sideWorkForm.scheduled_date];
+      if (sideWorkForm.repeat && dates.length === 0) {
+        throw new Error('Choose at least one weekday within the repeat period.');
+      }
+      const result = await createAdminSideWorkBatch({
+        title: sideWorkForm.title,
+        instructions: sideWorkForm.instructions || null,
+        scheduled_dates: dates,
+        scheduled_time: sideWorkForm.scheduled_time
       });
-      setSideWorkForm({ ...initialSideWork, scheduled_date: sideWorkForm.scheduled_date });
-      setNotice('Side work scheduled. It will appear in the Barista Workspace on the selected day.');
+      setSideWorkForm({ ...initialSideWork, scheduled_date: sideWorkForm.scheduled_date, repeat_weekdays: [weekdayForDate(sideWorkForm.scheduled_date)] });
+      const saved = Number(result?.saved || 0);
+      const skipped = Number(result?.skipped || 0);
+      setNotice(`${saved} side-work task${saved === 1 ? '' : 's'} scheduled${skipped > 0 ? `; ${skipped} existing duplicate${skipped === 1 ? ' was' : 's were'} skipped` : ''}.`);
       await loadData();
     } catch (saveError) {
       setError(saveError.message || 'Unable to schedule side work.');
@@ -304,6 +345,9 @@ export default function Operations() {
     const outlet = soundOutlets.find((item) => String(item.store_id) === String(storeId));
     if (outlet) setSoundForm({
       volume_percent: Number(outlet.volume_percent),
+      incoming_order_enabled: outlet.incoming_order_enabled !== false && Number(outlet.incoming_order_enabled) !== 0,
+      incoming_order_beeps: Number(outlet.incoming_order_beeps || 4),
+      incoming_order_style: outlet.incoming_order_style || 'two_tone',
       clock_in_beeps: Number(outlet.clock_in_beeps),
       clock_in_style: outlet.clock_in_style || 'short',
       clock_out_beeps: Number(outlet.clock_out_beeps),
@@ -315,9 +359,9 @@ export default function Operations() {
 
   const saveSoundSettings = async (event) => {
     event.preventDefault();
-    const patterns = [soundForm.clock_in_beeps, soundForm.clock_out_beeps, soundForm.side_work_beeps].map(Number);
+    const patterns = [soundForm.incoming_order_beeps, soundForm.clock_in_beeps, soundForm.clock_out_beeps, soundForm.side_work_beeps].map(Number);
     if (new Set(patterns).size !== patterns.length) {
-      setError('Use a different beep count for clock-in, clock-out, and side work.');
+      setError('Use a different beep count for incoming orders, clock-in, clock-out, and side work.');
       setNotice('');
       return;
     }
@@ -329,6 +373,9 @@ export default function Operations() {
         method: 'PUT',
         body: JSON.stringify({
           volume_percent: Number(soundForm.volume_percent),
+          incoming_order_enabled: Boolean(soundForm.incoming_order_enabled),
+          incoming_order_beeps: Number(soundForm.incoming_order_beeps),
+          incoming_order_style: soundForm.incoming_order_style,
           clock_in_beeps: Number(soundForm.clock_in_beeps),
           clock_in_style: soundForm.clock_in_style,
           clock_out_beeps: Number(soundForm.clock_out_beeps),
@@ -347,11 +394,6 @@ export default function Operations() {
   };
 
   const publishSchedule = async () => {
-    if (schedule.length === 0) {
-      setError('Add at least one shift before publishing the timetable.');
-      setNotice('');
-      return;
-    }
     setSavingSchedule(true);
     setError('');
     setNotice('');
@@ -362,10 +404,11 @@ export default function Operations() {
         starts_at: displayTime(entry.starts_at),
         ends_at: displayTime(entry.ends_at)
       }));
-      const result = await saveAdminShiftSchedule(entries);
+      const result = await saveAdminShiftSchedule(entries, scheduleRevision);
       if (Number(result?.saved) !== entries.length) {
         throw new Error('The timetable could not be confirmed. No changes were published.');
       }
+      setScheduleRevision(Number(result.schedule_revision ?? scheduleRevision + 1));
       setNotice(`Timetable published for the next 31 days with ${entries.length} shift${entries.length === 1 ? '' : 's'}.`);
       await loadData();
     } catch (saveError) {
@@ -466,6 +509,15 @@ export default function Operations() {
                     <input type="time" value={shiftForm.ends_at} onChange={(event) => setShiftForm((current) => ({ ...current, ends_at: event.target.value }))} className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-[#2E5E58]" required />
                   </label>
                 </div>
+                <label className="mt-5 flex items-start gap-3 rounded-xl border border-[#CFE3DE] bg-[#F4FAF8] p-3 text-sm text-slate-700">
+                  <input type="checkbox" checked={shiftForm.repeat} onChange={(event) => setShiftForm((current) => ({ ...current, repeat: event.target.checked }))} className="mt-0.5 h-4 w-4 accent-[#2E5E58]" />
+                  <span><span className="font-bold">Repeat on selected weekdays</span><span className="mt-1 block text-xs text-slate-500">Creates the same shift from the selected date through the next 30 days.</span></span>
+                </label>
+                {shiftForm.repeat && <div className="mt-3 rounded-xl border border-slate-200 p-3">
+                  <label className="block text-sm font-bold text-slate-700">Repeat until<input type="date" min={shiftForm.shift_date} max={isoDate(30)} value={shiftForm.repeat_until} onChange={(event) => setShiftForm((current) => ({ ...current, repeat_until: event.target.value }))} className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" /></label>
+                  <p className="mt-3 text-xs font-bold uppercase tracking-wide text-slate-500">Weekdays</p>
+                  <div className="mt-2 flex flex-wrap gap-2">{weekdayOptions.map(([value, label]) => <label key={value} className={`cursor-pointer rounded-lg border px-3 py-2 text-sm font-bold ${shiftForm.repeat_weekdays.includes(value) ? 'border-[#2E5E58] bg-[#E7F3EF] text-[#1F3A34]' : 'border-slate-200 text-slate-500'}`}><input type="checkbox" checked={shiftForm.repeat_weekdays.includes(value)} onChange={(event) => setShiftForm((current) => ({ ...current, repeat_weekdays: event.target.checked ? [...current.repeat_weekdays, value] : current.repeat_weekdays.filter((day) => day !== value) }))} className="sr-only" />{label}</label>)}</div>
+                </div>}
                 <div className="mt-6 flex justify-end gap-3">
                   <button type="button" onClick={() => setSelectedDate(null)} className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 cursor-pointer">
                     Close
@@ -486,7 +538,9 @@ export default function Operations() {
             <p className="mt-1 text-sm text-slate-500">Create timed cleaning and upkeep reminders for the barista team.</p>
             <label className="mt-5 block text-sm font-bold text-slate-700">Task name<input required maxLength="120" value={sideWorkForm.title} onChange={(event) => setSideWorkForm((current) => ({ ...current, title: event.target.value }))} placeholder="Mop the service floor" className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-[#2E5E58]" /></label>
             <label className="mt-4 block text-sm font-bold text-slate-700">Instructions<textarea maxLength="500" rows="4" value={sideWorkForm.instructions} onChange={(event) => setSideWorkForm((current) => ({ ...current, instructions: event.target.value }))} placeholder="Include the area, supplies, and completion standard." className="mt-1.5 w-full resize-none rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-[#2E5E58]" /></label>
-            <div className="mt-4 grid grid-cols-2 gap-3"><label className="text-sm font-bold text-slate-700">Date<input required type="date" min={isoDate()} max={isoDate(30)} value={sideWorkForm.scheduled_date} onChange={(event) => setSideWorkForm((current) => ({ ...current, scheduled_date: event.target.value }))} className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" /></label><label className="text-sm font-bold text-slate-700">Time<input required type="time" value={sideWorkForm.scheduled_time} onChange={(event) => setSideWorkForm((current) => ({ ...current, scheduled_time: event.target.value }))} className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" /></label></div>
+            <div className="mt-4 grid grid-cols-2 gap-3"><label className="text-sm font-bold text-slate-700">Start date<input required type="date" min={isoDate()} max={isoDate(30)} value={sideWorkForm.scheduled_date} onChange={(event) => setSideWorkForm((current) => ({ ...current, scheduled_date: event.target.value, repeat_weekdays: [weekdayForDate(event.target.value)] }))} className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" /></label><label className="text-sm font-bold text-slate-700">Time<input required type="time" value={sideWorkForm.scheduled_time} onChange={(event) => setSideWorkForm((current) => ({ ...current, scheduled_time: event.target.value }))} className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" /></label></div>
+            <label className="mt-5 flex items-start gap-3 rounded-xl border border-[#CFE3DE] bg-[#F4FAF8] p-3 text-sm text-slate-700"><input type="checkbox" checked={sideWorkForm.repeat} onChange={(event) => setSideWorkForm((current) => ({ ...current, repeat: event.target.checked }))} className="mt-0.5 h-4 w-4 accent-[#2E5E58]" /><span><span className="font-bold">Repeat on selected weekdays</span><span className="mt-1 block text-xs text-slate-500">Creates the same task from the start date through the next 30 days.</span></span></label>
+            {sideWorkForm.repeat && <div className="mt-3 rounded-xl border border-slate-200 p-3"><label className="block text-sm font-bold text-slate-700">Repeat until<input type="date" min={sideWorkForm.scheduled_date} max={isoDate(30)} value={sideWorkForm.repeat_until} onChange={(event) => setSideWorkForm((current) => ({ ...current, repeat_until: event.target.value }))} className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" /></label><p className="mt-3 text-xs font-bold uppercase tracking-wide text-slate-500">Weekdays</p><div className="mt-2 flex flex-wrap gap-2">{weekdayOptions.map(([value, label]) => <label key={value} className={`cursor-pointer rounded-lg border px-3 py-2 text-sm font-bold ${sideWorkForm.repeat_weekdays.includes(value) ? 'border-[#2E5E58] bg-[#E7F3EF] text-[#1F3A34]' : 'border-slate-200 text-slate-500'}`}><input type="checkbox" checked={sideWorkForm.repeat_weekdays.includes(value)} onChange={(event) => setSideWorkForm((current) => ({ ...current, repeat_weekdays: event.target.checked ? [...current.repeat_weekdays, value] : current.repeat_weekdays.filter((day) => day !== value) }))} className="sr-only" />{label}</label>)}</div></div>}
             <button disabled={savingSideWork} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#1F3A34] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50"><Plus size={17} />{savingSideWork ? 'Scheduling...' : 'Schedule task'}</button>
           </form>
           <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -497,15 +551,17 @@ export default function Operations() {
 
         {activeTab === 'sounds' && <section className="mt-6">
           <form onSubmit={saveSoundSettings} className="max-w-3xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="flex items-start gap-4"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#F0F8F6] text-[#1F3A34]"><Volume2 size={22} /></div><div><h2 className="text-lg font-bold text-slate-900">Barista beep patterns</h2><p className="mt-1 text-sm leading-6 text-slate-500">Give clock-in, clock-out, and side-work reminders a distinct sound style and number of beeps. The tablet's media volume remains the final hardware limit.</p></div></div>
+            <div className="flex items-start gap-4"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#F0F8F6] text-[#1F3A34]"><Volume2 size={22} /></div><div><h2 className="text-lg font-bold text-slate-900">Barista beep patterns</h2><p className="mt-1 text-sm leading-6 text-slate-500">Configure the sound played on the C2 Store device when a new order is claimed for printing, plus clock-in, clock-out, and side-work reminders. The printer still prints at the same time. The tablet's media volume remains the final hardware limit.</p></div></div>
             <label className="mt-6 block text-sm font-bold text-slate-700">Outlet<select value={selectedSoundStoreId} onChange={(event) => chooseSoundOutlet(event.target.value)} className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm" disabled={!soundOutlets.length}>{soundOutlets.map((outlet) => <option key={outlet.store_id} value={outlet.store_id}>{outlet.store_name}</option>)}</select></label>
             <label className="mt-5 block text-sm font-bold text-slate-700"><span className="flex items-center justify-between"><span>Beep volume</span><span className="text-[#2E5E58]">{soundForm.volume_percent}%</span></span><input type="range" min="0" max="100" step="5" value={soundForm.volume_percent} onChange={(event) => setSoundForm((current) => ({ ...current, volume_percent: Number(event.target.value) }))} className="mt-3 w-full accent-[#2E5E58]" /></label>
-            <div className="mt-6 grid gap-4 md:grid-cols-3">{[
+            <label className="mt-5 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950"><input type="checkbox" checked={Boolean(soundForm.incoming_order_enabled)} onChange={(event) => setSoundForm((current) => ({ ...current, incoming_order_enabled: event.target.checked }))} className="mt-0.5 h-4 w-4 accent-[#2E5E58]" /><span><span className="font-bold">Beep when an incoming order prints</span><span className="mt-1 block text-xs leading-5 text-amber-800">The beep and printer job start together when the device claims a new order.</span></span></label>
+            <div className="mt-6 grid gap-4 md:grid-cols-2">{[
+              ['Incoming order', 'incoming_order_beeps', 'incoming_order_style'],
               ['Clock in', 'clock_in_beeps', 'clock_in_style'],
               ['Clock out', 'clock_out_beeps', 'clock_out_style'],
               ['Side work due', 'side_work_beeps', 'side_work_style']
             ].map(([label, countKey, styleKey]) => <div key={countKey} className="rounded-xl border border-slate-200 bg-slate-50 p-4"><p className="text-sm font-bold text-slate-800">{label}</p><label className="mt-3 block text-xs font-semibold uppercase tracking-wide text-slate-500">Sound style<select value={soundForm[styleKey]} onChange={(event) => setSoundForm((current) => ({ ...current, [styleKey]: event.target.value }))} className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm normal-case tracking-normal text-slate-800">{Object.entries(soundStyleLabels).map(([value, optionLabel]) => <option key={value} value={value}>{optionLabel}</option>)}</select></label><label className="mt-3 block text-xs font-semibold uppercase tracking-wide text-slate-500">Repeat<select value={soundForm[countKey]} onChange={(event) => setSoundForm((current) => ({ ...current, [countKey]: Number(event.target.value) }))} className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm normal-case tracking-normal text-slate-800">{[1, 2, 3, 4, 5].map((count) => <option key={count} value={count}>{count} time{count === 1 ? '' : 's'}</option>)}</select></label><button type="button" onClick={() => previewBeeps(soundForm[countKey], soundForm.volume_percent, soundForm[styleKey])} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[#5C867F] px-3 py-2 text-sm font-bold text-[#2E5E58] hover:bg-white"><Volume2 size={15} /> Preview</button></div>)}</div>
-            <p className="mt-4 text-xs leading-5 text-slate-500">Each event must use a different count so staff can identify it without looking at the screen. Setting volume to 0% mutes these three patterns.</p>
+            <p className="mt-4 text-xs leading-5 text-slate-500">Each event must use a different count so staff can identify it without looking at the screen. Setting volume to 0% mutes all patterns, including incoming-order alerts.</p>
             <button type="submit" disabled={savingSound || !selectedSoundStoreId} className="mt-6 inline-flex items-center justify-center gap-2 rounded-xl bg-[#1F3A34] px-5 py-2.5 text-sm font-bold text-white disabled:opacity-50"><Save size={16} />{savingSound ? 'Saving...' : 'Save beep patterns'}</button>
           </form>
         </section>}

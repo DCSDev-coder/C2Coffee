@@ -4,12 +4,14 @@ import { adminRequest, getAdminApiBaseUrl, uploadAdminVoucherImage } from '../li
 import {
   Search, ChevronDown, Download, Plus,
   Edit3, MoreVertical, X, Copy,
-  Trash2, ArrowLeft, Percent, Gift,
+  Trash2, Percent, Gift,
   Tag
 } from "lucide-react";
 import Pagination from './Pagination';
 import VouchersAnalytics from "./VouchersAnalytics";
 import { exportToCSV } from '../utils/exportToCSV';
+import { requestAdminConfirm, requestAdminPrompt } from '../lib/adminDialog';
+import { showAdminError } from '../lib/adminToast';
 
 // Stat Card Component (Matched to Customers & Orders KPICard) 
 const StatCard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-white" }) => (
@@ -95,9 +97,11 @@ const createEmptyVoucherForm = () => ({
   discountValue: "",
   productKinds: [],
   subcategoryCodes: [],
+  categoryCodes: [],
   eligibleItems: [],
   rewardProductKinds: [],
   rewardSubcategoryCodes: [],
+  rewardCategoryCodes: [],
   rewardItems: [],
   qualifyingQuantity: 1,
   rewardQuantity: 1,
@@ -107,6 +111,7 @@ const createEmptyVoucherForm = () => ({
   imageUrl: null,
   audience: "all_customers",
   availabilityMode: "always",
+  expiry: "",
   activeDays: [],
   startTime: "",
   endTime: "",
@@ -122,6 +127,7 @@ const normalizeVoucherForm = (voucher) => ({
   promotionKind: voucher?.promotionKind || "standard",
   productKinds: Array.isArray(voucher?.productKinds) ? voucher.productKinds : [],
   subcategoryCodes: Array.isArray(voucher?.subcategoryCodes) ? voucher.subcategoryCodes : [],
+  categoryCodes: Array.isArray(voucher?.categoryCodes) ? voucher.categoryCodes : [],
   eligibleItems: Array.isArray(voucher?.eligibleItems) ? voucher.eligibleItems : [],
   rewardProductKinds: Array.isArray(voucher?.rewardProductKinds)
     ? voucher.rewardProductKinds
@@ -132,6 +138,11 @@ const normalizeVoucherForm = (voucher) => ({
     ? voucher.rewardSubcategoryCodes
     : Array.isArray(voucher?.subcategoryCodes)
       ? voucher.subcategoryCodes
+      : [],
+  rewardCategoryCodes: Array.isArray(voucher?.rewardCategoryCodes)
+    ? voucher.rewardCategoryCodes
+    : Array.isArray(voucher?.categoryCodes)
+      ? voucher.categoryCodes
       : [],
   rewardItems: Array.isArray(voucher?.rewardItems)
     ? voucher.rewardItems
@@ -146,7 +157,8 @@ const normalizeVoucherForm = (voucher) => ({
   annualDate: voucher?.annualDate ? `2026-${voucher.annualDate}` : "",
   monthlyDay: voucher?.monthlyDay || "",
   audience: voucher?.audience || "all_customers",
-  availabilityMode: voucher?.availabilityMode || "always"
+  availabilityMode: voucher?.availabilityMode || "always",
+  expiry: voucher?.expiry || ""
 });
 
 const audienceLabel = (value) =>
@@ -180,7 +192,7 @@ const VoucherArtworkField = ({ imageUrl, onChange }) => {
       const response = await uploadAdminVoucherImage(file);
       onChange(response.image_url || null);
     } catch (error) {
-      alert(`Unable to upload voucher artwork: ${error.message}`);
+      showAdminError(`Unable to upload voucher artwork: ${error.message}`);
     } finally {
       setIsUploading(false);
       event.target.value = '';
@@ -251,7 +263,15 @@ const VoucherFormSection = ({ number, title, description }) => (
 );
 
 const deriveMenuTaxonomy = (response) => {
-  const categories = (response?.categories || []).filter((category) => category.is_active);
+  const categories = (response?.categories || [])
+    .filter((category) => category.is_active)
+    .map((category) => ({
+      ...category,
+      items: (category.items || []).filter(
+        (item) => item.is_active !== false && item.is_available !== false
+      )
+    }))
+    .filter((category) => category.items.length > 0);
   const subcategories = response?.subcategories || [];
   const items = [];
   const productKinds = [];
@@ -267,6 +287,9 @@ const deriveMenuTaxonomy = (response) => {
       });
     }
 
+    // The admin menu endpoint includes archived items so the Menu page can
+    // display history and support restoration. Voucher eligibility must only
+    // use currently active items; otherwise archived items can reappear here.
     (category.items || []).forEach((item) => {
       items.push({
         id: item.id,
@@ -282,7 +305,7 @@ const deriveMenuTaxonomy = (response) => {
         acc[groupLabel] = [];
       }
       acc[groupLabel].push(item.name);
-    });
+      });
     return acc;
   }, {});
 
@@ -291,6 +314,11 @@ const deriveMenuTaxonomy = (response) => {
   });
 
   return {
+    categories: categories.map((category) => ({
+      code: category.code,
+      name: category.name,
+      itemCount: category.items.length
+    })),
     groupedItems,
     subcategories: subcategories.filter((subcategory) => subcategory.is_active),
     productKinds: productKinds.length > 0 ? productKinds : DEFAULT_PRODUCT_KIND_OPTIONS,
@@ -298,46 +326,27 @@ const deriveMenuTaxonomy = (response) => {
   };
 };
 
-const buildScopedGroupedItems = (menuTaxonomy, selectedProductKinds = [], selectedSubcategoryCodes = []) => {
-  const productKinds = Array.isArray(selectedProductKinds) ? selectedProductKinds.filter(Boolean) : [];
-  const subcategoryCodes = Array.isArray(selectedSubcategoryCodes) ? selectedSubcategoryCodes.filter(Boolean) : [];
-  const hasProductKindFilter = productKinds.length > 0;
-  const hasSubcategoryFilter = subcategoryCodes.length > 0;
-  const scopedItems = (menuTaxonomy.items || []).filter((item) => {
-    const matchesProductKind = !hasProductKindFilter || productKinds.includes(item.productKindCode);
-    const matchesSubcategory = !hasSubcategoryFilter || (item.subcategoryCode && subcategoryCodes.includes(item.subcategoryCode));
-    return matchesProductKind && matchesSubcategory;
-  });
+const buildCategoryGroupedItems = (menuTaxonomy, selectedCategoryCodes = []) => {
+  const categoryCodes = new Set(normalizeSelection(selectedCategoryCodes));
+  if (categoryCodes.size === 0) return {};
 
-  const groupedItems = scopedItems.reduce((acc, item) => {
-    const groupLabel = item.categoryLabel || 'Items';
-    if (!acc[groupLabel]) {
-      acc[groupLabel] = [];
-    }
-    acc[groupLabel].push(item.name);
-    return acc;
+  return (menuTaxonomy.items || []).reduce((groups, item) => {
+    if (!categoryCodes.has(item.categoryCode)) return groups;
+    const category = (menuTaxonomy.categories || []).find((entry) => entry.code === item.categoryCode);
+    const label = category?.name || item.categoryLabel || 'Items';
+    if (!groups[label]) groups[label] = [];
+    groups[label].push(item.name);
+    return groups;
   }, {});
-
-  Object.keys(groupedItems).forEach((key) => {
-    groupedItems[key] = Array.from(new Set(groupedItems[key])).sort((a, b) => a.localeCompare(b));
-  });
-
-  return groupedItems;
 };
 
 const toggleListValue = (list = [], value) =>
   list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
 
-const isAllValuesSelected = (selected = [], options = []) => {
-  if (!Array.isArray(options) || options.length === 0) return false;
-  const selectedSet = new Set((selected || []).filter(Boolean));
-  return options.every((option) => selectedSet.has(option));
-};
-
-const toggleAllValues = (selected = [], options = []) =>
-  isAllValuesSelected(selected, options) ? [] : Array.from(new Set(options.filter(Boolean)));
-
 const formatScopeSelection = (voucher, prefix = "", productKindLabels = {}) => {
+  const categories = Array.isArray(voucher?.[`${prefix}CategoryCodes`])
+    ? voucher[`${prefix}CategoryCodes`]
+    : [];
   const productKinds = Array.isArray(voucher?.[`${prefix}ProductKinds`])
     ? voucher[`${prefix}ProductKinds`]
     : [];
@@ -348,6 +357,10 @@ const formatScopeSelection = (voucher, prefix = "", productKindLabels = {}) => {
     ? voucher[`${prefix}Items`]
     : [];
   const parts = [];
+
+  if (categories.length > 0) {
+    parts.push(...categories);
+  }
 
   if (productKinds.length > 0) {
     parts.push(...productKinds.map((value) => productKindLabels[value] || value));
@@ -383,21 +396,12 @@ const formatVoucherEligibility = (voucher, productKindLabels = {}) => {
   return buyScope;
 };
 
-const ScrollableCheckboxList = ({ groupedItems = {}, selected = [], hasFilters = false, onChange }) => {
+const ScrollableCheckboxList = ({ groupedItems = {}, selected = [], onChange }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const currentSelected = selected || [];
-  const scopeItems = Object.values(groupedItems).flat();
-  const allItemsSelected =
-    currentSelected.includes(ALL_ITEMS_OPTION) ||
-    (scopeItems.length > 0 && scopeItems.every((item) => currentSelected.includes(item)));
 
   const toggleOption = (option) => {
     let newSelected;
-
-    if (option === ALL_ITEMS_OPTION) {
-      onChange(allItemsSelected ? [] : Array.from(new Set(scopeItems)));
-      return;
-    }
 
     if (currentSelected.includes(option)) {
       newSelected = currentSelected.filter((item) => item !== option);
@@ -445,16 +449,8 @@ const ScrollableCheckboxList = ({ groupedItems = {}, selected = [], hasFilters =
       </div>
 
       <div className="max-h-56 overflow-y-auto p-2">
-        <div className="mb-3 border-b border-gray-100 pb-2">
-          <label className="flex items-center px-2 py-1.5 hover:bg-gray-50 rounded cursor-pointer">
-            <input
-              type="checkbox"
-              checked={allItemsSelected}
-              onChange={() => toggleOption(ALL_ITEMS_OPTION)}
-              className="mr-2.5 rounded text-[#2E5E58] focus:ring-[#2E5E58]"
-            />
-            <span className="text-xs font-bold text-gray-700">{ALL_ITEMS_OPTION}</span>
-          </label>
+        <div className="mb-3 border-b border-gray-100 px-2 pb-2 text-[11px] text-gray-500">
+          Leave every item unchecked to include all active items in the selected categories.
         </div>
         {filteredGroups.length > 0 ? (
           filteredGroups.map(({ category, originalItems, items }) => {
@@ -502,155 +498,76 @@ const ScrollableCheckboxList = ({ groupedItems = {}, selected = [], hasFilters =
 const normalizeSelection = (values = []) =>
   Array.from(new Set((Array.isArray(values) ? values : []).filter(Boolean)));
 
-const getScopedSubcategories = (menuTaxonomy, selectedProductKinds = []) => {
-  const productKinds = normalizeSelection(selectedProductKinds);
-  if (productKinds.length === 0) return [];
-
-  return (menuTaxonomy.subcategories || []).filter((subcategory) =>
-    productKinds.includes(subcategory.product_kind_code || '')
-  );
-};
-
-const getScopedItemGroups = (menuTaxonomy, selectedProductKinds = [], selectedSubcategoryCodes = []) => {
-  const productKinds = normalizeSelection(selectedProductKinds);
-  const subcategoryCodes = normalizeSelection(selectedSubcategoryCodes);
-
-  if (productKinds.length === 0 || subcategoryCodes.length === 0) {
-    return {};
-  }
-
-  return buildScopedGroupedItems(menuTaxonomy, productKinds, subcategoryCodes);
-};
-
-const pruneScopeSelections = (
-  menuTaxonomy,
-  selectedProductKinds = [],
-  selectedSubcategoryCodes = [],
-  selectedItems = []
-) => {
-  const scopedSubcategories = getScopedSubcategories(menuTaxonomy, selectedProductKinds);
-  const allowedSubcategoryCodes = new Set(scopedSubcategories.map((subcategory) => subcategory.code));
-  const scopedGroups = getScopedItemGroups(menuTaxonomy, selectedProductKinds, selectedSubcategoryCodes);
-  const allowedItems = new Set(Object.values(scopedGroups).flat());
-
-  return {
-    subcategoryCodes: normalizeSelection(selectedSubcategoryCodes).filter((code) => allowedSubcategoryCodes.has(code)),
-    items: normalizeSelection(selectedItems).filter((item) => allowedItems.has(item))
-  };
-};
 
 const ScopeSelectionSection = ({
-  appliesToLabel,
-  menuTypesLabel,
+  categoriesLabel,
   specificItemsLabel,
   menuTaxonomy,
-  selectedProductKinds,
-  selectedSubcategoryCodes,
+  selectedCategoryCodes,
   selectedItems,
-  onProductKindsChange,
-  onSubcategoryCodesChange,
+  onCategoryCodesChange,
   onItemsChange
 }) => {
-  const productKindOptions = menuTaxonomy.productKinds || [];
-  const selectedKinds = normalizeSelection(selectedProductKinds);
-  const selectedSubcategories = normalizeSelection(selectedSubcategoryCodes);
+  const categories = menuTaxonomy.categories || [];
+  const availableCategoryCodes = categories.map((category) => category.code);
+  const selectedCategories = normalizeSelection(selectedCategoryCodes);
   const selectedScopeItems = normalizeSelection(selectedItems);
-  const availableSubcategories = getScopedSubcategories(menuTaxonomy, selectedKinds);
-  const availableSubcategoryCodes = availableSubcategories.map((subcategory) => subcategory.code);
-  const hasMenuTypeScope = selectedKinds.length > 0;
-  const hasSpecificItemScope = selectedSubcategories.length > 0;
-  const itemGroups = getScopedItemGroups(menuTaxonomy, selectedKinds, selectedSubcategories);
+  const isAllMenuItems = selectedCategories.length === 0 && selectedScopeItems.length === 0;
+  const itemGroups = buildCategoryGroupedItems(menuTaxonomy, selectedCategories);
 
-  const updateProductKinds = (nextProductKinds) => {
-    const pruned = pruneScopeSelections(menuTaxonomy, nextProductKinds, [], selectedScopeItems);
-    onProductKindsChange(nextProductKinds);
-    onSubcategoryCodesChange(pruned.subcategoryCodes);
-    onItemsChange(pruned.items);
-  };
-
-  const updateSubcategoryCodes = (nextSubcategoryCodes) => {
-    const pruned = pruneScopeSelections(menuTaxonomy, selectedKinds, nextSubcategoryCodes, selectedScopeItems);
-    onSubcategoryCodesChange(pruned.subcategoryCodes);
-    onItemsChange(pruned.items);
+  const updateCategoryCodes = (nextCategoryCodes) => {
+    const normalized = normalizeSelection(nextCategoryCodes).filter((code) =>
+      availableCategoryCodes.includes(code)
+    );
+    const allowedItems = new Set(
+      (menuTaxonomy.items || [])
+        .filter((item) => normalized.includes(item.categoryCode))
+        .map((item) => item.name)
+    );
+    onCategoryCodesChange(normalized);
+    onItemsChange(selectedScopeItems.filter((item) => allowedItems.has(item)));
   };
 
   return (
     <div className="grid grid-cols-2 gap-3">
       <div className="col-span-2">
-        <label className="block font-bold text-gray-900 mb-1">{appliesToLabel}</label>
+        <label className="block font-bold text-gray-900 mb-1">{categoriesLabel}</label>
         <div className="grid grid-cols-2 gap-2 rounded-lg border border-gray-200 p-3 mb-3">
           <label className="col-span-2 flex items-center gap-2 text-xs text-gray-700 font-semibold border-b border-gray-100 pb-2 mb-1">
             <input
               type="checkbox"
-              checked={isAllValuesSelected(selectedKinds, productKindOptions.map((option) => option.value))}
-              onChange={() => updateProductKinds(toggleAllValues(selectedKinds, productKindOptions.map((option) => option.value)))}
+              checked={isAllMenuItems}
+              onChange={() => {
+                onCategoryCodesChange([]);
+                onItemsChange([]);
+              }}
               className="rounded text-[#2E5E58] focus:ring-[#2E5E58]"
             />
-            All Items
+            All menu items
           </label>
-          {productKindOptions.map((option) => (
-            <label key={option.value} className="flex items-center gap-2 text-xs text-gray-700">
+          {categories.map((category) => (
+            <label key={category.code} className="flex items-center gap-2 text-xs text-gray-700">
               <input
                 type="checkbox"
-                checked={selectedKinds.includes(option.value)}
-                onChange={() => updateProductKinds(toggleListValue(selectedKinds, option.value))}
+                checked={selectedCategories.includes(category.code)}
+                onChange={() => updateCategoryCodes(toggleListValue(selectedCategories, category.code))}
                 className="rounded text-[#2E5E58] focus:ring-[#2E5E58]"
               />
-              {option.label}
+              <span>{category.name}</span>
+              <span className="text-[10px] text-gray-400">({category.itemCount})</span>
             </label>
           ))}
         </div>
       </div>
 
       <div className="col-span-2">
-        <label className="block font-bold text-gray-900 mb-1">{menuTypesLabel}</label>
-        {!hasMenuTypeScope ? (
-          <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-3 py-3 text-[11px] text-gray-500">
-            Select Applies To to continue.
-          </div>
-        ) : availableSubcategories.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-3 py-3 text-[11px] text-gray-500">
-            No menu types match this selection.
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-2 rounded-lg border border-gray-200 p-3 mb-3 max-h-32 overflow-y-auto">
-            <label className="col-span-2 flex items-center gap-2 text-xs text-gray-700 font-semibold border-b border-gray-100 pb-2 mb-1">
-              <input
-                type="checkbox"
-                checked={isAllValuesSelected(selectedSubcategories, availableSubcategoryCodes)}
-                onChange={() => updateSubcategoryCodes(toggleAllValues(selectedSubcategories, availableSubcategoryCodes))}
-                className="rounded text-[#2E5E58] focus:ring-[#2E5E58]"
-              />
-              All Items
-            </label>
-            {availableSubcategories.map((subcategory) => (
-              <label key={subcategory.id} className="flex items-center gap-2 text-xs text-gray-700">
-                <input
-                  type="checkbox"
-                  checked={selectedSubcategories.includes(subcategory.code)}
-                  onChange={() => updateSubcategoryCodes(toggleListValue(selectedSubcategories, subcategory.code))}
-                  className="rounded text-[#2E5E58] focus:ring-[#2E5E58]"
-                />
-                {subcategory.name}
-              </label>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="col-span-2">
         <label className="block font-bold text-gray-900 mb-1">{specificItemsLabel}</label>
-        {!hasMenuTypeScope ? (
+        {selectedCategories.length === 0 ? (
           <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-3 py-3 text-[11px] text-gray-500">
-            Select Applies To first.
-          </div>
-        ) : !hasSpecificItemScope ? (
-          <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-3 py-3 text-[11px] text-gray-500">
-            Select a menu type to show items.
+            All active menu items are eligible. Select one or more categories to optionally choose specific items.
           </div>
         ) : (
           <ScrollableCheckboxList
-            hasFilters={selectedKinds.length > 0 || selectedSubcategories.length > 0}
             groupedItems={itemGroups}
             selected={selectedScopeItems}
             onChange={onItemsChange}
@@ -663,7 +580,7 @@ const ScopeSelectionSection = ({
 
 const Vouchers = ({ onNavigate }) => {
   const [vouchers, setVouchers] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [voucherIssuances, setVoucherIssuances] = useState([]);
   const [issuancesLoading, setIssuancesLoading] = useState(false);
@@ -880,13 +797,15 @@ const Vouchers = ({ onNavigate }) => {
       discountValue: Number(newVoucher.discountValue) || 0,
       productKinds: newVoucher.productKinds,
       subcategoryCodes: newVoucher.subcategoryCodes,
+      categoryCodes: newVoucher.categoryCodes,
       eligibleItems: newVoucher.eligibleItems.length > 0 ? newVoucher.eligibleItems : [ALL_ITEMS_OPTION],
       rewardProductKinds: newVoucher.rewardProductKinds,
       rewardSubcategoryCodes: newVoucher.rewardSubcategoryCodes,
+      rewardCategoryCodes: newVoucher.rewardCategoryCodes,
       rewardItems: newVoucher.rewardItems.length > 0 ? newVoucher.rewardItems : [],
       qualifyingQuantity: Number(newVoucher.qualifyingQuantity) || 1,
       rewardQuantity: Number(newVoucher.rewardQuantity) || 1,
-      expiry: null,
+      expiry: newVoucher.benefitType === 'Birthday Voucher' ? null : (newVoucher.expiry || null),
       totalQty: newVoucher.totalQty === null || newVoucher.totalQty === "" ? null : Number(newVoucher.totalQty),
       limitPerUser: Number(newVoucher.limitPerUser) || 1,
       description: newVoucher.description || `Redeem ${newVoucher.name}`,
@@ -907,7 +826,7 @@ const Vouchers = ({ onNavigate }) => {
       });
       await refreshVouchers();
     } catch (err) {
-      alert('Error creating voucher: ' + err.message);
+      showAdminError('Error creating voucher: ' + err.message);
     } finally {
       setShowCreateModal(false);
       setNewVoucher(createEmptyVoucherForm());
@@ -928,13 +847,15 @@ const Vouchers = ({ onNavigate }) => {
         discountValue: Number(editingVoucher.discountValue) || 0,
         productKinds: editingVoucher.productKinds || [],
         subcategoryCodes: editingVoucher.subcategoryCodes || [],
+        categoryCodes: editingVoucher.categoryCodes || [],
         eligibleItems: editingVoucher.eligibleItems,
         rewardProductKinds: editingVoucher.rewardProductKinds || [],
         rewardSubcategoryCodes: editingVoucher.rewardSubcategoryCodes || [],
+        rewardCategoryCodes: editingVoucher.rewardCategoryCodes || [],
         rewardItems: editingVoucher.rewardItems || [],
         qualifyingQuantity: Number(editingVoucher.qualifyingQuantity) || 1,
         rewardQuantity: Number(editingVoucher.rewardQuantity) || 1,
-        expiry: null,
+        expiry: editingVoucher.benefitType === 'Birthday Voucher' ? null : (editingVoucher.expiry || null),
         totalQty: editingVoucher.totalQty === null || editingVoucher.totalQty === "" ? null : Number(editingVoucher.totalQty),
         limitPerUser: Number(editingVoucher.limitPerUser) || 1,
         description: editingVoucher.description,
@@ -950,7 +871,8 @@ const Vouchers = ({ onNavigate }) => {
 
       const updatedVoucher = await adminRequest(`/v1/admin/vouchers/${editingVoucher.id}`, {
         method: 'PUT',
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
+        successMessage: 'Voucher changes saved successfully.'
       });
       if ((updatedVoucher.imageUrl || null) !== payload.imageUrl) {
         throw new Error('Voucher artwork was not saved. Please try again.');
@@ -958,7 +880,28 @@ const Vouchers = ({ onNavigate }) => {
       await refreshVouchers(editingVoucher.id);
       setEditingVoucher(null);
     } catch (err) {
-      alert('Error updating voucher: ' + err.message);
+      const originalVoucher = vouchers.find((voucher) => voucher.id === editingVoucher.id);
+      const originalExpiry = originalVoucher?.expiry ? originalVoucher.expiry.slice(0, 10) : '';
+      const requestedExpiry = editingVoucher.benefitType === 'Birthday Voucher'
+        ? ''
+        : (editingVoucher.expiry ? editingVoucher.expiry.slice(0, 10) : '');
+
+      if (err.code === 'voucher_has_issuances' && requestedExpiry !== originalExpiry) {
+        try {
+          await adminRequest(`/v1/admin/vouchers/${editingVoucher.id}/expiry`, {
+            method: 'PATCH',
+            body: JSON.stringify({ expiry: requestedExpiry || null }),
+            successMessage: 'Voucher redeem-until date updated successfully.'
+          });
+          await refreshVouchers(editingVoucher.id);
+          setEditingVoucher(null);
+          return;
+        } catch (expiryError) {
+          showAdminError('Error updating redeem-until date: ' + expiryError.message);
+          return;
+        }
+      }
+      showAdminError('Error updating voucher: ' + err.message);
     }
   };
 
@@ -979,7 +922,14 @@ const Vouchers = ({ onNavigate }) => {
   };
 
   const handleDelete = async (id) => {
-    if (!confirm("Archive this voucher? It will no longer appear as active.")) {
+    const confirmed = await requestAdminConfirm({
+      title: 'Archive voucher?',
+      message: 'This voucher will no longer appear as active, while its redemption history remains protected.',
+      confirmLabel: 'Archive',
+      cancelLabel: 'Back',
+      tone: 'danger',
+    });
+    if (!confirmed) {
       return;
     }
 
@@ -989,7 +939,7 @@ const Vouchers = ({ onNavigate }) => {
       if (selectedVoucher?.id === id) setSelectedVoucher(null);
       await refreshVouchers();
     } catch (err) {
-      alert('Error deleting voucher: ' + err.message);
+      showAdminError('Error deleting voucher: ' + err.message);
     }
   };
 
@@ -1006,13 +956,15 @@ const Vouchers = ({ onNavigate }) => {
         discountValue: Number(voucher.discountValue) || 0,
         productKinds: voucher.productKinds || [],
         subcategoryCodes: voucher.subcategoryCodes || [],
+        categoryCodes: voucher.categoryCodes || [],
         eligibleItems: voucher.eligibleItems,
         rewardProductKinds: voucher.rewardProductKinds || voucher.productKinds || [],
         rewardSubcategoryCodes: voucher.rewardSubcategoryCodes || voucher.subcategoryCodes || [],
+        rewardCategoryCodes: voucher.rewardCategoryCodes || voucher.categoryCodes || [],
         rewardItems: voucher.rewardItems || [],
         qualifyingQuantity: Number(voucher.qualifyingQuantity) || 1,
         rewardQuantity: Number(voucher.rewardQuantity) || 1,
-        expiry: null,
+        expiry: voucher.benefitType === 'Birthday Voucher' ? null : (voucher.expiry || null),
         totalQty: Number(voucher.totalQty) || 1000,
         limitPerUser: Number(voucher.limitPerUser) || 1,
         description: voucher.description,
@@ -1030,7 +982,7 @@ const Vouchers = ({ onNavigate }) => {
       });
       await refreshVouchers();
     } catch (err) {
-      alert('Error duplicating voucher: ' + err.message);
+      showAdminError('Error duplicating voucher: ' + err.message);
     }
   };
 
@@ -1050,7 +1002,7 @@ const Vouchers = ({ onNavigate }) => {
   const handleIssueVoucher = async (e) => {
     e.preventDefault();
     if (!issuingVoucher || (!selectedCustomer && !issuePhone.trim())) {
-      alert('Select a customer or enter a phone number before issuing the voucher.');
+      showAdminError('Select a customer or enter a phone number before issuing the voucher.');
       return;
     }
 
@@ -1071,14 +1023,14 @@ const Vouchers = ({ onNavigate }) => {
       setShowIssueModal(false);
       setIssuingVoucher(null);
     } catch (err) {
-      alert('Error issuing voucher: ' + err.message);
+      showAdminError('Error issuing voucher: ' + err.message);
     } finally {
       setIssueInProgress(false);
     }
   };
 
   const handleRevokeIssuedVoucher = async (issuedVoucherId) => {
-    const reason = window.prompt('Reason for revoking this issued voucher?', 'Admin revoked voucher');
+    const reason = await requestAdminPrompt({ title: 'Revoke issued voucher', message: 'Explain why this customer voucher is being revoked. The reason is retained in the audit history.', inputLabel: 'Reason', defaultValue: 'Admin revoked voucher', multiline: true, confirmLabel: 'Revoke', tone: 'danger' });
     if (!reason) {
       return;
     }
@@ -1091,7 +1043,7 @@ const Vouchers = ({ onNavigate }) => {
       await refreshVouchers(selectedVoucher?.id);
       await loadVoucherIssuances(selectedVoucher?.id);
     } catch (err) {
-      alert('Error revoking issued voucher: ' + err.message);
+      showAdminError('Error revoking issued voucher: ' + err.message);
     }
   };
 
@@ -1917,6 +1869,7 @@ const Vouchers = ({ onNavigate }) => {
                           rewardQuantity: e.target.value === 'bundle' ? Math.max(Number(newVoucher.rewardQuantity) || 1, 1) : 1,
                           rewardProductKinds: e.target.value === 'bundle' ? newVoucher.rewardProductKinds : [],
                           rewardSubcategoryCodes: e.target.value === 'bundle' ? newVoucher.rewardSubcategoryCodes : [],
+                          rewardCategoryCodes: e.target.value === 'bundle' ? newVoucher.rewardCategoryCodes : [],
                           rewardItems: e.target.value === 'bundle' ? newVoucher.rewardItems : []
                         })}
                         className="peer w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
@@ -1987,18 +1940,18 @@ const Vouchers = ({ onNavigate }) => {
                     description="Choose what this reward can be used on. Leave it as All Items for the simplest setup."
                   />
                   <ScopeSelectionSection
-                    appliesToLabel="Eligible menu items"
-                    menuTypesLabel="Choose menu types"
-                    specificItemsLabel="Choose specific items"
+                    categoriesLabel="Menu categories"
+                    specificItemsLabel="Specific items (optional)"
                     menuTaxonomy={menuTaxonomy}
-                    selectedProductKinds={newVoucher.productKinds || []}
-                    selectedSubcategoryCodes={newVoucher.subcategoryCodes || []}
+                    selectedCategoryCodes={newVoucher.categoryCodes || []}
                     selectedItems={newVoucher.eligibleItems || []}
-                    onProductKindsChange={(productKinds) =>
-                      setNewVoucher((current) => ({ ...current, productKinds }))
-                    }
-                    onSubcategoryCodesChange={(subcategoryCodes) =>
-                      setNewVoucher((current) => ({ ...current, subcategoryCodes }))
+                    onCategoryCodesChange={(categoryCodes) =>
+                      setNewVoucher((current) => ({
+                        ...current,
+                        categoryCodes,
+                        productKinds: [],
+                        subcategoryCodes: []
+                      }))
                     }
                     onItemsChange={(eligibleItems) =>
                       setNewVoucher((current) => ({ ...current, eligibleItems }))
@@ -2016,7 +1969,14 @@ const Vouchers = ({ onNavigate }) => {
                       <select
                         value={newVoucher.availabilityMode}
                         disabled={newVoucher.benefitType === 'Birthday Voucher'}
-                        onChange={(e) => setNewVoucher({ ...newVoucher, availabilityMode: e.target.value, activeDays: [], annualDate: "", monthlyDay: "" })}
+                        onChange={(e) => setNewVoucher({
+                          ...newVoucher,
+                          availabilityMode: e.target.value,
+                          activeDays: [],
+                          annualDate: "",
+                          monthlyDay: "",
+                          ...(e.target.value === 'always' ? { startTime: '', endTime: '' } : {})
+                        })}
                         className="peer w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
                       >
                         {AVAILABILITY_MODE_OPTIONS.map((option) => (
@@ -2024,25 +1984,46 @@ const Vouchers = ({ onNavigate }) => {
                         ))}
                       </select>
                     </div>
-                    <div>
-                      <label className="block font-bold text-gray-900 mb-1">Start Time <span className="font-normal text-gray-400">(optional)</span></label>
-                      <input
-                        type="time"
-                        value={newVoucher.startTime}
-                        onChange={(e) => setNewVoucher({ ...newVoucher, startTime: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
-                      />
-                    </div>
-                    {newVoucher.availabilityMode !== "always" && (
-                      <div>
-                        <label className="block font-bold text-gray-900 mb-1">End Time <span className="font-normal text-gray-400">(optional)</span></label>
+                    {newVoucher.benefitType !== 'Birthday Voucher' && (
+                      <div className="col-span-2">
+                        <label className="block font-bold text-gray-900 mb-1">
+                          {newVoucher.availabilityMode === 'always' ? 'Redeem until' : 'Campaign end date'} <span className="font-normal text-gray-400">(optional)</span>
+                        </label>
                         <input
-                          type="time"
-                          value={newVoucher.endTime}
-                          onChange={(e) => setNewVoucher({ ...newVoucher, endTime: e.target.value })}
+                          type="date"
+                          min={new Date().toISOString().slice(0, 10)}
+                          value={newVoucher.expiry ? newVoucher.expiry.slice(0, 10) : ''}
+                          onChange={(e) => setNewVoucher({ ...newVoucher, expiry: e.target.value })}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
                         />
+                        <p className="mt-1 text-xs text-gray-500">
+                          {newVoucher.availabilityMode === 'always'
+                            ? 'The voucher can be redeemed until the end of this date.'
+                            : 'Stops new recurring vouchers after this date. Each issued voucher closes at the end of its daily time window.'}
+                        </p>
                       </div>
+                    )}
+                    {newVoucher.availabilityMode !== "always" && (
+                      <>
+                        <div>
+                          <label className="block font-bold text-gray-900 mb-1">Start Time <span className="font-normal text-gray-400">(optional)</span></label>
+                          <input
+                            type="time"
+                            value={newVoucher.startTime}
+                            onChange={(e) => setNewVoucher({ ...newVoucher, startTime: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-bold text-gray-900 mb-1">End Time <span className="font-normal text-gray-400">(optional)</span></label>
+                          <input
+                            type="time"
+                            value={newVoucher.endTime}
+                            onChange={(e) => setNewVoucher({ ...newVoucher, endTime: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
+                          />
+                        </div>
+                      </>
                     )}
                     {newVoucher.availabilityMode === "annual" && (
                       <div>
@@ -2072,7 +2053,7 @@ const Vouchers = ({ onNavigate }) => {
                   {(newVoucher.availabilityMode === "annual" || newVoucher.availabilityMode === "birthday" || newVoucher.availabilityMode === "monthly") && (
                     <p className="-mt-1 text-xs leading-5 text-gray-500">
                       {newVoucher.availabilityMode === "birthday"
-                        ? 'The system uses each customer\'s saved birthday. No admin date is required.'
+                        ? 'Available only during the customer\'s birthday month. The customer\'s saved birthday determines eligibility.'
                         : 'A new reward is issued once per customer during each matching repeat period. Times are optional.'}
                     </p>
                   )}
@@ -2104,7 +2085,9 @@ const Vouchers = ({ onNavigate }) => {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <div className="flex justify-between items-center mb-1">
-                        <label className="block font-bold text-gray-900">Total vouchers available</label>
+                        <label className="block font-bold text-gray-900">
+                          {newVoucher.availabilityMode === 'always' ? 'Total vouchers available' : 'Total vouchers per occurrence'}
+                        </label>
                         <label className="flex items-center text-[10px] text-gray-500 cursor-pointer">
                           <input
                             type="checkbox"
@@ -2127,10 +2110,12 @@ const Vouchers = ({ onNavigate }) => {
                     </div>
 
                     <div>
-                      <label className="block font-bold text-gray-900 mb-1">{limitPerUserLabel}</label>
+                      <label className="block font-bold text-gray-900 mb-1">
+                        {newVoucher.availabilityMode === 'always' ? limitPerUserLabel : 'Max uses per customer per occurrence'}
+                      </label>
                       <p className="text-[10px] text-gray-500 mb-1">
-                        {newVoucher.availabilityMode === 'daily'
-                          ? 'Each eligible customer can receive this many vouchers per day.'
+                        {newVoucher.availabilityMode !== 'always'
+                          ? 'The allocation and customer limit reset for each matching day, month, year, or birthday period.'
                           : 'The same customer can use this voucher only this many times.'}
                       </p>
                       <input
@@ -2310,6 +2295,7 @@ const Vouchers = ({ onNavigate }) => {
                           rewardQuantity: e.target.value === 'bundle' ? Math.max(Number(editingVoucher.rewardQuantity) || 1, 1) : 1,
                           rewardProductKinds: e.target.value === 'bundle' ? editingVoucher.rewardProductKinds : [],
                           rewardSubcategoryCodes: e.target.value === 'bundle' ? editingVoucher.rewardSubcategoryCodes : [],
+                          rewardCategoryCodes: e.target.value === 'bundle' ? editingVoucher.rewardCategoryCodes : [],
                           rewardItems: e.target.value === 'bundle' ? editingVoucher.rewardItems : []
                         })}
                         className="peer w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
@@ -2380,18 +2366,18 @@ const Vouchers = ({ onNavigate }) => {
                     description="Choose what this reward can be used on. Leave it as All Items for the simplest setup."
                   />
                   <ScopeSelectionSection
-                    appliesToLabel="Eligible menu items"
-                    menuTypesLabel="Choose menu types"
-                    specificItemsLabel="Choose specific items"
+                    categoriesLabel="Menu categories"
+                    specificItemsLabel="Specific items (optional)"
                     menuTaxonomy={menuTaxonomy}
-                    selectedProductKinds={editingVoucher.productKinds || []}
-                    selectedSubcategoryCodes={editingVoucher.subcategoryCodes || []}
+                    selectedCategoryCodes={editingVoucher.categoryCodes || []}
                     selectedItems={editingVoucher.eligibleItems || []}
-                    onProductKindsChange={(productKinds) =>
-                      setEditingVoucher((current) => ({ ...current, productKinds }))
-                    }
-                    onSubcategoryCodesChange={(subcategoryCodes) =>
-                      setEditingVoucher((current) => ({ ...current, subcategoryCodes }))
+                    onCategoryCodesChange={(categoryCodes) =>
+                      setEditingVoucher((current) => ({
+                        ...current,
+                        categoryCodes,
+                        productKinds: [],
+                        subcategoryCodes: []
+                      }))
                     }
                     onItemsChange={(eligibleItems) =>
                       setEditingVoucher((current) => ({ ...current, eligibleItems }))
@@ -2400,18 +2386,18 @@ const Vouchers = ({ onNavigate }) => {
 
                   {editingVoucher.promotionKind === 'bundle' && (
                     <ScopeSelectionSection
-                      appliesToLabel="Get Applies To"
-                      menuTypesLabel="Get Menu Types"
-                      specificItemsLabel="Get Specific Items"
+                      categoriesLabel="Reward menu categories"
+                      specificItemsLabel="Reward specific items (optional)"
                       menuTaxonomy={menuTaxonomy}
-                      selectedProductKinds={editingVoucher.rewardProductKinds || []}
-                      selectedSubcategoryCodes={editingVoucher.rewardSubcategoryCodes || []}
+                      selectedCategoryCodes={editingVoucher.rewardCategoryCodes || []}
                       selectedItems={editingVoucher.rewardItems || []}
-                      onProductKindsChange={(rewardProductKinds) =>
-                        setEditingVoucher((current) => ({ ...current, rewardProductKinds }))
-                      }
-                      onSubcategoryCodesChange={(rewardSubcategoryCodes) =>
-                        setEditingVoucher((current) => ({ ...current, rewardSubcategoryCodes }))
+                      onCategoryCodesChange={(rewardCategoryCodes) =>
+                        setEditingVoucher((current) => ({
+                          ...current,
+                          rewardCategoryCodes,
+                          rewardProductKinds: [],
+                          rewardSubcategoryCodes: []
+                        }))
                       }
                       onItemsChange={(rewardItems) =>
                         setEditingVoucher((current) => ({ ...current, rewardItems }))
@@ -2430,7 +2416,14 @@ const Vouchers = ({ onNavigate }) => {
                       <select
                         value={editingVoucher.availabilityMode}
                         disabled={editingVoucher.benefitType === 'Birthday Voucher'}
-                        onChange={(e) => setEditingVoucher({ ...editingVoucher, availabilityMode: e.target.value, activeDays: [], annualDate: "", monthlyDay: "" })}
+                        onChange={(e) => setEditingVoucher({
+                          ...editingVoucher,
+                          availabilityMode: e.target.value,
+                          activeDays: [],
+                          annualDate: "",
+                          monthlyDay: "",
+                          ...(e.target.value === 'always' ? { startTime: '', endTime: '' } : {})
+                        })}
                         className="peer w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
                       >
                         {AVAILABILITY_MODE_OPTIONS.map((option) => (
@@ -2438,25 +2431,46 @@ const Vouchers = ({ onNavigate }) => {
                         ))}
                       </select>
                     </div>
-                    <div>
-                      <label className="block font-bold text-gray-900 mb-1">Start Time <span className="font-normal text-gray-400">(optional)</span></label>
-                      <input
-                        type="time"
-                        value={editingVoucher.startTime || ""}
-                        onChange={(e) => setEditingVoucher({ ...editingVoucher, startTime: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
-                      />
-                    </div>
-                    {editingVoucher.availabilityMode !== "always" && (
-                      <div>
-                        <label className="block font-bold text-gray-900 mb-1">End Time <span className="font-normal text-gray-400">(optional)</span></label>
+                    {editingVoucher.benefitType !== 'Birthday Voucher' && (
+                      <div className="col-span-2">
+                        <label className="block font-bold text-gray-900 mb-1">
+                          {editingVoucher.availabilityMode === 'always' ? 'Redeem until' : 'Campaign end date'} <span className="font-normal text-gray-400">(optional)</span>
+                        </label>
                         <input
-                          type="time"
-                          value={editingVoucher.endTime || ""}
-                          onChange={(e) => setEditingVoucher({ ...editingVoucher, endTime: e.target.value })}
+                          type="date"
+                          min={new Date().toISOString().slice(0, 10)}
+                          value={editingVoucher.expiry ? editingVoucher.expiry.slice(0, 10) : ''}
+                          onChange={(e) => setEditingVoucher({ ...editingVoucher, expiry: e.target.value })}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
                         />
+                        <p className="mt-1 text-xs text-gray-500">
+                          {editingVoucher.availabilityMode === 'always'
+                            ? 'The voucher can be redeemed until the end of this date.'
+                            : 'Stops new recurring vouchers after this date. Each issued voucher closes at the end of its daily time window.'}
+                        </p>
                       </div>
+                    )}
+                    {editingVoucher.availabilityMode !== "always" && (
+                      <>
+                        <div>
+                          <label className="block font-bold text-gray-900 mb-1">Start Time <span className="font-normal text-gray-400">(optional)</span></label>
+                          <input
+                            type="time"
+                            value={editingVoucher.startTime || ""}
+                            onChange={(e) => setEditingVoucher({ ...editingVoucher, startTime: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-bold text-gray-900 mb-1">End Time <span className="font-normal text-gray-400">(optional)</span></label>
+                          <input
+                            type="time"
+                            value={editingVoucher.endTime || ""}
+                            onChange={(e) => setEditingVoucher({ ...editingVoucher, endTime: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
+                          />
+                        </div>
+                      </>
                     )}
                     {editingVoucher.availabilityMode === "annual" && (
                       <div>
@@ -2486,7 +2500,7 @@ const Vouchers = ({ onNavigate }) => {
                   {(editingVoucher.availabilityMode === "annual" || editingVoucher.availabilityMode === "birthday" || editingVoucher.availabilityMode === "monthly") && (
                     <p className="-mt-1 text-xs leading-5 text-gray-500">
                       {editingVoucher.availabilityMode === "birthday"
-                        ? 'The system uses each customer\'s saved birthday. No admin date is required.'
+                        ? 'Available only during the customer\'s birthday month. The customer\'s saved birthday determines eligibility.'
                         : 'A new reward is issued once per customer during each matching repeat period. Times are optional.'}
                     </p>
                   )}
@@ -2518,7 +2532,9 @@ const Vouchers = ({ onNavigate }) => {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <div className="flex justify-between items-center mb-1">
-                        <label className="block font-bold text-gray-900">Total vouchers available</label>
+                        <label className="block font-bold text-gray-900">
+                          {editingVoucher.availabilityMode === 'always' ? 'Total vouchers available' : 'Total vouchers per occurrence'}
+                        </label>
                         <label className="flex items-center text-[10px] text-gray-500 cursor-pointer">
                           <input
                             type="checkbox"
@@ -2541,10 +2557,12 @@ const Vouchers = ({ onNavigate }) => {
                     </div>
 
                     <div>
-                      <label className="block font-bold text-gray-900 mb-1">{limitPerUserLabel}</label>
+                      <label className="block font-bold text-gray-900 mb-1">
+                        {editingVoucher.availabilityMode === 'always' ? limitPerUserLabel : 'Max uses per customer per occurrence'}
+                      </label>
                       <p className="text-[10px] text-gray-500 mb-1">
-                        {editingVoucher.availabilityMode === 'daily'
-                          ? 'Each eligible customer can receive this many vouchers per day.'
+                        {editingVoucher.availabilityMode !== 'always'
+                          ? 'The allocation and customer limit reset for each matching day, month, year, or birthday period.'
                           : 'The same customer can use this voucher only this many times.'}
                       </p>
                       <input

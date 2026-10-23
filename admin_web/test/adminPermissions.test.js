@@ -20,3 +20,10 @@ test('counter device management is restricted to operations and super admins', (
   assert.equal(canAccessAdminPage(['marketing_admin'], 'Counter Devices'), false);
   assert.equal(canAccessAdminPage(['barista'], 'Counter Devices'), false);
 });
+
+test('data retention cleanup is restricted to super admins', () => {
+  assert.equal(canAccessAdminPage(['super_admin'], 'Data Retention'), true);
+  assert.equal(canAccessAdminPage(['operations_admin'], 'Data Retention'), false);
+  assert.equal(canAccessAdminPage(['marketing_admin'], 'Data Retention'), false);
+  assert.equal(canAccessAdminPage(['support_admin'], 'Data Retention'), false);
+});

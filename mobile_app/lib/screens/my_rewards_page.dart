@@ -7,7 +7,6 @@ import '../services/customer_data_service.dart';
 import '../services/catalog_api_service.dart';
 import '../services/secure_session_service.dart';
 import '../utils/app_colors.dart';
-import '../utils/app_notification.dart';
 import '../widgets/order_status_banner.dart';
 import 'loading_order_page.dart';
 import '../widgets/app_page_shell.dart';
@@ -26,7 +25,6 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
   String? _rewardsError;
   List<RewardVoucher> _vouchers = const [];
   List<TierRewardEntitlement> _claimableTierRewards = const [];
-  final Set<int> _claimingTierRewardIds = <int>{};
   final Set<int> _expandedVoucherIds = <int>{};
 
   @override
@@ -93,45 +91,6 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
         _rewardsError = 'Unable to load rewards right now.';
         _isRewardsLoading = false;
       });
-    }
-  }
-
-  Future<void> _claimTierReward(TierRewardEntitlement reward) async {
-    if (_claimingTierRewardIds.contains(reward.id)) return;
-    setState(() => _claimingTierRewardIds.add(reward.id));
-
-    try {
-      final accessToken =
-          await SecureSessionService.instance.getValidAccessToken();
-      if (accessToken == null || accessToken.isEmpty) {
-        throw ApiException(
-          'Missing access token.',
-          code: 'missing_access_token',
-        );
-      }
-      await CustomerDataService.instance.claimTierReward(
-        accessToken: accessToken,
-        entitlementId: reward.id,
-      );
-      if (!mounted) return;
-      AppNotification.showSuccess(
-        context,
-        '${reward.template.displayLabel} is ready to use at checkout.',
-      );
-      await _loadRewards(forceSessionReload: true);
-    } on ApiException catch (error) {
-      if (!mounted) return;
-      AppNotification.showError(context, _friendlyMessage(error));
-    } catch (_) {
-      if (!mounted) return;
-      AppNotification.showError(
-        context,
-        'Unable to claim this tier reward right now.',
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _claimingTierRewardIds.remove(reward.id));
-      }
     }
   }
 
@@ -272,7 +231,7 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Claim tier rewards here, then use active vouchers at checkout.',
+                      'Tier rewards appear here automatically and can be claimed during checkout.',
                       style: TextStyle(
                         fontFamily: 'Afacad',
                         fontSize: 16,
@@ -421,7 +380,7 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Tier rewards to claim',
+          'Available tier rewards',
           style: TextStyle(
             fontFamily: 'Recoleta',
             fontSize: 20,
@@ -431,7 +390,7 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
         ),
         const SizedBox(height: 6),
         const Text(
-          'Claim an unlocked reward before it becomes available at checkout.',
+          'These rewards follow your current cup-progress tier. Claim one when you are ready to use it at checkout.',
           style: TextStyle(
             fontFamily: 'Afacad',
             fontSize: 15,
@@ -449,7 +408,6 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
   }
 
   Widget _buildClaimableTierRewardCard(TierRewardEntitlement reward) {
-    final isClaiming = _claimingTierRewardIds.contains(reward.id);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
@@ -495,34 +453,20 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
               color: Colors.black54,
             ),
           ),
-          const SizedBox(height: 14),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: isClaiming ? null : () => _claimTierReward(reward),
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.deepTeal,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: const StadiumBorder(),
-              ),
-              icon: isClaiming
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Icon(Icons.card_giftcard_outlined),
-              label: Text(
-                isClaiming ? 'Claiming...' : 'Claim reward',
-                style: const TextStyle(
-                  fontFamily: 'Afacad',
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            decoration: BoxDecoration(
+              color: AppColors.deepTeal.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              'Available to claim at checkout',
+              style: TextStyle(
+                fontFamily: 'Afacad',
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: AppColors.deepTeal,
               ),
             ),
           ),
@@ -572,7 +516,11 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
     RewardVoucher voucher, {
     required Color accentColor,
   }) {
-    final expiryLabel = DateFormat('dd MMM yyyy').format(voucher.expiresAt);
+    final expiryLabel = voucher.validityLabel.trim().isNotEmpty
+        ? voucher.validityLabel
+        : voucher.hasFixedExpiry
+            ? 'Redeem by ${DateFormat('dd MMM yyyy').format(voucher.expiresAt.toUtc().add(const Duration(hours: 8)))}'
+            : 'Valid while your current tier remains active';
     final isActive = voucher.isActive;
     final statusColor = isActive ? AppColors.deepTeal : Colors.grey.shade600;
     final cardAccentColor = isActive ? accentColor : Colors.grey.shade400;
@@ -683,7 +631,7 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
                     ),
                     const SizedBox(height: 10),
                     Text(
-                      'Redeem by $expiryLabel',
+                      expiryLabel,
                       style: const TextStyle(
                         fontFamily: 'Afacad',
                         fontSize: 15,

@@ -470,7 +470,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
             Icon(Icons.info_outline, color: brandColor),
             const SizedBox(width: 8),
             Text(
-              'Token Information',
+              'Wallet Information',
               style: TextStyle(
                 fontFamily: 'Recoleta',
                 color: brandColor,
@@ -492,7 +492,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text(
-              'GOT IT',
+              'Back',
               style: TextStyle(
                 fontFamily: 'Afacad',
                 fontWeight: FontWeight.bold,
@@ -512,7 +512,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
     return PopScope(
       canPop: true,
       child: AppPageShell(
-        title: 'TOP UP WALLET',
+        title: 'WALLET',
         onBack: () => InteractiveFillingLoader.showPop(context),
         backgroundColor: Colors.white,
         trailing: GestureDetector(

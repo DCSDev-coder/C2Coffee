@@ -4,6 +4,8 @@ import { Award, BarChart3, Edit3, Gift, MoreVertical, Plus, Save, Trash2, Users,
 import { BarChart, Bar, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import Pagination from './Pagination';
 import { adminRequest, createAdminTier, deleteAdminTier, getAdminApiBaseUrl, loadAdminLoyaltyOverview, loadAdminMenu, loadAdminVouchers, updateAdminTier, uploadAdminTierImage } from '../lib/adminApi';
+import { requestAdminConfirm } from '../lib/adminDialog';
+import { showAdminError } from '../lib/adminToast';
 
 const DEFAULT_COLORS = ['#1F3A34', '#2E5E58', '#6F9F96', '#E07A5F', '#D4AF7A', '#9333EA'];
 
@@ -137,7 +139,7 @@ const TierArtworkField = ({ imageUrl, onChange }) => {
       const response = await uploadAdminTierImage(file);
       onChange(response.image_url || null);
     } catch (error) {
-      alert(`Unable to upload tier artwork: ${error.message}`);
+      showAdminError(`Unable to upload tier artwork: ${error.message}`);
     } finally {
       setIsUploading(false);
       event.target.value = '';
@@ -671,19 +673,19 @@ const TierManagement = () => {
     event.preventDefault();
     const tier = sortedTiers.find((entry) => Number(entry.id) === Number(tierRewardForm.tierId));
     if (!tier || !tier.isActive) {
-      alert('Choose an active tier for this reward.');
+      showAdminError('Choose an active tier for this reward.');
       return;
     }
     if (tierRewardForm.productKinds.length === 0) {
-      alert('Choose at least one eligible menu item type.');
+      showAdminError('Choose at least one eligible menu item type.');
       return;
     }
     if (!editingTierReward && tierRewardForm.rewardTiming === 'achievement' && tierRewardIds(tier).length > 0) {
-      alert(`${tier.name} already has an achievement reward. Edit or remove it before adding another.`);
+      showAdminError(`${tier.name} already has an achievement reward. Edit or remove it before adding another.`);
       return;
     }
     if (!editingTierReward && tierRewardForm.rewardTiming === 'birthday_month' && tierBirthdayRewardIds(tier).length > 0) {
-      alert(`${tier.name} already has a birthday-month reward. Edit or remove it before adding another.`);
+      showAdminError(`${tier.name} already has a birthday-month reward. Edit or remove it before adding another.`);
       return;
     }
 
@@ -716,7 +718,7 @@ const TierManagement = () => {
       if (createdVoucher?.id) {
         await adminRequest(`/v1/admin/vouchers/${encodeURIComponent(createdVoucher.id)}`, { method: 'DELETE' }).catch(() => undefined);
       }
-      alert(`Unable to create tier reward: ${error.message}`);
+      showAdminError(`Unable to create tier reward: ${error.message}`);
     } finally {
       setTierRewardSaving(false);
     }
@@ -724,7 +726,7 @@ const TierManagement = () => {
 
   const handleUnlinkTierReward = async (tier, voucherTemplateId, timing) => {
     const voucher = voucherOptions.find((entry) => Number(entry.db_id) === Number(voucherTemplateId));
-    if (!window.confirm(`Remove ${voucher?.name || 'this reward'} from ${tier.name}? The voucher itself remains available in Vouchers.`)) return;
+    if (!await requestAdminConfirm({ title: 'Remove tier reward?', message: `Remove ${voucher?.name || 'this reward'} from ${tier.name}? The voucher template remains available.`, confirmLabel: 'Remove', tone: 'danger' })) return;
 
     try {
       const remainingAchievementIds = tierRewardIds(tier).filter((id) => id !== Number(voucherTemplateId));
@@ -739,7 +741,7 @@ const TierManagement = () => {
       });
       await refreshTiers();
     } catch (error) {
-      alert(`Unable to remove tier reward: ${error.message}`);
+      showAdminError(`Unable to remove tier reward: ${error.message}`);
     }
   };
 
@@ -766,14 +768,14 @@ const TierManagement = () => {
       setModalOpen(false);
       setForm(emptyForm());
     } catch (error) {
-      alert(`Unable to save tier: ${error.message}`);
+      showAdminError(`Unable to save tier: ${error.message}`);
     } finally {
       setSaving(false);
     }
   };
 
   const handleArchiveTier = async (tier) => {
-    const confirmed = window.confirm(`Archive ${tier.name}? This will hide it from active progress calculations until reactivated.`);
+    const confirmed = await requestAdminConfirm({ title: 'Archive tier?', message: `${tier.name} will be hidden from active progress calculations until reactivated.`, confirmLabel: 'Archive', tone: 'danger' });
     if (!confirmed) {
       setOpenDropdownId(null);
       return;
@@ -783,7 +785,7 @@ const TierManagement = () => {
       await deleteAdminTier(tier.id);
       await refreshTiers();
     } catch (error) {
-      alert(`Unable to archive tier: ${error.message}`);
+      showAdminError(`Unable to archive tier: ${error.message}`);
     } finally {
       setOpenDropdownId(null);
     }

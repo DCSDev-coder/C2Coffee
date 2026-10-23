@@ -323,6 +323,8 @@ class _DirectPrinterCard extends StatefulWidget {
 
 class _DirectPrinterCardState extends State<_DirectPrinterCard> {
   bool _working = false;
+  bool _sunmiDetected = false;
+  String? _sunmiStatus;
   final _hostController = TextEditingController();
   final _portController = TextEditingController(text: '9100');
   DirectPrinterConfig? _savedConfig;
@@ -342,12 +344,29 @@ class _DirectPrinterCardState extends State<_DirectPrinterCard> {
 
   Future<void> _loadConfig() async {
     final config = await DirectPrinterService.instance.loadConfig();
+    final sunmiAvailable =
+        await DirectPrinterService.instance.isSunmiAvailable();
+    String? sunmiStatus;
+    if (sunmiAvailable) {
+      sunmiStatus = await DirectPrinterService.instance.getSunmiStatus();
+    }
     if (!mounted) return;
     setState(() {
       _savedConfig = config;
-      _hostController.text = config?.host ?? '';
+      _sunmiDetected = sunmiAvailable;
+      _sunmiStatus = sunmiStatus;
+      _hostController.text =
+          config?.host ?? (sunmiAvailable ? DirectPrinterConfig.sunmiHost : '');
       _portController.text = (config?.port ?? 9100).toString();
     });
+  }
+
+  Future<void> _selectSunmi() async {
+    setState(() {
+      _hostController.text = DirectPrinterConfig.sunmiHost;
+      _portController.text = '9100';
+    });
+    await _save();
   }
 
   DirectPrinterConfig? _formConfig() {
@@ -429,6 +448,8 @@ class _DirectPrinterCardState extends State<_DirectPrinterCard> {
 
   @override
   Widget build(BuildContext context) {
+    final isSunmiConfig =
+        _hostController.text.trim() == DirectPrinterConfig.sunmiHost;
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -447,7 +468,9 @@ class _DirectPrinterCardState extends State<_DirectPrinterCard> {
                 child: Text(
                   _savedConfig == null
                       ? 'Set up receipt printer'
-                      : 'Printer ready · ${_savedConfig!.host}:${_savedConfig!.port}',
+                      : _savedConfig!.isSunmi
+                          ? 'Printer ready · Sunmi D3 Mini Inner Printer'
+                          : 'Printer ready · ${_savedConfig!.host}:${_savedConfig!.port}',
                   style: const TextStyle(
                     fontSize: 17,
                     fontWeight: FontWeight.w800,
@@ -458,28 +481,166 @@ class _DirectPrinterCardState extends State<_DirectPrinterCard> {
           ),
           const SizedBox(height: 6),
           Text(
-            'Enter the outlet Wi-Fi printer IP. Saving assigns it to this activated C2 Store device; a successful test enables new-order printing.',
+            isSunmiConfig
+                ? 'Built-in Sunmi D3 Mini receipt printing. Print a test receipt to confirm hardware readiness.'
+                : 'Enter the outlet Wi-Fi printer IP. Saving assigns it to this activated C2 Store device; a successful test enables new-order printing.',
           ),
           const SizedBox(height: 14),
-          TextField(
-            controller: _hostController,
-            keyboardType: TextInputType.url,
-            decoration: const InputDecoration(
-              labelText: 'Printer IP address',
-              hintText: '192.168.1.100',
-              border: OutlineInputBorder(),
+          if (_sunmiDetected && !isSunmiConfig) ...[
+            Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: SettingsPage.green.withValues(alpha: .08),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: SettingsPage.green.withValues(alpha: .30),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.print, color: SettingsPage.green),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Sunmi D3 Mini Built-in Printer Detected',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                          ),
+                        ),
+                        Text(
+                          'No IP or Wi-Fi needed. Print directly to this device.',
+                          style: TextStyle(fontSize: 12, color: Colors.black54),
+                        ),
+                      ],
+                    ),
+                  ),
+                  FilledButton.tonal(
+                    onPressed: _working ? null : _selectSunmi,
+                    child: const Text('Use Built-in'),
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _portController,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: 'Port',
-              hintText: '9100',
-              border: OutlineInputBorder(),
+          ],
+          if (isSunmiConfig) ...[
+            Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: SettingsPage.green.withValues(alpha: .08),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: SettingsPage.green.withValues(alpha: .30),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.check_circle_rounded,
+                        color: SettingsPage.green,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Using Sunmi D3 Mini Inner Printer',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                        ),
+                      ),
+                      const Spacer(),
+                      if (_sunmiStatus != null)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: SettingsPage.ink.withValues(alpha: .15),
+                            ),
+                          ),
+                          child: Text(
+                            'Status: $_sunmiStatus',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Direct hardware thermal printing enabled. Kitchen and counter tickets print through this terminal automatically.',
+                    style: TextStyle(fontSize: 13, color: Colors.black87),
+                  ),
+                  const SizedBox(height: 10),
+                  TextButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        _hostController.clear();
+                        _portController.text = '9100';
+                      });
+                    },
+                    icon: const Icon(Icons.swap_horiz, size: 16),
+                    label: const Text('Switch to external network printer'),
+                    style: TextButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
+          ] else ...[
+            TextField(
+              controller: _hostController,
+              keyboardType: TextInputType.url,
+              decoration: const InputDecoration(
+                labelText: 'Printer IP address',
+                hintText: '192.168.1.100',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _portController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Port',
+                hintText: '9100',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            if (_sunmiDetected) ...[
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: _working ? null : _selectSunmi,
+                  icon: const Icon(Icons.touch_app_outlined, size: 16),
+                  label: const Text('Switch back to Sunmi Built-in Printer'),
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+              ),
+            ],
+          ],
           const SizedBox(height: 14),
           Wrap(
             spacing: 8,

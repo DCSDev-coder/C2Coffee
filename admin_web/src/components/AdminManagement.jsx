@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, ChevronDown, Download, Plus, MoreVertical, Users, Menu, UserX, UserCog, Calendar, X, Edit3, Trash2 } from 'lucide-react';
+import { Search, ChevronDown, Download, Plus, MoreVertical, Users, Menu, UserX, UserCog, X, Edit3, Trash2 } from 'lucide-react';
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { exportToCSV } from '../utils/exportToCSV';
@@ -75,7 +75,7 @@ const StatusTag = ({ status }) => {
 
 const AdminManagement = ({ currentUser, initialRole = 'All Admin' }) => {
   const [admins, setAdmins] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [, setIsLoading] = useState(true);
   
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRole, setSelectedRole] = useState(initialRole);

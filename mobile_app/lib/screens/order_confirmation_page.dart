@@ -50,7 +50,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
         final snapshot = _snapshot;
 
         return AppPageShell(
-          title: 'ORDER CONFIRMATION',
+          title: 'CHECKOUT',
           onBack: () => InteractiveFillingLoader.showPop(context),
           backgroundColor: bgColor,
           overlay: _isSubmitting

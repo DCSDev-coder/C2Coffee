@@ -1,5 +1,5 @@
 import React from "react";
-import { ArrowLeft, Users, Coins, Percent, Ticket, ArrowUp } from "lucide-react";
+import { ArrowLeft, Coins, Percent, Ticket } from "lucide-react";
 
 //Stat Card Component
 const StatCard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-white" }) => (
@@ -48,7 +48,6 @@ const LoyaltyProgramSummary = ({ overview, onBack }) => {
       }
     : null;
   const totalMembers = Number(summary?.totalMembers ?? 0);
-  const totalRewardRedemptions = Number(summary?.totalRewardRedemptions ?? 0);
   const averageTokensPerMember = totalMembers > 0
     ? parseNumber(summary?.tokensInCirculation ?? 0) / totalMembers
     : 0;
