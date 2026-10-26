@@ -28,7 +28,7 @@ type StoreInput = {
   weekly_hours?: unknown;
 };
 
-const weeklyHoursSchema = z.record(z.object({
+const weeklyHoursSchema = z.record(z.string(), z.object({
   closed: z.boolean(),
   open: z.string(),
   close: z.string()

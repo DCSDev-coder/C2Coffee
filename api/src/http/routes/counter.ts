@@ -47,7 +47,7 @@ const directPrinterConfigurationSchema = z.object({
   // address so they cannot be configured with an unrouteable placeholder.
   network_host: z.union([
     z.literal('sunmi_inner'),
-    z.string().trim().ip({ version: 'v4' })
+    z.string().trim().ipv4()
   ]),
   network_port: z.coerce.number().int().min(1).max(65535)
 });

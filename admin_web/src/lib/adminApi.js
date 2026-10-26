@@ -6,9 +6,20 @@ import {
 } from "./adminAuthRequestPolicy";
 import { showAdminSuccess } from "./adminToast";
 
-const ADMIN_API_BASE_URL = (
-  import.meta.env.VITE_API_BASE_URL || "https://api.c2coffeeandcandle.com"
-).replace(/\/$/, "");
+function resolveAdminApiBaseUrl(value) {
+  const url = new URL(value);
+  const isLocalDevelopment = ["localhost", "127.0.0.1", "::1"].includes(url.hostname);
+  if ((!isLocalDevelopment && url.protocol !== "https:") ||
+      url.username || url.password || url.search || url.hash ||
+      (url.pathname !== "/" && url.pathname !== "")) {
+    throw new Error("VITE_API_BASE_URL must be a secure API origin without credentials, a path, query parameters, or fragments.");
+  }
+  return url.origin;
+}
+
+const ADMIN_API_BASE_URL = resolveAdminApiBaseUrl(
+  import.meta.env.VITE_API_BASE_URL || "https://api.c2coffeeandcandle.com",
+);
 
 let refreshSessionPromise = null;
 let accessToken = null;
@@ -54,6 +65,37 @@ function buildAdminError(message, code = "unexpected_error", status = 500) {
   error.code = code;
   error.status = status;
   return error;
+}
+
+function getRetryAfterSeconds(body, response) {
+  const headerValue = Number(response.headers.get("retry-after"));
+  if (Number.isFinite(headerValue) && headerValue > 0) {
+    return Math.ceil(headerValue);
+  }
+
+  const message = body?.error?.message || body?.message || "";
+  const match = String(message).match(/retry in (\d+) (second|minute|hour)/i);
+  if (!match) {
+    return 0;
+  }
+
+  const value = Number(match[1]);
+  const multiplier = match[2].toLowerCase() === "hour"
+    ? 3600
+    : match[2].toLowerCase() === "minute"
+      ? 60
+      : 1;
+  return Number.isFinite(value) ? value * multiplier : 0;
+}
+
+export function formatRetryCountdown(totalSeconds) {
+  const seconds = Math.max(0, Math.ceil(Number(totalSeconds) || 0));
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remainder = seconds % 60;
+  return [hours, minutes, remainder]
+    .map((value) => String(value).padStart(2, "0"))
+    .join(":");
 }
 
 function broadcastAdminSessionExpired() {
@@ -155,7 +197,12 @@ function formatAdminErrorMessage(body, response) {
     case "admin_not_active":
       return "This admin account is not active.";
     case "rate_limit_exceeded":
-      return "Too many sign-in attempts. Please wait a few minutes before trying again.";
+      {
+        const retryAfterSeconds = getRetryAfterSeconds(body, response);
+        return retryAfterSeconds > 0
+          ? `Too many requests. Please try again in about ${Math.ceil(retryAfterSeconds / 60)} minute${Math.ceil(retryAfterSeconds / 60) === 1 ? "" : "s"}.`
+          : "Too many requests. Please wait a few minutes before trying again.";
+      }
     case "forbidden":
       return "Your account does not have permission for this action.";
     case "referral_program_busy":
@@ -936,7 +983,11 @@ export async function adminRequest(
   if (!response.ok) {
     const message = formatAdminErrorMessage(body, response);
     const code = body?.error?.code || "unexpected_error";
-    throw buildAdminError(message, code, response.status);
+    const error = buildAdminError(message, code, response.status);
+    if (code === "rate_limit_exceeded") {
+      error.retryAfterSeconds = getRetryAfterSeconds(body, response);
+    }
+    throw error;
   }
 
   const method = String(requestOptions.method || "GET").toUpperCase();

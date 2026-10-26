@@ -4,10 +4,28 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class ApiClient {
-  static const String baseUrl = String.fromEnvironment(
+  static const String _configuredBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
     defaultValue: 'https://api.c2coffeeandcandle.com',
   );
+  static String get baseUrl => validateBaseUrl(_configuredBaseUrl);
+
+  static String validateBaseUrl(String value) {
+    final normalized = value.trim().replaceFirst(RegExp(r'/+$'), '');
+    final uri = Uri.tryParse(normalized);
+    if (uri == null ||
+        uri.scheme != 'https' ||
+        uri.host.isEmpty ||
+        uri.userInfo.isNotEmpty ||
+        (uri.path.isNotEmpty && uri.path != '/') ||
+        uri.hasQuery ||
+        uri.hasFragment) {
+      throw StateError(
+        'API_BASE_URL must be an HTTPS origin without credentials, a path, query parameters, or fragments.',
+      );
+    }
+    return normalized;
+  }
 
   static const Duration _requestTimeout = Duration(seconds: 20);
 

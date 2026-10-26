@@ -1331,7 +1331,7 @@ class _CustomCalendarWidgetState extends State<CustomCalendarWidget> {
     ];
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
@@ -1360,40 +1360,50 @@ class _CustomCalendarWidgetState extends State<CustomCalendarWidget> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     IconButton(
-                      icon: Icon(Icons.chevron_left, color: AppColors.deepTeal),
+                      constraints:
+                          const BoxConstraints.tightFor(width: 36, height: 36),
+                      padding: EdgeInsets.zero,
+                      icon: Icon(Icons.chevron_left,
+                          color: AppColors.deepTeal, size: 22),
                       onPressed: _previousMonth,
                     ),
                     Text(
                       '${monthNames[_currentMonth.month - 1]} ${_currentMonth.year}',
                       style: TextStyle(
                         fontFamily: 'Recoleta',
-                        fontSize: 22,
+                        fontSize: 20,
                         fontWeight: FontWeight.bold,
                         color: AppColors.deepTeal,
                       ),
                     ),
                     IconButton(
-                      icon:
-                          Icon(Icons.chevron_right, color: AppColors.deepTeal),
+                      constraints:
+                          const BoxConstraints.tightFor(width: 36, height: 36),
+                      padding: EdgeInsets.zero,
+                      icon: Icon(Icons.chevron_right,
+                          color: AppColors.deepTeal, size: 22),
                       onPressed: _nextMonth,
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 8),
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: dayNames
                       .map(
-                        (day) => SizedBox(
-                          width: 30,
-                          child: Center(
-                            child: Text(
-                              day,
-                              style: const TextStyle(
-                                fontFamily: 'Afacad',
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.grey,
+                        (day) => Expanded(
+                          child: SizedBox(
+                            height: 22,
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                day,
+                                softWrap: false,
+                                style: const TextStyle(
+                                  fontFamily: 'Afacad',
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.grey,
+                                ),
                               ),
                             ),
                           ),
@@ -1401,16 +1411,18 @@ class _CustomCalendarWidgetState extends State<CustomCalendarWidget> {
                       )
                       .toList(),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 6),
                 const _CalendarMarkerLegend(),
-                const SizedBox(height: 10),
+                const SizedBox(height: 6),
                 GridView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   itemCount: daysInMonth + emptySlots,
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 7,
-                    childAspectRatio: 1.0,
+                    mainAxisExtent: 42,
+                    crossAxisSpacing: 0,
+                    mainAxisSpacing: 2,
                   ),
                   itemBuilder: (context, index) {
                     if (index < emptySlots) return const SizedBox();

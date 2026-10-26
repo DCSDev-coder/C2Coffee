@@ -2,11 +2,13 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import 'auth_api_service.dart';
 import 'app_session_service.dart';
+import 'notification_service.dart';
 import 'secure_session_service.dart';
 import '../utils/app_notification.dart';
 import '../screens/my_rewards_page.dart';
@@ -30,9 +32,16 @@ class PushNotificationService {
   StreamSubscription<String>? _tokenRefreshSubscription;
   StreamSubscription<RemoteMessage>? _foregroundSubscription;
   StreamSubscription<RemoteMessage>? _openedSubscription;
+  Timer? _registrationRetryTimer;
+  int _registrationRetryCount = 0;
   final FlutterLocalNotificationsPlugin _localNotifications =
       FlutterLocalNotificationsPlugin();
   bool _initialized = false;
+
+  static const _apnsWaitInterval = Duration(milliseconds: 250);
+  static const _apnsWaitAttempts = 20;
+  static const _registrationRetryDelay = Duration(seconds: 5);
+  static const _maximumRegistrationRetries = 3;
 
   Future<void> initialize() async {
     if (_initialized) return;
@@ -46,7 +55,7 @@ class PushNotificationService {
     await _configureLocalNotifications();
     _tokenRefreshSubscription =
         FirebaseMessaging.instance.onTokenRefresh.listen(
-      _registerToken,
+      _handleTokenRefresh,
     );
     _foregroundSubscription =
         FirebaseMessaging.onMessage.listen(_handleMessage);
@@ -75,10 +84,7 @@ class PushNotificationService {
       return;
     }
 
-    final token = await FirebaseMessaging.instance.getToken();
-    if (token != null && token.isNotEmpty) {
-      await _registerToken(token);
-    }
+    await _syncRegistrationToken();
   }
 
   Future<void> syncExistingSession() async {
@@ -92,8 +98,7 @@ class PushNotificationService {
         permission.authorizationStatus != AuthorizationStatus.provisional) {
       return;
     }
-    final token = await FirebaseMessaging.instance.getToken();
-    if (token != null && token.isNotEmpty) await _registerToken(token);
+    await _syncRegistrationToken();
   }
 
   Future<void> deactivateForCurrentSession() async {
@@ -113,11 +118,78 @@ class PushNotificationService {
     );
   }
 
-  Future<void> _registerToken(String pushToken) async {
+  Future<void> _handleTokenRefresh(String pushToken) async {
+    if (!await _apnsTokenIsAvailable(wait: false)) {
+      _scheduleRegistrationRetry();
+      return;
+    }
+    if (!await _registerToken(pushToken)) {
+      _scheduleRegistrationRetry();
+    }
+  }
+
+  Future<void> _syncRegistrationToken() async {
+    if (!await _apnsTokenIsAvailable(wait: true)) {
+      if (kDebugMode) {
+        debugPrint(
+          '[push] APNs token is not ready. FCM registration will retry.',
+        );
+      }
+      _scheduleRegistrationRetry();
+      return;
+    }
+
+    final pushToken = await FirebaseMessaging.instance.getToken();
+    if (pushToken == null || pushToken.isEmpty) {
+      _scheduleRegistrationRetry();
+      return;
+    }
+
+    if (await _registerToken(pushToken)) {
+      _registrationRetryTimer?.cancel();
+      _registrationRetryTimer = null;
+      _registrationRetryCount = 0;
+    } else {
+      _scheduleRegistrationRetry();
+    }
+  }
+
+  Future<bool> _apnsTokenIsAvailable({required bool wait}) async {
+    if (!Platform.isIOS) return true;
+
+    final attempts = wait ? _apnsWaitAttempts : 1;
+    for (var attempt = 0; attempt < attempts; attempt++) {
+      final apnsToken = await FirebaseMessaging.instance.getAPNSToken();
+      if (apnsToken != null && apnsToken.isNotEmpty) {
+        if (kDebugMode) {
+          debugPrint('[push] APNs token is ready.');
+        }
+        return true;
+      }
+      if (attempt < attempts - 1) {
+        await Future<void>.delayed(_apnsWaitInterval);
+      }
+    }
+    return false;
+  }
+
+  void _scheduleRegistrationRetry() {
+    if (_registrationRetryTimer != null ||
+        _registrationRetryCount >= _maximumRegistrationRetries) {
+      return;
+    }
+    _registrationRetryCount++;
+    _registrationRetryTimer = Timer(_registrationRetryDelay, () {
+      _registrationRetryTimer = null;
+      unawaited(_syncRegistrationToken());
+    });
+  }
+
+  Future<bool> _registerToken(String pushToken) async {
     try {
       final accessToken =
           await SecureSessionService.instance.getValidAccessToken();
-      if (accessToken == null || accessToken.isEmpty) return;
+      if (accessToken == null || accessToken.isEmpty) return false;
 
       final deviceFingerprint =
           await AuthApiService.instance.getOrCreateDeviceFingerprint();
@@ -127,8 +199,16 @@ class PushNotificationService {
         platform: Platform.isIOS ? 'ios' : 'android',
         pushToken: pushToken,
       );
-    } catch (_) {
+      if (kDebugMode) {
+        debugPrint('[push] FCM token registered with the C2 Coffee API.');
+      }
+      return true;
+    } catch (error) {
+      if (kDebugMode) {
+        debugPrint('[push] FCM token registration failed: $error');
+      }
       // A delivery registration failure must not interrupt sign-in or app use.
+      return false;
     }
   }
 
@@ -174,11 +254,29 @@ class PushNotificationService {
       case 'marketing_poster':
         // Marketing copy is available in the notification inbox. Keep the
         // foreground alert generic so no malformed remote payload is rendered.
-        AppNotification.showInfo(
-            null, 'A new C2 Coffee update is available in Notifications.');
+        _refreshNotificationInbox();
+        if (!opened) {
+          AppNotification.showInfo(
+            null,
+            'A new C2 Coffee update is available in Notifications.',
+            onTap: () => _openNotificationDestination(const NotificationPage()),
+          );
+        }
+        if (opened) _openNotificationDestination(const NotificationPage());
+        break;
+      case 'customer_message':
+        _refreshNotificationInbox();
+        if (!opened) {
+          AppNotification.showInfo(
+            null,
+            'A new C2 Coffee message is available in Notifications.',
+            onTap: () => _openNotificationDestination(const NotificationPage()),
+          );
+        }
         if (opened) _openNotificationDestination(const NotificationPage());
         break;
       case 'payment_service_notice':
+        _refreshNotificationInbox();
         AppNotification.showWarning(
           null,
           'A scheduled payment service notice is available in Notifications.',
@@ -187,26 +285,36 @@ class PushNotificationService {
         if (opened) _openNotificationDestination(const NotificationPage());
         break;
       case 'token_topup_paid':
-        AppNotification.showSuccess(null, 'Your top-up is complete and your C2 Tokens are ready.');
+        AppNotification.showSuccess(
+            null, 'Your top-up is complete and your C2 Tokens are ready.');
         if (opened) _openNotificationDestination(const TopUpWalletPage());
         break;
       case 'token_topup_failed':
-        AppNotification.showError(null, 'Your top-up was unsuccessful. No C2 Tokens were added.');
+        AppNotification.showError(
+            null, 'Your top-up was unsuccessful. No C2 Tokens were added.');
         if (opened) _openNotificationDestination(const TopUpWalletPage());
         break;
       case 'token_topup_cancelled':
-        AppNotification.showInfo(null, 'Your top-up was cancelled. No C2 Tokens were added.');
+        AppNotification.showInfo(
+            null, 'Your top-up was cancelled. No C2 Tokens were added.');
         if (opened) _openNotificationDestination(const TopUpWalletPage());
         break;
       case 'token_topup_refunded':
-        AppNotification.showInfo(null, 'Your top-up refund has been processed.');
+        AppNotification.showInfo(
+            null, 'Your top-up refund has been processed.');
         if (opened) _openNotificationDestination(const TopUpWalletPage());
         break;
       case 'token_topup_review':
-        AppNotification.showWarning(null, 'Your top-up needs review. Open Notifications for details.');
+        AppNotification.showWarning(
+            null, 'Your top-up needs review. Open Notifications for details.');
         if (opened) _openNotificationDestination(const TopUpWalletPage());
         break;
     }
+  }
+
+  void _refreshNotificationInbox() {
+    NotificationService.instance.notifyInboxChanged();
+    unawaited(NotificationService.instance.refreshIndicator());
   }
 
   void _openNotificationDestination(Widget page) {
@@ -224,6 +332,7 @@ class PushNotificationService {
       'order_pickup_reminder' => 'Pickup reminder',
       'voucher_expiring' => 'Reward expiring soon',
       'marketing_poster' => 'New C2 Coffee update',
+      'customer_message' => 'New C2 Coffee message',
       'payment_service_notice' => 'Payment service notice',
       'token_topup_paid' => 'Top-up complete',
       'token_topup_failed' => 'Top-up unsuccessful',
@@ -237,7 +346,9 @@ class PushNotificationService {
       'order_pickup_reminder' => 'Your order is still waiting at the counter.',
       'voucher_expiring' => 'Open Rewards to use it before it expires.',
       'marketing_poster' => 'Open Notifications to see the latest update.',
-      'payment_service_notice' => 'Open Notifications to check the affected payment method and time.',
+      'customer_message' => 'Open Notifications to read the latest message.',
+      'payment_service_notice' =>
+        'Open Notifications to check the affected payment method and time.',
       'token_topup_paid' => 'Your C2 Tokens are ready in your wallet.',
       'token_topup_failed' => 'No C2 Tokens were added.',
       'token_topup_cancelled' => 'No C2 Tokens were added.',
@@ -268,9 +379,12 @@ class PushNotificationService {
     _tokenRefreshSubscription?.cancel();
     _foregroundSubscription?.cancel();
     _openedSubscription?.cancel();
+    _registrationRetryTimer?.cancel();
     _tokenRefreshSubscription = null;
     _foregroundSubscription = null;
     _openedSubscription = null;
+    _registrationRetryTimer = null;
+    _registrationRetryCount = 0;
     _initialized = false;
   }
 }

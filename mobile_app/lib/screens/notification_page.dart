@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -30,12 +32,27 @@ class NotificationPage extends StatefulWidget {
 
 class _NotificationPageState extends State<NotificationPage> {
   late Future<_NotificationInboxData> _notificationsFuture;
+  _NotificationInboxData? _lastLoadedInbox;
   bool _clearing = false;
 
   @override
   void initState() {
     super.initState();
     _notificationsFuture = _loadNotifications();
+    NotificationService.instance.inboxRevision.addListener(_refreshInbox);
+  }
+
+  @override
+  void dispose() {
+    NotificationService.instance.inboxRevision.removeListener(_refreshInbox);
+    super.dispose();
+  }
+
+  void _refreshInbox() {
+    if (!mounted || _clearing) return;
+    setState(() {
+      _notificationsFuture = _loadNotifications();
+    });
   }
 
   Future<_NotificationInboxData> _loadNotifications() async {
@@ -57,10 +74,12 @@ class _NotificationPageState extends State<NotificationPage> {
     await NotificationService.instance.refreshIndicator(
       accessToken: accessToken,
     );
-    return _NotificationInboxData(
+    final inbox = _NotificationInboxData(
       paymentNotices: results[0] as List<PaymentServiceNotice>,
       notifications: results[1] as List<InAppNotification>,
     );
+    _lastLoadedInbox = inbox;
+    return inbox;
   }
 
   void _retry() {
@@ -204,36 +223,41 @@ class _NotificationPageState extends State<NotificationPage> {
     if (confirmed != true || !mounted) return;
 
     setState(() => _clearing = true);
+    String? accessToken;
     try {
-      final accessToken =
-          await SecureSessionService.instance.getValidAccessToken();
+      accessToken = await SecureSessionService.instance.getValidAccessToken();
       if (accessToken == null || accessToken.isEmpty) {
         throw Exception('Please sign in again to clear notifications.');
       }
       await NotificationService.instance.clearNotifications(
         accessToken: accessToken,
       );
-      await NotificationService.instance.refreshIndicator(
-        accessToken: accessToken,
-      );
-      if (!mounted) return;
-      final current = await _notificationsFuture;
-      if (!mounted) return;
-      setState(() => _notificationsFuture = Future.value(
-            _NotificationInboxData(
-              paymentNotices: current.paymentNotices,
-              notifications: const [],
-            ),
-          ));
     } catch (_) {
       if (!mounted) return;
       AppNotification.showError(
         context,
         'We could not clear notifications. Please try again.',
       );
-    } finally {
-      if (mounted) setState(() => _clearing = false);
+      setState(() => _clearing = false);
+      return;
     }
+
+    if (!mounted) return;
+    final clearedInbox = _NotificationInboxData(
+      paymentNotices:
+          _lastLoadedInbox?.paymentNotices ?? const <PaymentServiceNotice>[],
+      notifications: const [],
+    );
+    _lastLoadedInbox = clearedInbox;
+    NotificationService.instance.markLatestUpdatesCleared();
+    setState(() {
+      _notificationsFuture = Future.value(clearedInbox);
+      _clearing = false;
+    });
+    AppNotification.showSuccess(context, 'Latest updates cleared.');
+    unawaited(NotificationService.instance.refreshIndicator(
+      accessToken: accessToken,
+    ));
   }
 
   @override

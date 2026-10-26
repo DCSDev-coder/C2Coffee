@@ -865,9 +865,16 @@ export async function registerAdminMarketingRoutes(
       requireMarketingAccess(request);
       const payload = customerMessageSchema.parse(request.body);
       const deliveryKey = `admin-message:${request.adminAuth.tenantId}:${payload.idempotency_key}`;
+      // Reuse the established marketing-poster push route so customer
+      // broadcasts work with app versions released before the standalone
+      // inbox message type was introduced. The persisted inbox record remains
+      // `customer_message`; only the device navigation hint uses the proven
+      // notification route.
       const data = {
-        type: "customer_message",
+        type: "marketing_poster",
+        message_kind: "customer_message",
         source: "admin_marketing",
+        destination: "notifications",
       };
       const connection = await mysqlPool.getConnection();
       let recipients = 0;
@@ -897,7 +904,7 @@ export async function registerAdminMarketingRoutes(
             WHERE ctm.tenant_id = :tenantId
               AND u.status = 'active'
               AND COALESCE(cnp.marketing_enabled, 1) = 1
-            ON DUPLICATE KEY UPDATE id = id
+            ON DUPLICATE KEY UPDATE delivery_key = VALUES(delivery_key)
           `,
           {
             tenantId: request.adminAuth.tenantId,
@@ -943,6 +950,8 @@ export async function registerAdminMarketingRoutes(
         attemptedTokens: 0,
         deliveredTokens: 0,
         failedTokens: 0,
+        attemptedByPlatform: { android: 0, ios: 0 },
+        acceptedByPlatform: { android: 0, ios: 0 },
       };
       try {
         // An idempotent replay has no new inbox rows and must not send push
@@ -951,7 +960,13 @@ export async function registerAdminMarketingRoutes(
           return {
             success: true,
             idempotent_replay: idempotentReplay,
-            message: { recipients: 0, attemptedDevices: 0, deliveredDevices: 0, failedDevices: 0 },
+            message: {
+              recipients: 0,
+              attemptedDevices: 0,
+              deliveredDevices: 0,
+              failedDevices: 0,
+              acceptedByPlatform: { android: 0, ios: 0 },
+            },
           };
         }
         const pushResult = await deliverPushToCustomerTenant({
@@ -964,6 +979,8 @@ export async function registerAdminMarketingRoutes(
           attemptedTokens: pushResult.attemptedTokens,
           deliveredTokens: pushResult.deliveredTokens,
           failedTokens: pushResult.failedTokens,
+          attemptedByPlatform: pushResult.attemptedByPlatform,
+          acceptedByPlatform: pushResult.acceptedByPlatform,
         };
       } catch (error) {
         request.log.warn({ err: error }, "Standalone customer push delivery failed after notification creation.");
@@ -975,6 +992,8 @@ export async function registerAdminMarketingRoutes(
           attemptedDevices: delivery.attemptedTokens,
           deliveredDevices: delivery.deliveredTokens,
           failedDevices: delivery.failedTokens,
+          attemptedByPlatform: delivery.attemptedByPlatform,
+          acceptedByPlatform: delivery.acceptedByPlatform,
         },
         "Standalone customer message sent.",
       );
@@ -986,6 +1005,7 @@ export async function registerAdminMarketingRoutes(
           attemptedDevices: delivery.attemptedTokens,
           deliveredDevices: delivery.deliveredTokens,
           failedDevices: delivery.failedTokens,
+          acceptedByPlatform: delivery.acceptedByPlatform,
         },
       };
     },

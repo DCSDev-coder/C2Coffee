@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { adminRequest, loadAdminTenants } from '../lib/adminApi';
+import { adminRequest, formatRetryCountdown, loadAdminTenants } from '../lib/adminApi';
 import { getSafeAdminLoginErrorMessage } from '../lib/adminAuthRequestPolicy';
 import { Eye, EyeOff } from 'lucide-react';
 
@@ -18,6 +18,15 @@ const Login = ({ onLoginSuccess }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [retryAfterSeconds, setRetryAfterSeconds] = useState(0);
+
+  useEffect(() => {
+    if (retryAfterSeconds <= 0) return undefined;
+    const timer = window.setInterval(() => {
+      setRetryAfterSeconds((current) => Math.max(0, current - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [retryAfterSeconds]);
 
   useEffect(() => {
     const loadTenants = async () => {
@@ -37,6 +46,7 @@ const Login = ({ onLoginSuccess }) => {
   const handleLogin = async (event) => {
     event.preventDefault();
     setErrorMessage('');
+    setRetryAfterSeconds(0);
     setIsSubmitting(true);
 
     try {
@@ -72,6 +82,7 @@ const Login = ({ onLoginSuccess }) => {
     } catch (error) {
       setIdentifier('');
       setPassword('');
+      setRetryAfterSeconds(Math.ceil(Number(error?.retryAfterSeconds) || 0));
       setErrorMessage(getSafeAdminLoginErrorMessage(error));
     } finally {
       setIsSubmitting(false);
@@ -266,10 +277,10 @@ const Login = ({ onLoginSuccess }) => {
 
         <button
           type="submit"
-          disabled={isSubmitting || (mode === 'login' && !tenantCode)}
+          disabled={isSubmitting || retryAfterSeconds > 0 || (mode === 'login' && !tenantCode)}
           className="w-full mt-6 bg-white text-[#0f211d] font-semibold text-lg py-3.5 px-4 rounded-2xl transition-all shadow-lg hover:shadow-2xl hover:-translate-y-1 hover:bg-gray-50 flex items-center justify-center space-x-2 disabled:opacity-60 disabled:hover:translate-y-0"
         >
-          <span>{isSubmitting ? 'Please wait...' : mode === 'login' ? 'Sign In' : 'Finish Setup'}</span>
+          <span>{isSubmitting ? 'Please wait...' : retryAfterSeconds > 0 ? `Try again in ${formatRetryCountdown(retryAfterSeconds)}` : mode === 'login' ? 'Sign In' : 'Finish Setup'}</span>
           <svg className="w-5 h-5 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" />
           </svg>

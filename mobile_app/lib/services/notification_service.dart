@@ -106,6 +106,18 @@ class NotificationService {
   final http.Client _client = http.Client();
   final ValueNotifier<NotificationIndicatorState> indicator =
       ValueNotifier(const NotificationIndicatorState());
+  final ValueNotifier<int> inboxRevision = ValueNotifier(0);
+
+  void notifyInboxChanged() {
+    inboxRevision.value = inboxRevision.value + 1;
+  }
+
+  void markLatestUpdatesCleared() {
+    indicator.value = NotificationIndicatorState(
+      hasUnreadUpdates: false,
+      hasActiveWarnings: indicator.value.hasActiveWarnings,
+    );
+  }
 
   Future<void> refreshIndicator({String? accessToken}) async {
     final token = accessToken ??
@@ -261,8 +273,9 @@ class NotificationService {
     Map<String, dynamic>? body,
   }) async {
     Future<http.Response> send(String token) async {
-      final request = http.Request(method, Uri.parse('${ApiConfig.baseUrl}$path'))
-        ..headers['Authorization'] = 'Bearer $token';
+      final request =
+          http.Request(method, Uri.parse('${ApiConfig.baseUrl}$path'))
+            ..headers['Authorization'] = 'Bearer $token';
       if (body != null) {
         request.headers['Content-Type'] = 'application/json';
         request.body = jsonEncode(body);
@@ -274,7 +287,8 @@ class NotificationService {
 
     http.Response response = await send(accessToken);
     if (response.statusCode == 401) {
-      final refreshed = await SecureSessionService.instance.refreshTokenSilently();
+      final refreshed =
+          await SecureSessionService.instance.refreshTokenSilently();
       if (refreshed != null && refreshed.isNotEmpty) {
         response = await send(refreshed);
       }

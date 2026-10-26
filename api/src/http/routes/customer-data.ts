@@ -989,45 +989,76 @@ export async function registerCustomerDataRoutes(
       }
     );
 
-    // A token can move to a different signed-in account on the same device.
-    // The unique token key makes the registration safe to repeat after refresh.
-    await mysqlPool.execute(
-      `
-        INSERT INTO push_tokens (
-          user_id,
-          device_id,
-          platform,
-          push_token,
-          status,
-          created_at,
-          last_seen_at
-        )
-        VALUES (
-          :userId,
-          :deviceId,
-          :platform,
-          :pushToken,
-          'active',
-          UTC_TIMESTAMP(),
-          UTC_TIMESTAMP()
-        )
-        ON DUPLICATE KEY UPDATE
-          user_id = VALUES(user_id),
-          device_id = VALUES(device_id),
-          platform = VALUES(platform),
-          status = 'active',
-          last_seen_at = UTC_TIMESTAMP()
-      `,
+    // FCM tokens rotate, including when an iPhone moves between a development
+    // install and TestFlight. Keep exactly one active token per physical device
+    // so stale sandbox tokens are not counted as successful production sends.
+    const connection = await getUtcConnection();
+    try {
+      await connection.beginTransaction();
+      await connection.execute(
+        `UPDATE push_tokens
+         SET status = 'inactive', last_seen_at = UTC_TIMESTAMP()
+         WHERE device_id = :deviceId
+           AND push_token <> :pushToken
+           AND status = 'active'`,
+        {
+          deviceId: device.device_id,
+          pushToken: payload.push_token
+        }
+      );
+
+      // A token can move to a different signed-in account on the same device.
+      // The unique token key makes the registration safe to repeat after refresh.
+      await connection.execute(
+        `
+          INSERT INTO push_tokens (
+            user_id,
+            device_id,
+            platform,
+            push_token,
+            status,
+            created_at,
+            last_seen_at
+          )
+          VALUES (
+            :userId,
+            :deviceId,
+            :platform,
+            :pushToken,
+            'active',
+            UTC_TIMESTAMP(),
+            UTC_TIMESTAMP()
+          )
+          ON DUPLICATE KEY UPDATE
+            user_id = VALUES(user_id),
+            device_id = VALUES(device_id),
+            platform = VALUES(platform),
+            status = 'active',
+            last_seen_at = UTC_TIMESTAMP()
+        `,
+        {
+          userId: request.auth.userId,
+          deviceId: device.device_id,
+          platform: payload.platform,
+          pushToken: payload.push_token
+        }
+      );
+      await connection.commit();
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+
+    request.log.info(
       {
         userId: request.auth.userId,
         deviceId: device.device_id,
         platform: payload.platform,
-        pushToken: payload.push_token
-      }
-    );
-
-    request.log.info(
-      { userId: request.auth.userId, deviceId: device.device_id, platform: payload.platform },
+        appVersion: payload.app_version ?? null,
+        tokenFingerprint: crypto.createHash('sha256').update(payload.push_token).digest('hex').slice(0, 12)
+      },
       'Customer push token registered.'
     );
 

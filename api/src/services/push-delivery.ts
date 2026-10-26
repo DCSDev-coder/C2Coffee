@@ -7,9 +7,12 @@ import { mysqlPool } from '../db/mysql.js';
 type PushTokenRow = RowDataPacket & {
   id: number;
   push_token: string;
+  platform: 'android' | 'ios';
 };
 
-type StaffPushTokenRow = PushTokenRow & {
+type StaffPushTokenRow = RowDataPacket & {
+  id: number;
+  push_token: string;
   platform: 'android' | 'ios' | 'web';
 };
 
@@ -51,7 +54,19 @@ export type PushDeliveryResult = {
   invalidTokens: number;
   failedTokens: number;
   failureReasons: string[];
+  attemptedByPlatform: Record<'android' | 'ios', number>;
+  acceptedByPlatform: Record<'android' | 'ios', number>;
 };
+
+const emptyCustomerPushResult = (): PushDeliveryResult => ({
+  attemptedTokens: 0,
+  deliveredTokens: 0,
+  invalidTokens: 0,
+  failedTokens: 0,
+  failureReasons: [],
+  attemptedByPlatform: { android: 0, ios: 0 },
+  acceptedByPlatform: { android: 0, ios: 0 }
+});
 
 type FcmMessageInput = Pick<PushDeliveryInput, 'title' | 'body' | 'data'> & {
   // Android order alerts are data-only so Firebase may start the Barista
@@ -191,11 +206,11 @@ export async function deliverPushToCustomerTenant(
   input: CustomerTenantPushDeliveryInput
 ): Promise<PushDeliveryResult> {
   const configuration = fcmConfiguration();
-  if (!configuration) return { attemptedTokens: 0, deliveredTokens: 0, invalidTokens: 0, failedTokens: 0, failureReasons: [] };
+  if (!configuration) return emptyCustomerPushResult();
 
   const [tokens] = await mysqlPool.query<PushTokenRow[]>(
     `
-      SELECT pt.id, pt.push_token
+      SELECT pt.id, pt.push_token, pt.platform
       FROM push_tokens pt
       JOIN users u ON u.id = pt.user_id
       JOIN customer_tenant_memberships ctm
@@ -216,11 +231,14 @@ export async function deliverPushToCustomerTenant(
       respectMarketingPreference: input.respectMarketingPreference === false ? 0 : 1
     }
   );
-  if (tokens.length === 0) return { attemptedTokens: 0, deliveredTokens: 0, invalidTokens: 0, failedTokens: 0, failureReasons: [] };
+  if (tokens.length === 0) return emptyCustomerPushResult();
 
   const inactiveTokenIds: number[] = [];
   let deliveredTokens = 0;
   let failedTokens = 0;
+  const attemptedByPlatform = { android: 0, ios: 0 };
+  const acceptedByPlatform = { android: 0, ios: 0 };
+  tokens.forEach((token) => attemptedByPlatform[token.platform]++);
   const failureReasons = new Set<string>();
   for (let index = 0; index < tokens.length; index += 20) {
     const batch = tokens.slice(index, index + 20);
@@ -233,6 +251,7 @@ export async function deliverPushToCustomerTenant(
           inactiveTokenIds.push(batch[batchIndex].id);
         } else {
           deliveredTokens++;
+          acceptedByPlatform[batch[batchIndex].platform]++;
         }
       } else {
         failedTokens++;
@@ -255,7 +274,9 @@ export async function deliverPushToCustomerTenant(
     deliveredTokens,
     invalidTokens: inactiveTokenIds.length,
     failedTokens,
-    failureReasons: [...failureReasons]
+    failureReasons: [...failureReasons],
+    attemptedByPlatform,
+    acceptedByPlatform
   };
 }
 

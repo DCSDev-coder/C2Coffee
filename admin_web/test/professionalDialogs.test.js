@@ -11,3 +11,10 @@ test('admin pages use the branded dialog and toast system instead of browser pop
     assert.doesNotMatch(contents, /(^|[^A-Za-z])alert\s*\(/m, `${file} uses a raw browser alert`);
   }
 });
+
+test('admin production API endpoint requires HTTPS', async () => {
+  const contents = await readFile(new URL('../src/lib/adminApi.js', import.meta.url), 'utf8');
+  assert.match(contents, /url\.protocol !== "https:"/);
+  assert.match(contents, /url\.username \|\| url\.password/);
+  assert.match(contents, /localhost/);
+});

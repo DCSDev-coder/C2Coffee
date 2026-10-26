@@ -26,6 +26,11 @@ export function shouldAttemptAdminSessionRefresh({
 
 export function getSafeAdminLoginErrorMessage(error) {
   if (error?.code === "rate_limit_exceeded" || error?.status === 429) {
+    const seconds = Math.ceil(Number(error?.retryAfterSeconds) || 0);
+    if (seconds > 0) {
+      const minutes = Math.ceil(seconds / 60);
+      return `Too many sign-in attempts. Please try again in about ${minutes} minute${minutes === 1 ? "" : "s"}.`;
+    }
     return "Too many sign-in attempts. Please wait a few minutes before trying again.";
   }
 

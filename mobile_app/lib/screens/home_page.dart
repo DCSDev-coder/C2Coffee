@@ -932,66 +932,89 @@ class _HomePageState extends State<HomePage> {
   Widget _buildActionButtons() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
-        children: [
-          Expanded(
-            child: GestureDetector(
-              onTap: () => InteractiveFillingLoader.show(
-                context,
-                clearNavigationStack: true,
-                targetPage: const OrdersPage(),
-              ),
-              child: Container(
-                height: 80,
-                padding: const EdgeInsets.only(left: 20),
-                decoration: BoxDecoration(
-                  color: AppColors.deepTeal,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                alignment: Alignment.centerLeft,
-                child: const Text(
-                  'MY\nORDER',
-                  style: TextStyle(
-                    fontFamily: 'Recoleta',
-                    fontSize: 26,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.white,
-                    height: 0.9,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isCompact = constraints.maxWidth < 360;
+          final buttonGap = isCompact ? 10.0 : 16.0;
+
+          return Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => InteractiveFillingLoader.show(
+                    context,
+                    clearNavigationStack: true,
+                    targetPage: const OrdersPage(),
+                  ),
+                  child: Container(
+                    height: 80,
+                    decoration: BoxDecoration(
+                      color: AppColors.deepTeal,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: _buildActionButtonLabel(
+                      'MY\nORDER',
+                      color: Colors.white,
+                      fontSize: 26,
+                    ),
                   ),
                 ),
               ),
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: GestureDetector(
-              onTap: () => InteractiveFillingLoader.show(
-                context,
-                targetPage: const ReferralPage(),
-              ),
-              child: Container(
-                height: 80,
-                padding: const EdgeInsets.only(left: 20),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceLight,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: AppColors.border, width: 1.5),
-                ),
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'MY\nREFERRAL',
-                  style: TextStyle(
-                    fontFamily: 'Recoleta',
-                    fontSize: 24,
-                    fontWeight: FontWeight.w900,
-                    color: AppColors.brandText,
-                    height: 0.9,
+              SizedBox(width: buttonGap),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => InteractiveFillingLoader.show(
+                    context,
+                    targetPage: const ReferralPage(),
+                  ),
+                  child: Container(
+                    height: 80,
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceLight,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: AppColors.border, width: 1.5),
+                    ),
+                    child: _buildActionButtonLabel(
+                      'MY\nREFERRAL',
+                      color: AppColors.brandText,
+                      fontSize: 24,
+                    ),
                   ),
                 ),
               ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildActionButtonLabel(
+    String label, {
+    required Color color,
+    required double fontSize,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(
+            label,
+            softWrap: false,
+            maxLines: 2,
+            textAlign: TextAlign.left,
+            style: TextStyle(
+              fontFamily: 'Recoleta',
+              fontSize: fontSize,
+              fontWeight: FontWeight.w900,
+              color: color,
+              height: 0.9,
             ),
           ),
-        ],
+        ),
       ),
     );
   }

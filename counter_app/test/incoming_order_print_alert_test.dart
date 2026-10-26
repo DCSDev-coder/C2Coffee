@@ -10,4 +10,12 @@ void main() {
     expect(source, contains('DirectPrinterService.instance.printJob(job)'));
     expect(source.indexOf('Future.wait<void>'), lessThan(source.indexOf("printed: true")));
   });
+
+  test('counter API endpoint requires a secure origin', () {
+    final source = File('lib/api_client.dart').readAsStringSync();
+    expect(source, contains("uri.scheme != 'https'"));
+    expect(source, contains('uri.userInfo.isNotEmpty'));
+    expect(source, contains('uri.hasQuery'));
+    expect(source, contains('uri.hasFragment'));
+  });
 }

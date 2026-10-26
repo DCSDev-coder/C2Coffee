@@ -872,147 +872,165 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
               required: group['isRequired'] == true,
               subtitle:
                   isMulti ? 'Choose up to ${group['maxSelect'] ?? 1}' : ''),
-          Center(
-            child: Wrap(
-                alignment: WrapAlignment.center,
-                runAlignment: WrapAlignment.center,
-                spacing: 8,
-                runSpacing: 8,
-                children: options.map((option) {
-                  final isSelected =
-                      selected.any((value) => value['id'] == option['id']);
-                  final imageUrl = option['imageUrl']?.toString();
-                  final optionName = option['name']?.toString() ?? '';
-                  final beanSubtitle =
-                      isBean ? _beanSubtitle(optionName) : null;
-                  final price = double.tryParse(
-                          option['priceDeltaRm']?.toString() ?? '0') ??
-                      0;
-                  final colors = _choiceColors(option, options.indexOf(option));
-                  final dir =
-                      option['gradientDirection']?.toString() ?? 'diagonal';
-                  final selectedDecoration = colors.length == 1
-                      ? BoxDecoration(color: colors.first)
-                      : BoxDecoration(
-                          gradient: LinearGradient(
-                          colors: colors,
-                          begin: _gradientBegin(dir),
-                          end: _gradientEnd(dir),
-                        ));
-                  final unselectedColor =
-                      Color.lerp(colors.first, Colors.white, .88)!;
-                  return GestureDetector(
-                    onTap: () => setState(() {
-                      if (isMulti) {
-                        final next = [...selected];
-                        if (isSelected) {
-                          next.removeWhere(
-                              (value) => value['id'] == option['id']);
-                        } else if (next.length <
-                            ((group['maxSelect'] as num?)?.toInt() ?? 1)) {
-                          next.add(option);
-                        }
-                        _librarySelections[groupId] = next;
-                      } else if (isSelected &&
-                          group['isRequired'] != true &&
-                          ((group['minSelect'] as num?)?.toInt() ?? 0) == 0) {
-                        _librarySelections[groupId] = [];
-                      } else {
-                        _librarySelections[groupId] = [option];
-                      }
-                    }),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
-                      width: isBean ? 154 : 160,
-                      // Keep every bean choice the same size and leave room for
-                      // the longest two-line tasting note.
-                      height: isBean ? 194 : null,
-                      constraints:
-                          BoxConstraints(minHeight: isBean ? 164 : 118),
-                      padding: const EdgeInsets.all(10),
-                      decoration: (isSelected
-                              ? selectedDecoration
-                              : BoxDecoration(color: unselectedColor))
-                          .copyWith(
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(
-                                  color: isSelected
-                                      ? colors.first
-                                      : colors.first.withValues(alpha: .35),
-                                  width: 1.5),
-                              boxShadow: isSelected
-                                  ? [
-                                      BoxShadow(
-                                          color: colors.first
-                                              .withValues(alpha: .2),
-                                          blurRadius: 7,
-                                          offset: const Offset(0, 3))
-                                    ]
-                                  : null),
-                      child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            if (isBean &&
-                                imageUrl != null &&
-                                imageUrl.isNotEmpty) ...[
-                              ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: Opacity(
-                                      // A darken blend affects the entire image canvas,
-                                      // including transparent pixels, and creates a grey tile.
-                                      opacity: isSelected ? 1 : .65,
-                                      child: Image.network(imageUrl,
-                                          height: 64,
-                                          width: 106,
-                                          fit: BoxFit.contain,
-                                          errorBuilder: (_, __, ___) =>
-                                              const SizedBox(height: 42)))),
-                              const SizedBox(height: 6),
-                            ],
-                            Text(optionName,
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                    fontFamily: 'Recoleta',
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w900,
-                                    color: isSelected
-                                        ? Colors.white
-                                        : colors.first.withValues(alpha: .9))),
-                            if (beanSubtitle != null) ...[
-                              const SizedBox(height: 2),
-                              SizedBox(
-                                height: 32,
-                                child: Center(
-                                  child: Text(
-                                    beanSubtitle,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final cardHeight = isBean ? 194.0 : 130.0;
+              final cardWidth = ((constraints.maxWidth - 8 - 8) / 2)
+                  .clamp(0.0, double.infinity);
+
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: options.map((option) {
+                    final isSelected =
+                        selected.any((value) => value['id'] == option['id']);
+                    final imageUrl = option['imageUrl']?.toString();
+                    final optionName = option['name']?.toString() ?? '';
+                    final beanSubtitle =
+                        isBean ? _beanSubtitle(optionName) : null;
+                    final price = double.tryParse(
+                            option['priceDeltaRm']?.toString() ?? '0') ??
+                        0;
+                    final colors =
+                        _choiceColors(option, options.indexOf(option));
+                    final dir =
+                        option['gradientDirection']?.toString() ?? 'diagonal';
+                    final selectedDecoration = colors.length == 1
+                        ? BoxDecoration(color: colors.first)
+                        : BoxDecoration(
+                            gradient: LinearGradient(
+                            colors: colors,
+                            begin: _gradientBegin(dir),
+                            end: _gradientEnd(dir),
+                          ));
+                    final unselectedColor =
+                        Color.lerp(colors.first, Colors.white, .88)!;
+                    return SizedBox(
+                      width: cardWidth,
+                      height: cardHeight,
+                      child: GestureDetector(
+                        onTap: () => setState(() {
+                          if (isMulti) {
+                            final next = [...selected];
+                            if (isSelected) {
+                              next.removeWhere(
+                                  (value) => value['id'] == option['id']);
+                            } else if (next.length <
+                                ((group['maxSelect'] as num?)?.toInt() ?? 1)) {
+                              next.add(option);
+                            }
+                            _librarySelections[groupId] = next;
+                          } else if (isSelected &&
+                              group['isRequired'] != true &&
+                              ((group['minSelect'] as num?)?.toInt() ?? 0) ==
+                                  0) {
+                            _librarySelections[groupId] = [];
+                          } else {
+                            _librarySelections[groupId] = [option];
+                          }
+                        }),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          width: double.infinity,
+                          // Keep every option group at two cards per row. Bean
+                          // cards retain extra height for their image and tasting
+                          // note; shorter groups still align cleanly in the grid.
+                          height: double.infinity,
+                          constraints: const BoxConstraints(minHeight: 118),
+                          padding: const EdgeInsets.all(10),
+                          decoration: (isSelected
+                                  ? selectedDecoration
+                                  : BoxDecoration(color: unselectedColor))
+                              .copyWith(
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                      color: isSelected
+                                          ? colors.first
+                                          : colors.first.withValues(alpha: .35),
+                                      width: 1.5),
+                                  boxShadow: isSelected
+                                      ? [
+                                          BoxShadow(
+                                              color: colors.first
+                                                  .withValues(alpha: .2),
+                                              blurRadius: 7,
+                                              offset: const Offset(0, 3))
+                                        ]
+                                      : null),
+                          child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                if (isBean &&
+                                    imageUrl != null &&
+                                    imageUrl.isNotEmpty) ...[
+                                  ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Opacity(
+                                          // A darken blend affects the entire image canvas,
+                                          // including transparent pixels, and creates a grey tile.
+                                          opacity: isSelected ? 1 : .65,
+                                          child: Image.network(imageUrl,
+                                              height: 64,
+                                              width: 106,
+                                              fit: BoxFit.contain,
+                                              errorBuilder: (_, __, ___) =>
+                                                  const SizedBox(height: 42)))),
+                                  const SizedBox(height: 6),
+                                ],
+                                Text(optionName,
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
-                                      fontFamily: 'Afacad',
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w700,
-                                      color: isSelected
-                                          ? Colors.white.withValues(alpha: .9)
-                                          : colors.first.withValues(alpha: .75),
+                                        fontFamily: 'Recoleta',
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w900,
+                                        color: isSelected
+                                            ? Colors.white
+                                            : colors.first
+                                                .withValues(alpha: .9))),
+                                if (beanSubtitle != null) ...[
+                                  const SizedBox(height: 2),
+                                  SizedBox(
+                                    height: 32,
+                                    child: Center(
+                                      child: Text(
+                                        beanSubtitle,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          fontFamily: 'Afacad',
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w700,
+                                          color: isSelected
+                                              ? Colors.white
+                                                  .withValues(alpha: .9)
+                                              : colors.first
+                                                  .withValues(alpha: .75),
+                                        ),
+                                      ),
                                     ),
                                   ),
-                                ),
-                              ),
-                            ],
-                            if (price != 0)
-                              Text(
-                                  '${price > 0 ? '+' : ''}${price.toStringAsFixed(2)}',
-                                  style: TextStyle(
-                                      fontFamily: 'Afacad',
-                                      fontWeight: FontWeight.bold,
-                                      color: isSelected
-                                          ? Colors.white
-                                          : colors.first)),
-                          ]),
-                    ),
-                  );
-                }).toList()),
+                                ],
+                                if (price != 0)
+                                  Text(
+                                      '${price > 0 ? '+' : ''}${price.toStringAsFixed(2)}',
+                                      style: TextStyle(
+                                          fontFamily: 'Afacad',
+                                          fontWeight: FontWeight.bold,
+                                          color: isSelected
+                                              ? Colors.white
+                                              : colors.first)),
+                              ]),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              );
+            },
           ),
           const Divider(height: 24),
         ]);

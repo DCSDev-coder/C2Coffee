@@ -10,10 +10,25 @@ test('standalone customer broadcasts are rate limited, idempotent, and audited',
   const marketing = await source('src/http/routes/admin-marketing.ts');
   assert.match(marketing, /idempotency_key: z\.string\(\)\.uuid\(\)/);
   assert.match(marketing, /rateLimit: \{ max: 5, timeWindow: "1 hour" \}/);
-  assert.match(marketing, /ON DUPLICATE KEY UPDATE id = id/);
+  assert.match(
+    marketing,
+    /ON DUPLICATE KEY UPDATE delivery_key = VALUES\(delivery_key\)/,
+  );
+  assert.doesNotMatch(marketing, /ON DUPLICATE KEY UPDATE id = id/);
   assert.match(marketing, /customer_message_broadcast/);
+  assert.match(marketing, /type: "marketing_poster"/);
+  assert.match(marketing, /message_kind: "customer_message"/);
+  assert.match(marketing, /destination: "notifications"/);
   assert.match(marketing, /if \(idempotentReplay \|\| recipients === 0\)/);
   assert.match(marketing, /idempotent_replay: idempotentReplay/);
+});
+
+test('customer push registration retires stale tokens for the same device', async () => {
+  const customerData = await source('src/http/routes/customer-data.ts');
+  assert.match(customerData, /WHERE device_id = :deviceId/);
+  assert.match(customerData, /push_token <> :pushToken/);
+  assert.match(customerData, /AND status = 'active'/);
+  assert.match(customerData, /tokenFingerprint/);
 });
 
 test('recurring side work is calendar-valid, range-limited, and duplicate-safe', async () => {

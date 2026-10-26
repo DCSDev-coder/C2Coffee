@@ -18,6 +18,7 @@ import {
   createAdminMarketingBanner,
   deleteAdminMarketingBanner,
   getAdminApiBaseUrl,
+  formatRetryCountdown,
   loadAdminMarketingBanners,
   loadAdminMenu,
   loadAdminVouchers,
@@ -202,6 +203,7 @@ const Marketing = () => {
   const [notifyingBannerId, setNotifyingBannerId] = useState(null);
   const [sendingCustomerMessage, setSendingCustomerMessage] = useState(false);
   const [customerMessage, setCustomerMessage] = useState({ title: "", body: "" });
+  const [customerMessageRetrySeconds, setCustomerMessageRetrySeconds] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingBanner, setEditingBanner] = useState(null);
   const [selectedImageFile, setSelectedImageFile] = useState(null);
@@ -561,7 +563,7 @@ const Marketing = () => {
       );
       const failedDevices = Number(response?.notification?.failedDevices || 0);
       showAdminSuccess(
-        `Notification added for ${recipients} customer${recipients === 1 ? "" : "s"}; push attempted on ${attemptedDevices} device${attemptedDevices === 1 ? "" : "s"}, delivered to ${deliveredDevices}, failed on ${failedDevices}.`,
+        `Notification added for ${recipients} customer${recipients === 1 ? "" : "s"}; Firebase accepted ${deliveredDevices} of ${attemptedDevices} push request${attemptedDevices === 1 ? "" : "s"}${failedDevices > 0 ? ` (${failedDevices} failed)` : ""}.`,
       );
     } catch (err) {
       setError(
@@ -595,12 +597,16 @@ const Marketing = () => {
       });
       const recipients = Number(response?.message?.recipients || 0);
       const deliveredDevices = Number(response?.message?.deliveredDevices || 0);
+      const acceptedIos = Number(response?.message?.acceptedByPlatform?.ios || 0);
+      const acceptedAndroid = Number(response?.message?.acceptedByPlatform?.android || 0);
       showAdminSuccess(
-        `Message sent to ${recipients} customer${recipients === 1 ? "" : "s"}. Push delivered to ${deliveredDevices} device${deliveredDevices === 1 ? "" : "s"}.`,
+        `Message sent to ${recipients} customer${recipients === 1 ? "" : "s"}. Firebase accepted ${deliveredDevices} push request${deliveredDevices === 1 ? "" : "s"} (${acceptedIos} iOS, ${acceptedAndroid} Android).`,
       );
       setCustomerMessage({ title: "", body: "" });
       customerMessageRequestKey.current = null;
+      setCustomerMessageRetrySeconds(0);
     } catch (err) {
+      setCustomerMessageRetrySeconds(Math.ceil(Number(err?.retryAfterSeconds) || 0));
       setError(err instanceof Error ? err.message : "Unable to send the customer message.");
     } finally {
       setSendingCustomerMessage(false);
@@ -666,7 +672,8 @@ const Marketing = () => {
             <label className="text-sm font-semibold text-gray-700">Title<input required maxLength={120} value={customerMessage.title} onChange={(event) => setCustomerMessage((current) => ({ ...current, title: event.target.value }))} placeholder="A little reminder from C2 Coffee" className="mt-1.5 w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#2E5E58]" /></label>
             <label className="text-sm font-semibold text-gray-700">Message<textarea required maxLength={420} rows={2} value={customerMessage.body} onChange={(event) => setCustomerMessage((current) => ({ ...current, body: event.target.value }))} placeholder="Don't forget to come by and enjoy your favourite drink today." className="mt-1.5 w-full resize-none rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#2E5E58]" /></label>
           </div>
-          <div className="mt-3 flex justify-end"><button type="submit" disabled={sendingCustomerMessage || !customerMessage.title.trim() || !customerMessage.body.trim()} className="inline-flex items-center gap-2 rounded-xl bg-[#1F3A34] px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-[#2E5E58] disabled:cursor-not-allowed disabled:opacity-50"><Bell size={16} />{sendingCustomerMessage ? "Sending..." : "Send message"}</button></div>
+          {customerMessageRetrySeconds > 0 && <p className="mt-3 text-right text-sm font-semibold text-amber-700">Messages are temporarily limited. You can send again in <span className="font-mono tabular-nums">{formatRetryCountdown(customerMessageRetrySeconds)}</span>.</p>}
+          <div className="mt-3 flex justify-end"><button type="submit" disabled={sendingCustomerMessage || customerMessageRetrySeconds > 0 || !customerMessage.title.trim() || !customerMessage.body.trim()} className="inline-flex items-center gap-2 rounded-xl bg-[#1F3A34] px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-[#2E5E58] disabled:cursor-not-allowed disabled:opacity-50"><Bell size={16} />{sendingCustomerMessage ? "Sending..." : customerMessageRetrySeconds > 0 ? `Try again in ${formatRetryCountdown(customerMessageRetrySeconds)}` : "Send message"}</button></div>
         </form>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 shrink-0">

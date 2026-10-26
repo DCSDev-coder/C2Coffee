@@ -43,7 +43,7 @@ export async function createUserNotification(
           :readAt,
           UTC_TIMESTAMP()
         )
-        ON DUPLICATE KEY UPDATE id = id
+        ON DUPLICATE KEY UPDATE delivery_key = VALUES(delivery_key)
       `,
       {
         userId: input.userId,
