@@ -3,14 +3,16 @@ import 'package:intl/intl.dart';
 
 import '../services/app_session_service.dart';
 import '../services/auth_api_service.dart';
-import '../services/customer_data_service.dart';
 import '../services/catalog_api_service.dart';
+import '../services/customer_data_service.dart';
 import '../services/secure_session_service.dart';
 import '../utils/app_colors.dart';
-import '../widgets/order_status_banner.dart';
-import 'loading_order_page.dart';
 import '../widgets/app_page_shell.dart';
 import '../widgets/catalog_product_image.dart';
+import '../widgets/order_status_banner.dart';
+import 'loading_order_page.dart';
+
+enum _RewardFilter { all, available, history }
 
 class MyRewardsPage extends StatefulWidget {
   const MyRewardsPage({super.key});
@@ -19,18 +21,32 @@ class MyRewardsPage extends StatefulWidget {
   State<MyRewardsPage> createState() => _MyRewardsPageState();
 }
 
-class _MyRewardsPageState extends State<MyRewardsPage> {
+class _MyRewardsPageState extends State<MyRewardsPage>
+    with SingleTickerProviderStateMixin {
+  static const int _initialVoucherLimit = 5;
+  static const int _voucherPageStep = 5;
+
   final AppSessionService _session = AppSessionService.instance;
+  final ScrollController _scrollController = ScrollController();
+  late final AnimationController _cardCircleController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 3600),
+  )..repeat(reverse: true);
+
   bool _isRewardsLoading = true;
   String? _rewardsError;
   List<RewardVoucher> _vouchers = const [];
   List<TierRewardEntitlement> _claimableTierRewards = const [];
   final Set<int> _expandedVoucherIds = <int>{};
+  _RewardFilter _selectedFilter = _RewardFilter.all;
+  int _voucherDisplayLimit = _initialVoucherLimit;
+  bool _showScrollToTop = false;
 
   @override
   void initState() {
     super.initState();
     _session.addListener(_handleSessionChanged);
+    _scrollController.addListener(_handleScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadRewards();
     });
@@ -39,7 +55,27 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
   @override
   void dispose() {
     _session.removeListener(_handleSessionChanged);
+    _scrollController.removeListener(_handleScroll);
+    _cardCircleController.dispose();
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  void _handleScroll() {
+    final shouldShow =
+        _scrollController.hasClients && _scrollController.offset > 300;
+    if (shouldShow != _showScrollToTop && mounted) {
+      setState(() => _showScrollToTop = shouldShow);
+    }
+  }
+
+  Future<void> _scrollToTop() async {
+    if (!_scrollController.hasClients) return;
+    await _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 450),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   void _handleSessionChanged() {
@@ -113,15 +149,51 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final visibleRewardCount = _vouchers.length + _claimableTierRewards.length;
+    final activeVoucherCount = _vouchers.where((v) => v.isActive).length;
+    final visibleRewardCount =
+        activeVoucherCount + _claimableTierRewards.length;
 
     return AppPageShell(
       title: 'MY REWARDS',
       onBack: () => InteractiveFillingLoader.showPop(context),
       backgroundColor: Colors.white,
+      scrollController: _scrollController,
+      onRefresh: () => _loadRewards(forceSessionReload: true),
       bodyPadding: const EdgeInsets.only(bottom: 130),
-      overlay: OrderStatusBanner(
-        bottomOffset: 90 + MediaQuery.paddingOf(context).bottom,
+      overlay: Stack(
+        children: [
+          OrderStatusBanner(
+            bottomOffset: 90 + MediaQuery.paddingOf(context).bottom,
+          ),
+          if (_showScrollToTop)
+            Positioned(
+              right: 18,
+              bottom: 24 + MediaQuery.paddingOf(context).bottom,
+              child: Semantics(
+                button: true,
+                label: 'Back to top',
+                child: Material(
+                  color: AppColors.deepTeal,
+                  elevation: 5,
+                  shadowColor: Colors.black26,
+                  shape: const CircleBorder(),
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: _scrollToTop,
+                    child: const SizedBox(
+                      width: 48,
+                      height: 48,
+                      child: Icon(
+                        Icons.keyboard_arrow_up_rounded,
+                        color: Colors.white,
+                        size: 30,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
       child: Column(
         children: [
@@ -147,7 +219,7 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
   Widget _buildRewardsHeroCard(int visibleRewardCount) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(18),
+      clipBehavior: Clip.hardEdge,
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
@@ -168,101 +240,128 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
       ),
       child: Stack(
         children: [
-          Positioned(
-            right: -10,
-            top: -12,
+          AnimatedBuilder(
+            animation: _cardCircleController,
+            builder: (context, child) {
+              final double t = Curves.easeInOutSine.transform(
+                _cardCircleController.value,
+              );
+              return Positioned(
+                right: -22 + (t * 20),
+                top: -24 + (t * 16),
+                child: Transform.scale(
+                  scale: 0.94 + (t * 0.12),
+                  child: child,
+                ),
+              );
+            },
             child: Container(
-              width: 92,
-              height: 92,
+              width: 112,
+              height: 112,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: Colors.white.withValues(alpha: 0.08),
               ),
             ),
           ),
-          Positioned(
-            right: 72,
-            bottom: -30,
+          AnimatedBuilder(
+            animation: _cardCircleController,
+            builder: (context, child) {
+              final double t = Curves.easeInOutSine.transform(
+                _cardCircleController.value,
+              );
+              return Positioned(
+                right: 78 - (t * 18),
+                bottom: -34 + (t * 12),
+                child: Transform.scale(
+                  scale: 1.04 - (t * 0.10),
+                  child: child,
+                ),
+              );
+            },
             child: Container(
-              width: 70,
-              height: 70,
+              width: 76,
+              height: 76,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: AppColors.gold.withValues(alpha: 0.12),
               ),
             ),
           ),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
+          Padding(
+            padding: const EdgeInsets.all(18),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: const Text(
+                          'Rewards hub',
+                          style: TextStyle(
+                            fontFamily: 'Afacad',
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
                       ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: const Text(
-                        'Rewards hub',
+                      const SizedBox(height: 14),
+                      const Text(
+                        'Your rewards, all in one place',
                         style: TextStyle(
-                          fontFamily: 'Afacad',
-                          fontSize: 15,
+                          fontFamily: 'Recoleta',
+                          fontSize: 24,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
+                          height: 1.15,
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 14),
-                    const Text(
-                      'Your rewards, all in one place',
-                      style: TextStyle(
-                        fontFamily: 'Recoleta',
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        height: 1.15,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Tier rewards appear here automatically and can be claimed during checkout.',
-                      style: TextStyle(
-                        fontFamily: 'Afacad',
-                        fontSize: 16,
-                        color: Colors.white.withValues(alpha: 0.88),
-                        height: 1.35,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
-                      children: [
-                        _buildHeroStatChip(
-                          '$visibleRewardCount',
-                          'Reward${visibleRewardCount == 1 ? '' : 's'}',
+                      const SizedBox(height: 8),
+                      Text(
+                        'Tier rewards appear here automatically and can be claimed during checkout.',
+                        style: TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 16,
+                          color: Colors.white.withValues(alpha: 0.88),
+                          height: 1.35,
                         ),
-                      ],
-                    ),
-                  ],
+                      ),
+                      const SizedBox(height: 14),
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: [
+                          _buildHeroStatChip(
+                            '$visibleRewardCount',
+                            'Reward${visibleRewardCount == 1 ? '' : 's'}',
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(width: 14),
-              Image.asset(
-                'assets/images/voucher.png',
-                width: 90,
-                height: 90,
-                fit: BoxFit.contain,
-                color: Colors.white,
-                colorBlendMode: BlendMode.srcIn,
-              ),
-            ],
+                const SizedBox(width: 14),
+                Image.asset(
+                  'assets/images/voucher.png',
+                  width: 90,
+                  height: 90,
+                  fit: BoxFit.contain,
+                  color: Colors.white,
+                  colorBlendMode: BlendMode.srcIn,
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -330,16 +429,7 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
         return b.issuedAt.compareTo(a.issuedAt);
       });
 
-    final birthdayTierVouchers = sortedVouchers
-        .where((voucher) => voucher.rewardKind == 'tier_birthday')
-        .toList();
-    final regularVouchers = sortedVouchers
-        .where((voucher) => voucher.rewardKind != 'tier_birthday')
-        .toList();
-
-    if (regularVouchers.isEmpty &&
-        birthdayTierVouchers.isEmpty &&
-        _claimableTierRewards.isEmpty) {
+    if (sortedVouchers.isEmpty && _claimableTierRewards.isEmpty) {
       return _buildMessageCard(
         title: 'No rewards yet',
         message:
@@ -347,31 +437,145 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
       );
     }
 
+    final filteredVouchers = sortedVouchers.where((v) {
+      switch (_selectedFilter) {
+        case _RewardFilter.all:
+          return true;
+        case _RewardFilter.available:
+          return v.isActive;
+        case _RewardFilter.history:
+          return !v.isActive;
+      }
+    }).toList();
+
+    final birthdayTierVouchers = filteredVouchers
+        .where((voucher) => voucher.rewardKind == 'tier_birthday')
+        .toList();
+    final regularVouchers = filteredVouchers
+        .where((voucher) => voucher.rewardKind != 'tier_birthday')
+        .toList();
+    final showClaimableTier = _selectedFilter != _RewardFilter.history &&
+        _claimableTierRewards.isNotEmpty;
+
+    final availableCount =
+        sortedVouchers.where((v) => v.isActive).length +
+            _claimableTierRewards.length;
+    final historyCount = sortedVouchers.where((v) => !v.isActive).length;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (_claimableTierRewards.isNotEmpty) ...[
-          _buildClaimableTierRewardsSection(),
-          if (birthdayTierVouchers.isNotEmpty || regularVouchers.isNotEmpty)
-            const SizedBox(height: 24),
+        _buildFilterPills(
+          totalCount: sortedVouchers.length + _claimableTierRewards.length,
+          availableCount: availableCount,
+          historyCount: historyCount,
+        ),
+        const SizedBox(height: 20),
+        if (!showClaimableTier &&
+            birthdayTierVouchers.isEmpty &&
+            regularVouchers.isEmpty)
+          _buildMessageCard(
+            title: _selectedFilter == _RewardFilter.available
+                ? 'No active rewards right now'
+                : 'No past rewards yet',
+            message: _selectedFilter == _RewardFilter.available
+                ? 'All your active vouchers and claimable tier rewards will appear here.'
+                : 'Used or expired vouchers will be listed here for your reference.',
+          )
+        else ...[
+          if (showClaimableTier) ...[
+            _buildClaimableTierRewardsSection(),
+            if (birthdayTierVouchers.isNotEmpty || regularVouchers.isNotEmpty)
+              const SizedBox(height: 24),
+          ],
+          if (birthdayTierVouchers.isNotEmpty) ...[
+            _buildRewardsSection(
+              title: 'Birthday Tier Reward',
+              subtitle: 'Available this month for your current loyalty tier.',
+              vouchers: birthdayTierVouchers,
+              accentColor: AppColors.gold,
+              paginated: false,
+            ),
+            if (regularVouchers.isNotEmpty) const SizedBox(height: 24),
+          ],
+          if (regularVouchers.isNotEmpty)
+            _buildRewardsSection(
+              title: 'Vouchers',
+              subtitle: _selectedFilter == _RewardFilter.history
+                  ? 'Your used and expired vouchers.'
+                  : 'Your vouchers, ready to apply at checkout.',
+              vouchers: regularVouchers,
+              accentColor: AppColors.deepTeal,
+              paginated: true,
+            ),
         ],
-        if (birthdayTierVouchers.isNotEmpty) ...[
-          _buildRewardsSection(
-            title: 'Birthday tier reward',
-            subtitle: 'Available this month for your current loyalty tier.',
-            vouchers: birthdayTierVouchers,
-            accentColor: AppColors.gold,
-          ),
-          if (regularVouchers.isNotEmpty) const SizedBox(height: 24),
-        ],
-        if (regularVouchers.isNotEmpty)
-          _buildRewardsSection(
-            title: 'Vouchers',
-            subtitle: 'Your active vouchers, ready to use.',
-            vouchers: regularVouchers,
-            accentColor: AppColors.deepTeal,
-          ),
       ],
+    );
+  }
+
+  Widget _buildFilterPills({
+    required int totalCount,
+    required int availableCount,
+    required int historyCount,
+  }) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          _buildFilterChip(
+            label: 'All ($totalCount)',
+            filter: _RewardFilter.all,
+          ),
+          const SizedBox(width: 8),
+          _buildFilterChip(
+            label: 'Available ($availableCount)',
+            filter: _RewardFilter.available,
+          ),
+          const SizedBox(width: 8),
+          _buildFilterChip(
+            label: 'Used / Expired ($historyCount)',
+            filter: _RewardFilter.history,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterChip({
+    required String label,
+    required _RewardFilter filter,
+  }) {
+    final isSelected = _selectedFilter == filter;
+    final brandColor = AppColors.deepTeal;
+
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _selectedFilter = filter;
+          _voucherDisplayLimit = _initialVoucherLimit;
+        });
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? brandColor : AppColors.surfaceLight,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected ? brandColor : AppColors.border,
+            width: 1.2,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontFamily: 'Afacad',
+            fontSize: 14.5,
+            fontWeight: FontWeight.w700,
+            color: isSelected ? Colors.white : Colors.black87,
+          ),
+        ),
+      ),
     );
   }
 
@@ -379,16 +583,37 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Available tier rewards',
-          style: TextStyle(
-            fontFamily: 'Recoleta',
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: AppColors.deepTeal,
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Available Tier Rewards',
+              style: TextStyle(
+                fontFamily: 'Recoleta',
+                fontSize: 21,
+                fontWeight: FontWeight.bold,
+                color: AppColors.deepTeal,
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+              decoration: BoxDecoration(
+                color: AppColors.gold.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                '${_claimableTierRewards.length} ready',
+                style: TextStyle(
+                  fontFamily: 'Afacad',
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.deepTeal,
+                ),
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 4),
         const Text(
           'These rewards follow your current cup-progress tier. Claim one when you are ready to use it at checkout.',
           style: TextStyle(
@@ -412,19 +637,33 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppColors.surfaceLight,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: AppColors.gold.withValues(alpha: 0.55),
-          width: 1.2,
+        gradient: LinearGradient(
+          colors: [
+            AppColors.surfaceLight,
+            Colors.white,
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: AppColors.gold.withValues(alpha: 0.65),
+          width: 1.4,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (reward.template.imageUrl?.trim().isNotEmpty ?? false) ...[
             ClipRRect(
-              borderRadius: BorderRadius.circular(13),
+              borderRadius: BorderRadius.circular(14),
               child: AspectRatio(
                 aspectRatio: 2 / 1,
                 child: CatalogProductImage(
@@ -435,39 +674,78 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
             ),
             const SizedBox(height: 14),
           ],
-          Text(
-            reward.template.displayLabel,
-            style: TextStyle(
-              fontFamily: 'Recoleta',
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: AppColors.deepTeal,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            reward.template.benefitLabel,
-            style: const TextStyle(
-              fontFamily: 'Afacad',
-              fontSize: 15,
-              color: Colors.black54,
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: AppColors.gold.withValues(alpha: 0.22),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: Icon(
+                  Icons.workspace_premium_rounded,
+                  color: AppColors.deepTeal,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      reward.template.displayLabel,
+                      style: TextStyle(
+                        fontFamily: 'Recoleta',
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.deepTeal,
+                        height: 1.15,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      reward.template.benefitLabel,
+                      style: const TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 15.5,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 12),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
             decoration: BoxDecoration(
               color: AppColors.deepTeal.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(999),
             ),
-            child: Text(
-              'Available to claim at checkout',
-              style: TextStyle(
-                fontFamily: 'Afacad',
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: AppColors.deepTeal,
-              ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.check_circle_outline_rounded,
+                  size: 16,
+                  color: AppColors.deepTeal,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'Available to claim at checkout',
+                  style: TextStyle(
+                    fontFamily: 'Afacad',
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.deepTeal,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -480,20 +758,54 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
     required String subtitle,
     required List<RewardVoucher> vouchers,
     required Color accentColor,
+    required bool paginated,
   }) {
+    final visibleCount = !paginated
+        ? vouchers.length
+        : (vouchers.length < _voucherDisplayLimit
+            ? vouchers.length
+            : _voucherDisplayLimit);
+    final visibleVouchers = vouchers.sublist(0, visibleCount);
+    final remainingCount = vouchers.length - visibleCount;
+    final canCollapse = paginated &&
+        vouchers.length > _initialVoucherLimit &&
+        visibleCount > _initialVoucherLimit;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          style: TextStyle(
-            fontFamily: 'Recoleta',
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: AppColors.deepTeal,
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Text(
+              title,
+              style: TextStyle(
+                fontFamily: 'Recoleta',
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: AppColors.deepTeal,
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceLight,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                '${vouchers.length} total',
+                style: TextStyle(
+                  fontFamily: 'Afacad',
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.deepTeal,
+                ),
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 4),
         Text(
           subtitle,
           style: const TextStyle(
@@ -503,10 +815,105 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
             height: 1.35,
           ),
         ),
-        const SizedBox(height: 12),
-        for (var i = 0; i < vouchers.length; i++) ...[
-          _buildVoucherCard(vouchers[i], accentColor: accentColor),
-          if (i < vouchers.length - 1) const SizedBox(height: 12),
+        const SizedBox(height: 14),
+        for (var i = 0; i < visibleVouchers.length; i++) ...[
+          _buildVoucherCard(visibleVouchers[i], accentColor: accentColor),
+          if (i < visibleVouchers.length - 1) const SizedBox(height: 14),
+        ],
+        if (remainingCount > 0 || canCollapse) ...[
+          const SizedBox(height: 14),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (remainingCount > 0)
+                Flexible(
+                  child: TextButton(
+                    onPressed: () {
+                      setState(() {
+                        _voucherDisplayLimit += _voucherPageStep;
+                      });
+                    },
+                    style: TextButton.styleFrom(
+                      backgroundColor: AppColors.surfaceLight,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                        side: BorderSide(color: AppColors.border),
+                      ),
+                    ),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            color: AppColors.deepTeal,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Show More ($remainingCount more)',
+                            style: TextStyle(
+                              fontFamily: 'Afacad',
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.deepTeal,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              if (remainingCount > 0 && canCollapse) const SizedBox(width: 8),
+              if (canCollapse)
+                Flexible(
+                  child: TextButton(
+                    onPressed: () {
+                      setState(() {
+                        _voucherDisplayLimit = _initialVoucherLimit;
+                      });
+                    },
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                    ),
+                    child: const FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.keyboard_arrow_up_rounded,
+                            color: Colors.black54,
+                            size: 19,
+                          ),
+                          SizedBox(width: 4),
+                          Text(
+                            'Show Less',
+                            style: TextStyle(
+                              fontFamily: 'Afacad',
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.black54,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ],
       ],
     );
@@ -522,26 +929,27 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
             ? 'Redeem by ${DateFormat('dd MMM yyyy').format(voucher.expiresAt.toUtc().add(const Duration(hours: 8)))}'
             : 'Valid while your current tier remains active';
     final isActive = voucher.isActive;
-    final statusColor = isActive ? AppColors.deepTeal : Colors.grey.shade600;
     final cardAccentColor = isActive ? accentColor : Colors.grey.shade400;
     final isExpanded = _expandedVoucherIds.contains(voucher.id);
+    final badgeLabel = _voucherBadge(voucher);
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: isActive ? Colors.white : AppColors.surfaceLight,
-        borderRadius: BorderRadius.circular(18),
+        color: isActive ? Colors.white : const Color(0xFFFAFAFB),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: isActive
-              ? AppColors.deepTeal.withValues(alpha: 0.18)
-              : AppColors.border,
-          width: 1,
+              ? AppColors.border
+              : Colors.grey.shade300,
+          width: 1.4,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 10,
-            offset: const Offset(0, 2),
+            offset: const Offset(0, 3),
           ),
         ],
       ),
@@ -550,7 +958,7 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
         children: [
           if (voucher.template.imageUrl?.trim().isNotEmpty ?? false) ...[
             ClipRRect(
-              borderRadius: BorderRadius.circular(13),
+              borderRadius: BorderRadius.circular(14),
               child: AspectRatio(
                 // Match the menu banner and Admin voucher artwork ratio.
                 aspectRatio: 2 / 1,
@@ -567,8 +975,8 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                width: 6,
-                height: 56,
+                width: 5,
+                height: 52,
                 decoration: BoxDecoration(
                   color: cardAccentColor,
                   borderRadius: BorderRadius.circular(999),
@@ -579,69 +987,112 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Column(
+                    Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          voucher.template.displayLabel,
-                          maxLines: 3,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontFamily: 'Recoleta',
-                            fontSize: 20,
-                            height: 1.12,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.deepTeal,
+                        Expanded(
+                          child: Text(
+                            voucher.template.displayLabel,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontFamily: 'Recoleta',
+                              fontSize: 20,
+                              height: 1.15,
+                              fontWeight: FontWeight.bold,
+                              color: isActive
+                                  ? AppColors.deepTeal
+                                  : Colors.black54,
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 10),
+                        const SizedBox(width: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 10,
-                            vertical: 6,
+                            vertical: 4,
                           ),
                           decoration: BoxDecoration(
                             color: isActive
-                                ? AppColors.surfaceLight
-                                : Colors.white,
+                                ? const Color(0xFFE8F5E9)
+                                : Colors.grey.shade200,
                             borderRadius: BorderRadius.circular(999),
-                            border:
-                                Border.all(color: cardAccentColor, width: 1),
                           ),
                           child: Text(
-                            _voucherBadge(voucher),
+                            badgeLabel,
                             style: TextStyle(
                               fontFamily: 'Afacad',
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.deepTeal,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: isActive
+                                  ? const Color(0xFF2E7D32)
+                                  : Colors.grey.shade700,
                             ),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Status: ${_voucherStatusLabel(voucher)}',
-                      style: TextStyle(
-                        fontFamily: 'Afacad',
-                        fontSize: 15,
-                        color: statusColor,
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceLight,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.local_offer_outlined,
+                            size: 14,
+                            color: cardAccentColor,
+                          ),
+                          const SizedBox(width: 5),
+                          Flexible(
+                            child: Text(
+                              voucher.template.benefitLabel,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontFamily: 'Afacad',
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.deepTeal,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(height: 10),
-                    Text(
-                      expiryLabel,
-                      style: const TextStyle(
-                        fontFamily: 'Afacad',
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black54,
-                      ),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.schedule_rounded,
+                          size: 15,
+                          color: Colors.black45,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            expiryLabel,
+                            style: const TextStyle(
+                              fontFamily: 'Afacad',
+                              fontSize: 14.5,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black54,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 4),
-                    TextButton.icon(
-                      onPressed: () {
+                    const SizedBox(height: 8),
+                    InkWell(
+                      onTap: () {
                         setState(() {
                           if (isExpanded) {
                             _expandedVoucherIds.remove(voucher.id);
@@ -650,24 +1101,30 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
                           }
                         });
                       },
-                      style: TextButton.styleFrom(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Padding(
                         padding: const EdgeInsets.symmetric(vertical: 4),
-                        minimumSize: const Size(0, 32),
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        foregroundColor: cardAccentColor,
-                      ),
-                      icon: Icon(
-                        isExpanded
-                            ? Icons.keyboard_arrow_up
-                            : Icons.keyboard_arrow_down,
-                        size: 18,
-                      ),
-                      label: Text(
-                        isExpanded ? 'Hide details' : 'Show details',
-                        style: const TextStyle(
-                          fontFamily: 'Afacad',
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              isExpanded
+                                  ? Icons.keyboard_arrow_up_rounded
+                                  : Icons.keyboard_arrow_down_rounded,
+                              size: 19,
+                              color: cardAccentColor,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              isExpanded ? 'Hide details' : 'Show details',
+                              style: TextStyle(
+                                fontFamily: 'Afacad',
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: cardAccentColor,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -679,28 +1136,39 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
                       firstChild: const SizedBox.shrink(),
                       secondChild: Padding(
                         padding: const EdgeInsets.only(top: 8),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            _buildInfoRow('Code', voucher.template.code),
-                            _buildInfoRow(
-                              'Availability',
-                              voucher.template.availabilityLabel,
-                            ),
-                            _buildInfoRow(
-                              'Benefit',
-                              voucher.template.benefitLabel,
-                            ),
-                            _buildInfoRow(
-                              'Applies to',
-                              voucher.template.eligibilityLabel,
-                            ),
-                            if (voucher.template.minSpendRm != null)
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8F9FA),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: Colors.grey.shade200),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _buildInfoRow('Code', voucher.template.code),
                               _buildInfoRow(
-                                'Min spend',
-                                'RM ${voucher.template.minSpendRm}',
+                                'Availability',
+                                voucher.template.availabilityLabel,
                               ),
-                          ],
+                              _buildInfoRow(
+                                'Benefit',
+                                voucher.template.benefitLabel,
+                              ),
+                              _buildInfoRow(
+                                'Applies to',
+                                voucher.template.eligibilityLabel,
+                                isLast: voucher.template.minSpendRm == null,
+                              ),
+                              if (voucher.template.minSpendRm != null)
+                                _buildInfoRow(
+                                  'Min spend',
+                                  'RM ${voucher.template.minSpendRm}',
+                                  isLast: true,
+                                ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -714,29 +1182,36 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
     );
   }
 
-  Widget _buildInfoRow(String label, String value) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceLight,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: RichText(
-        text: TextSpan(
-          style: TextStyle(
-            fontFamily: 'Afacad',
-            fontSize: 14,
-            color: Colors.black87,
-          ),
-          children: [
-            TextSpan(
-              text: '$label: ',
-              style: const TextStyle(fontWeight: FontWeight.bold),
+  Widget _buildInfoRow(String label, String value, {bool isLast = false}) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: isLast ? 0 : 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontFamily: 'Afacad',
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.black54,
             ),
-            TextSpan(text: value),
-          ],
-        ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                fontFamily: 'Afacad',
+                fontSize: 14.5,
+                fontWeight: FontWeight.w700,
+                color: Colors.black87,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -778,8 +1253,8 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border, width: 1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.border, width: 1.4),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),
@@ -794,10 +1269,18 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
             CircularProgressIndicator(color: AppColors.deepTeal),
             const SizedBox(height: 16),
           ] else ...[
-            Icon(
-              Icons.card_giftcard_outlined,
-              size: 40,
-              color: AppColors.gold,
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: AppColors.surfaceLight,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.card_giftcard_outlined,
+                size: 32,
+                color: AppColors.deepTeal,
+              ),
             ),
             const SizedBox(height: 14),
           ],
@@ -806,18 +1289,18 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
             textAlign: TextAlign.center,
             style: TextStyle(
               fontFamily: 'Recoleta',
-              fontSize: 24,
+              fontSize: 23,
               fontWeight: FontWeight.bold,
               color: AppColors.deepTeal,
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           Text(
             message,
             textAlign: TextAlign.center,
             style: const TextStyle(
               fontFamily: 'Afacad',
-              fontSize: 17,
+              fontSize: 16,
               color: Colors.black54,
               height: 1.35,
             ),
@@ -830,7 +1313,7 @@ class _MyRewardsPageState extends State<MyRewardsPage> {
                 onPressed: onPressed,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.deepTeal,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
                   ),

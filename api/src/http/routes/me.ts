@@ -202,7 +202,10 @@ export async function registerMeRoutes(app: FastifyInstance): Promise<void> {
       throw new ApiError(400, 'invalid_avatar_upload', 'Please upload a valid PNG, JPEG, or WebP image.');
     }
 
-    const assetPath = `/assets/avatars/customer-${request.auth.userId}.webp`;
+    // Use a unique path for each upload. Avatar responses are cacheable, so
+    // reusing a user-only filename can make clients keep showing the previous
+    // image after a successful replacement.
+    const assetPath = `/assets/avatars/customer-${request.auth.userId}-${Date.now()}-${crypto.randomUUID().slice(0, 8)}.webp`;
 
     await saveMediaAsset({
       assetPath,

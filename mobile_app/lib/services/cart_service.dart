@@ -119,6 +119,7 @@ class CartItem {
   CartItem copyWith({
     int? quantity,
     String? remarks,
+    bool clearRemarks = false,
     String? displayDetails,
     List<CartModifier>? modifiers,
   }) {
@@ -138,7 +139,7 @@ class CartItem {
       basePriceRm: basePriceRm,
       tokenPrice: tokenPrice,
       quantity: quantity ?? this.quantity,
-      remarks: remarks ?? this.remarks,
+      remarks: clearRemarks ? null : (remarks ?? this.remarks),
       displayDetails: displayDetails ?? this.displayDetails,
       modifiers: modifiers ?? this.modifiers,
     );
@@ -234,6 +235,18 @@ class CartService extends ChangeNotifier {
       _storeId = null;
       _storeName = null;
     }
+    notifyListeners();
+  }
+
+  void updateRemarks(String itemId, String? remarks) {
+    final index = _items.indexWhere((item) => item.id == itemId);
+    if (index == -1) return;
+
+    final cleaned = remarks?.trim();
+    _items[index] = _items[index].copyWith(
+      remarks: cleaned,
+      clearRemarks: cleaned == null || cleaned.isEmpty,
+    );
     notifyListeners();
   }
 

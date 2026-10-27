@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../services/customer_data_service.dart';
 import '../services/notification_service.dart';
 import '../services/secure_session_service.dart';
 import '../utils/app_colors.dart';
@@ -10,6 +11,8 @@ import '../utils/app_notification.dart';
 import '../widgets/app_page_shell.dart';
 import 'loading_order_page.dart';
 import 'my_rewards_page.dart';
+import 'order_details_page.dart';
+import 'order_status_detail_page.dart';
 import 'orders_page.dart';
 import 'top_up_wallet_page.dart';
 
@@ -31,21 +34,47 @@ class NotificationPage extends StatefulWidget {
 }
 
 class _NotificationPageState extends State<NotificationPage> {
+  static const int _initialDisplayLimit = 5;
+  static const int _displayPageStep = 5;
+
+  final ScrollController _scrollController = ScrollController();
   late Future<_NotificationInboxData> _notificationsFuture;
   _NotificationInboxData? _lastLoadedInbox;
   bool _clearing = false;
+  int _displayLimit = _initialDisplayLimit;
+  bool _showScrollToTop = false;
 
   @override
   void initState() {
     super.initState();
     _notificationsFuture = _loadNotifications();
+    _scrollController.addListener(_handleScroll);
     NotificationService.instance.inboxRevision.addListener(_refreshInbox);
   }
 
   @override
   void dispose() {
     NotificationService.instance.inboxRevision.removeListener(_refreshInbox);
+    _scrollController.removeListener(_handleScroll);
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  void _handleScroll() {
+    final shouldShow =
+        _scrollController.hasClients && _scrollController.offset > 300;
+    if (shouldShow != _showScrollToTop && mounted) {
+      setState(() => _showScrollToTop = shouldShow);
+    }
+  }
+
+  Future<void> _scrollToTop() async {
+    if (!_scrollController.hasClients) return;
+    await _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 450),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   void _refreshInbox() {
@@ -82,6 +111,18 @@ class _NotificationPageState extends State<NotificationPage> {
     return inbox;
   }
 
+  Future<void> _handleRefresh() async {
+    final future = _loadNotifications();
+    setState(() {
+      _notificationsFuture = future;
+    });
+    try {
+      await future;
+    } catch (_) {
+      // Handled by FutureBuilder.
+    }
+  }
+
   void _retry() {
     setState(() {
       _notificationsFuture = _loadNotifications();
@@ -93,73 +134,97 @@ class _NotificationPageState extends State<NotificationPage> {
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.58),
       builder: (dialogContext) => Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 18),
-          decoration: BoxDecoration(
-            color: const Color(0xFFFFF8FC),
-            borderRadius: BorderRadius.circular(28),
-            border: Border.all(
-              color: AppColors.deepTeal.withValues(alpha: 0.14),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.2),
-                blurRadius: 28,
-                offset: const Offset(0, 14),
-              ),
-            ],
-          ),
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 22),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(28),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    width: 48,
-                    height: 48,
+                    width: 46,
+                    height: 46,
                     decoration: BoxDecoration(
-                      color: AppColors.deepTeal,
-                      borderRadius: BorderRadius.circular(16),
+                      color: AppColors.deepTeal.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(14),
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.notifications_off_outlined,
-                      color: Colors.white,
-                      size: 25,
+                      color: AppColors.deepTeal,
+                      size: 24,
                     ),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
-                    child: Text(
-                      'Clear latest updates?',
-                      style: TextStyle(
-                        fontFamily: 'Recoleta',
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.deepTeal,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Clear Latest Updates?',
+                          style: TextStyle(
+                            fontFamily: 'Recoleta',
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.deepTeal,
+                            height: 1.15,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Remove all current updates from your inbox.',
+                          style: TextStyle(
+                            fontFamily: 'Afacad',
+                            fontSize: 15,
+                            color: Colors.black54,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  InkWell(
+                    onTap: () => Navigator.pop(dialogContext, false),
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.close_rounded,
+                        size: 18,
+                        color: Colors.black54,
                       ),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 16),
               const Text(
-                'This removes the current updates from your inbox. New order, reward, and account updates will continue to appear here.',
+                'New order status alerts, wallet top-ups, and reward updates will continue to appear here automatically.',
                 style: TextStyle(
                   fontFamily: 'Afacad',
-                  fontSize: 16,
+                  fontSize: 15.5,
                   height: 1.4,
                   color: Colors.black87,
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF4EAF2),
+                  color: AppColors.surfaceLight,
                   borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.border),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -172,11 +237,12 @@ class _NotificationPageState extends State<NotificationPage> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Active service warnings will stay visible until they expire or are resolved.',
+                        'Active payment service notices stay visible until they expire or are resolved.',
                         style: TextStyle(
                           fontFamily: 'Afacad',
                           fontSize: 14,
                           height: 1.3,
+                          fontWeight: FontWeight.w600,
                           color: AppColors.deepTeal,
                         ),
                       ),
@@ -184,34 +250,54 @@ class _NotificationPageState extends State<NotificationPage> {
                   ],
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 22),
               Row(
-                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(dialogContext, false),
-                    style: TextButton.styleFrom(
-                      foregroundColor: AppColors.deepTeal,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(dialogContext, false),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.black87,
+                        side: BorderSide(color: Colors.grey.shade300),
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: const Text(
+                        'Cancel',
+                        style: TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
-                    child: const Text('Back'),
                   ),
-                  const SizedBox(width: 8),
-                  FilledButton.icon(
-                    onPressed: () => Navigator.pop(dialogContext, true),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.deepTeal,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () => Navigator.pop(dialogContext, true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.deepTeal,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      icon: const Icon(Icons.delete_sweep_outlined, size: 18),
+                      label: const Text(
+                        'Clear All',
+                        style: TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
-                    icon: const Icon(Icons.check_rounded, size: 18),
-                    label: const Text('Clear'),
                   ),
                 ],
               ),
@@ -253,6 +339,7 @@ class _NotificationPageState extends State<NotificationPage> {
     setState(() {
       _notificationsFuture = Future.value(clearedInbox);
       _clearing = false;
+      _displayLimit = _initialDisplayLimit;
     });
     AppNotification.showSuccess(context, 'Latest updates cleared.');
     unawaited(NotificationService.instance.refreshIndicator(
@@ -268,13 +355,48 @@ class _NotificationPageState extends State<NotificationPage> {
         title: 'NOTIFICATIONS',
         onBack: () => InteractiveFillingLoader.showPop(context),
         backgroundColor: Colors.white,
-        bodyPadding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+        scrollController: _scrollController,
+        onRefresh: _handleRefresh,
+        overlay: Stack(
+          children: [
+            if (_showScrollToTop)
+              Positioned(
+                right: 18,
+                bottom: 24 + MediaQuery.paddingOf(context).bottom,
+                child: Semantics(
+                  button: true,
+                  label: 'Back to top',
+                  child: Material(
+                    color: AppColors.deepTeal,
+                    elevation: 5,
+                    shadowColor: Colors.black26,
+                    shape: const CircleBorder(),
+                    child: InkWell(
+                      customBorder: const CircleBorder(),
+                      onTap: _scrollToTop,
+                      child: const SizedBox(
+                        width: 48,
+                        height: 48,
+                        child: Icon(
+                          Icons.keyboard_arrow_up_rounded,
+                          color: Colors.white,
+                          size: 30,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+        bodyPadding: const EdgeInsets.fromLTRB(20, 20, 20, 44),
         child: FutureBuilder<_NotificationInboxData>(
           future: _notificationsFuture,
           builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
+            if (snapshot.connectionState == ConnectionState.waiting &&
+                _lastLoadedInbox == null) {
               return SizedBox(
-                height: 220,
+                height: 240,
                 child: Center(
                   child: CircularProgressIndicator(
                     color: AppColors.deepTeal,
@@ -283,8 +405,9 @@ class _NotificationPageState extends State<NotificationPage> {
               );
             }
 
-            if (snapshot.hasError) {
+            if (snapshot.hasError && _lastLoadedInbox == null) {
               return _buildStateCard(
+                icon: Icons.cloud_off_rounded,
                 title: 'Unable to load notifications',
                 message:
                     'We could not load your notifications right now. Please try again shortly.',
@@ -294,6 +417,7 @@ class _NotificationPageState extends State<NotificationPage> {
             }
 
             final inbox = snapshot.data ??
+                _lastLoadedInbox ??
                 const _NotificationInboxData(
                   paymentNotices: [],
                   notifications: [],
@@ -301,13 +425,23 @@ class _NotificationPageState extends State<NotificationPage> {
             final notifications = inbox.notifications;
             if (notifications.isEmpty && inbox.paymentNotices.isEmpty) {
               return _buildStateCard(
+                icon: Icons.notifications_none_rounded,
                 title: 'No notifications yet',
                 message:
                     'Order updates, token top-ups, referrals, and rewards will appear here.',
               );
             }
 
+            final visibleCount = notifications.length < _displayLimit
+                ? notifications.length
+                : _displayLimit;
+            final visibleList = notifications.sublist(0, visibleCount);
+            final remainingCount = notifications.length - visibleCount;
+            final canCollapse = notifications.length > _initialDisplayLimit &&
+                visibleCount > _initialDisplayLimit;
+
             return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (inbox.paymentNotices.isNotEmpty) ...[
                   _buildPaymentServiceHeader(inbox.paymentNotices.length),
@@ -316,20 +450,114 @@ class _NotificationPageState extends State<NotificationPage> {
                         padding: const EdgeInsets.only(bottom: 12),
                         child: _buildPaymentServiceNotice(notice),
                       )),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
                 ],
                 if (notifications.isNotEmpty) ...[
-                  _buildSectionHeader('Latest updates', notifications.length),
-                  const SizedBox(height: 12),
-                  ...notifications.asMap().entries.expand((entry) {
-                    final index = entry.key;
-                    final notification = entry.value;
-                    return [
-                      _buildNotificationItem(notification),
-                      if (index != notifications.length - 1)
-                        const SizedBox(height: 12),
-                    ];
-                  }),
+                  _buildSectionHeader(
+                    'Latest updates',
+                    notifications.length,
+                  ),
+                  const SizedBox(height: 14),
+                  for (var i = 0; i < visibleList.length; i++) ...[
+                    _buildNotificationItem(visibleList[i]),
+                    if (i != visibleList.length - 1) const SizedBox(height: 12),
+                  ],
+                  if (remainingCount > 0 || canCollapse) ...[
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (remainingCount > 0)
+                          Flexible(
+                            child: TextButton(
+                              onPressed: () {
+                                setState(() {
+                                  _displayLimit += _displayPageStep;
+                                });
+                              },
+                              style: TextButton.styleFrom(
+                                backgroundColor: AppColors.surfaceLight,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 10,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                  side: BorderSide(color: AppColors.border),
+                                ),
+                              ),
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.keyboard_arrow_down_rounded,
+                                      color: AppColors.deepTeal,
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'Show More ($remainingCount more)',
+                                      style: TextStyle(
+                                        fontFamily: 'Afacad',
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppColors.deepTeal,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        if (remainingCount > 0 && canCollapse)
+                          const SizedBox(width: 8),
+                        if (canCollapse)
+                          Flexible(
+                            child: TextButton(
+                              onPressed: () {
+                                setState(() {
+                                  _displayLimit = _initialDisplayLimit;
+                                });
+                              },
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 10,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                              ),
+                              child: const FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.keyboard_arrow_up_rounded,
+                                      color: Colors.black54,
+                                      size: 19,
+                                    ),
+                                    SizedBox(width: 4),
+                                    Text(
+                                      'Show Less',
+                                      style: TextStyle(
+                                        fontFamily: 'Afacad',
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.black54,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
                 ],
               ],
             );
@@ -387,23 +615,28 @@ class _NotificationPageState extends State<NotificationPage> {
           Text(
             notice.message,
             style: const TextStyle(
-                fontFamily: 'Afacad', fontSize: 16, height: 1.35),
+              fontFamily: 'Afacad',
+              fontSize: 16,
+              height: 1.35,
+            ),
           ),
           const SizedBox(height: 12),
           Text(
             'Affected: ${notice.paymentMethodLabel}',
             style: const TextStyle(
-                fontFamily: 'Afacad',
-                fontSize: 15,
-                fontWeight: FontWeight.w700),
+              fontFamily: 'Afacad',
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+            ),
           ),
           const SizedBox(height: 4),
           Text(
             '${formatter.format(notice.startsAt)} – ${formatter.format(notice.endsAt)}',
             style: TextStyle(
-                fontFamily: 'Afacad',
-                fontSize: 14,
-                color: Colors.grey.shade800),
+              fontFamily: 'Afacad',
+              fontSize: 14,
+              color: Colors.grey.shade800,
+            ),
           ),
         ],
       ),
@@ -418,27 +651,45 @@ class _NotificationPageState extends State<NotificationPage> {
             '$text ($count)',
             style: TextStyle(
               fontFamily: 'Recoleta',
-              fontSize: 20,
+              fontSize: 21,
               fontWeight: FontWeight.bold,
               color: AppColors.deepTeal,
             ),
           ),
         ),
-        TextButton(
-          onPressed: _clearing ? null : _clearAll,
-          child: _clearing
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Text('Clear all'),
+        InkWell(
+          onTap: _clearing ? null : _clearAll,
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceLight,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: _clearing
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Text(
+                    'Clear all',
+                    style: TextStyle(
+                      fontFamily: 'Afacad',
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.deepTeal,
+                    ),
+                  ),
+          ),
         ),
       ],
     );
   }
 
   Widget _buildStateCard({
+    required IconData icon,
     required String title,
     required String message,
     String? actionLabel,
@@ -446,11 +697,11 @@ class _NotificationPageState extends State<NotificationPage> {
   }) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: AppColors.border, width: 1.4),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),
@@ -460,13 +711,27 @@ class _NotificationPageState extends State<NotificationPage> {
         ],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              color: AppColors.surfaceLight,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              icon,
+              size: 28,
+              color: AppColors.deepTeal,
+            ),
+          ),
+          const SizedBox(height: 14),
           Text(
             title,
+            textAlign: TextAlign.center,
             style: TextStyle(
               fontFamily: 'Recoleta',
-              fontSize: 20,
+              fontSize: 22,
               fontWeight: FontWeight.bold,
               color: AppColors.deepTeal,
             ),
@@ -474,27 +739,36 @@ class _NotificationPageState extends State<NotificationPage> {
           const SizedBox(height: 8),
           Text(
             message,
+            textAlign: TextAlign.center,
             style: const TextStyle(
               fontFamily: 'Afacad',
               fontSize: 16,
-              color: Colors.black87,
+              color: Colors.black54,
               height: 1.35,
             ),
           ),
           if (actionLabel != null && onAction != null) ...[
-            const SizedBox(height: 16),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: onAction,
-                child: Text(
-                  actionLabel,
-                  style: TextStyle(
-                    fontFamily: 'Afacad',
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.deepTeal,
-                  ),
+            const SizedBox(height: 18),
+            ElevatedButton(
+              onPressed: onAction,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.deepTeal,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 22,
+                  vertical: 12,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              child: Text(
+                actionLabel,
+                style: const TextStyle(
+                  fontFamily: 'Afacad',
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
             ),
@@ -504,21 +778,72 @@ class _NotificationPageState extends State<NotificationPage> {
     );
   }
 
+  ({IconData icon, Color iconBg, Color iconColor}) _notificationVisuals(
+    InAppNotification notification,
+  ) {
+    final isUnread = !notification.isRead;
+    switch (notification.type) {
+      case 'order_ready':
+      case 'order_pickup_reminder':
+        return (
+          icon: Icons.local_cafe_rounded,
+          iconBg: isUnread ? AppColors.deepTeal : AppColors.surfaceLight,
+          iconColor: isUnread ? Colors.white : AppColors.deepTeal,
+        );
+      case 'order_collected':
+        return (
+          icon: Icons.task_alt_rounded,
+          iconBg: const Color(0xFFE8F5E9),
+          iconColor: const Color(0xFF2E7D32),
+        );
+      case 'order_created':
+        return (
+          icon: Icons.receipt_long_rounded,
+          iconBg: isUnread ? AppColors.deepTeal : AppColors.surfaceLight,
+          iconColor: isUnread ? Colors.white : AppColors.deepTeal,
+        );
+      case 'tier_reward':
+      case 'referral_reward':
+      case 'voucher_expiring':
+        return (
+          icon: Icons.card_giftcard_rounded,
+          iconBg: AppColors.gold.withValues(alpha: 0.22),
+          iconColor: AppColors.deepTeal,
+        );
+      case 'token_topup_paid':
+      case 'token_topup_failed':
+      case 'token_topup_cancelled':
+      case 'token_topup_refunded':
+      case 'token_topup_review':
+        return (
+          icon: Icons.account_balance_wallet_rounded,
+          iconBg: isUnread ? AppColors.deepTeal : AppColors.surfaceLight,
+          iconColor: isUnread ? Colors.white : AppColors.deepTeal,
+        );
+      default:
+        return (
+          icon: Icons.coffee,
+          iconBg: isUnread ? AppColors.deepTeal : AppColors.surfaceLight,
+          iconColor: isUnread ? Colors.white : AppColors.deepTeal,
+        );
+    }
+  }
+
   Widget _buildNotificationItem(InAppNotification notification) {
     final dateLabel =
         DateFormat('d MMM yyyy • h:mm a').format(notification.createdAt);
     final isUnread = !notification.isRead;
+    final visuals = _notificationVisuals(notification);
 
     return Container(
-      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
           color: isUnread
-              ? AppColors.deepTeal.withValues(alpha: 0.18)
+              ? AppColors.deepTeal.withValues(alpha: 0.22)
               : AppColors.border,
-          width: 1,
+          width: 1.2,
         ),
         boxShadow: [
           BoxShadow(
@@ -528,92 +853,133 @@ class _NotificationPageState extends State<NotificationPage> {
           ),
         ],
       ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: () => _openNotification(notification),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                color: isUnread ? AppColors.deepTeal : AppColors.surfaceLight,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.coffee,
-                color: isUnread ? Colors.white : AppColors.deepTeal,
-                size: 22,
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: () => _openNotification(notification),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: visuals.iconBg,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    visuals.icon,
+                    color: visuals.iconColor,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: Text(
-                          notification.title,
-                          style: TextStyle(
-                            fontFamily: 'Recoleta',
-                            fontSize: 18,
-                            fontWeight:
-                                isUnread ? FontWeight.bold : FontWeight.w600,
-                            color: AppColors.deepTeal,
-                            height: 1.2,
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              notification.title,
+                              style: TextStyle(
+                                fontFamily: 'Recoleta',
+                                fontSize: 18,
+                                fontWeight: isUnread
+                                    ? FontWeight.bold
+                                    : FontWeight.w600,
+                                color: AppColors.deepTeal,
+                                height: 1.2,
+                              ),
+                            ),
                           ),
+                          if (isUnread) ...[
+                            const SizedBox(width: 10),
+                            Container(
+                              width: 9,
+                              height: 9,
+                              margin: const EdgeInsets.only(top: 5),
+                              decoration: BoxDecoration(
+                                color: AppColors.terracotta,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        dateLabel,
+                        style: TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey.shade600,
                         ),
                       ),
-                      const SizedBox(width: 10),
-                      if (isUnread)
-                        Container(
-                          width: 10,
-                          height: 10,
-                          margin: const EdgeInsets.only(top: 4),
-                          decoration: BoxDecoration(
-                            color: AppColors.terracotta,
-                            shape: BoxShape.circle,
-                          ),
+                      const SizedBox(height: 8),
+                      Text(
+                        notification.body,
+                        style: const TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 16,
+                          color: Colors.black87,
+                          height: 1.35,
                         ),
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    dateLabel,
-                    style: TextStyle(
-                      fontFamily: 'Afacad',
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey.shade700,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    notification.body,
-                    style: const TextStyle(
-                      fontFamily: 'Afacad',
-                      fontSize: 16,
-                      color: Colors.black87,
-                      height: 1.35,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
   }
 
-  Future<void> _openNotification(InAppNotification notification) async {
+  Future<CustomerOrder?> _findOrderForNotification(
+    String accessToken,
+    InAppNotification notification,
+  ) async {
+    final orderIdRaw = notification.data['order_id'];
+    final orderRefRaw = notification.data['order_ref']?.trim();
+    final orderId = orderIdRaw != null ? int.tryParse(orderIdRaw) : null;
+
+    if (orderId == null && (orderRefRaw == null || orderRefRaw.isEmpty)) {
+      return null;
+    }
+
     try {
-      final accessToken =
-          await SecureSessionService.instance.getValidAccessToken();
+      final result = await CustomerDataService.instance.getOrders(
+        accessToken: accessToken,
+        limit: 50,
+      );
+      for (final order in result.orders) {
+        if (orderId != null && order.id == orderId) {
+          return order;
+        }
+        if (orderRefRaw != null &&
+            orderRefRaw.isNotEmpty &&
+            order.orderRef == orderRefRaw) {
+          return order;
+        }
+      }
+    } catch (_) {
+      // Fall back to OrdersPage tab navigation below.
+    }
+    return null;
+  }
+
+  Future<void> _openNotification(InAppNotification notification) async {
+    String? accessToken;
+    try {
+      accessToken = await SecureSessionService.instance.getValidAccessToken();
       if (accessToken != null &&
           accessToken.isNotEmpty &&
           !notification.isRead) {
@@ -634,8 +1000,35 @@ class _NotificationPageState extends State<NotificationPage> {
       case 'order_ready':
       case 'order_pickup_reminder':
       case 'order_collected':
-        Navigator.push(
-            context, MaterialPageRoute(builder: (_) => const OrdersPage()));
+        CustomerOrder? matchedOrder;
+        if (accessToken != null && accessToken.isNotEmpty) {
+          matchedOrder = await _findOrderForNotification(
+            accessToken,
+            notification,
+          );
+        }
+        if (!mounted) return;
+        if (matchedOrder != null) {
+          final isPastOrder = notification.type == 'order_collected' ||
+              const {'collected', 'cancelled', 'refunded'}
+                  .contains(matchedOrder.status);
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => isPastOrder
+                  ? OrderDetailsPage(order: matchedOrder!)
+                  : OrderStatusDetailPage(order: matchedOrder!),
+            ),
+          );
+        } else {
+          final tabIndex = notification.type == 'order_collected' ? 1 : 0;
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => OrdersPage(initialTabIndex: tabIndex),
+            ),
+          );
+        }
       case 'tier_reward':
       case 'referral_reward':
       case 'voucher_expiring':

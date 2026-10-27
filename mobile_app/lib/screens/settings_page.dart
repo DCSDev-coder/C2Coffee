@@ -124,9 +124,9 @@ class _SettingsPageState extends State<SettingsPage> {
     if (!mounted) return;
 
     setState(() {
-      if (avatarData['pickedImagePath'] != null) {
-        _pickedImage = File(avatarData['pickedImagePath']!);
-      }
+      _pickedImage = avatarData['pickedImagePath'] != null
+          ? File(avatarData['pickedImagePath']!)
+          : null;
       final sessionAvatar = _session.user;
       final isUploadedAvatar = sessionAvatar?.avatarType == 'uploaded';
       final isPresetAvatar = sessionAvatar?.avatarType == 'preset' &&
@@ -392,76 +392,164 @@ class _SettingsPageState extends State<SettingsPage> {
     showDialog(
       context: context,
       builder: (BuildContext context) {
+        final String currentSelection = (_remoteAvatarPath != null || _pickedImage != null)
+            ? 'custom'
+            : (_presetAvatarPath ?? 'assets/images/dato.png');
+
         return Dialog(
-          backgroundColor: Colors.transparent,
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
           insetPadding:
-              const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(24),
-            ),
+              const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(28),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
             child: Column(
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Choose Avatar',
-                    style: TextStyle(
-                        fontFamily: 'Recoleta',
-                        fontSize: 26,
-                        fontWeight: FontWeight.bold,
-                        color: orangeColor)),
-                const SizedBox(height: 24),
+                _buildDialogHeader(
+                  context: context,
+                  icon: Icons.face_retouching_natural_rounded,
+                  title: 'Choose Your Look',
+                  subtitle:
+                      'Pick a signature C2 character or upload your own photo.',
+                ),
+                const SizedBox(height: 22),
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: List.generate(_avatarOptions.length, (index) {
                     final option = _avatarOptions[index];
-                    return GestureDetector(
-                      onTap: () async {
-                        await _savePresetAvatar(option['path']);
-                        if (context.mounted) Navigator.pop(context);
-                      },
-                      child: Column(
-                        children: [
-                          Container(
-                            width: 80,
-                            height: 80,
+                    final isSelected = currentSelection == option['path'];
+                    return Expanded(
+                      child: Padding(
+                        padding: EdgeInsets.only(
+                          left: index == 0 ? 0 : 8,
+                          right: index == _avatarOptions.length - 1 ? 0 : 8,
+                        ),
+                        child: GestureDetector(
+                          onTap: () async {
+                            await _savePresetAvatar(option['path']);
+                            if (context.mounted) Navigator.pop(context);
+                          },
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 180),
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 16, horizontal: 12),
                             decoration: BoxDecoration(
-                                shape: BoxShape.circle, color: orangeColor),
-                            child:
-                                Image.asset(option['path'], fit: BoxFit.cover),
+                              color: isSelected
+                                  ? AppColors.surfaceLight
+                                  : const Color(0xFFF8F9FA),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: isSelected
+                                    ? orangeColor
+                                    : Colors.grey.shade200,
+                                width: isSelected ? 2 : 1,
+                              ),
+                            ),
+                            child: Column(
+                              children: [
+                                Stack(
+                                  clipBehavior: Clip.none,
+                                  children: [
+                                    Container(
+                                      width: 76,
+                                      height: 76,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: profilePlaceholderBackground(
+                                          gender: option['name'] == 'Datin'
+                                              ? 'Female'
+                                              : 'Male',
+                                          presetPath: option['path'],
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: orangeColor.withValues(
+                                                alpha: 0.14),
+                                            blurRadius: 10,
+                                            offset: const Offset(0, 4),
+                                          ),
+                                        ],
+                                      ),
+                                      child: ClipOval(
+                                        child: Image.asset(
+                                          option['path'],
+                                          fit: BoxFit.cover,
+                                        ),
+                                      ),
+                                    ),
+                                    if (isSelected)
+                                      Positioned(
+                                        right: -2,
+                                        bottom: -2,
+                                        child: Container(
+                                          padding: const EdgeInsets.all(4),
+                                          decoration: BoxDecoration(
+                                            color: orangeColor,
+                                            shape: BoxShape.circle,
+                                            border: Border.all(
+                                                color: Colors.white, width: 2),
+                                          ),
+                                          child: const Icon(
+                                            Icons.check_rounded,
+                                            size: 12,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                                const SizedBox(height: 10),
+                                Text(
+                                  option['name'],
+                                  style: TextStyle(
+                                    fontFamily: 'Afacad',
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w700,
+                                    color: isSelected
+                                        ? orangeColor
+                                        : Colors.black87,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                          const SizedBox(height: 8),
-                          Text(option['name'],
-                              style: const TextStyle(
-                                  fontFamily: 'Afacad',
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.black87)),
-                        ],
+                        ),
                       ),
                     );
                   }),
                 ),
-                const SizedBox(height: 24),
-                ElevatedButton.icon(
-                  onPressed: () async {
-                    Navigator.pop(context);
-                    await _pickImageFromGallery();
-                  },
-                  icon: const Icon(Icons.photo_library, color: Colors.white),
-                  label: const Text('Upload from Gallery',
+                const SizedBox(height: 18),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      Navigator.pop(context);
+                      await _pickImageFromGallery();
+                    },
+                    icon: const Icon(Icons.photo_library_outlined,
+                        color: Colors.white, size: 20),
+                    label: const Text(
+                      'Upload from Gallery',
                       style: TextStyle(
-                          fontFamily: 'Recoleta',
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white)),
-                  style: ElevatedButton.styleFrom(
+                        fontFamily: 'Afacad',
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
                       backgroundColor: orangeColor,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30)),
-                      minimumSize: const Size(double.infinity, 48)),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -494,98 +582,435 @@ class _SettingsPageState extends State<SettingsPage> {
 
     return GestureDetector(
       onTap: _showAvatarPicker,
-      child: Container(
-        width: 100,
-        height: 100,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: isPlaceholder
-              ? profilePlaceholderBackground(
-                  gender: userProfile['gender'],
-                  presetPath: _presetAvatarPath,
-                )
-              : orangeColor,
-          border: Border.all(color: bgColor, width: 4),
-        ),
-        child: ClipOval(
-          child: Image(
-            image: imageProvider,
-            fit: BoxFit.cover,
-            loadingBuilder: (_, child, loadingProgress) =>
-                loadingProgress == null ? child : const C2ImageSkeleton(),
-            errorBuilder: (_, __, ___) =>
-                const Icon(Icons.person, size: 48, color: Colors.white),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            width: 104,
+            height: 104,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: isPlaceholder
+                  ? profilePlaceholderBackground(
+                      gender: userProfile['gender'],
+                      presetPath: _presetAvatarPath,
+                    )
+                  : orangeColor,
+              border: Border.all(color: bgColor, width: 4),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.10),
+                  blurRadius: 14,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: ClipOval(
+              child: Image(
+                image: imageProvider,
+                fit: BoxFit.cover,
+                loadingBuilder: (_, child, loadingProgress) =>
+                    loadingProgress == null ? child : const C2ImageSkeleton(),
+                errorBuilder: (_, __, ___) =>
+                    const Icon(Icons.person, size: 48, color: Colors.white),
+              ),
+            ),
           ),
-        ),
+          Positioned(
+            right: 0,
+            bottom: 2,
+            child: Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: orangeColor,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2.5),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.15),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.camera_alt_rounded,
+                size: 15,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildRowItem(String label, String value,
-      {VoidCallback? onTap, String? helperText}) {
-    final isEditable = onTap != null;
+  IconData _iconForProfileLabel(String label) {
+    switch (label) {
+      case 'Username':
+        return Icons.person_outline_rounded;
+      case 'Email':
+        return Icons.mail_outline_rounded;
+      case 'Phone Number':
+        return Icons.phone_iphone_rounded;
+      case 'Birthday':
+        return Icons.cake_outlined;
+      case 'Gender':
+        return Icons.wc_rounded;
+      case 'Address':
+        return Icons.location_on_outlined;
+      default:
+        return Icons.tune_rounded;
+    }
+  }
 
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+  Widget _buildRowItem(String label, String value,
+      {VoidCallback? onTap, String? helperText, bool showDivider = true}) {
+    final isEditable = onTap != null;
+    final isEmpty = value.trim().isEmpty;
+
+    return Column(
+      children: [
+         InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                SizedBox(
-                  width: 110,
-                  child: Text(
-                    label,
-                    style: const TextStyle(
-                      fontFamily: 'Afacad',
-                      fontSize: 18,
-                      color: Colors.black54,
-                    ),
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceLight,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    _iconForProfileLabel(label),
+                    size: 20,
+                    color: orangeColor,
                   ),
                 ),
+                const SizedBox(width: 12),
                 Expanded(
-                  child: Text(
-                    value.isEmpty ? 'Not set' : value,
-                    textAlign: TextAlign.right,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontFamily: 'Afacad',
-                      fontSize: 18,
-                      color: value.isEmpty ? Colors.black54 : Colors.black87,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        label,
+                        style: const TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.black54,
+                        ),
+                      ),
+                      const SizedBox(height: 1),
+                      Text(
+                        isEmpty ? 'Tap to set' : value,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 17,
+                          color: isEmpty
+                              ? orangeColor.withValues(alpha: 0.65)
+                              : Colors.black87,
+                          fontWeight:
+                              isEmpty ? FontWeight.w500 : FontWeight.w700,
+                        ),
+                      ),
+                      if (helperText != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          helperText,
+                          style: const TextStyle(
+                            fontFamily: 'Afacad',
+                            fontSize: 13,
+                            color: Colors.black45,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
                 if (isEditable) ...[
                   const SizedBox(width: 8),
-                  const Icon(Icons.arrow_forward_ios,
-                      size: 14, color: Colors.black54),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: isEmpty
+                          ? orangeColor.withValues(alpha: 0.10)
+                          : const Color(0xFFF3F5F5),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          isEmpty ? 'Add' : 'Edit',
+                          style: TextStyle(
+                            fontFamily: 'Afacad',
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: isEmpty ? orangeColor : Colors.black54,
+                          ),
+                        ),
+                        const SizedBox(width: 3),
+                        Icon(
+                          Icons.arrow_forward_ios_rounded,
+                          size: 11,
+                          color: isEmpty ? orangeColor : Colors.black45,
+                        ),
+                      ],
+                    ),
+                  ),
+                ] else ...[
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF3F5F5),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.lock_outline_rounded,
+                            size: 12, color: Colors.black45),
+                        SizedBox(width: 4),
+                        Text(
+                          'Verified',
+                          style: TextStyle(
+                            fontFamily: 'Afacad',
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black45,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ],
             ),
-            if (helperText != null) ...[
-              const SizedBox(height: 6),
-              Padding(
-                padding: const EdgeInsets.only(left: 110),
-                child: Text(
-                  helperText,
-                  style: const TextStyle(
-                    fontFamily: 'Afacad',
-                    fontSize: 14,
-                    color: Colors.black54,
-                  ),
+          ),
+        ),
+        if (showDivider)
+          Divider(
+            height: 1,
+            thickness: 1,
+            color: Colors.grey.withValues(alpha: 0.12),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildDialogHeader({
+    required BuildContext context,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    Color? accentColor,
+  }) {
+    final color = accentColor ?? orangeColor;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 46,
+          height: 46,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Icon(icon, color: color, size: 24),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontFamily: 'Recoleta',
+                  fontSize: 23,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                  height: 1.15,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                style: const TextStyle(
+                  fontFamily: 'Afacad',
+                  fontSize: 15,
+                  height: 1.3,
+                  color: Colors.black54,
                 ),
               ),
             ],
-          ],
+          ),
         ),
-      ),
+        const SizedBox(width: 6),
+        InkWell(
+          onTap: () => Navigator.pop(context),
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade100,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.close_rounded,
+                size: 18, color: Colors.black54),
+          ),
+        ),
+      ],
     );
+  }
+
+  Widget _buildDialogTextField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    String? hintText,
+    TextInputType? keyboardType,
+    int minLines = 1,
+    int maxLines = 1,
+    bool autofocus = false,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontFamily: 'Afacad',
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: Colors.black87,
+          ),
+        ),
+        const SizedBox(height: 6),
+        TextFormField(
+          controller: controller,
+          keyboardType: keyboardType,
+          minLines: minLines,
+          maxLines: maxLines,
+          autofocus: autofocus,
+          style: const TextStyle(
+            fontFamily: 'Afacad',
+            fontSize: 17,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
+          ),
+          decoration: InputDecoration(
+            hintText: hintText,
+            hintStyle: const TextStyle(
+              fontFamily: 'Afacad',
+              fontSize: 16,
+              fontWeight: FontWeight.w400,
+              color: Colors.black38,
+            ),
+            prefixIcon: Icon(icon, size: 20, color: orangeColor),
+            filled: true,
+            fillColor: const Color(0xFFF7F9F9),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide(color: Colors.grey.shade200, width: 1.2),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide(color: orangeColor, width: 1.8),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDialogActions({
+    required BuildContext context,
+    required String primaryLabel,
+    required VoidCallback? onPrimary,
+    Color? primaryColor,
+  }) {
+    final activeColor = primaryColor ?? orangeColor;
+    return Row(
+      children: [
+        Expanded(
+          child: TextButton(
+            onPressed: () => Navigator.pop(context),
+            style: TextButton.styleFrom(
+              backgroundColor: Colors.grey.shade100,
+              foregroundColor: Colors.black87,
+              padding: const EdgeInsets.symmetric(vertical: 13),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(
+                fontFamily: 'Afacad',
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                color: Colors.black54,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          flex: 2,
+          child: ElevatedButton(
+            onPressed: onPrimary,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: activeColor,
+              disabledBackgroundColor: activeColor.withValues(alpha: 0.35),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(vertical: 13),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            child: Text(
+              primaryLabel,
+              style: const TextStyle(
+                fontFamily: 'Afacad',
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  DateTime _parseInitialBirthday(String? raw) {
+    final defaultDate = DateTime(DateTime.now().year - 22, 6, 15);
+    if (raw == null || raw.trim().isEmpty) return defaultDate;
+    final trimmed = raw.trim();
+    try {
+      return DateFormat('dd MMM yyyy').parseStrict(trimmed);
+    } catch (_) {
+      try {
+        return DateTime.parse(trimmed);
+      } catch (_) {
+        return defaultDate;
+      }
+    }
   }
 
   void _showEditDialog(String label, String key, String currentValue) async {
@@ -601,55 +1026,179 @@ class _SettingsPageState extends State<SettingsPage> {
         builder: (context) {
           return StatefulBuilder(
             builder: (context, setDialogState) {
-              return AlertDialog(
-                title: Text('Select Gender',
-                    style: const TextStyle(fontFamily: 'Recoleta')),
-                content: Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: ['Female', 'Male'].map((gender) {
-                    final isSelected = selectedGender == gender;
-                    return ChoiceChip(
-                      label: Text(
-                        gender,
-                        style: const TextStyle(fontFamily: 'Afacad'),
-                      ),
-                      selected: isSelected,
-                      selectedColor: AppColors.deepTeal.withValues(alpha: 0.14),
-                      side: BorderSide(
-                        color: isSelected
-                            ? AppColors.deepTeal
-                            : Colors.grey.shade300,
-                      ),
-                      labelStyle: TextStyle(
-                        fontFamily: 'Afacad',
-                        color: isSelected ? AppColors.deepTeal : Colors.black87,
-                        fontWeight:
-                            isSelected ? FontWeight.w700 : FontWeight.w500,
-                      ),
-                      onSelected: (_) {
-                        setDialogState(() {
-                          selectedGender = gender;
-                        });
-                      },
-                    );
-                  }).toList(),
+              final options = [
+                {
+                  'label': 'Female',
+                  'subtitle': 'Datin vibe',
+                  'asset': 'assets/images/datin.png',
+                  'icon': Icons.female_rounded,
+                },
+                {
+                  'label': 'Male',
+                  'subtitle': 'Dato vibe',
+                  'asset': 'assets/images/dato.png',
+                  'icon': Icons.male_rounded,
+                },
+              ];
+              return Dialog(
+                backgroundColor: Colors.white,
+                surfaceTintColor: Colors.transparent,
+                insetPadding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(28),
                 ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Cancel',
-                        style: TextStyle(color: Colors.grey)),
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildDialogHeader(
+                        context: context,
+                        icon: Icons.wc_rounded,
+                        title: 'Select Gender',
+                        subtitle:
+                            'Helps us personalise your profile style and character.',
+                      ),
+                      const SizedBox(height: 22),
+                      Row(
+                        children: options.map((opt) {
+                          final gender = opt['label'] as String;
+                          final isSelected = selectedGender == gender;
+                          return Expanded(
+                            child: Padding(
+                              padding: EdgeInsets.only(
+                                left: gender == 'Female' ? 0 : 7,
+                                right: gender == 'Female' ? 7 : 0,
+                              ),
+                              child: GestureDetector(
+                                onTap: () {
+                                  setDialogState(() {
+                                    selectedGender = gender;
+                                  });
+                                },
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 180),
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 18, horizontal: 12),
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? AppColors.surfaceLight
+                                        : const Color(0xFFF8F9FA),
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: isSelected
+                                          ? orangeColor
+                                          : Colors.grey.shade200,
+                                      width: isSelected ? 2.2 : 1.2,
+                                    ),
+                                    boxShadow: isSelected
+                                        ? [
+                                            BoxShadow(
+                                              color: orangeColor.withValues(
+                                                  alpha: 0.10),
+                                              blurRadius: 12,
+                                              offset: const Offset(0, 4),
+                                            ),
+                                          ]
+                                        : null,
+                                  ),
+                                  child: Column(
+                                    children: [
+                                      Stack(
+                                        clipBehavior: Clip.none,
+                                        children: [
+                                          Container(
+                                            width: 68,
+                                            height: 68,
+                                            decoration: BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              color:
+                                                  profilePlaceholderBackground(
+                                                gender: gender,
+                                                presetPath:
+                                                    opt['asset'] as String,
+                                              ),
+                                            ),
+                                            child: ClipOval(
+                                              child: Image.asset(
+                                                opt['asset'] as String,
+                                                fit: BoxFit.cover,
+                                                errorBuilder: (_, __, ___) =>
+                                                    Icon(
+                                                  opt['icon'] as IconData,
+                                                  size: 34,
+                                                  color: orangeColor,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                          if (isSelected)
+                                            Positioned(
+                                              right: -2,
+                                              bottom: -2,
+                                              child: Container(
+                                                padding:
+                                                    const EdgeInsets.all(4),
+                                                decoration: BoxDecoration(
+                                                  color: orangeColor,
+                                                  shape: BoxShape.circle,
+                                                  border: Border.all(
+                                                    color: Colors.white,
+                                                    width: 2,
+                                                  ),
+                                                ),
+                                                child: const Icon(
+                                                  Icons.check_rounded,
+                                                  size: 12,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Text(
+                                        gender,
+                                        style: TextStyle(
+                                          fontFamily: 'Afacad',
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w700,
+                                          color: isSelected
+                                              ? orangeColor
+                                              : Colors.black87,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        opt['subtitle'] as String,
+                                        style: const TextStyle(
+                                          fontFamily: 'Afacad',
+                                          fontSize: 13,
+                                          color: Colors.black45,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 24),
+                      _buildDialogActions(
+                        context: context,
+                        primaryLabel: 'Save Gender',
+                        onPrimary: () async {
+                          await _saveProfileValue(key, selectedGender);
+                          if (context.mounted) Navigator.pop(context);
+                        },
+                      ),
+                    ],
                   ),
-                  TextButton(
-                    onPressed: () async {
-                      await _saveProfileValue(key, selectedGender);
-                      if (context.mounted) Navigator.pop(context);
-                    },
-                    child: Text('Save',
-                        style: TextStyle(color: AppColors.deepTeal)),
-                  ),
-                ],
+                ),
               );
             },
           );
@@ -657,193 +1206,183 @@ class _SettingsPageState extends State<SettingsPage> {
       );
     } else if (key == 'address') {
       final parsedAddress = _parseAddress(currentValue);
-      String house = parsedAddress.houseLine;
-      String street = '';
-      String city = parsedAddress.city;
-      String postcode = parsedAddress.postcode;
-      String stateVal = userProfile['state']?.trim().isNotEmpty == true
-          ? userProfile['state']!.trim()
-          : '';
-      street = parsedAddress.streetLine;
-
-      TextEditingController houseController =
-          TextEditingController(text: house);
-      TextEditingController streetController =
-          TextEditingController(text: street);
-      TextEditingController cityController = TextEditingController(text: city);
-      TextEditingController postcodeController =
-          TextEditingController(text: postcode);
-      TextEditingController stateController =
-          TextEditingController(text: stateVal);
+      final houseController =
+          TextEditingController(text: parsedAddress.houseLine);
+      final streetController =
+          TextEditingController(text: parsedAddress.streetLine);
+      final cityController = TextEditingController(text: parsedAddress.city);
+      final postcodeController =
+          TextEditingController(text: parsedAddress.postcode);
+      final stateController = TextEditingController(
+        text: userProfile['state']?.trim().isNotEmpty == true
+            ? userProfile['state']!.trim()
+            : '',
+      );
 
       final formKey = GlobalKey<FormState>();
 
       await showDialog(
         context: context,
         builder: (context) {
-          return StatefulBuilder(
-            builder: (context, setDialogState) {
-              return AlertDialog(
-                title: const Text('Edit Address',
-                    style: TextStyle(fontFamily: 'Recoleta')),
-                content: SingleChildScrollView(
-                  child: Form(
-                    key: formKey,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
+          return Dialog(
+            backgroundColor: Colors.white,
+            surfaceTintColor: Colors.transparent,
+            insetPadding:
+                const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(28),
+            ),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildDialogHeader(
+                      context: context,
+                      icon: Icons.location_on_outlined,
+                      title: 'Edit Address',
+                      subtitle:
+                          'All fields are optional and help us tailor your local cafe perks.',
+                    ),
+                    const SizedBox(height: 20),
+                    _buildDialogTextField(
+                      controller: houseController,
+                      label: 'Unit / House No.',
+                      hintText: 'e.g. No. 12, Lorong 3',
+                      icon: Icons.home_outlined,
+                    ),
+                    const SizedBox(height: 14),
+                    _buildDialogTextField(
+                      controller: streetController,
+                      label: 'Street Address',
+                      hintText: 'e.g. Taman Sri Inderapura',
+                      icon: Icons.signpost_outlined,
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
                       children: [
-                        const Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            'All address fields are optional.',
-                            style: TextStyle(color: Colors.black54),
+                        Expanded(
+                          flex: 2,
+                          child: _buildDialogTextField(
+                            controller: postcodeController,
+                            label: 'Postcode',
+                            hintText: '25150',
+                            icon: Icons.markunread_mailbox_outlined,
+                            keyboardType: TextInputType.number,
                           ),
                         ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: houseController,
-                          decoration: InputDecoration(
-                            labelText: 'Unit / House No.',
-                            focusedBorder: UnderlineInputBorder(
-                              borderSide: BorderSide(color: AppColors.deepTeal),
-                            ),
-                          ),
-                        ),
-                        TextFormField(
-                          controller: streetController,
-                          decoration: InputDecoration(
-                            labelText: 'Street Address',
-                            focusedBorder: UnderlineInputBorder(
-                                borderSide:
-                                    BorderSide(color: AppColors.deepTeal)),
-                          ),
-                        ),
-                        TextFormField(
-                          controller: cityController,
-                          decoration: InputDecoration(
-                            labelText: 'City',
-                            focusedBorder: UnderlineInputBorder(
-                                borderSide:
-                                    BorderSide(color: AppColors.deepTeal)),
-                          ),
-                        ),
-                        TextFormField(
-                          controller: postcodeController,
-                          keyboardType: TextInputType.number,
-                          decoration: InputDecoration(
-                            labelText: 'Postcode',
-                            focusedBorder: UnderlineInputBorder(
-                                borderSide:
-                                    BorderSide(color: AppColors.deepTeal)),
-                          ),
-                        ),
-                        TextFormField(
-                          controller: stateController,
-                          decoration: InputDecoration(
-                            labelText: 'State',
-                            focusedBorder: UnderlineInputBorder(
-                                borderSide:
-                                    BorderSide(color: AppColors.deepTeal)),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 3,
+                          child: _buildDialogTextField(
+                            controller: cityController,
+                            label: 'City',
+                            hintText: 'Kuantan',
+                            icon: Icons.location_city_rounded,
                           ),
                         ),
                       ],
                     ),
-                  ),
+                    const SizedBox(height: 14),
+                    _buildDialogTextField(
+                      controller: stateController,
+                      label: 'State',
+                      hintText: 'e.g. Pahang',
+                      icon: Icons.map_outlined,
+                    ),
+                    const SizedBox(height: 24),
+                    _buildDialogActions(
+                      context: context,
+                      primaryLabel: 'Save Address',
+                      onPrimary: () async {
+                        if (formKey.currentState!.validate()) {
+                          final fullAddress = [
+                            houseController.text.trim(),
+                            streetController.text.trim(),
+                            [
+                              postcodeController.text.trim(),
+                              cityController.text.trim(),
+                            ].where((part) => part.isNotEmpty).join(' '),
+                          ].where((part) => part.isNotEmpty).join(', ');
+                          await UserService.saveUserProfile(
+                            {'state': stateController.text.trim()},
+                          );
+                          userProfile['state'] = stateController.text.trim();
+                          await _saveProfileValue(key, fullAddress);
+                          if (context.mounted) Navigator.pop(context);
+                        }
+                      },
+                    ),
+                  ],
                 ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Cancel',
-                        style: TextStyle(color: Colors.grey)),
-                  ),
-                  TextButton(
-                    onPressed: () async {
-                      if (formKey.currentState!.validate()) {
-                        final fullAddress = [
-                          houseController.text.trim(),
-                          streetController.text.trim(),
-                          [
-                            postcodeController.text.trim(),
-                            cityController.text.trim(),
-                          ].where((part) => part.isNotEmpty).join(' '),
-                        ].where((part) => part.isNotEmpty).join(', ');
-                        await UserService.saveUserProfile(
-                          {'state': stateController.text.trim()},
-                        );
-                        userProfile['state'] = stateController.text.trim();
-                        await _saveProfileValue(key, fullAddress);
-                        if (context.mounted) Navigator.pop(context);
-                      }
-                    },
-                    child: Text('Save',
-                        style: TextStyle(color: AppColors.deepTeal)),
-                  ),
-                ],
-              );
-            },
+              ),
+            ),
           );
         },
       );
     } else if (key == 'birthday') {
-      final DateTime? pickedDate = await showDatePicker(
+      final initialDate = _parseInitialBirthday(currentValue);
+      final DateTime? pickedDate = await showDialog<DateTime>(
         context: context,
-        initialDate: DateTime.now().subtract(const Duration(days: 365 * 18)),
-        firstDate: DateTime(1900),
-        lastDate: DateTime.now(),
-        builder: (context, child) {
-          return Theme(
-            data: Theme.of(context).copyWith(
-              colorScheme: ColorScheme.light(
-                primary: AppColors.deepTeal, // header background color
-                onPrimary: Colors.white, // header text color
-                onSurface: Colors.black, // body text color
-              ),
-              textButtonTheme: TextButtonThemeData(
-                style: TextButton.styleFrom(
-                  foregroundColor: AppColors.deepTeal, // button text color
-                ),
-              ),
-            ),
-            child: child!,
-          );
-        },
+        builder: (_) => _BirthdayPickerDialog(
+          initialDate: initialDate,
+          accentColor: orangeColor,
+        ),
       );
       if (pickedDate != null) {
-        String formattedDate = DateFormat('dd MMM yyyy').format(pickedDate);
+        final String formattedDate =
+            DateFormat('dd MMM yyyy').format(pickedDate);
         await _saveProfileValue(key, formattedDate);
       }
     } else {
-      TextEditingController controller =
-          TextEditingController(text: currentValue);
+      final controller = TextEditingController(text: currentValue);
       await showDialog(
         context: context,
         builder: (context) {
-          return AlertDialog(
-            title: Text('Edit $label',
-                style: const TextStyle(fontFamily: 'Recoleta')),
-            content: TextField(
-              controller: controller,
-              decoration: InputDecoration(
-                hintText: 'Enter $label',
-                focusedBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(color: AppColors.deepTeal)),
+          return Dialog(
+            backgroundColor: Colors.white,
+            surfaceTintColor: Colors.transparent,
+            insetPadding:
+                const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(28),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildDialogHeader(
+                    context: context,
+                    icon: Icons.person_outline_rounded,
+                    title: 'Edit $label',
+                    subtitle:
+                        'How should our baristas greet you when your order is ready?',
+                  ),
+                  const SizedBox(height: 20),
+                  _buildDialogTextField(
+                    controller: controller,
+                    label: label,
+                    hintText: 'Enter your $label',
+                    icon: Icons.badge_outlined,
+                    autofocus: true,
+                  ),
+                  const SizedBox(height: 24),
+                  _buildDialogActions(
+                    context: context,
+                    primaryLabel: 'Save $label',
+                    onPrimary: () async {
+                      await _saveProfileValue(key, controller.text.trim());
+                      if (context.mounted) Navigator.pop(context);
+                    },
+                  ),
+                ],
               ),
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child:
-                    const Text('Cancel', style: TextStyle(color: Colors.grey)),
-              ),
-              TextButton(
-                onPressed: () async {
-                  await _saveProfileValue(key, controller.text.trim());
-                  if (context.mounted) Navigator.pop(context);
-                },
-                child:
-                    Text('Save', style: TextStyle(color: AppColors.deepTeal)),
-              ),
-            ],
           );
         },
       );
@@ -908,31 +1447,47 @@ class _SettingsPageState extends State<SettingsPage> {
     final reasonController = TextEditingController();
     final reason = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Close Account',
-            style:
-                TextStyle(fontFamily: 'Recoleta', color: AppColors.terracotta)),
-        content: TextField(
-          controller: reasonController,
-          minLines: 2,
-          maxLines: 4,
-          decoration: const InputDecoration(
-            labelText: 'Reason for closure',
-            helperText:
-                'This immediately signs you out. Required financial records are retained securely.',
+      builder: (context) => Dialog(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(28),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildDialogHeader(
+                context: context,
+                icon: Icons.warning_amber_rounded,
+                title: 'Close Account',
+                subtitle:
+                    'This signs you out immediately. Financial records are retained securely as required by law.',
+                accentColor: _destructiveActionColor,
+              ),
+              const SizedBox(height: 20),
+              _buildDialogTextField(
+                controller: reasonController,
+                label: 'Reason for closure',
+                hintText: 'Tell us how we could have served you better...',
+                icon: Icons.feedback_outlined,
+                minLines: 2,
+                maxLines: 4,
+              ),
+              const SizedBox(height: 24),
+              _buildDialogActions(
+                context: context,
+                primaryLabel: 'Close Account',
+                primaryColor: _destructiveActionColor,
+                onPrimary: () =>
+                    Navigator.pop(context, reasonController.text.trim()),
+              ),
+            ],
           ),
         ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel')),
-          TextButton(
-            onPressed: () =>
-                Navigator.pop(context, reasonController.text.trim()),
-            child: Text('Close Account',
-                style: TextStyle(color: AppColors.terracotta)),
-          ),
-        ],
       ),
     );
     if (reason == null || reason.length < 5) {
@@ -991,25 +1546,25 @@ class _SettingsPageState extends State<SettingsPage> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(height: 50), // Space for top half of avatar
+                const SizedBox(height: 52), // Space for top half of avatar
 
                 // Details Card
                 Container(
                   margin: const EdgeInsets.symmetric(horizontal: 20),
                   padding: const EdgeInsets.only(
-                      top: 60, bottom: 10, left: 20, right: 20),
+                      top: 62, bottom: 12, left: 16, right: 16),
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(24),
                     border: Border.all(
                       color: AppColors.border,
                       width: 1,
                     ),
                     boxShadow: [
                       BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.03),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2))
+                          color: Colors.black.withValues(alpha: 0.04),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4))
                     ],
                   ),
                   child: Column(
@@ -1031,6 +1586,7 @@ class _SettingsPageState extends State<SettingsPage> {
                           onTap: () => _showEditDialog(
                               'Gender', 'gender', userProfile['gender'] ?? '')),
                       _buildRowItem('Address', userProfile['address'] ?? '',
+                          showDivider: false,
                           onTap: () => _showEditDialog('Address', 'address',
                               userProfile['address'] ?? '')),
                     ],
@@ -1256,6 +1812,417 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 }
 
+class _BirthdayPickerDialog extends StatefulWidget {
+  const _BirthdayPickerDialog({
+    required this.initialDate,
+    required this.accentColor,
+  });
+
+  final DateTime initialDate;
+  final Color accentColor;
+
+  @override
+  State<_BirthdayPickerDialog> createState() => _BirthdayPickerDialogState();
+}
+
+class _BirthdayPickerDialogState extends State<_BirthdayPickerDialog> {
+  static const List<String> _monthNames = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ];
+
+  late final List<int> _years;
+  late int _selectedYear;
+  late int _selectedMonth;
+  late int _selectedDay;
+
+  late final FixedExtentScrollController _dayController;
+  late final FixedExtentScrollController _monthController;
+  late final FixedExtentScrollController _yearController;
+
+  @override
+  void initState() {
+    super.initState();
+    final currentYear = DateTime.now().year;
+    _years = List<int>.generate(
+      currentYear - 1920 + 1,
+      (index) => 1920 + index,
+    );
+    _selectedYear = widget.initialDate.year.clamp(1920, currentYear);
+    _selectedMonth = widget.initialDate.month.clamp(1, 12);
+    final maxDays = _daysInMonth(_selectedYear, _selectedMonth);
+    _selectedDay = widget.initialDate.day.clamp(1, maxDays);
+
+    _dayController = FixedExtentScrollController(initialItem: _selectedDay - 1);
+    _monthController =
+        FixedExtentScrollController(initialItem: _selectedMonth - 1);
+    _yearController = FixedExtentScrollController(
+      initialItem: _years.indexOf(_selectedYear).clamp(0, _years.length - 1),
+    );
+  }
+
+  @override
+  void dispose() {
+    _dayController.dispose();
+    _monthController.dispose();
+    _yearController.dispose();
+    super.dispose();
+  }
+
+  int _daysInMonth(int year, int month) {
+    final now = DateTime.now();
+    final totalDays = DateUtils.getDaysInMonth(year, month);
+    if (year == now.year && month == now.month) {
+      return now.day.clamp(1, totalDays);
+    }
+    return totalDays;
+  }
+
+  int _maxAllowedMonth(int year) {
+    final now = DateTime.now();
+    return year == now.year ? now.month : 12;
+  }
+
+  void _clampDateIfNeeded() {
+    final maxMonth = _maxAllowedMonth(_selectedYear);
+    if (_selectedMonth > maxMonth) {
+      _selectedMonth = maxMonth;
+      if (_monthController.hasClients) {
+        _monthController.jumpToItem(_selectedMonth - 1);
+      }
+    }
+    final maxDay = _daysInMonth(_selectedYear, _selectedMonth);
+    if (_selectedDay > maxDay) {
+      _selectedDay = maxDay;
+      if (_dayController.hasClients) {
+        _dayController.jumpToItem(_selectedDay - 1);
+      }
+    }
+  }
+
+  DateTime get _currentSelectedDate =>
+      DateTime(_selectedYear, _selectedMonth, _selectedDay);
+
+  Widget _buildWheelColumn({
+    required String label,
+    required FixedExtentScrollController controller,
+    required int itemCount,
+    required String Function(int index) itemLabelBuilder,
+    required ValueChanged<int> onSelectedItemChanged,
+    int flex = 1,
+  }) {
+    return Expanded(
+      flex: flex,
+      child: Column(
+        children: [
+          Text(
+            label.toUpperCase(),
+            style: const TextStyle(
+              fontFamily: 'Afacad',
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.8,
+              color: Colors.black45,
+            ),
+          ),
+          const SizedBox(height: 6),
+          SizedBox(
+            height: 156,
+            child: ListWheelScrollView.useDelegate(
+              controller: controller,
+              itemExtent: 42,
+              perspective: 0.003,
+              diameterRatio: 1.35,
+              physics: const FixedExtentScrollPhysics(),
+              onSelectedItemChanged: onSelectedItemChanged,
+              childDelegate: ListWheelChildBuilderDelegate(
+                childCount: itemCount,
+                builder: (context, index) {
+                  if (index < 0 || index >= itemCount) return null;
+                  return Center(
+                    child: Text(
+                      itemLabelBuilder(index),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: widget.accentColor,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final maxMonth = _maxAllowedMonth(_selectedYear);
+    final maxDays = _daysInMonth(_selectedYear, _selectedMonth);
+    final formattedPreview =
+        DateFormat('EEEE, d MMMM yyyy').format(_currentSelectedDate);
+
+    return Dialog(
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(28),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: widget.accentColor.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(
+                    Icons.cake_rounded,
+                    color: widget.accentColor,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Your Birthday',
+                        style: TextStyle(
+                          fontFamily: 'Recoleta',
+                          fontSize: 23,
+                          fontWeight: FontWeight.bold,
+                          color: widget.accentColor,
+                          height: 1.15,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Celebrate with us! Enjoy special birthday treats during your birthday month.',
+                        style: TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 15,
+                          height: 1.3,
+                          color: Colors.black54,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 6),
+                InkWell(
+                  onTap: () => Navigator.pop(context),
+                  borderRadius: BorderRadius.circular(20),
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.close_rounded,
+                      size: 18,
+                      color: Colors.black54,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceLight,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: widget.accentColor.withValues(alpha: 0.18),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.auto_awesome_rounded,
+                    size: 18,
+                    color: widget.accentColor,
+                  ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      formattedPreview,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        color: widget.accentColor,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8F9FA),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Positioned(
+                    left: 6,
+                    right: 6,
+                    top: 22 + 57, // label offset + center of 156px wheel
+                    child: IgnorePointer(
+                      child: Container(
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: widget.accentColor.withValues(alpha: 0.10),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: widget.accentColor.withValues(alpha: 0.25),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      _buildWheelColumn(
+                        label: 'Day',
+                        flex: 2,
+                        controller: _dayController,
+                        itemCount: maxDays,
+                        itemLabelBuilder: (index) =>
+                            (index + 1).toString().padLeft(2, '0'),
+                        onSelectedItemChanged: (index) {
+                          setState(() {
+                            _selectedDay = index + 1;
+                          });
+                        },
+                      ),
+                      _buildWheelColumn(
+                        label: 'Month',
+                        flex: 4,
+                        controller: _monthController,
+                        itemCount: maxMonth,
+                        itemLabelBuilder: (index) => _monthNames[index],
+                        onSelectedItemChanged: (index) {
+                          setState(() {
+                            _selectedMonth = index + 1;
+                            _clampDateIfNeeded();
+                          });
+                        },
+                      ),
+                      _buildWheelColumn(
+                        label: 'Year',
+                        flex: 3,
+                        controller: _yearController,
+                        itemCount: _years.length,
+                        itemLabelBuilder: (index) => _years[index].toString(),
+                        onSelectedItemChanged: (index) {
+                          setState(() {
+                            _selectedYear = _years[index];
+                            _clampDateIfNeeded();
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 22),
+            Row(
+              children: [
+                Expanded(
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: TextButton.styleFrom(
+                      backgroundColor: Colors.grey.shade100,
+                      foregroundColor: Colors.black87,
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: const Text(
+                      'Cancel',
+                      style: TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.black54,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 2,
+                  child: ElevatedButton(
+                    onPressed: () =>
+                        Navigator.pop(context, _currentSelectedDate),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: widget.accentColor,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: const Text(
+                      'Save Birthday',
+                      style: TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _EmailChangeRequestDialog extends StatefulWidget {
   const _EmailChangeRequestDialog({required this.initialEmail});
 
@@ -1283,27 +2250,189 @@ class _EmailChangeRequestDialogState extends State<_EmailChangeRequestDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title:
-          const Text('Change Email', style: TextStyle(fontFamily: 'Recoleta')),
-      content: TextField(
-        controller: _emailController,
-        keyboardType: TextInputType.emailAddress,
-        autofillHints: const [AutofillHints.email],
-        decoration: const InputDecoration(
-          labelText: 'New email address',
-          helperText: 'We will send a verification code to this address.',
+    final accentColor = AppColors.deepTeal;
+    return Dialog(
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(28),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: accentColor.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(
+                    Icons.mark_email_unread_outlined,
+                    color: accentColor,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Change Email',
+                        style: TextStyle(
+                          fontFamily: 'Recoleta',
+                          fontSize: 23,
+                          fontWeight: FontWeight.bold,
+                          color: accentColor,
+                          height: 1.15,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'We will send a 6-digit verification code to confirm your new email address.',
+                        style: TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 15,
+                          height: 1.3,
+                          color: Colors.black54,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 6),
+                InkWell(
+                  onTap: () => Navigator.pop(context),
+                  borderRadius: BorderRadius.circular(20),
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.close_rounded,
+                      size: 18,
+                      color: Colors.black54,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'New Email Address',
+              style: TextStyle(
+                fontFamily: 'Afacad',
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 6),
+            TextField(
+              controller: _emailController,
+              keyboardType: TextInputType.emailAddress,
+              autofillHints: const [AutofillHints.email],
+              autofocus: true,
+              style: const TextStyle(
+                fontFamily: 'Afacad',
+                fontSize: 17,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+              decoration: InputDecoration(
+                hintText: 'name@example.com',
+                hintStyle: const TextStyle(
+                  fontFamily: 'Afacad',
+                  fontSize: 16,
+                  fontWeight: FontWeight.w400,
+                  color: Colors.black38,
+                ),
+                prefixIcon: Icon(
+                  Icons.alternate_email_rounded,
+                  size: 20,
+                  color: accentColor,
+                ),
+                filled: true,
+                fillColor: const Color(0xFFF7F9F9),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide:
+                      BorderSide(color: Colors.grey.shade200, width: 1.2),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide(color: accentColor, width: 1.8),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: TextButton.styleFrom(
+                      backgroundColor: Colors.grey.shade100,
+                      foregroundColor: Colors.black87,
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: const Text(
+                      'Cancel',
+                      style: TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.black54,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 2,
+                  child: ElevatedButton(
+                    onPressed: () =>
+                        Navigator.pop(context, _emailController.text.trim()),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: accentColor,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: const Text(
+                      'Send Code',
+                      style: TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
-      actions: [
-        TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel')),
-        TextButton(
-          onPressed: () => Navigator.pop(context, _emailController.text.trim()),
-          child: Text('Send Code', style: TextStyle(color: AppColors.deepTeal)),
-        ),
-      ],
     );
   }
 }
@@ -1378,10 +2507,12 @@ class _EmailChangeOtpDialogState extends State<_EmailChangeOtpDialog> {
     final minutes = (widget.expiresInSeconds / 60).ceil();
 
     return Dialog(
-      insetPadding: const EdgeInsets.symmetric(horizontal: 28),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(28, 30, 28, 22),
+        padding: const EdgeInsets.fromLTRB(24, 26, 24, 24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1390,22 +2521,22 @@ class _EmailChangeOtpDialogState extends State<_EmailChangeOtpDialog> {
               'Verify New Email',
               style: TextStyle(
                 fontFamily: 'Recoleta',
-                fontSize: 32,
+                fontSize: 26,
                 fontWeight: FontWeight.bold,
                 color: AppColors.deepTeal,
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             Text(
               'Enter the 6-digit code sent to $_maskedEmail. It expires in $minutes minutes.',
               style: const TextStyle(
                 fontFamily: 'Afacad',
-                fontSize: 19,
-                height: 1.25,
+                fontSize: 16,
+                height: 1.3,
                 color: Colors.black54,
               ),
             ),
-            const SizedBox(height: 28),
+            const SizedBox(height: 24),
             GestureDetector(
               behavior: HitTestBehavior.translucent,
               onTap: _focusNode.requestFocus,
@@ -1447,11 +2578,11 @@ class _EmailChangeOtpDialogState extends State<_EmailChangeOtpDialog> {
                               index == digits.length.clamp(0, 5);
                           return AnimatedContainer(
                             duration: const Duration(milliseconds: 120),
-                            width: 40,
-                            height: 52,
+                            width: 42,
+                            height: 54,
                             decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(12),
+                              color: const Color(0xFFF7F9F9),
+                              borderRadius: BorderRadius.circular(14),
                               border: Border.all(
                                 color: isActive
                                     ? const Color(0xFFD4AF37)
@@ -1464,7 +2595,7 @@ class _EmailChangeOtpDialogState extends State<_EmailChangeOtpDialog> {
                               hasValue ? digits[index] : '',
                               style: const TextStyle(
                                 fontFamily: 'Afacad',
-                                fontSize: 28,
+                                fontSize: 26,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -1476,23 +2607,55 @@ class _EmailChangeOtpDialogState extends State<_EmailChangeOtpDialog> {
                 ],
               ),
             ),
-            const SizedBox(height: 26),
+            const SizedBox(height: 24),
             Row(
-              mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel'),
-                ),
-                const SizedBox(width: 8),
-                FilledButton(
-                  onPressed: code.length == 6 ? _submit : null,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.deepTeal,
-                    disabledBackgroundColor:
-                        AppColors.deepTeal.withValues(alpha: 0.25),
+                Expanded(
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: TextButton.styleFrom(
+                      backgroundColor: Colors.grey.shade100,
+                      foregroundColor: Colors.black87,
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: const Text(
+                      'Cancel',
+                      style: TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.black54,
+                      ),
+                    ),
                   ),
-                  child: const Text('Verify'),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 2,
+                  child: FilledButton(
+                    onPressed: code.length == 6 ? _submit : null,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.deepTeal,
+                      disabledBackgroundColor:
+                          AppColors.deepTeal.withValues(alpha: 0.25),
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: const Text(
+                      'Verify Email',
+                      style: TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),

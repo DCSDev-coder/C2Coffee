@@ -10,13 +10,14 @@ import '../services/customer_data_service.dart';
 import '../services/secure_session_service.dart';
 import '../utils/app_colors.dart';
 import '../utils/global_state.dart';
+import '../widgets/app_page_shell.dart';
 import '../widgets/catalog_product_image.dart';
 import '../widgets/payment_service_notice_popup.dart';
 import '../widgets/voucher_modal.dart';
-import '../widgets/app_page_shell.dart';
 import 'loading_order_page.dart';
 import 'order_status_detail_page.dart';
 import 'orders_page.dart';
+import 'top_up_wallet_page.dart';
 
 class OrderConfirmationPage extends StatefulWidget {
   const OrderConfirmationPage({super.key, this.initialQuantity = 1});
@@ -30,15 +31,235 @@ class OrderConfirmationPage extends StatefulWidget {
 class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
   final CartService _cart = CartService.instance;
   final AppSessionService _session = AppSessionService.instance;
+  final ScrollController _scrollController = ScrollController();
 
   bool _isSubmitting = false;
   RewardVoucher? _selectedVoucher;
   String? _checkoutError;
   String? _checkoutIdempotencyKey;
+  bool _showScrollToTop = false;
 
   Color get orangeColor => AppColors.deepTeal;
 
   CartSnapshot? get _snapshot => _cart.snapshot;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_handleScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_handleScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _handleScroll() {
+    final shouldShow =
+        _scrollController.hasClients && _scrollController.offset > 300;
+    if (shouldShow != _showScrollToTop && mounted) {
+      setState(() => _showScrollToTop = shouldShow);
+    }
+  }
+
+  Future<void> _scrollToTop() async {
+    if (!_scrollController.hasClients) return;
+    await _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 450),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  String _formatTokenCount(int count) {
+    return '$count ${count == 1 ? 'token' : 'tokens'}';
+  }
+
+  Future<void> _openTopUpWallet() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const TopUpWalletPage(),
+      ),
+    );
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  Future<void> _showEditRemarksDialog(CartItem item) async {
+    final controller = TextEditingController(text: item.remarks?.trim() ?? '');
+    final updatedRemarks = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 22, vertical: 24),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(28),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: orangeColor.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Icon(
+                      Icons.edit_note_rounded,
+                      color: orangeColor,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Special Instructions',
+                          style: TextStyle(
+                            fontFamily: 'Recoleta',
+                            fontSize: 21,
+                            fontWeight: FontWeight.bold,
+                            color: orangeColor,
+                          ),
+                        ),
+                        Text(
+                          item.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontFamily: 'Afacad',
+                            fontSize: 14.5,
+                            color: Colors.black54,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  InkWell(
+                    onTap: () => Navigator.pop(dialogContext),
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.close_rounded,
+                        size: 18,
+                        color: Colors.black54,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              TextField(
+                controller: controller,
+                maxLines: 3,
+                maxLength: 120,
+                autofocus: true,
+                style: const TextStyle(
+                  fontFamily: 'Afacad',
+                  fontSize: 16,
+                  color: Colors.black87,
+                ),
+                decoration: InputDecoration(
+                  hintText: 'E.g. Less ice, extra hot, pack separately...',
+                  hintStyle: TextStyle(
+                    fontFamily: 'Afacad',
+                    fontSize: 15,
+                    color: Colors.grey.shade400,
+                  ),
+                  filled: true,
+                  fillColor: AppColors.surfaceLight,
+                  contentPadding: const EdgeInsets.all(14),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide(color: AppColors.border, width: 1.4),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide(color: orangeColor, width: 1.8),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(dialogContext),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.black87,
+                        side: BorderSide(color: Colors.grey.shade300),
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: const Text(
+                        'Cancel',
+                        style: TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () =>
+                          Navigator.pop(dialogContext, controller.text.trim()),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: orangeColor,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: const Text(
+                        'Save Note',
+                        style: TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (updatedRemarks == null || !mounted) return;
+    _cart.updateRemarks(
+      item.id,
+      updatedRemarks.isEmpty ? null : updatedRemarks,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -48,88 +269,212 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
       animation: Listenable.merge([_cart, _session]),
       builder: (context, _) {
         final snapshot = _snapshot;
+        final totalItemCount = snapshot == null
+            ? 0
+            : snapshot.items.fold<int>(0, (sum, item) => sum + item.quantity);
 
         return AppPageShell(
           title: 'CHECKOUT',
           onBack: () => InteractiveFillingLoader.showPop(context),
           backgroundColor: bgColor,
-          overlay: _isSubmitting
-              ? Container(
-                  color: Colors.black.withValues(alpha: 0.18),
-                  child: const Center(
-                    child: CircularProgressIndicator(),
+          scrollController: _scrollController,
+          overlay: Stack(
+            children: [
+              if (_showScrollToTop && !_isSubmitting)
+                Positioned(
+                  right: 18,
+                  bottom: 24 + MediaQuery.paddingOf(context).bottom,
+                  child: Semantics(
+                    button: true,
+                    label: 'Back to top',
+                    child: Material(
+                      color: AppColors.deepTeal,
+                      elevation: 5,
+                      shadowColor: Colors.black26,
+                      shape: const CircleBorder(),
+                      child: InkWell(
+                        customBorder: const CircleBorder(),
+                        onTap: _scrollToTop,
+                        child: const SizedBox(
+                          width: 48,
+                          height: 48,
+                          child: Icon(
+                            Icons.keyboard_arrow_up_rounded,
+                            color: Colors.white,
+                            size: 30,
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
-                )
-              : null,
-          bodyPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+                ),
+              if (_isSubmitting)
+                Container(
+                  color: Colors.black.withValues(alpha: 0.22),
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 20,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.12),
+                            blurRadius: 18,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircularProgressIndicator(color: orangeColor),
+                          const SizedBox(height: 14),
+                          Text(
+                            'Placing your order...',
+                            style: TextStyle(
+                              fontFamily: 'Recoleta',
+                              fontSize: 17,
+                              fontWeight: FontWeight.bold,
+                              color: orangeColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          bodyPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
           child: snapshot == null
               ? _buildEmptyState()
               : Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    _buildPickupStoreCard(snapshot),
+                    const SizedBox(height: 22),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              'Your Order',
+                              style: TextStyle(
+                                fontFamily: 'Recoleta',
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                                color: orangeColor,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.surfaceLight,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                '$totalItemCount ${totalItemCount == 1 ? 'item' : 'items'}',
+                                style: TextStyle(
+                                  fontFamily: 'Afacad',
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: orangeColor,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        InkWell(
+                          onTap: () =>
+                              InteractiveFillingLoader.showPop(context),
+                          borderRadius: BorderRadius.circular(20),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: orangeColor.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: orangeColor.withValues(alpha: 0.22),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.add_rounded,
+                                  size: 18,
+                                  color: orangeColor,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Add More',
+                                  style: TextStyle(
+                                    fontFamily: 'Afacad',
+                                    fontSize: 14.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: orangeColor,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    for (final item in snapshot.items) ...[
+                      _buildOrderCard(item),
+                      const SizedBox(height: 14),
+                    ],
+                    const SizedBox(height: 8),
                     Text(
-                      'Your order',
+                      'Rewards & Discounts',
                       style: TextStyle(
-                        fontFamily: 'Afacad',
-                        fontSize: 18,
+                        fontFamily: 'Recoleta',
+                        fontSize: 20,
                         fontWeight: FontWeight.bold,
                         color: orangeColor,
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      snapshot.storeName,
-                      style: const TextStyle(
-                        fontFamily: 'Afacad',
-                        fontSize: 15,
-                        color: Colors.black54,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    for (final item in snapshot.items) ...[
-                      _buildOrderCard(item),
-                      const SizedBox(height: 16),
-                    ],
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: GestureDetector(
-                        onTap: () => InteractiveFillingLoader.showPop(context),
-                        child: Text(
-                          '+ Add order',
-                          style: TextStyle(
-                            fontFamily: 'Afacad',
-                            fontSize: 17,
-                            fontWeight: FontWeight.bold,
-                            color: orangeColor,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 10),
                     IgnorePointer(
                       ignoring: _isSubmitting,
-                      child: _buildVoucherCard(),
+                      child: _buildVoucherCard(snapshot),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 20),
+                    Text(
+                      'Payment Method',
+                      style: TextStyle(
+                        fontFamily: 'Recoleta',
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: orangeColor,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
                     _buildPaymentMethodCard(snapshot),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 20),
                     _buildSummaryCard(snapshot),
-                    const SizedBox(height: 12),
                     if (_checkoutError != null) ...[
                       const SizedBox(height: 16),
-                      Text(
-                        _checkoutError!,
-                        style: const TextStyle(
-                          fontFamily: 'Afacad',
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.red,
-                        ),
-                      ),
+                      _buildErrorBanner(_checkoutError!),
                     ],
-                    const SizedBox(height: 32),
+                    const SizedBox(height: 24),
                     _buildCheckoutButton(snapshot),
-                    const SizedBox(height: 40),
+                    const SizedBox(height: 44),
                   ],
                 ),
         );
@@ -137,21 +482,132 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
     );
   }
 
+  Widget _buildPickupStoreCard(CartSnapshot snapshot) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppColors.surfaceLight,
+            Colors.white,
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.border, width: 1.4),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: orangeColor,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(
+              Icons.storefront_rounded,
+              color: Colors.white,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      'PICKUP OUTLET',
+                      style: TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.8,
+                        color: orangeColor.withValues(alpha: 0.75),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.gold.withValues(alpha: 0.22),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        'Self-Pickup',
+                        style: TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: orangeColor,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  snapshot.storeName,
+                  style: TextStyle(
+                    fontFamily: 'Recoleta',
+                    fontSize: 19,
+                    fontWeight: FontWeight.bold,
+                    color: orangeColor,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                const Text(
+                  'Prepared fresh once your order is placed',
+                  style: TextStyle(
+                    fontFamily: 'Afacad',
+                    fontSize: 13.5,
+                    color: Colors.black54,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildEmptyState() {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 28),
+        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 48),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.shopping_bag_outlined,
-              size: 48,
-              color: orangeColor,
+            Container(
+              width: 84,
+              height: 84,
+              decoration: BoxDecoration(
+                color: AppColors.surfaceLight,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.shopping_bag_outlined,
+                size: 40,
+                color: orangeColor,
+              ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
             Text(
-              'Your cart is empty.',
+              'Your cart is empty',
               style: TextStyle(
                 fontFamily: 'Recoleta',
                 fontSize: 26,
@@ -161,12 +617,38 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
             ),
             const SizedBox(height: 8),
             const Text(
-              'Add a drink or menu item first, then come back here to checkout.',
+              'Add your favourite handcrafted drinks or treats first, then return here to checkout.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontFamily: 'Afacad',
                 fontSize: 16,
                 color: Colors.black54,
+                height: 1.35,
+              ),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: () => InteractiveFillingLoader.showPop(context),
+              icon: const Icon(Icons.local_cafe_outlined, size: 20),
+              label: const Text(
+                'Browse Menu',
+                style: TextStyle(
+                  fontFamily: 'Afacad',
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: orangeColor,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 13,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
               ),
             ),
           ],
@@ -176,17 +658,36 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
   }
 
   Widget _buildOrderCard(CartItem item) {
+    final hasDetails =
+        item.displayDetails != null && item.displayDetails!.trim().isNotEmpty;
+    final hasRemarks = item.remarks != null && item.remarks!.trim().isNotEmpty;
+
     return Dismissible(
       key: ValueKey(item.id),
       direction: DismissDirection.endToStart,
       background: Container(
         alignment: Alignment.centerRight,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
+        padding: const EdgeInsets.symmetric(horizontal: 22),
         decoration: BoxDecoration(
           color: Colors.red.shade600,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(20),
         ),
-        child: const Icon(Icons.delete_outline, color: Colors.white, size: 28),
+        child: const Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.delete_outline_rounded, color: Colors.white, size: 28),
+            SizedBox(height: 2),
+            Text(
+              'Remove',
+              style: TextStyle(
+                fontFamily: 'Afacad',
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+              ),
+            ),
+          ],
+        ),
       ),
       onDismissed: (_) {
         _cart.removeItem(item.id);
@@ -198,11 +699,11 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.border),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.border, width: 1.4),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
+              color: Colors.black.withValues(alpha: 0.03),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -215,112 +716,126 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  width: 80,
-                  height: 80,
+                  width: 82,
+                  height: 82,
+                  padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
-                    color: Colors.transparent,
-                    borderRadius: BorderRadius.circular(12),
+                    color: AppColors.surfaceLight,
+                    borderRadius: BorderRadius.circular(16),
                   ),
                   child: CatalogProductImage(
                     assetPath: item.imageAssetPath,
                     imageUrl: item.imageUrl,
-                    width: 80,
-                    height: 80,
+                    width: 70,
+                    height: 70,
                     fit: BoxFit.contain,
                   ),
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Expanded(
                             child: Text(
                               item.name,
                               style: const TextStyle(
                                 fontFamily: 'Recoleta',
-                                fontSize: 20,
+                                fontSize: 19,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.black87,
+                                height: 1.15,
                               ),
                             ),
                           ),
-                          RichText(
-                            text: TextSpan(
-                              children: [
-                                TextSpan(
-                                  text: '${item.unitTotalTokens} tokens',
-                                  style: const TextStyle(
-                                    fontFamily: 'Afacad',
-                                    fontSize: 16,
-                                    color: Colors.black87,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 9,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceLight,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              '${_formatTokenCount(item.unitTotalTokens)} / ea',
+                              style: TextStyle(
+                                fontFamily: 'Afacad',
+                                fontSize: 13.5,
+                                color: orangeColor,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        [
-                          if (item.displayDetails != null &&
-                              item.displayDetails!.trim().isNotEmpty)
-                            item.displayDetails!,
-                          'Remarks: ${item.remarks?.trim().isNotEmpty == true ? item.remarks!.trim() : 'None'}',
-                        ].join('\n'),
-                        style: const TextStyle(
-                          fontFamily: 'Afacad',
-                          fontSize: 15,
-                          color: Colors.black87,
-                          height: 1.3,
+                      if (hasDetails) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          item.displayDetails!.trim(),
+                          style: const TextStyle(
+                            fontFamily: 'Afacad',
+                            fontSize: 14.5,
+                            color: Colors.black54,
+                            height: 1.3,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 12),
-                      Container(
-                        width: 128,
-                        height: 42,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: orangeColor, width: 1),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: [
-                            _buildQuantityTapTarget(
-                              icon: Icons.remove,
-                              onTap: () {
-                                _cart.updateQuantity(
-                                  item.id,
-                                  item.quantity - 1,
-                                );
-                                if (_cart.isEmpty && mounted) {
-                                  Navigator.pop(context);
-                                }
-                              },
+                      ],
+                      const SizedBox(height: 8),
+                      InkWell(
+                        onTap: () => _showEditRemarksDialog(item),
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: hasRemarks
+                                ? AppColors.gold.withValues(alpha: 0.14)
+                                : const Color(0xFFF7F7F8),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: hasRemarks
+                                  ? AppColors.gold.withValues(alpha: 0.45)
+                                  : Colors.grey.shade200,
                             ),
-                            Text(
-                              '${item.quantity}',
-                              style: TextStyle(
-                                color: orangeColor,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.edit_note_rounded,
+                                size: 16,
+                                color:
+                                    hasRemarks ? orangeColor : Colors.black45,
                               ),
-                            ),
-                            _buildQuantityTapTarget(
-                              icon: Icons.add,
-                              onTap: () {
-                                _cart.updateQuantity(
-                                  item.id,
-                                  item.quantity + 1,
-                                );
-                              },
-                            ),
-                          ],
+                              const SizedBox(width: 5),
+                              Flexible(
+                                child: Text(
+                                  hasRemarks
+                                      ? 'Note: ${item.remarks!.trim()}'
+                                      : 'Add special note',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontFamily: 'Afacad',
+                                    fontSize: 13.5,
+                                    fontWeight: hasRemarks
+                                        ? FontWeight.w700
+                                        : FontWeight.w600,
+                                    color: hasRemarks
+                                        ? Colors.black87
+                                        : Colors.black54,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ],
@@ -328,29 +843,90 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-            Divider(color: AppColors.border, height: 1),
+            const SizedBox(height: 14),
+            Divider(color: AppColors.border.withValues(alpha: 0.7), height: 1),
             const SizedBox(height: 12),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'Line Total',
-                  style: TextStyle(
-                    fontFamily: 'Recoleta',
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
+                Container(
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceLight,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: orangeColor.withValues(alpha: 0.35),
+                      width: 1.2,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildQuantityTapTarget(
+                        icon: item.quantity <= 1
+                            ? Icons.delete_outline_rounded
+                            : Icons.remove_rounded,
+                        iconColor: item.quantity <= 1
+                            ? Colors.red.shade600
+                            : orangeColor,
+                        onTap: () {
+                          _cart.updateQuantity(
+                            item.id,
+                            item.quantity - 1,
+                          );
+                          if (_cart.isEmpty && mounted) {
+                            Navigator.pop(context);
+                          }
+                        },
+                      ),
+                      Container(
+                        constraints: const BoxConstraints(minWidth: 32),
+                        alignment: Alignment.center,
+                        child: Text(
+                          '${item.quantity}',
+                          style: TextStyle(
+                            fontFamily: 'Afacad',
+                            color: orangeColor,
+                            fontSize: 16.5,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      _buildQuantityTapTarget(
+                        icon: Icons.add_rounded,
+                        iconColor: orangeColor,
+                        onTap: () {
+                          _cart.updateQuantity(
+                            item.id,
+                            item.quantity + 1,
+                          );
+                        },
+                      ),
+                    ],
                   ),
                 ),
-                Text(
-                  '${item.lineTotalTokens} tokens',
-                  style: TextStyle(
-                    fontFamily: 'Afacad',
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: orangeColor,
-                  ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    const Text(
+                      'Line Total',
+                      style: TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 12.5,
+                        color: Colors.black45,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Text(
+                      _formatTokenCount(item.lineTotalTokens),
+                      style: TextStyle(
+                        fontFamily: 'Recoleta',
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: orangeColor,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -362,20 +938,21 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
 
   Widget _buildQuantityTapTarget({
     required IconData icon,
+    required Color iconColor,
     required VoidCallback onTap,
   }) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(12),
         child: SizedBox(
-          width: 38,
-          height: 38,
+          width: 36,
+          height: 36,
           child: Icon(
             icon,
-            size: 24,
-            color: orangeColor,
+            size: 20,
+            color: iconColor,
           ),
         ),
       ),
@@ -410,8 +987,9 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
     return 0;
   }
 
-  Widget _buildVoucherCard() {
+  Widget _buildVoucherCard(CartSnapshot snapshot) {
     final voucher = _selectedVoucher;
+    final discountTokens = _calculateDiscountTokens(snapshot);
 
     return InkWell(
       onTap: () {
@@ -426,62 +1004,148 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
           },
         );
       },
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(18),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           color: voucher != null
-              ? orangeColor.withValues(alpha: 0.05)
+              ? orangeColor.withValues(alpha: 0.06)
               : Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(18),
           border: Border.all(
-            color: voucher != null
-                ? orangeColor
-                : orangeColor.withValues(alpha: 0.5),
-            width: voucher != null ? 1.5 : 1,
+            color: voucher != null ? orangeColor : AppColors.border,
+            width: voucher != null ? 1.6 : 1.4,
           ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.02),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
+          ],
         ),
         child: Row(
           children: [
-            Image.asset(
-              'assets/images/voucher.png',
-              width: 46,
-              height: 46,
+            Container(
+              width: 48,
+              height: 48,
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: voucher != null
+                    ? AppColors.gold.withValues(alpha: 0.22)
+                    : AppColors.surfaceLight,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Image.asset(
+                'assets/images/voucher.png',
+                fit: BoxFit.contain,
+              ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 13),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    voucher != null ? voucher.template.name : 'Apply Voucher',
-                    style: const TextStyle(
-                      fontFamily: 'Recoleta',
-                      fontSize: 19,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          voucher != null
+                              ? voucher.template.displayLabel
+                              : 'Apply Voucher',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontFamily: 'Recoleta',
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ),
+                      if (voucher != null && discountTokens > 0) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE8F5E9),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            '-${_formatTokenCount(discountTokens)}',
+                            style: const TextStyle(
+                              fontFamily: 'Afacad',
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF2E7D32),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                   const SizedBox(height: 2),
                   Text(
                     voucher != null
-                        ? 'Tap to change or remove'
-                        : 'Select an available voucher for discount',
+                        ? 'Applied to this order • Tap to change'
+                        : 'Select an available reward or tier perk',
                     style: TextStyle(
                       fontFamily: 'Afacad',
-                      fontSize: 15,
+                      fontSize: 14.5,
                       color: voucher != null ? orangeColor : Colors.black54,
                       fontWeight:
-                          voucher != null ? FontWeight.bold : FontWeight.normal,
+                          voucher != null ? FontWeight.w700 : FontWeight.normal,
                     ),
                   ),
                 ],
               ),
             ),
-            Icon(
-              voucher != null ? Icons.check_circle : Icons.chevron_right,
-              color: voucher != null ? AppColors.gold : Colors.black45,
-            ),
+            if (voucher != null)
+              IconButton(
+                tooltip: 'Remove voucher',
+                onPressed: () {
+                  setState(() {
+                    _selectedVoucher = null;
+                  });
+                },
+                icon: Icon(
+                  Icons.close_rounded,
+                  color: Colors.grey.shade600,
+                  size: 20,
+                ),
+              )
+            else
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceLight,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Select',
+                      style: TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: orangeColor,
+                      ),
+                    ),
+                    const SizedBox(width: 2),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      size: 18,
+                      color: orangeColor,
+                    ),
+                  ],
+                ),
+              ),
           ],
         ),
       ),
@@ -492,92 +1156,159 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
     final discountTokens = _calculateDiscountTokens(snapshot);
     final effectiveTokenCharge =
         max(0, snapshot.subtotalTokens - discountTokens);
-    final remainingBalance = _session.tokenBalance - effectiveTokenCharge;
+    final currentBalance = _session.tokenBalance;
+    final remainingBalance = currentBalance - effectiveTokenCharge;
+    final hasEnoughBalance = remainingBalance >= 0;
+    final shortfall = effectiveTokenCharge - currentBalance;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: orangeColor.withValues(alpha: 0.5),
-          width: 1,
+          color: hasEnoughBalance
+              ? orangeColor.withValues(alpha: 0.45)
+              : Colors.orange.shade400,
+          width: 1.4,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Payment Method',
-            style: TextStyle(
-              fontFamily: 'Recoleta',
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 8),
           Row(
             children: [
-              Image.asset(
-                'assets/images/wallet.png',
-                width: 55,
-                height: 55,
+              Container(
+                width: 52,
+                height: 52,
+                padding: const EdgeInsets.all(9),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceLight,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Image.asset('assets/images/wallet.png'),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 13),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Wallet',
+                      'C2 Token Wallet',
                       style: TextStyle(
-                        fontFamily: 'Afacad',
-                        fontSize: 17,
+                        fontFamily: 'Recoleta',
+                        fontSize: 18,
                         fontWeight: FontWeight.bold,
                         color: Colors.black87,
                       ),
                     ),
+                    const SizedBox(height: 2),
                     Text(
-                      '${_session.tokenBalance} tokens available',
+                      '${_formatTokenCount(currentBalance)} available',
                       style: TextStyle(
                         fontFamily: 'Afacad',
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: orangeColor,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: hasEnoughBalance
+                            ? orangeColor
+                            : Colors.red.shade700,
                       ),
                     ),
                     Text(
-                      'After checkout: ${remainingBalance >= 0 ? remainingBalance : 0} tokens',
-                      style: const TextStyle(
+                      hasEnoughBalance
+                          ? 'Balance after checkout: ${_formatTokenCount(remainingBalance)}'
+                          : 'Short by ${_formatTokenCount(shortfall)} for this order',
+                      style: TextStyle(
                         fontFamily: 'Afacad',
-                        fontSize: 14,
-                        color: Colors.black54,
+                        fontSize: 13.5,
+                        color: hasEnoughBalance
+                            ? Colors.black54
+                            : Colors.red.shade600,
                       ),
                     ),
                   ],
                 ),
               ),
-              Container(
-                width: 20,
-                height: 20,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: orangeColor, width: 2),
-                ),
-                child: Center(
-                  child: Container(
-                    width: 10,
-                    height: 10,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: orangeColor,
+              if (hasEnoughBalance)
+                Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: orangeColor,
+                  ),
+                  child: const Icon(
+                    Icons.check_rounded,
+                    size: 16,
+                    color: Colors.white,
+                  ),
+                )
+              else
+                TextButton.icon(
+                  onPressed: _openTopUpWallet,
+                  icon: const Icon(Icons.add_circle_outline_rounded, size: 17),
+                  label: const Text(
+                    'Top Up',
+                    style: TextStyle(
+                      fontFamily: 'Afacad',
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  style: TextButton.styleFrom(
+                    backgroundColor: orangeColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
                     ),
                   ),
                 ),
-              ),
             ],
           ),
+          if (!hasEnoughBalance) ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF8E1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.amber.shade300),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.info_outline_rounded,
+                    size: 18,
+                    color: Colors.amber.shade900,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Add at least ${_formatTokenCount(shortfall)} to your wallet to complete this order.',
+                      style: TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.amber.shade900,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -586,49 +1317,103 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
   Widget _buildSummaryCard(CartSnapshot snapshot) {
     final discountTokens = _calculateDiscountTokens(snapshot);
     final finalTokens = max(0, snapshot.subtotalTokens - discountTokens);
+    final totalQuantity =
+        snapshot.items.fold<int>(0, (sum, item) => sum + item.quantity);
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        color: AppColors.surfaceLight.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.border, width: 1.4),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Text(
+            'Order Summary',
+            style: TextStyle(
+              fontFamily: 'Recoleta',
+              fontSize: 19,
+              fontWeight: FontWeight.bold,
+              color: orangeColor,
+            ),
+          ),
+          const SizedBox(height: 12),
           _buildSummaryRow(
-            'Subtotal',
-            '${snapshot.subtotalTokens} tokens',
+            'Subtotal ($totalQuantity ${totalQuantity == 1 ? 'item' : 'items'})',
+            _formatTokenCount(snapshot.subtotalTokens),
           ),
           if (discountTokens > 0) ...[
             const SizedBox(height: 10),
             _buildSummaryRow(
               'Voucher Discount',
-              '-$discountTokens tokens',
+              '-${_formatTokenCount(discountTokens)}',
               isDiscount: true,
             ),
           ],
-          const SizedBox(height: 10),
-          _buildSummaryRow(
-            'Token Charge',
-            '$finalTokens tokens',
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Divider(
+              color: AppColors.border,
+              height: 1,
+            ),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Total Token Charge',
+                style: TextStyle(
+                  fontFamily: 'Recoleta',
+                  fontSize: 19,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    _formatTokenCount(finalTokens),
+                    style: TextStyle(
+                      fontFamily: 'Recoleta',
+                      fontSize: 21,
+                      fontWeight: FontWeight.bold,
+                      color: orangeColor,
+                    ),
+                  ),
+                  Text(
+                    'Equivalent to RM $finalTokens',
+                    style: const TextStyle(
+                      fontFamily: 'Afacad',
+                      fontSize: 13,
+                      color: Colors.black54,
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _buildSummaryRow(String label, String value,
-      {bool isDiscount = false}) {
+  Widget _buildSummaryRow(
+    String label,
+    String value, {
+    bool isDiscount = false,
+  }) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(
           label,
           style: const TextStyle(
-            fontFamily: 'Recoleta',
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
+            fontFamily: 'Afacad',
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
             color: Colors.black87,
           ),
         ),
@@ -638,10 +1423,45 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
             fontFamily: 'Afacad',
             fontSize: 16,
             fontWeight: FontWeight.bold,
-            color: isDiscount ? Colors.green.shade700 : orangeColor,
+            color: isDiscount ? const Color(0xFF2E7D32) : orangeColor,
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildErrorBanner(String message) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.red.shade50,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.red.shade200),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.error_outline_rounded,
+            color: Colors.red.shade700,
+            size: 20,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(
+                fontFamily: 'Afacad',
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: Colors.red.shade800,
+                height: 1.3,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -650,34 +1470,72 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
     final effectiveTokenCharge =
         max(0, snapshot.subtotalTokens - discountTokens);
     final hasEnoughBalance = _session.tokenBalance >= effectiveTokenCharge;
+    final shortfall = effectiveTokenCharge - _session.tokenBalance;
 
-    return GestureDetector(
-      onTap: _isSubmitting || !hasEnoughBalance
-          ? null
-          : () => _submitCheckout(snapshot),
-      child: Container(
-        width: double.infinity,
-        height: 50,
-        decoration: BoxDecoration(
-          color: hasEnoughBalance
-              ? orangeColor
-              : orangeColor.withValues(alpha: 0.35),
-          borderRadius: BorderRadius.circular(25),
+    return SizedBox(
+      width: double.infinity,
+      height: 54,
+      child: ElevatedButton(
+        onPressed: _isSubmitting
+            ? null
+            : hasEnoughBalance
+                ? () => _submitCheckout(snapshot)
+                : _openTopUpWallet,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: orangeColor,
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: orangeColor.withValues(alpha: 0.45),
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(27),
+          ),
         ),
-        child: Center(
-          child: Text(
-            _isSubmitting
-                ? 'PROCESSING ORDER...'
-                : hasEnoughBalance
-                    ? 'CHECKOUT'
-                    : 'INSUFFICIENT TOKENS',
-            style: const TextStyle(
-              fontFamily: 'Afacad',
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              hasEnoughBalance
+                  ? Icons.lock_outline_rounded
+                  : Icons.account_balance_wallet_outlined,
+              size: 20,
               color: Colors.white,
             ),
-          ),
+            const SizedBox(width: 8),
+            Text(
+              _isSubmitting
+                  ? 'PROCESSING ORDER...'
+                  : hasEnoughBalance
+                      ? 'PLACE ORDER'
+                      : 'TOP UP WALLET (+${_formatTokenCount(shortfall)})',
+              style: const TextStyle(
+                fontFamily: 'Afacad',
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.5,
+                color: Colors.white,
+              ),
+            ),
+            if (!_isSubmitting && hasEnoughBalance) ...[
+              const SizedBox(width: 10),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Text(
+                  _formatTokenCount(effectiveTokenCharge),
+                  style: const TextStyle(
+                    fontFamily: 'Afacad',
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );

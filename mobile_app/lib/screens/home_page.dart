@@ -417,10 +417,7 @@ class _HomePageState extends State<HomePage> {
                         const SizedBox(height: 16),
                         _buildHeader(userName, tokenCount),
                         const SizedBox(height: 16),
-                        AspectRatio(
-                          aspectRatio: 4 / 5,
-                          child: _buildHeroBanner(),
-                        ),
+                        _buildHeroBanner(),
                         const SizedBox(height: 16),
                         _buildActionButtons(),
                         const SizedBox(height: 16),
@@ -652,21 +649,24 @@ class _HomePageState extends State<HomePage> {
     if (banners.isEmpty) {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Container(
-          decoration: BoxDecoration(
-            color: AppColors.surfaceLight,
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: AppColors.border, width: 1),
-          ),
-          child: const Center(
-            child: Padding(
-              padding: EdgeInsets.all(24),
-              child: Text(
-                'Promotions will appear here once marketing updates them.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontFamily: 'Afacad',
-                  color: Colors.black54,
+        child: AspectRatio(
+          aspectRatio: 4 / 5,
+          child: Container(
+            decoration: BoxDecoration(
+              color: AppColors.surfaceLight,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: AppColors.border, width: 1),
+            ),
+            child: const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Text(
+                  'Promotions will appear here once marketing updates them.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: 'Afacad',
+                    color: Colors.black54,
+                  ),
                 ),
               ),
             ),
@@ -677,75 +677,78 @@ class _HomePageState extends State<HomePage> {
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: Stack(
-          children: [
-            NotificationListener<ScrollStartNotification>(
-              onNotification: (notification) {
-                if (notification.dragDetails != null) {
-                  _restartCarouselTimer();
-                }
-                return false;
-              },
-              child: PageView.builder(
-                controller: _pageController,
-                itemCount: banners.length,
-                onPageChanged: (index) {
-                  setState(() => _currentBannerIndex = index);
-                  _restartCarouselTimer();
+      child: AspectRatio(
+        aspectRatio: 4 / 5,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: Stack(
+            children: [
+              NotificationListener<ScrollStartNotification>(
+                onNotification: (notification) {
+                  if (notification.dragDetails != null) {
+                    _restartCarouselTimer();
+                  }
+                  return false;
                 },
-                itemBuilder: (context, index) {
-                  final banner = banners[index];
-                  return GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () => _handleBannerTap(banner),
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        _buildBannerImage(banner.imageSource),
-                        Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                Colors.transparent,
-                                Colors.black.withValues(alpha: 0.18),
-                              ],
+                child: PageView.builder(
+                  controller: _pageController,
+                  itemCount: banners.length,
+                  onPageChanged: (index) {
+                    setState(() => _currentBannerIndex = index);
+                    _restartCarouselTimer();
+                  },
+                  itemBuilder: (context, index) {
+                    final banner = banners[index];
+                    return GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => _handleBannerTap(banner),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          _buildBannerImage(banner.imageSource),
+                          Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Colors.transparent,
+                                  Colors.black.withValues(alpha: 0.18),
+                                ],
+                              ),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
+                        ],
+                      ),
+                    );
+                  },
+                ),
               ),
-            ),
-            Positioned(
-              bottom: 12,
-              left: 0,
-              right: 0,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(
-                  banners.length,
-                  (index) => AnimatedContainer(
-                    duration: const Duration(milliseconds: 300),
-                    margin: const EdgeInsets.symmetric(horizontal: 4),
-                    width: _currentBannerIndex == index ? 20 : 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: _currentBannerIndex == index
-                          ? AppColors.softGold
-                          : Colors.white.withValues(alpha: 0.6),
-                      borderRadius: BorderRadius.circular(4),
+              Positioned(
+                bottom: 12,
+                left: 0,
+                right: 0,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(
+                    banners.length,
+                    (index) => AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      width: _currentBannerIndex == index ? 20 : 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: _currentBannerIndex == index
+                            ? AppColors.softGold
+                            : Colors.white.withValues(alpha: 0.6),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
