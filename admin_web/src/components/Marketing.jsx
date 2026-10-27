@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
+  AlertCircle,
   ChevronDown,
   Bell,
   MessageSquare,
@@ -12,7 +13,7 @@ import {
 } from "lucide-react";
 import Pagination from "./Pagination";
 import PaymentServiceNotices from "./PaymentServiceNotices";
-import { showAdminSuccess } from "../lib/adminToast";
+import { showAdminError, showAdminSuccess } from "../lib/adminToast";
 import { requestAdminConfirm } from "../lib/adminDialog";
 import {
   createAdminMarketingBanner,
@@ -325,10 +326,12 @@ const Marketing = () => {
     setEditingBanner(null);
     setFormData(makeEmptyForm());
     setSelectedImageFile(null);
+    setError("");
     setIsModalOpen(true);
   };
 
   const openEditModal = (banner) => {
+    setError("");
     setEditingBanner(banner);
     setFormData({
       title: banner.title || "",
@@ -366,6 +369,36 @@ const Marketing = () => {
     setEditingBanner(null);
     setSelectedImageFile(null);
     setFormData(makeEmptyForm());
+    setError("");
+  };
+
+  const handlePosterFileChange = (event) => {
+    const file = event.target.files?.[0] || null;
+    if (!file) {
+      setSelectedImageFile(null);
+      return;
+    }
+
+    if (!["image/png", "image/jpeg", "image/webp", "image/gif"].includes(file.type)) {
+      const msg = "Upload a PNG, JPG, WEBP, or GIF poster. Video files are not supported.";
+      setError(msg);
+      showAdminError(msg);
+      event.target.value = "";
+      return;
+    }
+
+    const MAX_POSTER_FILE_SIZE = 15 * 1024 * 1024; // 15 MB
+    if (file.size > MAX_POSTER_FILE_SIZE) {
+      const sizeMb = (file.size / (1024 * 1024)).toFixed(1);
+      const msg = `The selected poster (${sizeMb} MB) exceeds the 15 MB limit. Please compress or resize the image before uploading.`;
+      setError(msg);
+      showAdminError(msg);
+      event.target.value = "";
+      return;
+    }
+
+    setError("");
+    setSelectedImageFile(file);
   };
 
   const updateBannerType = (bannerType) => {
@@ -439,16 +472,21 @@ const Marketing = () => {
       setError("Enter the website or email address for the partner action.");
       return;
     }
-    if (
-      selectedImageFile &&
-      !["image/png", "image/jpeg", "image/webp", "image/gif"].includes(
-        selectedImageFile.type,
-      )
-    ) {
-      setError(
-        "Upload a PNG, JPG, WEBP, or GIF poster. Video files are not supported.",
-      );
-      return;
+    if (selectedImageFile) {
+      if (!["image/png", "image/jpeg", "image/webp", "image/gif"].includes(selectedImageFile.type)) {
+        const msg = "Upload a PNG, JPG, WEBP, or GIF poster. Video files are not supported.";
+        setError(msg);
+        showAdminError(msg);
+        return;
+      }
+      const MAX_POSTER_FILE_SIZE = 15 * 1024 * 1024;
+      if (selectedImageFile.size > MAX_POSTER_FILE_SIZE) {
+        const sizeMb = (selectedImageFile.size / (1024 * 1024)).toFixed(1);
+        const msg = `The selected poster (${sizeMb} MB) exceeds the 15 MB limit. Please compress or resize the image before uploading.`;
+        setError(msg);
+        showAdminError(msg);
+        return;
+      }
     }
 
     try {
@@ -521,7 +559,9 @@ const Marketing = () => {
       await loadPageData();
       closeModal();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to save poster.");
+      const msg = err instanceof Error ? err.message : "Unable to save poster.";
+      setError(msg);
+      showAdminError(msg);
     } finally {
       setSaving(false);
     }
@@ -537,7 +577,9 @@ const Marketing = () => {
       await deleteAdminMarketingBanner(banner.id);
       await loadPageData();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to delete poster.");
+      const msg = err instanceof Error ? err.message : "Unable to delete poster.";
+      setError(msg);
+      showAdminError(msg);
     } finally {
       setSaving(false);
     }
@@ -566,11 +608,12 @@ const Marketing = () => {
         `Notification added for ${recipients} customer${recipients === 1 ? "" : "s"}; Firebase accepted ${deliveredDevices} of ${attemptedDevices} push request${attemptedDevices === 1 ? "" : "s"}${failedDevices > 0 ? ` (${failedDevices} failed)` : ""}.`,
       );
     } catch (err) {
-      setError(
+      const msg =
         err instanceof Error
           ? err.message
-          : "Unable to send the poster notification.",
-      );
+          : "Unable to send the poster notification.";
+      setError(msg);
+      showAdminError(msg);
     } finally {
       setNotifyingBannerId(null);
     }
@@ -607,7 +650,9 @@ const Marketing = () => {
       setCustomerMessageRetrySeconds(0);
     } catch (err) {
       setCustomerMessageRetrySeconds(Math.ceil(Number(err?.retryAfterSeconds) || 0));
-      setError(err instanceof Error ? err.message : "Unable to send the customer message.");
+      const msg = err instanceof Error ? err.message : "Unable to send the customer message.";
+      setError(msg);
+      showAdminError(msg);
     } finally {
       setSendingCustomerMessage(false);
     }
@@ -993,6 +1038,18 @@ const Marketing = () => {
                 onSubmit={submitBanner}
                 className="p-6 overflow-y-auto flex-1"
               >
+                {error && (
+                  <div
+                    role="alert"
+                    className="mb-5 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700 shadow-xs"
+                  >
+                    <AlertCircle className="h-5 w-5 shrink-0 text-red-600 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="font-bold text-red-800">Poster Error</p>
+                      <p className="mt-0.5 text-xs text-red-700 leading-relaxed">{error}</p>
+                    </div>
+                  </div>
+                )}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                   <div className="space-y-5">
                     <div>
@@ -1141,11 +1198,7 @@ const Marketing = () => {
                         <input
                           type="file"
                           accept="image/png,image/jpeg,image/webp,image/gif"
-                          onChange={(event) =>
-                            setSelectedImageFile(
-                              event.target.files?.[0] || null,
-                            )
-                          }
+                          onChange={handlePosterFileChange}
                           className="block w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-[#1F3A34] file:text-white hover:file:bg-[#162A26]"
                         />
                         <p className="text-[10px] text-gray-500 mt-2">
@@ -1579,10 +1632,10 @@ const Marketing = () => {
           document.body,
         )}
 
-      {error && (
+      {!isModalOpen && error && (
         <div
           role="alert"
-          className="fixed top-5 left-1/2 z-[60] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow-lg"
+          className="fixed top-5 left-1/2 z-[100000] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow-lg"
         >
           {error}
         </div>

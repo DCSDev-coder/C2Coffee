@@ -48,7 +48,7 @@ export default function AdminDialog() {
   const Icon = dialog.tone === "secure" ? ShieldCheck : destructive ? AlertTriangle : HelpCircle;
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/55 px-4 py-8 backdrop-blur-sm" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) close(); }}>
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/55 px-4 py-8 backdrop-blur-sm" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) close(); }}>
       <form onSubmit={submit} role="dialog" aria-modal="true" aria-labelledby="admin-dialog-title" className="w-full max-w-md overflow-hidden rounded-3xl border border-white/70 bg-white shadow-[0_28px_80px_rgba(15,23,42,0.35)]">
         <div className={`flex items-start gap-4 px-6 pb-5 pt-6 ${destructive ? "bg-red-50" : "bg-[#F0F7F5]"}`}>
           <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${destructive ? "bg-red-100 text-red-700" : "bg-[#DCEDE8] text-[#173F37]"}`}>

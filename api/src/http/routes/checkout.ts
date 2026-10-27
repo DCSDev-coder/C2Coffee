@@ -81,6 +81,17 @@ type LibraryOptionRow = RowDataPacket & {
   calorie_delta_kcal: number;
 };
 
+type LegacyCustomizationRow = RowDataPacket & {
+  allow_choice_of_beans: number;
+  allow_espresso_shot: number;
+  allow_choice_of_milk: number;
+  allow_choice_of_sweetness: number;
+  allow_ice_level: number;
+  allow_temperature: number;
+  allow_sparkling_mixer: number;
+  allow_order_type: number;
+};
+
 export type MenuItemRow = RowDataPacket & {
   id: number;
   code: string;
@@ -1613,7 +1624,23 @@ export async function verifyCheckoutModifiers(
      ORDER BY g.sort_order, g.id, o.sort_order, o.id`,
     { tenantId, menuItemId }
   );
-  if (rows.length === 0) return modifiers;
+
+  const [legacyRows] = await connection.query<Array<LegacyCustomizationRow>>(
+    // Menu categories are shared catalog records and do not carry tenant_id.
+    // Tenant/store ownership is validated before this helper is called, and
+    // the item itself was loaded from that validated store's checkout menu.
+    `SELECT i.allow_choice_of_beans, i.allow_espresso_shot, i.allow_choice_of_milk,
+            i.allow_choice_of_sweetness, i.allow_ice_level, i.allow_temperature,
+            i.allow_sparkling_mixer, i.allow_order_type
+     FROM menu_items i
+     WHERE i.id = :menuItemId
+     LIMIT 1`,
+    { tenantId, menuItemId }
+  );
+  const legacyFlags = legacyRows[0];
+  if (!legacyFlags) {
+    throw new ApiError(400, 'menu_item_not_available', 'This item is unavailable.');
+  }
 
   const [visibilityRows] = await connection.query<Array<RowDataPacket>>(
     `SELECT r.option_group_id, r.trigger_option_id
@@ -1680,7 +1707,92 @@ export async function verifyCheckoutModifiers(
     }
   }
   const knownNames = new Set([...groups.values()].map((group) => group.name));
-  if (modifiers.some((modifier) => !knownNames.has(modifier.group_name))) {
+  const unknownModifiers = modifiers.filter((modifier) => !knownNames.has(modifier.group_name));
+  const normalizedLibraryNames = [...knownNames].map(_normalizeValue);
+  const libraryHasKeyword = (keyword: string) => normalizedLibraryNames.some((name) =>
+    name.split(/[^a-z0-9]+/).filter(Boolean).some((word) => word.startsWith(keyword))
+  );
+  const legacySelections = new Map<string, string>();
+  for (const modifier of unknownModifiers) {
+    const groupName = _normalizeValue(modifier.group_name);
+    if (legacySelections.has(groupName)) {
+      throw new ApiError(400, 'invalid_option_selection', `Please choose only one option for ${modifier.group_name}.`);
+    }
+    legacySelections.set(groupName, modifier.option_name.trim());
+  }
+
+  const addLegacy = (
+    groupName: string,
+    keyword: string,
+    enabled: boolean,
+    options: Record<string, { name: string; price: number; tokens?: number }>
+  ) => {
+    const normalizedGroup = _normalizeValue(groupName);
+    const selected = legacySelections.get(normalizedGroup);
+    if (selected === undefined) return;
+    if (!enabled || libraryHasKeyword(keyword)) {
+      throw new ApiError(400, 'invalid_option_selection', `The selected option for ${groupName} is unavailable.`);
+    }
+    const resolved = options[_normalizeValue(selected)];
+    if (!resolved) {
+      throw new ApiError(400, 'invalid_option_selection', `The selected option for ${groupName} is unavailable.`);
+    }
+    canonical.push({
+      group_name: groupName,
+      option_name: resolved.name,
+      price_delta_rm: resolved.price,
+      token_price_delta: resolved.tokens ?? 0,
+      calorie_delta_kcal: 0
+    });
+    legacySelections.delete(normalizedGroup);
+  };
+
+  addLegacy('Choice of Beans', 'bean', legacyFlags.allow_choice_of_beans === 1, {
+    'dato blend': { name: 'Dato Blend', price: 0 },
+    'datin blend': { name: 'Datin Blend', price: 0 }
+  });
+  addLegacy('Espresso Shot', 'espresso', legacyFlags.allow_espresso_shot === 1, {
+    '1 shot': { name: '1 shot', price: 0, tokens: 0 },
+    '2 shots': { name: '2 shots', price: 3, tokens: 3 },
+    '3 shots': { name: '3 shots', price: 6, tokens: 6 }
+  });
+  addLegacy('Choice of Temperature', 'temperature', legacyFlags.allow_temperature === 1, {
+    hot: { name: 'Hot', price: 0 },
+    cold: { name: 'Cold', price: 0 }
+  });
+  addLegacy('Choice of Sparkling', 'sparkling', legacyFlags.allow_sparkling_mixer === 1, {
+    'ginger ade': { name: 'Ginger Ade', price: 0 },
+    'tonic water': { name: 'Tonic Water', price: 0 }
+  });
+  addLegacy('Choice of Milk', 'milk', legacyFlags.allow_choice_of_milk === 1, {
+    'fresh milk': { name: 'Fresh Milk', price: 0 },
+    'oat milk': { name: 'Oat Milk', price: 3, tokens: 3 }
+  });
+  addLegacy('Choice of Sweetness', 'sweet', legacyFlags.allow_choice_of_sweetness === 1, {
+    'no sugar': { name: 'No Sugar', price: 0 },
+    'less sweet': { name: 'Less Sweet', price: 0 },
+    'regular sweet': { name: 'Regular Sweet', price: 0 }
+  });
+
+  const selectedTemperature = canonical.find(
+    (modifier) => _normalizeValue(modifier.group_name).includes('temperature')
+  )?.option_name;
+  const shouldKeepIce = selectedTemperature === undefined || _normalizeValue(selectedTemperature) === 'cold';
+  if (shouldKeepIce) {
+    addLegacy('Ice Level', 'ice', legacyFlags.allow_ice_level === 1, {
+      'less ice': { name: 'Less Ice', price: 0 },
+      'regular ice': { name: 'Regular Ice', price: 0 }
+    });
+  } else {
+    legacySelections.delete(_normalizeValue('Ice Level'));
+  }
+  addLegacy('Order Type', 'order type', legacyFlags.allow_order_type === 1, {
+    'dine in': { name: 'Dine In', price: 0 },
+    takeaway: { name: 'Take Away', price: 0 },
+    'take away': { name: 'Take Away', price: 0 }
+  });
+
+  if (legacySelections.size > 0) {
     throw new ApiError(400, 'invalid_option_selection', 'One or more selected options are unavailable.');
   }
   return canonical;

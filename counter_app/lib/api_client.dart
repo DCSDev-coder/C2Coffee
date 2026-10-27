@@ -73,7 +73,7 @@ class ApiClient {
     String? token,
     Map<String, String>? headers,
   }) async {
-    final requestHeaders = {'Content-Type': 'application/json'};
+    final requestHeaders = <String, String>{};
     if (token != null) {
       requestHeaders['Authorization'] = 'Bearer $token';
     }

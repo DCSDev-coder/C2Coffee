@@ -48,11 +48,13 @@ class OnlineTopUpSession {
   final String topupRef;
   final String checkoutUrl;
   final String status;
+  final DateTime? expiresAt;
 
   const OnlineTopUpSession({
     required this.topupRef,
     required this.checkoutUrl,
     required this.status,
+    required this.expiresAt,
   });
 
   factory OnlineTopUpSession.fromApi(Map<String, dynamic> json) {
@@ -60,6 +62,7 @@ class OnlineTopUpSession {
       topupRef: json['topup_ref'] as String? ?? '',
       checkoutUrl: json['checkout_url'] as String? ?? '',
       status: json['status'] as String? ?? 'pending_payment',
+      expiresAt: _parseNullableDate(json['expires_at'] as String?),
     );
   }
 }

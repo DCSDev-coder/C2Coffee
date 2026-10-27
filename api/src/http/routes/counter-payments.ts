@@ -43,7 +43,7 @@ const itemSchema = z.object({
 });
 
 const createPaymentSchema = z.object({
-  payment_method: z.enum(['duitnow_qr', 'ewallet']),
+  payment_method: z.enum(['duitnow_qr', 'ewallet']).nullish(),
   fulfillment_type: z.enum(['dine_in', 'take_away']),
   applied_voucher_id: z.coerce.number().int().positive().nullish(),
   voucher_authorization_token: z.string().trim().min(20).max(500).nullish(),
@@ -153,6 +153,37 @@ function callbackUrl(): string {
   return `${env.PUBLIC_API_BASE_URL.replace(/\/+$/, '')}/payments/chip/counter-callback`;
 }
 
+async function queueDefaultPrintJob(
+  connection: PoolConnection,
+  storeId: number,
+  orderId: number
+): Promise<void> {
+  const [printers] = await connection.execute<RowDataPacket[]>(
+    `SELECT pt.id, pt.tenant_code
+     FROM printer_targets pt
+     JOIN stores s ON s.id = :storeId
+     JOIN admin_tenants t ON t.id = s.tenant_id
+     WHERE pt.tenant_code = t.code AND pt.store_id = s.id
+       AND pt.delivery_mode = 'android_direct' AND pt.status = 'connected'
+       AND pt.is_default = 1 AND pt.network_host IS NOT NULL
+       AND pt.network_port IS NOT NULL AND pt.direct_print_device_key IS NOT NULL
+     LIMIT 1`,
+    { storeId }
+  );
+  if (!printers[0]) return;
+  await connection.execute(
+    `INSERT INTO print_jobs
+       (job_ref, tenant_code, order_id, printer_target_id, requested_by_admin_user_id, request_type)
+     VALUES (:jobRef, :tenantCode, :orderId, :printerTargetId, NULL, 'original')`,
+    {
+      jobRef: crypto.randomUUID(),
+      tenantCode: printers[0].tenant_code,
+      orderId,
+      printerTargetId: printers[0].id
+    }
+  );
+}
+
 export async function registerCounterPaymentRoutes(app: FastifyInstance): Promise<void> {
   app.post('/v1/counter/orders/payment', { preHandler: authenticateCounterDevice }, async (request) => {
     const payload = createPaymentSchema.parse(request.body);
@@ -166,13 +197,14 @@ export async function registerCounterPaymentRoutes(app: FastifyInstance): Promis
     let orderId = 0;
     let newOrderRef = '';
     let totalRm = 0;
+    let isComplimentary = false;
     let customerName = 'Walk-in Guest';
     let customerEmail = '';
     try {
       await connection.beginTransaction();
       const [existing] = await connection.query<RowDataPacket[]>(
         `SELECT o.id, o.order_ref, o.status, CAST(o.final_total_rm AS CHAR) AS final_total_rm,
-                p.provider_bill_id
+                p.status AS payment_status, p.payment_method, p.provider_bill_id
          FROM orders o LEFT JOIN payments p ON p.order_id = o.id
          WHERE o.store_id = :storeId AND o.checkout_idempotency_key = :key
          LIMIT 1 FOR UPDATE`,
@@ -186,6 +218,17 @@ export async function registerCounterPaymentRoutes(app: FastifyInstance): Promis
           status: existing[0].status,
           amount_rm: existing[0].final_total_rm,
           checkout_url: purchase.checkout_url
+        };
+      }
+      if (existing[0]?.status === 'paid' && existing[0]?.payment_status === 'paid') {
+        await connection.commit();
+        return {
+          order_ref: existing[0].order_ref,
+          status: 'paid',
+          payment_status: 'paid',
+          amount_rm: existing[0].final_total_rm,
+          checkout_url: null,
+          requires_payment: false
         };
       }
 
@@ -336,7 +379,13 @@ export async function registerCounterPaymentRoutes(app: FastifyInstance): Promis
         );
       }
       totalRm = Math.max(0, normalizeMoney(totalBeforeDiscount - discountRm));
-      if (totalRm <= 0) throw new ApiError(400, 'counter_total_invalid', 'The checkout total must be above RM 0.00.');
+      isComplimentary = totalRm === 0 && payload.applied_voucher_id != null;
+      if (totalRm === 0 && !isComplimentary) {
+        throw new ApiError(400, 'counter_total_invalid', 'A zero-value counter order requires an approved voucher.');
+      }
+      if (totalRm > 0 && !payload.payment_method) {
+        throw new ApiError(400, 'counter_payment_method_required', 'Choose a payment method to continue.');
+      }
 
       const userId = session?.user_id ?? await guestUserId(connection, request.counterAuth.storeId);
       if (session) {
@@ -354,12 +403,12 @@ export async function registerCounterPaymentRoutes(app: FastifyInstance): Promis
       const [orderResult] = await connection.execute<ResultSetHeader>(
         `INSERT INTO orders
            (order_ref, checkout_idempotency_key, daily_order_number, user_id, is_guest,
-            order_channel, fulfillment_type, store_id, status, payment_mode,
+            order_channel, fulfillment_type, store_id, status, payment_mode, paid_at,
             subtotal_rm, modifier_total_rm, discount_total_rm, final_total_rm,
             token_amount_charged, voucher_id, pickup_slot_at, created_at)
          VALUES
            (:orderRef, :key, :dailyNumber, :userId, :isGuest, 'counter', :fulfillment,
-            :storeId, 'pending_payment', 'direct', :subtotal, :modifiers, :discount, :total,
+            :storeId, :orderStatus, 'direct', :paidAt, :subtotal, :modifiers, :discount, :total,
             0, :voucherId, :pickupAt, UTC_TIMESTAMP())`,
         {
           orderRef: newOrderRef,
@@ -369,6 +418,8 @@ export async function registerCounterPaymentRoutes(app: FastifyInstance): Promis
           isGuest: session ? 0 : 1,
           fulfillment: payload.fulfillment_type,
           storeId: request.counterAuth.storeId,
+          orderStatus: isComplimentary ? 'paid' : 'pending_payment',
+          paidAt: isComplimentary ? mysqlDate(new Date()) : null,
           subtotal: normalizeMoney(subtotal).toFixed(2),
           modifiers: normalizeMoney(modifiersTotal).toFixed(2),
           discount: discountRm.toFixed(2),
@@ -426,28 +477,67 @@ export async function registerCounterPaymentRoutes(app: FastifyInstance): Promis
 
       await connection.execute(
         `INSERT INTO payments
-           (order_id, provider, payment_method, provider_payment_ref, amount_rm, status, created_at)
-         VALUES (:orderId, 'chip', :method, :reference, :amount, 'pending', UTC_TIMESTAMP())`,
+           (order_id, provider, payment_method, provider_payment_ref, amount_rm, status, paid_at, created_at)
+         VALUES (:orderId, :provider, :method, :reference, :amount, :paymentStatus, :paidAt, UTC_TIMESTAMP())`,
         {
           orderId,
-          method: payload.payment_method,
+          provider: isComplimentary ? 'complimentary' : 'chip',
+          method: isComplimentary ? null : payload.payment_method ?? null,
           reference: `CP-${newOrderRef}`,
-          amount: totalRm.toFixed(2)
+          amount: totalRm.toFixed(2),
+          paymentStatus: isComplimentary ? 'paid' : 'pending',
+          paidAt: isComplimentary ? mysqlDate(new Date()) : null
         }
       );
       await connection.execute(
         `INSERT INTO order_status_history
            (order_id, from_status, to_status, changed_by_type, changed_by_id, reason, created_at)
-         VALUES (:orderId, NULL, 'pending_payment', 'counter_device', :deviceId,
-                 'Counter checkout started.', UTC_TIMESTAMP())`,
-        { orderId, deviceId: request.counterAuth.deviceId }
+         VALUES (:orderId, NULL, :orderStatus, 'counter_device', :deviceId,
+                 :reason, UTC_TIMESTAMP())`,
+        {
+          orderId,
+          orderStatus: isComplimentary ? 'paid' : 'pending_payment',
+          deviceId: request.counterAuth.deviceId,
+          reason: isComplimentary
+            ? 'Approved voucher covered the full counter order.'
+            : 'Counter checkout started.'
+        }
       );
+      if (isComplimentary && payload.applied_voucher_id) {
+        const [redeemed] = await connection.execute<ResultSetHeader>(
+          `UPDATE user_vouchers SET status = 'redeemed', redeemed_at = UTC_TIMESTAMP()
+           WHERE id = :voucherId AND status = 'active'`,
+          { voucherId: payload.applied_voucher_id }
+        );
+        if (redeemed.affectedRows !== 1) {
+          throw new ApiError(409, 'voucher_redemption_conflict', 'The selected voucher is no longer available.');
+        }
+        await connection.execute(
+          `INSERT INTO voucher_redemptions
+             (user_voucher_id, order_id, discount_rm, discount_token_amount, created_at)
+           VALUES (:voucherId, :orderId, :discount, NULL, UTC_TIMESTAMP())`,
+          { voucherId: payload.applied_voucher_id, orderId, discount: discountRm.toFixed(2) }
+        );
+        await queueDefaultPrintJob(connection, request.counterAuth.storeId, orderId);
+      }
       await connection.commit();
     } catch (error) {
       await connection.rollback();
       throw error;
     } finally {
       connection.release();
+    }
+
+    if (isComplimentary) {
+      return {
+        order_ref: newOrderRef,
+        status: 'paid',
+        payment_status: 'paid',
+        amount_rm: totalRm.toFixed(2),
+        checkout_url: null,
+        payment_method: null,
+        requires_payment: false
+      };
     }
 
     let purchase: { id: string; checkoutUrl: string };
@@ -458,7 +548,7 @@ export async function registerCounterPaymentRoutes(app: FastifyInstance): Promis
         customerEmail: customerEmail || `walkin+${newOrderRef.toLowerCase()}@c2coffeeandcandle.com`,
         amountCents: Math.round(totalRm * 100),
         description: `C2 Coffee counter order ${newOrderRef}`,
-        method: payload.payment_method,
+        method: payload.payment_method!,
         callbackUrl: callbackUrl()
       });
     } catch (error) {
@@ -484,7 +574,8 @@ export async function registerCounterPaymentRoutes(app: FastifyInstance): Promis
       status: 'pending_payment',
       amount_rm: totalRm.toFixed(2),
       checkout_url: purchase.checkoutUrl,
-      payment_method: payload.payment_method
+      payment_method: payload.payment_method,
+      requires_payment: true
     };
   });
 

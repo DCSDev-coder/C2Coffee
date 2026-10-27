@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
+import 'counter_cart_modifiers.dart';
 import 'counter_menu.dart';
 
 class ProductDetailModal extends StatefulWidget {
@@ -28,10 +29,8 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
   final Map<int, List<int>> _librarySelections = {};
   final Set<int> _missingRequiredGroups = {};
 
-  bool _hasLibraryGroup(String keyword) => widget.item.modifierGroups.any(
-    (group) =>
-        group.name.toLowerCase().contains(keyword) && group.options.isNotEmpty,
-  );
+  bool _hasLibraryGroup(String keyword) =>
+      counterHasLibraryGroup(widget.item, keyword);
 
   @override
   void initState() {
@@ -60,27 +59,42 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
   }
 
   double get totalPrice {
-    if (widget.item.modifierGroups.isNotEmpty) {
-      double adjustment = 0;
-      for (final group in widget.item.modifierGroups) {
-        final selections = _librarySelections[group.id] ?? [];
-        for (final optionId in selections) {
-          final option = group.options.firstWhere((o) => o.id == optionId);
-          adjustment += double.tryParse(option.priceDeltaRm) ?? 0;
-        }
-      }
-      return (widget.item.priceRm + adjustment) * _quantity;
-    }
-    double basePrice = widget.item.priceRm;
-    if (widget.item.allowEspressoShot) {
-      if (_espressoShots == 2) basePrice += 3.00;
-      if (_espressoShots == 3) basePrice += 6.00;
-    }
-    if (widget.item.allowChoiceOfMilk) {
-      if (_milk == 'Oat Milk') basePrice += 3.00;
-    }
-    return basePrice * _quantity;
+    final modifiers = buildCounterCartModifiers(
+      item: widget.item,
+      customization: _customization(),
+    );
+    return (widget.item.priceRm + counterCartModifierTotal(modifiers)) *
+        _quantity;
   }
+
+  Map<String, dynamic> _customization() => {
+    'quantity': _quantity,
+    'bean': widget.item.allowChoiceOfBeans && !_hasLibraryGroup('bean')
+        ? _bean
+        : null,
+    'espressoShots':
+        widget.item.allowEspressoShot && !_hasLibraryGroup('espresso')
+        ? '$_espressoShots shot${_espressoShots == 1 ? '' : 's'}'
+        : null,
+    'temperature':
+        widget.item.allowTemperature && !_hasLibraryGroup('temperature')
+        ? _temperature
+        : null,
+    'milk': widget.item.allowChoiceOfMilk && !_hasLibraryGroup('milk')
+        ? _milk
+        : null,
+    'sweetness':
+        widget.item.allowChoiceOfSweetness && !_hasLibraryGroup('sweet')
+        ? _sweetness
+        : null,
+    'iceLevel':
+        widget.item.allowIceLevel &&
+            !_hasLibraryGroup('ice') &&
+            _temperature == 'Cold'
+        ? _iceLevel
+        : null,
+    'librarySelections': _librarySelections,
+  };
 
   void _onAddToCart() {
     final missing = <int>{};
@@ -104,34 +118,10 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
       });
       return;
     }
-    final customization = {
-      'quantity': _quantity,
-      'bean': widget.item.allowChoiceOfBeans && !_hasLibraryGroup('bean')
-          ? _bean
-          : null,
-      'temperature':
-          widget.item.allowTemperature && !_hasLibraryGroup('temperature')
-              ? _temperature
-              : null,
-      'milk': widget.item.allowChoiceOfMilk && !_hasLibraryGroup('milk')
-          ? _milk
-          : null,
-      'sweetness':
-          widget.item.allowChoiceOfSweetness && !_hasLibraryGroup('sweet')
-              ? _sweetness
-              : null,
-      'iceLevel': widget.item.allowIceLevel && !_hasLibraryGroup('ice')
-          ? _iceLevel
-          : null,
-      'librarySelections': _librarySelections,
-    };
-    Navigator.of(context).pop(customization);
+    Navigator.of(context).pop(_customization());
   }
 
-  Widget _buildSectionTitle(
-    String title, {
-    bool required = true,
-  }) {
+  Widget _buildSectionTitle(String title, {bool required = true}) {
     return Padding(
       padding: const EdgeInsets.only(top: 24, bottom: 12),
       child: Row(
@@ -212,10 +202,7 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
           spacing: spacing,
           runSpacing: runSpacing,
           children: children.map((child) {
-            return SizedBox(
-              width: itemWidth,
-              child: child,
-            );
+            return SizedBox(width: itemWidth, child: child);
           }).toList(),
         );
       },
@@ -263,9 +250,8 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
             boxShadow: [
               if (isSelected)
                 BoxShadow(
-                  color: (isGradient ? gradientColors!.first : color).withValues(
-                    alpha: 0.28,
-                  ),
+                  color: (isGradient ? gradientColors!.first : color)
+                      .withValues(alpha: 0.28),
                   blurRadius: 8,
                   offset: const Offset(0, 3),
                 ),
@@ -313,11 +299,7 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
               ),
               if (isSelected) ...[
                 const SizedBox(width: 8),
-                Icon(
-                  Icons.check_circle_rounded,
-                  size: 20,
-                  color: textColor,
-                ),
+                Icon(Icons.check_circle_rounded, size: 20, color: textColor),
               ],
             ],
           ),
@@ -491,8 +473,7 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
         ),
       ],
 
-      if (widget.item.allowTemperature &&
-          !_hasLibraryGroup('temperature')) ...[
+      if (widget.item.allowTemperature && !_hasLibraryGroup('temperature')) ...[
         _buildSectionTitle('Choice of Temperature'),
         _buildResponsiveGrid(
           children: [
@@ -544,8 +525,7 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
         ),
       ],
 
-      if (widget.item.allowChoiceOfSweetness &&
-          !_hasLibraryGroup('sweet')) ...[
+      if (widget.item.allowChoiceOfSweetness && !_hasLibraryGroup('sweet')) ...[
         _buildSectionTitle('Choice of Sweetness'),
         _buildResponsiveGrid(
           children: [
@@ -580,7 +560,9 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
         ),
       ],
 
-      if (widget.item.allowIceLevel && !_hasLibraryGroup('ice')) ...[
+      if (widget.item.allowIceLevel &&
+          !_hasLibraryGroup('ice') &&
+          _temperature == 'Cold') ...[
         _buildSectionTitle('Ice Level'),
         _buildResponsiveGrid(
           children: [
@@ -608,8 +590,7 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
 
       // Dynamic Library options mapping
       for (final group in widget.item.modifierGroups)
-        if (group.name.toLowerCase() != 'order type')
-          _buildLibraryGroup(group),
+        if (group.name.toLowerCase() != 'order type') _buildLibraryGroup(group),
     ];
   }
 
@@ -709,7 +690,11 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
             Expanded(
               child: ElevatedButton.icon(
                 onPressed: _onAddToCart,
-                icon: const Icon(Icons.shopping_bag_outlined, color: Colors.white, size: 20),
+                icon: const Icon(
+                  Icons.shopping_bag_outlined,
+                  color: Colors.white,
+                  size: 20,
+                ),
                 label: const Text(
                   'ADD TO CART',
                   style: TextStyle(
@@ -897,9 +882,7 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
                           padding: const EdgeInsets.fromLTRB(28, 20, 28, 16),
                           decoration: BoxDecoration(
                             border: Border(
-                              bottom: BorderSide(
-                                color: Colors.grey.shade200,
-                              ),
+                              bottom: BorderSide(color: Colors.grey.shade200),
                             ),
                           ),
                           child: const Column(

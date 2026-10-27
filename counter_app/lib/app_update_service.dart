@@ -134,7 +134,7 @@ class AppUpdateService {
       throw const FormatException('The update manifest is too large.');
     }
 
-    final payload = jsonDecode(response.body);
+    final payload = jsonDecode(_decodeManifestBody(response.bodyBytes));
     if (payload is! Map<String, dynamic>) {
       throw const FormatException('The update manifest is not valid JSON.');
     }
@@ -171,4 +171,17 @@ class AppUpdateService {
   }
 
   void dispose() => _client.close();
+
+  static String _decodeManifestBody(List<int> bytes) {
+    final body = utf8.decode(bytes, allowMalformed: false).trim();
+    final withoutBom = body.startsWith('\uFEFF')
+        ? body.substring(1).trimLeft()
+        : body;
+    if (!withoutBom.startsWith('{')) {
+      throw const FormatException(
+        'The update server returned an invalid manifest. Please try again later.',
+      );
+    }
+    return withoutBom;
+  }
 }

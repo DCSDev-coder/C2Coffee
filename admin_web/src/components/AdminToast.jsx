@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { AlertCircle, CheckCircle2, X } from "lucide-react";
 import { ADMIN_TOAST_EVENT } from "../lib/adminToast";
 
-const DISPLAY_DURATION_MS = 3200;
+const DISPLAY_DURATION_MS = 4500;
 
 export default function AdminToast() {
   const [toast, setToast] = useState(null);
@@ -41,7 +41,7 @@ export default function AdminToast() {
   const StatusIcon = isError ? AlertCircle : CheckCircle2;
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 top-5 z-[100] flex justify-center px-4">
+    <div className="pointer-events-none fixed inset-x-0 top-5 z-[100000] flex justify-center px-4">
       <div
         role="status"
         aria-live="polite"

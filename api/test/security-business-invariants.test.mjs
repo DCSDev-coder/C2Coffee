@@ -100,6 +100,35 @@ test('direct printer jobs can be claimed only by the activated outlet device', a
   assert.match(counter, /o\.store_id = :storeId/);
 });
 
+test('counter checkout settles fully discounted vouchers without trusting a manual paid action', async () => {
+  const counterPayments = await source('src/http/routes/counter-payments.ts');
+  assert.match(counterPayments, /isComplimentary = totalRm === 0 && payload\.applied_voucher_id != null/);
+  assert.match(counterPayments, /provider: isComplimentary \? 'complimentary' : 'chip'/);
+  assert.match(counterPayments, /UPDATE user_vouchers SET status = 'redeemed'/);
+  assert.match(counterPayments, /await queueDefaultPrintJob\(connection, request\.counterAuth\.storeId, orderId\)/);
+  assert.match(counterPayments, /requires_payment: false/);
+  assert.match(counterPayments, /if \(totalRm > 0 && !payload\.payment_method\)/);
+
+  const settlement = await source('src/services/chip-counter-settlement.ts');
+  assert.match(settlement, /status === 'paid' && amountMatches/);
+  assert.match(settlement, /UPDATE orders SET status = 'paid'/);
+});
+
+test('counter receipts retain server-verified drink option snapshots', async () => {
+  const checkout = await source('src/http/routes/checkout.ts');
+  assert.match(checkout, /LegacyCustomizationRow/);
+  assert.match(checkout, /addLegacy\('Choice of Milk'/);
+  assert.match(checkout, /'oat milk': \{ name: 'Oat Milk', price: 3, tokens: 3 \}/);
+  assert.doesNotMatch(checkout, /if \(rows\.length === 0\) return modifiers/);
+
+  const counterPayments = await source('src/http/routes/counter-payments.ts');
+  assert.match(counterPayments, /modifier_group_name_snapshot/);
+  assert.match(counterPayments, /groupName: modifier\.group_name/);
+
+  const printing = await source('src/http/routes/operational-integrations.ts');
+  assert.match(printing, /details\.push\(`\$\{modifier\.modifier_group_name_snapshot\}: \$\{modifier\.modifier_option_name_snapshot\}`\)/);
+});
+
 test('side-work completion is due-time, attendance, tenant, and PIN guarded', async () => {
   const baristaStaff = await source('src/http/routes/barista-staff.ts');
   assert.match(baristaStaff, /\/v1\/barista\/side-work\/complete/);

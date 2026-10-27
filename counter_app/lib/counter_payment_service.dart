@@ -1,7 +1,5 @@
 import 'dart:convert';
 
-import 'package:url_launcher/url_launcher.dart';
-
 import 'api_client.dart';
 
 class CounterPaymentException implements Exception {
@@ -112,7 +110,7 @@ class CounterPaymentService {
   Future<Map<String, dynamic>> createPayment({
     required String deviceToken,
     required String? sessionToken,
-    required String paymentMethod,
+    required String? paymentMethod,
     required String fulfillmentType,
     required List<Map<String, dynamic>> items,
     int? voucherId,
@@ -153,7 +151,7 @@ class CounterPaymentService {
     return _decode(response.body);
   }
 
-  Future<void> openCheckout(String url) async {
+  Uri checkoutUri(String url) {
     final uri = Uri.tryParse(url);
     final host = uri?.host.toLowerCase() ?? '';
     if (uri == null ||
@@ -161,9 +159,6 @@ class CounterPaymentService {
         (host != 'chip-in.asia' && !host.endsWith('.chip-in.asia'))) {
       throw const CounterPaymentException('The payment link is invalid.');
     }
-    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    if (!opened) {
-      throw const CounterPaymentException('The payment page could not be opened.');
-    }
+    return uri;
   }
 }

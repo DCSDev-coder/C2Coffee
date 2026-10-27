@@ -143,14 +143,14 @@ export async function registerTopUpRoutes(app: FastifyInstance): Promise<void> {
 
       const [topupResult] = await connection.execute<ResultSetHeader>(
         `INSERT INTO token_topups (user_id, topup_package_id, topup_ref, token_amount, rm_amount, status, expires_at, created_at)
-         VALUES (:userId, :packageId, :topupRef, :tokenAmount, :rmAmount, 'pending_payment', DATE_ADD(UTC_TIMESTAMP(), INTERVAL 30 MINUTE), UTC_TIMESTAMP())`,
+         VALUES (:userId, :packageId, :topupRef, :tokenAmount, :rmAmount, 'pending_payment', DATE_ADD(UTC_TIMESTAMP(), INTERVAL 15 MINUTE), UTC_TIMESTAMP())`,
         { userId: request.auth.userId, packageId, topupRef, tokenAmount, rmAmount: rmAmount.toFixed(2) }
       );
       topupId = topupResult.insertId;
 
       await connection.execute(
         `INSERT INTO token_wallet_cap_reservations (user_id, topup_id, token_amount, status, expires_at, created_at)
-         VALUES (:userId, :topupId, :tokenAmount, 'active', DATE_ADD(UTC_TIMESTAMP(), INTERVAL 30 MINUTE), UTC_TIMESTAMP())`,
+         VALUES (:userId, :topupId, :tokenAmount, 'active', DATE_ADD(UTC_TIMESTAMP(), INTERVAL 15 MINUTE), UTC_TIMESTAMP())`,
         { userId: request.auth.userId, topupId, tokenAmount }
       );
 
@@ -214,7 +214,7 @@ export async function registerTopUpRoutes(app: FastifyInstance): Promise<void> {
       amount_rm: rmAmount.toFixed(2),
       checkout_url: purchase.checkoutUrl,
       payment_method: paymentMethod,
-      expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString()
+      expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString()
     };
   });
 

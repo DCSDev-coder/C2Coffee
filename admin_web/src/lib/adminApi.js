@@ -189,7 +189,16 @@ export async function refreshAdminSession() {
 }
 
 function formatAdminErrorMessage(body, response) {
-  const code = body?.error?.code || "unexpected_error";
+  if (
+    response?.status === 413 ||
+    body?.statusCode === 413 ||
+    body?.code === "FST_ERR_CTP_BODY_TOO_LARGE" ||
+    body?.error === "Payload Too Large"
+  ) {
+    return "The uploaded file is too large for the server. Please compress or resize the image before uploading.";
+  }
+
+  const code = body?.error?.code || body?.code || "unexpected_error";
 
   switch (code) {
     case "invalid_admin_credentials":
@@ -211,7 +220,7 @@ function formatAdminErrorMessage(body, response) {
       return "The receipt printer is not ready. Please check its connector.";
     case "validation_error":
       return (
-        body?.error?.message || "Please review the information and try again."
+        body?.error?.message || body?.message || "Please review the information and try again."
       );
     case "voucher_employee_only":
       return "This voucher is for employees only. In Customers, choose the customer menu, select Set employee, tick Employee account, then save with your admin password.";
@@ -235,6 +244,13 @@ function formatAdminErrorMessage(body, response) {
     ].includes(code)
   ) {
     return "Your admin session has expired. Please sign in again.";
+  }
+
+  if (typeof body?.error?.message === "string" && body.error.message.trim()) {
+    return body.error.message.trim();
+  }
+  if (typeof body?.message === "string" && body.message.trim()) {
+    return body.message.trim();
   }
 
   return "We could not complete this request. Please try again.";

@@ -10,7 +10,9 @@ import 'session_manager.dart';
 import 'api_client.dart';
 import 'app_colors.dart';
 import 'counter_menu.dart';
+import 'counter_cart_modifiers.dart';
 import 'counter_payment_service.dart';
+import 'chip_checkout_page.dart';
 import 'device_printer_worker.dart';
 import 'product_detail_modal.dart';
 
@@ -954,30 +956,12 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
       final customization = cartItem['customization'] as Map<String, dynamic>;
       final qty = cartItem['quantity'] as int;
 
-      double price = item.priceRm;
-
-      if (item.modifierGroups.isNotEmpty) {
-        double adjustment = 0;
-        final librarySelections =
-            customization['librarySelections'] as Map<int, List<int>>? ?? {};
-        for (final group in item.modifierGroups) {
-          final selections = librarySelections[group.id] ?? [];
-          for (final optionId in selections) {
-            final option = group.options.firstWhere((o) => o.id == optionId);
-            adjustment += double.tryParse(option.priceDeltaRm) ?? 0;
-          }
-        }
-        price += adjustment;
-      } else {
-        if (item.allowEspressoShot) {
-          final shots = customization['espressoShots'] as int? ?? 1;
-          if (shots == 2) price += 3.00;
-          if (shots == 3) price += 6.00;
-        }
-        if (item.allowChoiceOfMilk) {
-          if (customization['milk'] == 'Oat Milk') price += 3.00;
-        }
-      }
+      final modifiers = buildCounterCartModifiers(
+        item: item,
+        customization: customization,
+        orderType: _orderType,
+      );
+      final price = item.priceRm + counterCartModifierTotal(modifiers);
 
       total += price * qty;
     }
@@ -1002,30 +986,12 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
     final item = cartItem['item'] as CounterMenuItem;
     final customization = cartItem['customization'] as Map<String, dynamic>;
 
-    double price = item.priceRm;
-    if (item.modifierGroups.isNotEmpty) {
-      double adjustment = 0;
-      final librarySelections =
-          customization['librarySelections'] as Map<int, List<int>>? ?? {};
-      for (final group in item.modifierGroups) {
-        final selections = librarySelections[group.id] ?? [];
-        for (final optionId in selections) {
-          final option = group.options.firstWhere((o) => o.id == optionId);
-          adjustment += double.tryParse(option.priceDeltaRm) ?? 0;
-        }
-      }
-      price += adjustment;
-    } else {
-      if (item.allowEspressoShot) {
-        final shots = customization['espressoShots'] as int? ?? 1;
-        if (shots == 2) price += 3.00;
-        if (shots == 3) price += 6.00;
-      }
-      if (item.allowChoiceOfMilk) {
-        if (customization['milk'] == 'Oat Milk') price += 3.00;
-      }
-    }
-    return price;
+    final modifiers = buildCounterCartModifiers(
+      item: item,
+      customization: customization,
+      orderType: _orderType,
+    );
+    return item.priceRm + counterCartModifierTotal(modifiers);
   }
 
   @override
@@ -1049,9 +1015,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
             title: Row(
               children: [Image.asset('assets/images/c2_logo.png', height: 32)],
             ),
-            actions: const [
-              SizedBox(width: 16),
-            ],
+            actions: const [SizedBox(width: 16)],
           ),
           endDrawer: Drawer(width: 350, child: _buildCartUI()),
           floatingActionButton: Builder(
@@ -1327,37 +1291,11 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
     return _cart.map((cartItem) {
       final item = cartItem['item'] as CounterMenuItem;
       final customization = cartItem['customization'] as Map<String, dynamic>;
-      final selections =
-          customization['librarySelections'] as Map<int, List<int>>? ?? {};
-      final modifiers = <Map<String, dynamic>>[];
-      for (final group in item.modifierGroups) {
-        var selectedOptionIds = selections[group.id] ?? const <int>[];
-        if (group.name.trim().toLowerCase() == 'order type' &&
-            _orderType != null) {
-          final selectedOrderType = group.options
-              .where(
-                (option) =>
-                    option.name.trim().toLowerCase() ==
-                    _orderType!.trim().toLowerCase(),
-              )
-              .toList();
-          if (selectedOrderType.isNotEmpty) {
-            selectedOptionIds = [selectedOrderType.first.id];
-          }
-        }
-        for (final optionId in selectedOptionIds) {
-          final option = group.options.firstWhere(
-            (value) => value.id == optionId,
-          );
-          modifiers.add({
-            'group_name': group.name,
-            'option_name': option.name,
-            'price_delta_rm': option.priceDeltaRm,
-            'token_price_delta': 0,
-            'calorie_delta_kcal': 0,
-          });
-        }
-      }
+      final modifiers = buildCounterCartModifiers(
+        item: item,
+        customization: customization,
+        orderType: _orderType,
+      );
       return {
         'menu_item_id': int.parse(item.id),
         'quantity': cartItem['quantity'] as int? ?? 1,
@@ -1848,7 +1786,9 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                 maxLength: 6,
                 keyboardType: TextInputType.number,
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration: const InputDecoration(labelText: 'Verification code'),
+                decoration: const InputDecoration(
+                  labelText: 'Verification code',
+                ),
               ),
             ],
           ),
@@ -2148,46 +2088,6 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
     );
   }
 
-  Future<bool> _waitForPayment(String deviceToken, String orderRef) async {
-    while (mounted) {
-      if (!mounted) return false;
-      final check = await showDialog<bool>(
-        context: context,
-        barrierDismissible: false,
-        builder: (dialogContext) => AlertDialog(
-          title: const Text('Complete payment'),
-          content: Text(
-            'Order $orderRef is waiting for payment. Complete it in the payment page, then return here.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Cancel waiting'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('Check payment'),
-            ),
-          ],
-        ),
-      );
-      if (check != true) return false;
-      final status = await _paymentService.paymentStatus(
-        deviceToken: deviceToken,
-        orderRef: orderRef,
-      );
-      if (status['payment_status'] == 'paid' || status['status'] == 'paid') {
-        return true;
-      }
-      if (['failed', 'cancelled'].contains(status['payment_status']) ||
-          ['payment_failed', 'cancelled'].contains(status['status'])) {
-        throw const CounterPaymentException('The payment was not completed.');
-      }
-      if (mounted) TopNotice.info(context, 'Payment is still pending.');
-    }
-    return false;
-  }
-
   Future<void> _beginCheckout() async {
     if (_isLoading || _cart.isEmpty) return;
     final selection = await _askCheckoutPhone();
@@ -2291,18 +2191,22 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
           }
         }
       }
-      final methods = await _paymentService.paymentMethods(deviceToken);
-      if (methods.isEmpty) {
-        throw const CounterPaymentException(
-          'QR and e-wallet payments are currently unavailable.',
-        );
-      }
-      final method = await _choosePaymentMethod(methods, amountRm: amountRm);
-      if (method == null) {
-        await _sessionManager.endSession(notify: false);
-        _sessionManager.startGuestSession();
-        _phoneController.clear();
-        return;
+      String? method;
+      final amount = double.tryParse(amountRm) ?? _getCartTotal();
+      if (amount > 0) {
+        final methods = await _paymentService.paymentMethods(deviceToken);
+        if (methods.isEmpty) {
+          throw const CounterPaymentException(
+            'QR and e-wallet payments are currently unavailable.',
+          );
+        }
+        method = await _choosePaymentMethod(methods, amountRm: amountRm);
+        if (method == null) {
+          await _sessionManager.endSession(notify: false);
+          _sessionManager.startGuestSession();
+          _phoneController.clear();
+          return;
+        }
       }
       final payment = await _paymentService.createPayment(
         deviceToken: deviceToken,
@@ -2315,15 +2219,42 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
             : (selectedVoucher['id'] as num).toInt(),
         voucherAuthorizationToken: voucherAuthorizationToken,
       );
-      await _paymentService.openCheckout(payment['checkout_url'].toString());
-      final paid = await _waitForPayment(
-        deviceToken,
-        payment['order_ref'].toString(),
-      );
+      final orderRef = payment['order_ref'].toString();
+      // A fully discounted order has no external payment step. Treat the
+      // server-created order as complete even if an older API response omits
+      // `requires_payment: false`; otherwise the empty checkout URL can be
+      // mistaken for a rejected payment link after the order was committed.
+      var paid =
+          amount <= 0 ||
+          payment['payment_status'] == 'paid' ||
+          payment['status'] == 'paid' ||
+          payment['requires_payment'] == false;
+      if (!paid) {
+        if (!mounted) return;
+        final checkoutUri = _paymentService.checkoutUri(
+          payment['checkout_url']?.toString() ?? '',
+        );
+        paid =
+            await Navigator.of(context).push<bool>(
+              MaterialPageRoute(
+                builder: (_) => ChipCheckoutPage(
+                  checkoutUri: checkoutUri,
+                  orderRef: orderRef,
+                  fetchStatus: () => _paymentService.paymentStatus(
+                    deviceToken: deviceToken,
+                    orderRef: orderRef,
+                  ),
+                ),
+              ),
+            ) ??
+            false;
+      }
       if (paid && mounted) {
         TopNotice.success(
           context,
-          'Payment received. Order sent to the barista.',
+          amount <= 0
+              ? 'Employee benefit approved. Order sent to the barista.'
+              : 'Payment confirmed by CHIP. Order sent to the barista.',
         );
         await _resetCounterOrder();
       } else {

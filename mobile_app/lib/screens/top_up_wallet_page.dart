@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -44,6 +46,10 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
   String? _paymentMethodsError;
   bool _isStartingTopUp = false;
   String? _pendingTopUpRef;
+  DateTime? _pendingTopUpExpiresAt;
+  Timer? _pendingTopUpTimer;
+  DateTime? _lastPendingTopUpRefresh;
+  bool _isRefreshingPendingTopUp = false;
   bool _isTransactionsLoading = true;
   String? _transactionsError;
   List<WalletTransaction> _transactions = const [];
@@ -102,6 +108,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
     final topUpRef = await PendingTopUpService.instance.read();
     if (!mounted || topUpRef == null || topUpRef.isEmpty) return;
     setState(() => _pendingTopUpRef = topUpRef);
+    _startPendingTopUpTimer();
     await _refreshReturnedTopUp();
   }
 
@@ -119,6 +126,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
 
   @override
   void dispose() {
+    _pendingTopUpTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _session.removeListener(_handleSessionChanged);
     _amountFocusNode.removeListener(_handleAmountFocusChanged);
@@ -133,14 +141,59 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && _pendingTopUpRef != null) {
-      _refreshReturnedTopUp();
+    if (state == AppLifecycleState.resumed) {
+      if (_pendingTopUpRef != null) {
+        _startPendingTopUpTimer();
+        _refreshReturnedTopUp(force: true);
+      }
+    } else {
+      _pendingTopUpTimer?.cancel();
+      _pendingTopUpTimer = null;
     }
   }
 
-  Future<void> _refreshReturnedTopUp() async {
+  void _startPendingTopUpTimer() {
+    if (_pendingTopUpRef == null || _pendingTopUpTimer != null) return;
+    _pendingTopUpTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted || _pendingTopUpRef == null) return;
+      final now = DateTime.now();
+      if (_pendingTopUpExpiresAt != null &&
+          !now.isBefore(_pendingTopUpExpiresAt!) &&
+          (_lastPendingTopUpRefresh == null ||
+              now.difference(_lastPendingTopUpRefresh!) >=
+                  const Duration(seconds: 15))) {
+        _refreshReturnedTopUp();
+      } else {
+        setState(() {});
+      }
+    });
+  }
+
+  String _pendingTopUpCountdownLabel() {
+    final expiresAt = _pendingTopUpExpiresAt;
+    if (expiresAt == null) return 'Checking payment expiry...';
+    final remaining = expiresAt.difference(DateTime.now());
+    if (remaining <= Duration.zero) {
+      return 'Payment window expired. Checking status...';
+    }
+    final totalSeconds = remaining.inSeconds;
+    final minutes = totalSeconds ~/ 60;
+    final seconds = totalSeconds % 60;
+    return 'Payment window: $minutes:${seconds.toString().padLeft(2, '0')} remaining';
+  }
+
+  Future<void> _refreshReturnedTopUp({bool force = false}) async {
     final topupRef = _pendingTopUpRef;
-    if (topupRef == null) return;
+    if (topupRef == null || _isRefreshingPendingTopUp) return;
+    final now = DateTime.now();
+    if (!force &&
+        _lastPendingTopUpRefresh != null &&
+        now.difference(_lastPendingTopUpRefresh!) <
+            const Duration(seconds: 15)) {
+      return;
+    }
+    _isRefreshingPendingTopUp = true;
+    _lastPendingTopUpRefresh = now;
 
     try {
       final token = await SecureSessionService.instance.getValidAccessToken();
@@ -150,6 +203,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
         topupRef: topupRef,
       );
       if (!mounted) return;
+      _pendingTopUpExpiresAt = topup.expiresAt;
       if (const {
         'failed',
         'cancelled',
@@ -159,7 +213,12 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
       }.contains(topup.status)) {
         await PendingTopUpService.instance.clear();
         if (!mounted) return;
-        setState(() => _pendingTopUpRef = null);
+        _pendingTopUpTimer?.cancel();
+        _pendingTopUpTimer = null;
+        setState(() {
+          _pendingTopUpRef = null;
+          _pendingTopUpExpiresAt = null;
+        });
         if (topup.status == 'refunded') {
           AppNotification.showInfo(
             context,
@@ -181,7 +240,12 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
       if (topup.status != 'paid') return;
       await PendingTopUpService.instance.clear();
       if (!mounted) return;
-      setState(() => _pendingTopUpRef = null);
+      _pendingTopUpTimer?.cancel();
+      _pendingTopUpTimer = null;
+      setState(() {
+        _pendingTopUpRef = null;
+        _pendingTopUpExpiresAt = null;
+      });
       await _loadWalletData(forceSessionReload: true);
       if (mounted) {
         AppNotification.showSuccess(
@@ -192,6 +256,8 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
     } catch (_) {
       // The signed server callback remains the payment authority. The next
       // app resume or wallet refresh will try again if it has not arrived yet.
+    } finally {
+      _isRefreshingPendingTopUp = false;
     }
   }
 
@@ -425,12 +491,23 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
       }
       await PendingTopUpService.instance.save(topup.topupRef);
       if (mounted) {
-        setState(() => _pendingTopUpRef = topup.topupRef);
+        setState(() {
+          _pendingTopUpRef = topup.topupRef;
+          _pendingTopUpExpiresAt = topup.expiresAt;
+        });
+        _startPendingTopUpTimer();
       }
       if (!await launchUrl(Uri.parse(topup.checkoutUrl),
           mode: LaunchMode.externalApplication)) {
         await PendingTopUpService.instance.clear();
-        if (mounted) setState(() => _pendingTopUpRef = null);
+        _pendingTopUpTimer?.cancel();
+        _pendingTopUpTimer = null;
+        if (mounted) {
+          setState(() {
+            _pendingTopUpRef = null;
+            _pendingTopUpExpiresAt = null;
+          });
+        }
         throw ApiException('Unable to open the payment page.');
       }
       if (mounted) {
@@ -931,7 +1008,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
                     : _paymentMethodsError != null
                         ? _paymentMethodsError!
                         : _pendingTopUpRef != null
-                            ? 'Your previous payment is still being confirmed. Return here after completing payment in the browser.'
+                            ? 'Your previous payment is still being confirmed. Return here after completing payment in the browser. ${_pendingTopUpCountdownLabel()}'
                             : tokenAmount == null
                                 ? 'Enter how many tokens you want to add, then select how you want to pay.'
                                 : !amountIsValid

@@ -1153,7 +1153,7 @@ export async function registerAdminMarketingRoutes(
     "/v1/admin/marketing/uploads",
     {
       preHandler: authenticateAdminRequest,
-      bodyLimit: 12 * 1024 * 1024,
+      bodyLimit: 30 * 1024 * 1024,
     },
     async (request) => {
       requireMarketingAccess(request);
@@ -1162,11 +1162,11 @@ export async function registerAdminMarketingRoutes(
         ? payload.data_url.split("base64,").pop() || ""
         : payload.data_url;
       const content = Buffer.from(base64Payload, "base64");
-      if (content.length === 0 || content.length > 8 * 1024 * 1024) {
+      if (content.length === 0 || content.length > 15 * 1024 * 1024) {
         throw new ApiError(
           400,
           "invalid_poster_upload",
-          "Poster files must be between 1 byte and 8 MB.",
+          "Poster files must be between 1 byte and 15 MB.",
         );
       }
 

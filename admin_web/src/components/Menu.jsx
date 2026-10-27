@@ -11,6 +11,7 @@ import {
   Edit2,
   Copy,
   Archive,
+  AlertCircle,
   AlertTriangle,
   CalendarClock,
   ImagePlus,
@@ -36,7 +37,7 @@ import {
   loadAdminHomeFeatured,
   saveAdminHomeFeaturedGroups
 } from '../lib/adminApi';
-import { showAdminSuccess } from '../lib/adminToast';
+import { showAdminError, showAdminSuccess } from '../lib/adminToast';
 import { requestAdminConfirm } from '../lib/adminDialog';
 import { adminRequest } from '../lib/adminApi';
 
@@ -743,7 +744,9 @@ const Menu = () => {
       closeEditModal();
       await refreshAndSelect(itemId);
     } catch (error) {
-      setErrorMessage(error.message || 'Unable to save menu item.');
+      const msg = error.message || 'Unable to save menu item.';
+      setErrorMessage(msg);
+      showAdminError(msg);
     } finally {
       setIsSubmitting(false);
     }
@@ -788,7 +791,19 @@ const Menu = () => {
     }
 
     if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
-      setErrorMessage('Please upload a PNG, JPEG, or WEBP image.');
+      const msg = 'Please upload a PNG, JPEG, or WEBP image.';
+      setErrorMessage(msg);
+      showAdminError(msg);
+      event.target.value = '';
+      return;
+    }
+
+    const MAX_IMAGE_FILE_SIZE = 10 * 1024 * 1024;
+    if (file.size > MAX_IMAGE_FILE_SIZE) {
+      const sizeMb = (file.size / (1024 * 1024)).toFixed(1);
+      const msg = `The selected image (${sizeMb} MB) exceeds the 10 MB limit. Please compress or resize the image before uploading.`;
+      setErrorMessage(msg);
+      showAdminError(msg);
       event.target.value = '';
       return;
     }
@@ -807,6 +822,7 @@ const Menu = () => {
     setIsEditModalOpen(false);
     setSelectedImageFile(null);
     setSelectedImagePreview('');
+    setErrorMessage('');
   };
 
   const handleSaveCategory = async (event) => {
@@ -1497,6 +1513,15 @@ const Menu = () => {
             </div>
 
             <form onSubmit={handleSaveEdit} className="p-6 space-y-4 overflow-y-auto flex-1">
+              {errorMessage && (
+                <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700 flex items-start gap-2 shadow-xs">
+                  <AlertCircle className="h-5 w-5 shrink-0 text-red-600 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="font-bold text-red-800">Error</p>
+                    <p className="mt-0.5 text-xs text-red-700 leading-relaxed">{errorMessage}</p>
+                  </div>
+                </div>
+              )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="md:col-span-2">
                   <label className="block text-xs font-medium text-gray-500 mb-1">Name</label>
