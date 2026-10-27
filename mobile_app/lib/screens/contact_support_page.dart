@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../utils/app_colors.dart';
-import '../utils/app_notification.dart';
+
 import '../services/auth_api_service.dart';
 import '../services/secure_session_service.dart';
-import 'terms_of_use_page.dart';
-import 'privacy_policy_page.dart';
+import '../utils/app_colors.dart';
+import '../utils/app_notification.dart';
 import '../widgets/app_page_shell.dart';
+import 'loading_order_page.dart';
+import 'privacy_policy_page.dart';
+import 'terms_of_use_page.dart';
 
 class ContactSupportPage extends StatefulWidget {
   const ContactSupportPage({super.key});
@@ -17,13 +20,23 @@ class ContactSupportPage extends StatefulWidget {
 }
 
 class _ContactSupportPageState extends State<ContactSupportPage> {
+  static const String _supportPhoneDisplay = '+60 12-610 6907';
+  static const String _supportPhoneDial = '+60126106907';
+  static const String _supportWhatsAppDigits = '60126106907';
+  static const String _supportEmail = 'support@c2coffeeandcandle.com';
+  static const String _outletName = 'C2 Coffee Eco Forest';
+  static const String _outletAddress =
+      '42-1, Jalan Eco Forest 6/1C, Eco Forest, 43500 Semenyih, Selangor';
+
   final _formKey = GlobalKey<FormState>();
+  final ScrollController _scrollController = ScrollController();
   final TextEditingController _orderIdController = TextEditingController();
   final TextEditingController _subjectController = TextEditingController();
   final TextEditingController _messageController = TextEditingController();
 
   String _selectedCategory = 'Billing & Payment Claims';
   bool _isSubmitting = false;
+  bool _showScrollToTop = false;
   final List<XFile> _attachments = [];
 
   final List<String> _categories = [
@@ -41,20 +54,145 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
       ].contains(_selectedCategory);
 
   @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_handleScroll);
+  }
+
+  @override
   void dispose() {
+    _scrollController.removeListener(_handleScroll);
+    _scrollController.dispose();
     _orderIdController.dispose();
     _subjectController.dispose();
     _messageController.dispose();
     super.dispose();
   }
 
-  Future<void> _openSupportLink(Uri uri, String label) async {
-    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    if (!opened && mounted) {
+  void _handleScroll() {
+    final shouldShow =
+        _scrollController.hasClients && _scrollController.offset > 300;
+    if (shouldShow != _showScrollToTop && mounted) {
+      setState(() => _showScrollToTop = shouldShow);
+    }
+  }
+
+  Future<void> _scrollToTop() async {
+    if (!_scrollController.hasClients) return;
+    await _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 450),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  Future<bool> _tryLaunchUri(
+    Uri uri, {
+    LaunchMode mode = LaunchMode.externalApplication,
+  }) async {
+    try {
+      return await launchUrl(uri, mode: mode);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _copyToClipboard(String value, String label) async {
+    await Clipboard.setData(ClipboardData(text: value));
+    if (!mounted) return;
+    AppNotification.showSuccess(context, '$label copied to clipboard.');
+  }
+
+  Future<void> _openWhatsAppSupport() async {
+    const prefill = 'Hi C2 Coffee Support, I would like assistance with ';
+    final nativeUri = Uri.parse(
+      'whatsapp://send?phone=$_supportWhatsAppDigits&text=${Uri.encodeComponent(prefill)}',
+    );
+    final webUri = Uri.https(
+      'wa.me',
+      '/$_supportWhatsAppDigits',
+      {'text': prefill},
+    );
+
+    if (await _tryLaunchUri(nativeUri)) return;
+    if (await _tryLaunchUri(webUri)) return;
+    if (await _tryLaunchUri(webUri, mode: LaunchMode.platformDefault)) return;
+
+    await _copyToClipboard(_supportPhoneDisplay, 'WhatsApp number');
+  }
+
+  Future<void> _callSupportPhone() async {
+    final telUri = Uri(scheme: 'tel', path: _supportPhoneDial);
+    if (await _tryLaunchUri(telUri)) return;
+    if (await _tryLaunchUri(telUri, mode: LaunchMode.platformDefault)) return;
+
+    await _copyToClipboard(_supportPhoneDisplay, 'Support phone number');
+  }
+
+  Future<void> _openEmailSupport() async {
+    final subject = Uri.encodeComponent('C2 Coffee Support Request');
+    final mailtoUri = Uri.parse('mailto:$_supportEmail?subject=$subject');
+
+    if (await _tryLaunchUri(mailtoUri)) return;
+    if (await _tryLaunchUri(mailtoUri, mode: LaunchMode.platformDefault)) {
+      return;
+    }
+
+    await _copyToClipboard(_supportEmail, 'Support email address');
+  }
+
+  Future<void> _openGoogleMaps() async {
+    final encodedAddress = Uri.encodeComponent(_outletAddress);
+    final nativeMapsUri = Uri.parse('comgooglemaps://?q=$encodedAddress');
+    final webMapsUri = Uri.https(
+      'www.google.com',
+      '/maps/search/',
+      {
+        'api': '1',
+        'query': _outletAddress,
+      },
+    );
+
+    if (await _tryLaunchUri(nativeMapsUri)) return;
+    if (await _tryLaunchUri(webMapsUri)) return;
+    if (await _tryLaunchUri(webMapsUri, mode: LaunchMode.platformDefault)) {
+      return;
+    }
+
+    if (mounted) {
       AppNotification.showError(
         context,
-        'Unable to open $label. Please try again.',
+        'Unable to open Google Maps. Address copied instead.',
       );
+      await Clipboard.setData(const ClipboardData(text: _outletAddress));
+    }
+  }
+
+  Future<void> _openWaze() async {
+    final encodedAddress = Uri.encodeComponent(_outletAddress);
+    final nativeWazeUri =
+        Uri.parse('waze://?q=$encodedAddress&navigate=yes');
+    final webWazeUri = Uri.https(
+      'www.waze.com',
+      '/ul',
+      {
+        'q': _outletAddress,
+        'navigate': 'yes',
+      },
+    );
+
+    if (await _tryLaunchUri(nativeWazeUri)) return;
+    if (await _tryLaunchUri(webWazeUri)) return;
+    if (await _tryLaunchUri(webWazeUri, mode: LaunchMode.platformDefault)) {
+      return;
+    }
+
+    if (mounted) {
+      AppNotification.showError(
+        context,
+        'Unable to open Waze. Address copied instead.',
+      );
+      await Clipboard.setData(const ClipboardData(text: _outletAddress));
     }
   }
 
@@ -82,22 +220,95 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
     }
     final type = await showModalBottomSheet<String>(
       context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading:
-                  Icon(Icons.photo_library_outlined, color: AppColors.deepTeal),
-              title: const Text('Add photo'),
-              onTap: () => Navigator.pop(sheetContext, 'image'),
-            ),
-            ListTile(
-              leading: Icon(Icons.videocam_outlined, color: AppColors.deepTeal),
-              title: const Text('Add video'),
-              onTap: () => Navigator.pop(sheetContext, 'video'),
-            ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                'Attach Evidence',
+                style: TextStyle(
+                  fontFamily: 'Recoleta',
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.deepTeal,
+                ),
+              ),
+              const SizedBox(height: 12),
+              ListTile(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceLight,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    Icons.photo_library_outlined,
+                    color: AppColors.deepTeal,
+                  ),
+                ),
+                title: const Text(
+                  'Choose Photo from Gallery',
+                  style: TextStyle(
+                    fontFamily: 'Afacad',
+                    fontSize: 16.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                subtitle: const Text(
+                  'JPG, PNG, or WEBP up to 5 MB',
+                  style: TextStyle(fontFamily: 'Afacad', fontSize: 14),
+                ),
+                onTap: () => Navigator.pop(sheetContext, 'image'),
+              ),
+              ListTile(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceLight,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    Icons.videocam_outlined,
+                    color: AppColors.deepTeal,
+                  ),
+                ),
+                title: const Text(
+                  'Choose Video from Gallery',
+                  style: TextStyle(
+                    fontFamily: 'Afacad',
+                    fontSize: 16.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                subtitle: const Text(
+                  'MP4 or MOV up to 60 seconds (max 5 MB)',
+                  style: TextStyle(fontFamily: 'Afacad', fontSize: 14),
+                ),
+                onTap: () => Navigator.pop(sheetContext, 'video'),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -165,98 +376,151 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
 
       showDialog(
         context: context,
-        builder: (context) {
-          return AlertDialog(
+        builder: (dialogContext) {
+          return Dialog(
             backgroundColor: Colors.white,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            title: Row(
-              children: [
-                Icon(Icons.check_circle, color: AppColors.deepTeal, size: 28),
-                const SizedBox(width: 10),
-                Text(
-                  'Request Received',
-                  style: TextStyle(
-                    fontFamily: 'Recoleta',
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.deepTeal,
-                  ),
-                ),
-              ],
+            surfaceTintColor: Colors.transparent,
+            insetPadding: const EdgeInsets.symmetric(horizontal: 22),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(28),
             ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Your support ticket has been registered successfully.',
-                  style: const TextStyle(
-                    fontFamily: 'Afacad',
-                    fontSize: 17,
-                    color: Colors.black87,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  width: double.infinity,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceLight,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
-                      const Text(
-                        'Reference Ticket Number:',
-                        style: TextStyle(
-                          fontFamily: 'Afacad',
-                          fontSize: 14,
-                          color: Colors.grey,
+                      Container(
+                        width: 46,
+                        height: 46,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE8F5E9),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Icon(
+                          Icons.check_circle_rounded,
+                          color: Color(0xFF2E7D32),
+                          size: 26,
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        ticket.ticketNumber,
-                        style: TextStyle(
-                          fontFamily: 'Afacad',
-                          fontSize: 19,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.deepTeal,
-                          letterSpacing: 0.5,
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Request Received',
+                          style: TextStyle(
+                            fontFamily: 'Recoleta',
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.deepTeal,
+                          ),
                         ),
                       ),
                     ],
                   ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  ticket.message,
-                  style: TextStyle(
-                    fontFamily: 'Afacad',
-                    fontSize: 16,
-                    color: Colors.black54,
+                  const SizedBox(height: 14),
+                  const Text(
+                    'Your support ticket has been registered successfully.',
+                    style: TextStyle(
+                      fontFamily: 'Afacad',
+                      fontSize: 16,
+                      color: Colors.black87,
+                    ),
                   ),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text(
-                  'Done',
-                  style: TextStyle(
-                    fontFamily: 'Afacad',
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.deepTeal,
+                  const SizedBox(height: 14),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceLight,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Reference Ticket Number',
+                                style: TextStyle(
+                                  fontFamily: 'Afacad',
+                                  fontSize: 13.5,
+                                  color: Colors.black54,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                ticket.ticketNumber,
+                                style: TextStyle(
+                                  fontFamily: 'Afacad',
+                                  fontSize: 19,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.deepTeal,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Copy ticket number',
+                          onPressed: () => _copyToClipboard(
+                            ticket.ticketNumber,
+                            'Ticket number',
+                          ),
+                          icon: Icon(
+                            Icons.copy_rounded,
+                            size: 19,
+                            color: AppColors.deepTeal,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 12),
+                  Text(
+                    ticket.message,
+                    style: const TextStyle(
+                      fontFamily: 'Afacad',
+                      fontSize: 15.5,
+                      color: Colors.black54,
+                      height: 1.35,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(dialogContext),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.deepTeal,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: const Text(
+                        'Done',
+                        style: TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           );
         },
       );
@@ -289,51 +553,91 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
   Widget build(BuildContext context) {
     return AppPageShell(
       title: 'CONTACT SUPPORT',
-      onBack: () => Navigator.pop(context),
+      onBack: () => InteractiveFillingLoader.showPop(context),
       backgroundColor: const Color(0xFFF9F9FB),
+      scrollController: _scrollController,
+      overlay: Stack(
+        children: [
+          if (_showScrollToTop)
+            Positioned(
+              right: 18,
+              bottom: 24 + MediaQuery.paddingOf(context).bottom,
+              child: Semantics(
+                button: true,
+                label: 'Back to top',
+                child: Material(
+                  color: AppColors.deepTeal,
+                  elevation: 5,
+                  shadowColor: Colors.black26,
+                  shape: const CircleBorder(),
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: _scrollToTop,
+                    child: const SizedBox(
+                      width: 48,
+                      height: 48,
+                      child: Icon(
+                        Icons.keyboard_arrow_up_rounded,
+                        color: Colors.white,
+                        size: 30,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
       bodyPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Banner Card
           _buildIntroBanner(),
-
-          const SizedBox(height: 20),
-
-          // Direct Support Channels
+          const SizedBox(height: 22),
           Text(
             'Direct Channels',
             style: TextStyle(
               fontFamily: 'Recoleta',
-              fontSize: 20,
+              fontSize: 21,
               fontWeight: FontWeight.bold,
               color: AppColors.deepTeal,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Tap any channel below to chat, email, or navigate directly.',
+            style: TextStyle(
+              fontFamily: 'Afacad',
+              fontSize: 15,
+              color: Colors.black54,
             ),
           ),
           const SizedBox(height: 12),
           _buildDirectChannels(),
-
-          const SizedBox(height: 24),
-
-          // Submit Support Ticket Form
+          const SizedBox(height: 26),
           Text(
             'Submit an Inquiry',
             style: TextStyle(
               fontFamily: 'Recoleta',
-              fontSize: 20,
+              fontSize: 21,
               fontWeight: FontWeight.bold,
               color: AppColors.deepTeal,
             ),
           ),
+          const SizedBox(height: 4),
+          const Text(
+            'Send a ticket directly to our support team with optional photo or video evidence.',
+            style: TextStyle(
+              fontFamily: 'Afacad',
+              fontSize: 15,
+              color: Colors.black54,
+            ),
+          ),
           const SizedBox(height: 12),
           _buildTicketForm(),
-
           const SizedBox(height: 24),
-
-          // Legal Links Footer
           _buildLegalNotice(),
-
-          const SizedBox(height: 20),
+          const SizedBox(height: 36),
         ],
       ),
     );
@@ -345,13 +649,13 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
       decoration: BoxDecoration(
         color: AppColors.surfaceLight,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: AppColors.border, width: 1.4),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.all(11),
             decoration: BoxDecoration(
               color: AppColors.deepTeal,
               shape: BoxShape.circle,
@@ -377,7 +681,7 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
                   'We\'re here to help',
                   style: TextStyle(
                     fontFamily: 'Recoleta',
-                    fontSize: 19,
+                    fontSize: 20,
                     fontWeight: FontWeight.bold,
                     color: AppColors.deepTeal,
                   ),
@@ -387,7 +691,7 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
                   'Have an issue with your pickup order, prepaid C2 tokens, or billing? Reach out to our dedicated support team.',
                   style: TextStyle(
                     fontFamily: 'Afacad',
-                    fontSize: 16,
+                    fontSize: 15.5,
                     color: Colors.black87,
                     height: 1.35,
                   ),
@@ -403,89 +707,71 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
   Widget _buildDirectChannels() {
     return Column(
       children: [
-        // WhatsApp Hotline
+        // WhatsApp Support
         _buildChannelCard(
           icon: Icons.chat_bubble_outline_rounded,
           iconBg: const Color(0xFFE8F5E9),
           iconColor: const Color(0xFF2E7D32),
           title: 'WhatsApp Support',
-          subtitle: '+60 12-610 6907',
+          contactLinkText: _supportPhoneDisplay,
           badgeText: '8:00 AM – 10:00 PM',
-          onTap: () => _openSupportLink(
-            Uri.parse('https://wa.me/60126106907'),
-            'WhatsApp',
-          ),
+          onTap: _openWhatsAppSupport,
+          onCopy: () =>
+              _copyToClipboard(_supportPhoneDisplay, 'WhatsApp number'),
+          secondaryActionLabel: 'Call',
+          onSecondaryAction: _callSupportPhone,
           actionText: 'Chat',
+          actionIcon: Icons.open_in_new_rounded,
         ),
 
         const SizedBox(height: 12),
 
-        // Email Support
+        // Official Email Support
         _buildChannelCard(
           icon: Icons.email_outlined,
           iconBg: const Color(0xFFE0F2F1),
           iconColor: AppColors.deepTeal,
           title: 'Official Email Support',
-          subtitle: 'support@c2coffeeandcandle.com',
+          contactLinkText: _supportEmail,
+          singleLineContact: true,
           badgeText: 'Email support',
-          onTap: () => _openSupportLink(
-            Uri(
-              scheme: 'mailto',
-              path: 'support@c2coffeeandcandle.com',
-              queryParameters: {'subject': 'C2 Coffee Support Request'},
-            ),
-            'your email app',
-          ),
+          onTap: _openEmailSupport,
+          onCopy: () =>
+              _copyToClipboard(_supportEmail, 'Support email address'),
           actionText: 'Email',
+          actionIcon: Icons.mail_outline_rounded,
         ),
 
         const SizedBox(height: 12),
 
-        // Store Locations
+        // Google Maps Outlet Location
         _buildChannelCard(
           icon: Icons.storefront_outlined,
           iconBg: const Color(0xFFFFF3E0),
           iconColor: AppColors.accent,
-          title: 'C2 Coffee Eco Forest',
-          subtitle: 'Open the outlet location in Google Maps',
-          badgeText: 'Self-Pickup Only',
-          onTap: () => _openSupportLink(
-            Uri.https(
-              'www.google.com',
-              '/maps/search/',
-              {
-                'api': '1',
-                'query':
-                    '42-1, Jalan Eco Forest 6/1C, Eco Forest, 43500 Semenyih, Selangor',
-              },
-            ),
-            'Google Maps',
-          ),
+          title: _outletName,
+          contactLinkText: _outletAddress,
+          badgeText: 'Self-Pickup Only • Google Maps',
+          onTap: _openGoogleMaps,
+          onCopy: () => _copyToClipboard(_outletAddress, 'Outlet address'),
           actionText: 'Maps',
+          actionIcon: Icons.map_outlined,
         ),
 
         const SizedBox(height: 12),
 
+        // Waze Navigation
         _buildChannelCard(
           icon: Icons.navigation_outlined,
           iconBg: const Color(0xFFFFF3E0),
           iconColor: AppColors.accent,
           title: 'Navigate with Waze',
-          subtitle: 'Navigate to C2 Coffee Eco Forest',
-          badgeText: 'Navigation',
-          onTap: () => _openSupportLink(
-            Uri.https(
-              'www.waze.com',
-              '/ul',
-              {
-                'q':
-                    '42-1, Jalan Eco Forest 6/1C, Eco Forest, 43500 Semenyih, Selangor',
-                'navigate': 'yes',
-              },
-            ),
-            'Waze',
-          ),
+          contactLinkText: _outletAddress,
+          badgeText: 'Turn-by-turn Navigation',
+          onTap: _openWaze,
+          onCopy: () => _copyToClipboard(_outletAddress, 'Outlet address'),
           actionText: 'Waze',
+          actionIcon: Icons.near_me_outlined,
         ),
       ],
     );
@@ -496,105 +782,230 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
     required Color iconBg,
     required Color iconColor,
     required String title,
-    required String subtitle,
+    required String contactLinkText,
+    bool singleLineContact = false,
     required String badgeText,
-    required VoidCallback? onTap,
-    required String? actionText,
+    required VoidCallback onTap,
+    required VoidCallback onCopy,
+    String? secondaryActionLabel,
+    VoidCallback? onSecondaryAction,
+    required String actionText,
+    required IconData actionIcon,
   }) {
+    final linkWidget = Text(
+      contactLinkText,
+      style: TextStyle(
+        fontFamily: 'Afacad',
+        fontSize: 15.5,
+        fontWeight: FontWeight.w600,
+        color: AppColors.deepTeal,
+        decoration: TextDecoration.underline,
+        decorationColor: AppColors.deepTeal.withValues(alpha: 0.45),
+        height: 1.3,
+      ),
+    );
+
     return Container(
-      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.black.withValues(alpha: 0.06)),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.border, width: 1.3),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: iconBg,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: iconColor, size: 22),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          onLongPress: onCopy,
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontFamily: 'Afacad',
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: const TextStyle(
-                    fontFamily: 'Afacad',
-                    fontSize: 16,
-                    color: Colors.black54,
-                  ),
-                ),
-                const SizedBox(height: 6),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  width: 44,
+                  height: 44,
                   decoration: BoxDecoration(
-                    color: AppColors.surfaceLight,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: AppColors.border, width: 0.8),
+                    color: iconBg,
+                    borderRadius: BorderRadius.circular(13),
                   ),
-                  child: Text(
-                    badgeText,
-                    style: TextStyle(
-                      fontFamily: 'Afacad',
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.deepTeal,
-                    ),
+                  child: Icon(icon, color: iconColor, size: 22),
+                ),
+                const SizedBox(width: 13),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      if (singleLineContact)
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: linkWidget,
+                        )
+                      else
+                        linkWidget,
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceLight,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: AppColors.border,
+                                width: 0.9,
+                              ),
+                            ),
+                            child: Text(
+                              badgeText,
+                              style: TextStyle(
+                                fontFamily: 'Afacad',
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.deepTeal,
+                              ),
+                            ),
+                          ),
+                          if (secondaryActionLabel != null &&
+                              onSecondaryAction != null)
+                            InkWell(
+                              onTap: onSecondaryAction,
+                              borderRadius: BorderRadius.circular(8),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade100,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: Colors.grey.shade300,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.phone_outlined,
+                                      size: 13,
+                                      color: AppColors.deepTeal,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      secondaryActionLabel,
+                                      style: TextStyle(
+                                        fontFamily: 'Afacad',
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppColors.deepTeal,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          InkWell(
+                            onTap: onCopy,
+                            borderRadius: BorderRadius.circular(8),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade100,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: Colors.grey.shade300,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.copy_rounded,
+                                    size: 12.5,
+                                    color: Colors.black54,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  const Text(
+                                    'Copy',
+                                    style: TextStyle(
+                                      fontFamily: 'Afacad',
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.black54,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceMid,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        actionText,
+                        style: TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.deepTeal,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(
+                        actionIcon,
+                        size: 14,
+                        color: AppColors.deepTeal,
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
-          if (onTap != null && actionText != null) ...[
-            const SizedBox(width: 10),
-            GestureDetector(
-              onTap: onTap,
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceMid,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  actionText,
-                  style: TextStyle(
-                    fontFamily: 'Afacad',
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.deepTeal,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ],
+        ),
       ),
     );
   }
@@ -605,12 +1016,12 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.black.withValues(alpha: 0.06)),
+        border: Border.all(color: AppColors.border, width: 1.3),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
@@ -907,7 +1318,7 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
             // Submit Button
             SizedBox(
               width: double.infinity,
-              height: 48,
+              height: 50,
               child: ElevatedButton(
                 onPressed: _isSubmitting ? null : _submitTicket,
                 style: ElevatedButton.styleFrom(

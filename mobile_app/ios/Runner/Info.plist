@@ -72,5 +72,13 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>whatsapp</string>
+		<string>mailto</string>
+		<string>tel</string>
+		<string>waze</string>
+		<string>comgooglemaps</string>
+	</array>
 </dict>
 </plist>

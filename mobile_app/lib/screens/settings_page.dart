@@ -1443,11 +1443,10 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
-  Future<void> _showAccountClosureDialog() async {
-    final reasonController = TextEditingController();
-    final reason = await showDialog<String>(
+  Future<void> _showLogoutConfirmationDialog() async {
+    final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => Dialog(
+      builder: (dialogContext) => Dialog(
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.transparent,
         insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
@@ -1461,42 +1460,297 @@ class _SettingsPageState extends State<SettingsPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildDialogHeader(
-                context: context,
-                icon: Icons.warning_amber_rounded,
-                title: 'Close Account',
+                context: dialogContext,
+                icon: Icons.logout_rounded,
+                title: 'Are You Sure?',
                 subtitle:
-                    'This signs you out immediately. Financial records are retained securely as required by law.',
-                accentColor: _destructiveActionColor,
+                    'You are about to log out of your C2 Coffee account on this device.',
+                accentColor: orangeColor,
               ),
-              const SizedBox(height: 20),
-              _buildDialogTextField(
-                controller: reasonController,
-                label: 'Reason for closure',
-                hintText: 'Tell us how we could have served you better...',
-                icon: Icons.feedback_outlined,
-                minLines: 2,
-                maxLines: 4,
+              const SizedBox(height: 16),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: orangeColor.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: orangeColor.withValues(alpha: 0.18),
+                  ),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.verified_user_outlined,
+                      size: 18,
+                      color: orangeColor,
+                    ),
+                    const SizedBox(width: 10),
+                    const Expanded(
+                      child: Text(
+                        'Your tokens, rewards, and order history remain safely saved. You can sign back in anytime with your phone number.',
+                        style: TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 14,
+                          height: 1.35,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 24),
               _buildDialogActions(
-                context: context,
-                primaryLabel: 'Close Account',
-                primaryColor: _destructiveActionColor,
-                onPrimary: () =>
-                    Navigator.pop(context, reasonController.text.trim()),
+                context: dialogContext,
+                primaryLabel: 'Yes, Log Out',
+                primaryColor: orangeColor,
+                onPrimary: () => Navigator.pop(dialogContext, true),
               ),
             ],
           ),
         ),
       ),
     );
-    if (reason == null || reason.length < 5) {
-      if (mounted && reason != null) {
-        _showSnackBar(
-            'Please provide at least 5 characters for the closure reason.');
-      }
+
+    if (confirmed != true || !mounted) return;
+
+    await SessionLifecycleService.instance.logout();
+    if (!mounted) return;
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const SplashScreen()),
+      (route) => false,
+    );
+  }
+
+  Future<void> _showAccountClosureDialog() async {
+    final reasonController = TextEditingController();
+    String? inlineError;
+
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => Dialog(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
+          insetPadding:
+              const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(28),
+          ),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildDialogHeader(
+                  context: dialogContext,
+                  icon: Icons.person_off_outlined,
+                  title: 'Close Account',
+                  subtitle:
+                      'This permanently closes your account and signs you out on all devices. Financial records are retained as required by law.',
+                  accentColor: _destructiveActionColor,
+                ),
+                const SizedBox(height: 16),
+                InkWell(
+                  borderRadius: BorderRadius.circular(14),
+                  onTap: () {
+                    Navigator.pop(dialogContext);
+                    _showLogoutConfirmationDialog();
+                  },
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 11,
+                    ),
+                    decoration: BoxDecoration(
+                      color: orangeColor.withValues(alpha: 0.06),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: orangeColor.withValues(alpha: 0.2),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.logout_rounded,
+                          size: 18,
+                          color: orangeColor,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Just want to sign out temporarily? Tap here to Log Out instead.',
+                            style: TextStyle(
+                              fontFamily: 'Afacad',
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w700,
+                              color: orangeColor,
+                            ),
+                          ),
+                        ),
+                        Icon(
+                          Icons.arrow_forward_ios_rounded,
+                          size: 13,
+                          color: orangeColor,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                _buildDialogTextField(
+                  controller: reasonController,
+                  label: 'Reason for closure',
+                  hintText: 'Tell us how we could have served you better...',
+                  icon: Icons.feedback_outlined,
+                  minLines: 2,
+                  maxLines: 4,
+                ),
+                if (inlineError != null) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.error_outline_rounded,
+                        size: 16,
+                        color: _destructiveActionColor,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          inlineError!,
+                          style: TextStyle(
+                            fontFamily: 'Afacad',
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w600,
+                            color: _destructiveActionColor,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                const SizedBox(height: 24),
+                _buildDialogActions(
+                  context: dialogContext,
+                  primaryLabel: 'Close Account',
+                  primaryColor: _destructiveActionColor,
+                  onPrimary: () {
+                    final trimmed = reasonController.text.trim();
+                    if (trimmed.length < 5) {
+                      setDialogState(() {
+                        inlineError =
+                            'Please provide at least 5 characters for the closure reason.';
+                      });
+                      return;
+                    }
+                    Navigator.pop(dialogContext, trimmed);
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    if (reason == null || reason.length < 5 || !mounted) {
       return;
     }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (confirmContext) => Dialog(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(28),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildDialogHeader(
+                context: confirmContext,
+                icon: Icons.report_problem_rounded,
+                title: 'Are You Sure?',
+                subtitle:
+                    'Please confirm that you want to permanently close your C2 Coffee account.',
+                accentColor: _destructiveActionColor,
+              ),
+              const SizedBox(height: 16),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF5F5),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: _destructiveActionColor.withValues(alpha: 0.22),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.gpp_maybe_rounded,
+                          size: 18,
+                          color: _destructiveActionColor,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'What happens next:',
+                            style: TextStyle(
+                              fontFamily: 'Afacad',
+                              fontSize: 14.5,
+                              fontWeight: FontWeight.w700,
+                              color: _destructiveActionColor,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      '• Your account will be closed and signed out on all devices immediately.\n'
+                      '• You will lose access to active rewards and member benefits.\n'
+                      '• This action cannot be undone from the app.',
+                      style: TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 14,
+                        height: 1.4,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              _buildDialogActions(
+                context: confirmContext,
+                primaryLabel: 'Yes, Close Account',
+                primaryColor: _destructiveActionColor,
+                onPrimary: () => Navigator.pop(confirmContext, true),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
 
     try {
       final accessToken =
@@ -1727,77 +1981,178 @@ class _SettingsPageState extends State<SettingsPage> {
                                 MaterialPageRoute(
                                     builder: (_) => const AboutUsPage())),
                           ),
-                          const Divider(height: 1, indent: 16, endIndent: 16),
-                          ListTile(
-                            title: Text('Close Account',
-                                style: TextStyle(
-                                    fontFamily: 'Recoleta',
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w700,
-                                    color: _destructiveActionColor)),
-                            subtitle: const Text(
-                              'Request closure and sign out from all devices',
-                              style:
-                                  TextStyle(fontFamily: 'Afacad', fontSize: 15),
-                            ),
-                            trailing: Icon(Icons.arrow_forward_ios,
-                                size: 16, color: _destructiveActionColor),
-                            onTap: _showAccountClosureDialog,
-                          ),
                         ],
                       ),
                     ),
                   ),
                 ),
 
-                const SizedBox(height: 14),
+                const SizedBox(height: 20),
 
-                // Log Out Button
-                GestureDetector(
-                  onTap: () async {
-                    await SessionLifecycleService.instance.logout();
-                    if (!context.mounted) return;
-                    Navigator.pushAndRemoveUntil(
-                      context,
-                      MaterialPageRoute(
-                          builder: (context) => const SplashScreen()),
-                      (Route<dynamic> route) => false,
-                    );
-                  },
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 20),
-                    padding: const EdgeInsets.symmetric(
-                        vertical: 12, horizontal: 20),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: _destructiveActionColor,
-                        width: 1,
+                // Session Action: Log Out (safe & reversible, styled in brand deepTeal)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Material(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(18),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(18),
+                      onTap: _showLogoutConfirmationDialog,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 14,
+                          horizontal: 16,
+                        ),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                            color: AppColors.deepTeal.withValues(alpha: 0.35),
+                            width: 1.2,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.03),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 42,
+                              height: 42,
+                              decoration: BoxDecoration(
+                                color: AppColors.deepTeal.withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(
+                                Icons.logout_rounded,
+                                size: 22,
+                                color: AppColors.deepTeal,
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Log Out',
+                                    style: TextStyle(
+                                      fontFamily: 'Recoleta',
+                                      fontSize: 19,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.deepTeal,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  const Text(
+                                    'Sign out of this device • Tokens & rewards stay safe',
+                                    style: TextStyle(
+                                      fontFamily: 'Afacad',
+                                      fontSize: 14,
+                                      color: Colors.black54,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Icon(
+                              Icons.arrow_forward_ios_rounded,
+                              size: 15,
+                              color: AppColors.deepTeal,
+                            ),
+                          ],
+                        ),
                       ),
-                      boxShadow: [
-                        BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.03),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2))
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.logout,
-                            size: 28, color: _destructiveActionColor),
-                        const SizedBox(width: 16),
-                        Text('Log Out',
-                            style: TextStyle(
-                                fontFamily: 'Recoleta',
-                                fontSize: 22,
-                                fontWeight: FontWeight.w700,
-                                color: _destructiveActionColor)),
-                      ],
                     ),
                   ),
                 ),
-                const SizedBox(height: 20),
+
+                const SizedBox(height: 16),
+
+                // Close Account Card (separate from Settings & Log Out)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Material(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(18),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(18),
+                      onTap: _showAccountClosureDialog,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 14,
+                          horizontal: 16,
+                        ),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                            color: _destructiveActionColor.withValues(alpha: 0.35),
+                            width: 1.1,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.03),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 42,
+                              height: 42,
+                              decoration: BoxDecoration(
+                                color: _destructiveActionColor.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(
+                                Icons.person_off_outlined,
+                                size: 22,
+                                color: _destructiveActionColor,
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Close Account',
+                                    style: TextStyle(
+                                      fontFamily: 'Recoleta',
+                                      fontSize: 19,
+                                      fontWeight: FontWeight.w700,
+                                      color: _destructiveActionColor,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  const Text(
+                                    'Request closure and sign out from all devices',
+                                    style: TextStyle(
+                                      fontFamily: 'Afacad',
+                                      fontSize: 14,
+                                      color: Colors.black54,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Icon(
+                              Icons.arrow_forward_ios_rounded,
+                              size: 15,
+                              color: _destructiveActionColor,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
               ],
             ),
             // Overlapping Avatar (now scrolls with content)
