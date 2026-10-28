@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:c2_coffee/services/cart_service.dart';
 import 'package:c2_coffee/services/checkout_api_service.dart';
+import 'package:c2_coffee/services/auth_api_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -56,5 +57,96 @@ void main() {
     expect(body['applied_voucher_id'], 4);
     expect(result.order.paymentMode, 'token');
     expect(result.tokenBalance, 88);
+  });
+
+  test('checkout preserves top-up-required error code for customer messaging',
+      () async {
+    final client = MockClient((request) async {
+      return http.Response(
+        jsonEncode({
+          'error': {
+            'code': 'top_up_required',
+            'message':
+                'Complete one successful token top-up before placing an order or using vouchers.',
+          },
+        }),
+        403,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+    final service = CheckoutApiService(
+      client: client,
+      baseUrl: 'https://test.example.com/v1',
+    );
+    final cart = CartSnapshot(
+      storeId: 7,
+      storeName: 'Test Outlet',
+      items: const [],
+    );
+
+    await expectLater(
+      service.createTokenOrder(
+        accessToken: 'access-token',
+        cart: cart,
+        idempotencyKey: 'checkout-topup-required',
+      ),
+      throwsA(
+        isA<ApiException>()
+            .having((error) => error.code, 'code', 'top_up_required')
+            .having(
+              (error) => friendlyCustomerErrorMessage(
+                error,
+                fallback: 'fallback',
+              ),
+              'friendly message',
+              'Complete one successful token top-up to unlock ordering and voucher redemption.',
+            ),
+      ),
+    );
+  });
+
+  test('checkout preserves store-closed error code for customer messaging',
+      () async {
+    final client = MockClient((request) async {
+      return http.Response(
+        jsonEncode({
+          'error': {
+            'code': 'store_closed',
+            'message': 'This outlet is currently closed.',
+          },
+        }),
+        409,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+    final service = CheckoutApiService(
+      client: client,
+      baseUrl: 'https://test.example.com/v1',
+    );
+    final cart = CartSnapshot(
+      storeId: 7,
+      storeName: 'Test Outlet',
+      items: const [],
+    );
+
+    await expectLater(
+      service.createTokenOrder(
+        accessToken: 'access-token',
+        cart: cart,
+        idempotencyKey: 'checkout-store-closed',
+      ),
+      throwsA(
+        isA<ApiException>()
+            .having((error) => error.code, 'code', 'store_closed')
+            .having(
+              (error) => friendlyCustomerErrorMessage(
+                error,
+                fallback: 'fallback',
+              ),
+              'friendly message',
+              'This outlet is currently closed. Choose an open outlet before ordering.',
+            ),
+      ),
+    );
   });
 }

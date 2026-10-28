@@ -133,14 +133,13 @@ class _ReferralPageState extends State<ReferralPage> {
   }
 
   Future<void> _shareCode(String code) async {
-    final reward = _snapshot?.referrerRewardLabel ?? 'a referral reward';
-    final shareUrl = _snapshot?.shareUrl.trim() ?? '';
+    final reward = _snapshot?.friendRewardLabel ?? 'free tokens';
     final androidUrl = _snapshot?.androidDownloadUrl.trim() ?? '';
     final iosUrl = _snapshot?.iosDownloadUrl.trim() ?? '';
     final links = <String>[
-      if (shareUrl.isNotEmpty) 'Referral link: $shareUrl',
       if (androidUrl.isNotEmpty) 'Android: $androidUrl',
       if (iosUrl.isNotEmpty) 'iPhone: $iosUrl',
+      'Website: https://www.c2coffeeandcandle.com/',
     ];
     final downloadLine = links.isEmpty
         ? ''
@@ -148,7 +147,7 @@ class _ReferralPageState extends State<ReferralPage> {
     await SharePlus.instance.share(
       ShareParams(
         text:
-            'Join me on C2 Coffee!\n\nUse my referral code: $code\nEnter it before your first order. Once you collect your first order, I receive $reward.$downloadLine',
+            'Join me on C2 Coffee!\n\nUse my referral code: $code\nEnter it before your first order to get $reward.$downloadLine',
         subject: 'Join me at C2 Coffee',
       ),
     );
@@ -321,7 +320,7 @@ class _ReferralPageState extends State<ReferralPage> {
                             ),
                             const SizedBox(height: 12),
                             InkWell(
-                              onTap: () => _shareCode(referralCode),
+                              onTap: () => _copyCode(referralCode),
                               borderRadius: BorderRadius.circular(8),
                               child: Container(
                                 width: double.infinity,
@@ -355,7 +354,7 @@ class _ReferralPageState extends State<ReferralPage> {
                             ),
                             const SizedBox(height: 12),
                             GestureDetector(
-                              onTap: () => _copyCode(referralCode),
+                              onTap: () => _shareCode(referralCode),
                               child: Container(
                                 width: double.infinity,
                                 padding:
