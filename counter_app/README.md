@@ -75,6 +75,11 @@ The app reads this HTTPS manifest by default:
 
 `https://www.c2coffeeandcandle.com/download/counterdownload/latest.json`
 
+The app also checks automatically after the workspace screen opens, when it
+returns to the foreground, and every 15 minutes while it remains open. Network
+failures stay silent during automatic checks; the Settings action remains
+available for a manual check.
+
 Override it during a build only when another deployment owns its update files:
 
 ```bash

@@ -551,6 +551,8 @@ export async function registerCatalogRoutes(
           balance_available: summary.token_balance,
           balance_reserved: summary.token_reserved,
           balance_cap: summary.token_cap,
+          has_completed_topup: summary.has_completed_topup,
+          can_place_order: summary.has_completed_topup,
         },
         loyalty: {
           tier: summary.tier,

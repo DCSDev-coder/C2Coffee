@@ -1027,6 +1027,8 @@ class CustomerOrdersSnapshot {
 class ReferralSnapshot {
   final String referralCode;
   final String shareUrl;
+  final String androidDownloadUrl;
+  final String iosDownloadUrl;
   final int friendsInvited;
   final int rewardsClaimed;
   final bool hasClaimedReferrer;
@@ -1042,6 +1044,8 @@ class ReferralSnapshot {
   const ReferralSnapshot({
     required this.referralCode,
     required this.shareUrl,
+    required this.androidDownloadUrl,
+    required this.iosDownloadUrl,
     required this.friendsInvited,
     required this.rewardsClaimed,
     required this.hasClaimedReferrer,
@@ -1059,6 +1063,10 @@ class ReferralSnapshot {
     return ReferralSnapshot(
       referralCode: (json['referral_code'] as String?) ?? 'C2-MEMBER',
       shareUrl: (json['share_url'] as String?) ?? 'https://c2coffee.app',
+      androidDownloadUrl: (json['android_download_url'] as String?) ??
+          'https://play.google.com/store/apps/details?id=com.c2coffeeandcandle.customer',
+      iosDownloadUrl: (json['ios_download_url'] as String?) ??
+          'https://apps.apple.com/my/app/c2-coffee/id6809305739',
       friendsInvited: (json['friends_invited'] as num?)?.toInt() ?? 0,
       rewardsClaimed: (json['rewards_claimed'] as num?)?.toInt() ?? 0,
       hasClaimedReferrer: (json['has_claimed_referrer'] as bool?) ?? false,

@@ -71,6 +71,8 @@ String friendlyCustomerErrorMessage(
     case 'insufficient_tokens':
     case 'insufficient_token_balance':
       return 'Your token balance is not enough to complete this order.';
+    case 'top_up_required':
+      return 'Complete one successful token top-up to unlock ordering and voucher redemption.';
     case 'validation_error':
       return 'Please review the information and try again.';
     case 'birthday_change_support_required':

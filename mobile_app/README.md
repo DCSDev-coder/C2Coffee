@@ -25,6 +25,20 @@ Production builds accept only HTTPS checkout URLs on CHIP-owned
 `chip-in.asia` hosts. Payment creation and confirmation happen through the C2
 API; the CHIP secret key must never be included in a Flutter build.
 
+## Customer app update notices
+
+The app checks this HTTPS manifest after launch, when returning to the
+foreground, and periodically while open:
+
+`https://www.c2coffeeandcandle.com/download/mobile/latest.json`
+
+Copy `deployment/mobile-update/latest.json.example` to the cPanel download
+location as `latest.json` only after the corresponding iOS and Android versions
+are available in their stores. Increase `build_number` for every release. The
+app compares that value with the installed build and opens the correct store
+listing when the customer chooses **Update now**. Keep the manifest valid JSON
+and serve it over HTTPS.
+
 ## Asset flow
 
 Poster and menu images are loaded from the API asset routes. If an image returns 404, verify that the file exists on the API host under `api/public/menu/uploads/` and that the API runtime can read it.

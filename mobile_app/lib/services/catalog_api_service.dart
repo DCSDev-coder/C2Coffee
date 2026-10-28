@@ -587,6 +587,7 @@ class BootstrapSnapshot {
   final int tokenBalance;
   final int tokenReserved;
   final int tokenCap;
+  final bool hasCompletedTopup;
   final String tier;
   final int cupsLast180d;
   final List<HomeBanner> homeBanners;
@@ -602,6 +603,7 @@ class BootstrapSnapshot {
     required this.tokenBalance,
     required this.tokenReserved,
     required this.tokenCap,
+    required this.hasCompletedTopup,
     required this.tier,
     required this.cupsLast180d,
     required this.homeBanners,
@@ -700,6 +702,7 @@ class CatalogApiService {
       tokenBalance: (token['balance_available'] as num?)?.toInt() ?? 0,
       tokenReserved: (token['balance_reserved'] as num?)?.toInt() ?? 0,
       tokenCap: (token['balance_cap'] as num?)?.toInt() ?? 0,
+      hasCompletedTopup: token['has_completed_topup'] as bool? ?? false,
       tier: loyalty['tier'] as String? ?? 'kawan',
       cupsLast180d: (loyalty['cups_last_180d'] as num?)?.toInt() ?? 0,
       homeBanners: homeBanners,

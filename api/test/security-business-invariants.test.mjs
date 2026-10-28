@@ -160,6 +160,20 @@ test('tier rewards require an explicit claim before checkout use', async () => {
   );
 });
 
+test('customer ordering requires one successful historical token top-up', async () => {
+  const auth = await source('src/http/routes/auth.ts');
+  assert.match(auth, /FROM token_topups/);
+  assert.match(auth, /status = 'paid'/);
+  assert.match(auth, /has_completed_topup/);
+
+  const catalog = await source('src/http/routes/catalog.ts');
+  assert.match(catalog, /can_place_order: summary\.has_completed_topup/);
+
+  const checkout = await source('src/http/routes/checkout.ts');
+  assert.match(checkout, /!bootstrap\.has_completed_topup/);
+  assert.match(checkout, /['"]top_up_required['"]/);
+});
+
 test('birthday cleanup recognizes templates configured by tier management', async () => {
   const rewards = await source('src/http/routes/customer-data.ts');
   assert.match(rewards, /\$\.birthdayVoucherTemplateIds/);
@@ -259,4 +273,15 @@ test('verified legacy refund reconciliation is guarded and does not debit the wa
   assert.match(migration, /SET tt\.status = 'refunded'/);
   assert.doesNotMatch(migration, /SET balance_available/);
   assert.doesNotMatch(migration, /'topup_refund'/);
+});
+
+test('referral sharing exposes both mobile store links', async () => {
+  const customerData = await source('src/http/routes/customer-data.ts');
+  assert.match(customerData, /android_download_url/);
+  assert.match(
+    customerData,
+    /play\.google\.com\/store\/apps\/details\?id=com\.c2coffeeandcandle\.customer/,
+  );
+  assert.match(customerData, /ios_download_url/);
+  assert.match(customerData, /apps\.apple\.com\/my\/app\/c2-coffee\/id6809305739/);
 });

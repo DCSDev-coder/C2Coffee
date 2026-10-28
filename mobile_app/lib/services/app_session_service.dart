@@ -23,6 +23,7 @@ class AppSessionService extends ChangeNotifier {
   int _tokenBalance = 0;
   int _tokenReserved = 0;
   int _tokenCap = 0;
+  bool _hasCompletedTopup = false;
   String _tier = 'kawan';
   int _cupsLast180d = 0;
   bool _isBootstrapLoading = false;
@@ -41,6 +42,7 @@ class AppSessionService extends ChangeNotifier {
   int get tokenBalance => _tokenBalance;
   int get tokenReserved => _tokenReserved;
   int get tokenCap => _tokenCap;
+  bool get hasCompletedTopup => _hasCompletedTopup;
   String get tier => _tier;
   int get cupsLast180d => _cupsLast180d;
   bool get isBootstrapLoading => _isBootstrapLoading;
@@ -208,6 +210,7 @@ class AppSessionService extends ChangeNotifier {
       _tokenBalance = bootstrap.tokenBalance;
       _tokenReserved = bootstrap.tokenReserved;
       _tokenCap = bootstrap.tokenCap;
+      _hasCompletedTopup = bootstrap.hasCompletedTopup;
       _tier = bootstrap.tier;
       _cupsLast180d = bootstrap.cupsLast180d;
       _stores = stores;
@@ -296,6 +299,7 @@ class AppSessionService extends ChangeNotifier {
     _tokenBalance = 0;
     _tokenReserved = 0;
     _tokenCap = 0;
+    _hasCompletedTopup = false;
     _tier = 'kawan';
     _cupsLast180d = 0;
     _isBootstrapLoading = false;

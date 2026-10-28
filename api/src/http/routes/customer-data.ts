@@ -2188,6 +2188,9 @@ export async function registerCustomerDataRoutes(
     return {
       referral_code: referralCode,
       share_url: `https://c2coffee.app/r/${referralCode}`,
+      android_download_url:
+        'https://play.google.com/store/apps/details?id=com.c2coffeeandcandle.customer',
+      ios_download_url: 'https://apps.apple.com/my/app/c2-coffee/id6809305739',
       friends_invited: friendsInvited,
       rewards_claimed: rewardsClaimed,
       has_claimed_referrer: hasClaimedReferrer,

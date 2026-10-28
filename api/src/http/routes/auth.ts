@@ -1071,6 +1071,7 @@ export async function getBootstrapForUser(
   token_balance: number;
   token_reserved: number;
   token_cap: number;
+  has_completed_topup: boolean;
   tier: string;
   cups_last_180d: number;
   tiers: BootstrapTierConfig[];
@@ -1107,6 +1108,21 @@ export async function getBootstrapForUser(
       WHERE user_id = :userId
       ORDER BY effective_at DESC, id DESC
       LIMIT 1
+    `,
+    { userId }
+  );
+
+  const [topupRows] = await connection.query<
+    Array<RowDataPacket & { has_completed_topup: number }>
+  >(
+    `
+      SELECT EXISTS (
+        SELECT 1
+        FROM token_topups
+        WHERE user_id = :userId
+          AND status = 'paid'
+          AND paid_at IS NOT NULL
+      ) AS has_completed_topup
     `,
     { userId }
   );
@@ -1188,6 +1204,7 @@ export async function getBootstrapForUser(
     token_balance: tokenRows[0]?.balance_available ?? 0,
     token_reserved: tokenRows[0]?.balance_reserved ?? 0,
     token_cap: tokenRows[0]?.balance_cap ?? 500,
+    has_completed_topup: Number(topupRows[0]?.has_completed_topup ?? 0) === 1,
     tier: tierRows[0]?.tier_code ?? 'kawan',
     cups_last_180d: tierRows[0]?.qualifying_cups_last_180d ?? 0,
     tiers

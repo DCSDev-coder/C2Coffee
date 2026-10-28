@@ -223,20 +223,33 @@ class WorkspaceSelectionScreen extends StatefulWidget {
       _WorkspaceSelectionScreenState();
 }
 
-class _WorkspaceSelectionScreenState extends State<WorkspaceSelectionScreen> {
+class _WorkspaceSelectionScreenState extends State<WorkspaceSelectionScreen>
+    with WidgetsBindingObserver {
   late final DevicePrinterWorker _printerWorker;
   final AppUpdateService _appUpdateService = AppUpdateService();
+  Timer? _automaticUpdateTimer;
+  DateTime? _lastAutomaticUpdateCheck;
+  bool _automaticUpdateCheckInProgress = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _printerWorker = DevicePrinterWorker(authService: widget.authService)
       ..start();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkForUpdate(showNoUpdate: false, automatic: true);
+    });
+    _automaticUpdateTimer = Timer.periodic(const Duration(minutes: 15), (_) {
+      _checkForUpdate(showNoUpdate: false, automatic: true);
+    });
   }
 
   @override
   void dispose() {
     _printerWorker.dispose();
+    WidgetsBinding.instance.removeObserver(this);
+    _automaticUpdateTimer?.cancel();
     _appUpdateService.dispose();
     super.dispose();
   }
@@ -260,26 +273,49 @@ class _WorkspaceSelectionScreenState extends State<WorkspaceSelectionScreen> {
     );
   }
 
-  Future<void> _checkForUpdate() async {
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const AlertDialog(
-        content: Row(
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(width: 20),
-            Expanded(child: Text('Checking for updates…')),
-          ],
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _checkForUpdate(showNoUpdate: false, automatic: true);
+    }
+  }
+
+  Future<void> _checkForUpdate({
+    bool showNoUpdate = true,
+    bool automatic = false,
+  }) async {
+    if (automatic) {
+      if (_automaticUpdateCheckInProgress) return;
+      final lastCheck = _lastAutomaticUpdateCheck;
+      if (lastCheck != null &&
+          DateTime.now().difference(lastCheck) < const Duration(minutes: 15)) {
+        return;
+      }
+      _automaticUpdateCheckInProgress = true;
+      _lastAutomaticUpdateCheck = DateTime.now();
+    }
+
+    if (!automatic) {
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 20),
+              Expanded(child: Text('Checking for updates…')),
+            ],
+          ),
         ),
-      ),
-    );
+      );
+    }
 
     try {
       final check = await _appUpdateService.checkForUpdate();
       if (!mounted) return;
-      Navigator.of(context, rootNavigator: true).pop();
-      if (!check.updateAvailable) {
+      if (!automatic) Navigator.of(context, rootNavigator: true).pop();
+      if (!check.updateAvailable && showNoUpdate) {
         await showDialog<void>(
           context: context,
           builder: (dialogContext) => AlertDialog(
@@ -298,9 +334,10 @@ class _WorkspaceSelectionScreenState extends State<WorkspaceSelectionScreen> {
         );
         return;
       }
+      if (!check.updateAvailable) return;
       await _showAvailableUpdate(check);
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted || automatic) return;
       Navigator.of(context, rootNavigator: true).pop();
       await showDialog<void>(
         context: context,
@@ -316,6 +353,8 @@ class _WorkspaceSelectionScreenState extends State<WorkspaceSelectionScreen> {
           ],
         ),
       );
+    } finally {
+      if (automatic) _automaticUpdateCheckInProgress = false;
     }
   }
 

@@ -1276,7 +1276,27 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                 ),
             ],
           ),
-          if (!hasEnoughBalance) ...[
+          if (!_session.hasCompletedTopup) ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE8F5F2),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: orangeColor.withValues(alpha: 0.35)),
+              ),
+              child: const Text(
+                'Complete one successful token top-up to unlock ordering and voucher redemption.',
+                style: TextStyle(
+                  fontFamily: 'Afacad',
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF174B45),
+                ),
+              ),
+            ),
+          ] else if (!hasEnoughBalance) ...[
             const SizedBox(height: 12),
             Container(
               width: double.infinity,
@@ -1470,6 +1490,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
     final effectiveTokenCharge =
         max(0, snapshot.subtotalTokens - discountTokens);
     final hasEnoughBalance = _session.tokenBalance >= effectiveTokenCharge;
+    final canPlaceOrder = _session.hasCompletedTopup && hasEnoughBalance;
     final shortfall = effectiveTokenCharge - _session.tokenBalance;
 
     return SizedBox(
@@ -1478,7 +1499,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
       child: ElevatedButton(
         onPressed: _isSubmitting
             ? null
-            : hasEnoughBalance
+            : canPlaceOrder
                 ? () => _submitCheckout(snapshot)
                 : _openTopUpWallet,
         style: ElevatedButton.styleFrom(
@@ -1494,7 +1515,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              hasEnoughBalance
+              canPlaceOrder
                   ? Icons.lock_outline_rounded
                   : Icons.account_balance_wallet_outlined,
               size: 20,
@@ -1504,9 +1525,11 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
             Text(
               _isSubmitting
                   ? 'PROCESSING ORDER...'
-                  : hasEnoughBalance
+                  : canPlaceOrder
                       ? 'PLACE ORDER'
-                      : 'TOP UP WALLET (+${_formatTokenCount(shortfall)})',
+                      : _session.hasCompletedTopup
+                          ? 'TOP UP WALLET (+${_formatTokenCount(shortfall)})'
+                          : 'TOP UP TO UNLOCK ORDERING',
               style: const TextStyle(
                 fontFamily: 'Afacad',
                 fontSize: 18,
@@ -1515,7 +1538,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                 color: Colors.white,
               ),
             ),
-            if (!_isSubmitting && hasEnoughBalance) ...[
+            if (!_isSubmitting && canPlaceOrder) ...[
               const SizedBox(width: 10),
               Container(
                 padding:
