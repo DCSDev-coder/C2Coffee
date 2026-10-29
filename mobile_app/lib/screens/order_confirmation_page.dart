@@ -8,6 +8,7 @@ import '../services/cart_service.dart';
 import '../services/checkout_api_service.dart';
 import '../services/customer_data_service.dart';
 import '../services/secure_session_service.dart';
+import '../services/voucher_intent_service.dart';
 import '../utils/app_colors.dart';
 import '../utils/global_state.dart';
 import '../widgets/app_page_shell.dart';
@@ -36,6 +37,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
   bool _isSubmitting = false;
   RewardVoucher? _selectedVoucher;
   String? _checkoutError;
+  String? _voucherGuidance;
   String? _checkoutIdempotencyKey;
   bool _showScrollToTop = false;
 
@@ -47,6 +49,60 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
   void initState() {
     super.initState();
     _scrollController.addListener(_handleScroll);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _applyRememberedVoucher();
+    });
+  }
+
+  Future<void> _applyRememberedVoucher() async {
+    final code = VoucherIntentService.instance.take()?.trim();
+    final snapshot = _snapshot;
+    if (code == null || code.isEmpty || snapshot == null || !mounted) return;
+
+    try {
+      final accessToken =
+          await SecureSessionService.instance.getValidAccessToken();
+      if (accessToken == null || accessToken.isEmpty) return;
+
+      final vouchers = await CustomerDataService.instance.getRewardVouchers(
+        accessToken: accessToken,
+        onlyActive: true,
+        onlyTokenCheckoutEligible: true,
+      );
+
+      RewardVoucher? rememberedVoucher;
+      for (final voucher in vouchers) {
+        final codeMatches =
+            voucher.template.code.trim().toLowerCase() == code.toLowerCase();
+        if (codeMatches) {
+          rememberedVoucher = voucher;
+          break;
+        }
+      }
+
+      if (!mounted) return;
+      if (rememberedVoucher != null &&
+          rememberedVoucher.template.matchesCartSnapshot(snapshot)) {
+        setState(() {
+          _selectedVoucher = rememberedVoucher;
+          _voucherGuidance = null;
+          _checkoutError = null;
+        });
+        return;
+      }
+
+      setState(() {
+        _voucherGuidance = rememberedVoucher == null
+            ? 'We couldn’t find that voucher in your available rewards. Tap Apply Voucher to choose an eligible voucher.'
+            : rememberedVoucher.template.usageInstructions;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _voucherGuidance =
+            'Add the qualifying item first, then tap Apply Voucher to choose this reward.';
+      });
+    }
   }
 
   @override
@@ -454,6 +510,10 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                       ignoring: _isSubmitting,
                       child: _buildVoucherCard(snapshot),
                     ),
+                    if (_voucherGuidance != null) ...[
+                      const SizedBox(height: 10),
+                      _buildVoucherGuidance(_voucherGuidance!),
+                    ],
                     const SizedBox(height: 20),
                     Text(
                       'Payment Method',
@@ -1000,6 +1060,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
           onVoucherSelected: (selected) {
             setState(() {
               _selectedVoucher = selected;
+              _voucherGuidance = null;
             });
           },
         );
@@ -1109,6 +1170,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                 onPressed: () {
                   setState(() {
                     _selectedVoucher = null;
+                    _voucherGuidance = null;
                   });
                 },
                 icon: Icon(
@@ -1276,27 +1338,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                 ),
             ],
           ),
-          if (!_session.hasCompletedTopup) ...[
-            const SizedBox(height: 12),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: const Color(0xFFE8F5F2),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: orangeColor.withValues(alpha: 0.35)),
-              ),
-              child: const Text(
-                'Complete one successful token top-up to unlock ordering and voucher redemption.',
-                style: TextStyle(
-                  fontFamily: 'Afacad',
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF174B45),
-                ),
-              ),
-            ),
-          ] else if (!hasEnoughBalance) ...[
+          if (!hasEnoughBalance) ...[
             const SizedBox(height: 12),
             Container(
               width: double.infinity,
@@ -1450,6 +1492,38 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
     );
   }
 
+  Widget _buildVoucherGuidance(String text) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.deepTeal.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: AppColors.deepTeal.withValues(alpha: 0.18),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info_outline_rounded, color: AppColors.deepTeal, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                fontFamily: 'Afacad',
+                fontSize: 14,
+                height: 1.3,
+                color: Colors.grey.shade800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildErrorBanner(String message) {
     return Container(
       width: double.infinity,
@@ -1490,7 +1564,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
     final effectiveTokenCharge =
         max(0, snapshot.subtotalTokens - discountTokens);
     final hasEnoughBalance = _session.tokenBalance >= effectiveTokenCharge;
-    final canPlaceOrder = _session.hasCompletedTopup && hasEnoughBalance;
+    final canPlaceOrder = hasEnoughBalance;
     final shortfall = effectiveTokenCharge - _session.tokenBalance;
 
     return SizedBox(
@@ -1527,9 +1601,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                   ? 'PROCESSING ORDER...'
                   : canPlaceOrder
                       ? 'PLACE ORDER'
-                      : _session.hasCompletedTopup
-                          ? 'TOP UP WALLET (+${_formatTokenCount(shortfall)})'
-                          : 'TOP UP TO UNLOCK ORDERING',
+                      : 'TOP UP WALLET (+${_formatTokenCount(shortfall)})',
               style: const TextStyle(
                 fontFamily: 'Afacad',
                 fontSize: 18,

@@ -308,14 +308,14 @@ export async function registerOperationalIntegrationRoutes(app: FastifyInstance)
       mysqlPool.query<RowDataPacket[]>(
         `SELECT s.barista_id, b.name AS barista_name, s.weekday, s.starts_at, s.ends_at, s.created_at
          FROM barista_weekly_schedules s JOIN baristas b ON b.id = s.barista_id
-         WHERE s.tenant_code = :tenantCode AND s.is_active = 1
+         WHERE s.tenant_code = :tenantCode AND s.is_active = 1 AND b.is_active = 1
            AND (:baristaId IS NULL OR s.barista_id = :baristaId)`,
         { tenantCode: request.adminAuth.tenantCode, baristaId: query.barista_id ?? null }
       ),
       mysqlPool.query<RowDataPacket[]>(
         `SELECT s.barista_id, b.name AS barista_name, DATE_FORMAT(s.shift_date, '%Y-%m-%d') AS shift_date, s.starts_at, s.ends_at
          FROM barista_dated_shifts s JOIN baristas b ON b.id = s.barista_id
-         WHERE s.tenant_code = :tenantCode
+         WHERE s.tenant_code = :tenantCode AND b.is_active = 1
            AND s.shift_date BETWEEN DATE_SUB(:from, INTERVAL 1 DAY) AND :to
            AND (:baristaId IS NULL OR s.barista_id = :baristaId)`,
         { tenantCode: request.adminAuth.tenantCode, from, to, baristaId: query.barista_id ?? null }
@@ -430,7 +430,7 @@ export async function registerOperationalIntegrationRoutes(app: FastifyInstance)
         `SELECT s.id, s.barista_id, b.name AS barista_name, s.weekday, s.starts_at, s.ends_at, s.is_active
          FROM barista_weekly_schedules s
          JOIN baristas b ON b.id = s.barista_id
-         WHERE s.tenant_code = :tenantCode AND s.is_active = 1
+         WHERE s.tenant_code = :tenantCode AND s.is_active = 1 AND b.is_active = 1
          ORDER BY s.weekday ASC, s.starts_at ASC, b.name ASC`,
         { tenantCode: request.adminAuth.tenantCode }
       ),
@@ -438,7 +438,7 @@ export async function registerOperationalIntegrationRoutes(app: FastifyInstance)
         `SELECT s.id, s.barista_id, b.name AS barista_name, DATE_FORMAT(s.shift_date, '%Y-%m-%d') AS shift_date, s.starts_at, s.ends_at
          FROM barista_dated_shifts s
          JOIN baristas b ON b.id = s.barista_id
-         WHERE s.tenant_code = :tenantCode
+         WHERE s.tenant_code = :tenantCode AND b.is_active = 1
            AND s.shift_date BETWEEN :from AND :to
          ORDER BY s.shift_date ASC, s.starts_at ASC, b.name ASC`,
         { tenantCode: request.adminAuth.tenantCode, from, to }
@@ -747,7 +747,7 @@ export async function registerOperationalIntegrationRoutes(app: FastifyInstance)
         `SELECT s.weekday, s.starts_at, s.ends_at, b.id AS barista_id, b.name AS barista_name
        FROM barista_weekly_schedules s
        JOIN baristas b ON b.id = s.barista_id
-       WHERE s.tenant_code = :tenantCode AND s.is_active = 1
+       WHERE s.tenant_code = :tenantCode AND s.is_active = 1 AND b.is_active = 1
          AND (
            :isBaristaOnly = 0
            OR s.store_id IS NULL
@@ -760,7 +760,7 @@ export async function registerOperationalIntegrationRoutes(app: FastifyInstance)
         `SELECT DATE_FORMAT(s.shift_date, '%Y-%m-%d') AS shift_date, s.starts_at, s.ends_at, b.id AS barista_id, b.name AS barista_name
          FROM barista_dated_shifts s
          JOIN baristas b ON b.id = s.barista_id
-         WHERE s.tenant_code = :tenantCode AND s.shift_date BETWEEN :from AND :to
+         WHERE s.tenant_code = :tenantCode AND b.is_active = 1 AND s.shift_date BETWEEN :from AND :to
            AND (
              :isBaristaOnly = 0
              OR s.store_id IS NULL
@@ -812,7 +812,7 @@ export async function registerOperationalIntegrationRoutes(app: FastifyInstance)
                 s.starts_at, s.ends_at, b.id AS barista_id, b.name AS barista_name
          FROM barista_dated_shifts s
          JOIN baristas b ON b.id = s.barista_id
-         WHERE s.tenant_code = :tenantCode AND s.shift_date BETWEEN :from AND :to
+         WHERE s.tenant_code = :tenantCode AND b.is_active = 1 AND s.shift_date BETWEEN :from AND :to
            AND (
              :isBaristaOnly = 0
              OR s.store_id IS NULL

@@ -148,6 +148,14 @@ const bannerUpdateSchema = z.object({
   isActive: z.coerce.boolean().optional(),
 });
 
+const bannerReorderSchema = z.object({
+  bannerIds: z.array(z.coerce.number().int().positive()).min(1).max(500),
+});
+const bannerSurfaceReorderSchema = z.object({
+  surface: z.enum(["home", "floating", "partnership"]),
+  bannerIds: z.array(z.coerce.number().int().positive()).min(1).max(500),
+});
+
 type BannerRow = RowDataPacket & {
   id: number;
   code: string;
@@ -169,6 +177,9 @@ type BannerRow = RowDataPacket & {
   ends_at: Date | string | null;
   placement: "home" | "profile" | "both";
   sort_order: number;
+  home_sort_order: number;
+  floating_sort_order: number;
+  partnership_sort_order: number;
   floating_priority: number;
   is_active: number;
   created_at: Date | string;
@@ -225,6 +236,12 @@ function supportsHomeBannerFloatingPriority(columns: Set<string>): boolean {
   return columns.has("floating_priority");
 }
 
+function supportsHomeBannerSurfaceOrders(columns: Set<string>): boolean {
+  return ["home_sort_order", "floating_sort_order", "partnership_sort_order"].every(
+    (column) => columns.has(column),
+  );
+}
+
 function supportsHomeBannerMedia(columns: Set<string>): boolean {
   return columns.has("media_type") && columns.has("animation_duration_ms");
 }
@@ -259,7 +276,10 @@ function buildHomeBannerSelectClause(columns: Set<string>): string {
       "hb.banner_type",
       "hb.destination_type",
       "hb.secondary_destination_type",
-      "hb.target_value",
+      `CASE
+        WHEN hb.banner_type = 'voucher' AND vt.code IS NOT NULL THEN vt.code
+        ELSE hb.target_value
+      END AS target_value`,
       "hb.starts_at",
       "hb.ends_at",
     );
@@ -295,6 +315,15 @@ function buildHomeBannerSelectClause(columns: Set<string>): string {
   selects.push(
     "hb.placement",
     "hb.sort_order",
+    columns.has("home_sort_order")
+      ? "hb.home_sort_order"
+      : "hb.sort_order AS home_sort_order",
+    columns.has("floating_sort_order")
+      ? "hb.floating_sort_order"
+      : "hb.sort_order AS floating_sort_order",
+    columns.has("partnership_sort_order")
+      ? "hb.partnership_sort_order"
+      : "hb.sort_order AS partnership_sort_order",
     supportsHomeBannerFloatingPriority(columns)
       ? "hb.floating_priority"
       : "0 AS floating_priority",
@@ -327,7 +356,8 @@ function buildHomeBannerJoinClause(columns: Set<string>): string {
      AND mi.code = hb.target_value
     LEFT JOIN voucher_templates vt
       ON hb.banner_type = 'voucher'
-     AND vt.code = hb.target_value
+     AND (vt.code = hb.target_value OR CAST(vt.id AS CHAR) = hb.target_value)
+     AND vt.tenant_id = hb.tenant_id
   `;
 }
 
@@ -410,6 +440,11 @@ function buildHomeBannerInsertParts(columns: Set<string>): {
     "UTC_TIMESTAMP()",
     "UTC_TIMESTAMP()",
   );
+
+  if (supportsHomeBannerSurfaceOrders(columns)) {
+    insertColumns.splice(-3, 0, "home_sort_order", "floating_sort_order", "partnership_sort_order");
+    insertValues.splice(-3, 0, ":homeSortOrder", ":floatingSortOrder", ":partnershipSortOrder");
+  }
 
   return {
     columns: insertColumns,
@@ -689,14 +724,14 @@ function validatePartnerAction(
     throw new ApiError(
       400,
       "missing_partner_name",
-      "Partner Spotlight requires a partner or business name.",
+      "Partnership requires a partner or business name.",
     );
   }
   if (input.actionType === "none") {
     throw new ApiError(
       400,
       "missing_partner_action",
-      "Partner Spotlight requires a website or email action.",
+      "Partnership requires a website or email action.",
     );
   }
   if (!input.actionValue) {
@@ -733,6 +768,27 @@ function validatePartnerAction(
       400,
       "invalid_partner_email",
       "Enter a valid partner email address.",
+    );
+  }
+}
+
+async function assertVoucherTargetExists(
+  tenantId: number,
+  targetValue: string,
+): Promise<void> {
+  const [rows] = await mysqlPool.query<Array<RowDataPacket & { id: number }>>(
+    `SELECT id
+       FROM voucher_templates
+      WHERE tenant_id = :tenantId
+        AND (code = :targetValue OR CAST(id AS CHAR) = :targetValue)
+      LIMIT 1`,
+    { tenantId, targetValue },
+  );
+  if (!rows[0]) {
+    throw new ApiError(
+      400,
+      "invalid_voucher_target",
+      "Select a voucher that belongs to the active tenant.",
     );
   }
 }
@@ -1289,7 +1345,7 @@ export async function registerAdminMarketingRoutes(
         FROM home_banners hb
         ${joinClause}
         WHERE hb.tenant_id = :tenantId
-        ORDER BY hb.floating_priority DESC, hb.sort_order ASC, hb.id ASC
+        ORDER BY hb.sort_order ASC, hb.id ASC
       `,
         { tenantId: request.adminAuth.tenantId },
       );
@@ -1361,6 +1417,9 @@ export async function registerAdminMarketingRoutes(
               : "",
           placement: row.placement,
           sortOrder: row.sort_order,
+          homeSortOrder: row.home_sort_order,
+          floatingSortOrder: row.floating_sort_order,
+          partnershipSortOrder: row.partnership_sort_order,
           floatingPriority: row.floating_priority === 1,
           status: formatBannerStatus(row),
           isActive: row.is_active === 1,
@@ -1444,7 +1503,7 @@ export async function registerAdminMarketingRoutes(
         throw new ApiError(
           412,
           "partner_campaign_unavailable",
-          "Run the latest database migration before creating Partner Spotlight campaigns.",
+          "Run the latest database migration before creating Partnership campaigns.",
         );
       }
 
@@ -1478,6 +1537,12 @@ export async function registerAdminMarketingRoutes(
           400,
           "missing_target",
           "Target value is required for this poster type.",
+        );
+      }
+      if (payload.bannerType === "voucher" && normalized.targetValue) {
+        await assertVoucherTargetExists(
+          request.adminAuth.tenantId,
+          normalized.targetValue,
         );
       }
 
@@ -1543,6 +1608,15 @@ export async function registerAdminMarketingRoutes(
           endsAt: normalized.endsAt,
           placement: normalized.placement,
           sortOrder,
+          homeSortOrder:
+            normalized.bannerType === "partner"
+              ? 0
+              : sortOrder,
+          floatingSortOrder: normalized.floatingPriority ? sortOrder : 0,
+          partnershipSortOrder:
+            normalized.bannerType === "partner"
+              ? sortOrder
+              : 0,
           floatingPriority: normalized.floatingPriority ? 1 : 0,
           isActive: normalized.isActive ? 1 : 0,
         },
@@ -1609,6 +1683,9 @@ export async function registerAdminMarketingRoutes(
             : null,
           placement: created.placement,
           sortOrder: created.sort_order,
+          homeSortOrder: created.home_sort_order,
+          floatingSortOrder: created.floating_sort_order,
+          partnershipSortOrder: created.partnership_sort_order,
           floatingPriority: created.floating_priority === 1,
           status: formatBannerStatus(created),
           isActive: created.is_active === 1,
@@ -1625,6 +1702,127 @@ export async function registerAdminMarketingRoutes(
         },
         notification,
       };
+    },
+  );
+
+  app.post(
+    "/v1/admin/marketing/banners/reorder",
+    { preHandler: authenticateAdminRequest },
+    async (request) => {
+      requireMarketingAccess(request);
+      const payload = bannerReorderSchema.parse(request.body);
+      const bannerIds = [...new Set(payload.bannerIds)];
+
+      if (bannerIds.length !== payload.bannerIds.length) {
+        throw new ApiError(400, "duplicate_banner_ids", "Each poster may appear only once in the new order.");
+      }
+
+      const [rows] = await mysqlPool.query<Array<RowDataPacket & { id: number }>>(
+        `SELECT id FROM home_banners WHERE tenant_id = :tenantId`,
+        { tenantId: request.adminAuth.tenantId },
+      );
+      const tenantBannerIds = new Set(rows.map((row) => Number(row.id)));
+      if (bannerIds.some((id) => !tenantBannerIds.has(id)) || bannerIds.length !== tenantBannerIds.size) {
+        throw new ApiError(400, "invalid_banner_order", "Refresh the poster list and try ordering again.");
+      }
+
+      const connection = await mysqlPool.getConnection();
+      try {
+        await connection.beginTransaction();
+        for (const [index, bannerId] of bannerIds.entries()) {
+          await connection.execute(
+            `UPDATE home_banners
+             SET sort_order = :sortOrder, updated_at = UTC_TIMESTAMP()
+             WHERE id = :bannerId AND tenant_id = :tenantId`,
+            {
+              sortOrder: (index + 1) * 10,
+              bannerId,
+              tenantId: request.adminAuth.tenantId,
+            },
+          );
+        }
+        await connection.commit();
+      } catch (error) {
+        await connection.rollback();
+        throw error;
+      } finally {
+        connection.release();
+      }
+
+      return { success: true };
+    },
+  );
+
+  app.post(
+    "/v1/admin/marketing/banners/reorder-surface",
+    { preHandler: authenticateAdminRequest },
+    async (request) => {
+      requireMarketingAccess(request);
+      const payload = bannerSurfaceReorderSchema.parse(request.body);
+      const columns = await getHomeBannerColumns();
+      if (!supportsHomeBannerSurfaceOrders(columns)) {
+        throw new ApiError(
+          412,
+          "poster_surface_order_unavailable",
+          "Run the latest database migration before arranging poster displays.",
+        );
+      }
+
+      const orderColumn = {
+        home: "home_sort_order",
+        floating: "floating_sort_order",
+        partnership: "partnership_sort_order",
+      }[payload.surface];
+      const filter = {
+        home: "banner_type <> 'partner' AND placement IN ('home', 'both')",
+        floating: "floating_priority = 1",
+        partnership: "banner_type = 'partner'",
+      }[payload.surface];
+      const bannerIds = [...new Set(payload.bannerIds)];
+      if (bannerIds.length !== payload.bannerIds.length) {
+        throw new ApiError(400, "duplicate_banner_ids", "Each poster may appear only once in the new order.");
+      }
+
+      const [rows] = await mysqlPool.query<Array<RowDataPacket & { id: number }>>(
+        `SELECT id FROM home_banners WHERE tenant_id = :tenantId AND ${filter}`,
+        { tenantId: request.adminAuth.tenantId },
+      );
+      const expectedIds = new Set(rows.map((row) => Number(row.id)));
+      if (
+        bannerIds.length !== expectedIds.size ||
+        bannerIds.some((id) => !expectedIds.has(id))
+      ) {
+        throw new ApiError(
+          400,
+          "invalid_banner_surface_order",
+          "Refresh the poster list and try arranging this display again.",
+        );
+      }
+
+      const connection = await mysqlPool.getConnection();
+      try {
+        await connection.beginTransaction();
+        for (const [index, bannerId] of bannerIds.entries()) {
+          await connection.execute(
+            `UPDATE home_banners
+             SET ${orderColumn} = :sortOrder, updated_at = UTC_TIMESTAMP()
+             WHERE id = :bannerId AND tenant_id = :tenantId`,
+            {
+              sortOrder: (index + 1) * 10,
+              bannerId,
+              tenantId: request.adminAuth.tenantId,
+            },
+          );
+        }
+        await connection.commit();
+      } catch (error) {
+        await connection.rollback();
+        throw error;
+      } finally {
+        connection.release();
+      }
+
+      return { success: true, surface: payload.surface };
     },
   );
 
@@ -1695,7 +1893,7 @@ export async function registerAdminMarketingRoutes(
         throw new ApiError(
           412,
           "partner_campaign_unavailable",
-          "Run the latest database migration before editing Partner Spotlight campaigns.",
+          "Run the latest database migration before editing Partnership campaigns.",
         );
       }
 
@@ -1747,6 +1945,28 @@ export async function registerAdminMarketingRoutes(
       );
       if (!existingRows[0]) {
         throw new ApiError(404, "banner_not_found", "Poster was not found.");
+      }
+      const effectiveBannerType =
+        payload.bannerType ?? existingRows[0].banner_type;
+      const submittedTargetValue =
+        payload.targetValue === undefined
+          ? null
+          : String(payload.targetValue).trim();
+      if (
+        effectiveBannerType === "voucher" &&
+        payload.targetValue !== undefined
+      ) {
+        if (!submittedTargetValue) {
+          throw new ApiError(
+            400,
+            "missing_target",
+            "Target value is required for this poster type.",
+          );
+        }
+        await assertVoucherTargetExists(
+          request.adminAuth.tenantId,
+          submittedTargetValue,
+        );
       }
 
       const updateFields: string[] = [];
@@ -1852,7 +2072,12 @@ export async function registerAdminMarketingRoutes(
         if (supportsTargeting) {
           updateFields.push("target_value = :targetValue");
         }
-        params.targetValue = normalized.targetValue;
+        params.targetValue =
+          payload.bannerType === undefined &&
+          (effectiveBannerType === "voucher" ||
+            effectiveBannerType === "new_item")
+            ? submittedTargetValue
+            : normalized.targetValue;
       }
       if (
         payload.startsAt !== undefined ||

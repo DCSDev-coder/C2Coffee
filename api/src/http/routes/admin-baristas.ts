@@ -98,21 +98,43 @@ export async function registerAdminBaristasRoutes(app: FastifyInstance) {
     const admin = request.adminAuth;
     const { id } = request.params as { id: string };
 
-    const [history] = await mysqlPool.query<RowDataPacket[]>(
-      'SELECT id FROM barista_attendance WHERE barista_id = ? LIMIT 1', [id]
-    );
-    if (history.length) throw new ApiError(409, 'barista_history_exists', 'This barista has attendance history. Set the profile inactive instead.');
+    // Baristas are archived rather than hard-deleted. Attendance, audit, and
+    // order history must remain referentially intact, while access and future
+    // roster assignments are removed immediately.
+    const connection = await mysqlPool.getConnection();
+    try {
+      await connection.beginTransaction();
 
-    const [result] = await mysqlPool.query<ResultSetHeader>(
-      'DELETE FROM baristas WHERE id = ? AND tenant_code = ?',
-      [id, admin.tenantCode]
-    );
+      const [rows] = await connection.query<RowDataPacket[]>(
+        'SELECT id FROM baristas WHERE id = ? AND tenant_code = ? FOR UPDATE',
+        [id, admin.tenantCode]
+      );
+      if (!rows.length) {
+        await connection.rollback();
+        return reply.code(404).send({ error: 'Barista not found' });
+      }
 
-    if (result.affectedRows === 0) {
-      return reply.code(404).send({ error: 'Barista not found' });
+      await connection.query<ResultSetHeader>(
+        'UPDATE baristas SET is_active = 0 WHERE id = ? AND tenant_code = ?',
+        [id, admin.tenantCode]
+      );
+      await connection.query<ResultSetHeader>(
+        'UPDATE barista_weekly_schedules SET is_active = 0 WHERE barista_id = ? AND tenant_code = ?',
+        [id, admin.tenantCode]
+      );
+      await connection.query<ResultSetHeader>(
+        'DELETE FROM barista_dated_shifts WHERE barista_id = ? AND tenant_code = ? AND shift_date >= UTC_DATE()',
+        [id, admin.tenantCode]
+      );
+
+      await connection.commit();
+      return reply.code(204).send();
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
     }
-
-    return reply.code(204).send();
   });
 
   app.put('/v1/admin/baristas/set-active-by-name', { preHandler: authenticateAdminRequest }, async (request, reply) => {

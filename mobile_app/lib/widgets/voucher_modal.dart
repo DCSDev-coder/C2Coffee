@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
-import '../services/app_session_service.dart';
 import '../services/cart_service.dart';
 import '../services/customer_data_service.dart';
 import '../services/secure_session_service.dart';
 import '../utils/app_colors.dart';
-import '../screens/top_up_wallet_page.dart';
 
 class VoucherModal {
   static Future<void> show(
@@ -94,13 +92,6 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
   Future<void> _claimAndApplyTierReward(
     TierRewardEntitlement reward,
   ) async {
-    if (!AppSessionService.instance.hasCompletedTopup) {
-      setState(() {
-        _error =
-            'Complete one successful token top-up to unlock voucher redemption.';
-      });
-      return;
-    }
     if (_claimingTierRewardIds.contains(reward.id)) return;
     setState(() {
       _claimingTierRewardIds.add(reward.id);
@@ -284,7 +275,6 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
       if (snapshot == null) return true;
       return v.template.matchesCartSnapshot(snapshot);
     }).toList();
-    final hasCompletedTopup = AppSessionService.instance.hasCompletedTopup;
     final nonTokenCheckoutVouchers =
         _vouchers.where((v) => !tokenCheckoutVouchers.contains(v)).toList();
     final claimableTierRewards = _claimableTierRewards.where((reward) {
@@ -311,7 +301,6 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (!hasCompletedTopup) _buildTopupRequiredNotice(),
             _buildNoticeCard(
               title: 'No vouchers can be applied right now',
               message:
@@ -373,18 +362,15 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
             const SizedBox(height: 12),
           ],
           if (claimableTierRewards.isNotEmpty) ...[
-            if (!hasCompletedTopup) _buildTopupRequiredNotice(),
             _buildClaimableTierRewardSection(claimableTierRewards),
             const SizedBox(height: 14),
           ],
           if (tokenCheckoutVouchers.isNotEmpty)
             _buildVoucherSection(
               title: 'Available now',
-              subtitle: hasCompletedTopup
-                  ? 'These vouchers can be applied to the current order.'
-                  : 'Top up once to unlock voucher redemption.',
+              subtitle: 'These vouchers can be applied to the current order.',
               vouchers: tokenCheckoutVouchers,
-              enabled: hasCompletedTopup,
+              enabled: true,
             ),
           if (nonTokenCheckoutVouchers.isNotEmpty) ...[
             const SizedBox(height: 14),
@@ -542,9 +528,7 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
   }) {
     final isSelected = widget.selectedVoucherId == voucher.id;
     final isExpanded = _expandedVoucherIds.contains(voucher.id);
-    final hasCompletedTopup = AppSessionService.instance.hasCompletedTopup;
-    final canApply =
-        enabled && hasCompletedTopup && voucher.isTokenCheckoutEligible;
+    final canApply = enabled && voucher.isTokenCheckoutEligible;
     final isApplied = isSelected && canApply;
     final tileBackground =
         isApplied ? Colors.grey.shade100 : AppColors.surfaceLight;
@@ -663,7 +647,10 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
                             'Min spend RM ${voucher.template.minSpendRm}',
                           ),
                         _detailText(
-                          'Applies to: ${voucher.template.eligibilityLabel}',
+                          'How to use: ${voucher.template.usageInstructions}',
+                        ),
+                        _detailText(
+                          'Checkout: Automatically available when eligible.',
                         ),
                         _detailText(
                           'Availability: ${voucher.template.availabilityLabel}',
@@ -696,68 +683,13 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
             child: Text(
               canApply
                   ? (isApplied ? 'Applied' : 'Apply')
-                  : hasCompletedTopup
-                      ? 'Unavailable'
-                      : 'Top up to unlock',
+                  : 'Unavailable',
               style: TextStyle(
                 fontFamily: 'Afacad',
                 fontWeight: FontWeight.bold,
                 fontSize: 15,
                 color: isApplied ? Colors.white : Colors.white,
               ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTopupRequiredNotice() {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFE8F5F2),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.deepTeal.withValues(alpha: 0.25)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(Icons.lock_outline_rounded, color: AppColors.deepTeal),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Top up once to unlock vouchers',
-                  style: TextStyle(
-                    fontFamily: 'Afacad',
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.deepTeal,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                const Text(
-                  'Your account will remain unlocked after your first successful top-up.',
-                  style: TextStyle(fontFamily: 'Afacad', color: Colors.black54),
-                ),
-                const SizedBox(height: 8),
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const TopUpWalletPage(),
-                      ),
-                    );
-                  },
-                  child: const Text('Open wallet'),
-                ),
-              ],
             ),
           ),
         ],

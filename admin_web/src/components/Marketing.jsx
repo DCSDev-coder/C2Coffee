@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   AlertCircle,
+  ArrowDown,
+  ArrowUp,
   ChevronDown,
   Bell,
   MessageSquare,
@@ -26,6 +28,7 @@ import {
   notifyAdminMarketingBanner,
   sendAdminCustomerMessage,
   updateAdminMarketingBanner,
+  reorderAdminMarketingBannerSurface,
   uploadAdminMarketingPoster,
 } from "../lib/adminApi";
 
@@ -57,7 +60,7 @@ const bannerTypeOptions = [
   { value: "voucher", label: "Voucher poster" },
   { value: "event", label: "Event poster" },
   { value: "new_item", label: "New item poster" },
-  { value: "partner", label: "Partner Spotlight" },
+  { value: "partner", label: "Partnership" },
 ];
 
 const destinationLabelMap = {
@@ -202,6 +205,8 @@ const Marketing = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [notifyingBannerId, setNotifyingBannerId] = useState(null);
+  const [reorderingBannerId, setReorderingBannerId] = useState(null);
+  const [arrangeSurface, setArrangeSurface] = useState(null);
   const [sendingCustomerMessage, setSendingCustomerMessage] = useState(false);
   const [customerMessage, setCustomerMessage] = useState({ title: "", body: "" });
   const [customerMessageRetrySeconds, setCustomerMessageRetrySeconds] = useState(0);
@@ -321,6 +326,55 @@ const Marketing = () => {
     (currentPage - 1) * ITEMS_PER_PAGE,
     currentPage * ITEMS_PER_PAGE,
   );
+
+  const arrangeRows = useMemo(() => {
+    if (!arrangeSurface) return [];
+    const rows = banners.filter((banner) => {
+      if (arrangeSurface === "partnership") return banner.bannerType === "partner";
+      if (arrangeSurface === "floating") {
+        return banner.bannerType !== "partner" && banner.floatingPriority;
+      }
+      return (
+        banner.bannerType !== "partner" &&
+        ["home", "both"].includes(banner.placement || "both")
+      );
+    });
+    const orderKey = arrangeSurface === "floating"
+      ? "floatingSortOrder"
+      : arrangeSurface === "partnership"
+        ? "partnershipSortOrder"
+        : "homeSortOrder";
+    return rows.sort((first, second) => {
+      const order = Number(first[orderKey] ?? first.sortOrder ?? 0) -
+        Number(second[orderKey] ?? second.sortOrder ?? 0);
+      return order || Number(first.id) - Number(second.id);
+    });
+  }, [arrangeSurface, banners]);
+
+  const moveSurfaceBanner = async (banner, direction) => {
+    const index = arrangeRows.findIndex((item) => item.id === banner.id);
+    const nextIndex = index + direction;
+    if (index < 0 || nextIndex < 0 || nextIndex >= arrangeRows.length) return;
+
+    const nextOrder = [...arrangeRows];
+    [nextOrder[index], nextOrder[nextIndex]] = [nextOrder[nextIndex], nextOrder[index]];
+
+    try {
+      setReorderingBannerId(banner.id);
+      setError("");
+      await reorderAdminMarketingBannerSurface(
+        arrangeSurface,
+        nextOrder.map((item) => item.id),
+      );
+      await loadPageData();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unable to arrange posters.";
+      setError(msg);
+      showAdminError(msg);
+    } finally {
+      setReorderingBannerId(null);
+    }
+  };
 
   const openCreateModal = () => {
     setEditingBanner(null);
@@ -678,11 +732,18 @@ const Marketing = () => {
             <p className="text-xs text-gray-400">
               Voucher posters route to rewards or menu, events switch from
               calendar to menu, new-item posters deep-link to a product, and
-              Partner Spotlight supports safe website or email actions.
+              Partnership posters support safe website or email actions.
             </p>
           </div>
 
           <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => setArrangeSurface("home")}
+              className="flex items-center gap-1.5 px-4 py-2 bg-white border border-[#1F3A34] text-[#1F3A34] text-sm font-semibold rounded-lg hover:bg-[#F5FBF9] transition-colors cursor-pointer shadow-sm"
+            >
+              Arrange display
+            </button>
             <button
               type="button"
               onClick={() => void loadPageData()}
@@ -822,6 +883,9 @@ const Marketing = () => {
                 />
               </div>
             </div>
+          </div>
+          <div className="border-b border-gray-100 bg-[#F5FBF9] px-5 py-2.5 text-xs text-[#2E5E58]">
+            Use Arrange display to control Home, Floating, and Partnership order separately.
           </div>
 
           <div className="overflow-x-auto flex-1">
@@ -1010,6 +1074,108 @@ const Marketing = () => {
         </div>
       </div>
 
+      {arrangeSurface &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-slate-900/35 backdrop-blur-md">
+            <div className="w-full max-w-2xl max-h-[85vh] overflow-hidden rounded-2xl bg-white shadow-2xl border border-gray-100 flex flex-col">
+              <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900">Arrange poster display</h2>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Choose a surface, then use the arrows that appear when you hover over a poster.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setArrangeSurface(null)}
+                  className="rounded-xl p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                  aria-label="Close arrange poster display"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="flex gap-2 border-b border-gray-100 px-6 py-3">
+                {[
+                  ["home", "Home"],
+                  ["floating", "Floating"],
+                  ["partnership", "Partnership"],
+                ].map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setArrangeSurface(value)}
+                    className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${arrangeSurface === value ? "bg-[#1F3A34] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div className="overflow-y-auto p-6">
+                {arrangeRows.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-8 text-center text-sm text-gray-500">
+                    {arrangeSurface === "floating"
+                      ? "No posters are enabled as floating banners. Enable Floating banner in Edit Poster first."
+                      : arrangeSurface === "partnership"
+                        ? "No Partnership posters are configured yet."
+                        : "No posters are configured for Home."}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {arrangeRows.map((banner, index) => (
+                      <div
+                        key={banner.id}
+                        className="group flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-3 py-2.5 hover:border-[#B7D6CC] hover:bg-[#F8FCFA]"
+                      >
+                        <span className="w-6 text-center text-sm font-bold text-[#1F3A34]">{index + 1}</span>
+                        <img
+                          src={resolveImageUrl(banner.imageSource)}
+                          alt=""
+                          className="h-12 w-12 shrink-0 rounded-lg object-cover border border-gray-200"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold text-gray-900">{banner.title}</p>
+                          <p className="truncate text-xs text-gray-500">{bannerTypeLabel(banner.bannerType)}</p>
+                        </div>
+                        <div className="flex flex-col gap-1 opacity-40 transition-opacity group-hover:opacity-100">
+                          <button
+                            type="button"
+                            onClick={() => void moveSurfaceBanner(banner, -1)}
+                            disabled={Boolean(reorderingBannerId) || index === 0}
+                            aria-label={`Move ${banner.title} up in ${arrangeSurface} order`}
+                            className="inline-flex h-7 w-8 items-center justify-center rounded border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-30"
+                          >
+                            <ArrowUp size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void moveSurfaceBanner(banner, 1)}
+                            disabled={Boolean(reorderingBannerId) || index === arrangeRows.length - 1}
+                            aria-label={`Move ${banner.title} down in ${arrangeSurface} order`}
+                            className="inline-flex h-7 w-8 items-center justify-center rounded border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-30"
+                          >
+                            <ArrowDown size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="border-t border-gray-100 px-6 py-4 text-right">
+                <button
+                  type="button"
+                  onClick={() => setArrangeSurface(null)}
+                  className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+
       {isModalOpen &&
         typeof document !== "undefined" &&
         createPortal(
@@ -1141,7 +1307,7 @@ const Marketing = () => {
                       </div>
                       {formData.bannerType === "partner" && (
                         <p className="mt-1 text-xs text-gray-500">
-                          Partner Spotlight appears in its dedicated Home
+                          Partnership appears in its dedicated Home
                           section.
                         </p>
                       )}
@@ -1315,8 +1481,11 @@ const Marketing = () => {
                             >
                               <option value="">Select a voucher</option>
                               {voucherTemplates.map((voucher) => (
-                                <option key={voucher.id} value={voucher.id}>
-                                  {voucher.name} · {voucher.id}
+                                <option
+                                  key={voucher.id}
+                                  value={voucher.code || String(voucher.id)}
+                                >
+                                  {voucher.name} · {voucher.code || `ID ${voucher.id}`}
                                 </option>
                               ))}
                             </select>

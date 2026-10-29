@@ -9,8 +9,9 @@ import 'catalog_product_image.dart';
 class PosterPopup extends StatefulWidget {
   final HomeBanner? banner;
   final VoidCallback? onClose;
+  final VoidCallback? onTap;
 
-  const PosterPopup({super.key, this.banner, this.onClose});
+  const PosterPopup({super.key, this.banner, this.onClose, this.onTap});
 
   @override
   State<PosterPopup> createState() => _PosterPopupState();
@@ -140,7 +141,14 @@ class _PosterPopupState extends State<PosterPopup>
                               child: Stack(
                                 fit: StackFit.expand,
                                 children: [
-                                  _buildPosterImage(banner),
+                                  GestureDetector(
+                                    behavior: HitTestBehavior.opaque,
+                                    onTap: widget.onTap == null
+                                        ? null
+                                        : () => _closePopup(
+                                            afterClose: widget.onTap),
+                                    child: _buildPosterImage(banner),
+                                  ),
                                   Positioned(
                                     left: 14,
                                     bottom: 14,
@@ -314,11 +322,12 @@ class _PosterPopupState extends State<PosterPopup>
     );
   }
 
-  void _closePopup() {
+  void _closePopup({VoidCallback? afterClose}) {
     _animationController.reverse().then((_) {
       if (mounted) {
         Navigator.of(context).pop();
         widget.onClose?.call();
+        afterClose?.call();
       }
     });
   }
@@ -337,7 +346,7 @@ Future<bool> _waitUntilOwningRouteIsCurrent(BuildContext context) async {
 // Waiting for the owning page route prevents a poster from covering a payment
 // maintenance notice, tutorial, or another decision that requires user input.
 Future<void> showPosterPopup(BuildContext context,
-    {HomeBanner? banner, VoidCallback? onClose}) async {
+    {HomeBanner? banner, VoidCallback? onClose, VoidCallback? onTap}) async {
   if (banner == null) {
     onClose?.call();
     return;
@@ -367,6 +376,10 @@ Future<void> showPosterPopup(BuildContext context,
     barrierDismissible: false,
     barrierColor: Colors.transparent,
     useSafeArea: false,
-    builder: (context) => PosterPopup(banner: banner, onClose: onClose),
+    builder: (context) => PosterPopup(
+      banner: banner,
+      onClose: onClose,
+      onTap: onTap,
+    ),
   );
 }

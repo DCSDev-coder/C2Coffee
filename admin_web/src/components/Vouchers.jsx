@@ -91,6 +91,7 @@ const createEmptyVoucherForm = () => ({
   type: "Happy Hour",
   benefitType: "Free Drink",
   promotionKind: "standard",
+  topupRewardMinTokens: null,
   status: "Active",
   tier: "All Tiers",
   reward: "",
@@ -108,6 +109,7 @@ const createEmptyVoucherForm = () => ({
   totalQty: 1000,
   limitPerUser: 1,
   description: "",
+  usageInstructions: "",
   imageUrl: null,
   audience: "all_customers",
   availabilityMode: "always",
@@ -151,6 +153,9 @@ const normalizeVoucherForm = (voucher) => ({
       : [],
   qualifyingQuantity: Number(voucher?.qualifyingQuantity) || 1,
   rewardQuantity: Number(voucher?.rewardQuantity) || 1,
+  topupRewardMinTokens: voucher?.topupRewardMinTokens == null || voucher?.topupRewardMinTokens === ''
+    ? null
+    : Number(voucher.topupRewardMinTokens),
   activeDays: Array.isArray(voucher?.activeDays) ? voucher.activeDays : [],
   startTime: voucher?.startTime || "",
   endTime: voucher?.endTime || "",
@@ -792,6 +797,7 @@ const Vouchers = ({ onNavigate }) => {
       type: newVoucher.type,
       benefitType: newVoucher.benefitType,
       promotionKind: newVoucher.promotionKind,
+      topupRewardMinTokens: newVoucher.topupRewardMinTokens === null || newVoucher.topupRewardMinTokens === '' ? null : Number(newVoucher.topupRewardMinTokens),
       status: newVoucher.status,
       tier: 'All Tiers',
       discountValue: Number(newVoucher.discountValue) || 0,
@@ -809,6 +815,7 @@ const Vouchers = ({ onNavigate }) => {
       totalQty: newVoucher.totalQty === null || newVoucher.totalQty === "" ? null : Number(newVoucher.totalQty),
       limitPerUser: Number(newVoucher.limitPerUser) || 1,
       description: newVoucher.description || `Redeem ${newVoucher.name}`,
+      usageInstructions: newVoucher.usageInstructions || "",
       imageUrl: newVoucher.imageUrl || null,
       audience: newVoucher.audience,
       availabilityMode: newVoucher.availabilityMode,
@@ -842,6 +849,7 @@ const Vouchers = ({ onNavigate }) => {
         type: editingVoucher.type,
         benefitType: editingVoucher.benefitType,
         promotionKind: editingVoucher.promotionKind,
+        topupRewardMinTokens: editingVoucher.topupRewardMinTokens === null || editingVoucher.topupRewardMinTokens === '' ? null : Number(editingVoucher.topupRewardMinTokens),
         status: editingVoucher.status,
         tier: 'All Tiers',
         discountValue: Number(editingVoucher.discountValue) || 0,
@@ -859,6 +867,7 @@ const Vouchers = ({ onNavigate }) => {
         totalQty: editingVoucher.totalQty === null || editingVoucher.totalQty === "" ? null : Number(editingVoucher.totalQty),
         limitPerUser: Number(editingVoucher.limitPerUser) || 1,
         description: editingVoucher.description,
+        usageInstructions: editingVoucher.usageInstructions || "",
         imageUrl: editingVoucher.imageUrl || null,
         audience: editingVoucher.audience,
         availabilityMode: editingVoucher.availabilityMode,
@@ -968,6 +977,7 @@ const Vouchers = ({ onNavigate }) => {
         totalQty: Number(voucher.totalQty) || 1000,
         limitPerUser: Number(voucher.limitPerUser) || 1,
         description: voucher.description,
+        usageInstructions: voucher.usageInstructions || "",
         audience: voucher.audience || 'all_customers',
         availabilityMode: voucher.availabilityMode || 'always',
         activeDays: voucher.activeDays || [],
@@ -1823,6 +1833,37 @@ const Vouchers = ({ onNavigate }) => {
                     </div>
                   </div>
 
+                  <div className="rounded-xl border border-[#B8DDD5] bg-[#F2FBF8] p-3">
+                    <label className="flex items-start gap-2 text-sm font-bold text-gray-900">
+                      <input
+                        type="checkbox"
+                        checked={newVoucher.topupRewardMinTokens != null}
+                        onChange={(e) => setNewVoucher({
+                          ...newVoucher,
+                          topupRewardMinTokens: e.target.checked ? 1 : null
+                        })}
+                        className="mt-1 h-4 w-4 accent-[#2E5E58]"
+                      />
+                      <span>Issue automatically after a qualifying top-up</span>
+                    </label>
+                    <p className="mt-1 text-[11px] leading-relaxed text-gray-600">
+                      The customer receives this voucher once after one successful top-up that meets the token amount below. Earlier top-ups are not rewarded automatically.
+                    </p>
+                    {newVoucher.topupRewardMinTokens != null && (
+                      <div className="mt-3 max-w-xs">
+                        <label className="block text-xs font-bold text-gray-800">Minimum tokens in one top-up</label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="500"
+                          value={newVoucher.topupRewardMinTokens}
+                          onChange={(e) => setNewVoucher({ ...newVoucher, topupRewardMinTokens: e.target.value })}
+                          className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
+                        />
+                      </div>
+                    )}
+                  </div>
+
                   <VoucherFormSection
                     number="2"
                     title="Who can receive it"
@@ -2138,6 +2179,20 @@ const Vouchers = ({ onNavigate }) => {
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
                       ></textarea>
                     </div>
+
+                    <div>
+                      <label className="block font-bold text-gray-900 mb-1">How to use</label>
+                      <p className="text-[10px] text-gray-500 mb-1">
+                        Write the customer-facing redemption steps. This text appears in the app.
+                      </p>
+                      <textarea
+                        rows="3"
+                        placeholder="e.g. Add one eligible drink, then apply this voucher in Checkout."
+                        value={newVoucher.usageInstructions}
+                        onChange={(e) => setNewVoucher({ ...newVoucher, usageInstructions: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
+                      ></textarea>
+                    </div>
                   </div>
 
                   {/* Modal Sticky Footer */}
@@ -2253,6 +2308,37 @@ const Vouchers = ({ onNavigate }) => {
                         ))}
                       </select>
                     </div>
+                  </div>
+
+                  <div className="rounded-xl border border-[#B8DDD5] bg-[#F2FBF8] p-3">
+                    <label className="flex items-start gap-2 text-sm font-bold text-gray-900">
+                      <input
+                        type="checkbox"
+                        checked={editingVoucher.topupRewardMinTokens != null}
+                        onChange={(e) => setEditingVoucher({
+                          ...editingVoucher,
+                          topupRewardMinTokens: e.target.checked ? 1 : null
+                        })}
+                        className="mt-1 h-4 w-4 accent-[#2E5E58]"
+                      />
+                      <span>Issue automatically after a qualifying top-up</span>
+                    </label>
+                    <p className="mt-1 text-[11px] leading-relaxed text-gray-600">
+                      Issues once after one successful top-up that meets this minimum. It does not retrospectively issue vouchers for earlier payments.
+                    </p>
+                    {editingVoucher.topupRewardMinTokens != null && (
+                      <div className="mt-3 max-w-xs">
+                        <label className="block text-xs font-bold text-gray-800">Minimum tokens in one top-up</label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="500"
+                          value={editingVoucher.topupRewardMinTokens}
+                          onChange={(e) => setEditingVoucher({ ...editingVoucher, topupRewardMinTokens: e.target.value })}
+                          className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
+                        />
+                      </div>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
@@ -2581,6 +2667,20 @@ const Vouchers = ({ onNavigate }) => {
                         rows="2"
                         value={editingVoucher.description}
                         onChange={(e) => setEditingVoucher({ ...editingVoucher, description: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
+                      ></textarea>
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-gray-900 mb-1">How to use</label>
+                      <p className="text-[10px] text-gray-500 mb-1">
+                        Write the customer-facing redemption steps. This text appears in the app.
+                      </p>
+                      <textarea
+                        rows="3"
+                        placeholder="e.g. Add one eligible drink, then apply this voucher in Checkout."
+                        value={editingVoucher.usageInstructions || ""}
+                        onChange={(e) => setEditingVoucher({ ...editingVoucher, usageInstructions: e.target.value })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
                       ></textarea>
                     </div>

@@ -25,6 +25,7 @@ const voucherCreateUpdateSchema = z.object({
   type: z.string().trim().min(1).max(100),
   benefitType: voucherBenefitTypeSchema,
   promotionKind: z.enum(['standard', 'bundle']).optional().default('standard'),
+  topupRewardMinTokens: z.coerce.number().int().min(1).max(500).nullable().optional(),
   status: z.enum(['Active', 'Expired', 'Draft']).optional().default('Active'),
   tier: z.string(),
   reward: z.string().trim().max(255).optional(),
@@ -43,6 +44,7 @@ const voucherCreateUpdateSchema = z.object({
   totalQty: z.coerce.number().int().min(1).max(1_000_000).nullable().optional(),
   limitPerUser: z.coerce.number().int().min(1).max(10_000).nullable().optional(),
   description: z.string().optional(),
+  usageInstructions: z.string().trim().max(1000).optional().default(''),
   imageUrl: z.string().trim().max(512).nullable().optional(),
   audience: z
     .enum(['all_customers', 'employee_only', 'manual_issue_only'])
@@ -133,6 +135,14 @@ const voucherCreateUpdateSchema = z.object({
       code: z.ZodIssueCode.custom,
       path: ['limitPerUser'],
       message: 'Automatic vouchers support one voucher per customer per availability period. Use manual issuance for larger per-customer limits.'
+    });
+  }
+
+  if (value.topupRewardMinTokens != null && value.audience === 'manual_issue_only') {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['audience'],
+      message: 'A top-up reward must be available to customers, not manual-issue only.'
     });
   }
 });
@@ -230,6 +240,7 @@ type VoucherTemplateRow = RowDataPacket & {
   issued_count?: number;
   redeemed_count?: number;
   image_url?: string | null;
+  usage_instructions?: string | null;
 };
 
 const voucherImageUploadSchema = z.object({
@@ -343,7 +354,12 @@ function canonicalJson(value: unknown): string {
 
 function canonicalVoucherRules(value: unknown): string {
   const scope = parseScopeJson(value);
-  const { expiry_string: _expiryString, ...rules } = scope;
+  const {
+    expiry_string: _expiryString,
+    description: _description,
+    usage_instructions: _usageInstructions,
+    ...rules
+  } = scope;
   return canonicalJson(rules);
 }
 
@@ -993,6 +1009,11 @@ function buildVoucherWriteBindings(
     placeholders.push(':imageUrl');
     values.imageUrl = payload.imageUrl || null;
   }
+  if (hasColumn(columns, 'usage_instructions')) {
+    columnsToWrite.push('usage_instructions');
+    placeholders.push(':usageInstructions');
+    values.usageInstructions = payload.usageInstructions || null;
+  }
 
   return { columns: columnsToWrite, placeholders, values };
 }
@@ -1122,6 +1143,9 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
     if (hasColumn(voucherColumns, 'image_url')) {
       selectColumns.push('vt.image_url');
     }
+    if (hasColumn(voucherColumns, 'usage_instructions')) {
+      selectColumns.push('vt.usage_instructions');
+    }
 
     if (hasColumn(voucherColumns, 'valid_until')) {
       selectColumns.push('vt.valid_until');
@@ -1175,6 +1199,11 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
         type: type,
         benefitType,
         promotionKind: promotionRule.kind,
+        topupRewardMinTokens: Number(
+          scope.topup_reward && typeof scope.topup_reward === 'object'
+            ? (scope.topup_reward as Record<string, unknown>).min_tokens
+            : 0
+        ) || null,
         audience,
         tier: await voucherTierScopeLabel(scope.tier),
         reward: String(scope.reward || templateRow.name || ''),
@@ -1202,6 +1231,9 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
         limitPerUser: hasColumn(voucherColumns, 'limit_per_user') ? (templateRow.limit_per_user ?? 1) : 1,
         description: String(scope.description || ''),
         imageUrl: hasColumn(voucherColumns, 'image_url') ? (templateRow.image_url ?? null) : null,
+        usageInstructions: hasColumn(voucherColumns, 'usage_instructions')
+          ? String(templateRow.usage_instructions || '').trim()
+          : String(scope.usage_instructions || '').trim(),
         status: getVoucherStatus(templateRow, expiryDate),
         issued: issuedCount,
         redeemed: redeemedCount,
@@ -1409,7 +1441,12 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
       category_codes: categoryCodes,
       items: eligibleItems,
       promotion_rule: promotionRule,
+      topup_reward: payload.topupRewardMinTokens == null ? null : {
+        min_tokens: payload.topupRewardMinTokens,
+        trigger: 'single_paid_topup'
+      },
       description: payload.description,
+      usage_instructions: payload.usageInstructions,
       expiry_string: effectiveValidUntil?.toISOString() ?? '',
       audience: payload.audience,
       schedule
@@ -1515,7 +1552,12 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
       category_codes: categoryCodes,
       items: eligibleItems,
       promotion_rule: promotionRule,
+      topup_reward: payload.topupRewardMinTokens == null ? null : {
+        min_tokens: payload.topupRewardMinTokens,
+        trigger: 'single_paid_topup'
+      },
       description: payload.description,
+      usage_instructions: payload.usageInstructions,
       expiry_string: effectiveValidUntil?.toISOString() ?? '',
       audience: payload.audience,
       schedule
@@ -1541,6 +1583,9 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
     }
     if (hasColumn(voucherColumns, 'image_url')) {
       updateAssignments.push('image_url = :imageUrl');
+    }
+    if (hasColumn(voucherColumns, 'usage_instructions')) {
+      updateAssignments.push('usage_instructions = :usageInstructions');
     }
 
     const connection = await getUtcConnection();
@@ -1606,7 +1651,8 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
           validUntil: effectiveValidUntil,
           totalQty: payload.totalQty ?? null,
           limitPerUser,
-          imageUrl: payload.imageUrl || null
+          imageUrl: payload.imageUrl || null,
+          usageInstructions: payload.usageInstructions || null
         }
       );
 

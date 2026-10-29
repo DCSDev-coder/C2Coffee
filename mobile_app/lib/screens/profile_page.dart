@@ -772,12 +772,8 @@ class _ProfilePageState extends State<ProfilePage> {
         .where((banner) => banner.appearsOnProfile)
         .toList()
       ..sort((first, second) {
-        final firstCreatedAt = first.createdAt?.millisecondsSinceEpoch ?? 0;
-        final secondCreatedAt = second.createdAt?.millisecondsSinceEpoch ?? 0;
-        final dateOrder = secondCreatedAt.compareTo(firstCreatedAt);
-        return dateOrder != 0
-            ? dateOrder
-            : first.sortOrder.compareTo(second.sortOrder);
+        final sortOrder = first.sortOrder.compareTo(second.sortOrder);
+        return sortOrder != 0 ? sortOrder : first.code.compareTo(second.code);
       });
 
     if (banners.isEmpty) {

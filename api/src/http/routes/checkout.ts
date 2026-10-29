@@ -517,13 +517,6 @@ export async function registerCheckoutRoutes(
       }
 
       const bootstrap = await getBootstrapForUser(request.auth.userId, connection);
-      if (!bootstrap.has_completed_topup) {
-        throw new ApiError(
-          403,
-          'top_up_required',
-          'Complete one successful token top-up before placing an order or using vouchers.'
-        );
-      }
       const menuItems = await loadCheckoutMenuItems(
         connection,
         payload.store_id,

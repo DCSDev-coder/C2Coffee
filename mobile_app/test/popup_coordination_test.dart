@@ -51,6 +51,9 @@ void main() {
       endsAt: null,
       placement: 'home',
       sortOrder: 0,
+      homeSortOrder: 0,
+      floatingSortOrder: 0,
+      partnershipSortOrder: 0,
       floatingPriority: true,
       createdAt: null,
     );

@@ -233,6 +233,9 @@ type HomeBannerRow = RowDataPacket & {
   ends_at: Date | string | null;
   placement: "home" | "profile" | "both";
   sort_order: number;
+  home_sort_order: number;
+  floating_sort_order: number;
+  partnership_sort_order: number;
   floating_priority: number;
   created_at: Date | string;
   is_active: number;
@@ -372,6 +375,15 @@ function buildHomeBannerSelectClause(columns: Set<string>): string {
   selects.push(
     "hb.placement",
     "hb.sort_order",
+    columns.has("home_sort_order")
+      ? "hb.home_sort_order"
+      : "hb.sort_order AS home_sort_order",
+    columns.has("floating_sort_order")
+      ? "hb.floating_sort_order"
+      : "hb.sort_order AS floating_sort_order",
+    columns.has("partnership_sort_order")
+      ? "hb.partnership_sort_order"
+      : "hb.sort_order AS partnership_sort_order",
     columns.has("floating_priority")
       ? "hb.floating_priority"
       : "0 AS floating_priority",
@@ -552,7 +564,7 @@ export async function registerCatalogRoutes(
           balance_reserved: summary.token_reserved,
           balance_cap: summary.token_cap,
           has_completed_topup: summary.has_completed_topup,
-          can_place_order: summary.has_completed_topup,
+          can_place_order: true,
         },
         loyalty: {
           tier: summary.tier,
@@ -1116,6 +1128,15 @@ async function listActiveHomeBanners(userId: number): Promise<
   const columns = await getHomeBannerColumns();
   const supportsTargeting = supportsHomeBannerTargeting(columns);
   const selectClause = buildHomeBannerSelectClause(columns);
+  const homeOrderColumn = columns.has("home_sort_order")
+    ? "hb.home_sort_order"
+    : "hb.sort_order";
+  const partnershipOrderColumn = columns.has("partnership_sort_order")
+    ? "hb.partnership_sort_order"
+    : "hb.sort_order";
+  const bannerOrderExpression = supportsTargeting
+    ? `CASE WHEN hb.banner_type = 'partner' THEN ${partnershipOrderColumn} ELSE ${homeOrderColumn} END`
+    : homeOrderColumn;
   const whereClauses = ["hb.is_active = 1"];
 
   if (supportsTargeting) {
@@ -1133,7 +1154,9 @@ async function listActiveHomeBanners(userId: number): Promise<
       JOIN customer_tenant_memberships ctm
         ON ctm.tenant_id = hb.tenant_id AND ctm.user_id = :userId
       WHERE ${whereClauses.join(" AND ")}
-      ORDER BY hb.floating_priority DESC, hb.sort_order ASC, hb.id ASC
+      ORDER BY
+        ${bannerOrderExpression} ASC,
+        hb.id ASC
     `,
     { userId },
   );
@@ -1161,6 +1184,9 @@ async function listActiveHomeBanners(userId: number): Promise<
       ends_at: row.ends_at ? new Date(row.ends_at).toISOString() : null,
       placement: row.placement,
       sort_order: row.sort_order,
+      home_sort_order: row.home_sort_order,
+      floating_sort_order: row.floating_sort_order,
+      partnership_sort_order: row.partnership_sort_order,
       floating_priority: row.floating_priority,
       created_at: new Date(row.created_at).toISOString(),
     }));

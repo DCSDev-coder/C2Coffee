@@ -375,6 +375,9 @@ class HomeBanner {
   final DateTime? endsAt;
   final String placement;
   final int sortOrder;
+  final int homeSortOrder;
+  final int floatingSortOrder;
+  final int partnershipSortOrder;
   final bool floatingPriority;
   final DateTime? createdAt;
 
@@ -399,6 +402,9 @@ class HomeBanner {
     required this.endsAt,
     required this.placement,
     required this.sortOrder,
+    required this.homeSortOrder,
+    required this.floatingSortOrder,
+    required this.partnershipSortOrder,
     required this.floatingPriority,
     required this.createdAt,
   });
@@ -457,6 +463,13 @@ class HomeBanner {
       endsAt: DateTime.tryParse(json['ends_at'] as String? ?? ''),
       placement: json['placement'] as String? ?? 'both',
       sortOrder: (json['sort_order'] as num?)?.toInt() ?? 0,
+      homeSortOrder: (json['home_sort_order'] as num?)?.toInt() ??
+          (json['sort_order'] as num?)?.toInt() ?? 0,
+      floatingSortOrder: (json['floating_sort_order'] as num?)?.toInt() ??
+          (json['sort_order'] as num?)?.toInt() ?? 0,
+      partnershipSortOrder:
+          (json['partnership_sort_order'] as num?)?.toInt() ??
+              (json['sort_order'] as num?)?.toInt() ?? 0,
       floatingPriority: (json['floating_priority'] as num?)?.toInt() == 1,
       createdAt: DateTime.tryParse(json['created_at'] as String? ?? ''),
     );
@@ -658,7 +671,7 @@ class CatalogApiService {
             ))
         .toList()
       ..sort((a, b) {
-        final sortOrderComparison = a.sortOrder.compareTo(b.sortOrder);
+        final sortOrderComparison = a.homeSortOrder.compareTo(b.homeSortOrder);
         if (sortOrderComparison != 0) {
           return sortOrderComparison;
         }

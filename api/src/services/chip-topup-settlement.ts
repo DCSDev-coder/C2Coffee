@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import type { RowDataPacket } from 'mysql2/promise';
+import type { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 
 import { env } from '../config/env.js';
 import { getUtcConnection } from '../db/mysql.js';
@@ -26,6 +26,7 @@ type PaymentRow = RowDataPacket & {
 export type ChipSettlementResult = {
   received: true;
   credited?: boolean;
+  topup_rewards_issued?: number;
   duplicate?: boolean;
   needs_review?: boolean;
   terminal?: boolean;
@@ -61,6 +62,130 @@ export function chipTerminalFailure(status: unknown): 'failed' | 'cancelled' | n
   if (normalized === 'cancelled') return 'cancelled';
   if (['error', 'failed', 'payment_failure'].includes(normalized)) return 'failed';
   return null;
+}
+
+function parseScope(value: unknown): Record<string, unknown> {
+  if (!value) return {};
+  if (typeof value === 'object') return value as Record<string, unknown>;
+  try {
+    const parsed = JSON.parse(String(value));
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+async function issueTopUpRewardVouchers(
+  connection: PoolConnection,
+  input: { userId: number; topupId: number; tokenAmount: number }
+): Promise<number> {
+  const [templates] = await connection.query<Array<RowDataPacket & {
+    id: number;
+    name: string;
+    eligible_scope_json: unknown;
+    valid_until: Date | null;
+    expires_in_days: number | null;
+    total_quantity: number | null;
+    limit_per_user: number | null;
+    is_employee: number;
+  }>>(
+    `SELECT vt.id, vt.name, vt.eligible_scope_json, vt.valid_until, vt.expires_in_days,
+            vt.total_quantity, vt.limit_per_user, ctm.is_employee
+       FROM voucher_templates vt
+       JOIN customer_tenant_memberships ctm
+         ON ctm.tenant_id = vt.tenant_id AND ctm.user_id = :userId
+      WHERE vt.is_active = 1
+        AND (vt.valid_until IS NULL OR vt.valid_until > UTC_TIMESTAMP())
+      FOR UPDATE`,
+    { userId: input.userId }
+  );
+
+  let issued = 0;
+  for (const template of templates) {
+    const scope = parseScope(template.eligible_scope_json);
+    const reward = scope.topup_reward;
+    const minimum = reward && typeof reward === 'object'
+      ? Number((reward as Record<string, unknown>).min_tokens)
+      : 0;
+    if (!Number.isInteger(minimum) || minimum < 1 || input.tokenAmount < minimum) continue;
+    if (String(scope.audience ?? 'all_customers') === 'employee_only' && Number(template.is_employee) !== 1) continue;
+    if (String(scope.audience ?? 'all_customers') === 'manual_issue_only') continue;
+
+    const [counts] = await connection.query<Array<RowDataPacket & { total_count: number; user_count: number }>>(
+      `SELECT COUNT(*) AS total_count,
+              COALESCE(SUM(user_id = :userId), 0) AS user_count
+         FROM user_vouchers
+        WHERE voucher_template_id = :templateId AND status <> 'revoked'`,
+      { userId: input.userId, templateId: template.id }
+    );
+    if (template.total_quantity != null && Number(counts[0]?.total_count ?? 0) >= Number(template.total_quantity)) continue;
+    // Automatic top-up campaigns issue once per customer. A revoked reward
+    // does not count, allowing a later legitimate top-up after a refund.
+    if (Number(counts[0]?.user_count ?? 0) >= 1) continue;
+
+    const expiresAt = template.valid_until
+      ?? (template.expires_in_days && template.expires_in_days > 0
+        ? new Date(Date.now() + template.expires_in_days * 24 * 60 * 60 * 1000)
+        : new Date(Date.now() + 3650 * 24 * 60 * 60 * 1000));
+    const [result] = await connection.execute<ResultSetHeader>(
+      `INSERT IGNORE INTO user_vouchers (
+         user_id, voucher_template_id, status, issued_by_type, issued_reason,
+         issue_case_ref, tier_at_issue, issued_at, expires_at
+       ) VALUES (
+         :userId, :templateId, 'active', 'system', :reason,
+         :issueCaseRef, NULL, UTC_TIMESTAMP(), :expiresAt
+       )`,
+      {
+        userId: input.userId,
+        templateId: template.id,
+        reason: `Qualifying top-up ${input.topupId}`,
+        issueCaseRef: `topup_reward:${template.id}:topup:${input.topupId}`,
+        expiresAt
+      }
+    );
+    if (result.affectedRows !== 1) continue;
+    issued += 1;
+    await createUserNotification(connection, {
+      userId: input.userId,
+      type: 'topup_reward',
+      title: 'Voucher unlocked',
+      body: `${template.name} is now available in My Rewards.`,
+      data: { topup_id: input.topupId, voucher_template_id: template.id },
+      deliveryKey: `topup_reward:${input.userId}:${template.id}:topup:${input.topupId}`
+    });
+  }
+  return issued;
+}
+
+async function revokeTopUpRewardVouchers(
+  connection: PoolConnection,
+  input: { userId: number; topupId: number }
+): Promise<{ revoked: number; redeemed: number }> {
+  const issuedReason = `Qualifying top-up ${input.topupId}`;
+  const [rows] = await connection.query<Array<RowDataPacket & { status: string }>>(
+    `SELECT status
+       FROM user_vouchers
+      WHERE user_id = :userId
+        AND issued_by_type = 'system'
+        AND issued_reason = :issuedReason
+      FOR UPDATE`,
+    { userId: input.userId, issuedReason }
+  );
+  const [result] = await connection.execute<ResultSetHeader>(
+    `UPDATE user_vouchers
+        SET status = 'revoked', revoked_at = UTC_TIMESTAMP()
+      WHERE user_id = :userId
+        AND issued_by_type = 'system'
+        AND issued_reason = :issuedReason
+        AND status = 'active'`,
+    { userId: input.userId, issuedReason }
+  );
+  return {
+    revoked: result.affectedRows,
+    redeemed: rows.filter((row) => row.status === 'redeemed').length
+  };
 }
 
 /**
@@ -162,6 +287,11 @@ export async function settleChipTopUpPurchase(
         return { received: true, needs_review: true };
       }
 
+      const topUpRewardRefund = await revokeTopUpRewardVouchers(connection, {
+        userId: payment.user_id,
+        topupId: payment.topup_id
+      });
+
       const [ledgerRows] = await connection.execute<Array<RowDataPacket & {
         direction: 'credit' | 'debit';
         source_type: 'topup_paid' | 'topup_refund';
@@ -242,8 +372,11 @@ export async function settleChipTopUpPurchase(
         { paymentId: payment.payment_id }
       );
       await connection.execute(
-        `UPDATE token_topups SET status = 'refunded' WHERE id = :topupId`,
-        { topupId: payment.topup_id }
+        `UPDATE token_topups SET status = :topupStatus WHERE id = :topupId`,
+        {
+          topupId: payment.topup_id,
+          topupStatus: topUpRewardRefund.redeemed > 0 ? 'refund_needs_review' : 'refunded'
+        }
       );
       await connection.execute(
         `UPDATE token_wallet_cap_reservations
@@ -259,18 +392,29 @@ export async function settleChipTopUpPurchase(
           paymentId: payment.payment_id,
           eventRef,
           payloadHash: eventPayloadHash,
-          result: wasCredited ? 'tokens_reversed' : 'no_credit_to_reverse'
+          result: topUpRewardRefund.redeemed > 0
+            ? 'needs_review_redeemed_topup_reward'
+            : wasCredited
+              ? 'tokens_reversed'
+              : 'no_credit_to_reverse'
         }
       );
       if (wasCredited) {
-        const notificationBody = `${payment.token_amount} C2 Tokens were removed because the payment was refunded.`;
+        const notificationBody = topUpRewardRefund.redeemed > 0
+          ? `${payment.token_amount} C2 Tokens were removed because the payment was refunded. A redeemed top-up reward requires staff review.`
+          : `${payment.token_amount} C2 Tokens were removed because the payment was refunded.`;
         await createUserNotification(connection, {
           userId: payment.user_id,
-          type: 'token_topup_refunded',
-          title: 'Top-up refunded',
+          type: topUpRewardRefund.redeemed > 0 ? 'token_topup_review' : 'token_topup_refunded',
+          title: topUpRewardRefund.redeemed > 0 ? 'Refund under review' : 'Top-up refunded',
           body: notificationBody,
-          data: { topup_ref: payment.topup_ref, status: 'refunded' },
-          deliveryKey: `token_topup_refunded:${payment.topup_id}`
+          data: {
+            topup_ref: payment.topup_ref,
+            status: topUpRewardRefund.redeemed > 0 ? 'refund_needs_review' : 'refunded'
+          },
+          deliveryKey: topUpRewardRefund.redeemed > 0
+            ? `token_topup_review:${payment.topup_id}:redeemed_reward`
+            : `token_topup_refunded:${payment.topup_id}`
         });
       }
       await connection.commit();
@@ -278,14 +422,21 @@ export async function settleChipTopUpPurchase(
       if (wasCredited) {
         deliverTopUpStatusPush(logger, {
           userId: payment.user_id,
-          title: 'Top-up refunded',
-          body: `${payment.token_amount} C2 Tokens were removed because the payment was refunded.`,
-          type: 'token_topup_refunded',
+          title: topUpRewardRefund.redeemed > 0 ? 'Refund under review' : 'Top-up refunded',
+          body: topUpRewardRefund.redeemed > 0
+            ? `${payment.token_amount} C2 Tokens were removed because the payment was refunded. A redeemed top-up reward requires staff review.`
+            : `${payment.token_amount} C2 Tokens were removed because the payment was refunded.`,
+          type: topUpRewardRefund.redeemed > 0 ? 'token_topup_review' : 'token_topup_refunded',
           topupRef: payment.topup_ref,
-          status: 'refunded'
+          status: topUpRewardRefund.redeemed > 0 ? 'refund_needs_review' : 'refunded'
         });
       }
-      return { received: true, credited: false, terminal: true };
+      return {
+        received: true,
+        credited: false,
+        terminal: true,
+        ...(topUpRewardRefund.redeemed > 0 ? { needs_review: true } : {})
+      };
     }
 
     if (payment.payment_status === 'paid' || payment.topup_status === 'paid') {
@@ -488,6 +639,11 @@ export async function settleChipTopUpPurchase(
        VALUES (:paymentId, :eventRef, 'chip_paid', :payloadHash, UTC_TIMESTAMP(), 'credited', UTC_TIMESTAMP())`,
       { paymentId: payment.payment_id, eventRef, payloadHash: eventPayloadHash }
     );
+    const issuedTopUpRewards = await issueTopUpRewardVouchers(connection, {
+      userId: payment.user_id,
+      topupId: payment.topup_id,
+      tokenAmount: payment.token_amount
+    });
     await createUserNotification(connection, {
       userId: payment.user_id,
       type: 'token_topup_paid',
@@ -506,7 +662,7 @@ export async function settleChipTopUpPurchase(
       topupRef: payment.topup_ref,
       status: 'paid'
     });
-    return { received: true, credited: true };
+    return { received: true, credited: true, ...(issuedTopUpRewards > 0 ? { topup_rewards_issued: issuedTopUpRewards } : {}) };
   } catch (error) {
     if (!committed) await connection.rollback();
     throw error;

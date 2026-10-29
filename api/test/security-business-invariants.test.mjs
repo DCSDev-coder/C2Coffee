@@ -160,18 +160,41 @@ test('tier rewards require an explicit claim before checkout use', async () => {
   );
 });
 
-test('customer ordering requires one successful historical token top-up', async () => {
+test('top-up history is informational while qualifying vouchers are issued by settlement', async () => {
   const auth = await source('src/http/routes/auth.ts');
   assert.match(auth, /FROM token_topups/);
   assert.match(auth, /status = 'paid'/);
   assert.match(auth, /has_completed_topup/);
 
   const catalog = await source('src/http/routes/catalog.ts');
-  assert.match(catalog, /can_place_order: summary\.has_completed_topup/);
+  assert.match(catalog, /can_place_order: true/);
 
   const checkout = await source('src/http/routes/checkout.ts');
-  assert.match(checkout, /!bootstrap\.has_completed_topup/);
-  assert.match(checkout, /['"]top_up_required['"]/);
+  assert.doesNotMatch(checkout, /!bootstrap\.has_completed_topup/);
+  assert.doesNotMatch(checkout, /['"]top_up_required['"]/);
+
+  const vouchers = await source('src/http/routes/admin-vouchers.ts');
+  assert.match(vouchers, /topup_reward/);
+  assert.match(vouchers, /single_paid_topup/);
+
+  const settlement = await source('src/services/chip-topup-settlement.ts');
+  assert.match(settlement, /issueTopUpRewardVouchers/);
+  assert.match(settlement, /input\.tokenAmount < minimum/);
+  assert.match(settlement, /issueCaseRef: `topup_reward:\$\{template\.id\}:topup:\$\{input\.topupId\}`/);
+  assert.match(settlement, /revokeTopUpRewardVouchers/);
+  assert.match(settlement, /needs_review_redeemed_topup_reward/);
+});
+
+test('poster surface ordering is role guarded, tenant scoped, and uses fixed columns', async () => {
+  const marketing = await source('src/http/routes/admin-marketing.ts');
+  assert.match(marketing, /banners\/reorder-surface/);
+  assert.match(marketing, /requireMarketingAccess\(request\)/);
+  assert.match(marketing, /tenant_id = :tenantId AND \$\{filter\}/);
+  assert.match(marketing, /home: "home_sort_order"/);
+  assert.match(marketing, /floating: "floating_sort_order"/);
+  assert.match(marketing, /partnership: "partnership_sort_order"/);
+  assert.match(marketing, /assertVoucherTargetExists/);
+  assert.match(marketing, /FROM voucher_templates[\s\S]{0,200}tenant_id = :tenantId/);
 });
 
 test('birthday cleanup recognizes templates configured by tier management', async () => {

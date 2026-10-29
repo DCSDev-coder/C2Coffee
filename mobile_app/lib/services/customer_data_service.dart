@@ -117,6 +117,7 @@ class RewardVoucherTemplate {
   final int? tokenValue;
   final String? minSpendRm;
   final bool requiresDrinkInCart;
+  final String howToUse;
   final Map<String, dynamic> eligibleScope;
   final Map<String, dynamic> excludeScope;
   final Map<String, dynamic> promotionRule;
@@ -134,35 +135,34 @@ class RewardVoucherTemplate {
     required this.tokenValue,
     required this.minSpendRm,
     required this.requiresDrinkInCart,
+    required this.howToUse,
     required this.eligibleScope,
     required this.excludeScope,
     required this.promotionRule,
   });
 
   factory RewardVoucherTemplate.fromApi(Map<String, dynamic> json) {
+    final scope = _parseScopeMap(json['eligible_scope_json']);
+    final rawHowToUse = json['usage_instructions'] ??
+        json['usageInstructions'] ??
+        scope['usage_instructions'];
     return RewardVoucherTemplate(
       code: json['code'] as String? ?? '',
       name: json['name'] as String? ?? '',
       imageUrl: json['image_url'] as String?,
-      typeLabel: _parseScopeMap(json['eligible_scope_json'])['type_label']
-              as String? ??
-          '',
-      benefitType: _parseScopeMap(json['eligible_scope_json'])['benefit_type']
-              as String? ??
-          '',
-      audience:
-          _parseScopeMap(json['eligible_scope_json'])['audience'] as String? ??
-              'all_customers',
+      typeLabel: scope['type_label'] as String? ?? '',
+      benefitType: scope['benefit_type'] as String? ?? '',
+      audience: scope['audience'] as String? ?? 'all_customers',
       voucherType: json['voucher_type'] as String? ?? '',
       discountMode: json['discount_mode'] as String? ?? '',
       discountValue: json['discount_value'] as String? ?? '0.00',
       tokenValue: (json['token_value'] as num?)?.toInt(),
       minSpendRm: json['min_spend_rm'] as String?,
       requiresDrinkInCart: json['requires_drink_in_cart'] as bool? ?? false,
-      eligibleScope: _parseScopeMap(json['eligible_scope_json']),
+      howToUse: rawHowToUse is String ? rawHowToUse.trim() : '',
+      eligibleScope: scope,
       excludeScope: _parseScopeMap(json['exclude_scope_json']),
-      promotionRule:
-          _promotionRuleFromScope(_parseScopeMap(json['eligible_scope_json'])),
+      promotionRule: _promotionRuleFromScope(scope),
     );
   }
 
@@ -237,6 +237,12 @@ class RewardVoucherTemplate {
     }
 
     return 'All items';
+  }
+
+  String get usageInstructions {
+    final custom = howToUse.trim();
+    if (custom.isNotEmpty) return custom;
+    return 'This voucher is automatically available in Checkout when eligible.';
   }
 
   String get checkoutAvailabilityLabel {
@@ -347,6 +353,13 @@ class RewardVoucherTemplate {
     final rewardQty = (promotionRule['reward_quantity'] as num?)?.toInt() ?? 1;
     final qualifyingScope = _promotionScope(eligibleScope, 'qualifying_scope');
     final rewardScope = _promotionScope(eligibleScope, 'reward_scope');
+
+    final requiredSpend = double.tryParse(minSpendRm ?? '');
+    if (requiredSpend != null &&
+        requiredSpend > 0 &&
+        snapshot.subtotalRm < requiredSpend) {
+      return false;
+    }
 
     final qualifyingMatchCount = _countMatchedUnits(snapshot, qualifyingScope);
     if (qualifyingMatchCount < qualifyingQty) {

@@ -551,6 +551,20 @@ export async function updateAdminMarketingBanner(bannerId, payload) {
   });
 }
 
+export async function reorderAdminMarketingBanners(bannerIds) {
+  return adminRequest("/v1/admin/marketing/banners/reorder", {
+    method: "POST",
+    body: JSON.stringify({ bannerIds }),
+  });
+}
+
+export async function reorderAdminMarketingBannerSurface(surface, bannerIds) {
+  return adminRequest("/v1/admin/marketing/banners/reorder-surface", {
+    method: "POST",
+    body: JSON.stringify({ surface, bannerIds }),
+  });
+}
+
 export async function deleteAdminMarketingBanner(bannerId) {
   return adminRequest(`/v1/admin/marketing/banners/${bannerId}`, {
     method: "DELETE",

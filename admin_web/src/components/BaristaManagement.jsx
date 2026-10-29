@@ -43,7 +43,7 @@ const BaristaManagement = () => {
   const [isLoading, setIsLoading] = useState(true);
   
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState('All Status');
+  const [selectedStatus, setSelectedStatus] = useState('Active');
   const [currentPage, setCurrentPage] = useState(1);
   const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
 
@@ -126,13 +126,13 @@ const BaristaManagement = () => {
   };
   
   const handleDeleteBarista = async (id, name) => {
-    if (!await requestAdminConfirm({ title: 'Delete barista?', message: `${name} will lose access. Historical attendance records will remain protected.`, confirmLabel: 'Delete', tone: 'danger' })) return;
+    if (!await requestAdminConfirm({ title: 'Remove barista?', message: `${name} will lose access and be removed from future timetables. Historical attendance records will be preserved, and the profile will remain available under Inactive.`, confirmLabel: 'Remove', tone: 'danger' })) return;
     
     try {
       await adminRequest(`/v1/admin/baristas/${id}`, { method: 'DELETE' });
-      setBaristas(baristas.filter(a => a.id !== id));
+      setBaristas(current => current.map(a => a.id === id ? { ...a, status: 'Inactive', is_active: false } : a));
     } catch (err) {
-      showAdminError(err.message || "Failed to delete barista");
+      showAdminError(err.message || "Failed to remove barista");
     }
   };
 
@@ -328,7 +328,7 @@ const BaristaManagement = () => {
                                 }}
                                 className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 font-medium transition-colors"
                               >
-                                <Trash2 size={14} className="text-red-400" /> Delete
+                                <Trash2 size={14} className="text-red-400" /> Remove
                               </button>
                             </div>
                           )}

@@ -22,6 +22,7 @@ import '../widgets/profile_avatar_style.dart';
 import '../widgets/notification_indicator.dart';
 import 'loading_order_page.dart';
 import 'menu_page.dart';
+import 'my_rewards_page.dart';
 import 'notification_page.dart';
 import 'orders_page.dart';
 import 'profile_page.dart';
@@ -69,7 +70,22 @@ class _HomePageState extends State<HomePage> {
     final banners = _session.homeBanners
         .where((banner) => banner.bannerType != 'partner')
         .toList();
-    banners.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    banners.sort((a, b) {
+      final order = a.homeSortOrder.compareTo(b.homeSortOrder);
+      return order != 0 ? order : a.id.compareTo(b.id);
+    });
+    return banners;
+  }
+
+  List<HomeBanner> get _floatingBanners {
+    final banners = _session.homeBanners
+        .where((banner) =>
+            banner.bannerType != 'partner' && banner.floatingPriority)
+        .toList();
+    banners.sort((a, b) {
+      final order = a.floatingSortOrder.compareTo(b.floatingSortOrder);
+      return order != 0 ? order : a.id.compareTo(b.id);
+    });
     return banners;
   }
 
@@ -77,7 +93,10 @@ class _HomePageState extends State<HomePage> {
     final banners = _session.homeBanners
         .where((banner) => banner.bannerType == 'partner')
         .toList()
-      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+      ..sort((a, b) {
+        final order = a.partnershipSortOrder.compareTo(b.partnershipSortOrder);
+        return order != 0 ? order : a.id.compareTo(b.id);
+      });
     return banners;
   }
 
@@ -235,8 +254,7 @@ class _HomePageState extends State<HomePage> {
   void _showPosterIfNeeded() {
     if (_hasShownPoster || !mounted) return;
     _hasShownPoster = true;
-    final banners =
-        _sortedHomeBanners.where((banner) => banner.floatingPriority).toList();
+    final banners = _floatingBanners;
     if (banners.isEmpty) {
       return;
     }
@@ -244,7 +262,11 @@ class _HomePageState extends State<HomePage> {
     Future<void> showSequence() async {
       for (final banner in banners) {
         if (!mounted) return;
-        await showPosterPopup(context, banner: banner);
+        await showPosterPopup(
+          context,
+          banner: banner,
+          onTap: () => _handleBannerTap(banner),
+        );
       }
     }
 
@@ -813,6 +835,14 @@ class _HomePageState extends State<HomePage> {
     }
 
     if (banner.bannerType == 'voucher') {
+      final voucherCode = banner.targetValue?.trim() ?? '';
+      if (voucherCode.isNotEmpty) {
+        InteractiveFillingLoader.show(
+          context,
+          targetPage: MyRewardsPage(focusVoucherCode: voucherCode),
+        );
+        return;
+      }
       if (banner.destinationType == 'reward_section') {
         CustomBottomNav.switchTab(context, const RewardsPage());
       } else {

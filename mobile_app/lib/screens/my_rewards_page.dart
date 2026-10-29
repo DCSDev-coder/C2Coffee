@@ -6,16 +6,21 @@ import '../services/auth_api_service.dart';
 import '../services/catalog_api_service.dart';
 import '../services/customer_data_service.dart';
 import '../services/secure_session_service.dart';
+import '../services/voucher_intent_service.dart';
 import '../utils/app_colors.dart';
 import '../widgets/app_page_shell.dart';
 import '../widgets/catalog_product_image.dart';
+import '../widgets/custom_bottom_nav.dart';
 import '../widgets/order_status_banner.dart';
 import 'loading_order_page.dart';
+import 'menu_page.dart';
 
 enum _RewardFilter { all, available, history }
 
 class MyRewardsPage extends StatefulWidget {
-  const MyRewardsPage({super.key});
+  final String? focusVoucherCode;
+
+  const MyRewardsPage({super.key, this.focusVoucherCode});
 
   @override
   State<MyRewardsPage> createState() => _MyRewardsPageState();
@@ -84,6 +89,25 @@ class _MyRewardsPageState extends State<MyRewardsPage>
     }
   }
 
+  String get _normalizedFocusVoucherCode =>
+      widget.focusVoucherCode?.trim().toLowerCase() ?? '';
+
+  bool _isFocusedVoucher(RewardVoucher voucher) =>
+      _normalizedFocusVoucherCode.isNotEmpty &&
+      voucher.template.code.trim().toLowerCase() == _normalizedFocusVoucherCode;
+
+  RewardVoucher? _findFocusedVoucher(Iterable<RewardVoucher> vouchers) {
+    for (final voucher in vouchers) {
+      if (_isFocusedVoucher(voucher)) return voucher;
+    }
+    return null;
+  }
+
+  void _startOrderWithVoucher(RewardVoucher voucher) {
+    VoucherIntentService.instance.remember(voucher.template.code);
+    CustomBottomNav.switchTab(context, const MenuPage());
+  }
+
   Future<void> _loadRewards({bool forceSessionReload = false}) async {
     setState(() {
       _isRewardsLoading = true;
@@ -104,6 +128,7 @@ class _MyRewardsPageState extends State<MyRewardsPage>
       final rewards = await CustomerDataService.instance.getRewardsCenter(
         accessToken: accessToken,
       );
+      final focusedVoucher = _findFocusedVoucher(rewards.vouchers);
 
       if (!mounted) return;
       setState(() {
@@ -113,6 +138,12 @@ class _MyRewardsPageState extends State<MyRewardsPage>
           (voucherId) =>
               !rewards.vouchers.any((voucher) => voucher.id == voucherId),
         );
+        if (focusedVoucher != null) {
+          _expandedVoucherIds.add(focusedVoucher.id);
+          _selectedFilter = focusedVoucher.isActive
+              ? _RewardFilter.available
+              : _RewardFilter.all;
+        }
         _isRewardsLoading = false;
       });
     } on ApiException catch (error) {
@@ -423,11 +454,15 @@ class _MyRewardsPageState extends State<MyRewardsPage>
 
     final sortedVouchers = List<RewardVoucher>.from(_vouchers)
       ..sort((a, b) {
+        final aFocused = _isFocusedVoucher(a);
+        final bFocused = _isFocusedVoucher(b);
+        if (aFocused != bFocused) return aFocused ? -1 : 1;
         if (a.isActive != b.isActive) {
           return a.isActive ? -1 : 1;
         }
         return b.issuedAt.compareTo(a.issuedAt);
       });
+    final focusedVoucher = _findFocusedVoucher(sortedVouchers);
 
     if (sortedVouchers.isEmpty && _claimableTierRewards.isEmpty) {
       return _buildMessageCard(
@@ -457,14 +492,17 @@ class _MyRewardsPageState extends State<MyRewardsPage>
     final showClaimableTier = _selectedFilter != _RewardFilter.history &&
         _claimableTierRewards.isNotEmpty;
 
-    final availableCount =
-        sortedVouchers.where((v) => v.isActive).length +
-            _claimableTierRewards.length;
+    final availableCount = sortedVouchers.where((v) => v.isActive).length +
+        _claimableTierRewards.length;
     final historyCount = sortedVouchers.where((v) => !v.isActive).length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (_normalizedFocusVoucherCode.isNotEmpty) ...[
+          _buildFocusedVoucherNotice(focusedVoucher),
+          const SizedBox(height: 20),
+        ],
         _buildFilterPills(
           totalCount: sortedVouchers.length + _claimableTierRewards.length,
           availableCount: availableCount,
@@ -510,6 +548,92 @@ class _MyRewardsPageState extends State<MyRewardsPage>
             ),
         ],
       ],
+    );
+  }
+
+  Widget _buildFocusedVoucherNotice(RewardVoucher? voucher) {
+    final isAvailable = voucher?.isActive ?? false;
+    final title = isAvailable
+        ? 'Your voucher is ready'
+        : voucher == null
+            ? 'Promotion unavailable'
+            : 'This voucher is no longer available';
+    final message = isAvailable
+        ? 'How to use: ${voucher!.template.usageInstructions}'
+        : voucher == null
+            ? 'This promotion is not currently available in your wallet.'
+            : 'This offer has already been used or has expired.';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceLight,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.primary, width: 1.6),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.local_offer_rounded, color: AppColors.primary),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontFamily: 'Recoleta',
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.deepTeal,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      message,
+                      style: const TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 15.5,
+                        height: 1.35,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (isAvailable) ...[
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => _startOrderWithVoucher(voucher!),
+                icon: const Icon(Icons.shopping_bag_outlined),
+                label: const Text('Start order'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  textStyle: const TextStyle(
+                    fontFamily: 'Afacad',
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 
@@ -931,6 +1055,7 @@ class _MyRewardsPageState extends State<MyRewardsPage>
     final isActive = voucher.isActive;
     final cardAccentColor = isActive ? accentColor : Colors.grey.shade400;
     final isExpanded = _expandedVoucherIds.contains(voucher.id);
+    final isFocused = _isFocusedVoucher(voucher);
     final badgeLabel = _voucherBadge(voucher);
 
     return Container(
@@ -940,10 +1065,12 @@ class _MyRewardsPageState extends State<MyRewardsPage>
         color: isActive ? Colors.white : const Color(0xFFFAFAFB),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: isActive
-              ? AppColors.border
-              : Colors.grey.shade300,
-          width: 1.4,
+          color: isFocused
+              ? AppColors.primary
+              : isActive
+                  ? AppColors.border
+                  : Colors.grey.shade300,
+          width: isFocused ? 2.2 : 1.4,
         ),
         boxShadow: [
           BoxShadow(
@@ -1157,8 +1284,13 @@ class _MyRewardsPageState extends State<MyRewardsPage>
                                 voucher.template.benefitLabel,
                               ),
                               _buildInfoRow(
-                                'Applies to',
-                                voucher.template.eligibilityLabel,
+                                'How to use',
+                                voucher.template.usageInstructions,
+                                isLast: false,
+                              ),
+                              _buildInfoRow(
+                                'Checkout',
+                                'Automatically available in Checkout when eligible.',
                                 isLast: voucher.template.minSpendRm == null,
                               ),
                               if (voucher.template.minSpendRm != null)
@@ -1172,6 +1304,41 @@ class _MyRewardsPageState extends State<MyRewardsPage>
                         ),
                       ),
                     ),
+                    if (isActive) ...[
+                      const SizedBox(height: 14),
+                      Text(
+                        'This voucher is automatically available in Checkout when eligible.',
+                        style: TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 14.5,
+                          height: 1.3,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () => _startOrderWithVoucher(voucher),
+                          icon: const Icon(Icons.shopping_bag_outlined),
+                          label: const Text('Start order'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.deepTeal,
+                            side: BorderSide(color: AppColors.deepTeal),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            textStyle: const TextStyle(
+                              fontFamily: 'Afacad',
+                              fontSize: 15.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(13),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
