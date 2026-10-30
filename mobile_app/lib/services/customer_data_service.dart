@@ -115,6 +115,7 @@ class RewardVoucherTemplate {
   final String discountMode;
   final String discountValue;
   final int? tokenValue;
+  final List<String> paymentModes;
   final String? minSpendRm;
   final bool requiresDrinkInCart;
   final String howToUse;
@@ -133,6 +134,7 @@ class RewardVoucherTemplate {
     required this.discountMode,
     required this.discountValue,
     required this.tokenValue,
+    required this.paymentModes,
     required this.minSpendRm,
     required this.requiresDrinkInCart,
     required this.howToUse,
@@ -157,6 +159,8 @@ class RewardVoucherTemplate {
       discountMode: json['discount_mode'] as String? ?? '',
       discountValue: json['discount_value'] as String? ?? '0.00',
       tokenValue: (json['token_value'] as num?)?.toInt(),
+      paymentModes:
+          _stringListFromScope(scope, ['payment_modes', 'payment_mode']),
       minSpendRm: json['min_spend_rm'] as String?,
       requiresDrinkInCart: json['requires_drink_in_cart'] as bool? ?? false,
       howToUse: rawHowToUse is String ? rawHowToUse.trim() : '',
@@ -265,6 +269,10 @@ class RewardVoucherTemplate {
       _stringListFromScope(eligibleScope, ['item_codes', 'items']);
 
   bool get isTokenCheckoutCompatible {
+    final allowsToken = paymentModes.isEmpty ||
+        paymentModes.contains('both') ||
+        paymentModes.contains('token');
+    if (!allowsToken) return false;
     switch (discountMode) {
       case 'fixed_rm':
       case 'percent_rm':
@@ -274,6 +282,13 @@ class RewardVoucherTemplate {
       default:
         return false;
     }
+  }
+
+  bool get isDirectCheckoutCompatible {
+    final allowsDirect = paymentModes.isEmpty ||
+        paymentModes.contains('both') ||
+        paymentModes.contains('direct');
+    return allowsDirect && discountMode != 'fixed_token';
   }
 
   bool get isAvailableNow {
@@ -343,6 +358,16 @@ class RewardVoucherTemplate {
     }
 
     return true;
+  }
+
+  bool get isUpcoming {
+    final schedule = eligibleScope['schedule'] is Map<String, dynamic>
+        ? eligibleScope['schedule'] as Map<String, dynamic>
+        : eligibleScope['schedule'] is Map
+            ? Map<String, dynamic>.from(eligibleScope['schedule'] as Map)
+            : <String, dynamic>{};
+    final mode = (schedule['mode'] as String? ?? 'always').trim();
+    return mode != 'always' && mode != 'birthday' && !isAvailableNow;
   }
 
   bool matchesCartSnapshot(CartSnapshot snapshot) {
@@ -680,6 +705,8 @@ class RewardVoucher {
   final String? issueCaseRef;
   final String? tierAtIssue;
   final String rewardKind;
+  final String eligibilityStatus;
+  final String? unavailableReason;
   final bool hasFixedExpiry;
   final String validityLabel;
   final DateTime issuedAt;
@@ -696,6 +723,8 @@ class RewardVoucher {
     required this.issueCaseRef,
     required this.tierAtIssue,
     required this.rewardKind,
+    this.eligibilityStatus = 'eligible',
+    this.unavailableReason,
     required this.hasFixedExpiry,
     required this.validityLabel,
     required this.issuedAt,
@@ -706,11 +735,23 @@ class RewardVoucher {
     required this.template,
   });
 
-  bool get isActive =>
+  bool get _isBaseActive =>
       status == 'active' &&
       redeemedAt == null &&
       revokedAt == null &&
       (!hasFixedExpiry || expiresAt.isAfter(DateTime.now()));
+
+  bool get isActive =>
+      _isBaseActive &&
+      eligibilityStatus != 'unavailable' &&
+      template.isAvailableNow;
+
+  bool get isUpcoming =>
+      _isBaseActive &&
+      eligibilityStatus != 'unavailable' &&
+      template.isUpcoming;
+
+  bool get isUnavailable => _isBaseActive && !isActive && !isUpcoming;
 
   bool get isRedeemed =>
       redeemedAt != null || status == 'redeemed' || status == 'used';
@@ -718,30 +759,30 @@ class RewardVoucher {
   bool get isTokenCheckoutEligible =>
       isActive && template.isTokenCheckoutCompatible && template.isAvailableNow;
 
+  bool get isDirectCheckoutEligible =>
+      isActive &&
+      template.isDirectCheckoutCompatible &&
+      template.isAvailableNow;
+
   String get checkoutAvailabilityLabel {
     if (!isActive) {
-      return 'Inactive / expired';
+      if (isUpcoming) return 'Upcoming';
+      return 'Unavailable';
     }
     return template.checkoutAvailabilityLabel;
   }
 
   String get visibilityLabel {
-    if (isRedeemed) {
-      return 'Used';
-    }
-    if (revokedAt != null || status == 'revoked') {
-      return 'Revoked';
+    if (isUpcoming) {
+      return 'Upcoming';
     }
     if (!isActive) {
-      return 'Expired';
+      return 'Unavailable';
     }
     if (!template.isTokenCheckoutCompatible) {
       return 'Not available for checkout';
     }
-    if (!template.isAvailableNow) {
-      return 'Active, but outside promotion time';
-    }
-    return 'Ready to use';
+    return 'Available';
   }
 
   factory RewardVoucher.fromApi(Map<String, dynamic> json) {
@@ -752,6 +793,8 @@ class RewardVoucher {
       issueCaseRef: json['issue_case_ref'] as String?,
       tierAtIssue: json['tier_at_issue'] as String?,
       rewardKind: json['reward_kind'] as String? ?? 'voucher',
+      eligibilityStatus: json['eligibility_status'] as String? ?? 'eligible',
+      unavailableReason: json['unavailable_reason'] as String?,
       hasFixedExpiry: json['has_fixed_expiry'] as bool? ?? true,
       validityLabel: json['validity_label'] as String? ?? '',
       issuedAt: _parseApiDate(json['issued_at'] as String),
@@ -1186,6 +1229,8 @@ class CustomerDataService {
         .map((item) => RewardVoucher.fromApi(
               Map<String, dynamic>.from(item as Map),
             ))
+        .where((voucher) =>
+            voucher.status != 'revoked' && voucher.revokedAt == null)
         .where((voucher) => !onlyActive || voucher.isActive)
         .where(
           (voucher) =>
@@ -1204,11 +1249,37 @@ class CustomerDataService {
       accessToken: accessToken,
     );
 
-    final vouchers = (response['vouchers'] as List? ?? const [])
+    final rewardRows = <dynamic>[
+      ...(response['vouchers'] as List? ?? const []),
+      ...(response['locked_topup_rewards'] as List? ?? const []),
+    ];
+    final parsedVouchers = rewardRows
         .map((item) => RewardVoucher.fromApi(
               Map<String, dynamic>.from(item as Map),
             ))
+        // Revoked rewards are administrative invalidations, not customer
+        // history. Do not expose them in My Rewards at all.
+        .where((voucher) =>
+            voucher.status != 'revoked' && voucher.revokedAt == null)
         .toList();
+    final vouchersByTemplate = <String, RewardVoucher>{};
+    int displayPriority(RewardVoucher voucher) {
+      if (voucher.isActive) return 3;
+      if (voucher.isUpcoming) return 2;
+      return 1;
+    }
+
+    for (final voucher in parsedVouchers) {
+      final key = voucher.template.code.trim().toLowerCase();
+      final existing = vouchersByTemplate[key];
+      if (existing == null ||
+          displayPriority(voucher) > displayPriority(existing) ||
+          (displayPriority(voucher) == displayPriority(existing) &&
+              voucher.issuedAt.isAfter(existing.issuedAt))) {
+        vouchersByTemplate[key] = voucher;
+      }
+    }
+    final vouchers = vouchersByTemplate.values.toList();
     final claimableTierRewards =
         (response['claimable_tier_rewards'] as List? ?? const [])
             .map((item) => TierRewardEntitlement.fromApi(

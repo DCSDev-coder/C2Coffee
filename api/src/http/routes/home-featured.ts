@@ -6,6 +6,7 @@ import { authenticateAdminRequest, requireAdminRole } from '../../admin/guard.js
 import { authenticateRequest } from '../../auth/guard.js';
 import { mysqlPool } from '../../db/mysql.js';
 import { ApiError } from '../errors.js';
+import { assertCustomerAccess } from '../../services/app-maintenance.js';
 
 const updateSchema = z.object({
   category_id: z.coerce.number().int().positive(),
@@ -151,6 +152,7 @@ async function loadGroupItemIds(storeId: number, group: RowDataPacket): Promise<
 
 export async function registerHomeFeaturedRoutes(app: FastifyInstance): Promise<void> {
   app.get('/v1/home/featured', { preHandler: authenticateRequest }, async (request) => {
+    await assertCustomerAccess(request.auth.userId);
     const { store_id: storeId } = storeSchema.parse(request.query);
     const [stores] = await mysqlPool.query<Array<RowDataPacket & { id: number }>>(
       'SELECT id FROM stores WHERE id = :storeId AND status = \'active\' AND is_customer_facing = 1 LIMIT 1', { storeId }

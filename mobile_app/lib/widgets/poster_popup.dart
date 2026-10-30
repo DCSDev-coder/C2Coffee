@@ -287,8 +287,7 @@ class _PosterPopupState extends State<PosterPopup>
       );
     }
 
-    if (resolvedSource.startsWith('http://') ||
-        resolvedSource.startsWith('https://')) {
+    if (isSecureRemoteImageSource(resolvedSource)) {
       return CachedNetworkImage(
         imageUrl: resolvedSource,
         width: double.infinity,

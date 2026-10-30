@@ -9,6 +9,7 @@ class VoucherModal {
     BuildContext context, {
     int? selectedVoucherId,
     CartSnapshot? cartSnapshot,
+    String paymentMode = 'token',
     required ValueChanged<RewardVoucher?> onVoucherSelected,
   }) {
     return showModalBottomSheet(
@@ -19,6 +20,7 @@ class VoucherModal {
         return _VoucherModalContent(
           selectedVoucherId: selectedVoucherId,
           cartSnapshot: cartSnapshot,
+          paymentMode: paymentMode,
           onVoucherSelected: onVoucherSelected,
         );
       },
@@ -29,11 +31,13 @@ class VoucherModal {
 class _VoucherModalContent extends StatefulWidget {
   final int? selectedVoucherId;
   final CartSnapshot? cartSnapshot;
+  final String paymentMode;
   final ValueChanged<RewardVoucher?> onVoucherSelected;
 
   const _VoucherModalContent({
     required this.selectedVoucherId,
     required this.cartSnapshot,
+    required this.paymentMode,
     required this.onVoucherSelected,
   });
 
@@ -270,7 +274,10 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
     }
 
     final tokenCheckoutVouchers = _vouchers.where((v) {
-      if (!v.isTokenCheckoutEligible) return false;
+      final eligible = widget.paymentMode == 'direct'
+          ? v.isDirectCheckoutEligible
+          : v.isTokenCheckoutEligible;
+      if (!eligible) return false;
       final snapshot = widget.cartSnapshot;
       if (snapshot == null) return true;
       return v.template.matchesCartSnapshot(snapshot);
@@ -528,7 +535,10 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
   }) {
     final isSelected = widget.selectedVoucherId == voucher.id;
     final isExpanded = _expandedVoucherIds.contains(voucher.id);
-    final canApply = enabled && voucher.isTokenCheckoutEligible;
+    final canApply = enabled &&
+        (widget.paymentMode == 'direct'
+            ? voucher.isDirectCheckoutEligible
+            : voucher.isTokenCheckoutEligible);
     final isApplied = isSelected && canApply;
     final tileBackground =
         isApplied ? Colors.grey.shade100 : AppColors.surfaceLight;
@@ -681,9 +691,7 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
               ),
             ),
             child: Text(
-              canApply
-                  ? (isApplied ? 'Applied' : 'Apply')
-                  : 'Unavailable',
+              canApply ? (isApplied ? 'Applied' : 'Apply') : 'Unavailable',
               style: TextStyle(
                 fontFamily: 'Afacad',
                 fontWeight: FontWeight.bold,

@@ -3,10 +3,12 @@ import 'package:flutter/services.dart';
 
 import '../authorization/login.dart';
 import '../services/session_lifecycle_service.dart';
+import '../services/app_session_service.dart';
 import '../services/session_restore_policy.dart';
 import '../utils/app_colors.dart';
 import '../widgets/c2_mini_loader.dart';
 import 'home_page.dart';
+import 'maintenance_page.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -16,10 +18,13 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
+  static const _splashBackground = Color(0xFF8F2A08);
   static const _loadingDuration = Duration(milliseconds: 3200);
   static const _postCompleteDelay = Duration(milliseconds: 700);
+  static const _introDuration = Duration(milliseconds: 1500);
   late AnimationController _progressController;
+  late AnimationController _introController;
   bool _restoreUnavailable = false;
   bool _isRetrying = false;
 
@@ -30,12 +35,17 @@ class _SplashScreenState extends State<SplashScreen>
       vsync: this,
       duration: _loadingDuration,
     );
+    _introController = AnimationController(
+      vsync: this,
+      duration: _introDuration,
+    )..forward();
     _bootstrap();
   }
 
   @override
   void dispose() {
     _progressController.dispose();
+    _introController.dispose();
     super.dispose();
   }
 
@@ -71,7 +81,9 @@ class _SplashScreenState extends State<SplashScreen>
       PageRouteBuilder(
         pageBuilder: (_, __, ___) =>
             restoreOutcome == SessionRestoreOutcome.restored
-                ? const HomePage()
+                ? (AppSessionService.instance.maintenance.blocked
+                    ? const MaintenancePage()
+                    : const HomePage())
                 : const LoginPage(),
         transitionsBuilder: (_, animation, __, child) {
           return FadeTransition(opacity: animation, child: child);
@@ -88,6 +100,9 @@ class _SplashScreenState extends State<SplashScreen>
       _restoreUnavailable = false;
     });
     _progressController.reset();
+    _introController
+      ..reset()
+      ..forward();
     await _bootstrap();
     if (mounted) setState(() => _isRetrying = false);
   }
@@ -135,6 +150,27 @@ class _SplashScreenState extends State<SplashScreen>
                 ),
               ),
             ),
+            Positioned.fill(
+              child: AnimatedBuilder(
+                animation: _introController,
+                builder: (context, child) {
+                  final orangeOpacity = TweenSequence<double>([
+                    TweenSequenceItem(
+                      tween: ConstantTween(1.0),
+                      weight: 62,
+                    ),
+                    TweenSequenceItem(
+                      tween: Tween(begin: 1.0, end: 0.0),
+                      weight: 38,
+                    ),
+                  ]).transform(_introController.value);
+                  return Opacity(
+                    opacity: orangeOpacity,
+                    child: const ColoredBox(color: _splashBackground),
+                  );
+                },
+              ),
+            ),
             SafeArea(
               child: Column(
                 children: [
@@ -143,10 +179,69 @@ class _SplashScreenState extends State<SplashScreen>
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        C2MiniLoader(
-                          size: 160.0,
-                          duration: _loadingDuration,
-                          onComplete: () {}, // Stops at 100%
+                        SizedBox(
+                          height: 210,
+                          width: 210,
+                          child: AnimatedBuilder(
+                            animation: _introController,
+                            builder: (context, child) {
+                              final progress = CurvedAnimation(
+                                parent: _introController,
+                                curve: Curves.easeOutCubic,
+                              ).value;
+                              final iconOpacity = TweenSequence<double>([
+                                TweenSequenceItem(
+                                  tween: Tween(begin: 0.0, end: 1.0),
+                                  weight: 18,
+                                ),
+                                TweenSequenceItem(
+                                  tween: ConstantTween(1.0),
+                                  weight: 57,
+                                ),
+                                TweenSequenceItem(
+                                  tween: Tween(begin: 1.0, end: 0.0),
+                                  weight: 25,
+                                ),
+                              ]).transform(_introController.value);
+                              final loaderOpacity = CurvedAnimation(
+                                parent: _introController,
+                                curve: const Interval(
+                                  0.86,
+                                  1.0,
+                                  curve: Curves.easeIn,
+                                ),
+                              ).value;
+
+                              return Stack(
+                                alignment: Alignment.center,
+                                children: [
+                                  Opacity(
+                                    opacity: loaderOpacity,
+                                    child: C2MiniLoader(
+                                      size: 160.0,
+                                      duration: _loadingDuration,
+                                      onComplete: () {},
+                                    ),
+                                  ),
+                                  Opacity(
+                                    opacity: iconOpacity,
+                                    child: Transform.scale(
+                                      scale: 0.76 + (progress * 0.30),
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(30),
+                                        child: Image.asset(
+                                          'assets/images/icon_app_2_1024.png',
+                                          width: 190,
+                                          height: 190,
+                                          fit: BoxFit.cover,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
                         ),
                         const SizedBox(height: 48),
                         Padding(

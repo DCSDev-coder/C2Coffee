@@ -9,6 +9,17 @@ void main() {
     expect(readCatalogInt('invalid'), 0);
   });
 
+  test('catalog image sources only allow HTTPS remote URLs', () {
+    expect(
+        isSecureRemoteImageSource('https://cdn.example.com/item.webp'), isTrue);
+    expect(
+        isSecureRemoteImageSource('http://cdn.example.com/item.webp'), isFalse);
+    expect(isSecureRemoteImageSource('https://user:pass@cdn.example.com/a'),
+        isFalse);
+    expect(
+        resolveCatalogImageSource('http://cdn.example.com/item.webp'), isNull);
+  });
+
   test('home banners preserve independent display orders from the API', () {
     final banner = HomeBanner.fromApi({
       'id': 7,

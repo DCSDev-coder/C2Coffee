@@ -12,6 +12,7 @@ import { ApiError } from '../errors.js';
 import { createUserNotification } from '../notifications.js';
 import { z } from 'zod';
 import { resolveBaristaShiftAccess } from '../../services/barista-shift-access.js';
+import { consumeInventoryForOrder, reverseInventoryForOrder } from '../../services/inventory.js';
 
 function formatDisplayDate(dateObj: Date): string {
   if (!dateObj) return '';
@@ -822,6 +823,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           `UPDATE orders SET status = 'refunded', updated_at = UTC_TIMESTAMP() WHERE id = :orderId`,
           { orderId: refund.order_id }
         );
+        await reverseInventoryForOrder(connection, refund.order_id);
         const loyaltyReversal = await reverseOrderLoyalty(
           refund.order_id,
           refund.user_id,
@@ -1073,6 +1075,9 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
 
       // Super admins may record collection on behalf of a customer. Keep the
       // reward outcome identical to customer-confirmed collection.
+      if (effectiveStatus === 'collected') {
+        await consumeInventoryForOrder(connection, internalId);
+      }
       if (effectiveStatus === 'collected' && Number(rows[0].is_guest) !== 1) {
         await processOrderLoyalty(internalId, Number(rows[0].user_id), connection);
         await awardReferralForCollectedOrder(connection, Number(rows[0].user_id), internalId);

@@ -805,6 +805,8 @@ class _NotificationPageState extends State<NotificationPage> {
       case 'tier_reward':
       case 'referral_reward':
       case 'voucher_expiring':
+      case 'voucher_start_reminder':
+      case 'voucher_end_reminder':
         return (
           icon: Icons.card_giftcard_rounded,
           iconBg: AppColors.gold.withValues(alpha: 0.22),
@@ -1032,6 +1034,8 @@ class _NotificationPageState extends State<NotificationPage> {
       case 'tier_reward':
       case 'referral_reward':
       case 'voucher_expiring':
+      case 'voucher_start_reminder':
+      case 'voucher_end_reminder':
         Navigator.push(
             context, MaterialPageRoute(builder: (_) => const MyRewardsPage()));
       case 'token_topup_paid':

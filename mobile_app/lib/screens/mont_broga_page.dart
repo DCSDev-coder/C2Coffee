@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../services/app_session_service.dart';
 import '../services/cart_service.dart';
+import '../services/catalog_api_service.dart';
 import 'loading_order_page.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_notification.dart';
@@ -964,15 +965,14 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 if (isBean &&
-                                    imageUrl != null &&
-                                    imageUrl.isNotEmpty) ...[
+                                    isSecureRemoteImageSource(imageUrl)) ...[
                                   ClipRRect(
                                       borderRadius: BorderRadius.circular(8),
                                       child: Opacity(
                                           // A darken blend affects the entire image canvas,
                                           // including transparent pixels, and creates a grey tile.
                                           opacity: isSelected ? 1 : .65,
-                                          child: Image.network(imageUrl,
+                                          child: Image.network(imageUrl!,
                                               height: 64,
                                               width: 106,
                                               fit: BoxFit.contain,

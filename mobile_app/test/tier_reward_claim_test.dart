@@ -62,8 +62,8 @@ void main() {
 
     expect(voucher.rewardKind, 'tier_achievement');
     expect(voucher.hasFixedExpiry, isFalse);
-    expect(voucher.validityLabel,
-        'Valid while your current tier remains active');
+    expect(
+        voucher.validityLabel, 'Valid while your current tier remains active');
     expect(voucher.isActive, isTrue);
   });
 
@@ -104,5 +104,47 @@ void main() {
     });
 
     expect(voucher.validityLabel, 'Today, 9:00 AM - 10:00 PM');
+  });
+
+  test('locked top-up voucher is unavailable and cannot enter checkout', () {
+    final voucher = RewardVoucher.fromApi({
+      'id': -22,
+      'status': 'active',
+      'issued_reason': 'Campaign voucher: First top-up C2',
+      'issue_case_ref': 'locked_topup:22',
+      'tier_at_issue': null,
+      'reward_kind': 'voucher',
+      'eligibility_status': 'unavailable',
+      'unavailable_reason':
+          'Top up at least 25 C2 Tokens in one payment to unlock this voucher.',
+      'has_fixed_expiry': true,
+      'validity_label': 'Redeem by 31 Dec 2036',
+      'issued_at': '2026-10-23T01:00:00.000Z',
+      'expires_at': '2036-12-31T15:59:59.999Z',
+      'redeemed_at': null,
+      'revoked_at': null,
+      'revoked_reason': null,
+      'template': {
+        'code': 'TOPUP25',
+        'name': 'First top-up C2',
+        'image_url': null,
+        'voucher_type': 'campaign_token_equivalent',
+        'discount_mode': 'free_drink',
+        'discount_value': '1.00',
+        'token_value': null,
+        'min_spend_rm': null,
+        'requires_drink_in_cart': false,
+        'eligible_scope_json': <String, dynamic>{
+          'topup_reward': <String, dynamic>{'min_tokens': 25},
+        },
+        'exclude_scope_json': <String, dynamic>{},
+      },
+    });
+
+    expect(voucher.isUnavailable, isTrue);
+    expect(voucher.id, -22);
+    expect(voucher.isActive, isFalse);
+    expect(voucher.isTokenCheckoutEligible, isFalse);
+    expect(voucher.visibilityLabel, 'Unavailable');
   });
 }

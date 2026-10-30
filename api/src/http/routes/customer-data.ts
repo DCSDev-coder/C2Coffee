@@ -20,6 +20,10 @@ import { getActiveLoyaltyTiers, getTierByCode, loadLoyaltyTiers, type LoyaltyTie
 import { deliverQueuedOrderReceiptEmail, queueOrderReceiptEmail } from '../../services/order-receipt-email.js';
 import { issueFriendRewardAtClaim, type ReferralProgramSnapshot } from '../../services/referrals.js';
 import { issueRefundReplacementVoucher } from '../../services/voucher-replacement.js';
+import {
+  evaluateVoucherTopUpEligibility,
+  getVoucherTopUpMinimum
+} from '../../services/voucher-topup-eligibility.js';
 
 const listQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional().default(20)
@@ -71,6 +75,7 @@ type WalletTransactionRow = RowDataPacket & {
 type VoucherRow = RowDataPacket & {
   id: number;
   status: 'active' | 'redeemed' | 'expired' | 'revoked';
+  issued_by_type: 'system' | 'admin';
   issued_reason: string;
   issue_case_ref: string | null;
   tier_at_issue: string | null;
@@ -80,6 +85,7 @@ type VoucherRow = RowDataPacket & {
   redeemed_at: Date | null;
   revoked_at: Date | null;
   revoked_reason: string | null;
+  template_id: number;
   template_code: string;
   template_name: string;
   template_image_url: string | null;
@@ -96,6 +102,8 @@ type VoucherRow = RowDataPacket & {
   token_value: number | null;
   min_spend_rm: string | null;
   requires_drink_in_cart: number;
+  eligible_scope_json: string | Record<string, unknown> | null;
+  exclude_scope_json: string | Record<string, unknown> | null;
 };
 
 type TierRewardEntitlementRow = RowDataPacket & {
@@ -132,6 +140,24 @@ type AutoSyncVoucherTemplateRow = RowDataPacket & {
   total_quantity: number | null;
   limit_per_user: number | null;
   eligible_scope_json: string | Record<string, unknown> | null;
+};
+
+type LockedTopUpRewardRow = RowDataPacket & {
+  id: number;
+  code: string;
+  name: string;
+  image_url: string | null;
+  voucher_type: VoucherRow['voucher_type'];
+  discount_mode: VoucherRow['discount_mode'];
+  discount_value: string;
+  token_value: number | null;
+  min_spend_rm: string | null;
+  requires_drink_in_cart: number;
+  eligible_scope_json: string | Record<string, unknown> | null;
+  exclude_scope_json: string | Record<string, unknown> | null;
+  valid_until: Date | null;
+  created_at: Date;
+  is_employee: number;
 };
 
 type OrderSummaryRow = RowDataPacket & {
@@ -484,6 +510,84 @@ function isScheduleActiveNow(
   return true;
 }
 
+type UpcomingVoucherOccurrence = {
+  expiresAt: Date;
+  dateKey: string;
+  year: string;
+  month: string;
+  monthDay: string;
+};
+
+function getUpcomingVoucherOccurrence(
+  schedule: Record<string, unknown>,
+  now = new Date()
+): UpcomingVoucherOccurrence | null {
+  const mode = String(schedule.mode || 'always').trim();
+  if (mode === 'always' || mode === 'birthday') return null;
+
+  const current = getKualaLumpurDateParts(now);
+  const activeDays = Array.isArray(schedule.activeDays)
+    ? schedule.activeDays.map((day) => String(day))
+    : [];
+  const annualDate = typeof schedule.annualDate === 'string' ? schedule.annualDate : '';
+  const monthlyDay = Number(schedule.monthlyDay ?? 0);
+  const endTime = typeof schedule.endTime === 'string' ? schedule.endTime : '';
+  const [endHour, endMinute] = /^([01]\d|2[0-3]):[0-5]\d$/.test(endTime)
+    ? endTime.split(':').map(Number)
+    : [23, 59];
+  const weekdayFormatter = new Intl.DateTimeFormat('en-GB', {
+    weekday: 'long',
+    timeZone: 'UTC'
+  });
+
+  for (let offset = 0; offset <= 370; offset += 1) {
+    const candidate = new Date(Date.UTC(
+      Number(current.year),
+      Number(current.month) - 1,
+      Number(current.day) + offset
+    ));
+    const year = String(candidate.getUTCFullYear());
+    const month = String(candidate.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(candidate.getUTCDate()).padStart(2, '0');
+    const monthDay = `${month}-${day}`;
+    const dateKey = `${year}-${month}-${day}`;
+    const weekday = weekdayFormatter.format(candidate);
+
+    const matches = mode === 'daily' ||
+      (mode === 'weekly' && activeDays.includes(weekday)) ||
+      (mode === 'monthly' && monthlyDay === Number(day)) ||
+      (mode === 'annual' && annualDate === monthDay);
+    if (!matches) continue;
+
+    const expiresAt = new Date(
+      Date.UTC(Number(year), Number(month) - 1, Number(day), endHour, endMinute + 1) -
+        8 * 60 * 60 * 1000 - 1
+    );
+    if (expiresAt.getTime() <= now.getTime()) continue;
+
+    return { expiresAt, dateKey, year, month, monthDay };
+  }
+
+  return null;
+}
+
+function recurringIssueCaseRefForOccurrence(
+  scheduleMode: string,
+  occurrence: UpcomingVoucherOccurrence
+): string | null {
+  switch (scheduleMode) {
+    case 'annual':
+      return `annual:${occurrence.monthDay}:${occurrence.year}`;
+    case 'monthly':
+      return `monthly:${occurrence.year}-${occurrence.month}`;
+    case 'weekly':
+    case 'daily':
+      return `${scheduleMode}:${occurrence.dateKey}`;
+    default:
+      return null;
+  }
+}
+
 function recurringIssueCaseRef(
   scheduleMode: string,
   currentDate: ReturnType<typeof getKualaLumpurDateParts>
@@ -537,7 +641,8 @@ function formatVoucherDate(value: Date): string {
 function buildCustomerVoucherValidityLabel(
   schedule: Record<string, unknown>,
   effectiveExpiresAt: Date,
-  hasFixedExpiry: boolean
+  hasFixedExpiry: boolean,
+  upcomingOccurrence: UpcomingVoucherOccurrence | null = null
 ): string {
   if (!hasFixedExpiry) return 'Valid while your current tier remains active';
 
@@ -545,6 +650,24 @@ function buildCustomerVoucherValidityLabel(
   if (mode === 'daily' || mode === 'weekly' || mode === 'monthly' || mode === 'annual') {
     const start = formatVoucherTime(schedule.startTime);
     const end = formatVoucherTime(schedule.endTime);
+    if (upcomingOccurrence) {
+      const occurrenceDate = new Date(Date.UTC(
+        Number(upcomingOccurrence.year),
+        Number(upcomingOccurrence.month) - 1,
+        Number(upcomingOccurrence.monthDay.slice(3)),
+        12
+      ));
+      const dateLabel = new Intl.DateTimeFormat('en-GB', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        timeZone: 'UTC'
+      }).format(occurrenceDate);
+      return start && end
+        ? `Next: ${dateLabel}, ${start} - ${end}`
+        : `Next: ${dateLabel}`;
+    }
     return start && end ? `Today, ${start} - ${end}` : 'Available today';
   }
 
@@ -856,6 +979,21 @@ async function syncAutoVisibleVoucherTemplates(
   const existingTemplateIds = new Set(
     existingRows.map((row) => Number(row.voucher_template_id))
   );
+  const [currentSystemRows] = await mysqlPool.query<Array<RowDataPacket & { voucher_template_id: number }>>(
+    `
+      SELECT DISTINCT voucher_template_id
+      FROM user_vouchers
+      WHERE user_id = :userId
+        AND issued_by_type = 'system'
+        AND status = 'active'
+        AND revoked_at IS NULL
+        AND expires_at > UTC_TIMESTAMP()
+    `,
+    { userId }
+  );
+  const currentSystemTemplateIds = new Set(
+    currentSystemRows.map((row) => Number(row.voucher_template_id))
+  );
 
   for (const template of templates) {
     // Do not auto-issue historical legacy referral vouchers.
@@ -869,10 +1007,14 @@ async function syncAutoVisibleVoucherTemplates(
     }
 
     const scope = parseVoucherScope(template.eligible_scope_json);
+    // Top-up rewards are issued only by the paid top-up settlement path.
+    // Treating them as ordinary campaigns would expose the reward before the
+    // configured minimum top-up has been completed.
+    if (getVoucherTopUpMinimum(scope) !== null) {
+      continue;
+    }
     const scheduleMode = getVoucherScheduleMode(scope);
     const schedule = getVoucherSchedule(scope);
-    const recurringRef = recurringIssueCaseRef(scheduleMode, currentDateParts);
-    const issueCaseRef = recurringRef ?? `campaign:${template.id}`;
 
     // A member receives either the configured tier birthday reward or one
     // generic birthday campaign, never both.
@@ -880,7 +1022,23 @@ async function syncAutoVisibleVoucherTemplates(
       continue;
     }
 
-    if (!isScheduleActiveNow(schedule, currentBirthdayMonthDay)) {
+    const scheduleActiveNow = isScheduleActiveNow(schedule, currentBirthdayMonthDay);
+    const upcomingOccurrence = scheduleActiveNow
+      ? null
+      : getUpcomingVoucherOccurrence(schedule);
+    if (!scheduleActiveNow && !upcomingOccurrence) {
+      continue;
+    }
+
+    const recurringRef = upcomingOccurrence
+      ? recurringIssueCaseRefForOccurrence(scheduleMode, upcomingOccurrence)
+      : recurringIssueCaseRef(scheduleMode, currentDateParts);
+    const issueCaseRef = recurringRef ?? `campaign:${template.id}`;
+
+    // A customer should never receive a second still-valid automatic copy of
+    // the same campaign. The issue-case key protects the same recurring
+    // period; this guard also consolidates older duplicate automatic issues.
+    if (recurringRef !== null && currentSystemTemplateIds.has(Number(template.id))) {
       continue;
     }
 
@@ -904,7 +1062,9 @@ async function syncAutoVisibleVoucherTemplates(
       continue;
     }
 
-    const expiresAt = scheduleMode === 'birthday'
+    const expiresAt = upcomingOccurrence
+      ? earliestDate(upcomingOccurrence.expiresAt, template.valid_until)
+      : scheduleMode === 'birthday'
       ? getKualaLumpurMonthEndUtc()
       : scheduleMode === 'annual' || scheduleMode === 'monthly' || scheduleMode === 'weekly' || scheduleMode === 'daily'
         ? earliestDate(
@@ -940,6 +1100,7 @@ async function syncAutoVisibleVoucherTemplates(
     if (issued) {
       existingIssueKeys.add(`${template.id}::${issueCaseRef}`);
       existingTemplateIds.add(Number(template.id));
+      currentSystemTemplateIds.add(Number(template.id));
     }
   }
 }
@@ -1349,6 +1510,7 @@ export async function registerCustomerDataRoutes(
       SELECT
           uv.id,
           uv.status,
+          uv.issued_by_type,
           uv.issued_reason,
           uv.issue_case_ref,
           uv.tier_at_issue,
@@ -1358,6 +1520,7 @@ export async function registerCustomerDataRoutes(
           uv.redeemed_at,
           uv.revoked_at,
           uv.revoked_reason,
+          vt.id AS template_id,
           vt.code AS template_code,
           vt.name AS template_name,
           vt.image_url AS template_image_url,
@@ -1442,6 +1605,128 @@ export async function registerCustomerDataRoutes(
           allRows.findIndex((candidate) => candidate.template_code === row.template_code) === index
         );
 
+    const [lockedTopUpRows] = includeHistory
+      ? [[] as LockedTopUpRewardRow[]]
+      : await mysqlPool.query<Array<LockedTopUpRewardRow>>(
+        `
+          SELECT
+            vt.id,
+            vt.code,
+            vt.name,
+            vt.image_url,
+            vt.voucher_type,
+            vt.discount_mode,
+            CAST(vt.discount_value AS CHAR) AS discount_value,
+            vt.token_value,
+            CAST(vt.min_spend_rm AS CHAR) AS min_spend_rm,
+            vt.requires_drink_in_cart,
+            vt.eligible_scope_json,
+            vt.exclude_scope_json,
+            vt.valid_until,
+            vt.created_at,
+            ctm.is_employee
+          FROM voucher_templates vt
+          JOIN customer_tenant_memberships ctm
+            ON ctm.tenant_id = vt.tenant_id
+           AND ctm.user_id = :userId
+          WHERE vt.is_active = 1
+            AND (vt.valid_until IS NULL OR vt.valid_until > UTC_TIMESTAMP())
+            AND CAST(
+              JSON_UNQUOTE(JSON_EXTRACT(vt.eligible_scope_json, '$.topup_reward.min_tokens'))
+              AS UNSIGNED
+            ) > 0
+            AND NOT EXISTS (
+              SELECT 1
+              FROM user_vouchers uv
+              WHERE uv.user_id = :userId
+                AND uv.voucher_template_id = vt.id
+                AND uv.status = 'active'
+                AND uv.revoked_at IS NULL
+                AND uv.expires_at > UTC_TIMESTAMP()
+                AND (
+                  uv.issued_by_type = 'admin'
+                  OR uv.issue_case_ref LIKE CONCAT('topup_reward:', vt.id, ':topup:%')
+                )
+            )
+          ORDER BY vt.created_at DESC, vt.id DESC
+          LIMIT :limit
+        `,
+        { userId, limit }
+      );
+
+    const activeTiers = getActiveLoyaltyTiers(await loadLoyaltyTiers());
+    const [currentTierRows] = await mysqlPool.query<
+      Array<RowDataPacket & { tier_code: string | null }>
+    >(
+      `SELECT tier_code
+         FROM loyalty_tier_snapshots
+        WHERE user_id = :userId
+        ORDER BY effective_at DESC, id DESC
+        LIMIT 1`,
+      { userId }
+    );
+    const currentTier = normalizeVoucherTierScope(
+      currentTierRows[0]?.tier_code,
+      activeTiers
+    ) ?? activeTiers[0]?.code ?? null;
+    const lockedTopUpRewards = lockedTopUpRows
+      .filter((row) => {
+        const scope = parseVoucherScope(row.eligible_scope_json);
+        if (!isAutoVisibleAudience(scope, Number(row.is_employee) === 1)) {
+          return false;
+        }
+        const eligibleTier = normalizeVoucherTierScope(scope.tier, activeTiers);
+        return eligibleTier !== undefined &&
+          (eligibleTier === null || eligibleTier === currentTier);
+      })
+      .map((row) => {
+        const scope = parseVoucherScope(row.eligible_scope_json);
+        const minimumTokens = getVoucherTopUpMinimum(scope)!;
+        const schedule = getVoucherSchedule(scope);
+        const upcomingOccurrence = !isScheduleActiveNow(schedule, null)
+          ? getUpcomingVoucherOccurrence(schedule)
+          : null;
+        const displayExpiry = row.valid_until ?? new Date('2099-12-31T15:59:59.999Z');
+        return {
+          // Locked previews are deliberately not real user-voucher IDs. Mobile
+          // checkout accepts positive IDs only, providing another safety rail.
+          id: -Number(row.id),
+          status: 'active',
+          issued_reason: 'Locked top-up reward',
+          issue_case_ref: `locked_topup:${row.id}`,
+          tier_at_issue: currentTier,
+          issued_at: row.created_at.toISOString(),
+          expires_at: displayExpiry.toISOString(),
+          redeemed_at: null,
+          revoked_at: null,
+          revoked_reason: null,
+          reward_kind: 'voucher',
+          eligibility_status: 'unavailable',
+          unavailable_reason: `Top up at least ${minimumTokens} C2 Tokens in one payment to unlock this voucher.`,
+          has_fixed_expiry: row.valid_until !== null,
+          validity_label: buildCustomerVoucherValidityLabel(
+            schedule,
+            displayExpiry,
+            row.valid_until !== null,
+            upcomingOccurrence
+          ),
+          template: {
+            code: row.code,
+            name: row.name,
+            image_url: row.image_url,
+            voucher_type: row.voucher_type,
+            discount_mode: row.discount_mode,
+            discount_value: row.discount_value,
+            token_value: row.token_value,
+            min_spend_rm: row.min_spend_rm,
+            requires_drink_in_cart: row.requires_drink_in_cart === 1,
+            usage_instructions: String(scope.usage_instructions ?? '').trim(),
+            eligible_scope_json: row.eligible_scope_json,
+            exclude_scope_json: row.exclude_scope_json
+          }
+        };
+      });
+
     return {
       claimable_tier_rewards: claimableTierRewards.map((row) => ({
         id: row.id,
@@ -1468,6 +1753,7 @@ export async function registerCustomerDataRoutes(
           exclude_scope_json: row.exclude_scope_json
         }
       })),
+      locked_topup_rewards: lockedTopUpRewards,
       vouchers: visibleVoucherRows.map((row) => {
         const effectiveExpiresAt = row.voucher_type !== 'birthday_treat'
           && row.template_valid_until !== null
@@ -1476,7 +1762,17 @@ export async function registerCustomerDataRoutes(
           : row.expires_at;
 
         const scope = parseVoucherScope(row.eligible_scope_json);
+        const topUpEligibility = evaluateVoucherTopUpEligibility({
+          scope,
+          templateId: Number(row.template_id),
+          issueCaseRef: row.issue_case_ref,
+          issuedByType: row.issued_by_type
+        });
         const hasFixedExpiry = row.voucher_type !== 'tier_reward';
+        const schedule = getVoucherSchedule(scope);
+        const upcomingOccurrence = !isScheduleActiveNow(schedule, null)
+          ? getUpcomingVoucherOccurrence(schedule)
+          : null;
 
         return {
           id: row.id,
@@ -1500,11 +1796,14 @@ export async function registerCustomerDataRoutes(
             : row.issue_case_ref?.startsWith('tier_unlock:') || row.issue_case_ref?.startsWith('tier_claim:')
               ? 'tier_achievement'
               : 'voucher',
+          eligibility_status: topUpEligibility.eligible ? 'eligible' : 'unavailable',
+          unavailable_reason: topUpEligibility.unavailableReason,
           has_fixed_expiry: hasFixedExpiry,
           validity_label: buildCustomerVoucherValidityLabel(
-            getVoucherSchedule(scope),
+            schedule,
             effectiveExpiresAt,
-            hasFixedExpiry
+            hasFixedExpiry,
+            upcomingOccurrence
           ),
           template: {
             code: row.template_code,

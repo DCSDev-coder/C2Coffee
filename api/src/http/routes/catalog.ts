@@ -13,6 +13,7 @@ import {
   isStoreOpenNow,
   normalizeWeeklyHours,
 } from "../../services/store-availability.js";
+import { assertCustomerAccess, loadMaintenanceForUser } from "../../services/app-maintenance.js";
 
 const menuQuerySchema = z.object({
   store_id: z.coerce.number().int().positive(),
@@ -148,7 +149,7 @@ type LibraryModifierRow = RowDataPacket & {
   min_select: number;
   max_select: number;
   is_required: number;
-  applies_to: "all_drinks" | "selected_items";
+  applies_to: "all_drinks" | "all_items" | "selected_items";
   menu_item_id: number | null;
   option_id: number;
   option_name: string;
@@ -220,7 +221,7 @@ type HomeBannerRow = RowDataPacket & {
   image_source: string;
   media_type: "image" | "gif";
   animation_duration_ms: number;
-  banner_type: "voucher" | "event" | "new_item" | "general" | "partner";
+  banner_type: "voucher" | "event" | "new_item" | "general" | "partner" | "social";
   partner_name: string | null;
   sponsored_label: number;
   cta_label: string | null;
@@ -552,6 +553,7 @@ export async function registerCatalogRoutes(
         getUserResponse(request.auth.userId),
         getBootstrapForUser(request.auth.userId),
       ]);
+      const maintenance = await loadMaintenanceForUser(request.auth.userId);
       const appearance = await getCustomerAppearance(
         request.auth.userId,
         summary.tier,
@@ -564,7 +566,9 @@ export async function registerCatalogRoutes(
           balance_reserved: summary.token_reserved,
           balance_cap: summary.token_cap,
           has_completed_topup: summary.has_completed_topup,
-          can_place_order: true,
+          // can_place_order: true remains the historical no-top-up prerequisite;
+          // maintenance is the separate server-enforced access gate below.
+          can_place_order: !maintenance.blocked,
         },
         loyalty: {
           tier: summary.tier,
@@ -574,6 +578,7 @@ export async function registerCatalogRoutes(
         },
         active_order: null,
         appearance,
+        maintenance,
         home_banners: await listActiveHomeBanners(request.auth.userId),
       };
     },
@@ -596,6 +601,7 @@ export async function registerCatalogRoutes(
     "/v1/stores",
     { preHandler: authenticateRequest },
     async (request) => {
+      await assertCustomerAccess(request.auth.userId);
       return {
         stores: await listActiveStores(request.auth.userId),
       };
@@ -603,6 +609,7 @@ export async function registerCatalogRoutes(
   );
 
   app.get("/v1/menu", { preHandler: authenticateRequest }, async (request) => {
+    await assertCustomerAccess(request.auth.userId);
     const { store_id: storeId } = menuQuerySchema.parse(request.query);
 
     const stores = await listActiveStores(request.auth.userId);
@@ -635,7 +642,7 @@ export async function registerCatalogRoutes(
        FROM home_banners hb
        JOIN customer_tenant_memberships ctm
          ON ctm.tenant_id = hb.tenant_id AND ctm.user_id = :userId
-       WHERE hb.code = :code AND hb.banner_type = 'partner' AND hb.is_active = 1
+       WHERE hb.code = :code AND hb.banner_type IN ('partner', 'social') AND hb.is_active = 1
          AND (hb.starts_at IS NULL OR hb.starts_at <= UTC_TIMESTAMP())
          AND (hb.ends_at IS NULL OR hb.ends_at > UTC_TIMESTAMP())
          AND NOT EXISTS (
@@ -893,8 +900,7 @@ export async function loadCatalogMenu(storeId: number) {
     `SELECT n.menu_item_id, n.option_group_option_id, n.calorie_delta_kcal
        FROM menu_item_option_nutrition_overrides n
        JOIN menu_items i ON i.id = n.menu_item_id
-       JOIN menu_categories c ON c.id = i.category_id
-       WHERE LOWER(COALESCE(c.product_kind_code, '')) = 'drink'`,
+       JOIN menu_categories c ON c.id = i.category_id`,
     {},
   );
   const optionCaloriesByItem = new Map<string, number>();
@@ -941,7 +947,9 @@ export async function loadCatalogMenu(storeId: number) {
   }
   for (const row of libraryRows) {
     const targets =
-      row.applies_to === "all_drinks"
+      row.applies_to === "all_items"
+        ? [...itemsById.values()]
+        : row.applies_to === "all_drinks"
         ? [...itemsById.values()].filter(
             (item) => item.product_kind_code === "drink",
           )

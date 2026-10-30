@@ -52,7 +52,9 @@ test('timetable publication rejects stale editors and supports an empty roster',
 
 test('production readiness requires every current release migration', async () => {
   const readiness = await source('src/scripts/production-readiness.ts');
-  for (const migration of ['108_', '109_', '110_', '111_', '112_']) {
+  for (const migration of [
+    '108_', '109_', '110_', '111_', '112_', '113_', '114_', '115_', '116_'
+  ]) {
     assert.match(readiness, new RegExp(migration));
   }
   assert.match(readiness, /Latest schema migrations/);

@@ -113,6 +113,67 @@ async function issueTopUpRewardVouchers(
     if (String(scope.audience ?? 'all_customers') === 'employee_only' && Number(template.is_employee) !== 1) continue;
     if (String(scope.audience ?? 'all_customers') === 'manual_issue_only') continue;
 
+    const expiresAt = template.valid_until
+      ?? (template.expires_in_days && template.expires_in_days > 0
+        ? new Date(Date.now() + template.expires_in_days * 24 * 60 * 60 * 1000)
+        : new Date(Date.now() + 3650 * 24 * 60 * 60 * 1000));
+    const issueCaseRef = `topup_reward:${template.id}:topup:${input.topupId}`;
+
+    // Older app versions could auto-issue a normal campaign copy before the
+    // customer completed the top-up. Once the customer genuinely qualifies,
+    // promote that unusable copy instead of creating a duplicate voucher.
+    const [legacyRows] = await connection.query<Array<RowDataPacket & { id: number }>>(
+      `SELECT id
+         FROM user_vouchers
+        WHERE user_id = :userId
+          AND voucher_template_id = :templateId
+          AND issued_by_type = 'system'
+          AND status = 'active'
+          AND (issue_case_ref IS NULL OR issue_case_ref NOT LIKE :topUpPrefix)
+          AND NOT EXISTS (
+            SELECT 1
+              FROM user_vouchers qualified
+             WHERE qualified.user_id = :userId
+               AND qualified.voucher_template_id = :templateId
+               AND qualified.status <> 'revoked'
+               AND qualified.issue_case_ref LIKE :topUpPrefix
+          )
+        ORDER BY issued_at DESC, id DESC
+        LIMIT 1
+        FOR UPDATE`,
+      {
+        userId: input.userId,
+        templateId: template.id,
+        topUpPrefix: `topup_reward:${template.id}:topup:%`
+      }
+    );
+    if (legacyRows[0]) {
+      await connection.execute(
+        `UPDATE user_vouchers
+            SET issued_reason = :reason,
+                issue_case_ref = :issueCaseRef,
+                issued_at = UTC_TIMESTAMP(),
+                expires_at = :expiresAt
+          WHERE id = :voucherId`,
+        {
+          voucherId: legacyRows[0].id,
+          reason: `Qualifying top-up ${input.topupId}`,
+          issueCaseRef,
+          expiresAt
+        }
+      );
+      issued += 1;
+      await createUserNotification(connection, {
+        userId: input.userId,
+        type: 'topup_reward',
+        title: 'Voucher unlocked',
+        body: `${template.name} is now available in My Rewards.`,
+        data: { topup_id: input.topupId, voucher_template_id: template.id },
+        deliveryKey: `topup_reward:${input.userId}:${template.id}:topup:${input.topupId}`
+      });
+      continue;
+    }
+
     const [counts] = await connection.query<Array<RowDataPacket & { total_count: number; user_count: number }>>(
       `SELECT COUNT(*) AS total_count,
               COALESCE(SUM(user_id = :userId), 0) AS user_count
@@ -125,10 +186,6 @@ async function issueTopUpRewardVouchers(
     // does not count, allowing a later legitimate top-up after a refund.
     if (Number(counts[0]?.user_count ?? 0) >= 1) continue;
 
-    const expiresAt = template.valid_until
-      ?? (template.expires_in_days && template.expires_in_days > 0
-        ? new Date(Date.now() + template.expires_in_days * 24 * 60 * 60 * 1000)
-        : new Date(Date.now() + 3650 * 24 * 60 * 60 * 1000));
     const [result] = await connection.execute<ResultSetHeader>(
       `INSERT IGNORE INTO user_vouchers (
          user_id, voucher_template_id, status, issued_by_type, issued_reason,
@@ -141,7 +198,7 @@ async function issueTopUpRewardVouchers(
         userId: input.userId,
         templateId: template.id,
         reason: `Qualifying top-up ${input.topupId}`,
-        issueCaseRef: `topup_reward:${template.id}:topup:${input.topupId}`,
+        issueCaseRef,
         expiresAt
       }
     );

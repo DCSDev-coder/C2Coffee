@@ -251,6 +251,14 @@ class PushNotificationService {
         AppNotification.showInfo(null, 'A reward is expiring soon.');
         if (opened) _openNotificationDestination(const MyRewardsPage());
         break;
+      case 'voucher_start_reminder':
+        AppNotification.showInfo(null, 'A voucher is now available.');
+        if (opened) _openNotificationDestination(const MyRewardsPage());
+        break;
+      case 'voucher_end_reminder':
+        AppNotification.showInfo(null, 'A voucher is ending soon.');
+        if (opened) _openNotificationDestination(const MyRewardsPage());
+        break;
       case 'marketing_poster':
         // Marketing copy is available in the notification inbox. Keep the
         // foreground alert generic so no malformed remote payload is rendered.
@@ -331,6 +339,8 @@ class PushNotificationService {
       'order_ready' => 'Order ready for collection',
       'order_pickup_reminder' => 'Pickup reminder',
       'voucher_expiring' => 'Reward expiring soon',
+      'voucher_start_reminder' => 'Voucher is available',
+      'voucher_end_reminder' => 'Voucher ends soon',
       'marketing_poster' => 'New C2 Coffee update',
       'customer_message' => 'New C2 Coffee message',
       'payment_service_notice' => 'Payment service notice',
@@ -345,6 +355,8 @@ class PushNotificationService {
       'order_ready' => 'Your order is ready to collect.',
       'order_pickup_reminder' => 'Your order is still waiting at the counter.',
       'voucher_expiring' => 'Open Rewards to use it before it expires.',
+      'voucher_start_reminder' => 'Open Rewards to use your voucher.',
+      'voucher_end_reminder' => 'Open Rewards to use it before it ends.',
       'marketing_poster' => 'Open Notifications to see the latest update.',
       'customer_message' => 'Open Notifications to read the latest message.',
       'payment_service_notice' =>

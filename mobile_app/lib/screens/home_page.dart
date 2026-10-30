@@ -215,18 +215,20 @@ class _HomePageState extends State<HomePage> {
     final serverAvatar = _session.user;
     if (serverAvatar?.avatarType == 'uploaded' &&
         serverAvatar?.avatarValue?.isNotEmpty == true) {
-      final source = resolveCatalogImageSource(serverAvatar!.avatarValue)!;
-      return Image.network(
-        source,
-        width: 45,
-        height: 45,
-        fit: BoxFit.cover,
-        loadingBuilder: (_, child, loadingProgress) => loadingProgress == null
-            ? child
-            : const C2ImageSkeleton(width: 45, height: 45),
-        errorBuilder: (_, __, ___) =>
-            const Icon(Icons.person, color: Colors.white, size: 30),
-      );
+      final source = resolveCatalogImageSource(serverAvatar!.avatarValue);
+      if (source != null && isSecureRemoteImageSource(source)) {
+        return Image.network(
+          source,
+          width: 45,
+          height: 45,
+          fit: BoxFit.cover,
+          loadingBuilder: (_, child, loadingProgress) => loadingProgress == null
+              ? child
+              : const C2ImageSkeleton(width: 45, height: 45),
+          errorBuilder: (_, __, ___) =>
+              const Icon(Icons.person, color: Colors.white, size: 30),
+        );
+      }
     }
 
     final presetPath = serverAvatar?.avatarType == 'preset' &&
@@ -782,8 +784,7 @@ class _HomePageState extends State<HomePage> {
       return _buildBannerFallback();
     }
 
-    if (resolvedSource.startsWith('http://') ||
-        resolvedSource.startsWith('https://')) {
+    if (isSecureRemoteImageSource(resolvedSource)) {
       return CachedNetworkImage(
         imageUrl: resolvedSource,
         width: double.infinity,
@@ -818,7 +819,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _handleBannerTap(HomeBanner banner) {
-    if (banner.bannerType == 'partner') {
+    if (banner.bannerType == 'partner' || banner.bannerType == 'social') {
       unawaited(_openPartnerCampaign(banner));
       return;
     }
@@ -915,7 +916,11 @@ class _HomePageState extends State<HomePage> {
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (dialogContext) => AlertDialog(
-          title: const Text('Open partner website?'),
+          title: Text(
+            banner.bannerType == 'social'
+                ? 'Open social or entertainment link?'
+                : 'Open partner website?',
+          ),
           content:
               Text('You are leaving the C2 Coffee app to visit ${uri.host}.'),
           actions: [

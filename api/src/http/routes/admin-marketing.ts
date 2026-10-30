@@ -15,6 +15,7 @@ const bannerTypeSchema = z.enum([
   "new_item",
   "general",
   "partner",
+  "social",
 ]);
 const destinationTypeSchema = z.enum(["reward_section", "menu", "calendar"]);
 const partnerActionTypeSchema = z.enum(["none", "external_url", "email"]);
@@ -164,7 +165,7 @@ type BannerRow = RowDataPacket & {
   image_source: string;
   media_type: "image" | "gif";
   animation_duration_ms: number;
-  banner_type: string;
+  banner_type: "voucher" | "event" | "new_item" | "general" | "partner" | "social";
   partner_name: string | null;
   sponsored_label: number;
   cta_label: string | null;
@@ -670,6 +671,7 @@ function normalizeRequestBody(
   const isVoucher = bannerType === "voucher";
   const isNewItem = bannerType === "new_item";
   const isPartner = bannerType === "partner";
+  const isSocial = bannerType === "social";
 
   const destinationType = isEvent
     ? "calendar"
@@ -682,13 +684,17 @@ function normalizeRequestBody(
   const targetValue =
     isVoucher || isNewItem ? String(body.targetValue ?? "").trim() : null;
   const startsAt =
-    isEvent || isPartner ? toUtcDateTimeString(body.startsAt ?? null) : null;
+    isEvent || isPartner || isSocial
+      ? toUtcDateTimeString(body.startsAt ?? null)
+      : null;
   const endsAt =
-    isEvent || isPartner ? toUtcDateTimeString(body.endsAt ?? null) : null;
+    isEvent || isPartner || isSocial
+      ? toUtcDateTimeString(body.endsAt ?? null)
+      : null;
 
-  const actionType = isPartner ? (body.actionType ?? "none") : "none";
+  const actionType = isPartner || isSocial ? (body.actionType ?? "none") : "none";
   const actionValue =
-    isPartner && actionType !== "none"
+    (isPartner || isSocial) && actionType !== "none"
       ? String(body.actionValue ?? "").trim()
       : null;
 
@@ -699,7 +705,7 @@ function normalizeRequestBody(
       : null,
     sponsoredLabel: isPartner ? (body.sponsoredLabel ?? true) : false,
     ctaLabel:
-      isPartner && actionType !== "none"
+      (isPartner || isSocial) && actionType !== "none"
         ? String(body.ctaLabel ?? "").trim() || "Learn more"
         : null,
     actionType,
@@ -719,8 +725,8 @@ function normalizeRequestBody(
 function validatePartnerAction(
   input: ReturnType<typeof normalizeRequestBody>,
 ): void {
-  if (input.bannerType !== "partner") return;
-  if (!input.partnerName) {
+  if (!['partner', 'social'].includes(input.bannerType)) return;
+  if (input.bannerType === "partner" && !input.partnerName) {
     throw new ApiError(
       400,
       "missing_partner_name",
@@ -731,14 +737,25 @@ function validatePartnerAction(
     throw new ApiError(
       400,
       "missing_partner_action",
-      "Partnership requires a website or email action.",
+      input.bannerType === "social"
+        ? "Social posters require an HTTPS destination link."
+        : "Partnership requires a website or email action.",
     );
   }
   if (!input.actionValue) {
     throw new ApiError(
       400,
       "missing_partner_action",
-      "Enter the website or email address for this partner action.",
+      input.bannerType === "social"
+        ? "Enter the HTTPS social or entertainment link."
+        : "Enter the website or email address for this partner action.",
+    );
+  }
+  if (input.bannerType === "social" && input.actionType !== "external_url") {
+    throw new ApiError(
+      400,
+      "invalid_social_action",
+      "Social posters can only open an HTTPS destination link.",
     );
   }
   if (input.actionType === "external_url") {
@@ -749,14 +766,14 @@ function validatePartnerAction(
       throw new ApiError(
         400,
         "invalid_partner_url",
-        "Partner website must be a valid HTTPS URL.",
+        "The destination must be a valid HTTPS URL.",
       );
     }
     if (url.protocol !== "https:" || url.username || url.password) {
       throw new ApiError(
         400,
         "invalid_partner_url",
-        "Partner website must be a valid HTTPS URL without embedded credentials.",
+        "The destination must be a valid HTTPS URL without embedded credentials.",
       );
     }
   }
@@ -1497,7 +1514,8 @@ export async function registerAdminMarketingRoutes(
         );
       }
       if (
-        payload.bannerType === "partner" &&
+        payload.bannerType !== undefined &&
+        ["partner", "social"].includes(payload.bannerType ?? "") &&
         !supportsPartnerCampaignFields(columns)
       ) {
         throw new ApiError(
@@ -1887,7 +1905,7 @@ export async function registerAdminMarketingRoutes(
       const supportsMedia = supportsHomeBannerMedia(columns);
 
       if (
-        payload.bannerType === "partner" &&
+        ["partner", "social"].includes(payload.bannerType ?? "") &&
         !supportsPartnerCampaignFields(columns)
       ) {
         throw new ApiError(

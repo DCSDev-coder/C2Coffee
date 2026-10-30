@@ -1,15 +1,18 @@
-PS D:\C2Coffee\api>
-PS D:\C2Coffee\api> docker compose build c2-api
+PS D:\C2Coffee\api> docker compose down
+[+] down 2/2
+ ✔ Container c2coffee-api Removed                                                                        16.2s
+ ✔ Network api_default    Removed                                                                         0.3s
+PS D:\C2Coffee\api> docker compose up -d --build
 #1 [internal] load local bake definitions
-#1 reading from stdin 479B 0.2s done
-#1 DONE 0.2s
+#1 reading from stdin 479B 0.1s done
+#1 DONE 0.1s
 
 #2 [internal] load build definition from Dockerfile
 #2 transferring dockerfile: 746B 0.0s done
 #2 DONE 0.0s
 
 #3 [internal] load metadata for docker.io/library/node:22-alpine
-#3 DONE 2.2s
+#3 DONE 2.3s
 
 #4 [internal] load .dockerignore
 #4 transferring context: 188B 0.0s done
@@ -23,35 +26,35 @@ PS D:\C2Coffee\api> docker compose build c2-api
 #6 DONE 0.1s
 
 #5 [internal] load build context
-#5 transferring context: 118.20kB 0.1s done
-#5 DONE 0.2s
+#5 transferring context: 73.17kB 0.1s done
+#5 DONE 0.1s
 
-#7 [deps 2/4] WORKDIR /app
+#7 [deps 4/4] RUN npm ci
 #7 CACHED
 
-#8 [deps 3/4] COPY package.json package-lock.json* ./
+#8 [deps 2/4] WORKDIR /app
 #8 CACHED
 
-#9 [deps 4/4] RUN npm ci
+#9 [deps 3/4] COPY package.json package-lock.json* ./
 #9 CACHED
 
 #10 [build 3/5] COPY --from=deps /app/node_modules ./node_modules
 #10 CACHED
 
 #11 [build 4/5] COPY . .
-#11 DONE 2.7s
+#11 DONE 3.0s
 
 #12 [build 5/5] RUN npm run build
-#12 3.818
-#12 3.818 > @c2coffee/api@0.1.0 build
-#12 3.818 > node scripts/clean-dist.mjs && tsc -p tsconfig.json && node scripts/copy-sql.mjs
-#12 3.818
-#12 37.79 npm notice
-#12 37.79 npm notice New major version of npm available! 10.9.9 -> 12.2.1
-#12 37.79 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.1
-#12 37.79 npm notice To update run: npm install -g npm@12.2.1
-#12 37.79 npm notice
-#12 DONE 38.2s
+#12 5.097
+#12 5.097 > @c2coffee/api@0.1.0 build
+#12 5.097 > node scripts/clean-dist.mjs && tsc -p tsconfig.json && node scripts/copy-sql.mjs
+#12 5.097
+#12 39.94 npm notice
+#12 39.94 npm notice New major version of npm available! 10.9.9 -> 12.2.1
+#12 39.94 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.1
+#12 39.94 npm notice To update run: npm install -g npm@12.2.1
+#12 39.94 npm notice
+#12 DONE 41.0s
 
 #13 [runtime 4/6] RUN npm ci --omit=dev && npm cache clean --force
 #13 CACHED
@@ -60,33 +63,55 @@ PS D:\C2Coffee\api> docker compose build c2-api
 #14 DONE 0.7s
 
 #15 [runtime 6/6] RUN chown -R node:node /app
-#15 DONE 38.6s
+#15 DONE 40.0s
 
 #16 exporting to image
 #16 exporting layers
-#16 exporting layers 33.7s done
-#16 exporting manifest sha256:12555e65b68be08a573bd96d05c270f8047d7ea3e505c33f84eff1a281aa09f3 0.1s done
-#16 exporting config sha256:44648b9ad02f273a8870098ef7037704c659c2d8625ef64993c1f3b0f99534e3 0.1s done
-#16 exporting attestation manifest sha256:839c6f6988768872da3e4853c1302a1de127f55513192c9adb43280d3aec1a8e 0.1s done
-#16 exporting manifest list sha256:3d34a0b6ea8ca6eab9363497f4c73889b089d109b29bcef883995c01a9189f3a 0.0s done
+#16 exporting layers 33.5s done
+#16 exporting manifest sha256:031589188ecf2ad6dbb0a120b60376b0e1eb8d7278edbc7bf1c26105c40dc0e5 0.0s done
+#16 exporting config sha256:2819af04e9db3da0eea6a501392dd320b8202ca402d6a82cf301b74af2b52d41 0.0s done
+#16 exporting attestation manifest sha256:acaf4d6fcc1607d12e57022c65ff7d9ba7d2c59f3c9a0b37447abba8d8d67e0d 0.1s done
+#16 exporting manifest list sha256:c25ca2f6481239ace07ac2751745b5efc898f052f89aaa5f9c63672cb56a78c6
+#16 exporting manifest list sha256:c25ca2f6481239ace07ac2751745b5efc898f052f89aaa5f9c63672cb56a78c6 0.0s done
 #16 naming to docker.io/library/api-c2-api:latest done
 #16 unpacking to docker.io/library/api-c2-api:latest
 #16 unpacking to docker.io/library/api-c2-api:latest 15.8s done
-#16 DONE 50.0s
+#16 DONE 49.6s
 
 #17 resolving provenance for metadata file
 #17 DONE 0.1s
-[+] build 1/1
- ✔ Image api-c2-api Built                                                                               139.3s
-PS D:\C2Coffee\api> docker compose up -d c2-api
-[+] up 1/1
- ✔ Container c2coffee-api Started                                                                        21.2s
+[+] up 3/3
+ ✔ Image api-c2-api       Built                                                                         144.0s
+ ✔ Network api_default    Created                                                                         0.2s
+ ✔ Container c2coffee-api Started                                                                         5.5s
 
 What's next:
     Filter, search, and stream logs from all your Compose services
     in one place with Docker Desktop's Logs view. docker-desktop://dashboard/logs?appId=api
-PS D:\C2Coffee\api>
-PS D:\C2Coffee\api> docker compose exec c2-api node dist/db/migrate.js
-PS D:\C2Coffee\api> $LASTEXITCODE
-0
+PS D:\C2Coffee\api> docker compose logs --tail 200 c2-api
+c2coffee-api  | {"level":30,"time":1793329834114,"pid":1,"hostname":"89766d6d806c","msg":"Server listening athttp://127.0.0.1:8080"}
+c2coffee-api  | {"level":30,"time":1793329834116,"pid":1,"hostname":"89766d6d806c","msg":"Server listening athttp://172.19.0.2:8080"}
+c2coffee-api  | {"level":30,"time":1793329835326,"pid":1,"hostname":"89766d6d806c","reqId":"f5a1d5ed-2375-4bab-af9c-81b8c3fad1ad","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":49190},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1793329835390,"pid":1,"hostname":"89766d6d806c","reqId":"f5a1d5ed-2375-4bab-af9c-81b8c3fad1ad","res":{"statusCode":200},"responseTime":60.246126000000004,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1793329866421,"pid":1,"hostname":"89766d6d806c","reqId":"3beb8fcc-f138-4772-ac07-3287c53897cf","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":56748},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1793329866447,"pid":1,"hostname":"89766d6d806c","reqId":"3beb8fcc-f138-4772-ac07-3287c53897cf","res":{"statusCode":200},"responseTime":24.834028999997827,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1793329897390,"pid":1,"hostname":"89766d6d806c","reqId":"ee0b3f53-c31f-4e20-b710-18c60a55ed55","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":36466},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1793329897411,"pid":1,"hostname":"89766d6d806c","reqId":"ee0b3f53-c31f-4e20-b710-18c60a55ed55","res":{"statusCode":200},"responseTime":20.75461699999869,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1793329928318,"pid":1,"hostname":"89766d6d806c","reqId":"46e6fb13-151f-4482-b4eb-57e8e0ce2daf","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":55190},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1793329928340,"pid":1,"hostname":"89766d6d806c","reqId":"46e6fb13-151f-4482-b4eb-57e8e0ce2daf","res":{"statusCode":200},"responseTime":20.452382000003126,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1793329959239,"pid":1,"hostname":"89766d6d806c","reqId":"03a31e77-aab7-4b3f-aa5c-aa66c71be810","req":{"method":"GET","url":"/v1/health","host":"127.0.0.1:8080","remoteAddress":"127.0.0.1","remotePort":41106},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1793329959264,"pid":1,"hostname":"89766d6d806c","reqId":"03a31e77-aab7-4b3f-aa5c-aa66c71be810","res":{"statusCode":200},"responseTime":23.448975000006612,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1793329960853,"pid":1,"hostname":"89766d6d806c","reqId":"e23fbf01-df8b-47fb-a289-df516ea44ead","req":{"method":"POST","url":"/v1/auth/refresh","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":39714},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1793329960868,"pid":1,"hostname":"89766d6d806c","reqId":"4a2a2216-9d37-4d05-a52f-55708626fdac","req":{"method":"GET","url":"/v1/bootstrap","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":39704},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1793329960924,"pid":1,"hostname":"89766d6d806c","reqId":"e23fbf01-df8b-47fb-a289-df516ea44ead","res":{"statusCode":200},"responseTime":70.84729000000516,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1793329960960,"pid":1,"hostname":"89766d6d806c","reqId":"f164c56b-553b-441f-99c4-09735c8aed45","req":{"method":"POST","url":"/v1/devices/push-token","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":39714},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1793329961031,"pid":1,"hostname":"89766d6d806c","reqId":"4a2a2216-9d37-4d05-a52f-55708626fdac","res":{"statusCode":200},"responseTime":162.85185400000773,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1793329961087,"pid":1,"hostname":"89766d6d806c","reqId":"f164c56b-553b-441f-99c4-09735c8aed45","userId":262,"deviceId":58,"platform":"ios","appVersion":null,"tokenFingerprint":"fa78c77f1ec6","msg":"Customer push token registered."}
+c2coffee-api  | {"level":30,"time":1793329961088,"pid":1,"hostname":"89766d6d806c","reqId":"f164c56b-553b-441f-99c4-09735c8aed45","res":{"statusCode":200},"responseTime":127.60423300002003,"msg":"request completed"}
+c2coffee-api  | {"level":30,"time":1793329961324,"pid":1,"hostname":"89766d6d806c","reqId":"44a6c20e-b758-4152-b38a-1cbc4a9251b7","req":{"method":"GET","url":"/v1/orders?limit=20","host":"127.0.0.1:8080","remoteAddress":"172.19.0.1","remotePort":39704},"msg":"incoming request"}
+c2coffee-api  | {"level":30,"time":1793329961368,"pid":1,"hostname":"89766d6d806c","reqId":"44a6c20e-b758-4152-b38a-1cbc4a9251b7","res":{"statusCode":200},"responseTime":43.32438100001309,"msg":"request completed"}
+
+What's next:
+    Filter, search, and stream logs from all your Compose services
+    in one place with Docker Desktop's Logs view. docker-desktop://dashboard/logs?appId=api
 PS D:\C2Coffee\api>

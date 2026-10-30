@@ -39,6 +39,7 @@ const Outlets = lazy(() => import('./components/Outlets'));
 const CounterDevices = lazy(() => import('./components/CounterDevices'));
 const PlatformTenants = lazy(() => import('./components/PlatformTenants'));
 const DataRetention = lazy(() => import('./components/DataRetention'));
+const Inventory = lazy(() => import('./components/Inventory'));
 
 function AppContent({
   layoutCurrentPage,
@@ -79,6 +80,7 @@ function AppContent({
         {currentPage === 'Tier Management' && <TierManagement onBack={() => navigateWithPrompt('Token Ledger')} />}
         {currentPage === 'Menu' && <Menu onNavigate={navigateWithPrompt} />}
         {currentPage === 'Options & Nutrition' && <OptionsNutrition />}
+        {currentPage === 'Inventory' && <Inventory />}
         {currentPage === 'Marketing' && <Marketing setCurrentPage={navigateWithPrompt} />}
         {currentPage === 'Finance' && <Finance setCurrentPage={navigateWithPrompt} />}
         {currentPage === 'RevenueReport' && <RevenueReport onBack={() => navigateWithPrompt('Finance')} />}

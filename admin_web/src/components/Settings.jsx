@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from "react";
-import { FileText, KeyRound, Palette, ShieldCheck, Smartphone, Store } from "lucide-react";
+import { FileText, KeyRound, Palette, ShieldCheck, Smartphone, Store, Wrench } from "lucide-react";
 import {
   loadAdminAppearance,
   loadAdminStore,
   updateAdminAppearance,
   updateAdminStoreName,
+  loadAdminMaintenance,
+  updateAdminMaintenance,
 } from "../lib/adminApi";
 
 const defaultAppearance = {
@@ -75,6 +77,9 @@ const Settings = ({ setCurrentPage, currentUser }) => {
   const [previewTierId, setPreviewTierId] = useState(null);
   const [appearanceMessage, setAppearanceMessage] = useState("");
   const [isSavingAppearance, setIsSavingAppearance] = useState(false);
+  const [maintenance, setMaintenance] = useState({ enabled: false, title: "C2 Coffee is under maintenance", message: "We are making improvements. Please check back soon.", expected_end_at: null });
+  const [maintenanceMessage, setMaintenanceMessage] = useState("");
+  const [isSavingMaintenance, setIsSavingMaintenance] = useState(false);
 
   useEffect(() => {
     if (!canManageStore) return;
@@ -85,6 +90,13 @@ const Settings = ({ setCurrentPage, currentUser }) => {
           "The outlet name could not be loaded. Please refresh and try again.",
         ),
       );
+  }, [canManageStore]);
+
+  useEffect(() => {
+    if (!canManageStore) return;
+    loadAdminMaintenance()
+      .then(({ maintenance: value }) => setMaintenance((current) => ({ ...current, ...value })))
+      .catch(() => setMaintenanceMessage("Maintenance settings could not be loaded. Please refresh and try again."));
   }, [canManageStore]);
 
   useEffect(() => {
@@ -131,6 +143,21 @@ const Settings = ({ setCurrentPage, currentUser }) => {
       setStoreMessage("The outlet name could not be saved. Please try again.");
     } finally {
       setIsSavingStore(false);
+    }
+  };
+
+  const saveMaintenance = async () => {
+    setIsSavingMaintenance(true);
+    setMaintenanceMessage("");
+    try {
+      const payload = { ...maintenance, expected_end_at: maintenance.expected_end_at || null };
+      const { maintenance: saved } = await updateAdminMaintenance(payload);
+      setMaintenance((current) => ({ ...current, ...saved }));
+      setMaintenanceMessage(maintenance.enabled ? "Maintenance mode is active. Employees can continue testing." : "Maintenance mode is off. Customers can order again and will be notified.");
+    } catch {
+      setMaintenanceMessage("Maintenance settings could not be saved. Check the message and expected end time.");
+    } finally {
+      setIsSavingMaintenance(false);
     }
   };
 
@@ -269,6 +296,25 @@ const Settings = ({ setCurrentPage, currentUser }) => {
                     {storeMessage}
                   </p>
                 )}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {canManageStore && (
+          <section className="mt-4 rounded-2xl border border-amber-200 bg-white p-6 shadow-sm">
+            <div className="flex items-start gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-800"><Wrench size={23} /></div>
+              <div className="min-w-0 flex-1">
+                <h2 className="text-lg font-bold text-gray-900">Customer app maintenance</h2>
+                <p className="mt-1 text-sm text-gray-500">When enabled, customers see only the maintenance screen. Approved employee accounts can continue for internal testing.</p>
+                <label className="mt-4 flex items-center gap-3 text-sm font-bold text-gray-800"><input type="checkbox" checked={maintenance.enabled} onChange={(event) => setMaintenance((current) => ({ ...current, enabled: event.target.checked }))} /> Enable maintenance mode</label>
+                <p className="mt-2 text-xs text-gray-500">Employee bypass is always enabled and is controlled by the employee flag on the customer membership.</p>
+                <label className="mt-4 block text-sm font-bold text-gray-700">Screen title<input value={maintenance.title} maxLength={160} onChange={(event) => setMaintenance((current) => ({ ...current, title: event.target.value }))} className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal outline-none focus:border-[#2E5E58]" /></label>
+                <label className="mt-4 block text-sm font-bold text-gray-700">Customer message<textarea value={maintenance.message} maxLength={600} onChange={(event) => setMaintenance((current) => ({ ...current, message: event.target.value }))} rows={3} className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal outline-none focus:border-[#2E5E58]" /></label>
+                <label className="mt-4 block text-sm font-bold text-gray-700">Expected end time (optional)<input type="datetime-local" value={maintenance.expected_end_at ? new Date(maintenance.expected_end_at).toISOString().slice(0, 16) : ""} onChange={(event) => setMaintenance((current) => ({ ...current, expected_end_at: event.target.value ? new Date(event.target.value).toISOString() : null }))} className="mt-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal outline-none focus:border-[#2E5E58]" /></label>
+                <button type="button" disabled={isSavingMaintenance} onClick={saveMaintenance} className="mt-4 rounded-lg bg-[#1F3A34] px-4 py-2 text-sm font-bold text-white hover:bg-[#2E5E58] disabled:cursor-not-allowed disabled:opacity-60">{isSavingMaintenance ? "Saving..." : "Save maintenance settings"}</button>
+                {maintenanceMessage && <p className="mt-2 text-sm text-gray-600" role="status">{maintenanceMessage}</p>}
               </div>
             </div>
           </section>

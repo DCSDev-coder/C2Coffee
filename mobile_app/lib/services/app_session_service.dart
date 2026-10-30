@@ -37,6 +37,7 @@ class AppSessionService extends ChangeNotifier {
   List<HomeFeaturedSection> _homeFeaturedSections = const [];
   List<HomeBanner> _homeBanners = const [];
   List<LoyaltyTier> _loyaltyTiers = const [];
+  MaintenanceSnapshot _maintenance = const MaintenanceSnapshot(enabled: false, blocked: false, title: '', message: '', expectedEndAt: null);
 
   CurrentUserProfile? get user => _user;
   int get tokenBalance => _tokenBalance;
@@ -60,6 +61,7 @@ class AppSessionService extends ChangeNotifier {
   List<HomeFeaturedSection> get homeFeaturedSections => _homeFeaturedSections;
   List<HomeBanner> get homeBanners => _homeBanners;
   List<LoyaltyTier> get loyaltyTiers => _loyaltyTiers;
+  MaintenanceSnapshot get maintenance => _maintenance;
   Map<String, String?> get userProfileSnapshot =>
       _user?.toLocalProfileMap() ?? const {};
 
@@ -171,16 +173,21 @@ class AppSessionService extends ChangeNotifier {
         final bootstrapFuture = CatalogApiService.instance.getBootstrap(
           accessToken: accessToken,
         );
-        final storesFuture = CatalogApiService.instance.getStores(
-          accessToken: accessToken,
-        );
-        final currentUserFuture = AuthApiService.instance.getCurrentUser(
-          accessToken: accessToken,
-        );
-
         bootstrap = await bootstrapFuture;
-        stores = await storesFuture;
-        currentUser = await currentUserFuture;
+        // Bootstrap is deliberately read first. During maintenance, the API
+        // blocks catalog endpoints for regular customers, but the bootstrap
+        // response is still needed to render the maintenance screen.
+        if (bootstrap.maintenance.blocked) {
+          stores = const [];
+          currentUser = bootstrap.user;
+        } else {
+          stores = await CatalogApiService.instance.getStores(
+            accessToken: accessToken,
+          );
+          currentUser = await AuthApiService.instance.getCurrentUser(
+            accessToken: accessToken,
+          );
+        }
       } on ApiException catch (e) {
         if (e.message.toLowerCase().contains('expired') ||
             e.code == 'invalid_access_token' ||
@@ -192,12 +199,17 @@ class AppSessionService extends ChangeNotifier {
             bootstrap = await CatalogApiService.instance.getBootstrap(
               accessToken: accessToken,
             );
-            stores = await CatalogApiService.instance.getStores(
-              accessToken: accessToken,
-            );
-            currentUser = await AuthApiService.instance.getCurrentUser(
-              accessToken: accessToken,
-            );
+            if (bootstrap.maintenance.blocked) {
+              stores = const [];
+              currentUser = bootstrap.user;
+            } else {
+              stores = await CatalogApiService.instance.getStores(
+                accessToken: accessToken,
+              );
+              currentUser = await AuthApiService.instance.getCurrentUser(
+                accessToken: accessToken,
+              );
+            }
           } else {
             rethrow;
           }
@@ -216,6 +228,7 @@ class AppSessionService extends ChangeNotifier {
       _stores = stores;
       _homeBanners = bootstrap.homeBanners;
       _loyaltyTiers = bootstrap.loyaltyTiers;
+      _maintenance = bootstrap.maintenance;
       _hasAccountData = true;
 
       await UserService.overwriteUserProfile(_user!.toLocalProfileMap());

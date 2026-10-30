@@ -241,6 +241,8 @@ class _RewardsPageState extends State<RewardsPage> {
       return _buildAccountUnavailableCard();
     }
     final tierArtworkUrl = _currentTier()?.imageUrl;
+    final secureTierArtworkUrl =
+        isSecureRemoteImageSource(tierArtworkUrl) ? tierArtworkUrl : null;
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20),
       padding: const EdgeInsets.all(16),
@@ -269,11 +271,11 @@ class _RewardsPageState extends State<RewardsPage> {
                 height: 240,
                 child: AspectRatio(
                   aspectRatio: 3 / 4,
-                  child: tierArtworkUrl == null
+                  child: secureTierArtworkUrl == null
                       ? Image.asset('assets/images/card.png',
                           fit: BoxFit.contain)
                       : Image.network(
-                          tierArtworkUrl,
+                          secureTierArtworkUrl,
                           fit: BoxFit.contain,
                           errorBuilder: (_, __, ___) => Image.asset(
                             'assets/images/card.png',
@@ -577,21 +579,18 @@ class _RewardsPageState extends State<RewardsPage> {
   }
 
   List<String> _getTierDetails(LoyaltyTier tier) {
-    return tier.tierRewards
-        .map((reward) {
-          final description = reward.description.trim();
-          final generatedDescription = reward.timing == 'birthday_month'
-              ? 'birthday-month tier reward: ${reward.name}'.toLowerCase()
-              : 'tier achievement reward: ${reward.name}'.toLowerCase();
-          final additionalDescription =
-              description.toLowerCase() == generatedDescription ? '' : description;
-          final timingLabel = reward.timing == 'birthday_month'
-              ? 'Birthday month'
-              : 'Tier reward';
-          return '$timingLabel: ${reward.name} - ${reward.benefitLabel}'
-              '${additionalDescription.isEmpty ? '' : '. $additionalDescription'}';
-        })
-        .toList();
+    return tier.tierRewards.map((reward) {
+      final description = reward.description.trim();
+      final generatedDescription = reward.timing == 'birthday_month'
+          ? 'birthday-month tier reward: ${reward.name}'.toLowerCase()
+          : 'tier achievement reward: ${reward.name}'.toLowerCase();
+      final additionalDescription =
+          description.toLowerCase() == generatedDescription ? '' : description;
+      final timingLabel =
+          reward.timing == 'birthday_month' ? 'Birthday month' : 'Tier reward';
+      return '$timingLabel: ${reward.name} - ${reward.benefitLabel}'
+          '${additionalDescription.isEmpty ? '' : '. $additionalDescription'}';
+    }).toList();
   }
 
   Widget _buildTierProgress({

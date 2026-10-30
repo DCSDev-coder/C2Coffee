@@ -44,6 +44,11 @@ const BENEFIT_TYPE_OPTIONS = [
   { value: "Free Food", label: "Free Food" },
   { value: "Birthday Voucher", label: "Birthday Voucher" }
 ];
+const PAYMENT_MODE_OPTIONS = [
+  { value: "both", label: "Both token and RM payment" },
+  { value: "token", label: "Token payment only" },
+  { value: "direct", label: "RM payment only" }
+];
 const PROMOTION_KIND_OPTIONS = [
   { value: "standard", label: "Simple Voucher" },
   { value: "bundle", label: "Buy & Get" }
@@ -85,11 +90,20 @@ const WEEKDAY_OPTIONS = [
   "Friday",
   "Saturday"
 ];
+const REMINDER_LEAD_OPTIONS = [
+  { value: 0, label: 'At the exact time' },
+  { value: 15, label: '15 minutes before' },
+  { value: 30, label: '30 minutes before' },
+  { value: 60, label: '1 hour before' },
+  { value: 120, label: '2 hours before' },
+  { value: 1440, label: '24 hours before' }
+];
 
 const createEmptyVoucherForm = () => ({
   name: "",
   type: "Happy Hour",
   benefitType: "Free Drink",
+  paymentMode: "both",
   promotionKind: "standard",
   topupRewardMinTokens: null,
   status: "Active",
@@ -117,6 +131,10 @@ const createEmptyVoucherForm = () => ({
   activeDays: [],
   startTime: "",
   endTime: "",
+  startReminderEnabled: false,
+  startReminderMinutesBefore: 0,
+  endReminderEnabled: false,
+  endReminderMinutesBefore: 60,
   annualDate: "",
   monthlyDay: ""
 });
@@ -125,6 +143,7 @@ const normalizeVoucherForm = (voucher) => ({
   ...createEmptyVoucherForm(),
   ...voucher,
   benefitType: voucher?.benefitType || voucher?.type || "Free Drink",
+  paymentMode: voucher?.paymentMode || (voucher?.benefitType === "Token Discount" ? "token" : "both"),
   type: voucher?.type || voucher?.benefitType || "Voucher",
   promotionKind: voucher?.promotionKind || "standard",
   productKinds: Array.isArray(voucher?.productKinds) ? voucher.productKinds : [],
@@ -159,6 +178,10 @@ const normalizeVoucherForm = (voucher) => ({
   activeDays: Array.isArray(voucher?.activeDays) ? voucher.activeDays : [],
   startTime: voucher?.startTime || "",
   endTime: voucher?.endTime || "",
+  startReminderEnabled: voucher?.startReminderEnabled === true || voucher?.startReminderEnabled === 1,
+  startReminderMinutesBefore: Number(voucher?.startReminderMinutesBefore) || 0,
+  endReminderEnabled: voucher?.endReminderEnabled === true || voucher?.endReminderEnabled === 1,
+  endReminderMinutesBefore: Number(voucher?.endReminderMinutesBefore) || 60,
   annualDate: voucher?.annualDate ? `2026-${voucher.annualDate}` : "",
   monthlyDay: voucher?.monthlyDay || "",
   audience: voucher?.audience || "all_customers",
@@ -176,6 +199,9 @@ const benefitTypeLabel = (value) => {
 
   return value || "-";
 };
+
+const paymentModeLabel = (value) =>
+  PAYMENT_MODE_OPTIONS.find((option) => option.value === value)?.label || 'Both token and RM payment';
 
 const limitPerUserLabel = "Max Uses Per Customer";
 
@@ -255,6 +281,23 @@ const VoucherArtworkField = ({ imageUrl, onChange }) => {
 const formatAvailabilityMode = (value) =>
   AVAILABILITY_MODE_OPTIONS.find((option) => option.value === value)?.label || "Always Available";
 
+const reminderSettingsFromVoucher = (voucher) => ({
+  startReminderEnabled: voucher?.startReminderEnabled === true || voucher?.startReminderEnabled === 1,
+  startReminderMinutesBefore: Number(voucher?.startReminderMinutesBefore) || 0,
+  endReminderEnabled: voucher?.endReminderEnabled === true || voucher?.endReminderEnabled === 1,
+  endReminderMinutesBefore: Number(voucher?.endReminderMinutesBefore) || 60
+});
+
+const nonReminderVoucherForm = (voucher) => {
+  const normalized = normalizeVoucherForm(voucher);
+  const rest = { ...normalized };
+  delete rest.startReminderEnabled;
+  delete rest.startReminderMinutesBefore;
+  delete rest.endReminderEnabled;
+  delete rest.endReminderMinutesBefore;
+  return rest;
+};
+
 const VoucherFormSection = ({ number, title, description }) => (
   <div className="flex items-start gap-3.5 border-t border-gray-100 pt-5 first:border-t-0 first:pt-0">
     <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-[#1E433A] text-[11px] font-bold text-white shadow-xs">
@@ -263,6 +306,57 @@ const VoucherFormSection = ({ number, title, description }) => (
     <div className="min-w-0 flex-1">
       <h4 className="text-sm font-bold text-gray-900 tracking-tight">{title}</h4>
       <p className="mt-0.5 text-xs leading-relaxed text-gray-500">{description}</p>
+    </div>
+  </div>
+);
+
+const VoucherReminderSettings = ({ value, onChange }) => (
+  <div className="col-span-2 rounded-xl border border-[#D7E4E0] bg-[#F4F8F7] p-4">
+    <div>
+      <h4 className="text-sm font-bold text-[#1F3A34]">Customer reminders</h4>
+      <p className="mt-0.5 text-xs leading-relaxed text-gray-600">
+        Optional reminders for customers who have received this voucher. These are separate from Marketing broadcasts.
+      </p>
+    </div>
+    <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+      <label className="rounded-lg border border-gray-200 bg-white p-3">
+        <span className="flex items-center gap-2 text-xs font-bold text-gray-900">
+          <input
+            type="checkbox"
+            checked={value.startReminderEnabled}
+            onChange={(e) => onChange({ startReminderEnabled: e.target.checked })}
+            className="rounded text-[#2E5E58] focus:ring-[#2E5E58]"
+          />
+          Remind when voucher starts
+        </span>
+        <select
+          disabled={!value.startReminderEnabled}
+          value={value.startReminderMinutesBefore}
+          onChange={(e) => onChange({ startReminderMinutesBefore: Number(e.target.value) })}
+          className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-xs disabled:bg-gray-100 disabled:text-gray-400"
+        >
+          {REMINDER_LEAD_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+        </select>
+      </label>
+      <label className="rounded-lg border border-gray-200 bg-white p-3">
+        <span className="flex items-center gap-2 text-xs font-bold text-gray-900">
+          <input
+            type="checkbox"
+            checked={value.endReminderEnabled}
+            onChange={(e) => onChange({ endReminderEnabled: e.target.checked })}
+            className="rounded text-[#2E5E58] focus:ring-[#2E5E58]"
+          />
+          Remind before voucher ends
+        </span>
+        <select
+          disabled={!value.endReminderEnabled}
+          value={value.endReminderMinutesBefore}
+          onChange={(e) => onChange({ endReminderMinutesBefore: Number(e.target.value) })}
+          className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-xs disabled:bg-gray-100 disabled:text-gray-400"
+        >
+          {REMINDER_LEAD_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+        </select>
+      </label>
     </div>
   </div>
 );
@@ -796,6 +890,7 @@ const Vouchers = ({ onNavigate }) => {
       name: newVoucher.name,
       type: newVoucher.type,
       benefitType: newVoucher.benefitType,
+      paymentMode: newVoucher.paymentMode,
       promotionKind: newVoucher.promotionKind,
       topupRewardMinTokens: newVoucher.topupRewardMinTokens === null || newVoucher.topupRewardMinTokens === '' ? null : Number(newVoucher.topupRewardMinTokens),
       status: newVoucher.status,
@@ -822,6 +917,10 @@ const Vouchers = ({ onNavigate }) => {
       activeDays: newVoucher.activeDays,
       startTime: newVoucher.startTime || null,
       endTime: newVoucher.endTime || null,
+      startReminderEnabled: newVoucher.startReminderEnabled,
+      startReminderMinutesBefore: Number(newVoucher.startReminderMinutesBefore) || 0,
+      endReminderEnabled: newVoucher.endReminderEnabled,
+      endReminderMinutesBefore: Number(newVoucher.endReminderMinutesBefore) || 60,
       annualDate: newVoucher.annualDate || null,
       monthlyDay: newVoucher.monthlyDay === "" ? null : Number(newVoucher.monthlyDay)
     };
@@ -848,6 +947,7 @@ const Vouchers = ({ onNavigate }) => {
         name: editingVoucher.name,
         type: editingVoucher.type,
         benefitType: editingVoucher.benefitType,
+        paymentMode: editingVoucher.paymentMode,
         promotionKind: editingVoucher.promotionKind,
         topupRewardMinTokens: editingVoucher.topupRewardMinTokens === null || editingVoucher.topupRewardMinTokens === '' ? null : Number(editingVoucher.topupRewardMinTokens),
         status: editingVoucher.status,
@@ -874,6 +974,10 @@ const Vouchers = ({ onNavigate }) => {
         activeDays: editingVoucher.activeDays,
         startTime: editingVoucher.startTime || null,
         endTime: editingVoucher.endTime || null,
+        startReminderEnabled: editingVoucher.startReminderEnabled,
+        startReminderMinutesBefore: Number(editingVoucher.startReminderMinutesBefore) || 0,
+        endReminderEnabled: editingVoucher.endReminderEnabled,
+        endReminderMinutesBefore: Number(editingVoucher.endReminderMinutesBefore) || 60,
         annualDate: editingVoucher.annualDate || null,
         monthlyDay: editingVoucher.monthlyDay === "" ? null : Number(editingVoucher.monthlyDay)
       };
@@ -890,6 +994,26 @@ const Vouchers = ({ onNavigate }) => {
       setEditingVoucher(null);
     } catch (err) {
       const originalVoucher = vouchers.find((voucher) => voucher.id === editingVoucher.id);
+      const originalReminderSettings = reminderSettingsFromVoucher(originalVoucher);
+      const requestedReminderSettings = reminderSettingsFromVoucher(editingVoucher);
+      const reminderChanged = JSON.stringify(originalReminderSettings) !== JSON.stringify(requestedReminderSettings);
+      const nonReminderRulesUnchanged = JSON.stringify(nonReminderVoucherForm(originalVoucher)) === JSON.stringify(nonReminderVoucherForm(editingVoucher));
+
+      if (err.code === 'voucher_has_issuances' && reminderChanged && nonReminderRulesUnchanged) {
+        try {
+          await adminRequest(`/v1/admin/vouchers/${editingVoucher.id}/reminders`, {
+            method: 'PATCH',
+            body: JSON.stringify(requestedReminderSettings),
+            successMessage: 'Voucher reminder settings saved successfully.'
+          });
+          await refreshVouchers(editingVoucher.id);
+          setEditingVoucher(null);
+          return;
+        } catch (reminderError) {
+          showAdminError('Error updating voucher reminders: ' + reminderError.message);
+          return;
+        }
+      }
       const originalExpiry = originalVoucher?.expiry ? originalVoucher.expiry.slice(0, 10) : '';
       const requestedExpiry = editingVoucher.benefitType === 'Birthday Voucher'
         ? ''
@@ -959,6 +1083,7 @@ const Vouchers = ({ onNavigate }) => {
         name: `${voucher.name} (Copy)`,
         type: voucher.type,
         benefitType: voucher.benefitType || voucher.type,
+        paymentMode: voucher.paymentMode || 'both',
         promotionKind: voucher.promotionKind || 'standard',
         status: 'Draft',
         tier: voucher.tier,
@@ -973,16 +1098,24 @@ const Vouchers = ({ onNavigate }) => {
         rewardItems: voucher.rewardItems || [],
         qualifyingQuantity: Number(voucher.qualifyingQuantity) || 1,
         rewardQuantity: Number(voucher.rewardQuantity) || 1,
+        topupRewardMinTokens: voucher.topupRewardMinTokens == null
+          ? null
+          : Number(voucher.topupRewardMinTokens),
         expiry: voucher.benefitType === 'Birthday Voucher' ? null : (voucher.expiry || null),
         totalQty: Number(voucher.totalQty) || 1000,
         limitPerUser: Number(voucher.limitPerUser) || 1,
         description: voucher.description,
+        imageUrl: voucher.imageUrl || null,
         usageInstructions: voucher.usageInstructions || "",
         audience: voucher.audience || 'all_customers',
         availabilityMode: voucher.availabilityMode || 'always',
         activeDays: voucher.activeDays || [],
         startTime: voucher.startTime || null,
         endTime: voucher.endTime || null,
+        startReminderEnabled: voucher.startReminderEnabled === true || voucher.startReminderEnabled === 1,
+        startReminderMinutesBefore: Number(voucher.startReminderMinutesBefore) || 0,
+        endReminderEnabled: voucher.endReminderEnabled === true || voucher.endReminderEnabled === 1,
+        endReminderMinutesBefore: Number(voucher.endReminderMinutesBefore) || 60,
         annualDate: voucher.annualDate || null,
         monthlyDay: voucher.monthlyDay || null
       };
@@ -1448,6 +1581,11 @@ const Vouchers = ({ onNavigate }) => {
                 </div>
 
                 <div className="flex justify-between items-center py-1">
+                  <span className="text-gray-500">Payment mode</span>
+                  <span className="font-bold text-gray-900 text-right max-w-[220px]">{paymentModeLabel(selectedVoucher.paymentMode)}</span>
+                </div>
+
+                <div className="flex justify-between items-center py-1">
                   <span className="text-gray-500">Audience</span>
                   <span className="font-bold text-gray-900">{audienceLabel(selectedVoucher.audience)}</span>
                 </div>
@@ -1833,6 +1971,22 @@ const Vouchers = ({ onNavigate }) => {
                     </div>
                   </div>
 
+                  <div className="mt-3">
+                    <label className="block font-bold text-gray-900 mb-1">Payment mode</label>
+                    <select
+                      value={newVoucher.paymentMode}
+                      onChange={(e) => setNewVoucher({ ...newVoucher, paymentMode: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
+                    >
+                      {PAYMENT_MODE_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Choose whether this voucher can be used with C2 Tokens, future RM direct payment, or both.
+                    </p>
+                  </div>
+
                   <div className="rounded-xl border border-[#B8DDD5] bg-[#F2FBF8] p-3">
                     <label className="flex items-start gap-2 text-sm font-bold text-gray-900">
                       <input
@@ -2066,6 +2220,10 @@ const Vouchers = ({ onNavigate }) => {
                         </div>
                       </>
                     )}
+                    <VoucherReminderSettings
+                      value={newVoucher}
+                      onChange={(changes) => setNewVoucher((current) => ({ ...current, ...changes }))}
+                    />
                     {newVoucher.availabilityMode === "annual" && (
                       <div>
                         <label className="block font-bold text-gray-900 mb-1">Annual Day <span className="font-normal text-gray-400">(repeats yearly)</span></label>
@@ -2310,22 +2468,44 @@ const Vouchers = ({ onNavigate }) => {
                     </div>
                   </div>
 
+                  <div className="mt-3">
+                    <label className="block font-bold text-gray-900 mb-1">Payment mode</label>
+                    <select
+                      value={editingVoucher.paymentMode}
+                      onChange={(e) => setEditingVoucher({ ...editingVoucher, paymentMode: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
+                    >
+                      {PAYMENT_MODE_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Existing vouchers default to both modes unless they are token-discount vouchers.
+                    </p>
+                  </div>
+
                   <div className="rounded-xl border border-[#B8DDD5] bg-[#F2FBF8] p-3">
                     <label className="flex items-start gap-2 text-sm font-bold text-gray-900">
                       <input
                         type="checkbox"
                         checked={editingVoucher.topupRewardMinTokens != null}
+                        disabled={Number(editingVoucher.issued || 0) > 0}
                         onChange={(e) => setEditingVoucher({
                           ...editingVoucher,
                           topupRewardMinTokens: e.target.checked ? 1 : null
                         })}
-                        className="mt-1 h-4 w-4 accent-[#2E5E58]"
+                        className="mt-1 h-4 w-4 accent-[#2E5E58] disabled:cursor-not-allowed disabled:opacity-50"
                       />
                       <span>Issue automatically after a qualifying top-up</span>
                     </label>
                     <p className="mt-1 text-[11px] leading-relaxed text-gray-600">
                       Issues once after one successful top-up that meets this minimum. It does not retrospectively issue vouchers for earlier payments.
                     </p>
+                    {Number(editingVoucher.issued || 0) > 0 && (
+                      <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-semibold leading-relaxed text-amber-900">
+                        This setting is locked because this voucher has already been issued. Duplicate it to create a new top-up reward without changing rewards customers already received.
+                      </p>
+                    )}
                     {editingVoucher.topupRewardMinTokens != null && (
                       <div className="mt-3 max-w-xs">
                         <label className="block text-xs font-bold text-gray-800">Minimum tokens in one top-up</label>
@@ -2334,8 +2514,9 @@ const Vouchers = ({ onNavigate }) => {
                           min="1"
                           max="500"
                           value={editingVoucher.topupRewardMinTokens}
+                          disabled={Number(editingVoucher.issued || 0) > 0}
                           onChange={(e) => setEditingVoucher({ ...editingVoucher, topupRewardMinTokens: e.target.value })}
-                          className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58]"
+                          className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E5E58] disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500"
                         />
                       </div>
                     )}
@@ -2558,6 +2739,10 @@ const Vouchers = ({ onNavigate }) => {
                         </div>
                       </>
                     )}
+                    <VoucherReminderSettings
+                      value={editingVoucher}
+                      onChange={(changes) => setEditingVoucher((current) => ({ ...current, ...changes }))}
+                    />
                     {editingVoucher.availabilityMode === "annual" && (
                       <div>
                         <label className="block font-bold text-gray-900 mb-1">Annual Day <span className="font-normal text-gray-400">(repeats yearly)</span></label>

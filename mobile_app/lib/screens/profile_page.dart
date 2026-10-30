@@ -1073,7 +1073,11 @@ class _ProfilePageState extends State<ProfilePage> {
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (dialogContext) => AlertDialog(
-          title: const Text('Open partner website?'),
+          title: Text(
+            banner.bannerType == 'social'
+                ? 'Open social or entertainment link?'
+                : 'Open partner website?',
+          ),
           content:
               Text('You are leaving the C2 Coffee app to visit ${uri.host}.'),
           actions: [
@@ -1098,14 +1102,20 @@ class _ProfilePageState extends State<ProfilePage> {
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => NewsPage(
-              banners: allBanners,
-              initialIndex: allBanners.indexOf(banner),
+        onTap: () {
+          if (banner.bannerType == 'social') {
+            unawaited(_openPartnerCampaign(banner));
+            return;
+          }
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => NewsPage(
+                banners: allBanners,
+                initialIndex: allBanners.indexOf(banner),
+              ),
             ),
-          ),
-        ),
+          );
+        },
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -1186,8 +1196,7 @@ class _ProfilePageState extends State<ProfilePage> {
     final resolvedSource = resolveCatalogImageSource(source);
     final image = resolvedSource == null
         ? _buildBannerFallback()
-        : (resolvedSource.startsWith('http://') ||
-                resolvedSource.startsWith('https://'))
+        : isSecureRemoteImageSource(resolvedSource)
             ? Image.network(
                 resolvedSource,
                 fit: BoxFit.cover,

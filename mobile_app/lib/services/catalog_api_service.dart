@@ -6,17 +6,33 @@ import 'api_config.dart';
 import 'auth_api_service.dart';
 import 'secure_session_service.dart';
 
+bool isSecureRemoteImageSource(String? source) {
+  final value = source?.trim() ?? '';
+  if (value.isEmpty) return false;
+
+  final uri = Uri.tryParse(value);
+  return uri != null &&
+      uri.scheme == 'https' &&
+      uri.host.isNotEmpty &&
+      uri.userInfo.isEmpty;
+}
+
 String? resolveCatalogImageSource(String? source) {
   final value = source?.trim() ?? '';
   if (value.isEmpty) {
     return null;
   }
 
+  if (isSecureRemoteImageSource(value)) {
+    return value;
+  }
+
+  // Never allow API-provided cleartext image URLs to reach a network image
+  // widget. Relative paths are resolved against the HTTPS API origin below.
   if (value.startsWith('http://') ||
-      value.startsWith('https://') ||
       value.startsWith('data:') ||
       value.startsWith('blob:')) {
-    return value;
+    return null;
   }
 
   if (value.startsWith('assets/')) {
@@ -423,6 +439,8 @@ class HomeBanner {
 
   String get routeLabel {
     switch (bannerType) {
+      case 'social':
+        return 'Social / entertainment link';
       case 'voucher':
         return destinationType == 'reward_section' ? 'Rewards' : 'Menu';
       case 'event':
@@ -464,12 +482,14 @@ class HomeBanner {
       placement: json['placement'] as String? ?? 'both',
       sortOrder: (json['sort_order'] as num?)?.toInt() ?? 0,
       homeSortOrder: (json['home_sort_order'] as num?)?.toInt() ??
-          (json['sort_order'] as num?)?.toInt() ?? 0,
+          (json['sort_order'] as num?)?.toInt() ??
+          0,
       floatingSortOrder: (json['floating_sort_order'] as num?)?.toInt() ??
-          (json['sort_order'] as num?)?.toInt() ?? 0,
-      partnershipSortOrder:
-          (json['partnership_sort_order'] as num?)?.toInt() ??
-              (json['sort_order'] as num?)?.toInt() ?? 0,
+          (json['sort_order'] as num?)?.toInt() ??
+          0,
+      partnershipSortOrder: (json['partnership_sort_order'] as num?)?.toInt() ??
+          (json['sort_order'] as num?)?.toInt() ??
+          0,
       floatingPriority: (json['floating_priority'] as num?)?.toInt() == 1,
       createdAt: DateTime.tryParse(json['created_at'] as String? ?? ''),
     );
@@ -610,6 +630,7 @@ class BootstrapSnapshot {
   final String textColor;
   final String backgroundColor;
   final String mutedTextColor;
+  final MaintenanceSnapshot maintenance;
 
   const BootstrapSnapshot({
     required this.user,
@@ -626,7 +647,26 @@ class BootstrapSnapshot {
     required this.textColor,
     required this.backgroundColor,
     required this.mutedTextColor,
+    required this.maintenance,
   });
+}
+
+class MaintenanceSnapshot {
+  final bool enabled;
+  final bool blocked;
+  final String title;
+  final String message;
+  final DateTime? expectedEndAt;
+
+  const MaintenanceSnapshot({required this.enabled, required this.blocked, required this.title, required this.message, required this.expectedEndAt});
+
+  factory MaintenanceSnapshot.fromApi(Map<String, dynamic> json) => MaintenanceSnapshot(
+    enabled: json['enabled'] as bool? ?? false,
+    blocked: json['blocked'] as bool? ?? false,
+    title: json['title'] as String? ?? 'C2 Coffee is under maintenance',
+    message: json['message'] as String? ?? 'We are making improvements. Please check back soon.',
+    expectedEndAt: DateTime.tryParse(json['expected_end_at'] as String? ?? '')?.toLocal(),
+  );
 }
 
 class CatalogApiService {
@@ -664,6 +704,9 @@ class CatalogApiService {
     final loyalty = Map<String, dynamic>.from(response['loyalty'] as Map);
     final appearance = Map<String, dynamic>.from(
       response['appearance'] as Map? ?? const {},
+    );
+    final maintenance = MaintenanceSnapshot.fromApi(
+      Map<String, dynamic>.from(response['maintenance'] as Map? ?? const {}),
     );
     final homeBanners = (response['home_banners'] as List? ?? const [])
         .map((banner) => HomeBanner.fromApi(
@@ -725,6 +768,7 @@ class CatalogApiService {
       textColor: appearance['text_color'] as String? ?? '#2C2C2C',
       backgroundColor: appearance['background_color'] as String? ?? '#FFFFFF',
       mutedTextColor: appearance['muted_text_color'] as String? ?? '#6B7280',
+      maintenance: maintenance,
     );
   }
 

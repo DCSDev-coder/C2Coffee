@@ -569,6 +569,7 @@ export async function getUserResponse(userId: number): Promise<{
   state?: string | null;
   avatar_type?: 'preset' | 'uploaded';
   avatar_value?: string | null;
+  is_employee: boolean;
 }> {
   const [rows] = await mysqlPool.query<
     Array<
@@ -587,6 +588,7 @@ export async function getUserResponse(userId: number): Promise<{
         state: string | null;
         avatar_type: 'preset' | 'uploaded' | null;
         avatar_value: string | null;
+        is_employee: number;
       }
     >
   >(
@@ -606,12 +608,16 @@ export async function getUserResponse(userId: number): Promise<{
         , up.state
         , up.avatar_type
         , up.avatar_value
+        , COALESCE(ctm.is_employee, 0) AS is_employee
       FROM users u
       LEFT JOIN user_profiles up ON up.user_id = u.id
+      LEFT JOIN customer_tenant_memberships ctm
+        ON ctm.user_id = u.id
+       AND ctm.tenant_id = (SELECT id FROM admin_tenants WHERE code = :tenantCode LIMIT 1)
       WHERE u.id = :userId
       LIMIT 1
     `,
-    { userId }
+    { userId, tenantCode: env.DEPLOYMENT_TENANT_CODE }
   );
 
   const user = rows[0];
@@ -636,7 +642,8 @@ export async function getUserResponse(userId: number): Promise<{
     address: addressParts.length > 0 ? addressParts.join(', ') : null,
     state: user.state,
     avatar_type: user.avatar_type ?? 'preset',
-    avatar_value: user.avatar_value
+    avatar_value: user.avatar_value,
+    is_employee: Number(user.is_employee) === 1
   };
 }
 

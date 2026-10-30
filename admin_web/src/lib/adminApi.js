@@ -761,6 +761,17 @@ export async function updateAdminStoreName(name) {
   });
 }
 
+export async function loadAdminMaintenance() {
+  return adminRequest('/v1/admin/maintenance');
+}
+
+export async function updateAdminMaintenance(payload) {
+  return adminRequest('/v1/admin/maintenance', {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function loadAdminStores() {
   return adminRequest("/v1/admin/stores");
 }

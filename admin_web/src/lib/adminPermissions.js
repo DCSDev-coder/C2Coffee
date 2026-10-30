@@ -7,6 +7,7 @@ const PAGE_ROLES = {
   Customers: ['super_admin', 'support_admin'],
   Menu: ['super_admin', 'marketing_admin', 'operations_admin'],
   'Options & Nutrition': ['super_admin', 'marketing_admin', 'operations_admin'],
+  Inventory: ['super_admin', 'operations_admin'],
   Marketing: ['super_admin', 'marketing_admin'],
   Voucher: ['super_admin', 'marketing_admin'],
   'Referral Program': ['super_admin', 'marketing_admin'],
@@ -32,7 +33,7 @@ const PAGE_ROLES = {
 // has full access; the lists above define the least-privileged access model.
 export const ADMIN_ROLE_SECTIONS = {
   super_admin: 'All Admin Web sections',
-  operations_admin: 'Orders, refunds, menu setup, barista operations, and staff guides',
+  operations_admin: 'Orders, refunds, inventory, menu setup, barista operations, and staff guides',
   marketing_admin: 'Menu, campaigns, vouchers, referrals, and product reports',
   support_admin: 'Customer lookup and refund requests',
   barista: 'Barista Console and workspace only'

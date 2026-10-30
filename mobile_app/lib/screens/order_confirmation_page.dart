@@ -1,12 +1,14 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../services/app_session_service.dart';
 import '../services/auth_api_service.dart';
 import '../services/cart_service.dart';
 import '../services/checkout_api_service.dart';
 import '../services/customer_data_service.dart';
+import '../services/payment_security.dart';
 import '../services/secure_session_service.dart';
 import '../services/voucher_intent_service.dart';
 import '../utils/app_colors.dart';
@@ -29,6 +31,13 @@ class OrderConfirmationPage extends StatefulWidget {
   State<OrderConfirmationPage> createState() => _OrderConfirmationPageState();
 }
 
+class _PaymentSelection {
+  const _PaymentSelection({required this.mode, required this.method});
+
+  final String mode;
+  final String method;
+}
+
 class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
   final CartService _cart = CartService.instance;
   final AppSessionService _session = AppSessionService.instance;
@@ -40,6 +49,9 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
   String? _voucherGuidance;
   String? _checkoutIdempotencyKey;
   bool _showScrollToTop = false;
+  String _paymentMode = 'token';
+  String _directPaymentMethod = 'fpx';
+  Set<String> _directPaymentMethods = <String>{};
 
   Color get orangeColor => AppColors.deepTeal;
 
@@ -51,7 +63,26 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
     _scrollController.addListener(_handleScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _applyRememberedVoucher();
+      _loadDirectPaymentMethods();
     });
+  }
+
+  Future<void> _loadDirectPaymentMethods() async {
+    try {
+      final accessToken =
+          await SecureSessionService.instance.getValidAccessToken();
+      if (accessToken == null || accessToken.isEmpty) return;
+      final methods = await CustomerDataService.instance.getChipPaymentMethods(
+        accessToken: accessToken,
+      );
+      if (!mounted) return;
+      setState(() {
+        _directPaymentMethods = methods.methods;
+      });
+    } catch (_) {
+      // Direct payment remains unavailable when the provider method list
+      // cannot be confirmed.
+    }
   }
 
   Future<void> _applyRememberedVoucher() async {
@@ -525,7 +556,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                       ),
                     ),
                     const SizedBox(height: 10),
-                    _buildPaymentMethodCard(snapshot),
+                    _buildPaymentMethodSummary(snapshot),
                     const SizedBox(height: 20),
                     _buildSummaryCard(snapshot),
                     if (_checkoutError != null) ...[
@@ -643,6 +674,112 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
         ],
       ),
     );
+  }
+
+  Widget _buildPaymentMethodSummary(CartSnapshot snapshot) {
+    final isToken = _paymentMode == 'token';
+    final label = isToken
+        ? 'C2 Token Wallet'
+        : switch (_directPaymentMethod) {
+            'duitnow_qr' => 'DuitNow QR',
+            'ewallet' => 'E-wallet',
+            'card' => 'Card',
+            _ => 'FPX Online Banking',
+          };
+    final icon = isToken
+        ? Icons.account_balance_wallet_outlined
+        : switch (_directPaymentMethod) {
+            'duitnow_qr' => Icons.qr_code_2_rounded,
+            'ewallet' => Icons.account_balance_wallet_outlined,
+            'card' => Icons.credit_card_outlined,
+            _ => Icons.account_balance_outlined,
+          };
+    final discountTokens = _calculateDiscountTokens(snapshot);
+    final tokenCharge = max(0, snapshot.subtotalTokens - discountTokens);
+    final hasEnoughTokens = _session.tokenBalance >= tokenCharge;
+
+    return InkWell(
+      onTap: _isSubmitting ? null : () => _openPaymentMethodPicker(snapshot),
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: orangeColor.withValues(alpha: 0.55)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: orangeColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(icon, color: orangeColor, size: 25),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      fontFamily: 'Recoleta',
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    isToken
+                        ? hasEnoughTokens
+                            ? '${_formatTokenCount(_session.tokenBalance)} tokens available'
+                            : 'Short by ${_formatTokenCount(tokenCharge - _session.tokenBalance)} tokens'
+                        : 'Pay directly in RM at checkout',
+                    style: TextStyle(
+                      fontFamily: 'Afacad',
+                      fontSize: 14,
+                      color: isToken && !hasEnoughTokens
+                          ? Colors.red.shade700
+                          : Colors.black54,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded, color: orangeColor, size: 28),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openPaymentMethodPicker(CartSnapshot snapshot) async {
+    final discountTokens = _calculateDiscountTokens(snapshot);
+    final selection = await Navigator.of(context).push<_PaymentSelection>(
+      MaterialPageRoute(
+        builder: (_) => _PaymentMethodPickerPage(
+          tokenCharge: max(0, snapshot.subtotalTokens - discountTokens),
+          tokenBalance: _session.tokenBalance,
+          directPaymentMethods: _directPaymentMethods,
+          initialMode: _paymentMode,
+          initialMethod: _directPaymentMethod,
+          onTopUp: () {
+            Navigator.of(context).pop();
+            _openTopUpWallet();
+          },
+        ),
+      ),
+    );
+    if (!mounted || selection == null) return;
+    setState(() {
+      _paymentMode = selection.mode;
+      _directPaymentMethod = selection.method;
+    });
   }
 
   Widget _buildEmptyState() {
@@ -1057,6 +1194,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
           context,
           selectedVoucherId: voucher?.id,
           cartSnapshot: _snapshot,
+          paymentMode: _paymentMode,
           onVoucherSelected: (selected) {
             setState(() {
               _selectedVoucher = selected;
@@ -1214,171 +1352,35 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
     );
   }
 
-  Widget _buildPaymentMethodCard(CartSnapshot snapshot) {
-    final discountTokens = _calculateDiscountTokens(snapshot);
-    final effectiveTokenCharge =
-        max(0, snapshot.subtotalTokens - discountTokens);
-    final currentBalance = _session.tokenBalance;
-    final remainingBalance = currentBalance - effectiveTokenCharge;
-    final hasEnoughBalance = remainingBalance >= 0;
-    final shortfall = effectiveTokenCharge - currentBalance;
+  double _calculateDiscountRm(CartSnapshot snapshot) {
+    final voucher = _selectedVoucher;
+    if (voucher == null) return 0;
+    final t = voucher.template;
+    if (t.discountMode == 'fixed_rm') {
+      return min(snapshot.subtotalRm, double.tryParse(t.discountValue) ?? 0);
+    }
+    if (t.discountMode == 'percent_rm') {
+      final percentage = (double.tryParse(t.discountValue) ?? 0) / 100;
+      return min(snapshot.subtotalRm, snapshot.subtotalRm * percentage);
+    }
+    if (t.discountMode == 'free_drink') {
+      final highestItem = snapshot.items.isEmpty
+          ? 0.0
+          : snapshot.items.map((item) => item.unitTotalRm).reduce(max);
+      return min(snapshot.subtotalRm, highestItem);
+    }
+    return 0;
+  }
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: hasEnoughBalance
-              ? orangeColor.withValues(alpha: 0.45)
-              : Colors.orange.shade400,
-          width: 1.4,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 52,
-                height: 52,
-                padding: const EdgeInsets.all(9),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceLight,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Image.asset('assets/images/wallet.png'),
-              ),
-              const SizedBox(width: 13),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'C2 Token Wallet',
-                      style: TextStyle(
-                        fontFamily: 'Recoleta',
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '${_formatTokenCount(currentBalance)} available',
-                      style: TextStyle(
-                        fontFamily: 'Afacad',
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: hasEnoughBalance
-                            ? orangeColor
-                            : Colors.red.shade700,
-                      ),
-                    ),
-                    Text(
-                      hasEnoughBalance
-                          ? 'Balance after checkout: ${_formatTokenCount(remainingBalance)}'
-                          : 'Short by ${_formatTokenCount(shortfall)} for this order',
-                      style: TextStyle(
-                        fontFamily: 'Afacad',
-                        fontSize: 13.5,
-                        color: hasEnoughBalance
-                            ? Colors.black54
-                            : Colors.red.shade600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (hasEnoughBalance)
-                Container(
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: orangeColor,
-                  ),
-                  child: const Icon(
-                    Icons.check_rounded,
-                    size: 16,
-                    color: Colors.white,
-                  ),
-                )
-              else
-                TextButton.icon(
-                  onPressed: _openTopUpWallet,
-                  icon: const Icon(Icons.add_circle_outline_rounded, size: 17),
-                  label: const Text(
-                    'Top Up',
-                    style: TextStyle(
-                      fontFamily: 'Afacad',
-                      fontSize: 14.5,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  style: TextButton.styleFrom(
-                    backgroundColor: orangeColor,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          if (!hasEnoughBalance) ...[
-            const SizedBox(height: 12),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFF8E1),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.amber.shade300),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.info_outline_rounded,
-                    size: 18,
-                    color: Colors.amber.shade900,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Add at least ${_formatTokenCount(shortfall)} to your wallet to complete this order.',
-                      style: TextStyle(
-                        fontFamily: 'Afacad',
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.amber.shade900,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
+  double _finalDirectCharge(CartSnapshot snapshot) {
+    return max(0, snapshot.subtotalRm - _calculateDiscountRm(snapshot));
   }
 
   Widget _buildSummaryCard(CartSnapshot snapshot) {
     final discountTokens = _calculateDiscountTokens(snapshot);
     final finalTokens = max(0, snapshot.subtotalTokens - discountTokens);
+    final directDiscount = _calculateDiscountRm(snapshot);
+    final directTotal = _finalDirectCharge(snapshot);
     final totalQuantity =
         snapshot.items.fold<int>(0, (sum, item) => sum + item.quantity);
 
@@ -1404,13 +1406,18 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
           const SizedBox(height: 12),
           _buildSummaryRow(
             'Subtotal ($totalQuantity ${totalQuantity == 1 ? 'item' : 'items'})',
-            _formatTokenCount(snapshot.subtotalTokens),
+            _paymentMode == 'direct'
+                ? 'RM${snapshot.subtotalRm.toStringAsFixed(2)}'
+                : _formatTokenCount(snapshot.subtotalTokens),
           ),
-          if (discountTokens > 0) ...[
+          if ((_paymentMode == 'direct' && directDiscount > 0) ||
+              (_paymentMode == 'token' && discountTokens > 0)) ...[
             const SizedBox(height: 10),
             _buildSummaryRow(
               'Voucher Discount',
-              '-${_formatTokenCount(discountTokens)}',
+              _paymentMode == 'direct'
+                  ? '-RM${directDiscount.toStringAsFixed(2)}'
+                  : '-${_formatTokenCount(discountTokens)}',
               isDiscount: true,
             ),
           ],
@@ -1421,41 +1428,79 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
               height: 1,
             ),
           ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Total Token Charge',
-                style: TextStyle(
-                  fontFamily: 'Recoleta',
-                  fontSize: 19,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 13),
+            decoration: BoxDecoration(
+              color: orangeColor.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: orangeColor.withValues(alpha: 0.2)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Total to pay',
+                        style: TextStyle(
+                          fontFamily: 'Recoleta',
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: orangeColor,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Flexible(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          _paymentMode == 'direct'
+                              ? 'RM${directTotal.toStringAsFixed(2)}'
+                              : _formatTokenCount(finalTokens),
+                          style: TextStyle(
+                            fontFamily: 'Recoleta',
+                            fontSize: 25,
+                            fontWeight: FontWeight.bold,
+                            color: orangeColor,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    _formatTokenCount(finalTokens),
-                    style: TextStyle(
-                      fontFamily: 'Recoleta',
-                      fontSize: 21,
-                      fontWeight: FontWeight.bold,
-                      color: orangeColor,
+                const SizedBox(height: 8),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      _paymentMode == 'direct'
+                          ? Icons.lock_outline_rounded
+                          : Icons.account_balance_wallet_outlined,
+                      size: 17,
+                      color: orangeColor.withValues(alpha: 0.75),
                     ),
-                  ),
-                  Text(
-                    'Equivalent to RM $finalTokens',
-                    style: const TextStyle(
-                      fontFamily: 'Afacad',
-                      fontSize: 13,
-                      color: Colors.black54,
+                    const SizedBox(width: 7),
+                    Expanded(
+                      child: Text(
+                        _paymentMode == 'direct'
+                            ? 'Paid securely through CHIP'
+                            : 'Charged from your C2 Token Wallet',
+                        style: const TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 13.5,
+                          color: Colors.black54,
+                        ),
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                  ],
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -1560,22 +1605,50 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
   }
 
   Widget _buildCheckoutButton(CartSnapshot snapshot) {
+    if (_paymentMode == 'direct') {
+      final directTotal = _finalDirectCharge(snapshot);
+      return SizedBox(
+        width: double.infinity,
+        height: 54,
+        child: ElevatedButton.icon(
+          onPressed: _isSubmitting || _directPaymentMethods.isEmpty
+              ? null
+              : () => _submitCheckout(snapshot),
+          icon: const Icon(Icons.lock_outline_rounded, size: 20),
+          label: Text(
+            _isSubmitting
+                ? 'PROCESSING PAYMENT...'
+                : 'PAY RM${directTotal.toStringAsFixed(2)}',
+            style: const TextStyle(
+              fontFamily: 'Afacad',
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 0.5,
+            ),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: orangeColor,
+            foregroundColor: Colors.white,
+            disabledBackgroundColor: orangeColor.withValues(alpha: 0.45),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(27)),
+          ),
+        ),
+      );
+    }
     final discountTokens = _calculateDiscountTokens(snapshot);
     final effectiveTokenCharge =
         max(0, snapshot.subtotalTokens - discountTokens);
     final hasEnoughBalance = _session.tokenBalance >= effectiveTokenCharge;
     final canPlaceOrder = hasEnoughBalance;
-    final shortfall = effectiveTokenCharge - _session.tokenBalance;
 
     return SizedBox(
       width: double.infinity,
       height: 54,
       child: ElevatedButton(
-        onPressed: _isSubmitting
+        onPressed: _isSubmitting || !canPlaceOrder
             ? null
-            : canPlaceOrder
-                ? () => _submitCheckout(snapshot)
-                : _openTopUpWallet,
+            : () => _submitCheckout(snapshot),
         style: ElevatedButton.styleFrom(
           backgroundColor: orangeColor,
           foregroundColor: Colors.white,
@@ -1589,9 +1662,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              canPlaceOrder
-                  ? Icons.lock_outline_rounded
-                  : Icons.account_balance_wallet_outlined,
+              Icons.lock_outline_rounded,
               size: 20,
               color: Colors.white,
             ),
@@ -1600,8 +1671,8 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
               _isSubmitting
                   ? 'PROCESSING ORDER...'
                   : canPlaceOrder
-                      ? 'PLACE ORDER'
-                      : 'TOP UP WALLET (+${_formatTokenCount(shortfall)})',
+                      ? 'PAY WITH TOKENS'
+                      : 'NOT ENOUGH TOKENS',
               style: const TextStyle(
                 fontFamily: 'Afacad',
                 fontSize: 18,
@@ -1658,17 +1729,48 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
       await showPendingPaymentServiceNotice(context);
       if (!mounted) return;
 
-      final checkoutResult = await CheckoutApiService.instance.createTokenOrder(
-        accessToken: accessToken,
-        cart: snapshot,
-        idempotencyKey: _checkoutIdempotencyKey ??=
-            _newCheckoutIdempotencyKey(),
-        appliedVoucherId: _selectedVoucher?.id,
-      );
+      final checkoutResult = _paymentMode == 'direct'
+          ? await CheckoutApiService.instance.createDirectOrder(
+              accessToken: accessToken,
+              cart: snapshot,
+              paymentMethod: _directPaymentMethod,
+              idempotencyKey: _checkoutIdempotencyKey ??=
+                  _newCheckoutIdempotencyKey(),
+              appliedVoucherId: _selectedVoucher?.id,
+            )
+          : await CheckoutApiService.instance.createTokenOrder(
+              accessToken: accessToken,
+              cart: snapshot,
+              idempotencyKey: _checkoutIdempotencyKey ??=
+                  _newCheckoutIdempotencyKey(),
+              appliedVoucherId: _selectedVoucher?.id,
+            );
+
+      final checkoutUrl = checkoutResult.payment?['checkout_url'] as String?;
+      if (_paymentMode == 'direct' &&
+          (checkoutUrl == null || !isTrustedPaymentCheckoutUrl(checkoutUrl))) {
+        throw ApiException(
+          'The payment provider returned an invalid checkout link. Your order has not been paid.',
+          code: 'invalid_payment_checkout_url',
+        );
+      }
 
       _session.applyCheckoutResult(checkoutResult);
       _cart.clear();
       globalOrderStatusVisible.value = true;
+
+      if (_paymentMode == 'direct' && checkoutUrl != null) {
+        final opened = await launchUrl(
+          Uri.parse(checkoutUrl),
+          mode: LaunchMode.externalApplication,
+        );
+        if (!opened) {
+          throw ApiException(
+            'The secure payment page could not be opened. Your order remains pending payment.',
+            code: 'direct_payment_page_unavailable',
+          );
+        }
+      }
 
       final createdOrder = await _loadCreatedOrder(
         accessToken: accessToken,
@@ -1729,5 +1831,299 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
     final randomPart =
         Random.secure().nextInt(1 << 32).toRadixString(16).padLeft(8, '0');
     return '${DateTime.now().microsecondsSinceEpoch.toRadixString(16)}_$randomPart';
+  }
+}
+
+class _PaymentMethodPickerPage extends StatefulWidget {
+  const _PaymentMethodPickerPage({
+    required this.tokenCharge,
+    required this.tokenBalance,
+    required this.directPaymentMethods,
+    required this.initialMode,
+    required this.initialMethod,
+    required this.onTopUp,
+  });
+
+  final int tokenCharge;
+  final int tokenBalance;
+  final Set<String> directPaymentMethods;
+  final String initialMode;
+  final String initialMethod;
+  final VoidCallback onTopUp;
+
+  @override
+  State<_PaymentMethodPickerPage> createState() =>
+      _PaymentMethodPickerPageState();
+}
+
+class _PaymentMethodPickerPageState extends State<_PaymentMethodPickerPage> {
+  late String _mode = widget.initialMode;
+  late String _method = widget.initialMethod;
+
+  Color get orangeColor => AppColors.deepTeal;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasEnoughTokens = widget.tokenBalance >= widget.tokenCharge;
+    final options = <({
+      String key,
+      String label,
+      IconData icon,
+      bool enabled,
+    })>[
+      (
+        key: 'token',
+        label: 'C2 Token Wallet',
+        icon: Icons.account_balance_wallet_outlined,
+        enabled: true,
+      ),
+      (
+        key: 'fpx',
+        label: 'FPX',
+        icon: Icons.account_balance_outlined,
+        enabled: widget.directPaymentMethods.contains('fpx'),
+      ),
+      (
+        key: 'duitnow_qr',
+        label: 'DuitNow QR',
+        icon: Icons.qr_code_2_rounded,
+        enabled: widget.directPaymentMethods.contains('duitnow_qr'),
+      ),
+      (
+        key: 'ewallet',
+        label: 'E-wallet',
+        icon: Icons.account_balance_wallet_outlined,
+        enabled: widget.directPaymentMethods.contains('ewallet'),
+      ),
+      (
+        key: 'card',
+        label: 'Card',
+        icon: Icons.credit_card_outlined,
+        enabled: widget.directPaymentMethods.contains('card'),
+      ),
+    ];
+
+    return Scaffold(
+      backgroundColor: AppColors.surfaceLight,
+      appBar: AppBar(
+        backgroundColor: AppColors.surfaceLight,
+        elevation: 0,
+        leading: IconButton(
+          onPressed: () => Navigator.of(context).pop(),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: orangeColor),
+        ),
+        title: Text(
+          'Payment Type',
+          style: TextStyle(
+            fontFamily: 'Recoleta',
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            color: orangeColor,
+          ),
+        ),
+        centerTitle: true,
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                children: [
+                  Text(
+                    'Choose how you want to pay',
+                    style: TextStyle(
+                      fontFamily: 'Recoleta',
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: orangeColor,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Select one payment type to continue with your order.',
+                    style: TextStyle(
+                      fontFamily: 'Afacad',
+                      fontSize: 16,
+                      color: Colors.black54,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final cardWidth = (constraints.maxWidth - 12) / 2;
+                      return Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        children: options.map((option) {
+                          final selected = option.key == 'token'
+                              ? _mode == 'token'
+                              : _mode == 'direct' && _method == option.key;
+                          return SizedBox(
+                            width: cardWidth,
+                            child: InkWell(
+                              onTap: option.enabled
+                                  ? () => setState(() {
+                                        if (option.key == 'token') {
+                                          _mode = 'token';
+                                        } else {
+                                          _mode = 'direct';
+                                          _method = option.key;
+                                        }
+                                      })
+                                  : null,
+                              borderRadius: BorderRadius.circular(18),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 180),
+                                constraints:
+                                    const BoxConstraints(minHeight: 108),
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                  color: selected
+                                      ? orangeColor.withValues(alpha: 0.1)
+                                      : Colors.white,
+                                  borderRadius: BorderRadius.circular(18),
+                                  border: Border.all(
+                                    color: selected
+                                        ? orangeColor
+                                        : AppColors.border,
+                                    width: selected ? 1.8 : 1.1,
+                                  ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Icon(
+                                          option.icon,
+                                          color: option.enabled
+                                              ? orangeColor
+                                              : Colors.grey,
+                                          size: 26,
+                                        ),
+                                        const Spacer(),
+                                        if (selected)
+                                          Icon(
+                                            Icons.check_circle_rounded,
+                                            color: orangeColor,
+                                            size: 20,
+                                          ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 14),
+                                    Text(
+                                      option.label,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontFamily: 'Afacad',
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    if (!option.enabled)
+                                      const Text(
+                                        'Unavailable',
+                                        style: TextStyle(
+                                          fontFamily: 'Afacad',
+                                          fontSize: 12,
+                                          color: Colors.grey,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      );
+                    },
+                  ),
+                  if (_mode == 'token') ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: hasEnoughTokens
+                            ? Colors.white
+                            : const Color(0xFFFFF8E1),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: hasEnoughTokens
+                              ? AppColors.border
+                              : Colors.amber.shade300,
+                        ),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            hasEnoughTokens
+                                ? Icons.account_balance_wallet_outlined
+                                : Icons.info_outline_rounded,
+                            color: hasEnoughTokens
+                                ? orangeColor
+                                : Colors.amber.shade900,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              hasEnoughTokens
+                                  ? '${widget.tokenBalance} tokens available for this order.'
+                                  : 'You need ${widget.tokenCharge - widget.tokenBalance} more tokens to complete this order.',
+                              style: TextStyle(
+                                fontFamily: 'Afacad',
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: hasEnoughTokens
+                                    ? Colors.black87
+                                    : Colors.amber.shade900,
+                              ),
+                            ),
+                          ),
+                          if (!hasEnoughTokens)
+                            TextButton(
+                              onPressed: widget.onTopUp,
+                              child: const Text('Top Up'),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 18),
+              child: SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(
+                    _PaymentSelection(mode: _mode, method: _method),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: orangeColor,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(27),
+                    ),
+                  ),
+                  child: const Text(
+                    'CONTINUE TO CHECKOUT',
+                    style: TextStyle(
+                      fontFamily: 'Afacad',
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

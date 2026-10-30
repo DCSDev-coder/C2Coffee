@@ -175,7 +175,7 @@ class _PosterImage extends StatelessWidget {
   Widget build(BuildContext context) {
     final resolved = resolveCatalogImageSource(source);
     if (resolved == null) return const C2ImageSkeleton();
-    if (resolved.startsWith('http://') || resolved.startsWith('https://')) {
+    if (isSecureRemoteImageSource(resolved)) {
       return CachedNetworkImage(
         imageUrl: resolved,
         fit: BoxFit.cover,

@@ -1,6 +1,8 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
+import '../services/catalog_api_service.dart';
+
 class CatalogProductImage extends StatelessWidget {
   static const String _placeholderAsset = 'assets/images/c2_logo.png';
   static const int _cacheDimension = 640;
@@ -20,10 +22,7 @@ class CatalogProductImage extends StatelessWidget {
     this.fit = BoxFit.contain,
   });
 
-  bool get _hasRemoteImage =>
-      imageUrl != null &&
-      imageUrl!.isNotEmpty &&
-      (imageUrl!.startsWith('http://') || imageUrl!.startsWith('https://'));
+  bool get _hasRemoteImage => isSecureRemoteImageSource(imageUrl);
 
   bool get _hasAssetImage => assetPath != null && assetPath!.isNotEmpty;
 
@@ -151,7 +150,7 @@ Future<void> precacheCatalogProductImages(
   for (final rawUrl in imageUrls) {
     final url = rawUrl?.trim();
     if (url == null || url.isEmpty) continue;
-    if (!url.startsWith('http://') && !url.startsWith('https://')) continue;
+    if (!isSecureRemoteImageSource(url)) continue;
     uniqueUrls.add(url);
   }
 

@@ -5,6 +5,7 @@ import { env } from '../config/env.js';
 import { getUtcConnection } from '../db/mysql.js';
 import { ApiError } from '../http/errors.js';
 import type { ChipPurchase } from '../payments/chip-client.js';
+import { releaseInventoryForOrder } from './inventory.js';
 
 type PaymentRow = RowDataPacket & {
   payment_id: number;
@@ -28,10 +29,11 @@ function terminalFailure(status: string): 'failed' | 'cancelled' | null {
   return null;
 }
 
-export async function settleChipCounterPurchase(
+async function settleChipOrderPurchase(
   purchaseId: string,
   purchase: ChipPurchase,
-  eventSource = 'callback'
+  eventSource = 'callback',
+  orderChannel: 'counter' | 'mobile' = 'counter'
 ): Promise<Record<string, unknown>> {
   const amountCents = Number(purchase.purchase?.total);
   const status = normalizedStatus(purchase);
@@ -56,14 +58,14 @@ export async function settleChipCounterPurchase(
        FROM payments p
        JOIN orders o ON o.id = p.order_id
        WHERE p.provider = 'chip' AND p.provider_bill_id = :purchaseId
-         AND o.order_channel = 'counter'
+         AND o.order_channel = :orderChannel
        LIMIT 1 FOR UPDATE`,
-      { purchaseId }
+      { purchaseId, orderChannel }
     );
     const payment = rows[0];
     if (!payment) throw new ApiError(404, 'chip_payment_not_found', 'Counter payment was not found.');
 
-    const eventRef = `chip:counter:${eventSource}:${purchaseId}:${status}:${String(purchase.updated_on ?? '')}`;
+    const eventRef = `chip:${orderChannel}:${eventSource}:${purchaseId}:${status}:${String(purchase.updated_on ?? '')}`;
     const [events] = await connection.execute<Array<RowDataPacket & { id: number }>>(
       'SELECT id FROM payment_events WHERE provider_event_id = :eventRef LIMIT 1 FOR UPDATE',
       { eventRef }
@@ -156,6 +158,12 @@ export async function settleChipCounterPurchase(
           orderStatus: failure === 'cancelled' ? 'cancelled' : 'payment_failed'
         }
       );
+      if (
+        payment.order_status === 'pending_payment' &&
+        ['pending', 'authorized'].includes(payment.payment_status)
+      ) {
+        await releaseInventoryForOrder(connection, payment.order_id);
+      }
     }
 
     await connection.execute(
@@ -182,4 +190,20 @@ export async function settleChipCounterPurchase(
   } finally {
     connection.release();
   }
+}
+
+export async function settleChipCounterPurchase(
+  purchaseId: string,
+  purchase: ChipPurchase,
+  eventSource = 'callback'
+): Promise<Record<string, unknown>> {
+  return settleChipOrderPurchase(purchaseId, purchase, eventSource, 'counter');
+}
+
+export async function settleChipMobilePurchase(
+  purchaseId: string,
+  purchase: ChipPurchase,
+  eventSource = 'callback'
+): Promise<Record<string, unknown>> {
+  return settleChipOrderPurchase(purchaseId, purchase, eventSource, 'mobile');
 }

@@ -61,6 +61,7 @@ const bannerTypeOptions = [
   { value: "event", label: "Event poster" },
   { value: "new_item", label: "New item poster" },
   { value: "partner", label: "Partnership" },
+  { value: "social", label: "Social / entertainment poster" },
 ];
 
 const destinationLabelMap = {
@@ -187,6 +188,9 @@ function routeLabel(banner) {
       partnerActionOptions.find((option) => option.value === banner.actionType)
         ?.label || "Display only"
     );
+  }
+  if (banner.bannerType === "social") {
+    return "Open social / entertainment link";
   }
   return destinationLabelMap[banner.destinationType] || "Menu";
 }
@@ -401,7 +405,7 @@ const Marketing = () => {
       sponsoredLabel: banner.sponsoredLabel !== false,
       ctaLabel: banner.ctaLabel || "",
       actionType:
-        banner.bannerType === "partner" &&
+        ["partner", "social"].includes(banner.bannerType) &&
         (!banner.actionType || banner.actionType === "none")
           ? "external_url"
           : banner.actionType || "none",
@@ -461,10 +465,12 @@ const Marketing = () => {
         ...current,
         bannerType,
         targetValue: "",
-        startsAt: ["event", "partner"].includes(bannerType)
+        startsAt: ["event", "partner", "social"].includes(bannerType)
           ? current.startsAt
           : "",
-        endsAt: ["event", "partner"].includes(bannerType) ? current.endsAt : "",
+        endsAt: ["event", "partner", "social"].includes(bannerType)
+          ? current.endsAt
+          : "",
       };
 
       if (bannerType === "event") {
@@ -476,6 +482,10 @@ const Marketing = () => {
         next.destinationType = "menu";
         next.placement = "home";
         next.floatingPriority = false;
+      } else if (bannerType === "social") {
+        next.actionType = "external_url";
+        next.ctaLabel = current.ctaLabel || "Open link";
+        next.destinationType = "menu";
       } else if (bannerType === "new_item") {
         next.destinationType = "menu";
       } else if (
@@ -521,9 +531,10 @@ const Marketing = () => {
       return;
     }
     if (
-      formData.bannerType === "partner" && !formData.actionValue.trim()
+      ["partner", "social"].includes(formData.bannerType) &&
+      !formData.actionValue.trim()
     ) {
-      setError("Enter the website or email address for the partner action.");
+      setError("Enter the HTTPS social or entertainment link.");
       return;
     }
     if (selectedImageFile) {
@@ -574,23 +585,27 @@ const Marketing = () => {
             ? Boolean(formData.sponsoredLabel)
             : false,
         ctaLabel:
-          resolvedBannerType === "partner" && formData.actionType !== "none"
+          ["partner", "social"].includes(resolvedBannerType) &&
+          formData.actionType !== "none"
             ? formData.ctaLabel.trim()
             : null,
         actionType:
-          resolvedBannerType === "partner" ? formData.actionType : "none",
+          ["partner", "social"].includes(resolvedBannerType)
+            ? formData.actionType
+            : "none",
         actionValue:
-          resolvedBannerType === "partner" && formData.actionType !== "none"
+          ["partner", "social"].includes(resolvedBannerType) &&
+          formData.actionType !== "none"
             ? formData.actionValue.trim()
             : null,
         destinationType: resolvedDestinationType,
         targetValue: needsTarget ? bannerTarget : null,
         startsAt:
-          needsSchedule || resolvedBannerType === "partner"
+          needsSchedule || ["partner", "social"].includes(resolvedBannerType)
             ? toIsoOrNull(formData.startsAt)
             : null,
         endsAt:
-          needsSchedule || resolvedBannerType === "partner"
+          needsSchedule || ["partner", "social"].includes(resolvedBannerType)
             ? toIsoOrNull(formData.endsAt)
             : null,
         placement: formData.placement,
@@ -1694,6 +1709,91 @@ const Marketing = () => {
                             </div>
                           </div>
                         )}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs font-medium text-gray-500 mb-1">
+                              Starts At (optional)
+                            </label>
+                            <input
+                              type="datetime-local"
+                              value={formData.startsAt}
+                              onChange={(event) =>
+                                setFormData((current) => ({
+                                  ...current,
+                                  startsAt: event.target.value,
+                                }))
+                              }
+                              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-500 mb-1">
+                              Ends At (optional)
+                            </label>
+                            <input
+                              type="datetime-local"
+                              value={formData.endsAt}
+                              onChange={(event) =>
+                                setFormData((current) => ({
+                                  ...current,
+                                  endsAt: event.target.value,
+                                }))
+                              }
+                              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {formData.bannerType === "social" && (
+                      <div className="space-y-4 rounded-xl border border-[#E5D7EE] bg-[#FCF8FF] p-4">
+                        <div>
+                          <p className="text-sm font-semibold text-gray-900">
+                            Social and entertainment destination
+                          </p>
+                          <p className="mt-1 text-xs leading-relaxed text-gray-500">
+                            Link customers to Instagram, X, YouTube, Spotify,
+                            TikTok, or any other HTTPS social or entertainment
+                            page.
+                          </p>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">
+                            Destination URL
+                          </label>
+                          <input
+                            type="url"
+                            value={formData.actionValue}
+                            onChange={(event) =>
+                              setFormData((current) => ({
+                                ...current,
+                                actionType: "external_url",
+                                actionValue: event.target.value,
+                              }))
+                            }
+                            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34] bg-white"
+                            placeholder="https://www.instagram.com/..."
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">
+                            Button Label
+                          </label>
+                          <input
+                            type="text"
+                            value={formData.ctaLabel}
+                            onChange={(event) =>
+                              setFormData((current) => ({
+                                ...current,
+                                ctaLabel: event.target.value,
+                              }))
+                            }
+                            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34] bg-white"
+                            placeholder="Open link"
+                          />
+                        </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div>
                             <label className="block text-xs font-medium text-gray-500 mb-1">

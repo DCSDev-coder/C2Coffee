@@ -80,6 +80,7 @@ const tokenAdjustmentClass = (value) => {
 export default function OptionsNutrition() {
   const [groups, setGroups] = useState([]);
   const [drinks, setDrinks] = useState([]);
+  const [menuItems, setMenuItems] = useState([]);
   const [nutritionItems, setNutritionItems] = useState([]);
   const [form, setForm] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -111,6 +112,7 @@ export default function OptionsNutrition() {
         .sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }));
       const drinkItems = menuItems.filter((item) => item.product_kind_code === 'drink');
       setDrinks(drinkItems);
+      setMenuItems(menuItems);
       setNutritionItems(menuItems.filter((item) => item.product_kind_code !== 'drink'));
       const drafts = Object.fromEntries(
         menuItems.map((item) => [item.id, item.base_calories_kcal ?? 0])
@@ -135,15 +137,18 @@ export default function OptionsNutrition() {
   }, [nutritionDrafts, initialNutrition]);
 
   const allDrinkIds = useMemo(() => drinks.map((drink) => drink.id), [drinks]);
+  const allMenuItemIds = useMemo(() => menuItems.map((item) => item.id), [menuItems]);
 
   const openNewGroup = () => {
-    setForm({ ...emptyGroup(), menu_item_ids: [...allDrinkIds] });
+    setForm({ ...emptyGroup(), applies_to: 'all_items', menu_item_ids: [...allMenuItemIds] });
   };
 
   const openExistingGroup = (group) => {
-    const selectedIds = group.applies_to === 'all_drinks'
-      ? allDrinkIds
-      : (group.menu_item_ids || []);
+    const selectedIds = group.applies_to === 'all_items'
+      ? allMenuItemIds
+      : group.applies_to === 'all_drinks'
+        ? allDrinkIds
+        : (group.menu_item_ids || []);
     const options = (group.options || []).map((option) => ({
       ...option,
       is_default: Boolean(option.is_default)
@@ -208,10 +213,10 @@ export default function OptionsNutrition() {
       }
     }
 
-    const selectedDrinkIds = [...new Set((formData.menu_item_ids || []).map(Number))]
-      .filter((itemId) => allDrinkIds.includes(itemId));
-    if (selectedDrinkIds.length === 0) {
-      throw new Error('Keep at least one drink selected for this option group.');
+    const selectedItemIds = [...new Set((formData.menu_item_ids || []).map(Number))]
+      .filter((itemId) => allMenuItemIds.includes(itemId));
+    if (selectedItemIds.length === 0) {
+      throw new Error('Keep at least one menu item selected for this option group.');
     }
 
     setSaving(true);
@@ -219,8 +224,14 @@ export default function OptionsNutrition() {
     try {
       const payload = {
         ...formData,
-        applies_to: selectedDrinkIds.length === allDrinkIds.length ? 'all_drinks' : 'selected_items',
-        menu_item_ids: selectedDrinkIds.length === allDrinkIds.length ? [] : selectedDrinkIds,
+        applies_to: selectedItemIds.length === allMenuItemIds.length
+          ? 'all_items'
+          : selectedItemIds.length === allDrinkIds.length && selectedItemIds.every((itemId) => allDrinkIds.includes(itemId))
+            ? 'all_drinks'
+            : 'selected_items',
+        menu_item_ids: selectedItemIds.length === allMenuItemIds.length || (selectedItemIds.length === allDrinkIds.length && selectedItemIds.every((itemId) => allDrinkIds.includes(itemId)))
+          ? []
+          : selectedItemIds,
         selection_type: 'single',
         min_select: 1,
         max_select: 1,
@@ -234,7 +245,7 @@ export default function OptionsNutrition() {
           token_price_delta: Number(option.token_price_delta),
           calorie_delta_kcal: Number(option.calorie_delta_kcal),
           excluded_menu_item_ids: (option.excluded_menu_item_ids || [])
-            .filter((itemId) => selectedDrinkIds.includes(Number(itemId)))
+            .filter((itemId) => selectedItemIds.includes(Number(itemId)))
         }))
       };
       if (formData.id) {
@@ -253,7 +264,7 @@ export default function OptionsNutrition() {
     } finally {
       setSaving(false);
     }
-  }, [allDrinkIds, form]);
+  }, [allDrinkIds, allMenuItemIds, form]);
 
   // Register unsaved changes guard for page navigation
   useEffect(() => {
@@ -333,26 +344,26 @@ export default function OptionsNutrition() {
     setForm({ ...form, options });
   };
 
-  const setChoiceAvailability = (optionIndex, drinkId, isAvailable) => {
+  const setChoiceAvailability = (optionIndex, menuItemId, isAvailable) => {
     const option = form.options[optionIndex];
     if (!isAvailable && option.is_default) {
-      setMessage('The default choice must stay available for every drink in this group.');
+      setMessage('The default choice must stay available for every selected item in this group.');
       return;
     }
     if (!isAvailable) {
       const availableChoiceCount = form.options.filter((choice) =>
-        choice.is_active && !(choice.excluded_menu_item_ids || []).includes(drinkId)
+        choice.is_active && !(choice.excluded_menu_item_ids || []).includes(menuItemId)
       ).length;
       if (availableChoiceCount <= 1) {
-        setMessage('Keep at least one customer choice available for every selected drink.');
+        setMessage('Keep at least one customer choice available for every selected item.');
         return;
       }
     }
     const excluded = option.excluded_menu_item_ids || [];
     updateOption(optionIndex, {
       excluded_menu_item_ids: isAvailable
-        ? excluded.filter((itemId) => itemId !== drinkId)
-        : [...new Set([...excluded, drinkId])]
+        ? excluded.filter((itemId) => itemId !== menuItemId)
+        : [...new Set([...excluded, menuItemId])]
     });
   };
 
@@ -377,7 +388,7 @@ export default function OptionsNutrition() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Options &amp; Nutrition</h1>
           <p className="mt-1 text-sm text-gray-500">
-            Create reusable option rules. Set drink calories separately for each menu item.
+            Create reusable option rules for drinks, food, merchandise, and candles. Set nutrition separately for each menu item.
           </p>
         </div>
         <button
@@ -430,9 +441,11 @@ export default function OptionsNutrition() {
                       </span>
                       <h2 className="font-bold text-gray-900">{group.name}</h2>
                       <span className="rounded-full bg-[#E8F2EF] px-2 py-0.5 text-xs font-bold text-[#1F3A34]">
-                        {group.applies_to === 'all_drinks'
-                          ? 'All drinks'
-                          : `${group.menu_item_ids.length} selected drinks`}
+                        {group.applies_to === 'all_items'
+                          ? 'All menu items'
+                          : group.applies_to === 'all_drinks'
+                            ? 'All drinks'
+                            : `${group.menu_item_ids.length} selected items`}
                       </span>
                       {!group.is_active && (
                         <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-bold text-gray-600">
@@ -441,7 +454,7 @@ export default function OptionsNutrition() {
                       )}
                     </div>
                     <p className="mt-1 text-xs text-gray-500">
-                      One customer choice per drink
+                      One customer choice per selected menu item
                     </p>
                   </div>
                   <div className="flex gap-2">
@@ -642,9 +655,9 @@ export default function OptionsNutrition() {
               </div>
               <fieldset>
                 <legend className="text-sm font-semibold text-gray-700">Apply group to</legend>
-                <p className="mt-1 text-xs text-gray-500">All drinks are selected to start. Untick only the drinks that should not offer this choice.</p>
+                <p className="mt-1 text-xs text-gray-500">All menu items are selected to start. Untick only the items that should not offer this choice.</p>
                 <div className="mt-2 grid max-h-44 gap-2 overflow-y-auto rounded-xl border p-3 sm:grid-cols-2">
-                  {drinks.map((item) => (
+                  {menuItems.map((item) => (
                     <label key={item.id} className="flex items-center gap-2 text-sm">
                       <input
                         type="checkbox"
@@ -659,7 +672,7 @@ export default function OptionsNutrition() {
                         }
                       />
                       <span className="font-medium text-gray-800">{item.name}</span>
-                      <span className="text-xs text-gray-400">{item.category_name}</span>
+                      <span className="text-xs text-gray-400">{item.category_name} · {item.product_kind_code}</span>
                     </label>
                   ))}
                 </div>
@@ -845,19 +858,19 @@ export default function OptionsNutrition() {
                       </div>
                       <details className="rounded-xl border border-gray-200 bg-white px-3 py-2.5">
                         <summary className="cursor-pointer text-xs font-bold text-gray-700">
-                          Available for {form.menu_item_ids.filter((itemId) => !(option.excluded_menu_item_ids || []).includes(itemId)).length} of {form.menu_item_ids.length} selected drinks
+                          Available for {form.menu_item_ids.filter((itemId) => !(option.excluded_menu_item_ids || []).includes(itemId)).length} of {form.menu_item_ids.length} selected items
                         </summary>
-                        <p className="mt-2 text-xs text-gray-500">Untick drinks that should not offer this choice. The group default stays available everywhere.</p>
+                        <p className="mt-2 text-xs text-gray-500">Untick items that should not offer this choice. The group default stays available everywhere.</p>
                         <div className="mt-2 grid max-h-36 gap-2 overflow-y-auto sm:grid-cols-2">
-                          {drinks.filter((drink) => form.menu_item_ids.includes(drink.id)).map((drink) => (
-                            <label key={drink.id} className="flex items-center gap-2 text-xs text-gray-700">
+                          {menuItems.filter((item) => form.menu_item_ids.includes(item.id)).map((item) => (
+                            <label key={item.id} className="flex items-center gap-2 text-xs text-gray-700">
                               <input
                                 type="checkbox"
-                                checked={!(option.excluded_menu_item_ids || []).includes(drink.id)}
+                                checked={!(option.excluded_menu_item_ids || []).includes(item.id)}
                                 disabled={option.is_default === true}
-                                onChange={(event) => setChoiceAvailability(index, drink.id, event.target.checked)}
+                                onChange={(event) => setChoiceAvailability(index, item.id, event.target.checked)}
                               />
-                              {drink.name}
+                              {item.name} <span className="text-gray-400">({item.product_kind_code})</span>
                             </label>
                           ))}
                         </div>

@@ -19,6 +19,7 @@ const Sidebar = ({ currentPage, setCurrentPage, onLogout, currentTenant, current
     { name: 'Customers', icon: Users, section: 'Daily work' },
     { name: 'Menu', icon: Coffee, section: 'Menu setup' },
     { name: 'Options & Nutrition', icon: SlidersHorizontal, section: 'Menu setup' },
+    { name: 'Inventory', icon: Package, section: 'Menu setup' },
     { name: 'Marketing', icon: Megaphone, section: 'Marketing & loyalty' },
     { name: 'Voucher', icon: Ticket, section: 'Marketing & loyalty' },
     { name: 'Referral Program', icon: Share2, section: 'Marketing & loyalty' },

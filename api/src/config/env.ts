@@ -90,6 +90,10 @@ const parsed = parsedEnv.data;
 // A production deployment must never silently fall back to a development OTP
 // path or expose a code through the API response.
 if (parsed.NODE_ENV === 'production') {
+  if (new URL(parsed.PUBLIC_API_BASE_URL).protocol !== 'https:') {
+    throw new Error('Production requires PUBLIC_API_BASE_URL to use HTTPS.');
+  }
+
   if (parsed.OTP_DELIVERY_MODE !== 'email' || parsed.OTP_DEBUG_EXPOSE_CODE) {
     throw new Error('Production requires OTP_DELIVERY_MODE=email and OTP_DEBUG_EXPOSE_CODE=false.');
   }

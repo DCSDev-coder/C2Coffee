@@ -223,6 +223,7 @@ class CurrentUserProfile {
   final String? state;
   final String? avatarType;
   final String? avatarValue;
+  final bool isEmployee;
 
   const CurrentUserProfile({
     required this.id,
@@ -236,6 +237,7 @@ class CurrentUserProfile {
     required this.state,
     required this.avatarType,
     required this.avatarValue,
+    required this.isEmployee,
   });
 
   factory CurrentUserProfile.fromApi(Map<String, dynamic> user) {
@@ -252,6 +254,7 @@ class CurrentUserProfile {
       state: user['state'] as String?,
       avatarType: user['avatar_type'] as String?,
       avatarValue: user['avatar_value'] as String?,
+      isEmployee: user['is_employee'] as bool? ?? false,
     );
   }
 

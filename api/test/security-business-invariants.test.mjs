@@ -176,13 +176,43 @@ test('top-up history is informational while qualifying vouchers are issued by se
   const vouchers = await source('src/http/routes/admin-vouchers.ts');
   assert.match(vouchers, /topup_reward/);
   assert.match(vouchers, /single_paid_topup/);
+  assert.match(vouchers, /paymentMode/);
+  assert.match(vouchers, /payment_modes/);
+
+  const checkoutPaymentRules = checkout.match(/voucher_payment_mode_not_supported/);
+  assert.ok(checkoutPaymentRules, 'voucher payment mode must be enforced at checkout');
 
   const settlement = await source('src/services/chip-topup-settlement.ts');
   assert.match(settlement, /issueTopUpRewardVouchers/);
   assert.match(settlement, /input\.tokenAmount < minimum/);
-  assert.match(settlement, /issueCaseRef: `topup_reward:\$\{template\.id\}:topup:\$\{input\.topupId\}`/);
+  assert.match(settlement, /const issueCaseRef = `topup_reward:\$\{template\.id\}:topup:\$\{input\.topupId\}`/);
   assert.match(settlement, /revokeTopUpRewardVouchers/);
   assert.match(settlement, /needs_review_redeemed_topup_reward/);
+
+  const customerData = await source('src/http/routes/customer-data.ts');
+  assert.match(customerData, /getVoucherTopUpMinimum\(scope\) !== null/);
+  assert.match(customerData, /eligibility_status: topUpEligibility\.eligible/);
+  assert.match(customerData, /locked_topup_rewards: lockedTopUpRewards/);
+  assert.match(customerData, /id: -Number\(row\.id\)/);
+  assert.match(checkout, /voucher_topup_not_qualified/);
+
+  const counterPayments = await source('src/http/routes/counter-payments.ts');
+  assert.match(counterPayments, /voucher_topup_not_qualified/);
+});
+
+test('customer direct checkout uses RM pricing and trusted CHIP settlement', async () => {
+  const checkout = await source('src/http/routes/checkout.ts');
+  const topups = await source('src/http/routes/topups.ts');
+  const settlement = await source('src/services/chip-counter-settlement.ts');
+  assert.match(checkout, /payment_mode: z\.enum\(\['token', 'direct'\]\)/);
+  assert.match(checkout, /payment_method: z\.enum/);
+  assert.match(checkout, /createChipPurchase/);
+  assert.match(checkout, /directPaymentRequired/);
+  assert.match(checkout, /'pending_payment'/);
+  assert.match(checkout, /finalTotalRm/);
+  assert.match(topups, /settleChipMobilePurchase/);
+  assert.match(settlement, /orderChannel: 'counter' \| 'mobile'/);
+  assert.match(settlement, /o\.order_channel = :orderChannel/);
 });
 
 test('poster surface ordering is role guarded, tenant scoped, and uses fixed columns', async () => {
@@ -195,6 +225,60 @@ test('poster surface ordering is role guarded, tenant scoped, and uses fixed col
   assert.match(marketing, /partnership: "partnership_sort_order"/);
   assert.match(marketing, /assertVoucherTargetExists/);
   assert.match(marketing, /FROM voucher_templates[\s\S]{0,200}tenant_id = :tenantId/);
+});
+
+test('option groups can target all menu item kinds without weakening tenant checks', async () => {
+  const optionLibrary = await source('src/http/routes/admin-option-library.ts');
+  const catalog = await source('src/http/routes/catalog.ts');
+  const checkout = await source('src/http/routes/checkout.ts');
+  const migration = await source('src/db/migrations/115_expand_option_groups_to_all_menu_items.sql');
+  assert.match(optionLibrary, /all_drinks', 'all_items', 'selected_items/);
+  assert.match(optionLibrary, /g\.applies_to IN \('all_drinks', 'all_items'\)/);
+  assert.match(catalog, /row\.applies_to === "all_items"/);
+  assert.match(checkout, /g\.applies_to IN \('all_drinks', 'all_items'\)/);
+  assert.match(migration, /ENUM\('all_drinks', 'all_items', 'selected_items'\)/);
+  assert.match(optionLibrary, /stores s ON s\.id = availability\.store_id AND s\.tenant_id = :tenantId/);
+});
+
+test('voucher expiry maintenance closes stale active rows without deleting history', async () => {
+  const maintenance = await source('src/services/voucher-expiry-maintenance.ts');
+  const server = await source('src/server.ts');
+  const readiness = await source('src/scripts/production-readiness.ts');
+  assert.match(maintenance, /UPDATE user_vouchers/);
+  assert.match(maintenance, /WHEN revoked_at IS NOT NULL THEN 'revoked'/);
+  assert.match(maintenance, /WHEN redeemed_at IS NOT NULL THEN 'redeemed'/);
+  assert.match(maintenance, /ELSE 'expired'/);
+  assert.match(maintenance, /status = 'active'/);
+  assert.match(server, /await expireStaleUserVouchers\(\)/);
+  assert.match(readiness, /await expireStaleUserVouchers\(\)/);
+  assert.doesNotMatch(maintenance, /DELETE FROM user_vouchers/);
+});
+
+test('voucher notifications are admin controlled and skip used or revoked vouchers', async () => {
+  const reminders = await source('src/services/voucher-expiry-reminders.ts');
+  const adminVouchers = await source('src/http/routes/admin-vouchers.ts');
+  const migration = await source('src/db/migrations/116_add_voucher_reminder_settings.sql');
+  const server = await source('src/server.ts');
+
+  assert.match(migration, /start_reminder_enabled/);
+  assert.match(migration, /end_reminder_enabled/);
+  assert.match(adminVouchers, /\/v1\/admin\/vouchers\/:id\/reminders/);
+  assert.match(adminVouchers, /WHERE code = :code AND tenant_id = :tenantId/);
+  assert.match(reminders, /vt\.start_reminder_enabled = 1 OR vt\.end_reminder_enabled = 1/);
+  assert.match(reminders, /uv\.redeemed_at IS NULL/);
+  assert.match(reminders, /uv\.revoked_at IS NULL/);
+  assert.doesNotMatch(reminders, /voucher_expiring/);
+  assert.doesNotMatch(server, /runVoucherExpiryReminderSweep/);
+});
+
+test('production callback origins and mobile payment redirects require HTTPS', async () => {
+  const envConfig = await source('src/config/env.ts');
+  const mobileCheckout = await readFile(
+    new URL('../../mobile_app/lib/screens/order_confirmation_page.dart', import.meta.url),
+    'utf8'
+  );
+  assert.match(envConfig, /Production requires PUBLIC_API_BASE_URL to use HTTPS/);
+  assert.match(mobileCheckout, /isTrustedPaymentCheckoutUrl\(checkoutUrl\)/);
 });
 
 test('birthday cleanup recognizes templates configured by tier management', async () => {

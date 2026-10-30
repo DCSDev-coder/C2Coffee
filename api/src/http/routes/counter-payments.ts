@@ -15,6 +15,8 @@ import {
 } from '../../payments/chip-client.js';
 import { settleChipCounterPurchase } from '../../services/chip-counter-settlement.js';
 import { isStoreTradingNow } from '../../services/store-availability.js';
+import { releaseInventoryForOrder, reserveInventoryForOrder } from '../../services/inventory.js';
+import { evaluateVoucherTopUpEligibility } from '../../services/voucher-topup-eligibility.js';
 import { ApiError } from '../errors.js';
 import {
   collectMatchedUnits,
@@ -307,7 +309,7 @@ export async function registerCounterPaymentRoutes(app: FastifyInstance): Promis
           throw new ApiError(401, 'voucher_authorization_invalid', 'Voucher approval has expired or does not match this basket.');
         }
         const [voucherRows] = await connection.query<AppliedVoucherRow[]>(
-          `SELECT uv.id, uv.user_id, uv.status, uv.issue_case_ref, uv.tier_at_issue, uv.expires_at,
+          `SELECT uv.id, uv.user_id, uv.status, uv.issued_by_type, uv.issue_case_ref, uv.tier_at_issue, uv.expires_at,
                   vt.id AS template_id, vt.tenant_id AS template_tenant_id,
                   vt.code AS template_code, vt.name AS template_name, vt.voucher_type,
                   vt.discount_mode, CAST(vt.discount_value AS CHAR) AS discount_value,
@@ -334,6 +336,19 @@ export async function registerCounterPaymentRoutes(app: FastifyInstance): Promis
           throw new ApiError(409, 'voucher_checkout_in_progress', 'This voucher is already attached to another checkout.');
         }
         const scope = parseVoucherScope(voucher.eligible_scope_json);
+        const topUpEligibility = evaluateVoucherTopUpEligibility({
+          scope,
+          templateId: Number(voucher.template_id),
+          issueCaseRef: voucher.issue_case_ref,
+          issuedByType: voucher.issued_by_type
+        });
+        if (!topUpEligibility.eligible) {
+          throw new ApiError(
+            400,
+            'voucher_topup_not_qualified',
+            topUpEligibility.unavailableReason ?? 'Complete the required top-up before using this voucher.'
+          );
+        }
         const rule = parsePromotionRule(scope);
         let birthdayMonthDay: string | null = null;
         const schedule = scope.schedule && typeof scope.schedule === 'object'
@@ -475,6 +490,8 @@ export async function registerCounterPaymentRoutes(app: FastifyInstance): Promis
         }
       }
 
+      await reserveInventoryForOrder(connection, orderId);
+
       await connection.execute(
         `INSERT INTO payments
            (order_id, provider, payment_method, provider_payment_ref, amount_rm, status, paid_at, created_at)
@@ -562,6 +579,17 @@ export async function registerCounterPaymentRoutes(app: FastifyInstance): Promis
          WHERE id = :orderId AND status = 'pending_payment'`,
         { orderId }
       );
+      const inventoryConnection = await getUtcConnection();
+      try {
+        await inventoryConnection.beginTransaction();
+        await releaseInventoryForOrder(inventoryConnection, orderId);
+        await inventoryConnection.commit();
+      } catch (inventoryError) {
+        await inventoryConnection.rollback();
+        request.log.error({ err: inventoryError, orderRef: newOrderRef }, 'Inventory reservation release failed after counter payment creation failure.');
+      } finally {
+        inventoryConnection.release();
+      }
       throw error;
     }
     await mysqlPool.execute(

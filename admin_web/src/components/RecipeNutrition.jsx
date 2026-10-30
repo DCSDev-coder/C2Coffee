@@ -17,7 +17,7 @@ export default function RecipeNutrition({ drinks, groups }) {
   const [saving, setSaving] = useState(false);
 
   const selectedDrink = drinks.find((drink) => drink.id === selectedItemId);
-  const applicableGroups = groups.filter((group) => group.applies_to === 'all_drinks' || group.menu_item_ids?.includes(selectedItemId));
+  const applicableGroups = groups.filter((group) => group.applies_to === 'all_drinks' || group.applies_to === 'all_items' || group.menu_item_ids?.includes(selectedItemId));
 
   useEffect(() => {
     const drink = drinks.find((item) => item.id === selectedItemId);
@@ -30,7 +30,7 @@ export default function RecipeNutrition({ drinks, groups }) {
         const overrides = Object.fromEntries((response.option_overrides || []).map((override) => [override.option_id, Number(override.calorie_delta_kcal)]));
         const values = {};
         for (const group of groups) {
-          const applicable = group.applies_to === 'all_drinks' || group.menu_item_ids?.includes(drink.id);
+          const applicable = group.applies_to === 'all_drinks' || group.applies_to === 'all_items' || group.menu_item_ids?.includes(drink.id);
           if (!applicable) continue;
           for (const option of group.options || []) values[option.id] = overrides[option.id] ?? Number(option.calorie_delta_kcal || 0);
         }

@@ -10,6 +10,7 @@ import type {
 import { z } from 'zod';
 
 import { authenticateRequest } from '../../auth/guard.js';
+import { env } from '../../config/env.js';
 import { getUtcConnection, mysqlPool } from '../../db/mysql.js';
 import { createUserNotification } from '../notifications.js';
 import { processOrderLoyalty } from '../../services/loyalty.js';
@@ -20,14 +21,23 @@ import { resolveOrderLifecycleStatus } from '../order-lifecycle.js';
 import { getKualaLumpurDateParts } from '../../lib/kuala-lumpur-time.js';
 import { deliverPushToStaff } from '../../services/push-delivery.js';
 import { deliverQueuedOrderReceiptEmail, queueOrderReceiptEmail } from '../../services/order-receipt-email.js';
+import { createChipPurchase, getChipPurchase, type ChipPaymentMethod } from '../../payments/chip-client.js';
 import {
   isStoreAcceptingMobileOrdersNow,
   isStoreOpenNow
 } from '../../services/store-availability.js';
+import {
+  consumeInventoryForOrder,
+  releaseInventoryForOrder,
+  reserveInventoryForOrder
+} from '../../services/inventory.js';
+import { evaluateVoucherTopUpEligibility } from '../../services/voucher-topup-eligibility.js';
+import { assertCustomerAccess } from '../../services/app-maintenance.js';
 
 const createOrderSchema = z.object({
   store_id: z.coerce.number().int().positive(),
-  payment_mode: z.literal('token'),
+  payment_mode: z.enum(['token', 'direct']),
+  payment_method: z.enum(['fpx', 'duitnow_qr', 'card', 'ewallet']).nullish(),
   applied_voucher_id: z.coerce.number().int().positive().nullish(),
   items: z
     .array(
@@ -53,6 +63,21 @@ const createOrderSchema = z.object({
     )
     .min(1)
     .max(20)
+}).superRefine((value, context) => {
+  if (value.payment_mode === 'direct' && !value.payment_method) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['payment_method'],
+      message: 'Choose a direct payment method.'
+    });
+  }
+  if (value.payment_mode === 'token' && value.payment_method) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['payment_method'],
+      message: 'Token checkout cannot include a direct payment method.'
+    });
+  }
 });
 
 type StoreRow = RowDataPacket & {
@@ -129,6 +154,9 @@ type IdempotentOrderResponseRow = OrderResponseRow & {
   balance_available: number;
   balance_reserved: number;
   balance_cap: number;
+  payment_status: string | null;
+  payment_method: string | null;
+  provider_bill_id: string | null;
 };
 
 type OrderCollectRow = RowDataPacket & {
@@ -151,6 +179,7 @@ export type AppliedVoucherRow = RowDataPacket & {
   id: number;
   user_id: number;
   status: 'active' | 'redeemed' | 'expired' | 'revoked';
+  issued_by_type: 'system' | 'admin';
   issue_case_ref: string | null;
   tier_at_issue: string | null;
   expires_at: Date;
@@ -169,6 +198,10 @@ export type AppliedVoucherRow = RowDataPacket & {
   template_is_active: number;
   template_valid_until: Date | null;
 };
+
+function customerPaymentCallbackUrl(): string {
+  return `${env.PUBLIC_API_BASE_URL.replace(/\/+$/, '')}/payments/chip/callback`;
+}
 
 export async function assertTierVoucherStillEligible(
   connection: PoolConnection,
@@ -484,6 +517,7 @@ export async function registerCheckoutRoutes(
   app: FastifyInstance
 ): Promise<void> {
   app.post('/v1/orders', { preHandler: authenticateRequest }, async (request) => {
+    await assertCustomerAccess(request.auth.userId);
     const payload = createOrderSchema.parse(request.body);
     const idempotencyKey = _readCheckoutIdempotencyKey(request.headers['idempotency-key']);
 
@@ -526,7 +560,7 @@ export async function registerCheckoutRoutes(
 
       const itemsById = new Map(menuItems.map((item) => [item.id, item]));
       const pickupSlot = new Date(Date.now() + store.pickup_lead_minutes * 60 * 1000);
-      const isTokenCheckout = true;
+      const isTokenCheckout = payload.payment_mode === 'token';
 
       let subtotalRm = 0;
       let modifierTotalRm = 0;
@@ -611,6 +645,7 @@ export async function registerCheckoutRoutes(
               uv.id,
               uv.user_id,
               uv.status,
+              uv.issued_by_type,
               uv.issue_case_ref,
               uv.tier_at_issue,
               uv.expires_at,
@@ -679,6 +714,32 @@ export async function registerCheckoutRoutes(
         await assertTierVoucherStillEligible(connection, appliedVoucher);
 
         const voucherScope = parseVoucherScope(appliedVoucher.eligible_scope_json);
+        const topUpEligibility = evaluateVoucherTopUpEligibility({
+          scope: voucherScope,
+          templateId: Number(appliedVoucher.template_id),
+          issueCaseRef: appliedVoucher.issue_case_ref,
+          issuedByType: appliedVoucher.issued_by_type
+        });
+        if (!topUpEligibility.eligible) {
+          throw new ApiError(
+            400,
+            'voucher_topup_not_qualified',
+            topUpEligibility.unavailableReason ?? 'Complete the required top-up before using this voucher.'
+          );
+        }
+        const rawPaymentModes = voucherScope.payment_modes ?? voucherScope.payment_mode;
+        const paymentModes = Array.isArray(rawPaymentModes)
+          ? rawPaymentModes.map((value) => String(value ?? '').trim().toLowerCase())
+          : [rawPaymentModes == null
+            ? (appliedVoucher.discount_mode === 'fixed_token' ? 'token' : 'both')
+            : String(rawPaymentModes).trim().toLowerCase()];
+        if (!paymentModes.includes('both') && !paymentModes.includes('token')) {
+          throw new ApiError(
+            400,
+            'voucher_payment_mode_not_supported',
+            'Selected voucher is not valid for token checkout.'
+          );
+        }
         const promotionRule = parsePromotionRule(voucherScope);
         const isTierBirthdayReward = appliedVoucher.issue_case_ref?.startsWith('tier_birthday:') ?? false;
         const voucherSchedule =
@@ -825,6 +886,8 @@ export async function registerCheckoutRoutes(
         0,
         normalizeMoney(totalBeforeDiscountRm - discountRm)
       );
+      const directPaymentRequired = !isTokenCheckout && finalTotalRm > 0;
+      const orderPaid = isTokenCheckout || !directPaymentRequired;
 
       const dailyOrderNumber = await _allocateDailyOrderNumber(
         connection,
@@ -858,8 +921,8 @@ export async function registerCheckoutRoutes(
             :dailyOrderNumber,
             :userId,
             :storeId,
-            'paid',
-            'token',
+            :orderStatus,
+            :paymentMode,
             :subtotalRm,
             :modifierTotalRm,
             :discountTotalRm,
@@ -867,7 +930,7 @@ export async function registerCheckoutRoutes(
             :tokenAmountCharged,
             :voucherId,
             :pickupSlotAt,
-            UTC_TIMESTAMP(),
+            :paidAt,
             UTC_TIMESTAMP()
           )
         `,
@@ -883,7 +946,10 @@ export async function registerCheckoutRoutes(
           finalTotalRm: finalTotalRm.toFixed(2),
           tokenAmountCharged,
           voucherId: appliedVoucher ? appliedVoucher.id : null,
-          pickupSlotAt: _formatMySqlDateTime(pickupSlot)
+          pickupSlotAt: _formatMySqlDateTime(pickupSlot),
+            orderStatus: orderPaid ? 'paid' : 'pending_payment',
+          paymentMode: payload.payment_mode,
+            paidAt: orderPaid ? new Date() : null
         }
       );
 
@@ -1004,9 +1070,14 @@ export async function registerCheckoutRoutes(
         }
       }
 
+      // Hold recipe stock before payment leaves the checkout flow. The hold is
+      // consumed only after collection and released if payment cannot start.
+      await reserveInventoryForOrder(connection, orderId);
+
       // A direct Android printer receives a durable job only after the order is
       // fully stored. No printer failure can roll back a paid checkout.
-      const [directPrinters] = await connection.execute<RowDataPacket[]>(
+      const [directPrinters] = orderPaid
+        ? await connection.execute<RowDataPacket[]>(
         `SELECT pt.id, pt.tenant_code FROM printer_targets pt
          JOIN stores s ON s.id = :storeId
          JOIN admin_tenants t ON t.id = s.tenant_id
@@ -1016,8 +1087,9 @@ export async function registerCheckoutRoutes(
            AND pt.network_port IS NOT NULL AND pt.direct_print_device_key IS NOT NULL
          LIMIT 1`,
         { storeId: payload.store_id }
-      );
-      if (directPrinters[0]) {
+      )
+        : [[] as RowDataPacket[], []];
+      if (orderPaid && directPrinters[0]) {
         await connection.execute(
           `INSERT INTO print_jobs (
             job_ref, tenant_code, order_id, printer_target_id, requested_by_admin_user_id, request_type
@@ -1049,13 +1121,15 @@ export async function registerCheckoutRoutes(
         `,
         {
           orderId,
-          toStatus: isTokenCheckout ? 'paid' : 'pending_payment',
+          toStatus: orderPaid ? 'paid' : 'pending_payment',
           userId: request.auth.userId,
-          reason: 'Token checkout completed in app.'
+          reason: isTokenCheckout
+            ? 'Token checkout completed in app.'
+            : 'Direct payment checkout created; awaiting CHIP confirmation.'
         }
       );
 
-      if (appliedVoucher) {
+      if (appliedVoucher && orderPaid) {
         await connection.execute(
           `
             INSERT INTO voucher_redemptions (
@@ -1199,6 +1273,33 @@ export async function registerCheckoutRoutes(
         accountBalanceCap = account.balance_cap;
       }
 
+      if (directPaymentRequired) {
+        const [profiles] = await connection.query<Array<RowDataPacket & {
+          display_name: string | null;
+          email: string | null;
+        }>>(
+          `SELECT display_name, email FROM user_profiles WHERE user_id = :userId LIMIT 1`,
+          { userId: request.auth.userId }
+        );
+        const profile = profiles[0];
+        if (!profile?.email?.trim()) {
+          throw new ApiError(409, 'direct_payment_email_required', 'Add a verified email address before paying directly.');
+        }
+        await connection.execute(
+          `INSERT INTO payments (
+             order_id, provider, payment_method, provider_payment_ref, amount_rm, status, created_at
+           ) VALUES (
+             :orderId, 'chip', :paymentMethod, :orderRef, :amountRm, 'pending', UTC_TIMESTAMP()
+           )`,
+          {
+            orderId,
+            paymentMethod: payload.payment_method!,
+            orderRef,
+            amountRm: finalTotalRm.toFixed(2)
+          }
+        );
+      }
+
       await createUserNotification(connection, {
         userId: request.auth.userId,
         type: 'order_created',
@@ -1216,18 +1317,80 @@ export async function registerCheckoutRoutes(
         `SELECT email FROM user_profiles WHERE user_id = :userId LIMIT 1`,
         { userId: request.auth.userId }
       );
-      const receiptEmailQueued = await queueOrderReceiptEmail(connection, {
-        orderId,
-        recipientEmail: customerRows[0]?.email ?? null
-      });
+      const receiptEmailQueued = orderPaid
+        ? await queueOrderReceiptEmail(connection, {
+            orderId,
+            recipientEmail: customerRows[0]?.email ?? null
+          })
+        : false;
 
       await connection.commit();
       committed = true;
 
+      let directPaymentResponse: Record<string, unknown> | null = null;
+      if (directPaymentRequired) {
+        try {
+          const [profiles] = await mysqlPool.query<Array<RowDataPacket & {
+            display_name: string | null;
+            email: string | null;
+          }>>(
+            `SELECT display_name, email FROM user_profiles WHERE user_id = :userId LIMIT 1`,
+            { userId: request.auth.userId }
+          );
+          const profile = profiles[0];
+          const purchase = await createChipPurchase({
+            reference: orderRef,
+            customerEmail: profile?.email?.trim() ?? '',
+            customerName: profile?.display_name?.trim() || 'C2 Coffee customer',
+            amountCents: Math.round(finalTotalRm * 100),
+            description: `C2 Coffee order ${orderRef}`,
+            method: payload.payment_method as ChipPaymentMethod,
+            callbackUrl: customerPaymentCallbackUrl()
+          });
+          await mysqlPool.execute(
+            `UPDATE payments
+             SET provider_bill_id = :purchaseId
+             WHERE order_id = :orderId AND provider = 'chip' AND status = 'pending'`,
+            { purchaseId: purchase.id, orderId }
+          );
+          directPaymentResponse = {
+            provider: 'chip',
+            status: 'pending',
+            payment_method: payload.payment_method,
+            checkout_url: purchase.checkoutUrl,
+            amount_rm: finalTotalRm.toFixed(2)
+          };
+        } catch (error) {
+          await mysqlPool.execute(
+            `UPDATE payments SET status = 'failed', failed_at = UTC_TIMESTAMP()
+             WHERE order_id = :orderId AND status = 'pending'`,
+            { orderId }
+          );
+          await mysqlPool.execute(
+            `UPDATE orders SET status = 'payment_failed'
+             WHERE id = :orderId AND status = 'pending_payment'`,
+            { orderId }
+          );
+          const inventoryConnection = await getUtcConnection();
+          try {
+            await inventoryConnection.beginTransaction();
+            await releaseInventoryForOrder(inventoryConnection, orderId);
+            await inventoryConnection.commit();
+          } catch (inventoryError) {
+            await inventoryConnection.rollback();
+            request.log.error({ err: inventoryError, orderRef }, 'Inventory reservation release failed after payment creation failure.');
+          } finally {
+            inventoryConnection.release();
+          }
+          request.log.error({ err: error, orderRef }, 'CHIP direct order payment creation failed');
+          throw new ApiError(502, 'direct_payment_gateway_error', 'Unable to start the direct payment. Please try again.');
+        }
+      }
+
       // Do not make a completed payment wait for Firebase or registered staff
       // devices. Delivery failures are logged but cannot turn success into a
       // client timeout that encourages a duplicate retry.
-      void deliverPushToStaff({
+      if (orderPaid) void deliverPushToStaff({
           tenantId: store.tenant_id,
           roleCodes: ['barista', 'operations_admin', 'super_admin'],
           title: 'New order to prepare',
@@ -1281,7 +1444,8 @@ export async function registerCheckoutRoutes(
         token_balance: accountBalanceAvailable,
         token_reserved: accountBalanceReserved,
         token_cap: accountBalanceCap,
-        receipt_email: receiptEmailQueued ? 'queued' : 'unavailable'
+        receipt_email: receiptEmailQueued ? 'queued' : 'unavailable',
+        payment: directPaymentResponse
       };
 
       return response;
@@ -1426,6 +1590,7 @@ export async function registerCheckoutRoutes(
       });
 
       // A pickup is only eligible for loyalty and referral rewards once collected.
+      await consumeInventoryForOrder(connection, order.id);
       await processOrderLoyalty(order.id, request.auth.userId, connection);
       await awardReferralForCollectedOrder(connection, request.auth.userId, order.id);
 
@@ -1481,10 +1646,14 @@ async function _findIdempotentCheckoutResponse(
         o.payment_mode,
         CAST(o.final_total_rm AS CHAR) AS final_total_rm,
         o.token_amount_charged,
+        p.status AS payment_status,
+        p.payment_method,
+        p.provider_bill_id,
         ta.balance_available,
         ta.balance_reserved,
         ta.balance_cap
       FROM orders o
+      LEFT JOIN payments p ON p.order_id = o.id
       JOIN token_accounts ta ON ta.user_id = o.user_id
       WHERE o.user_id = :userId
         AND o.checkout_idempotency_key = :idempotencyKey
@@ -1494,6 +1663,27 @@ async function _findIdempotentCheckoutResponse(
   );
   const order = rows[0];
   if (!order) return null;
+
+  let payment: Record<string, unknown> | null = null;
+  if (order.provider_bill_id && order.payment_mode === 'direct') {
+    try {
+      const purchase = await getChipPurchase(String(order.provider_bill_id));
+      payment = {
+        provider: 'chip',
+        status: order.payment_status,
+        payment_method: order.payment_method,
+        checkout_url: purchase.checkout_url,
+        amount_rm: order.final_total_rm
+      };
+    } catch (_) {
+      payment = {
+        provider: 'chip',
+        status: order.payment_status,
+        payment_method: order.payment_method,
+        amount_rm: order.final_total_rm
+      };
+    }
+  }
 
   return {
     order: {
@@ -1507,7 +1697,8 @@ async function _findIdempotentCheckoutResponse(
     },
     token_balance: order.balance_available,
     token_reserved: order.balance_reserved,
-    token_cap: order.balance_cap
+    token_cap: order.balance_cap,
+    payment
   };
 }
 
@@ -1619,7 +1810,7 @@ export async function verifyCheckoutModifiers(
      LEFT JOIN menu_item_option_nutrition_overrides nutrition_override
        ON nutrition_override.menu_item_id = :menuItemId AND nutrition_override.option_group_option_id = o.id
      WHERE g.tenant_id = :tenantId AND g.is_active = 1
-       AND (g.applies_to = 'all_drinks' OR a.menu_item_id IS NOT NULL)
+       AND (g.applies_to IN ('all_drinks', 'all_items') OR a.menu_item_id IS NOT NULL)
        AND e.option_group_option_id IS NULL
      ORDER BY g.sort_order, g.id, o.sort_order, o.id`,
     { tenantId, menuItemId }

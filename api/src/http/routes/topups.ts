@@ -17,6 +17,8 @@ import {
 } from '../../payments/chip-client.js';
 import { topUpRequestSchema } from '../../payments/topup-request.js';
 import { settleChipTopUpPurchase } from '../../services/chip-topup-settlement.js';
+import { settleChipMobilePurchase } from '../../services/chip-counter-settlement.js';
+import { assertCustomerAccess } from '../../services/app-maintenance.js';
 
 type CustomerTopUpRow = RowDataPacket & {
   id: number;
@@ -63,6 +65,7 @@ export async function registerTopUpRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.post('/v1/topups', { preHandler: authenticateRequest }, async (request) => {
+    await assertCustomerAccess(request.auth.userId);
     assertChipConfigured();
 
     const {
@@ -232,6 +235,18 @@ export async function registerTopUpRoutes(app: FastifyInstance): Promise<void> {
     // Do not trust the callback body for payment state. Retrieve the purchase
     // from CHIP using the server-only API key and verify the authoritative data.
     const purchase = await getChipPurchase(callback.id);
+    const [paymentRows] = await mysqlPool.query<Array<RowDataPacket & {
+      order_id: number | null;
+      topup_id: number | null;
+    }>>(
+      `SELECT order_id, topup_id FROM payments
+       WHERE provider = 'chip' AND provider_bill_id = :purchaseId
+       LIMIT 1`,
+      { purchaseId: callback.id }
+    );
+    if (paymentRows[0]?.order_id != null) {
+      return settleChipMobilePurchase(callback.id, purchase, 'customer_callback');
+    }
     return settleChipTopUpPurchase(callback.id, purchase, { logger: request.log });
   });
 

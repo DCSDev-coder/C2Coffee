@@ -18,12 +18,14 @@ const voucherBenefitTypeSchema = z.enum([
   'Token Discount',
   'Birthday Voucher'
 ]);
+const voucherPaymentModeSchema = z.enum(['both', 'token', 'direct']);
 
 const voucherCreateUpdateSchema = z.object({
   code: z.string().trim().min(1).max(50),
   name: z.string().trim().min(1).max(255),
   type: z.string().trim().min(1).max(100),
   benefitType: voucherBenefitTypeSchema,
+  paymentMode: voucherPaymentModeSchema.optional(),
   promotionKind: z.enum(['standard', 'bundle']).optional().default('standard'),
   topupRewardMinTokens: z.coerce.number().int().min(1).max(500).nullable().optional(),
   status: z.enum(['Active', 'Expired', 'Draft']).optional().default('Active'),
@@ -45,6 +47,10 @@ const voucherCreateUpdateSchema = z.object({
   limitPerUser: z.coerce.number().int().min(1).max(10_000).nullable().optional(),
   description: z.string().optional(),
   usageInstructions: z.string().trim().max(1000).optional().default(''),
+  startReminderEnabled: z.boolean().optional().default(false),
+  startReminderMinutesBefore: z.coerce.number().int().min(0).max(1440).optional().default(0),
+  endReminderEnabled: z.boolean().optional().default(false),
+  endReminderMinutesBefore: z.coerce.number().int().min(0).max(1440).optional().default(60),
   imageUrl: z.string().trim().max(512).nullable().optional(),
   audience: z
     .enum(['all_customers', 'employee_only', 'manual_issue_only'])
@@ -65,6 +71,14 @@ const voucherCreateUpdateSchema = z.object({
       code: z.ZodIssueCode.custom,
       path: ['availabilityMode'],
       message: 'Birthday vouchers must use birthday-month availability.'
+    });
+  }
+
+  if (value.benefitType === 'Token Discount' && value.paymentMode && value.paymentMode !== 'token') {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['paymentMode'],
+      message: 'Token discounts can only be used with token payment.'
     });
   }
 
@@ -149,6 +163,13 @@ const voucherCreateUpdateSchema = z.object({
 
 const voucherExpiryUpdateSchema = z.object({
   expiry: z.string().trim().optional().nullable()
+});
+
+const voucherReminderUpdateSchema = z.object({
+  startReminderEnabled: z.boolean().default(false),
+  startReminderMinutesBefore: z.coerce.number().int().min(0).max(1440).default(0),
+  endReminderEnabled: z.boolean().default(false),
+  endReminderMinutesBefore: z.coerce.number().int().min(0).max(1440).default(60)
 });
 
 const customerSearchQuerySchema = z.object({
@@ -241,6 +262,10 @@ type VoucherTemplateRow = RowDataPacket & {
   redeemed_count?: number;
   image_url?: string | null;
   usage_instructions?: string | null;
+  start_reminder_enabled?: number;
+  start_reminder_minutes_before?: number;
+  end_reminder_enabled?: number;
+  end_reminder_minutes_before?: number;
 };
 
 const voucherImageUploadSchema = z.object({
@@ -739,6 +764,24 @@ function normalizeAudience(scope: Record<string, unknown>): 'all_customers' | 'e
   return 'all_customers';
 }
 
+function defaultPaymentModeForDiscount(discountMode: string): 'both' | 'token' {
+  return discountMode === 'fixed_token' ? 'token' : 'both';
+}
+
+function normalizePaymentMode(
+  scope: Record<string, unknown>,
+  discountMode: string
+): 'both' | 'token' | 'direct' {
+  const raw = scope.payment_mode ?? scope.payment_modes;
+  const values = Array.isArray(raw) ? raw : [raw];
+  const normalized = values.map((value) => String(value ?? '').trim().toLowerCase());
+  if (normalized.includes('both')) return 'both';
+  if (normalized.includes('token') && normalized.includes('direct')) return 'both';
+  if (normalized.includes('token')) return 'token';
+  if (normalized.includes('direct')) return 'direct';
+  return defaultPaymentModeForDiscount(discountMode);
+}
+
 function normalizeTimeValue(value: string | null | undefined): string | null {
   if (!value) return null;
   const trimmed = value.trim();
@@ -1014,6 +1057,20 @@ function buildVoucherWriteBindings(
     placeholders.push(':usageInstructions');
     values.usageInstructions = payload.usageInstructions || null;
   }
+  if (hasColumn(columns, 'start_reminder_enabled')) {
+    columnsToWrite.push('start_reminder_enabled');
+    placeholders.push(':startReminderEnabled');
+    values.startReminderEnabled = payload.startReminderEnabled ? 1 : 0;
+    columnsToWrite.push('start_reminder_minutes_before');
+    placeholders.push(':startReminderMinutesBefore');
+    values.startReminderMinutesBefore = payload.startReminderMinutesBefore;
+    columnsToWrite.push('end_reminder_enabled');
+    placeholders.push(':endReminderEnabled');
+    values.endReminderEnabled = payload.endReminderEnabled ? 1 : 0;
+    columnsToWrite.push('end_reminder_minutes_before');
+    placeholders.push(':endReminderMinutesBefore');
+    values.endReminderMinutesBefore = payload.endReminderMinutesBefore;
+  }
 
   return { columns: columnsToWrite, placeholders, values };
 }
@@ -1146,6 +1203,12 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
     if (hasColumn(voucherColumns, 'usage_instructions')) {
       selectColumns.push('vt.usage_instructions');
     }
+    if (hasColumn(voucherColumns, 'start_reminder_enabled')) {
+      selectColumns.push('vt.start_reminder_enabled');
+      selectColumns.push('vt.start_reminder_minutes_before');
+      selectColumns.push('vt.end_reminder_enabled');
+      selectColumns.push('vt.end_reminder_minutes_before');
+    }
 
     if (hasColumn(voucherColumns, 'valid_until')) {
       selectColumns.push('vt.valid_until');
@@ -1198,6 +1261,7 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
         name: templateRow.name,
         type: type,
         benefitType,
+        paymentMode: normalizePaymentMode(scope, templateRow.discount_mode),
         promotionKind: promotionRule.kind,
         topupRewardMinTokens: Number(
           scope.topup_reward && typeof scope.topup_reward === 'object'
@@ -1234,6 +1298,18 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
         usageInstructions: hasColumn(voucherColumns, 'usage_instructions')
           ? String(templateRow.usage_instructions || '').trim()
           : String(scope.usage_instructions || '').trim(),
+        startReminderEnabled: hasColumn(voucherColumns, 'start_reminder_enabled')
+          ? templateRow.start_reminder_enabled === 1
+          : false,
+        startReminderMinutesBefore: hasColumn(voucherColumns, 'start_reminder_minutes_before')
+          ? Number(templateRow.start_reminder_minutes_before || 0)
+          : 0,
+        endReminderEnabled: hasColumn(voucherColumns, 'end_reminder_enabled')
+          ? templateRow.end_reminder_enabled === 1
+          : false,
+        endReminderMinutesBefore: hasColumn(voucherColumns, 'end_reminder_minutes_before')
+          ? Number(templateRow.end_reminder_minutes_before || 60)
+          : 60,
         status: getVoucherStatus(templateRow, expiryDate),
         issued: issuedCount,
         redeemed: redeemedCount,
@@ -1434,6 +1510,7 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
       frontend_type: payload.benefitType,
       type_label: payload.type,
       benefit_type: payload.benefitType,
+      payment_modes: [payload.paymentMode ?? defaultPaymentModeForDiscount(discountMode)],
       tier: tierScope,
       reward: derivedReward,
       product_kind_codes: productKinds,
@@ -1545,6 +1622,7 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
       frontend_type: payload.benefitType,
       type_label: payload.type,
       benefit_type: payload.benefitType,
+      payment_modes: [payload.paymentMode ?? defaultPaymentModeForDiscount(discountMode)],
       tier: tierScope,
       reward: derivedReward,
       product_kind_codes: productKinds,
@@ -1586,6 +1664,12 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
     }
     if (hasColumn(voucherColumns, 'usage_instructions')) {
       updateAssignments.push('usage_instructions = :usageInstructions');
+    }
+    if (hasColumn(voucherColumns, 'start_reminder_enabled')) {
+      updateAssignments.push('start_reminder_enabled = :startReminderEnabled');
+      updateAssignments.push('start_reminder_minutes_before = :startReminderMinutesBefore');
+      updateAssignments.push('end_reminder_enabled = :endReminderEnabled');
+      updateAssignments.push('end_reminder_minutes_before = :endReminderMinutesBefore');
     }
 
     const connection = await getUtcConnection();
@@ -1652,7 +1736,11 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
           totalQty: payload.totalQty ?? null,
           limitPerUser,
           imageUrl: payload.imageUrl || null,
-          usageInstructions: payload.usageInstructions || null
+          usageInstructions: payload.usageInstructions || null,
+          startReminderEnabled: payload.startReminderEnabled ? 1 : 0,
+          startReminderMinutesBefore: payload.startReminderMinutesBefore,
+          endReminderEnabled: payload.endReminderEnabled ? 1 : 0,
+          endReminderMinutesBefore: payload.endReminderMinutesBefore
         }
       );
 
@@ -1769,6 +1857,38 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
     } finally {
       connection.release();
     }
+  });
+
+  app.patch<{ Params: { id: string } }>('/v1/admin/vouchers/:id/reminders', { preHandler: [authenticateAdminRequest] }, async (request) => {
+    requireAdminRole(request, 'super_admin');
+    const payload = voucherReminderUpdateSchema.parse(request.body);
+    const voucherColumns = await getVoucherTemplateColumns();
+    if (!hasColumn(voucherColumns, 'start_reminder_enabled')) {
+      throw new ApiError(503, 'voucher_reminders_not_ready', 'Voucher reminder settings are not available until the latest database migration is applied.');
+    }
+
+    const [result] = await mysqlPool.execute<ResultSetHeader>(
+      `
+        UPDATE voucher_templates
+        SET start_reminder_enabled = :startReminderEnabled,
+            start_reminder_minutes_before = :startReminderMinutesBefore,
+            end_reminder_enabled = :endReminderEnabled,
+            end_reminder_minutes_before = :endReminderMinutesBefore
+        WHERE code = :code AND tenant_id = :tenantId
+      `,
+      {
+        code: request.params.id,
+        tenantId: request.adminAuth.tenantId,
+        startReminderEnabled: payload.startReminderEnabled ? 1 : 0,
+        startReminderMinutesBefore: payload.startReminderMinutesBefore,
+        endReminderEnabled: payload.endReminderEnabled ? 1 : 0,
+        endReminderMinutesBefore: payload.endReminderMinutesBefore
+      }
+    );
+    if (result.affectedRows === 0) {
+      throw new ApiError(404, 'voucher_not_found', 'Voucher was not found.');
+    }
+    return { success: true };
   });
 
   // DELETE /v1/admin/vouchers/:id

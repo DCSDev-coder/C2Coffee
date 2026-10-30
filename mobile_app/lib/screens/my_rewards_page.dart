@@ -15,7 +15,7 @@ import '../widgets/order_status_banner.dart';
 import 'loading_order_page.dart';
 import 'menu_page.dart';
 
-enum _RewardFilter { all, available, history }
+enum _RewardFilter { available, upcoming, unavailable }
 
 class MyRewardsPage extends StatefulWidget {
   final String? focusVoucherCode;
@@ -43,7 +43,7 @@ class _MyRewardsPageState extends State<MyRewardsPage>
   List<RewardVoucher> _vouchers = const [];
   List<TierRewardEntitlement> _claimableTierRewards = const [];
   final Set<int> _expandedVoucherIds = <int>{};
-  _RewardFilter _selectedFilter = _RewardFilter.all;
+  _RewardFilter _selectedFilter = _RewardFilter.available;
   int _voucherDisplayLimit = _initialVoucherLimit;
   bool _showScrollToTop = false;
 
@@ -127,6 +127,7 @@ class _MyRewardsPageState extends State<MyRewardsPage>
 
       final rewards = await CustomerDataService.instance.getRewardsCenter(
         accessToken: accessToken,
+        includeHistory: false,
       );
       final focusedVoucher = _findFocusedVoucher(rewards.vouchers);
 
@@ -142,7 +143,9 @@ class _MyRewardsPageState extends State<MyRewardsPage>
           _expandedVoucherIds.add(focusedVoucher.id);
           _selectedFilter = focusedVoucher.isActive
               ? _RewardFilter.available
-              : _RewardFilter.all;
+              : focusedVoucher.isUpcoming
+                  ? _RewardFilter.upcoming
+                  : _RewardFilter.unavailable;
         }
         _isRewardsLoading = false;
       });
@@ -180,9 +183,7 @@ class _MyRewardsPageState extends State<MyRewardsPage>
 
   @override
   Widget build(BuildContext context) {
-    final activeVoucherCount = _vouchers.where((v) => v.isActive).length;
-    final visibleRewardCount =
-        activeVoucherCount + _claimableTierRewards.length;
+    final visibleRewardCount = _vouchers.length + _claimableTierRewards.length;
 
     return AppPageShell(
       title: 'MY REWARDS',
@@ -474,12 +475,12 @@ class _MyRewardsPageState extends State<MyRewardsPage>
 
     final filteredVouchers = sortedVouchers.where((v) {
       switch (_selectedFilter) {
-        case _RewardFilter.all:
-          return true;
         case _RewardFilter.available:
           return v.isActive;
-        case _RewardFilter.history:
-          return !v.isActive;
+        case _RewardFilter.upcoming:
+          return v.isUpcoming;
+        case _RewardFilter.unavailable:
+          return v.isUnavailable;
       }
     }).toList();
 
@@ -489,12 +490,14 @@ class _MyRewardsPageState extends State<MyRewardsPage>
     final regularVouchers = filteredVouchers
         .where((voucher) => voucher.rewardKind != 'tier_birthday')
         .toList();
-    final showClaimableTier = _selectedFilter != _RewardFilter.history &&
+    final showClaimableTier = _selectedFilter == _RewardFilter.available &&
         _claimableTierRewards.isNotEmpty;
 
     final availableCount = sortedVouchers.where((v) => v.isActive).length +
         _claimableTierRewards.length;
-    final historyCount = sortedVouchers.where((v) => !v.isActive).length;
+    final upcomingCount = sortedVouchers.where((v) => v.isUpcoming).length;
+    final unavailableCount =
+        sortedVouchers.where((v) => v.isUnavailable).length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -504,9 +507,9 @@ class _MyRewardsPageState extends State<MyRewardsPage>
           const SizedBox(height: 20),
         ],
         _buildFilterPills(
-          totalCount: sortedVouchers.length + _claimableTierRewards.length,
           availableCount: availableCount,
-          historyCount: historyCount,
+          upcomingCount: upcomingCount,
+          unavailableCount: unavailableCount,
         ),
         const SizedBox(height: 20),
         if (!showClaimableTier &&
@@ -514,11 +517,15 @@ class _MyRewardsPageState extends State<MyRewardsPage>
             regularVouchers.isEmpty)
           _buildMessageCard(
             title: _selectedFilter == _RewardFilter.available
-                ? 'No active rewards right now'
-                : 'No past rewards yet',
+                ? 'No rewards available right now'
+                : _selectedFilter == _RewardFilter.upcoming
+                    ? 'No upcoming rewards'
+                    : 'No unavailable rewards',
             message: _selectedFilter == _RewardFilter.available
-                ? 'All your active vouchers and claimable tier rewards will appear here.'
-                : 'Used or expired vouchers will be listed here for your reference.',
+                ? 'Your available vouchers and claimable tier rewards will appear here.'
+                : _selectedFilter == _RewardFilter.upcoming
+                    ? 'Your future scheduled vouchers will appear here before their promotion window starts.'
+                    : 'Rewards you have received but have not yet unlocked will appear here.',
           )
         else ...[
           if (showClaimableTier) ...[
@@ -539,9 +546,11 @@ class _MyRewardsPageState extends State<MyRewardsPage>
           if (regularVouchers.isNotEmpty)
             _buildRewardsSection(
               title: 'Vouchers',
-              subtitle: _selectedFilter == _RewardFilter.history
-                  ? 'Your used and expired vouchers.'
-                  : 'Your vouchers, ready to apply at checkout.',
+              subtitle: _selectedFilter == _RewardFilter.upcoming
+                  ? 'Scheduled vouchers that will become available later.'
+                  : _selectedFilter == _RewardFilter.unavailable
+                      ? 'Received rewards that still have an unlock requirement.'
+                      : 'Your vouchers, ready to apply at checkout.',
               vouchers: regularVouchers,
               accentColor: AppColors.deepTeal,
               paginated: true,
@@ -638,27 +647,27 @@ class _MyRewardsPageState extends State<MyRewardsPage>
   }
 
   Widget _buildFilterPills({
-    required int totalCount,
     required int availableCount,
-    required int historyCount,
+    required int upcomingCount,
+    required int unavailableCount,
   }) {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
         children: [
           _buildFilterChip(
-            label: 'All ($totalCount)',
-            filter: _RewardFilter.all,
-          ),
-          const SizedBox(width: 8),
-          _buildFilterChip(
             label: 'Available ($availableCount)',
             filter: _RewardFilter.available,
           ),
           const SizedBox(width: 8),
           _buildFilterChip(
-            label: 'Used / Expired ($historyCount)',
-            filter: _RewardFilter.history,
+            label: 'Upcoming ($upcomingCount)',
+            filter: _RewardFilter.upcoming,
+          ),
+          const SizedBox(width: 8),
+          _buildFilterChip(
+            label: 'Unavailable ($unavailableCount)',
+            filter: _RewardFilter.unavailable,
           ),
         ],
       ),
@@ -1304,6 +1313,30 @@ class _MyRewardsPageState extends State<MyRewardsPage>
                         ),
                       ),
                     ),
+                    if (voucher.isUnavailable &&
+                        voucher.unavailableReason?.trim().isNotEmpty ==
+                            true) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFF7E6),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFFFD58A)),
+                        ),
+                        child: Text(
+                          voucher.unavailableReason!,
+                          style: const TextStyle(
+                            fontFamily: 'Afacad',
+                            fontSize: 14.5,
+                            height: 1.3,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF8A4B00),
+                          ),
+                        ),
+                      ),
+                    ],
                     if (isActive) ...[
                       const SizedBox(height: 14),
                       Text(
@@ -1384,28 +1417,9 @@ class _MyRewardsPageState extends State<MyRewardsPage>
   }
 
   String _voucherBadge(RewardVoucher voucher) {
-    if (voucher.isRedeemed) {
-      return 'Used';
-    }
-    return voucher.isActive ? 'Available' : _voucherStatusLabel(voucher);
-  }
-
-  String _voucherStatusLabel(RewardVoucher voucher) {
-    if (voucher.isRedeemed) {
-      return 'Used';
-    }
-    if (voucher.revokedAt != null || voucher.status == 'revoked') {
-      return 'Revoked';
-    }
-    if (!voucher.isActive) {
-      return 'Expired';
-    }
-    return _capitalize(voucher.status);
-  }
-
-  String _capitalize(String value) {
-    if (value.isEmpty) return value;
-    return '${value[0].toUpperCase()}${value.substring(1)}';
+    if (voucher.isActive) return 'Available';
+    if (voucher.isUpcoming) return 'Upcoming';
+    return 'Unavailable';
   }
 
   Widget _buildMessageCard({

@@ -93,6 +93,23 @@ class CheckoutApiService {
     );
   }
 
+  Future<CheckoutResult> createDirectOrder({
+    required String accessToken,
+    required CartSnapshot cart,
+    required String idempotencyKey,
+    required String paymentMethod,
+    int? appliedVoucherId,
+  }) {
+    return _createOrder(
+      accessToken: accessToken,
+      cart: cart,
+      paymentMode: 'direct',
+      paymentMethod: paymentMethod,
+      idempotencyKey: idempotencyKey,
+      appliedVoucherId: appliedVoucherId,
+    );
+  }
+
   Future<void> collectOrder({
     required String accessToken,
     required int orderId,
@@ -166,6 +183,7 @@ class CheckoutApiService {
     required String accessToken,
     required CartSnapshot cart,
     required String paymentMode,
+    String? paymentMethod,
     required String idempotencyKey,
     int? appliedVoucherId,
   }) async {
@@ -174,6 +192,9 @@ class CheckoutApiService {
       'payment_mode': paymentMode,
       'items': cart.items.map((item) => item.toApi()).toList(),
     };
+    if (paymentMethod != null) {
+      requestPayload['payment_method'] = paymentMethod;
+    }
     if (appliedVoucherId != null) {
       requestPayload['applied_voucher_id'] = appliedVoucherId;
     }

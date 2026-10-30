@@ -4,6 +4,7 @@ import type { RowDataPacket } from 'mysql2/promise';
 import { env } from '../config/env.js';
 import { mysqlPool } from '../db/mysql.js';
 import { getActiveChipMethods } from '../payments/chip-client.js';
+import { expireStaleUserVouchers } from '../services/voucher-expiry-maintenance.js';
 
 type Check = {
   name: string;
@@ -56,6 +57,7 @@ async function requireNoFinancialReviewBacklog(): Promise<void> {
 }
 
 async function requireVoucherIntegrity(): Promise<void> {
+  await expireStaleUserVouchers();
   const [migrationRows] = await mysqlPool.query<Array<RowDataPacket & { migration_count: number }>>(
     `SELECT COUNT(*) AS migration_count
        FROM schema_migrations
@@ -169,7 +171,13 @@ async function requireLatestSchema(): Promise<void> {
     '109_add_menu_item_archive_retention.sql',
     '110_create_data_retention_reviews.sql',
     '111_add_incoming_order_beep.sql',
-    '112_add_schedule_revision_guard.sql'
+    '112_add_schedule_revision_guard.sql',
+    '113_add_voucher_usage_instructions.sql',
+    '114_add_home_banner_surface_orders.sql',
+    '115_expand_option_groups_to_all_menu_items.sql',
+    '115_add_social_entertainment_banner_type.sql',
+    '116_add_voucher_reminder_settings.sql',
+    '117_create_inventory_management.sql'
   ];
   const [rows] = await mysqlPool.query<Array<RowDataPacket & { filename: string }>>(
     `SELECT filename FROM schema_migrations WHERE filename IN (:required)`,
@@ -179,6 +187,39 @@ async function requireLatestSchema(): Promise<void> {
   const missing = required.filter((filename) => !applied.has(filename));
   if (missing.length > 0) {
     throw new Error(`Latest schema migrations are missing: ${missing.join(', ')}.`);
+  }
+}
+
+async function requireInventoryIntegrity(): Promise<void> {
+  const [rows] = await mysqlPool.query<Array<RowDataPacket & {
+    invalid_balances: number;
+    reservation_mismatches: number;
+    collected_reservations: number;
+  }>>(
+    `SELECT
+       (SELECT COUNT(*) FROM inventory_store_stocks
+         WHERE on_hand_quantity < 0 OR reserved_quantity < 0 OR reserved_quantity > on_hand_quantity) AS invalid_balances,
+       (SELECT COUNT(*)
+          FROM inventory_store_stocks ss
+          LEFT JOIN (
+            SELECT store_id, inventory_item_id, SUM(quantity) AS allocated
+              FROM inventory_order_allocations
+             WHERE status = 'reserved'
+             GROUP BY store_id, inventory_item_id
+          ) a ON a.store_id = ss.store_id AND a.inventory_item_id = ss.inventory_item_id
+         WHERE ABS(ss.reserved_quantity - COALESCE(a.allocated, 0)) > 0.001) AS reservation_mismatches,
+       (SELECT COUNT(*)
+          FROM inventory_order_allocations a
+          JOIN orders o ON o.id = a.order_id
+         WHERE a.status = 'reserved' AND o.status IN ('collected', 'cancelled', 'payment_failed', 'refunded')) AS collected_reservations`
+  );
+  const row = rows[0];
+  if (Number(row?.invalid_balances ?? 0) || Number(row?.reservation_mismatches ?? 0) || Number(row?.collected_reservations ?? 0)) {
+    throw new Error(
+      `Inventory integrity failure: ${Number(row?.invalid_balances ?? 0)} invalid balance(s), ` +
+      `${Number(row?.reservation_mismatches ?? 0)} reservation mismatch(es), ` +
+      `${Number(row?.collected_reservations ?? 0)} terminal order reservation(s).`
+    );
   }
 }
 
@@ -193,8 +234,13 @@ async function main(): Promise<void> {
   const checks: Check[] = [
     {
       name: 'Latest schema migrations',
-      detail: 'Tier rewards, retention, incoming-order sounds, and timetable concurrency migrations must be applied.',
+      detail: 'All current release migrations through inventory management must be applied.',
       run: requireLatestSchema
+    },
+    {
+      name: 'Inventory integrity',
+      detail: 'Outlet stock balances, active order reservations, and terminal order allocations must reconcile.',
+      run: requireInventoryIntegrity
     },
     {
       name: 'Production environment',

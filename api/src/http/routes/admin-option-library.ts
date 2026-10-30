@@ -32,7 +32,7 @@ const optionImageUploadSchema = z.object({
 
 const groupSchema = z.object({
   name: z.string().trim().min(1).max(255),
-  applies_to: z.enum(['all_drinks', 'selected_items']),
+  applies_to: z.enum(['all_drinks', 'all_items', 'selected_items']),
   selection_type: z.enum(['single', 'multi']).default('single'),
   min_select: z.coerce.number().int().min(0).default(0),
   max_select: z.coerce.number().int().min(1).default(1),
@@ -351,7 +351,7 @@ export async function registerAdminOptionLibraryRoutes(app: FastifyInstance): Pr
     const [options] = await mysqlPool.query<Array<RowDataPacket>>(
       `SELECT o.id FROM menu_option_group_options o JOIN menu_option_groups g ON g.id=o.option_group_id
        LEFT JOIN menu_option_group_items a ON a.option_group_id=g.id AND a.menu_item_id=:itemId
-       WHERE g.tenant_id=:tenantId AND o.id IN (:optionIds) AND (g.applies_to='all_drinks' OR a.menu_item_id IS NOT NULL)`,
+       WHERE g.tenant_id=:tenantId AND o.id IN (:optionIds) AND (g.applies_to IN ('all_drinks', 'all_items') OR a.menu_item_id IS NOT NULL)`,
       { itemId, tenantId: request.adminAuth.tenantId, optionIds: optionIds.length ? optionIds : [0] }
     );
     if (options.length !== optionIds.length) throw new ApiError(400, 'invalid_option_override', 'One or more choices are unavailable for this drink.');
@@ -384,8 +384,7 @@ export async function registerAdminOptionLibraryRoutes(app: FastifyInstance): Pr
          AND o.is_active = 1
          AND g.is_active = 1
          AND i.is_active = 1
-         AND LOWER(COALESCE(c.product_kind_code, '')) = 'drink'
-         AND (g.applies_to = 'all_drinks' OR a.menu_item_id IS NOT NULL)`,
+             AND (g.applies_to IN ('all_drinks', 'all_items') OR a.menu_item_id IS NOT NULL)`,
       { optionId, tenantId: request.adminAuth.tenantId }
     );
     if (targetRows.length === 0) throw new ApiError(404, 'option_not_found', 'Option was not found or is not available for any drink.');
@@ -438,11 +437,10 @@ export async function registerAdminOptionLibraryRoutes(app: FastifyInstance): Pr
          JOIN menu_item_store_availability availability ON availability.menu_item_id = i.id
          JOIN stores s ON s.id = availability.store_id AND s.tenant_id = :tenantId
          WHERE i.id = :itemId
-           AND LOWER(COALESCE(c.product_kind_code, '')) = 'drink'
          LIMIT 1`,
         { itemId, tenantId: request.adminAuth.tenantId }
       );
-      if (!itemRows[0]) throw new ApiError(404, 'drink_menu_item_not_found', 'Drink menu item was not found.');
+      if (!itemRows[0]) throw new ApiError(404, 'menu_item_not_found', 'Menu item was not found.');
 
       const [availableRows] = await connection.query<Array<RowDataPacket>>(
         `SELECT g.id AS group_id, o.id AS option_id
@@ -451,13 +449,13 @@ export async function registerAdminOptionLibraryRoutes(app: FastifyInstance): Pr
          LEFT JOIN menu_option_group_items a ON a.option_group_id = g.id AND a.menu_item_id = :itemId
          WHERE g.tenant_id = :tenantId
            AND g.is_active = 1
-           AND (g.applies_to = 'all_drinks' OR a.menu_item_id IS NOT NULL)`,
+           AND (g.applies_to IN ('all_drinks', 'all_items') OR a.menu_item_id IS NOT NULL)`,
         { itemId, tenantId: request.adminAuth.tenantId }
       );
       const availableOptionIds = new Set(availableRows.map((row) => Number(row.option_id)));
       const excludedOptionIds = [...new Set(payload.option_ids)];
       if (excludedOptionIds.some((optionId) => !availableOptionIds.has(optionId))) {
-        throw new ApiError(400, 'invalid_option_exclusion', 'One or more choices are not available for this drink.');
+        throw new ApiError(400, 'invalid_option_exclusion', 'One or more choices are not available for this menu item.');
       }
 
       const excludedByGroup = new Map<number, number>();
@@ -541,11 +539,10 @@ async function saveGroup(tenantId: number, payload: z.infer<typeof groupSchema>,
            JOIN menu_item_store_availability availability ON availability.menu_item_id = i.id
            JOIN stores s ON s.id = availability.store_id AND s.tenant_id = :tenantId
            WHERE i.id = :menuItemId
-             AND LOWER(COALESCE(c.product_kind_code, '')) = 'drink'
            LIMIT 1`,
           { menuItemId, tenantId }
         );
-        if (!items[0]) throw new ApiError(400, 'invalid_option_item', 'Options can only be assigned to drink items.');
+        if (!items[0]) throw new ApiError(400, 'invalid_option_item', 'The selected menu item is unavailable for this tenant.');
         await connection.execute('INSERT INTO menu_option_group_items (option_group_id,menu_item_id) VALUES (:id,:menuItemId)', { id, menuItemId });
       }
     }
@@ -564,7 +561,7 @@ async function saveGroup(tenantId: number, payload: z.infer<typeof groupSchema>,
       if (!optionId) continue;
       const excludedItemIds = [...new Set(option.excluded_menu_item_ids)];
       if (payload.applies_to === 'selected_items' && excludedItemIds.some((itemId) => !selectedItemIds.has(itemId))) {
-        throw new ApiError(400, 'invalid_option_exclusion', 'A choice can only be hidden from drinks in this option group.');
+        throw new ApiError(400, 'invalid_option_exclusion', 'A choice can only be hidden from selected menu items in this option group.');
       }
       for (const menuItemId of excludedItemIds) {
         const [items] = await connection.query<Array<RowDataPacket>>(
@@ -574,11 +571,10 @@ async function saveGroup(tenantId: number, payload: z.infer<typeof groupSchema>,
            JOIN menu_item_store_availability availability ON availability.menu_item_id = i.id
            JOIN stores s ON s.id = availability.store_id AND s.tenant_id = :tenantId
            WHERE i.id = :menuItemId
-             AND LOWER(COALESCE(c.product_kind_code, '')) = 'drink'
            LIMIT 1`,
           { menuItemId, tenantId }
         );
-        if (!items[0]) throw new ApiError(400, 'invalid_option_exclusion', 'A choice can only be hidden from drink menu items.');
+        if (!items[0]) throw new ApiError(400, 'invalid_option_exclusion', 'The selected menu item is unavailable for this tenant.');
         await connection.execute(
           'INSERT INTO menu_item_option_exclusions (menu_item_id, option_group_option_id) VALUES (:menuItemId, :optionId)',
           { menuItemId, optionId }
@@ -624,9 +620,8 @@ async function assertTenantMenuItem(itemId: number, tenantId: number): Promise<v
      JOIN menu_item_store_availability availability ON availability.menu_item_id = i.id
      JOIN stores s ON s.id = availability.store_id AND s.tenant_id = :tenantId
      WHERE i.id = :itemId
-       AND LOWER(COALESCE(c.product_kind_code, '')) = 'drink'
      LIMIT 1`,
     { itemId, tenantId }
   );
-  if (!rows[0]) throw new ApiError(404, 'drink_menu_item_not_found', 'Drink menu item was not found.');
+  if (!rows[0]) throw new ApiError(404, 'menu_item_not_found', 'Menu item was not found.');
 }
