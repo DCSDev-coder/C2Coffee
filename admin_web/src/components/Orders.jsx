@@ -1,11 +1,13 @@
-import React, { useState, forwardRef, useEffect } from "react";
+import React, { useState, forwardRef, useEffect, useMemo } from "react";
 import {
   Search, ChevronDown, Download, Clock, Printer,
-  X, ShoppingBag, Ban, RotateCcw, Coins
+  X, ShoppingBag, Ban, RotateCcw, Coins,
+  ArrowUp, ArrowDown, ArrowUpDown
 } from "lucide-react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import Pagination from './Pagination';
+import InfoTooltip from './InfoTooltip';
 import { exportToCSV } from '../utils/exportToCSV';
 import RefundDetails from "./RefundDetails";
 import ViewProfile from "./ViewProfile";
@@ -106,37 +108,78 @@ const getTierColor = (tier, tierCode) => {
   }
 };
 
+const normalizeOrderStatus = (rawStatus) => {
+  const s = String(rawStatus || '').trim().toLowerCase().replace(/_/g, ' ');
+  if (s === 'paid' || s === 'accepted' || s === 'new' || s === 'order received') {
+    return 'Order Received';
+  }
+  if (s === 'preparing') {
+    return 'Preparing';
+  }
+  if (s.includes('ready')) {
+    return 'Ready for Pickup';
+  }
+  if (s === 'collected' || s === 'completed') {
+    return 'Collected';
+  }
+  if (s === 'cancelled' || s === 'voided') {
+    return 'Cancelled';
+  }
+  if (s === 'refund requested' || s === 'refund reviewing') {
+    return 'Refund Requested';
+  }
+  if (s === 'refunded' || s === 'refund') {
+    return 'Refunded';
+  }
+  return rawStatus || 'Unknown';
+};
+
 const getStatusBadge = (s) => {
-  switch (s) {
-    case "Completed":
-      return <span className="px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md bg-green-100 text-green-600">Completed</span>;
+  const normalized = normalizeOrderStatus(s);
+  switch (normalized) {
+    case "Collected":
+      return <span className="px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md bg-emerald-100 text-emerald-800">Collected</span>;
     case "Preparing":
-      return <span className="px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md bg-[#E07A5F]/15 text-[#E07A5F]">Preparing</span>;
+      return <span className="px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md bg-orange-100 text-orange-800">Preparing</span>;
     case "Ready for Pickup":
-    case "Ready":
-      return <span className="px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md bg-blue-100 text-blue-600">Ready</span>;
+      return <span className="px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md bg-blue-100 text-blue-800">Ready for Pickup</span>;
+    case "Order Received":
+      return <span className="px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md bg-amber-100 text-amber-800">Order Received</span>;
     case "Cancelled":
-      return <span className="px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md bg-red-100 text-red-600">Cancelled</span>;
+      return <span className="px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md bg-red-100 text-red-700">Cancelled</span>;
     case "Refund Requested":
-      return <span className="px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md bg-purple-100 text-purple-600">Refund Requested</span>;
+      return <span className="px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md bg-purple-100 text-purple-700">Refund Requested</span>;
     case "Refunded":
-      return <span className="px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md bg-amber-100 text-amber-700">Refunded</span>;
+      return <span className="px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md bg-rose-100 text-rose-700">Refunded</span>;
     default:
-      return <span className="px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md bg-gray-100 text-gray-600">{s}</span>;
+      return <span className="px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md bg-gray-100 text-gray-700">{s}</span>;
   }
 };
 
-const getPaymentBadge = (p) => {
-  const normalized = String(p || '').trim().toLowerCase();
+const getPaymentTypeBadge = (order) => {
+  const mode = String(order?.paymentMode || order?.payment || '').toLowerCase();
+  const isRefunded = String(order?.status || '').toLowerCase() === 'refunded' ||
+                     String(order?.paymentStatus || '').toLowerCase() === 'refunded';
 
-  if (!normalized) {
-    return <span className="px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md bg-gray-100 text-gray-600">-</span>;
+  if (mode === 'token' || mode === 'tokens') {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-[#E8F3F0] text-[#1E433A] border border-[#2E5E58]/20">
+        <Coins size={12} className="text-[#2E5E58]" strokeWidth={2.3} />
+        <span>Tokens</span>
+        {isRefunded && <span className="text-[10px] text-rose-600 font-semibold">(Refunded)</span>}
+      </span>
+    );
   }
 
-  if (normalized === "refunded" || normalized === "refund") {
-    return <span className="px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md bg-red-100 text-red-600">Refunded</span>;
-  }
-  return <span className="px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md bg-green-100 text-green-600">{formatPaymentLabel(p) || 'Paid'}</span>;
+  const provider = order?.paymentProvider ? formatPaymentLabel(order.paymentProvider) : null;
+  const label = provider && provider !== '-' ? `Direct (${provider})` : 'Direct (RM)';
+
+  return (
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
+      <span>{label}</span>
+      {isRefunded && <span className="text-[10px] text-rose-600 font-semibold">(Refunded)</span>}
+    </span>
+  );
 };
 
 const formatRm = (value) => {
@@ -157,45 +200,44 @@ const OrderValueStack = ({ tokenValue, rmValue, align = 'items-start' }) => (
 );
 const ITEMS_PER_PAGE = 10;
 
-const STATUSES = ["All Status", "Completed", "Preparing", "Ready for Pickup", "Cancelled", "Refund Requested", "Refunded"];
-const PAYMENTS = ["All Payment Status", "Paid", "Refunded"];
+const STATUSES = ["All Status", "Order Received", "Preparing", "Ready for Pickup", "Collected", "Cancelled", "Refunded"];
+const PAYMENT_TYPES = ["All Payment Types", "Tokens", "Direct (RM)", "Refunded"];
 
-// KPI Card matching Customers Page Structure
-
-const KPICard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-white", className = "" }) => (
-  <div className={`bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center space-x-4 min-w-0 ${className}`}>
-    <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 ${iconBg} ${iconColor} shadow-sm`}>
-      <Icon size={26} strokeWidth={2.2} />
-    </div>
-    <div className="flex-1 min-w-0">
-      <h3 className="text-gray-500 text-[11px] sm:text-xs xl:text-sm font-medium leading-tight mt-0.5 whitespace-normal">
-        {title}
-      </h3>
-      <p className="text-2xl font-bold text-gray-900 mt-1 leading-tight">{value}</p>
-      {change && (
-        <div className="flex items-center gap-1 mt-1">
-          <p className="text-[11px] text-gray-500 font-medium leading-tight whitespace-normal">
-            {change.includes('%') && !change.includes('of total') && !change.includes('↑') && !change.includes('↓') && change.includes('vs') ? `↑ ${change}` : change}
-          </p>
+// Sleek KPI Card matching DashboardHome & Menu standard
+const KPICard = ({ title, value, badge, info, icon: Icon, iconBg, iconColor = "text-white" }) => (
+  <div className="flex items-center justify-between rounded-2xl border border-gray-200/80 bg-white p-5 shadow-2xs hover:shadow-xs transition-shadow">
+    <div className="flex items-center gap-3.5 min-w-0">
+      <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${iconBg} ${iconColor} shadow-xs`}>
+        <Icon size={20} strokeWidth={2.2} />
+      </div>
+      <div className="min-w-0">
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{title}</span>
+          {info && <InfoTooltip content={info} title={title} />}
         </div>
-      )}
+        <p className="text-2xl font-extrabold text-gray-900 tracking-tight leading-tight mt-0.5">{value}</p>
+      </div>
     </div>
+    {badge && (
+      <span className="shrink-0 px-2.5 py-1 rounded-full text-xs font-bold bg-[#E8F3F0] text-[#1E433A]">
+        {badge}
+      </span>
+    )}
   </div>
 );
 
 // Date Picker Input 
-
 const CustomDateInput = forwardRef(({ value, onClick, onClear }, ref) => (
   <div className="relative">
     <button
       ref={ref}
       onClick={(e) => { e.preventDefault(); onClick(e); }}
-      className="peer flex items-center pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 whitespace-nowrap cursor-pointer"
+      className="peer flex items-center pl-4 pr-10 py-2.5 border border-gray-200 rounded-xl text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 shadow-2xs whitespace-nowrap cursor-pointer transition-colors"
     >
       {value || 'Select Date'}
     </button>
     <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-      <ChevronDown size={16} className="text-gray-500 transition-transform duration-200 peer-focus:-rotate-180" />
+      <ChevronDown size={14} className="text-gray-500 transition-transform duration-200 peer-focus:-rotate-180" />
     </div>
     {value && (
       <button
@@ -208,8 +250,7 @@ const CustomDateInput = forwardRef(({ value, onClick, onClear }, ref) => (
   </div>
 ));
 
-// Order Detail Panel with Animated Timelie
-
+// Order Detail Panel with Animated Timeline
 const OrderDetailPanel = ({ order, onClose, onViewProfile }) => {
   const subtotal = order.items.reduce((s, i) => s + i.unitPrice * i.qty, 0);
   const total = Number(order.total ?? (subtotal - Number(order.discount || 0)));
@@ -217,18 +258,15 @@ const OrderDetailPanel = ({ order, onClose, onViewProfile }) => {
 
   // Status mapping for the 4-step timeline flow
   const getStepProgress = (status) => {
-    switch (status) {
-      case "Completed":
+    const norm = normalizeOrderStatus(status);
+    switch (norm) {
+      case "Collected":
         return 4;
       case "Ready for Pickup":
-      case "Ready":
         return 3;
       case "Preparing":
         return 2;
       case "Order Received":
-      case "Refund Requested":
-      case "Refunded":
-      case "Cancelled":
       default:
         return 1;
     }
@@ -263,7 +301,7 @@ const OrderDetailPanel = ({ order, onClose, onViewProfile }) => {
     },
     {
       step: 4,
-      label: "Completed",
+      label: "Collected",
       date: `${order.date} ${order.time}`,
       icon: SolidCheckSquareIcon,
       isDone: currentProgress >= 4,
@@ -272,12 +310,15 @@ const OrderDetailPanel = ({ order, onClose, onViewProfile }) => {
   ];
 
   return (
-    <div className="print-section w-[360px] lg:w-[380px] bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col shrink-0 overflow-y-auto p-5 space-y-4 print:overflow-visible print:w-full">
+    <div className="print-section w-[360px] lg:w-[380px] bg-white rounded-2xl shadow-sm border border-gray-200 flex flex-col shrink-0 overflow-y-auto p-5 space-y-4 print:overflow-visible print:w-full">
       {/* Header */}
       <div className="border-b border-gray-100 pb-3">
         <div className="flex justify-between items-start">
-          <h2 className="text-base font-bold text-gray-900">Order Details</h2>
-          <button onClick={onClose} className="no-print text-gray-400 hover:text-gray-900 cursor-pointer">
+          <div className="flex items-center gap-1.5">
+            <h2 className="text-base font-bold text-gray-900">Order Details</h2>
+            <InfoTooltip content="Complete order summary, fulfillment lifecycle, and customer profile details." title="Order Details" />
+          </div>
+          <button onClick={onClose} className="no-print p-1 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer">
             <X size={18} strokeWidth={2.5} />
           </button>
         </div>
@@ -285,25 +326,26 @@ const OrderDetailPanel = ({ order, onClose, onViewProfile }) => {
           <p className="text-base font-bold text-gray-900">{order.id.replace("ORD-", "ORD -")}</p>
           {getStatusBadge(order.status)}
         </div>
-        <p className="text-xs text-gray-500 mt-1">{order.date} – {order.time}</p>
+        <p className="text-xs text-gray-400 mt-1">{order.date} · {order.time}</p>
       </div>
 
-      {/* Customer Section with Plain Green Circle matching Customers Page */}
+      {/* Customer Section */}
       <div>
-        <p className="text-xs font-bold text-gray-900 mb-2.5">Username</p>
+        <span className="text-xs font-bold text-gray-900 uppercase tracking-wider block mb-2.5">Customer</span>
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-14 h-14 rounded-full bg-[#2E5E58] shrink-0 shadow-sm"></div>
+            <div className="w-11 h-11 rounded-2xl bg-[#2E5E58] flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-xs">
+              {order.customer ? order.customer.charAt(0).toUpperCase() : 'C'}
+            </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <p className="text-sm font-bold text-gray-900 truncate">{order.customer}</p>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${getTierColor(order.tier)}`}>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${getTierColor(order.tier)}`}>
                   {order.tier}
                 </span>
               </div>
               <p className="text-xs text-gray-500 truncate">{order.email}</p>
-              <p className="text-xs text-gray-500">{order.phone}</p>
-              <p className="text-xs text-gray-700 font-medium mt-0.5">Member ID : {order.memberId}</p>
+              <p className="text-[11px] text-gray-400 mt-0.5">Member ID: {order.memberId}</p>
             </div>
           </div>
           <button
@@ -316,90 +358,92 @@ const OrderDetailPanel = ({ order, onClose, onViewProfile }) => {
                 orders: cups,
               });
             }}
-            className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap cursor-pointer"
+            className="px-3 py-1.5 border border-gray-200 rounded-xl text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 shadow-2xs transition-all whitespace-nowrap cursor-pointer"
           >
             View Profile
           </button>
         </div>
       </div>
 
-      {/* Order Items Section */}
-      <div>
-        <p className="text-xs font-bold text-gray-900 mb-1">Outlet</p>
-        <p className="text-sm font-semibold text-[#1F3A34]">{order.storeName || 'Not recorded'}</p>
+      {/* Outlet */}
+      <div className="flex items-center justify-between py-2 border-y border-gray-50">
+        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Outlet</span>
+        <span className="text-xs font-bold text-[#1E433A] bg-[#E8F3F0] px-2.5 py-0.5 rounded-full">{order.storeName || 'Not recorded'}</span>
       </div>
 
       {/* Order Items Section */}
       <div>
-        <p className="text-xs font-bold text-gray-900 mb-2.5">Order Items</p>
-        <div className="space-y-4">
+        <span className="text-xs font-bold text-gray-900 uppercase tracking-wider block mb-2.5">Order Items</span>
+        <div className="space-y-3">
           {order.items.map((item, i) => {
             const customizations = itemCustomizationRows(item);
             return (
-              <div key={i} className="flex flex-col pb-4 border-b border-gray-50 last:border-0 last:pb-0">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 shrink-0 flex items-center justify-center bg-gray-50 rounded-lg p-1 border border-gray-100">
-                    <img
-                      src={item.img}
-                      alt={item.name}
-                      className="w-full h-full object-contain"
-                      onError={(e) => {
-                        e.target.style.display = "none";
-                      }}
-                    />
+              <div key={i} className="flex flex-col pb-3 border-b border-gray-50 last:border-0 last:pb-0">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 shrink-0 flex items-center justify-center bg-gray-50 rounded-xl p-1 border border-gray-100">
+                      <img
+                        src={item.img}
+                        alt={item.name}
+                        className="w-full h-full object-contain"
+                        onError={(e) => {
+                          e.target.style.display = "none";
+                        }}
+                      />
+                    </div>
+                    <div className="flex flex-col">
+                      <p className="text-xs font-bold text-gray-900">{item.name}</p>
+                      {item.orderType && (
+                        <span className="inline-flex items-center mt-0.5 px-1.5 py-0.2 rounded text-[10px] font-medium bg-gray-100 text-gray-600 w-fit">
+                          {item.orderType}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex flex-col">
-                    <p className="text-sm font-bold text-gray-900">{item.name}</p>
-                    {item.orderType && (
-                      <span className="inline-flex items-center mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600 w-fit">
-                        {item.orderType}
-                      </span>
-                    )}
+                  <div className="flex flex-col items-end">
+                    <p className="text-xs font-bold text-gray-900">{formatRm(item.unitPrice * item.qty)}</p>
+                    <p className="text-[10px] text-gray-400 font-medium">Qty: {item.qty}</p>
                   </div>
                 </div>
-                <div className="flex flex-col items-end">
-                  <p className="text-sm font-bold text-gray-900">{formatRm(item.unitPrice * item.qty)}</p>
-                  <p className="text-xs text-gray-500 font-medium">Qty: {item.qty}</p>
-                </div>
-              </div>
 
-              {/* Customizations Grid */}
-              {customizations.length > 0 && (
-                <div className="mt-3 ml-13 pl-3 border-l-2 border-gray-100">
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                    {customizations.map((customization, customizationIndex) => (
-                      <div key={`${customization.label}-${customization.value}-${customizationIndex}`} className="flex flex-col">
-                        <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">{customization.label || 'Option'}</span>
-                        <span className="text-xs font-semibold text-gray-800">{customization.value}</span>
-                      </div>
-                    ))}
+                {/* Customizations */}
+                {customizations.length > 0 && (
+                  <div className="mt-2 ml-11 pl-2.5 border-l-2 border-gray-100">
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                      {customizations.map((customization, customizationIndex) => (
+                        <div key={`${customization.label}-${customization.value}-${customizationIndex}`} className="flex flex-col">
+                          <span className="text-[9px] font-medium text-gray-400 uppercase tracking-wider">{customization.label || 'Option'}</span>
+                          <span className="text-[11px] font-semibold text-gray-800">{customization.value}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* Remarks */}
-              {item.remarks && (
-                <div className="mt-2 ml-13 pl-3 border-l-2 border-amber-200">
-                  <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">Remarks</span>
-                  <p className="text-xs font-medium text-gray-800 mt-0.5">{item.remarks}</p>
-                </div>
-              )}
+                {/* Remarks */}
+                {item.remarks && (
+                  <div className="mt-2 ml-11 pl-2.5 border-l-2 border-amber-300">
+                    <span className="text-[9px] font-bold text-amber-700 uppercase tracking-wider">Remarks</span>
+                    <p className="text-[11px] font-medium text-gray-800 mt-0.5">{item.remarks}</p>
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
 
-        <div className="mt-3 pt-3 border-t border-gray-100 space-y-1.5">
-          <div className="flex justify-between text-xs text-gray-600">
+        <div className="mt-3 pt-3 border-t border-gray-100 space-y-1">
+          <div className="flex justify-between text-xs text-gray-500">
             <span>Subtotal</span>
             <span>{formatRm(subtotal)}</span>
           </div>
-          <div className="flex justify-between text-xs text-gray-600">
-            <span>Discount</span>
-            <span>{formatRm(order.discount)}</span>
-          </div>
-          <div className="flex justify-between text-base font-bold text-gray-900 pt-1">
+          {Number(order.discount || 0) > 0 && (
+            <div className="flex justify-between text-xs text-emerald-600 font-medium">
+              <span>Discount</span>
+              <span>-{formatRm(order.discount)}</span>
+            </div>
+          )}
+          <div className="flex justify-between text-sm font-bold text-gray-900 pt-1">
             <span>Total</span>
             <OrderValueStack tokenValue={tokenTotal} rmValue={total} align="items-end" />
           </div>
@@ -407,27 +451,32 @@ const OrderDetailPanel = ({ order, onClose, onViewProfile }) => {
       </div>
 
       {/* Payment Section */}
-      <div>
-      <p className="text-xs font-bold text-gray-900 mb-2.5">Checkout</p>
+      <div className="border-t border-gray-50 pt-3">
+        <span className="text-xs font-bold text-gray-900 uppercase tracking-wider block mb-2">Payment Type</span>
         <div className="flex items-center justify-between mb-1.5">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-[#2E5E58] flex items-center justify-center text-white shrink-0 shadow-sm">
-              <Coins size={15} strokeWidth={2.3} />
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-[#2E5E58] flex items-center justify-center text-white shrink-0 shadow-2xs">
+              <Coins size={14} strokeWidth={2.3} />
             </div>
-            <span className="text-xs font-semibold text-gray-900">
-              {formatPaymentLabel(order.paymentMode)}
-            </span>
+            <div>
+              <span className="text-xs font-semibold text-gray-900 block">
+                {(order.paymentMode || '').toLowerCase() === 'token' ? 'Loyalty Tokens' : 'Direct Payment (RM)'}
+              </span>
+              {order.paymentProvider && formatPaymentLabel(order.paymentProvider) !== '-' && (
+                <span className="text-[10px] text-gray-400 block">{formatPaymentLabel(order.paymentProvider)}</span>
+              )}
+            </div>
           </div>
-          {getPaymentBadge(order.paymentStatus)}
+          {getPaymentTypeBadge(order)}
         </div>
-        <p className="text-xs text-gray-500 mt-1">
-          Transaction Reference &nbsp;<span className="text-gray-700 font-medium">{order.txnId}</span>
+        <p className="text-[11px] text-gray-400 mt-1">
+          Reference: <span className="text-gray-700 font-medium">{order.txnId}</span>
         </p>
       </div>
 
-      {/* Order Status Timeline matching Image 2 with Flow Animation */}
-      <div>
-        <h3 className="text-sm font-bold text-gray-900 mb-3">Order Status Timeline</h3>
+      {/* Order Status Timeline */}
+      <div className="border-t border-gray-50 pt-3">
+        <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider mb-3">Order Status Timeline</h3>
 
         <div className="relative pl-1">
           {/* Animated Connecting Flow Line */}
@@ -440,7 +489,7 @@ const OrderDetailPanel = ({ order, onClose, onViewProfile }) => {
             <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#2E5E58]/80 to-transparent w-full h-1/2 animate-[pulseFlow_2s_ease-in-out_infinite]" />
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-3.5">
             {timelineSteps.map((step) => {
               const StepIcon = step.icon;
               return (
@@ -451,18 +500,18 @@ const OrderDetailPanel = ({ order, onClose, onViewProfile }) => {
                 >
                   <div className="flex items-center gap-3 relative z-10 bg-white pr-2">
                     <div
-                      className={`w-6 h-6 rounded-md flex items-center justify-center transition-all duration-300 ${step.isDone
+                      className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all duration-300 ${step.isDone
                         ? "text-black scale-100"
                         : "text-gray-300"
-                        } ${step.isActive ? "animate-pulse ring-2 ring-[#2E5E58]/20 rounded-md" : ""}`}
+                        } ${step.isActive ? "animate-pulse ring-2 ring-[#2E5E58]/20" : ""}`}
                     >
-                      <StepIcon size={18} />
+                      <StepIcon size={16} />
                     </div>
-                    <span className={`text-xs font-semibold ${step.isDone ? "text-black font-bold" : "text-gray-400"}`}>
+                    <span className={`text-xs ${step.isDone ? "text-gray-900 font-bold" : "text-gray-400"}`}>
                       {step.label}
                     </span>
                   </div>
-                  <span className={`text-[11px] font-medium ${step.isDone ? "text-gray-900" : "text-gray-400"}`}>
+                  <span className={`text-[10px] font-medium ${step.isDone ? "text-gray-700" : "text-gray-300"}`}>
                     {step.date}
                   </span>
                 </div>
@@ -476,9 +525,9 @@ const OrderDetailPanel = ({ order, onClose, onViewProfile }) => {
       <div className="no-print pt-2 mt-auto">
         <button
           onClick={() => window.print()}
-          className="w-full flex items-center justify-center gap-2 py-2.5 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+          className="w-full flex items-center justify-center gap-2 py-2.5 border border-gray-200 rounded-xl text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 shadow-2xs transition-all cursor-pointer"
         >
-          <Printer size={15} /> Print Receipt
+          <Printer size={14} /> Print Receipt
         </button>
       </div>
     </div>
@@ -493,7 +542,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
   const [loadError, setLoadError] = useState('');
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All Status");
-  const [paymentFilter, setPaymentFilter] = useState("All Payment Status");
+  const [paymentFilter, setPaymentFilter] = useState("All Payment Types");
   const [selectedStoreId, setSelectedStoreId] = useState(null);
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -502,6 +551,8 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
   const [currentPage, setCurrentPage] = useState(1);
   const [statusOpen, setStatusOpen] = useState(false);
   const [paymentOpen, setPaymentOpen] = useState(false);
+  const [sortKey, setSortKey] = useState("time");
+  const [sortDirection, setSortDirection] = useState("desc");
 
   useEffect(() => {
     setShowRefundsView(initialShowRefunds);
@@ -565,11 +616,103 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
     };
   }, [selectedStoreId]);
 
-  useEffect(() => {
-    const handleClickOutside = () => setMenuOpenId(null);
-    window.addEventListener("click", handleClickOutside);
-    return () => window.removeEventListener("click", handleClickOutside);
-  }, []);
+  const resetPage = () => setCurrentPage(1);
+
+  const filtered = useMemo(() => {
+    return ordersList.filter((o) => {
+      const q = search.toLowerCase();
+      const matchSearch =
+        o.id.toLowerCase().includes(q) ||
+        o.customer.toLowerCase().includes(q) ||
+        o.email.toLowerCase().includes(q);
+
+      const normStatus = normalizeOrderStatus(o.status);
+      const matchStatus = statusFilter === "All Status" || normStatus === statusFilter;
+
+      const isToken = (o.paymentMode || o.payment || '').toLowerCase() === 'token';
+      const isDirect = (o.paymentMode || o.payment || '').toLowerCase() === 'direct';
+      const isRefund = o.paymentStatus === 'Refunded' || o.paymentStatus === 'Refund' || normStatus === 'Refunded';
+
+      const matchPayment = (() => {
+        if (paymentFilter === "All Payment Types" || paymentFilter === "All Payment Status") return true;
+        if (paymentFilter === "Tokens") return isToken;
+        if (paymentFilter === "Direct (RM)") return isDirect;
+        if (paymentFilter === "Refunded") return isRefund;
+        return true;
+      })();
+
+      let matchDate = true;
+      if (selectedDate) {
+        const fmt = selectedDate.toLocaleDateString("en-US", {
+          month: "long",
+          day: "numeric",
+          year: "numeric",
+        });
+        matchDate =
+          o.date === fmt ||
+          o.date.includes(
+            selectedDate.toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            })
+          );
+      }
+      return matchSearch && matchStatus && matchPayment && matchDate;
+    });
+  }, [ordersList, search, statusFilter, paymentFilter, selectedDate]);
+
+  const handleSort = (key) => {
+    if (sortKey === key) {
+      if (sortDirection === "asc") {
+        setSortDirection("desc");
+      } else if (sortDirection === "desc") {
+        setSortKey(null);
+        setSortDirection(null);
+      }
+    } else {
+      setSortKey(key);
+      setSortDirection("asc");
+    }
+    setCurrentPage(1);
+  };
+
+  const sortedOrders = useMemo(() => {
+    if (!sortKey || !sortDirection) return filtered;
+
+    return [...filtered].sort((a, b) => {
+      let comparison = 0;
+      if (sortKey === "id") {
+        comparison = (a.id || "").localeCompare(b.id || "", undefined, { numeric: true, sensitivity: "base" });
+      } else if (sortKey === "customer") {
+        comparison = (a.customer || "").localeCompare(b.customer || "", undefined, { sensitivity: "base" });
+      } else if (sortKey === "store") {
+        comparison = (a.storeName || "").localeCompare(b.storeName || "", undefined, { sensitivity: "base" });
+      } else if (sortKey === "items") {
+        const countA = (a.items || []).reduce((s, i) => s + (Number(i.qty) || 0), 0);
+        const countB = (b.items || []).reduce((s, i) => s + (Number(i.qty) || 0), 0);
+        comparison = countA - countB;
+      } else if (sortKey === "total") {
+        const totalA = Number(a.total || 0);
+        const totalB = Number(b.total || 0);
+        comparison = totalA - totalB;
+      } else if (sortKey === "status") {
+        const statusA = normalizeOrderStatus(a.status);
+        const statusB = normalizeOrderStatus(b.status);
+        comparison = statusA.localeCompare(statusB, undefined, { sensitivity: "base" });
+      } else if (sortKey === "payment" || sortKey === "paymentType") {
+        const modeA = (a.paymentMode || a.payment || "").toLowerCase();
+        const modeB = (b.paymentMode || b.payment || "").toLowerCase();
+        comparison = modeA.localeCompare(modeB, undefined, { sensitivity: "base" });
+      } else if (sortKey === "time") {
+        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        comparison = timeA - timeB;
+      }
+
+      return sortDirection === "asc" ? comparison : -comparison;
+    });
+  }, [filtered, sortKey, sortDirection]);
 
   if (showRefundsView) {
     return (
@@ -596,90 +739,106 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
     );
   }
 
-  const resetPage = () => setCurrentPage(1);
-
-  const filtered = ordersList.filter((o) => {
-    const q = search.toLowerCase();
-    const matchSearch =
-      o.id.toLowerCase().includes(q) ||
-      o.customer.toLowerCase().includes(q) ||
-      o.email.toLowerCase().includes(q);
-    const matchStatus = statusFilter === "All Status" || o.status === statusFilter;
-    const matchPayment =
-      paymentFilter === "All Payment Status" ||
-      o.paymentStatus === paymentFilter ||
-      (paymentFilter === "Refunded" && (o.paymentStatus === "Refunded" || o.paymentStatus === "Refund"));
-    let matchDate = true;
-    if (selectedDate) {
-      const fmt = selectedDate.toLocaleDateString("en-US", {
-        month: "long",
-        day: "numeric",
-        year: "numeric",
-      });
-      matchDate =
-        o.date === fmt ||
-        o.date.includes(
-          selectedDate.toLocaleDateString("en-US", {
-            month: "short",
-            day: "numeric",
-            year: "numeric",
-          })
-        );
-    }
-    return matchSearch && matchStatus && matchPayment && matchDate;
-  });
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
-  const paginated = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+  const totalPages = Math.max(1, Math.ceil(sortedOrders.length / ITEMS_PER_PAGE));
+  const paginated = sortedOrders.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
   // KPI counts based on active list
   const totalCount = ordersList.length;
-  const completed = ordersList.filter(o => o.status === "Completed").length;
-  const cancelled = ordersList.filter(o => o.status === "Cancelled").length;
-  const refunds = ordersList.filter(o => o.status === "Refund Requested" || o.status === "Refunded").length;
+  const collected = ordersList.filter(o => normalizeOrderStatus(o.status) === "Collected").length;
+  const cancelled = ordersList.filter(o => normalizeOrderStatus(o.status) === "Cancelled").length;
+  const refunds = ordersList.filter(o => {
+    const s = normalizeOrderStatus(o.status);
+    return s === "Refund Requested" || s === "Refunded";
+  }).length;
+
+  const SortableHeader = ({ label, columnKey, info, className = "" }) => {
+    const isSorted = sortKey === columnKey;
+    return (
+      <th className={`px-6 py-3.5 font-bold text-[11px] text-gray-500 uppercase tracking-wider whitespace-nowrap ${className}`}>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => handleSort(columnKey)}
+            className={`group inline-flex items-center gap-1.5 hover:text-[#2E5E58] cursor-pointer focus:outline-none transition-colors select-none ${
+              isSorted ? "text-[#2E5E58] font-bold" : ""
+            }`}
+            title={`Sort by ${label} ${isSorted && sortDirection === "asc" ? "(Descending)" : "(Ascending)"}`}
+          >
+            <span>{label}</span>
+            <span className="inline-flex items-center">
+              {isSorted ? (
+                sortDirection === "asc" ? (
+                  <ArrowUp size={13} className="text-[#2E5E58]" strokeWidth={2.5} />
+                ) : (
+                  <ArrowDown size={13} className="text-[#2E5E58]" strokeWidth={2.5} />
+                )
+              ) : (
+                <ArrowUpDown size={12} className="text-gray-300 group-hover:text-gray-500 transition-colors" />
+              )}
+            </span>
+          </button>
+          {info && <InfoTooltip content={info} title={label} />}
+        </div>
+      </th>
+    );
+  };
 
   return (
     <div className="px-8 pb-8 pt-2 h-full flex flex-col">
       {/* Page Title & Subtitle */}
-      <div className="mb-6 shrink-0">
-        <h1 className="text-2xl font-bold text-gray-900">Orders</h1>
-        <p className="text-gray-500">Manage customer orders and track their status.</p>
+      <div className="mb-6 shrink-0 flex items-center justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-gray-900">Orders</h1>
+            <InfoTooltip
+              content="Real-time order feed across all cafe outlets. Track preparation, payment settlement, customer details, and print receipts."
+              title="Orders Management"
+            />
+          </div>
+          <p className="text-gray-500 text-xs mt-0.5">
+            Live order fulfillment, ticket progress, and transaction history.
+          </p>
+        </div>
       </div>
-      {loadError && <div role="alert" className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{loadError}</div>}
+      {loadError && <div role="alert" className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-medium text-red-700 shadow-2xs">{loadError}</div>}
 
-      {/* Operational totals only. Workflow stages remain available in the status filter. */}
+      {/* Operational KPI Cards */}
       <div className="grid grid-cols-1 gap-3.5 mb-6 shrink-0 sm:grid-cols-2 xl:grid-cols-4">
         <KPICard
           title="Total Orders"
           value={totalCount}
+          badge="Live Feed"
+          info="Total orders recorded across all outlets."
           icon={ShoppingBag}
           iconBg="bg-[#1F3A34]"
           iconColor="text-white"
-          className="min-w-0"
         />
         <KPICard
-          title="Completed"
-          value={completed}
+          title="Collected"
+          value={collected}
+          badge={`${totalCount > 0 ? ((collected / totalCount) * 100).toFixed(0) : 0}% Done`}
+          info="Orders successfully prepared and collected by customers."
           icon={Clock}
           iconBg="bg-[#2E5E58]"
           iconColor="text-white"
-          className="min-w-0"
         />
         <KPICard
           title="Cancelled"
           value={cancelled}
+          badge={cancelled > 0 ? `${cancelled} voided` : 'Zero'}
+          info="Orders cancelled by the customer or counter before preparation."
           icon={Ban}
           iconBg="bg-[#E07A5F]"
           iconColor="text-white"
-          className="min-w-0"
         />
         <KPICard
           title="Refunds"
           value={refunds}
+          badge={refunds > 0 ? `${refunds} requests` : 'None'}
+          info="Orders currently under refund request or already refunded."
           icon={RotateCcw}
-          iconBg="bg-[#D9C4A9]"
+          iconBg="bg-[#8C6D53]"
           iconColor="text-white"
-          className="min-w-0"
         />
       </div>
 
@@ -687,16 +846,16 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
       <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-6 gap-4 shrink-0">
         <OutletFilter value={selectedStoreId} onChange={(value) => { setSelectedStoreId(value); resetPage(); }} />
         {/* Search */}
-        <div className="relative w-full max-w-[400px]">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search size={18} className="text-gray-400" />
+        <div className="relative w-full max-w-[380px]">
+          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+            <Search size={16} className="text-gray-400" />
           </div>
           <input
             type="text"
             value={search}
             onChange={(e) => { setSearch(e.target.value); resetPage(); }}
             placeholder="Search order ID, username or email..."
-            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-[#2E5E58] focus:border-[#2E5E58] text-sm"
+            className="block w-full pl-10 pr-3.5 py-2.5 border border-gray-200 rounded-xl focus:border-[#2E5E58] outline-none text-xs bg-white shadow-2xs"
           />
         </div>
 
@@ -709,37 +868,37 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
               onChange={(e) => { setStatusFilter(e.target.value); resetPage(); }}
               onFocus={() => setStatusOpen(true)}
               onBlur={() => setStatusOpen(false)}
-              className="peer pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer"
+              className="pl-4 pr-10 py-2.5 border border-gray-200 rounded-xl text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer shadow-2xs"
             >
               {STATUSES.map((s) => (
                 <option key={s} value={s}>{s}</option>
               ))}
             </select>
             <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-              <ChevronDown size={16} className={`text-gray-500 transition-transform duration-200 ${statusOpen ? 'rotate-180' : ''}`} />
+              <ChevronDown size={14} className={`text-gray-500 transition-transform duration-200 ${statusOpen ? 'rotate-180' : ''}`} />
             </div>
           </div>
 
           {/* Payment Dropdown */}
-          <div className="relative transition-transform duration-200 peer-focus:-rotate-180">
+          <div className="relative">
             <select
               value={paymentFilter}
               onChange={(e) => { setPaymentFilter(e.target.value); resetPage(); }}
               onFocus={() => setPaymentOpen(true)}
               onBlur={() => setPaymentOpen(false)}
-              className="peer pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer"
+              className="pl-4 pr-10 py-2.5 border border-gray-200 rounded-xl text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer shadow-2xs"
             >
-              {PAYMENTS.map((p) => (
+              {PAYMENT_TYPES.map((p) => (
                 <option key={p} value={p}>{p}</option>
               ))}
             </select>
             <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-              <ChevronDown size={16} className={`text-gray-500 transition-transform duration-200 ${paymentOpen ? 'rotate-180' : ''}`} />
+              <ChevronDown size={14} className={`text-gray-500 transition-transform duration-200 ${paymentOpen ? 'rotate-180' : ''}`} />
             </div>
           </div>
 
           {/* Date Picker */}
-          <div className="relative transition-transform duration-200 peer-focus:-rotate-180">
+          <div className="relative">
             <DatePicker portalId="root-portal" popperPlacement="bottom-end"
               selected={selectedDate}
               onChange={(d) => { setSelectedDate(d); resetPage(); }}
@@ -750,7 +909,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
 
           <button
             onClick={() => setShowRefundsView(true)}
-            className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer"
+            className="flex items-center px-4 py-2.5 border border-gray-200 rounded-xl text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 shadow-2xs transition-all whitespace-nowrap cursor-pointer"
           >
             View Refunds
           </button>
@@ -760,16 +919,19 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
       {/* Main Content Area: Table + Side Details Panel */}
       <div className="flex flex-col xl:flex-row gap-6 flex-1 min-h-0">
         {/* Orders Table Container */}
-        <div className="flex-1 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col min-w-0">
+        <div className="flex-1 bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col min-w-0">
           <div className="overflow-x-auto flex-1">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-white">
+            <table className="min-w-full divide-y divide-gray-200 text-sm text-left">
+              <thead className="bg-white border-b border-gray-200 sticky top-0 z-10">
                 <tr>
-                  {["Order ID", "Username", "Outlet", "Items", "Total", "Status", "Payment", "Time"].map((h) => (
-                    <th key={h} className="px-6 py-4 text-left text-xs font-bold text-gray-900">
-                      {h}
-                    </th>
-                  ))}
+                  <SortableHeader label="Order ID" columnKey="id" />
+                  <SortableHeader label="Username" columnKey="customer" />
+                  <SortableHeader label="Outlet" columnKey="store" />
+                  <SortableHeader label="Items" columnKey="items" />
+                  <SortableHeader label="Total" columnKey="total" info="Order amount charged in Loyalty Tokens and MYR." />
+                  <SortableHeader label="Status" columnKey="status" info="Live order fulfillment stage." />
+                  <SortableHeader label="Payment Type" columnKey="paymentType" info="Payment method used: Loyalty Tokens or Direct RM." />
+                  <SortableHeader label="Time" columnKey="time" info="Order timestamp (latest first by default)." />
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-100">
@@ -787,32 +949,34 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
                         className={`hover:bg-gray-50 transition-colors cursor-pointer ${isSelected ? "bg-gray-50" : ""}`}
                         onClick={() => setSelectedOrder(order)}
                       >
-                        <td className="px-6 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
+                        <td className="px-6 py-3.5 whitespace-nowrap text-xs font-bold text-gray-900">
                           {order.id}
                         </td>
-                        <td className="px-6 py-3 whitespace-nowrap">
+                        <td className="px-6 py-3.5 whitespace-nowrap">
                           <div className="flex items-center">
-                            <div className="h-10 w-10 rounded-full bg-[#2E5E58] shrink-0 shadow-sm"></div>
-                            <div className="ml-4">
-                              <div className="text-sm font-bold text-gray-900">{order.customer}</div>
-                              <div className="text-xs text-gray-500">{order.email}</div>
+                            <div className="h-8 w-8 rounded-full bg-[#2E5E58] flex items-center justify-center text-white font-bold text-xs shrink-0 shadow-2xs">
+                              {order.customer ? order.customer.charAt(0).toUpperCase() : 'C'}
+                            </div>
+                            <div className="ml-3">
+                              <div className="text-xs font-bold text-gray-900">{order.customer}</div>
+                              <div className="text-[10px] text-gray-400">{order.email}</div>
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-700 font-medium">{order.storeName || '-'}</td>
-                        <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-900 font-medium">
+                        <td className="px-6 py-3.5 whitespace-nowrap text-xs text-gray-700 font-medium">{order.storeName || '-'}</td>
+                        <td className="px-6 py-3.5 whitespace-nowrap text-xs text-gray-800 font-medium max-w-[220px] truncate" title={itemsLabel}>
                           {itemsLabel}
                         </td>
-                        <td className="px-6 py-3 whitespace-nowrap text-sm font-bold text-gray-900">
+                        <td className="px-6 py-3.5 whitespace-nowrap text-xs font-bold text-gray-900">
                           <OrderValueStack tokenValue={rowTokenTotal} rmValue={rowTotal} />
                         </td>
-                        <td className="px-6 py-3 whitespace-nowrap">
+                        <td className="px-6 py-3.5 whitespace-nowrap">
                           {getStatusBadge(order.status)}
                         </td>
-                        <td className="px-6 py-3 whitespace-nowrap">
-                          {getPaymentBadge(order.paymentStatus)}
+                        <td className="px-6 py-3.5 whitespace-nowrap">
+                          {getPaymentTypeBadge(order)}
                         </td>
-                        <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-600 font-medium">
+                        <td className="px-6 py-3.5 whitespace-nowrap text-xs text-gray-500 font-medium">
                           {order.time}
                         </td>
                       </tr>
@@ -820,7 +984,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
                   })
                 ) : (
                   <tr>
-                    <td colSpan="8" className="px-6 py-8 text-center text-gray-500 text-sm">
+                    <td colSpan="8" className="px-6 py-10 text-center text-gray-500 text-xs">
                       No orders found matching your criteria.
                     </td>
                   </tr>
@@ -830,31 +994,32 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
           </div>
 
           {/* Table Bottom: Pagination */}
-          <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between gap-4 shrink-0 bg-white">
+          <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between gap-4 shrink-0 bg-white">
             <Pagination
               currentPage={currentPage}
               totalPages={totalPages}
               setCurrentPage={setCurrentPage}
               itemsPerPage={ITEMS_PER_PAGE}
-              totalItems={filtered.length}
+              totalItems={sortedOrders.length}
               itemName="orders"
             />
             <button
               onClick={() => {
                 const rows = [
-                  ["Order ID", "Username", "Email", "Outlet", "Status", "Payment Status", "Date", "Time", "Total (Tokens)", "Total (RM)"],
-                  ...filtered.map(o => {
+                  ["Order ID", "Username", "Email", "Outlet", "Status", "Payment Type", "Date", "Time", "Total (Tokens)", "Total (RM)"],
+                  ...sortedOrders.map(o => {
                     const subtotal = o.items.reduce((s, i) => s + i.unitPrice * i.qty, 0);
                     const rmTotal = Number(o.total ?? (subtotal - Number(o.discount || 0)));
                     const tokenTotal = o.tokenAmountCharged ?? rmTotal;
-                    return [`"${o.id}"`, `"${o.customer}"`, `"${o.email}"`, `"${o.storeName || ''}"`, `"${o.status}"`, `"${o.paymentStatus}"`, `"${o.date}"`, `"${o.time}"`, `"${formatTokens(tokenTotal)}"`, `"${formatRm(rmTotal)}"`];
+                    const paymentLabel = (o.paymentMode || '').toLowerCase() === 'token' ? 'Tokens' : 'Direct (RM)';
+                    return [`"${o.id}"`, `"${o.customer}"`, `"${o.email}"`, `"${o.storeName || ''}"`, `"${normalizeOrderStatus(o.status)}"`, `"${paymentLabel}"`, `"${o.date}"`, `"${o.time}"`, `"${formatTokens(tokenTotal)}"`, `"${formatRm(rmTotal)}"`];
                   })
                 ];
                 exportToCSV(rows, "orders.csv");
               }}
-              className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer"
+              className="flex items-center px-4 py-2 border border-gray-200 rounded-xl text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 shadow-2xs whitespace-nowrap cursor-pointer transition-all"
             >
-              <Download size={16} className="mr-2" /> Export
+              <Download size={14} className="mr-1.5" /> Export
             </button>
           </div>
         </div>

@@ -1,5 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
   BarChart3,
   Download,
   RefreshCw,
@@ -20,6 +23,7 @@ import { exportToCSV } from '../utils/exportToCSV';
 import { loadAdminFinanceOverview } from '../lib/adminApi';
 import { formatPaymentLabel, formatReportMoney, formatReportTokens } from '../utils/reporting';
 import OutletFilter from './OutletFilter';
+import InfoTooltip from './InfoTooltip';
 
 const REFRESH_INTERVAL_MS = 60_000;
 
@@ -63,15 +67,18 @@ const topUpMethodLabel = (method) => {
   }
 };
 
-const StatCard = ({ title, value, subtitle, icon: Icon, iconBg, iconColor = 'text-white' }) => (
-  <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center space-x-4 min-w-0">
+const StatCard = ({ title, value, subtitle, icon: Icon, iconBg, iconColor = 'text-white', info }) => (
+  <div className="bg-white p-5 rounded-2xl border border-gray-200/80 shadow-2xs hover:shadow-xs transition-shadow flex items-center space-x-4 min-w-0">
     <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 ${iconBg} ${iconColor} shadow-sm`}>
       <Icon size={26} strokeWidth={2.2} />
     </div>
     <div className="flex-1 min-w-0">
-      <h3 className="text-gray-500 text-[11px] sm:text-xs xl:text-sm font-medium leading-tight mt-0.5 whitespace-normal">
-        {title}
-      </h3>
+      <div className="flex items-center gap-1.5">
+        <h3 className="text-gray-500 text-[11px] sm:text-xs xl:text-sm font-medium leading-tight whitespace-normal">
+          {title}
+        </h3>
+        {info && <InfoTooltip content={info} title={title} />}
+      </div>
       <p className="text-2xl font-bold text-gray-900 mt-1 leading-tight">{value}</p>
       {subtitle && (
         <p className="text-[11px] text-gray-500 font-medium leading-tight whitespace-normal mt-1">
@@ -82,12 +89,46 @@ const StatCard = ({ title, value, subtitle, icon: Icon, iconBg, iconColor = 'tex
   </div>
 );
 
+function SortableHeader({ label, columnKey, currentKey, direction, onSort, info, className = "" }) {
+  const isSorted = currentKey === columnKey;
+  return (
+    <th className={`px-6 py-4 font-bold text-[11px] text-gray-500 uppercase tracking-wider whitespace-nowrap ${className}`}>
+      <div className={`flex items-center gap-1.5 ${className.includes('text-right') ? 'justify-end' : className.includes('text-center') ? 'justify-center' : ''}`}>
+        <button
+          type="button"
+          onClick={() => onSort(columnKey)}
+          className={`group inline-flex items-center gap-1.5 hover:text-[#1E433A] cursor-pointer focus:outline-none transition-colors select-none ${
+            isSorted ? "text-[#1E433A] font-bold" : ""
+          }`}
+          title={`Sort by ${label} ${isSorted && direction === "asc" ? "(Descending)" : "(Ascending)"}`}
+        >
+          <span>{label}</span>
+          <span className="inline-flex items-center">
+            {isSorted ? (
+              direction === "asc" ? (
+                <ArrowUp size={13} className="text-[#1E433A]" strokeWidth={2.5} />
+              ) : (
+                <ArrowDown size={13} className="text-[#1E433A]" strokeWidth={2.5} />
+              )
+            ) : (
+              <ArrowUpDown size={12} className="text-gray-300 group-hover:text-gray-500 transition-colors" />
+            )}
+          </span>
+        </button>
+        {info && <InfoTooltip content={info} title={label} />}
+      </div>
+    </th>
+  );
+}
+
 const Finance = ({ setCurrentPage }) => {
   const [overview, setOverview] = useState(EMPTY_OVERVIEW);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
   const [selectedStoreId, setSelectedStoreId] = useState(null);
+  const [transactionSortKey, setTransactionSortKey] = useState('dateTime');
+  const [transactionSortDirection, setTransactionSortDirection] = useState('desc');
 
   useEffect(() => {
     let active = true;
@@ -123,7 +164,10 @@ const Finance = ({ setCurrentPage }) => {
   const summary = overview.summary || EMPTY_OVERVIEW.summary;
   const monthlyRevenue = Array.isArray(overview.monthlyRevenue) ? overview.monthlyRevenue : [];
   const topUpMethodBreakdown = Array.isArray(overview.topUpMethodBreakdown) ? overview.topUpMethodBreakdown : [];
-  const recentTransactions = Array.isArray(overview.recentTransactions) ? overview.recentTransactions : [];
+  const recentTransactions = useMemo(
+    () => (Array.isArray(overview.recentTransactions) ? overview.recentTransactions : []),
+    [overview.recentTransactions]
+  );
   const netTokens = Number(summary.netTokens ?? Math.max(0, Number(summary.totalTokensCharged || 0) - Number(summary.totalRefundTokens || 0)));
   const tokenRefundRate = Number(summary.totalTokensCharged || 0) > 0
     ? (Number(summary.totalRefundTokens || 0) / Number(summary.totalTokensCharged || 0)) * 100
@@ -175,7 +219,50 @@ const Finance = ({ setCurrentPage }) => {
     (_, index) => index * tokenTickStep
   );
 
-  const topTransactions = recentTransactions.slice(0, 8);
+  const handleTransactionSort = (key) => {
+    if (transactionSortKey === key) {
+      setTransactionSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setTransactionSortKey(key);
+      setTransactionSortDirection('asc');
+    }
+  };
+
+  const sortedTransactions = useMemo(() => {
+    return [...recentTransactions].sort((a, b) => {
+      let aVal, bVal;
+      if (transactionSortKey === 'dateTime') {
+        aVal = `${a.date || ''} ${a.time || ''}`;
+        bVal = `${b.date || ''} ${b.time || ''}`;
+      } else if (transactionSortKey === 'type') {
+        aVal = (a.type || '').toLowerCase();
+        bVal = (b.type || '').toLowerCase();
+      } else if (transactionSortKey === 'description') {
+        aVal = (a.description || '').toLowerCase();
+        bVal = (b.description || '').toLowerCase();
+      } else if (transactionSortKey === 'outlet') {
+        aVal = (a.storeName || '').toLowerCase();
+        bVal = (b.storeName || '').toLowerCase();
+      } else if (transactionSortKey === 'tokens') {
+        aVal = Number(a.amountTokens || 0);
+        bVal = Number(b.amountTokens || 0);
+      } else if (transactionSortKey === 'status') {
+        aVal = (a.status || '').toLowerCase();
+        bVal = (b.status || '').toLowerCase();
+      } else if (transactionSortKey === 'payment') {
+        aVal = (a.paymentMode || '').toLowerCase();
+        bVal = (b.paymentMode || '').toLowerCase();
+      }
+
+      if (aVal === bVal) return 0;
+      if (aVal === undefined || aVal === null || aVal === '') return 1;
+      if (bVal === undefined || bVal === null || bVal === '') return -1;
+      const res = aVal > bVal ? 1 : -1;
+      return transactionSortDirection === 'asc' ? res : -res;
+    });
+  }, [recentTransactions, transactionSortKey, transactionSortDirection]);
+
+  const topTransactions = sortedTransactions.slice(0, 10);
   const refreshOverview = async () => {
     try {
       const nextOverview = await loadAdminFinanceOverview({ storeId: selectedStoreId });
@@ -222,6 +309,7 @@ const Finance = ({ setCurrentPage }) => {
                 subtitle={`${formatReportMoney(summary.totalRevenueRm)} gross RM`}
                 icon={Wallet}
                 iconBg="bg-[#1F3A34]"
+                info="Total tokens charged across all completed orders in the selected period."
               />
               <StatCard
                 title="Net Tokens Kept"
@@ -229,6 +317,7 @@ const Finance = ({ setCurrentPage }) => {
                 subtitle={`${formatReportTokens(summary.totalRefundTokens)} refunded`}
                 icon={BarChart3}
                 iconBg="bg-[#2E5E58]"
+                info="Net token revenue retained after deducting customer refunds and cancellations."
               />
               <StatCard
                 title="Refund Tokens"
@@ -236,6 +325,7 @@ const Finance = ({ setCurrentPage }) => {
                 subtitle={`${tokenRefundRate.toFixed(1)}% of token volume`}
                 icon={ReceiptText}
                 iconBg="bg-[#E07A5F]"
+                info="Total tokens refunded back to customer wallets from cancelled or returned orders."
               />
               <StatCard
                 title="Orders Processed"
@@ -243,6 +333,7 @@ const Finance = ({ setCurrentPage }) => {
                 subtitle={`${summary.activeOrders.toLocaleString('en-US')} active · ${summary.completedOrders.toLocaleString('en-US')} completed`}
                 icon={ShoppingCart}
                 iconBg="bg-[#6F9F96]"
+                info="Total order count handled by the counter and app fulfillment system."
               />
             </div>
           </div>
@@ -251,7 +342,10 @@ const Finance = ({ setCurrentPage }) => {
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h3 className="text-lg font-bold text-gray-900">Top-up Payment Methods</h3>
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-bold text-gray-900">Top-up Payment Methods</h3>
+                <InfoTooltip content="Distribution of customer wallet token reloads by payment gateway method." title="Top-up Methods" />
+              </div>
               <p className="mt-1 text-sm text-gray-500">Paid token top-ups by the method selected at checkout.</p>
               {selectedStoreId && <p className="mt-1 text-xs font-medium text-amber-700">Top-ups are tenant-wide wallet transactions. The outlet filter applies to orders and refunds, not this section.</p>}
             </div>
@@ -294,7 +388,10 @@ const Finance = ({ setCurrentPage }) => {
         <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex flex-col min-h-[440px]">
           <div className="flex items-start justify-between gap-4 mb-5">
             <div>
-              <h3 className="text-lg font-bold text-gray-900">Token Flow by Month</h3>
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-bold text-gray-900">Token Flow by Month</h3>
+                <InfoTooltip content="Monthly breakdown comparing tokens charged, refunded, and retained net balance." title="Token Flow" />
+              </div>
               <p className="text-sm text-gray-500">Token volume is the primary operating signal. RM stays visible only for reconciliation.</p>
             </div>
             <div className="flex shrink-0 items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
@@ -354,7 +451,10 @@ const Finance = ({ setCurrentPage }) => {
         <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm flex flex-col min-h-[420px]">
           <div className="p-5 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shrink-0">
             <div>
-              <h3 className="text-lg font-bold text-gray-900">Recent Transactions</h3>
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-bold text-gray-900">Recent Transactions</h3>
+                <InfoTooltip content="Latest live transaction ledger across all payment channels and outlets." title="Recent Transactions" />
+              </div>
               <p className="text-sm text-gray-500">Token-first transaction feed, with RM shown for reference.</p>
             </div>
             <div className="flex items-center gap-3">
@@ -377,15 +477,15 @@ const Finance = ({ setCurrentPage }) => {
 
           <div className="overflow-x-auto flex-1">
             <table className="w-full text-left text-sm whitespace-nowrap">
-              <thead className="bg-gray-50">
+              <thead className="bg-gray-50/80 backdrop-blur-xs border-b border-gray-200 sticky top-0 z-10">
                 <tr>
-                  <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Date & Time</th>
-                  <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Type</th>
-                  <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Description</th>
-                  <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Outlet</th>
-                  <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100 text-right">Tokens</th>
-                  <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Status</th>
-                  <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Payment</th>
+                  <SortableHeader label="Date & Time" columnKey="dateTime" currentKey={transactionSortKey} direction={transactionSortDirection} onSort={handleTransactionSort} info="Date and timestamp of transaction." />
+                  <SortableHeader label="Type" columnKey="type" currentKey={transactionSortKey} direction={transactionSortDirection} onSort={handleTransactionSort} info="Transaction category e.g. order payment or refund." />
+                  <SortableHeader label="Description" columnKey="description" currentKey={transactionSortKey} direction={transactionSortDirection} onSort={handleTransactionSort} info="Item breakdown or reason details." />
+                  <SortableHeader label="Outlet" columnKey="outlet" currentKey={transactionSortKey} direction={transactionSortDirection} onSort={handleTransactionSort} info="Store location where the transaction occurred." />
+                  <SortableHeader label="Tokens" columnKey="tokens" currentKey={transactionSortKey} direction={transactionSortDirection} onSort={handleTransactionSort} info="Token amount charged or refunded." className="text-right" />
+                  <SortableHeader label="Status" columnKey="status" currentKey={transactionSortKey} direction={transactionSortDirection} onSort={handleTransactionSort} info="Financial settlement status." />
+                  <SortableHeader label="Payment" columnKey="payment" currentKey={transactionSortKey} direction={transactionSortDirection} onSort={handleTransactionSort} info="Channel or gateway used for settlement." />
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">

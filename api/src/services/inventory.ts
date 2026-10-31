@@ -34,18 +34,37 @@ async function loadRequirements(
   orderId: number
 ): Promise<RequirementRow[]> {
   const [rows] = await connection.query<RequirementRow[]>(
-    `SELECT s.tenant_id, o.store_id, r.inventory_item_id, ii.name AS item_name,
-            CAST(SUM(r.quantity_per_menu_item * oi.quantity) AS CHAR) AS required_quantity
-       FROM orders o
-       JOIN stores s ON s.id = o.store_id
-       JOIN order_items oi ON oi.order_id = o.id
-       JOIN inventory_menu_item_recipes r
-         ON r.menu_item_id = oi.menu_item_id AND r.tenant_id = s.tenant_id
+    `SELECT requirements.tenant_id, requirements.store_id, requirements.inventory_item_id,
+            ii.name AS item_name,
+            CAST(GREATEST(SUM(requirements.required_quantity), 0) AS CHAR) AS required_quantity
+       FROM (
+         SELECT s.tenant_id, o.store_id, r.inventory_item_id,
+                r.quantity_per_menu_item * oi.quantity AS required_quantity
+           FROM orders o
+           JOIN stores s ON s.id = o.store_id
+           JOIN order_items oi ON oi.order_id = o.id
+           JOIN inventory_menu_item_recipes r
+             ON r.menu_item_id = oi.menu_item_id AND r.tenant_id = s.tenant_id
+          WHERE o.id = :orderId
+         UNION ALL
+         SELECT s.tenant_id, o.store_id, r.inventory_item_id,
+                r.quantity_delta * oi.quantity AS required_quantity
+           FROM orders o
+           JOIN stores s ON s.id = o.store_id
+           JOIN order_items oi ON oi.order_id = o.id
+           JOIN order_item_modifiers oim ON oim.order_item_id = oi.id
+           JOIN inventory_option_recipes r
+             ON r.option_group_option_id = oim.option_group_option_id
+            AND r.tenant_id = s.tenant_id
+          WHERE o.id = :orderId
+       ) requirements
        JOIN inventory_items ii
-         ON ii.id = r.inventory_item_id AND ii.tenant_id = s.tenant_id AND ii.is_active = 1
-      WHERE o.id = :orderId
-      GROUP BY s.tenant_id, o.store_id, r.inventory_item_id, ii.name
-      ORDER BY r.inventory_item_id
+         ON ii.id = requirements.inventory_item_id
+        AND ii.tenant_id = requirements.tenant_id AND ii.is_active = 1
+      GROUP BY requirements.tenant_id, requirements.store_id,
+               requirements.inventory_item_id, ii.name
+     HAVING SUM(requirements.required_quantity) > 0
+      ORDER BY requirements.inventory_item_id
       FOR UPDATE`,
     { orderId }
   );
@@ -206,16 +225,19 @@ export async function consumeInventoryForOrder(
     await connection.execute(
       `INSERT IGNORE INTO inventory_movements
          (tenant_id, store_id, inventory_item_id, order_id, movement_type,
-          quantity_change, balance_after, note, created_at)
+          quantity_change, unit_cost_rm, total_cost_rm, balance_after, note, created_at)
        VALUES
          (:tenantId, :storeId, :inventoryItemId, :orderId, 'consumption',
-          :quantityChange, :balanceAfter, 'Consumed when order was collected.', UTC_TIMESTAMP())`,
+          :quantityChange, :unitCost, :totalCost, :balanceAfter,
+          'Consumed when order was collected.', UTC_TIMESTAMP())`,
       {
         tenantId: allocation.tenant_id,
         storeId: allocation.store_id,
         inventoryItemId: allocation.inventory_item_id,
         orderId,
         quantityChange: -amount,
+        unitCost: Number(stock.average_unit_cost_rm),
+        totalCost: Math.round(amount * Number(stock.average_unit_cost_rm) * 100) / 100,
         balanceAfter
       }
     );

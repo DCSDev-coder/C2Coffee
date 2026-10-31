@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Search,
@@ -17,8 +17,12 @@ import {
   ImagePlus,
   Trash2,
   X,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
 } from 'lucide-react';
 import Pagination from './Pagination';
+import InfoTooltip from './InfoTooltip';
 import { exportToCSV } from '../utils/exportToCSV';
 import {
   createAdminMenuCategory,
@@ -52,20 +56,25 @@ const MENU_PRODUCT_KIND_OPTIONS = [
   { value: 'other', label: 'Other' }
 ];
 
-const MenuStat = ({ title, value, change, icon: Icon, iconBg, iconColor = 'text-white' }) => (
-  <div className="flex items-center gap-3 min-w-0 rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
-    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${iconBg} ${iconColor} shadow-sm`}>
-      <Icon size={18} strokeWidth={2.2} />
-    </div>
-    <div className="min-w-0">
-      <div className="flex items-baseline gap-2 flex-wrap">
-        <span className="text-sm font-medium text-gray-500">{title}</span>
-        <span className="text-lg font-bold text-gray-900 leading-none">{value}</span>
+const MenuStat = ({ title, value, badge, info, icon: Icon, iconBg, iconColor = 'text-white' }) => (
+  <div className="flex items-center justify-between rounded-2xl border border-gray-200/80 bg-white p-5 shadow-2xs hover:shadow-xs transition-shadow">
+    <div className="flex items-center gap-3.5 min-w-0">
+      <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${iconBg} ${iconColor} shadow-xs`}>
+        <Icon size={20} strokeWidth={2.2} />
       </div>
-      {change && (
-        <p className="mt-0.5 text-[11px] text-gray-500 font-medium leading-tight">{change}</p>
-      )}
+      <div className="min-w-0">
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{title}</span>
+          {info && <InfoTooltip content={info} title={title} />}
+        </div>
+        <p className="text-2xl font-extrabold text-gray-900 tracking-tight leading-tight mt-0.5">{value}</p>
+      </div>
     </div>
+    {badge && (
+      <span className="shrink-0 px-2.5 py-1 rounded-full text-xs font-bold bg-[#E8F3F0] text-[#1E433A]">
+        {badge}
+      </span>
+    )}
   </div>
 );
 
@@ -505,8 +514,60 @@ const Menu = () => {
     return matchesSearch && matchesCategory && matchesStatus;
   });
 
-  const totalPages = Math.max(1, Math.ceil(filteredMenuItems.length / ITEMS_PER_PAGE));
-  const paginatedItems = filteredMenuItems.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+  const [sortKey, setSortKey] = useState('name');
+  const [sortDirection, setSortDirection] = useState('asc');
+
+  const handleSort = (key) => {
+    if (sortKey === key) {
+      if (sortDirection === 'asc') {
+        setSortDirection('desc');
+      } else if (sortDirection === 'desc') {
+        setSortKey(null);
+        setSortDirection(null);
+      }
+    } else {
+      setSortKey(key);
+      setSortDirection('asc');
+    }
+    setCurrentPage(1);
+  };
+
+  const sortedMenuItems = useMemo(() => {
+    if (!sortKey || !sortDirection) return filteredMenuItems;
+
+    return [...filteredMenuItems].sort((a, b) => {
+      let comparison = 0;
+      if (sortKey === 'name') {
+        comparison = (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' });
+      } else if (sortKey === 'category') {
+        comparison = (a.category_name || '').localeCompare(b.category_name || '', undefined, { sensitivity: 'base' });
+        if (comparison === 0) {
+          comparison = (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' });
+        }
+      } else if (sortKey === 'price_rm') {
+        const pA = parseMoneyInput(a.base_price_rm);
+        const pB = parseMoneyInput(b.base_price_rm);
+        comparison = pA - pB;
+      } else if (sortKey === 'price_token') {
+        const tA = Number.isFinite(Number(a.base_price_token)) ? Number(a.base_price_token) : 0;
+        const tB = Number.isFinite(Number(b.base_price_token)) ? Number(b.base_price_token) : 0;
+        comparison = tA - tB;
+      } else if (sortKey === 'status') {
+        const sA = a.is_active ? 1 : 0;
+        const sB = b.is_active ? 1 : 0;
+        comparison = sA - sB;
+      } else if (sortKey === 'sales') {
+        const slA = Number(a.sales_count || 0);
+        const slB = Number(b.sales_count || 0);
+        comparison = slA - slB;
+      }
+
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+  }, [filteredMenuItems, sortKey, sortDirection]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedMenuItems.length / ITEMS_PER_PAGE));
+  const paginatedItems = sortedMenuItems.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
   const selectedItem = allMenuItems.find((item) => item.id === selectedItemId) || null;
   const selectedItemIsDrink = selectedItem && String(
     selectedItem.product_kind_code || menuCategories.find((category) => category.code === selectedItem.category_code)?.product_kind_code || ''
@@ -762,7 +823,7 @@ const Menu = () => {
       'Sales',
       'ID'
     ],
-    ...filteredMenuItems.map((item) => [
+    ...sortedMenuItems.map((item) => [
       item.name,
       item.category_name,
       item.base_price_rm,
@@ -1021,14 +1082,54 @@ const Menu = () => {
     }));
   };
 
+  const SortableHeader = ({ label, columnKey, info, className = '' }) => {
+    const isSorted = sortKey === columnKey;
+    return (
+      <th className={`px-6 py-3.5 font-bold text-[11px] text-gray-500 uppercase tracking-wider whitespace-nowrap ${className}`}>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => handleSort(columnKey)}
+            className={`group inline-flex items-center gap-1.5 hover:text-[#2E5E58] cursor-pointer focus:outline-none transition-colors select-none ${
+              isSorted ? 'text-[#2E5E58] font-bold' : ''
+            }`}
+            title={`Sort by ${label} ${isSorted && sortDirection === 'asc' ? '(Z to A)' : '(A to Z)'}`}
+          >
+            <span>{label}</span>
+            <span className="inline-flex items-center">
+              {isSorted ? (
+                sortDirection === 'asc' ? (
+                  <ArrowUp size={13} className="text-[#2E5E58]" strokeWidth={2.5} />
+                ) : (
+                  <ArrowDown size={13} className="text-[#2E5E58]" strokeWidth={2.5} />
+                )
+              ) : (
+                <ArrowUpDown size={12} className="text-gray-300 group-hover:text-gray-500 transition-colors" />
+              )}
+            </span>
+          </button>
+          {info && <InfoTooltip content={info} title={label} />}
+        </div>
+      </th>
+    );
+  };
+
   return (
     <div className="h-full flex flex-col px-8 pb-8 pt-2 space-y-6 overflow-hidden">
       <div className="shrink-0 space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Menu</h1>
-          <p className="text-gray-500 text-sm mt-0.5">
-            Manage your menu listing, prices, availability, and token pricing without editing the database directly.
-          </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold text-gray-900">Menu Catalog</h1>
+              <InfoTooltip
+                content="Manage live menu items, categories, pricing, token redemption, and barista drink preparation SOPs. Real-time updates reflect across customer mobile apps and store counter devices."
+                title="Menu Management"
+              />
+            </div>
+            <p className="text-gray-500 text-xs mt-0.5">
+              Real-time catalog pricing, availability, and preparation rules.
+            </p>
+          </div>
         </div>
 
         {errorMessage && (
@@ -1037,46 +1138,68 @@ const Menu = () => {
           </div>
         )}
 
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
-          <MenuStat title="Total Menu Items" value={String(totalMenuItems)} change="Live catalog items" icon={ClipboardList} iconBg="bg-[#1F3A34]" />
-          <MenuStat title="Active Items" value={String(activeItems)} change={`${totalMenuItems > 0 ? ((activeItems / totalMenuItems) * 100).toFixed(1) : '0.0'}% active`} icon={CheckCircle2} iconBg="bg-[#6F9F96]" />
-          <MenuStat title="Archived Items" value={String(archivedItems)} change="Soft-archived items" icon={XCircle} iconBg="bg-[#E07A5F]" />
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+          <MenuStat
+            title="Total Menu Items"
+            value={String(totalMenuItems)}
+            badge="Full Catalog"
+            info="All menu products registered in the C2 catalog across all categories."
+            icon={ClipboardList}
+            iconBg="bg-[#1F3A34]"
+          />
+          <MenuStat
+            title="Active Items"
+            value={String(activeItems)}
+            badge={`${totalMenuItems > 0 ? ((activeItems / totalMenuItems) * 100).toFixed(0) : '0'}% Live`}
+            info="Items currently live and available for customers to order in the mobile app."
+            icon={CheckCircle2}
+            iconBg="bg-[#2E5E58]"
+          />
+          <MenuStat
+            title="Archived Items"
+            value={String(archivedItems)}
+            badge={archivedItems > 0 ? 'Archived' : 'None'}
+            info="Inactive items hidden from the customer app. Historical sales and order records are preserved."
+            icon={XCircle}
+            iconBg="bg-gray-400"
+          />
         </div>
 
         {archivedItemsDueForReview.length > 0 && (
-          <div className="flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-950 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-start gap-3">
-              <CalendarClock className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
-              <div>
-                <p className="text-sm font-bold">
-                  {archivedItemsDueForReview.length} archived menu {archivedItemsDueForReview.length === 1 ? 'item is' : 'items are'} due for review
+          <div className="flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-amber-950 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <CalendarClock className="h-5 w-5 shrink-0 text-amber-700" />
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-sm font-bold text-amber-900">
+                  {archivedItemsDueForReview.length} archived {archivedItemsDueForReview.length === 1 ? 'item is' : 'items are'} due for 5-year retention review
                 </p>
-                <p className="mt-0.5 text-xs text-amber-800">
-                  These items have been archived for at least five years. Review them before permanent deletion; protected order and loyalty history will remain archived.
-                </p>
+                <InfoTooltip
+                  content="Archived items over 5 years old can be permanently deleted if no order or loyalty records reference them. Historical financial data remains protected."
+                  title="Retention Policy"
+                />
               </div>
             </div>
             <button
               type="button"
               onClick={showArchiveReviewItems}
-              className="shrink-0 rounded-xl border border-amber-300 bg-white px-4 py-2 text-xs font-bold text-amber-900 hover:bg-amber-100"
+              className="shrink-0 rounded-xl border border-amber-300 bg-white px-4 py-2 text-xs font-bold text-amber-900 hover:bg-amber-100 shadow-2xs transition-colors cursor-pointer"
             >
-              Review archived items
+              Review Archived Items
             </button>
           </div>
         )}
 
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="relative w-full lg:max-w-[400px]">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
               <Search className="h-4 w-4 text-gray-400" />
             </div>
             <input
               type="text"
-              placeholder="Search menu items..."
+              placeholder="Search by item name, ID, or category..."
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
-              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-[#1F3A34]"
+              className="block w-full pl-10 pr-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#2E5E58] bg-white shadow-2xs"
             />
           </div>
 
@@ -1087,7 +1210,7 @@ const Menu = () => {
                 onChange={(event) => setSelectedCategory(event.target.value)}
                 onFocus={() => setCategoryOpen(true)}
                 onBlur={() => setCategoryOpen(false)}
-                className="pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer"
+                className="pl-4 pr-10 py-2.5 border border-gray-200 rounded-xl text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer shadow-2xs"
               >
                 {categoryOptions.map((category) => (
                   <option key={category.value} value={category.value}>
@@ -1097,7 +1220,7 @@ const Menu = () => {
               </select>
               <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
                 <ChevronDown
-                  size={16}
+                  size={14}
                   className={`text-gray-500 transition-transform duration-200 ${categoryOpen ? 'rotate-180' : ''}`}
                 />
               </div>
@@ -1109,15 +1232,15 @@ const Menu = () => {
                 onChange={(event) => setSelectedStatus(event.target.value)}
                 onFocus={() => setStatusOpen(true)}
                 onBlur={() => setStatusOpen(false)}
-                className="pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer"
+                className="pl-4 pr-10 py-2.5 border border-gray-200 rounded-xl text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer shadow-2xs"
               >
-                <option value="All">All Status</option>
+                <option value="All">All Statuses</option>
                 <option value="Active">Active</option>
                 <option value="Archived">Archived</option>
               </select>
               <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
                 <ChevronDown
-                  size={16}
+                  size={14}
                   className={`text-gray-500 transition-transform duration-200 ${statusOpen ? 'rotate-180' : ''}`}
                 />
               </div>
@@ -1125,15 +1248,15 @@ const Menu = () => {
 
             <button
               onClick={() => setIsHomePicksOpen(true)}
-              className="flex items-center px-4 py-2 border border-[#1F3A34] rounded-lg text-sm font-medium text-[#1F3A34] bg-white hover:bg-[#F3F7F5] whitespace-nowrap"
+              className="flex items-center px-4 py-2.5 border border-gray-200 rounded-xl text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 shadow-2xs transition-all whitespace-nowrap cursor-pointer"
             >
               Top Picks
             </button>
             <button
               onClick={openCreateModal}
-              className="flex items-center px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium whitespace-nowrap cursor-pointer"
+              className="flex items-center px-4 py-2.5 bg-[#1E433A] text-white rounded-xl text-xs font-bold hover:bg-[#16342D] shadow-xs transition-all whitespace-nowrap cursor-pointer"
             >
-              <Plus size={16} className="mr-1.5" /> New Menu Item
+              <Plus size={15} className="mr-1.5" /> New Menu Item
             </button>
           </div>
         </div>
@@ -1143,14 +1266,14 @@ const Menu = () => {
         <div className="flex-1 bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col overflow-hidden min-w-0">
           <div className="overflow-x-auto flex-1">
             <table className="w-full text-sm text-left">
-              <thead className="text-gray-900 font-bold border-b border-gray-200 sticky top-0 bg-white z-10">
+              <thead className="border-b border-gray-200 sticky top-0 bg-white z-10">
                 <tr>
-                  <th className="px-6 py-4 whitespace-nowrap">Menu Item</th>
-                  <th className="px-6 py-4 whitespace-nowrap">Category</th>
-                  <th className="px-6 py-4 whitespace-nowrap">RM Price</th>
-                  <th className="px-6 py-4 whitespace-nowrap">Token Price</th>
-                  <th className="px-6 py-4 whitespace-nowrap">Status</th>
-                  <th className="px-6 py-4 whitespace-nowrap">Sales</th>
+                  <SortableHeader label="Menu Item" columnKey="name" />
+                  <SortableHeader label="Category" columnKey="category" />
+                  <SortableHeader label="RM Price" columnKey="price_rm" />
+                  <SortableHeader label="Token Price" columnKey="price_token" info="Amount in loyalty tokens required to redeem this item in the app." />
+                  <SortableHeader label="Status" columnKey="status" />
+                  <SortableHeader label="Sales" columnKey="sales" info="Total completed order quantity for this item." />
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -1215,20 +1338,20 @@ const Menu = () => {
             </table>
           </div>
 
-          <div className="border-t border-gray-200 px-6 py-4 flex items-center justify-between gap-4 shrink-0 bg-white">
+          <div className="border-t border-gray-100 px-6 py-4 flex items-center justify-between gap-4 shrink-0 bg-white">
             <Pagination
               currentPage={currentPage}
               totalPages={totalPages}
               setCurrentPage={setCurrentPage}
               itemsPerPage={ITEMS_PER_PAGE}
-              totalItems={filteredMenuItems.length}
+              totalItems={sortedMenuItems.length}
               itemName="menu items"
             />
             <button
               onClick={() => exportToCSV(exportRows, 'menu.csv')}
-              className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 whitespace-nowrap cursor-pointer"
+              className="flex items-center px-4 py-2 border border-gray-200 rounded-xl text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 shadow-2xs whitespace-nowrap cursor-pointer transition-all"
             >
-              <Download size={16} className="mr-1.5" /> Export
+              <Download size={14} className="mr-1.5" /> Export
             </button>
           </div>
         </div>
@@ -1269,45 +1392,48 @@ const Menu = () => {
               </div>
 
               {!selectedItem.is_active && selectedItem.archived_at && (
-                <div className={`mb-4 rounded-xl border px-4 py-3 ${selectedItem.retention_review_due
+                <div className={`mb-4 rounded-2xl border px-4 py-3 ${selectedItem.retention_review_due
                   ? 'border-amber-200 bg-amber-50 text-amber-950'
                   : 'border-gray-200 bg-gray-50 text-gray-700'
                 }`}>
                   <div className="flex items-start gap-2.5">
                     <CalendarClock className={`mt-0.5 h-4 w-4 shrink-0 ${selectedItem.retention_review_due ? 'text-amber-700' : 'text-gray-500'}`} />
-                    <div>
-                      <p className="text-xs font-bold">
-                        {selectedItem.retention_review_due ? 'Archive review due' : 'Archive retention review'}
-                      </p>
-                      <p className="mt-1 text-[11px] leading-relaxed">
-                        Archived on {new Date(selectedItem.archived_at).toLocaleDateString('en-MY', {
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-xs font-bold">
+                          {selectedItem.retention_review_due ? 'Archive review due' : 'Archive retention'}
+                        </p>
+                        <InfoTooltip
+                          content="Archived items with active order history are permanently protected from deletion to maintain financial and loyalty audit records."
+                          title="Retention Rules"
+                        />
+                      </div>
+                      <p className="mt-0.5 text-[11px] text-gray-600 leading-tight">
+                        Archived {new Date(selectedItem.archived_at).toLocaleDateString('en-MY', {
                           day: '2-digit', month: 'short', year: 'numeric'
-                        })}. {selectedItem.retention_review_due
-                          ? 'Review whether it can be permanently deleted.'
-                          : `Review from ${new Date(selectedItem.retention_review_at).toLocaleDateString('en-MY', { day: '2-digit', month: 'short', year: 'numeric' })}.`}
-                        {' '}Items linked to orders or loyalty records must remain archived.
+                        })}.
                       </p>
                     </div>
                   </div>
                 </div>
               )}
 
-              <div className="flex gap-6 border-b border-gray-200 mb-5 shrink-0 text-sm">
+              <div className="flex gap-6 border-b border-gray-100 mb-5 shrink-0 text-sm">
                 <button
                   onClick={() => setActiveTab('Details')}
-                  className={`pb-2 font-medium border-b-2 transition-colors ${activeTab === 'Details' ? 'border-gray-900 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                  className={`pb-2 font-semibold border-b-2 transition-colors cursor-pointer ${activeTab === 'Details' ? 'border-[#2E5E58] text-[#1E433A]' : 'border-transparent text-gray-400 hover:text-gray-700'}`}
                 >
                   Details
                 </button>
                 <button
                   onClick={() => setActiveTab('Sales')}
-                  className={`pb-2 font-medium border-b-2 transition-colors ${activeTab === 'Sales' ? 'border-gray-900 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                  className={`pb-2 font-semibold border-b-2 transition-colors cursor-pointer ${activeTab === 'Sales' ? 'border-[#2E5E58] text-[#1E433A]' : 'border-transparent text-gray-400 hover:text-gray-700'}`}
                 >
                   Sales & Analytics
                 </button>
                 <button
                   onClick={() => setActiveTab('History')}
-                  className={`pb-2 font-medium border-b-2 transition-colors ${activeTab === 'History' ? 'border-gray-900 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                  className={`pb-2 font-semibold border-b-2 transition-colors cursor-pointer ${activeTab === 'History' ? 'border-[#2E5E58] text-[#1E433A]' : 'border-transparent text-gray-400 hover:text-gray-700'}`}
                 >
                   History
                 </button>
@@ -1334,11 +1460,17 @@ const Menu = () => {
                         <p className="text-gray-900 font-medium">{formatToken(selectedItem.base_price_token)}</p>
                       </div>
                       <div className="grid grid-cols-2 gap-3">
-                        <p className="text-gray-500 font-medium">Counts for loyalty cups</p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-gray-500 font-medium">Loyalty Cup Stamps</p>
+                          <InfoTooltip content="Earns a cup stamp toward reward vouchers when ordered." title="Loyalty Stamp" />
+                        </div>
                         <p className="text-gray-900 font-medium">{selectedItem.is_qualifying_cup ? 'Yes' : 'No'}</p>
                       </div>
                       <div className="grid grid-cols-2 gap-3">
-                        <p className="text-gray-500 font-medium">Made-to-order drink</p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-gray-500 font-medium">Made-to-order</p>
+                          <InfoTooltip content="Queued in the Barista Console for handcrafted preparation." title="Handcrafted" />
+                        </div>
                         <p className="text-gray-900 font-medium">{selectedItem.is_handcrafted_drink ? 'Yes' : 'No'}</p>
                       </div>
                       <div className="grid grid-cols-2 gap-3">
@@ -1349,13 +1481,13 @@ const Menu = () => {
                               optionGroupsForItem(selectedItem.id).map((group) => (
                                 <span
                                   key={group.id}
-                                  className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700"
+                                  className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700"
                                 >
                                   {group.name}
                                 </span>
                               ))
                             ) : (
-                              <span className="text-gray-500">None</span>
+                              <span className="text-gray-400">None</span>
                             )}
                           </div>
                         </div>
@@ -1363,28 +1495,30 @@ const Menu = () => {
                     </div>
 
                     <div className="pt-2">
-                      <p className="text-[10px] text-gray-500 font-medium mb-2">Item Image</p>
+                      <p className="text-[11px] text-gray-500 font-semibold mb-2">Item Image</p>
                       <img
                         src={resolveMenuImageUrl(selectedItem.image_url)}
                         alt={selectedItem.name}
-                        className="w-16 h-16 object-contain shrink-0 drop-shadow-md"
+                        className="w-16 h-16 object-contain shrink-0 drop-shadow-md rounded-xl border border-gray-100 p-1 bg-white"
                       />
                     </div>
                     {selectedItemIsDrink && (
-                      <div className="rounded-xl border border-[#B9D6D0] bg-[#F3FAF8] p-4">
-                        <div className="flex items-start gap-3">
-                          <div className="rounded-lg bg-white p-2 text-[#2E5E58]"><ImagePlus size={18} /></div>
-                          <div className="min-w-0 flex-1">
-                            <p className="font-bold text-gray-900">Drink SOP</p>
-                            <p className="mt-1 text-xs leading-5 text-gray-600">Upload preparation images for {selectedItem.name}. They appear in the C2 Store Barista Workspace library and when this drink is being prepared.</p>
+                      <div className="rounded-2xl border border-[#B9D6D0] bg-[#F3FAF8] p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2">
+                            <div className="rounded-xl bg-white p-2 text-[#2E5E58] shadow-2xs"><ImagePlus size={16} /></div>
+                            <div className="flex items-center gap-1.5">
+                              <p className="font-bold text-gray-900 text-sm">Drink SOP</p>
+                              <InfoTooltip content={`Preparation guide displayed in the Barista Workspace while crafting ${selectedItem.name}.`} title="Drink SOP" />
+                            </div>
                           </div>
                         </div>
-                        <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                           <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => setSopFile(event.target.files?.[0] || null)} className="min-w-0 flex-1 text-xs" />
-                          <button type="button" disabled={!sopFile || isSavingSop} onClick={() => void uploadDrinkSop()} className="rounded-lg bg-[#2E5E58] px-3 py-2 text-xs font-bold text-white hover:bg-[#244B46] disabled:cursor-not-allowed disabled:opacity-50">{isSavingSop ? 'Uploading...' : 'Add SOP image'}</button>
+                          <button type="button" disabled={!sopFile || isSavingSop} onClick={() => void uploadDrinkSop()} className="rounded-xl bg-[#2E5E58] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#244B46] disabled:cursor-not-allowed disabled:opacity-50 shadow-xs transition-colors cursor-pointer">{isSavingSop ? 'Uploading...' : 'Upload SOP'}</button>
                         </div>
-                        <div className="mt-4 space-y-2">
-                          {drinkGuides.filter((guide) => Number(guide.menu_item_id) === Number(selectedItem.id)).length === 0 ? <p className="text-xs text-gray-500">No SOP image uploaded for this drink yet.</p> : drinkGuides.filter((guide) => Number(guide.menu_item_id) === Number(selectedItem.id)).map((guide) => <div key={guide.id} className="flex items-center justify-between gap-3 rounded-lg bg-white p-2"><img src={`${getAdminApiBaseUrl()}${guide.image_url}`} alt={`${selectedItem.name} SOP`} className="h-12 w-12 rounded object-cover" /><span className="min-w-0 flex-1 truncate text-xs font-medium text-gray-700">Preparation image</span><button type="button" onClick={() => void deleteDrinkSop(guide.id)} className="rounded p-1.5 text-red-600 hover:bg-red-50" aria-label="Delete SOP image"><Trash2 size={16} /></button></div>)}
+                        <div className="mt-3 space-y-2">
+                          {drinkGuides.filter((guide) => Number(guide.menu_item_id) === Number(selectedItem.id)).length === 0 ? <p className="text-xs text-gray-400">No SOP image uploaded for this drink yet.</p> : drinkGuides.filter((guide) => Number(guide.menu_item_id) === Number(selectedItem.id)).map((guide) => <div key={guide.id} className="flex items-center justify-between gap-3 rounded-xl bg-white p-2 border border-gray-100 shadow-2xs"><img src={`${getAdminApiBaseUrl()}${guide.image_url}`} alt={`${selectedItem.name} SOP`} className="h-11 w-11 rounded-lg object-cover" /><span className="min-w-0 flex-1 truncate text-xs font-medium text-gray-700">Preparation guide</span><button type="button" onClick={() => void deleteDrinkSop(guide.id)} className="rounded-lg p-1.5 text-red-600 hover:bg-red-50 transition-colors" aria-label="Delete SOP image"><Trash2 size={15} /></button></div>)}
                         </div>
                       </div>
                     )}
@@ -1441,31 +1575,31 @@ const Menu = () => {
                 )}
               </div>
 
-              <div className="pt-4 border-t border-gray-200 shrink-0 grid grid-cols-3 gap-3">
+              <div className="pt-4 border-t border-gray-100 shrink-0 grid grid-cols-3 gap-2.5">
                 <button
                   onClick={() => handleDuplicate(selectedItem)}
-                  className="flex items-center justify-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-xs font-bold text-gray-700 hover:bg-gray-50"
+                  className="flex items-center justify-center gap-1.5 px-3 py-2 border border-gray-200 rounded-xl text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 shadow-2xs transition-all cursor-pointer"
                 >
-                  <Copy size={14} /> Duplicate
+                  <Copy size={13} /> Duplicate
                 </button>
                 <button
                   onClick={() => openEditModal(selectedItem)}
-                  className="flex items-center justify-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-xs font-bold text-gray-700 hover:bg-gray-50"
+                  className="flex items-center justify-center gap-1.5 px-3 py-2 border border-gray-200 rounded-xl text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 shadow-2xs transition-all cursor-pointer"
                 >
-                  <Edit2 size={14} /> Edit
+                  <Edit2 size={13} /> Edit
                 </button>
                 <button
                   onClick={() => handleArchive(selectedItem)}
-                  className="flex items-center justify-center gap-1.5 px-3 py-2 border border-red-200 rounded-lg text-xs font-bold text-red-600 hover:bg-red-50"
+                  className="flex items-center justify-center gap-1.5 px-3 py-2 border border-red-200 rounded-xl text-xs font-bold text-red-600 bg-white hover:bg-red-50 shadow-2xs transition-all cursor-pointer"
                 >
-                  <Archive size={14} /> {selectedItem.is_active ? 'Archive' : 'Restore'}
+                  <Archive size={13} /> {selectedItem.is_active ? 'Archive' : 'Restore'}
                 </button>
                 {!selectedItem.is_active && (
                   <button
                     onClick={() => handlePermanentDelete(selectedItem)}
-                    className="col-span-3 flex items-center justify-center gap-1.5 rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50"
+                    className="col-span-3 flex items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50/50 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-100 transition-all cursor-pointer"
                   >
-                    <Trash2 size={14} /> Delete permanently
+                    <Trash2 size={13} /> Delete permanently
                   </button>
                 )}
               </div>
@@ -1503,10 +1637,16 @@ const Menu = () => {
       {isEditModalOpen && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-slate-900/35 backdrop-blur-md animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
-            <div className="px-6 py-4.5 border-b border-gray-100 bg-white/80 backdrop-blur-xs flex items-center justify-between shrink-0">
-              <h2 className="text-lg font-bold text-gray-900">
-                {editMode === 'create' ? 'Create New Menu Item' : 'Edit Menu Item'}
-              </h2>
+            <div className="px-6 py-4 border-b border-gray-100 bg-white/80 backdrop-blur-xs flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-bold text-gray-900">
+                  {editMode === 'create' ? 'Create New Menu Item' : 'Edit Menu Item'}
+                </h2>
+                <InfoTooltip
+                  content="Configure item pricing, category classification, and drink rules. Updates appear immediately on customer mobile apps and store counters."
+                  title="Menu Item"
+                />
+              </div>
               <button onClick={closeEditModal} className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer">
                 <X size={20} />
               </button>
@@ -1524,51 +1664,58 @@ const Menu = () => {
               )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="md:col-span-2">
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Name</label>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <label className="text-xs font-bold text-gray-700">Item Name</label>
+                  </div>
                   <input
                     type="text"
                     value={editFormData.name}
                     onChange={(event) => setEditFormData({ ...editFormData, name: event.target.value })}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34]"
+                    className="w-full border border-gray-200 rounded-xl px-3.5 py-2 text-sm outline-none focus:border-[#2E5E58] bg-white shadow-2xs"
+                    placeholder="e.g. Iced C2 Latte"
                     required
                   />
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="block text-xs font-medium text-gray-500 mb-1">
-                    Customer Description <span className="font-normal">(Optional)</span>
-                  </label>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <label className="text-xs font-bold text-gray-700">
+                      Customer Description <span className="font-normal text-gray-400">(Optional)</span>
+                    </label>
+                    <InfoTooltip
+                      content="Shown on the customer mobile app item detail screen. Use this for taste notes, ingredients, or story. Leave blank to hide."
+                      title="Customer Description"
+                    />
+                  </div>
                   <textarea
                     value={editFormData.description}
                     onChange={(event) => setEditFormData({ ...editFormData, description: event.target.value })}
                     rows={3}
                     maxLength={5000}
-                    placeholder="Describe the taste, use, scent, material, or what makes this item special."
-                    className="w-full resize-y border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34]"
+                    placeholder="Describe taste profile, ingredients, origin, or preparation notes..."
+                    className="w-full resize-y border border-gray-200 rounded-xl px-3.5 py-2 text-sm outline-none focus:border-[#2E5E58] bg-white shadow-2xs"
                   />
-                  <p className="mt-1 text-[11px] text-gray-500">
-                    Shown on the mobile product page. Leave blank to hide it for this item.
-                  </p>
                 </div>
 
-                <div className="md:col-span-2 rounded-2xl border border-gray-200 bg-gray-50 p-4 space-y-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <label className="block text-xs font-bold text-gray-900">Quick Setup</label>
-                      <p className="mt-1 text-[11px] text-gray-500">
-                        Start with a preset, then fine tune the main type and family.
-                      </p>
+                <div className="md:col-span-2 rounded-2xl border border-gray-200/80 bg-gray-50/70 p-4 space-y-2.5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-gray-900 uppercase tracking-wider">Quick Setup Preset</span>
+                      <InfoTooltip
+                        content="Applies recommended defaults for handcrafted drink options, loyalty cup stamps, and customer notes."
+                        title="Quick Setup"
+                      />
                     </div>
                     <button
                       type="button"
                       onClick={() => applyMenuTemplate('custom')}
-                      className="text-xs font-bold text-gray-600 hover:text-gray-900"
+                      className="text-xs font-semibold text-gray-500 hover:text-gray-900 transition-colors cursor-pointer"
                     >
                       Reset
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {Object.entries(MENU_ITEM_TEMPLATES)
                       .filter(([key]) => key !== 'custom')
                       .map(([key, template]) => (
@@ -1576,20 +1723,31 @@ const Menu = () => {
                           key={key}
                           type="button"
                           onClick={() => applyMenuTemplate(key)}
-                          className={`rounded-xl border px-3 py-3 text-left transition-colors ${selectedMenuTemplate === key
-                            ? 'border-[#1F3A34] bg-white shadow-sm'
-                            : 'border-gray-200 bg-white hover:bg-gray-100'
-                            }`}
+                          className={`rounded-xl border p-2.5 text-left transition-all cursor-pointer ${
+                            selectedMenuTemplate === key
+                              ? 'border-[#2E5E58] bg-[#F3FAF8] shadow-2xs ring-1 ring-[#2E5E58]/30'
+                              : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
+                          }`}
                         >
-                          <p className="text-sm font-bold text-gray-900">{template.label}</p>
-                          <p className="mt-0.5 text-[11px] text-gray-500">{template.description}</p>
+                          <p className={`text-xs font-bold ${selectedMenuTemplate === key ? 'text-[#1E433A]' : 'text-gray-900'}`}>
+                            {template.label}
+                          </p>
+                          <p className="mt-0.5 text-[10px] text-gray-500 line-clamp-1">
+                            {template.description}
+                          </p>
                         </button>
                       ))}
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Menu Category</label>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <label className="text-xs font-bold text-gray-700">Menu Category</label>
+                    <InfoTooltip
+                      content="Customer-facing category on the mobile menu. Controls whether this item is classified as a drink, food, or retail item."
+                      title="Category"
+                    />
+                  </div>
                   <div className="flex gap-2">
                     <select
                       value={editFormData.category_code}
@@ -1612,7 +1770,7 @@ const Menu = () => {
                         });
                         setSelectedMenuTemplate(nextTemplateKey);
                       }}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34]"
+                      className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-[#2E5E58] bg-white shadow-2xs"
                       required
                     >
                       {activeMenuCategories.map((category) => (
@@ -1627,22 +1785,25 @@ const Menu = () => {
                         const selectedCategory = menuCategories.find((category) => category.code === editFormData.category_code);
                         openCategoryModal(selectedCategory?.product_kind_code || 'drink');
                       }}
-                      className="shrink-0 inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50"
+                      className="shrink-0 inline-flex items-center gap-1 rounded-xl border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 shadow-2xs transition-colors cursor-pointer"
                     >
-                      <Plus size={14} /> New Menu Category
+                      <Plus size={14} /> New
                     </button>
                   </div>
-                  <p className="mt-1 text-[11px] text-gray-500">
-                    Choose the customer-facing category, such as Coffee, Matcha, Chocolate, Pastries, or Merchandise. Its menu type controls whether it is a drink, food, or retail item.
-                  </p>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Status</label>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <label className="text-xs font-bold text-gray-700">Status</label>
+                    <InfoTooltip
+                      content="Active items are live in customer menus. Archived items are hidden while keeping all sales and order history."
+                      title="Status"
+                    />
+                  </div>
                   <select
                     value={editFormData.is_active ? 'active' : 'inactive'}
                     onChange={(event) => setEditFormData({ ...editFormData, is_active: event.target.value === 'active' })}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34]"
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-[#2E5E58] bg-white shadow-2xs"
                   >
                     <option value="active">Active</option>
                     <option value="inactive">Archived</option>
@@ -1650,49 +1811,66 @@ const Menu = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">RM Price</label>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <label className="text-xs font-bold text-gray-700">RM Price (MYR)</label>
+                  </div>
                   <input
                     type="number"
                     step="0.01"
                     min="0"
                     value={editFormData.base_price_rm}
                     onChange={(event) => setEditFormData({ ...editFormData, base_price_rm: event.target.value })}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34]"
+                    className="w-full border border-gray-200 rounded-xl px-3.5 py-2 text-sm outline-none focus:border-[#2E5E58] bg-white shadow-2xs"
+                    placeholder="0.00"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Token Price</label>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <label className="text-xs font-bold text-gray-700">Token Price</label>
+                    <InfoTooltip
+                      content="Amount in loyalty tokens required to redeem this item in the customer mobile app."
+                      title="Token Redemption"
+                    />
+                  </div>
                   <input
                     type="number"
                     min="0"
                     step="1"
                     value={editFormData.base_price_token}
                     onChange={(event) => setEditFormData({ ...editFormData, base_price_token: event.target.value })}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34]"
-                    placeholder="Token price"
+                    className="w-full border border-gray-200 rounded-xl px-3.5 py-2 text-sm outline-none focus:border-[#2E5E58] bg-white shadow-2xs"
+                    placeholder="e.g. 150"
                     required
                   />
                 </div>
 
-                <div className="md:col-span-2 space-y-3">
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Product Photo</label>
+                <div className="md:col-span-2 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <label className="text-xs font-bold text-gray-700">Product Photo</label>
+                      <InfoTooltip
+                        content="Square 1:1 image. Recommended 1200 × 1200 px. PNG, JPEG, or WebP up to 10 MB. Centered and cropped for mobile display."
+                        title="Product Photo Spec"
+                      />
+                    </div>
+                    <span className="text-[11px] font-semibold text-gray-400">1:1 Square · Up to 10 MB</span>
+                  </div>
+
                   <div className="rounded-2xl border border-dashed border-[#BFD3CE] bg-[#F8FBFA] p-4">
-                    <div className="flex flex-col gap-4 md:flex-row md:items-start">
-                      <div className="w-full md:w-44 shrink-0">
-                        <div className="aspect-square rounded-xl border border-[#D7E4E0] bg-white overflow-hidden flex items-center justify-center shadow-sm">
-                          <img
-                            src={selectedImagePreview || resolveMenuImageUrl(editFormData.image_url)}
-                            alt={editFormData.name || 'Menu item preview'}
-                            className="h-full w-full object-cover"
-                          />
-                        </div>
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                      <div className="w-24 h-24 shrink-0 rounded-xl border border-[#D7E4E0] bg-white overflow-hidden flex items-center justify-center shadow-2xs">
+                        <img
+                          src={selectedImagePreview || resolveMenuImageUrl(editFormData.image_url)}
+                          alt={editFormData.name || 'Menu item preview'}
+                          className="h-full w-full object-cover"
+                        />
                       </div>
-                      <div className="flex-1 pt-1">
-                        <div>
-                          <label className="inline-flex cursor-pointer items-center rounded-lg bg-[#1F3A34] px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#2E5E58]">
-                            {selectedImageFile || editFormData.image_url ? 'Replace image' : 'Choose image'}
+                      <div className="flex-1 space-y-2">
+                        <div className="flex items-center gap-3">
+                          <label className="inline-flex cursor-pointer items-center rounded-xl bg-[#1F3A34] px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-[#2E5E58] shadow-xs">
+                            {selectedImageFile || editFormData.image_url ? 'Replace Image' : 'Choose Image'}
                             <input
                               type="file"
                               accept="image/png,image/jpeg,image/webp"
@@ -1700,105 +1878,96 @@ const Menu = () => {
                               className="sr-only"
                             />
                           </label>
-                          <p className="mt-3 text-xs font-semibold text-gray-700">
-                            Recommended: 1200 × 1200 px (square)
-                          </p>
-                          <p className="mt-1 text-xs leading-relaxed text-gray-500">
-                            PNG, JPEG, or WebP, up to 8 MB. The image is cropped to a square and optimized so the mobile menu displays it consistently.
-                          </p>
+                          {(selectedImageFile || editFormData.image_url) && (
+                            <button
+                              type="button"
+                              onClick={clearSelectedImage}
+                              className="text-xs font-bold text-red-600 hover:text-red-700 transition-colors cursor-pointer"
+                            >
+                              Remove Image
+                            </button>
+                          )}
                         </div>
-                        {(selectedImageFile || editFormData.image_url) && (
-                          <button
-                            type="button"
-                            onClick={clearSelectedImage}
-                            className="text-xs font-bold text-red-600 hover:text-red-700"
-                          >
-                            Remove image
-                          </button>
-                        )}
+                        <p className="text-[11px] text-gray-500">
+                          Automatically formatted and optimized for crisp mobile display.
+                        </p>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="md:col-span-2 pt-4 border-t border-gray-100">
-                  <div className="flex items-center justify-between gap-3 mb-3">
-                    <div>
-                      <label className="block text-xs font-bold text-gray-900">Item Options</label>
-                      <p className="text-[11px] text-gray-500 mt-1">
-                        Set the options that apply to this item type.
-                      </p>
-                    </div>
+                <div className="md:col-span-2 pt-3 border-t border-gray-100">
+                  <div className="flex items-center gap-1.5 mb-3">
+                    <span className="text-xs font-bold text-gray-900 uppercase tracking-wider">Item Preparation & Rewards</span>
+                    <InfoTooltip
+                      content="Controls whether this product participates in loyalty stamp rewards and sends preparation tickets to the barista."
+                      title="Item Rules"
+                    />
                   </div>
 
                   {showDrinkControls ? (
-                    <>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <label className="flex items-start gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
-                          <input
-                            type="checkbox"
-                            checked={editFormData.is_handcrafted_drink}
-                            onChange={(event) => setEditFormData({ ...editFormData, is_handcrafted_drink: event.target.checked })}
-                            className="mt-1 w-4 h-4 text-[#1F3A34] rounded border-gray-300 accent-[#1F3A34]"
-                            id="isHandcraftedDrink"
-                          />
-                          <span>
-                            <span className="block text-sm font-semibold text-gray-900">Made-to-order drink</span>
-                            <span className="block text-[11px] text-gray-500 mt-0.5">Use for drinks prepared fresh for each order.</span>
-                          </span>
-                        </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <label className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50/70 px-3.5 py-3 hover:bg-gray-50 transition-colors cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={editFormData.is_handcrafted_drink}
+                          onChange={(event) => setEditFormData({ ...editFormData, is_handcrafted_drink: event.target.checked })}
+                          className="w-4 h-4 text-[#1F3A34] rounded border-gray-300 accent-[#1F3A34]"
+                          id="isHandcraftedDrink"
+                        />
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="text-xs font-bold text-gray-800 truncate">Made-to-order drink</span>
+                          <InfoTooltip content="Queued in the Barista Console for handcrafted preparation." title="Made-to-order" />
+                        </div>
+                      </label>
 
-                        <label className="flex items-start gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
-                          <input
-                            type="checkbox"
-                            checked={editFormData.is_qualifying_cup}
-                            onChange={(event) => setEditFormData({ ...editFormData, is_qualifying_cup: event.target.checked })}
-                            className="mt-1 w-4 h-4 text-[#1F3A34] rounded border-gray-300 accent-[#1F3A34]"
-                            id="isQualifyingCup"
-                          />
-                          <span>
-                            <span className="block text-sm font-semibold text-gray-900">Counts for loyalty cups</span>
-                            <span className="block text-[11px] text-gray-500 mt-0.5">Use this when the item should count toward cup rewards.</span>
-                          </span>
-                        </label>
-                      </div>
+                      <label className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50/70 px-3.5 py-3 hover:bg-gray-50 transition-colors cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={editFormData.is_qualifying_cup}
+                          onChange={(event) => setEditFormData({ ...editFormData, is_qualifying_cup: event.target.checked })}
+                          className="w-4 h-4 text-[#1F3A34] rounded border-gray-300 accent-[#1F3A34]"
+                          id="isQualifyingCup"
+                        />
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="text-xs font-bold text-gray-800 truncate">Counts for loyalty cups</span>
+                          <InfoTooltip content="Earns a loyalty cup stamp toward free drink rewards." title="Loyalty Stamp" />
+                        </div>
+                      </label>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
-                        <label className="flex items-start gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
-                          <input
-                            type="checkbox"
-                            checked={Boolean(editFormData.allow_remarks)}
-                            onChange={(event) => setEditFormData({ ...editFormData, allow_remarks: event.target.checked })}
-                            className="mt-1 w-4 h-4 text-[#1F3A34] rounded border-gray-300 accent-[#1F3A34]"
-                          />
-                          <span>
-                            <span className="block text-sm font-semibold text-gray-900">Customer remarks</span>
-                            <span className="block text-[11px] text-gray-500 mt-0.5">Let customers add a note to this drink.</span>
-                          </span>
-                        </label>
-                      </div>
-
-                    </>
+                      <label className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50/70 px-3.5 py-3 hover:bg-gray-50 transition-colors cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(editFormData.allow_remarks)}
+                          onChange={(event) => setEditFormData({ ...editFormData, allow_remarks: event.target.checked })}
+                          className="w-4 h-4 text-[#1F3A34] rounded border-gray-300 accent-[#1F3A34]"
+                        />
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="text-xs font-bold text-gray-800 truncate">Customer remarks</span>
+                          <InfoTooltip content="Allows customers to add order notes (e.g. less ice, extra shot) during checkout." title="Customer Remarks" />
+                        </div>
+                      </label>
+                    </div>
                   ) : (
-                    <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-4 text-sm text-gray-700">
-                      This item type does not need drink options. Keep the category, family, price, image, and status only.
+                    <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-600">
+                      Non-drink items do not require barista preparation options.
                     </div>
                   )}
                 </div>
               </div>
 
-              <div className="pt-4 flex justify-end gap-3 mt-6">
+              <div className="pt-4 flex justify-end gap-3 border-t border-gray-100">
                 <button
                   type="button"
                   onClick={closeEditModal}
-                  className="px-4 py-2 text-sm font-bold text-gray-600 hover:bg-gray-50 rounded-lg border border-gray-200"
+                  className="px-5 py-2.5 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 shadow-2xs transition-all cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-4 py-2 text-sm font-bold text-white bg-[#1F3A34] hover:bg-[#2E5E58] rounded-lg disabled:opacity-60"
+                  className="px-6 py-2.5 bg-[#1E433A] text-white rounded-xl text-xs font-bold hover:bg-[#16342D] shadow-xs transition-all cursor-pointer disabled:opacity-60"
                 >
                   {isSubmitting ? 'Saving...' : editMode === 'create' ? 'Create Menu Item' : 'Save Changes'}
                 </button>
@@ -1896,33 +2065,35 @@ const Menu = () => {
                   </label>
                 </div>
 
-                <div className="pt-4 flex justify-between gap-3">
+                <div className="pt-4 flex justify-between gap-3 border-t border-gray-100">
                   <div>
                     {subcategoryForm.id && (
                       <button
                         type="button"
                         onClick={handleDeleteSubcategory}
                         disabled={isSubmitting}
-                        className="px-4 py-2 text-sm font-bold text-red-600 hover:bg-red-50 rounded-lg border border-red-200 disabled:opacity-60"
+                        className="px-4 py-2.5 text-xs font-bold text-red-600 hover:bg-red-50 rounded-xl border border-red-200 shadow-2xs transition-all disabled:opacity-60 cursor-pointer"
                       >
-                        {isSubmitting ? 'Deleting...' : 'Delete Family'}
+                        {isSubmitting ? 'Deleting...' : 'Delete Subcategory'}
                       </button>
                     )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setIsSubcategoryModalOpen(false)}
-                    className="px-4 py-2 text-sm font-bold text-gray-600 hover:bg-gray-50 rounded-lg border border-gray-200"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="px-4 py-2 text-sm font-bold text-white bg-[#1F3A34] hover:bg-[#2E5E58] rounded-lg disabled:opacity-60"
-                  >
-                    {isSubmitting ? 'Saving...' : subcategoryForm.id ? 'Save Subcategory' : 'Create Subcategory'}
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsSubcategoryModalOpen(false)}
+                      className="px-5 py-2.5 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 shadow-2xs transition-all cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="px-6 py-2.5 bg-[#1E433A] text-white rounded-xl text-xs font-bold hover:bg-[#16342D] shadow-xs transition-all cursor-pointer disabled:opacity-60"
+                    >
+                      {isSubmitting ? 'Saving...' : subcategoryForm.id ? 'Save Subcategory' : 'Create Subcategory'}
+                    </button>
+                  </div>
                 </div>
               </form>
             </div>
@@ -2006,19 +2177,22 @@ const Menu = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Sidebar order</label>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <label className="text-xs font-bold text-gray-700">Sidebar Order</label>
+                    <InfoTooltip
+                      content="Lower numbers appear first in the customer menu category sidebar. Recommended gap spacing: 10, 20, 30."
+                      title="Ordering"
+                    />
+                  </div>
                   <input
                     type="number"
                     min="0"
                     step="10"
                     value={categoryForm.sort_order}
                     onChange={(event) => setCategoryForm({ ...categoryForm, sort_order: event.target.value })}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34]"
+                    className="w-full border border-gray-200 rounded-xl px-3.5 py-2 text-sm outline-none focus:border-[#2E5E58] bg-white shadow-2xs"
                     required
                   />
-                  <p className="mt-1 text-[11px] text-gray-500">
-                    Lower numbers appear first in the customer menu sidebar. Use gaps such as 10, 20, and 30.
-                  </p>
                 </div>
 
                 <div className="flex items-center gap-2 pt-2">
@@ -2029,38 +2203,40 @@ const Menu = () => {
                     onChange={(event) => setCategoryForm({ ...categoryForm, is_active: event.target.checked })}
                     className="w-4 h-4 text-[#1F3A34] rounded border-gray-300 accent-[#1F3A34]"
                   />
-                  <label htmlFor="category-active" className="text-sm font-medium text-gray-700">
+                  <label htmlFor="category-active" className="text-sm font-semibold text-gray-700 cursor-pointer">
                     Active
                   </label>
                 </div>
 
-                <div className="pt-4 flex justify-between gap-3">
+                <div className="pt-4 flex justify-between gap-3 border-t border-gray-100">
                   <div>
                     {categoryForm.id && (
                       <button
                         type="button"
                         onClick={handleDeleteCategory}
                         disabled={isSubmitting}
-                        className="px-4 py-2 text-sm font-bold text-red-600 hover:bg-red-50 rounded-lg border border-red-200 disabled:opacity-60"
+                        className="px-4 py-2.5 text-xs font-bold text-red-600 hover:bg-red-50 rounded-xl border border-red-200 shadow-2xs transition-all disabled:opacity-60 cursor-pointer"
                       >
                         {isSubmitting ? 'Deleting...' : 'Delete Category'}
                       </button>
                     )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setIsCategoryModalOpen(false)}
-                    className="px-4 py-2 text-sm font-bold text-gray-600 hover:bg-gray-50 rounded-lg border border-gray-200"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="px-4 py-2 text-sm font-bold text-white bg-[#1F3A34] hover:bg-[#2E5E58] rounded-lg disabled:opacity-60"
-                  >
-                  {isSubmitting ? 'Saving...' : categoryForm.id ? 'Save Category' : 'Create Category'}
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsCategoryModalOpen(false)}
+                      className="px-5 py-2.5 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 shadow-2xs transition-all cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="px-6 py-2.5 bg-[#1E433A] text-white rounded-xl text-xs font-bold hover:bg-[#16342D] shadow-xs transition-all cursor-pointer disabled:opacity-60"
+                    >
+                      {isSubmitting ? 'Saving...' : categoryForm.id ? 'Save Category' : 'Create Category'}
+                    </button>
+                  </div>
                 </div>
               </form>
             </div>

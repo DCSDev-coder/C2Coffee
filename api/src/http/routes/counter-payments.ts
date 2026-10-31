@@ -467,11 +467,12 @@ export async function registerCounterPaymentRoutes(app: FastifyInstance): Promis
         for (const modifier of item.modifiers) {
           await connection.execute(
             `INSERT INTO order_item_modifiers
-               (order_item_id, modifier_group_name_snapshot, modifier_option_name_snapshot,
+               (order_item_id, option_group_option_id, modifier_group_name_snapshot, modifier_option_name_snapshot,
                 price_delta_rm_snapshot, token_price_delta_snapshot, calorie_delta_kcal_snapshot)
-             VALUES (:itemId, :groupName, :optionName, :price, 0, :calories)`,
+             VALUES (:itemId, :optionGroupOptionId, :groupName, :optionName, :price, 0, :calories)`,
             {
               itemId: itemResult.insertId,
+              optionGroupOptionId: modifier.option_group_option_id ?? null,
               groupName: modifier.group_name,
               optionName: modifier.option_name,
               price: normalizeMoney(modifier.price_delta_rm).toFixed(2),

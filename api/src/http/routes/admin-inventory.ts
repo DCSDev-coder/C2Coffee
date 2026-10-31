@@ -10,6 +10,7 @@ const unitCodes = ['piece', 'gram', 'millilitre'] as const;
 const itemSchema = z.object({
   name: z.string().trim().min(1).max(255),
   code: z.string().trim().min(1).max(80).optional(),
+  barcode: z.string().trim().max(120).optional().or(z.literal('')),
   category: z.string().trim().min(1).max(80).default('ingredient'),
   unit_code: z.enum(unitCodes),
   is_active: z.coerce.boolean().default(true)
@@ -17,6 +18,7 @@ const itemSchema = z.object({
 const itemPatchSchema = z.object({
   name: z.string().trim().min(1).max(255).optional(),
   code: z.string().trim().min(1).max(80).optional(),
+  barcode: z.string().trim().max(120).optional().or(z.literal('')),
   category: z.string().trim().min(1).max(80).optional(),
   unit_code: z.enum(unitCodes).optional(),
   is_active: z.coerce.boolean().optional()
@@ -25,6 +27,7 @@ const stockQuerySchema = z.object({ store_id: z.coerce.number().int().positive()
 const movementSchema = z.object({
   store_id: z.coerce.number().int().positive(),
   inventory_item_id: z.coerce.number().int().positive(),
+  supplier_id: z.coerce.number().int().positive().optional().nullable(),
   movement_type: z.enum(['purchase', 'waste', 'adjustment']),
   quantity: z.coerce.number().positive().max(10_000_000),
   adjustment_direction: z.enum(['increase', 'decrease']).optional(),
@@ -44,6 +47,10 @@ const monthQuerySchema = stockQuerySchema.extend({
 
 function requireInventoryAccess(request: FastifyRequest): void {
   requireAnyAdminRole(request, ['super_admin', 'operations_admin']);
+}
+
+function canViewInventoryCosts(request: FastifyRequest): boolean {
+  return request.adminAuth.roles.includes('super_admin');
 }
 
 function normalizeCode(value: string): string {
@@ -123,11 +130,12 @@ export async function registerAdminInventoryRoutes(app: FastifyInstance): Promis
     try {
       await assertStore(connection, request.adminAuth.tenantId, storeId);
       const [rows] = await connection.query<RowDataPacket[]>(
-        `SELECT ii.id, ii.code, ii.name, ii.category, ii.unit_code, ii.is_active,
+        `SELECT ii.id, ii.code, ii.barcode, ii.name, ii.category, ii.unit_code, ii.is_active,
                 CAST(COALESCE(ss.on_hand_quantity, 0) AS CHAR) AS on_hand_quantity,
                 CAST(COALESCE(ss.reserved_quantity, 0) AS CHAR) AS reserved_quantity,
                 CAST(COALESCE(ss.on_hand_quantity, 0) - COALESCE(ss.reserved_quantity, 0) AS CHAR) AS available_quantity,
                 CAST(COALESCE(ss.reorder_level, 0) AS CHAR) AS reorder_level,
+                CAST(COALESCE(ss.ideal_stock_level, 0) AS CHAR) AS ideal_stock_level,
                 CAST(COALESCE(ss.average_unit_cost_rm, 0) AS CHAR) AS average_unit_cost_rm,
                 COALESCE(recipe_usage.menu_item_count, 0) AS linked_menu_item_count
            FROM inventory_items ii
@@ -142,7 +150,15 @@ export async function registerAdminInventoryRoutes(app: FastifyInstance): Promis
           ORDER BY ii.is_active DESC, ii.category, ii.name`,
         { tenantId: request.adminAuth.tenantId, storeId }
       );
-      return { store_id: storeId, items: rows };
+      const showCosts = canViewInventoryCosts(request);
+      return {
+        store_id: storeId,
+        can_view_costs: showCosts,
+        items: rows.map((row) => ({
+          ...row,
+          average_unit_cost_rm: showCosts ? row.average_unit_cost_rm : null
+        }))
+      };
     } finally {
       connection.release();
     }
@@ -157,11 +173,12 @@ export async function registerAdminInventoryRoutes(app: FastifyInstance): Promis
     try {
       await connection.beginTransaction();
       const [result] = await connection.execute<ResultSetHeader>(
-        `INSERT INTO inventory_items (tenant_id, code, name, category, unit_code, is_active)
-         VALUES (:tenantId, :code, :name, :category, :unitCode, :isActive)`,
+        `INSERT INTO inventory_items (tenant_id, code, barcode, name, category, unit_code, is_active)
+         VALUES (:tenantId, :code, :barcode, :name, :category, :unitCode, :isActive)`,
         {
           tenantId: request.adminAuth.tenantId,
           code,
+          barcode: payload.barcode || null,
           name: payload.name,
           category: payload.category,
           unitCode: payload.unit_code,
@@ -174,7 +191,7 @@ export async function registerAdminInventoryRoutes(app: FastifyInstance): Promis
     } catch (error) {
       await connection.rollback();
       if ((error as { code?: string }).code === 'ER_DUP_ENTRY') {
-        throw new ApiError(409, 'inventory_item_exists', 'An inventory item with this code already exists.');
+        throw new ApiError(409, 'inventory_item_exists', 'An inventory item with this code or barcode already exists.');
       }
       throw error;
     } finally {
@@ -188,9 +205,10 @@ export async function registerAdminInventoryRoutes(app: FastifyInstance): Promis
     const payload = itemPatchSchema.parse(request.body);
     if (Object.keys(payload).length === 0) return { updated: false };
     const updates: string[] = [];
-    const values: Record<string, string | number> = { itemId, tenantId: request.adminAuth.tenantId };
+    const values: Record<string, string | number | null> = { itemId, tenantId: request.adminAuth.tenantId };
     if (payload.name !== undefined) { updates.push('name = :name'); values.name = payload.name; }
     if (payload.code !== undefined) { updates.push('code = :code'); values.code = normalizeCode(payload.code); }
+    if (payload.barcode !== undefined) { updates.push('barcode = :barcode'); values.barcode = payload.barcode || null; }
     if (payload.category !== undefined) { updates.push('category = :category'); values.category = payload.category; }
     if (payload.unit_code !== undefined) { updates.push('unit_code = :unitCode'); values.unitCode = payload.unit_code; }
     if (payload.is_active !== undefined) { updates.push('is_active = :isActive'); values.isActive = payload.is_active ? 1 : 0; }
@@ -202,6 +220,8 @@ export async function registerAdminInventoryRoutes(app: FastifyInstance): Promis
           `SELECT
              (SELECT COUNT(*) FROM inventory_menu_item_recipes
                WHERE tenant_id = :tenantId AND inventory_item_id = :itemId) AS linked_recipe_count,
+             (SELECT COUNT(*) FROM inventory_option_recipes
+               WHERE tenant_id = :tenantId AND inventory_item_id = :itemId) AS linked_option_recipe_count,
              (SELECT COALESCE(SUM(reserved_quantity), 0) FROM inventory_store_stocks
                WHERE tenant_id = :tenantId AND inventory_item_id = :itemId) AS reserved_quantity`,
           { tenantId: request.adminAuth.tenantId, itemId }
@@ -209,7 +229,7 @@ export async function registerAdminInventoryRoutes(app: FastifyInstance): Promis
         if (Number(usage[0]?.reserved_quantity || 0) > 0) {
           throw new ApiError(409, 'inventory_item_reserved', 'This item cannot be archived while stock is reserved for active orders.');
         }
-        if (Number(usage[0]?.linked_recipe_count || 0) > 0) {
+        if (Number(usage[0]?.linked_recipe_count || 0) > 0 || Number(usage[0]?.linked_option_recipe_count || 0) > 0) {
           throw new ApiError(409, 'inventory_item_linked', 'Remove this item from all menu recipes before archiving it.');
         }
       }
@@ -247,10 +267,19 @@ export async function registerAdminInventoryRoutes(app: FastifyInstance): Promis
            (SELECT COUNT(*) FROM inventory_menu_item_recipes WHERE tenant_id = :tenantId AND inventory_item_id = :itemId) AS recipe_count,
            (SELECT COUNT(*) FROM inventory_movements WHERE tenant_id = :tenantId AND inventory_item_id = :itemId) AS movement_count,
            (SELECT COUNT(*) FROM inventory_store_stocks WHERE tenant_id = :tenantId AND inventory_item_id = :itemId) AS stock_count,
-           (SELECT COUNT(*) FROM inventory_order_allocations WHERE tenant_id = :tenantId AND inventory_item_id = :itemId) AS allocation_count`,
+           (SELECT COUNT(*) FROM inventory_order_allocations WHERE tenant_id = :tenantId AND inventory_item_id = :itemId) AS allocation_count,
+           (SELECT COUNT(*) FROM inventory_option_recipes WHERE tenant_id = :tenantId AND inventory_item_id = :itemId) AS option_recipe_count,
+           (SELECT COUNT(*) FROM inventory_supplier_items WHERE tenant_id = :tenantId AND inventory_item_id = :itemId) AS supplier_item_count,
+           (SELECT COUNT(*) FROM inventory_purchase_order_lines WHERE inventory_item_id = :itemId) AS purchase_order_count,
+           (SELECT COUNT(*) FROM inventory_stock_transfer_lines WHERE inventory_item_id = :itemId) AS transfer_count,
+           (SELECT COUNT(*) FROM inventory_stocktake_lines WHERE inventory_item_id = :itemId) AS stocktake_count,
+           (SELECT COUNT(*) FROM inventory_wastage_records WHERE tenant_id = :tenantId AND inventory_item_id = :itemId) AS wastage_count,
+           (SELECT COUNT(*) FROM inventory_supplier_returns WHERE tenant_id = :tenantId AND inventory_item_id = :itemId) AS supplier_return_count`,
         { tenantId: request.adminAuth.tenantId, itemId }
       );
-      const relatedCount = ['recipe_count', 'movement_count', 'stock_count', 'allocation_count']
+      const relatedCount = ['recipe_count', 'movement_count', 'stock_count', 'allocation_count',
+        'option_recipe_count', 'supplier_item_count', 'purchase_order_count', 'transfer_count',
+        'stocktake_count', 'wastage_count', 'supplier_return_count']
         .reduce((sum, key) => sum + Number(usage[0]?.[key] || 0), 0);
       if (relatedCount > 0) {
         throw new ApiError(409, 'inventory_item_has_history', 'This item has related stock or recipe data and must be archived instead of deleted.');
@@ -273,6 +302,12 @@ export async function registerAdminInventoryRoutes(app: FastifyInstance): Promis
   app.post('/v1/admin/inventory/movements', { preHandler: authenticateAdminRequest }, async (request, reply) => {
     requireInventoryAccess(request);
     const payload = movementSchema.parse(request.body);
+    if (payload.movement_type === 'purchase' && !canViewInventoryCosts(request)) {
+      throw new ApiError(403, 'inventory_direct_receipt_forbidden', 'Use an approved purchase order to receive supplier stock.');
+    }
+    if (payload.movement_type === 'purchase' && !payload.supplier_id) {
+      throw new ApiError(400, 'inventory_supplier_required', 'Select the supplier that delivered this stock.');
+    }
     const connection = await mysqlPool.getConnection();
     try {
       await connection.beginTransaction();
@@ -283,6 +318,22 @@ export async function registerAdminInventoryRoutes(app: FastifyInstance): Promis
         { itemId: payload.inventory_item_id, tenantId: request.adminAuth.tenantId }
       );
       if (!items[0]) throw new ApiError(404, 'inventory_item_not_found', 'Inventory item not found.');
+      if (payload.movement_type === 'purchase') {
+        const [supplierItems] = await connection.query<RowDataPacket[]>(
+          `SELECT si.id
+             FROM inventory_supplier_items si
+             JOIN inventory_suppliers s ON s.id = si.supplier_id
+            WHERE si.tenant_id = :tenantId
+              AND si.supplier_id = :supplierId
+              AND si.inventory_item_id = :itemId
+              AND s.is_active = 1
+            LIMIT 1`,
+          { tenantId: request.adminAuth.tenantId, supplierId: payload.supplier_id, itemId: payload.inventory_item_id }
+        );
+        if (!supplierItems[0]) {
+          throw new ApiError(400, 'inventory_supplier_item_missing', 'Link this inventory item to the selected supplier before recording a receipt.');
+        }
+      }
       await connection.execute(
         `INSERT INTO inventory_store_stocks
            (tenant_id, store_id, inventory_item_id, on_hand_quantity, reserved_quantity)
@@ -304,6 +355,9 @@ export async function registerAdminInventoryRoutes(app: FastifyInstance): Promis
         (payload.movement_type === 'adjustment' && payload.adjustment_direction !== 'decrease') ? 1 : -1;
       const change = Math.round(sign * payload.quantity * 1000) / 1000;
       const balanceAfter = Math.round((oldOnHand + change) * 1000) / 1000;
+      if (balanceAfter < 0) {
+        throw new ApiError(409, 'inventory_negative_stock_blocked', 'This change would make the stock balance negative.');
+      }
       if (balanceAfter < Number(stock.reserved_quantity)) {
         throw new ApiError(409, 'inventory_adjustment_below_reserved', 'This change would reduce stock below the quantity reserved for active orders.');
       }
@@ -322,15 +376,16 @@ export async function registerAdminInventoryRoutes(app: FastifyInstance): Promis
       );
       const [movement] = await connection.execute<ResultSetHeader>(
         `INSERT INTO inventory_movements
-           (tenant_id, store_id, inventory_item_id, movement_type, quantity_change,
+           (tenant_id, store_id, inventory_item_id, supplier_id, movement_type, quantity_change,
             unit_cost_rm, total_cost_rm, balance_after, note, created_by_admin_user_id, created_at)
          VALUES
-           (:tenantId, :storeId, :itemId, :movementType, :quantityChange,
+           (:tenantId, :storeId, :itemId, :supplierId, :movementType, :quantityChange,
             :unitCost, :totalCost, :balanceAfter, :note, :adminUserId, UTC_TIMESTAMP())`,
         {
           tenantId: request.adminAuth.tenantId,
           storeId: payload.store_id,
           itemId: payload.inventory_item_id,
+          supplierId: payload.supplier_id ?? null,
           movementType: payload.movement_type,
           quantityChange: change,
           unitCost,
@@ -442,12 +497,12 @@ export async function registerAdminInventoryRoutes(app: FastifyInstance): Promis
              ON ss.inventory_item_id = ii.id AND ss.store_id = :storeId
            LEFT JOIN (
              SELECT inventory_item_id,
-                    SUM(CASE WHEN movement_type = 'purchase' THEN quantity_change ELSE 0 END) AS purchased,
+                    SUM(CASE WHEN movement_type IN ('purchase', 'purchase_receive', 'transfer_in') THEN quantity_change ELSE 0 END) AS purchased,
                     SUM(CASE WHEN movement_type = 'consumption' THEN -quantity_change ELSE 0 END) AS consumed,
                     SUM(CASE WHEN movement_type = 'waste' THEN -quantity_change ELSE 0 END) AS wasted,
-                    SUM(CASE WHEN movement_type = 'adjustment' THEN quantity_change ELSE 0 END) AS adjusted,
+                    SUM(CASE WHEN movement_type IN ('adjustment', 'stocktake_adjustment', 'transfer_out', 'supplier_return') THEN quantity_change ELSE 0 END) AS adjusted,
                     SUM(CASE WHEN movement_type = 'refund_reversal' THEN quantity_change ELSE 0 END) AS refund_reversed,
-                    SUM(CASE WHEN movement_type = 'purchase' THEN COALESCE(total_cost_rm, 0) ELSE 0 END) AS purchase_cost_rm
+                    SUM(CASE WHEN movement_type IN ('purchase', 'purchase_receive') THEN COALESCE(total_cost_rm, 0) ELSE 0 END) AS purchase_cost_rm
                FROM inventory_movements
               WHERE tenant_id = :tenantId AND store_id = :storeId
                 AND created_at >= :startAt AND created_at < :endAt
@@ -494,7 +549,17 @@ export async function registerAdminInventoryRoutes(app: FastifyInstance): Promis
           endAt: end
         }
       );
-      return { month: query.month, store_id: query.store_id, generated_at: new Date().toISOString(), items: rows };
+      const showCosts = canViewInventoryCosts(request);
+      return {
+        month: query.month,
+        store_id: query.store_id,
+        can_view_costs: showCosts,
+        generated_at: new Date().toISOString(),
+        items: rows.map((row) => ({
+          ...row,
+          purchase_cost_rm: showCosts ? row.purchase_cost_rm : null
+        }))
+      };
     } finally {
       connection.release();
     }

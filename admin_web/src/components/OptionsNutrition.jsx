@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { GripVertical, ImagePlus, Plus, Pencil, X, Save, Sparkles, Trash2 } from 'lucide-react';
+import InfoTooltip from './InfoTooltip';
 import {
   createAdminOptionGroup,
   deleteAdminOptionGroup,
@@ -384,43 +385,52 @@ export default function OptionsNutrition() {
 
   return (
     <div className="relative px-6 lg:px-8 pb-24 pt-4 space-y-6 max-w-7xl">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Options &amp; Nutrition</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Create reusable option rules for drinks, food, merchandise, and candles. Set nutrition separately for each menu item.
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-gray-900">Options &amp; Nutrition</h1>
+            <InfoTooltip
+              content="Configure reusable option modifiers (choice of milk, sweetness, beans, temperature) and assign them to menu items. Manage transparent calorie standards across all products."
+              title="Options & Nutrition"
+            />
+          </div>
+          <p className="mt-0.5 text-xs text-gray-500">
+            Reusable product modifiers, customer choices, and nutritional calorie standards.
           </p>
         </div>
         <button
           onClick={openNewGroup}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#1F3A34] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#2E5E58] shadow-sm transition-all active:scale-[0.98]"
+          className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#1E433A] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#16342D] shadow-xs transition-all cursor-pointer shrink-0"
         >
-          <Plus size={16} /> New option group
+          <Plus size={15} /> New Option Group
         </button>
       </div>
 
       {message && (
-        <div className="flex items-center gap-2 rounded-xl border border-[#B9D9D1] bg-[#F1FBF7] px-4 py-3 text-sm text-[#1F3A34] animate-in fade-in duration-200">
-          <Sparkles size={16} className="text-[#2E5E58] shrink-0" />
+        <div className="flex items-center gap-2 rounded-xl border border-[#B9D9D1] bg-[#F1FBF7] px-4 py-3 text-xs font-medium text-[#1F3A34] animate-in fade-in duration-200 shadow-2xs">
+          <Sparkles size={15} className="text-[#2E5E58] shrink-0" />
           <span>{message}</span>
         </div>
       )}
 
       {/* Option Groups Section */}
       <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-        <div className="border-b border-gray-100 bg-gray-50/70 px-5 py-3.5 flex items-center justify-between">
-          <div>
+        <div className="border-b border-gray-100 bg-white px-5 py-3.5 flex items-center justify-between">
+          <div className="flex items-center gap-2">
             <h2 className="text-base font-bold text-gray-900">Option Groups</h2>
-            <p className="text-xs text-gray-500">Choice modifiers for beans, milk, temperature, and syrups. Their calorie values are managed per drink above.</p>
+            <InfoTooltip
+              content="Customer choice modifiers for beans, milk, temperature, and syrups. Drag to reorder display priority in the mobile app."
+              title="Option Groups"
+            />
           </div>
-          <span className="rounded-full bg-[#E8F2EF] px-2.5 py-1 text-xs font-bold text-[#1F3A34]">
+          <span className="rounded-full bg-[#E8F3F0] px-3 py-1 text-xs font-bold text-[#1E433A]">
             {groups.length} {groups.length === 1 ? 'group' : 'groups'}
           </span>
         </div>
         <div className="divide-y divide-gray-100">
           {groups.length === 0 ? (
-            <div className="p-8 text-center text-sm text-gray-500">
-              No option groups yet. Start with Temperature, Milk, or Sweetness.
+            <div className="p-8 text-center text-xs text-gray-500">
+              No option groups configured yet. Click "New Option Group" to create one.
             </div>
           ) : (
             groups.map((group) => (
@@ -436,11 +446,11 @@ export default function OptionsNutrition() {
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="cursor-grab text-gray-400" title="Drag to reorder" aria-label={`Drag ${group.name} to reorder`}>
+                      <span className="cursor-grab text-gray-400 hover:text-gray-600 transition-colors" title="Drag to reorder" aria-label={`Drag ${group.name} to reorder`}>
                         <GripVertical size={18} />
                       </span>
-                      <h2 className="font-bold text-gray-900">{group.name}</h2>
-                      <span className="rounded-full bg-[#E8F2EF] px-2 py-0.5 text-xs font-bold text-[#1F3A34]">
+                      <h3 className="font-bold text-gray-900 text-sm">{group.name}</h3>
+                      <span className="rounded-full bg-[#E8F3F0] px-2.5 py-0.5 text-[11px] font-bold text-[#1E433A]">
                         {group.applies_to === 'all_items'
                           ? 'All menu items'
                           : group.applies_to === 'all_drinks'
@@ -448,25 +458,25 @@ export default function OptionsNutrition() {
                             : `${group.menu_item_ids.length} selected items`}
                       </span>
                       {!group.is_active && (
-                        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-bold text-gray-600">
+                        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-bold text-gray-600">
                           Disabled
                         </span>
                       )}
                     </div>
-                    <p className="mt-1 text-xs text-gray-500">
-                      One customer choice per selected menu item
+                    <p className="mt-1 text-xs text-gray-400">
+                      Single-choice modifier per item
                     </p>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex items-center gap-2">
                     <button
                       onClick={() => openExistingGroup(group)}
-                      className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-bold text-gray-700 hover:bg-gray-50"
+                      className="inline-flex items-center gap-1 rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-xs font-bold text-gray-700 hover:bg-gray-50 shadow-2xs transition-colors cursor-pointer"
                     >
-                      <Pencil size={13} /> Edit
+                      <Pencil size={12} /> Edit
                     </button>
                     <button
                       onClick={() => removeGroup(group)}
-                      className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50"
+                      className="rounded-xl border border-red-200 bg-white px-3 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50 shadow-2xs transition-colors cursor-pointer"
                     >
                       Delete
                     </button>
@@ -476,21 +486,21 @@ export default function OptionsNutrition() {
                   {group.options.map((option) => (
                     <div
                       key={option.id}
-                      className="rounded-xl bg-gray-50 border border-gray-100 px-3 py-2 text-sm flex items-center justify-between"
+                      className="rounded-xl bg-gray-50/70 border border-gray-100 px-3 py-2 text-sm flex items-center justify-between"
                     >
                       <div className="flex items-center min-w-0 mr-2">
                         <span
-                          className="mr-2 inline-block h-3 w-3 rounded-full shrink-0"
+                          className="mr-2 inline-block h-3 w-3 rounded-full shrink-0 shadow-2xs"
                           style={{
                             background: option.gradient_end_hex
                               ? `linear-gradient(${gradientDirectionToDeg(option.gradient_direction)}, ${option.color_hex || '#2D655D'}, ${option.gradient_end_hex})`
                               : option.color_hex || '#2D655D'
                           }}
                         />
-                        <span className="font-semibold text-gray-900 truncate">{option.name}</span>
+                        <span className="font-semibold text-gray-900 text-xs truncate">{option.name}</span>
                       </div>
-                      <div className="flex shrink-0 flex-col items-end gap-0.5 text-xs">
-                        <span className="text-gray-500">RM {Number(option.price_delta_rm).toFixed(2)}</span>
+                      <div className="flex shrink-0 flex-col items-end gap-0.5 text-[11px]">
+                        <span className="text-gray-500 font-medium">RM {Number(option.price_delta_rm).toFixed(2)}</span>
                         <span className={`font-semibold ${tokenAdjustmentClass(option.token_price_delta)}`}>
                           {formatTokenAdjustment(option.token_price_delta)}
                         </span>
@@ -510,9 +520,15 @@ export default function OptionsNutrition() {
       <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-gray-100 pb-4">
           <div>
-            <h2 className="text-lg font-bold text-gray-900">Base calories for non-drink menu items</h2>
-            <p className="mt-0.5 text-sm text-gray-500">
-              Drink nutrition is managed above. Use this only for food, merchandise, and other non-drink menu items.
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-bold text-gray-900">Base Calories (Food &amp; Merchandise)</h2>
+              <InfoTooltip
+                content="Standard calorie values for food, pastries, and merchandise. Drink nutrition is managed dynamically above with modifier options."
+                title="Base Calories"
+              />
+            </div>
+            <p className="mt-0.5 text-xs text-gray-500">
+              Calorie counts displayed on customer product detail cards.
             </p>
           </div>
           {hasUnsavedNutrition && (
@@ -627,38 +643,56 @@ export default function OptionsNutrition() {
           <form onSubmit={handleGroupFormSubmit} className="mx-auto my-auto w-full max-w-5xl max-h-[calc(100vh-2rem)] flex flex-col rounded-3xl bg-white shadow-2xl border border-gray-100 overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="flex shrink-0 items-center justify-between border-b border-gray-100 p-4 sm:p-5 bg-white/80 backdrop-blur-xs">
               <div>
-                <h2 className="text-lg font-bold text-gray-900">
-                  {form.id ? 'Edit option group' : 'New option group'}
-                </h2>
-                <p className="text-xs text-gray-500">Changes apply to new customer orders immediately after saving.</p>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg font-bold text-gray-900">
+                    {form.id ? 'Edit Option Group' : 'New Option Group'}
+                  </h2>
+                  <InfoTooltip
+                    content="Option groups let customers personalize items at checkout (e.g. choose milk, syrup, or coffee beans). Changes apply to all new orders immediately."
+                    title="Option Group"
+                  />
+                </div>
+                <p className="text-xs text-gray-400 mt-0.5">Configure modifier choices, pricing deltas, and item bindings.</p>
               </div>
               <button
                 type="button"
                 onClick={() => setForm(null)}
-                className="rounded-xl p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                className="rounded-xl p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors cursor-pointer"
               >
                 <X size={18} />
               </button>
             </div>
             <div className="flex-1 overflow-y-auto space-y-5 p-4 sm:p-6">
               <div>
-                <label className="text-sm font-semibold text-gray-700">
-                  Group name
-                  <input
-                    required
-                    value={form.name}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    placeholder="e.g. Choice of temperature"
-                    className="mt-1 w-full rounded-xl border border-gray-300 px-3.5 py-2 font-normal text-sm outline-none focus:border-[#2E5E58]"
-                  />
-                </label>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <label className="text-xs font-bold text-gray-700">Group Name</label>
+                  <InfoTooltip content="The title shown to customers on the app customization sheet (e.g. 'Milk Choice', 'Sugar Level')." title="Group Name" />
+                </div>
+                <input
+                  required
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  placeholder="e.g. Choice of Milk"
+                  className="w-full rounded-xl border border-gray-200 px-3.5 py-2 text-sm outline-none focus:border-[#2E5E58] bg-white shadow-2xs"
+                />
               </div>
+
               <fieldset>
-                <legend className="text-sm font-semibold text-gray-700">Apply group to</legend>
-                <p className="mt-1 text-xs text-gray-500">All menu items are selected to start. Untick only the items that should not offer this choice.</p>
-                <div className="mt-2 grid max-h-44 gap-2 overflow-y-auto rounded-xl border p-3 sm:grid-cols-2">
+                <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <legend className="text-xs font-bold text-gray-700 uppercase tracking-wider">Applicable Menu Items</legend>
+                    <InfoTooltip
+                      content="Select which menu items should display this option group. Untick items that should not offer this modifier."
+                      title="Item Availability"
+                    />
+                  </div>
+                  <span className="text-[11px] font-semibold text-gray-500">
+                    {form.menu_item_ids.length} of {menuItems.length} selected
+                  </span>
+                </div>
+                <div className="grid max-h-40 gap-2 overflow-y-auto rounded-2xl border border-gray-200 p-3 sm:grid-cols-2 bg-gray-50/40">
                   {menuItems.map((item) => (
-                    <label key={item.id} className="flex items-center gap-2 text-sm">
+                    <label key={item.id} className="flex items-center gap-2 text-xs p-1 rounded-lg hover:bg-white transition-colors cursor-pointer">
                       <input
                         type="checkbox"
                         checked={form.menu_item_ids.includes(item.id)}
@@ -670,23 +704,27 @@ export default function OptionsNutrition() {
                               : form.menu_item_ids.filter((id) => id !== item.id)
                           })
                         }
+                        className="rounded border-gray-300 text-[#1E433A] accent-[#1E433A]"
                       />
-                      <span className="font-medium text-gray-800">{item.name}</span>
-                      <span className="text-xs text-gray-400">{item.category_name} · {item.product_kind_code}</span>
+                      <span className="font-semibold text-gray-800 truncate">{item.name}</span>
+                      <span className="text-[10px] text-gray-400 shrink-0">({item.category_name})</span>
                     </label>
                   ))}
                 </div>
               </fieldset>
-              <div className="rounded-xl border border-[#D7E7E2] bg-[#F6FBF9] p-3.5 text-sm text-[#31584F]">
-                <strong>How it works:</strong> customers choose one option from this group. The first choice is selected by default; select another choice below if needed. Set price and token adjustments to <strong>0</strong> when a choice does not change them.
-              </div>
+
               {form.id && (
-                <fieldset className="rounded-xl border border-[#D7E7E2] bg-[#F6FBF9] p-3.5">
-                  <legend className="px-1 text-sm font-semibold text-[#31584F]">Hide this group when</legend>
-                  <p className="mb-3 text-xs text-[#52736C]">Optional. Select choices that make this whole group unavailable. For Ice Level, select Temperature: Hot and Temperature: Hotter.</p>
-                  <div className="grid gap-2 sm:grid-cols-2">
+                <fieldset className="rounded-2xl border border-[#D7E7E2] bg-[#F6FBF9] p-4">
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <legend className="text-xs font-bold text-[#2E5E58] uppercase tracking-wider">Conditional Visibility</legend>
+                    <InfoTooltip
+                      content="Optional dependency rules. E.g., hide the 'Ice Level' group when the customer selects 'Temperature: Hot' or 'Hotter'."
+                      title="Conditional Display"
+                    />
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2 max-h-36 overflow-y-auto">
                     {groups.filter((group) => group.id !== form.id).flatMap((group) => (group.options || []).filter((option) => option.is_active).map((option) => (
-                      <label key={option.id} className="flex items-center gap-2 rounded-lg border border-[#D7E7E2] bg-white px-3 py-2 text-sm text-slate-600">
+                      <label key={option.id} className="flex items-center gap-2 rounded-xl border border-[#D7E7E2] bg-white px-3 py-2 text-xs text-slate-700 hover:bg-gray-50 transition-colors cursor-pointer shadow-2xs">
                         <input
                           type="checkbox"
                           checked={(form.hidden_when_option_ids || []).includes(option.id)}
@@ -699,149 +737,87 @@ export default function OptionsNutrition() {
                                 : current.filter((id) => id !== option.id)
                             });
                           }}
+                          className="rounded border-gray-300 text-[#1E433A] accent-[#1E433A]"
                         />
-                        {group.name}: {option.name}
+                        <span className="font-semibold">{group.name}:</span>
+                        <span>{option.name}</span>
                       </label>
                     )))}
                   </div>
                 </fieldset>
               )}
+
               <div>
                 <div className="mb-2.5 flex items-center justify-between">
-                  <div>
-                    <h3 className="font-bold text-gray-900">Customer choices</h3>
-        <p className="text-xs text-gray-500">Customers choose one option. You may select a default, or leave this group with no default so customers must choose explicitly.</p>
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Customer Choices</h3>
+                    <InfoTooltip
+                      content="Individual modifier choices (e.g. Oat Milk, Skim Milk). Extra RM or Token deltas apply when selected by the customer. A default choice will be pre-selected."
+                      title="Customer Choices"
+                    />
                   </div>
                   <button
                     type="button"
                     onClick={() => setForm({ ...form, options: [...form.options, emptyOption()] })}
-                    className="inline-flex items-center gap-1 text-sm font-bold text-[#1F3A34] hover:text-[#2E5E58]"
+                    className="inline-flex items-center gap-1 text-xs font-bold text-[#1E433A] hover:text-[#16342D] cursor-pointer"
                   >
-                    <Plus size={15} /> Add choice
+                    <Plus size={14} /> Add Choice
                   </button>
                 </div>
                 <div className="space-y-3">
                   {form.options.map((option, index) => (
-                    <div key={index} className="rounded-2xl border border-gray-200 p-4 bg-gray-50/40 space-y-3">
-                      {/* Row 1: Visual Identity */}
-                      <div
-                        className={`grid gap-3 items-end ${
-                          isBeanGroup(form.name)
-                            ? 'grid-cols-1 sm:grid-cols-2 md:grid-cols-[100px_2fr_1fr_1fr_1fr]'
-                            : 'grid-cols-1 sm:grid-cols-2 md:grid-cols-[2fr_1fr_1fr_1fr]'
-                        }`}
-                      >
-                        {isBeanGroup(form.name) && (
-                          <div>
-                            <span className="text-xs font-bold text-gray-700">Bean image</span>
-                            <label className="mt-1 flex h-10 cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-dashed border-gray-300 bg-white hover:bg-gray-50 transition-colors">
-                              {option.image_url ? (
-                                <img
-                                  src={option.image_url}
-                                  alt={`${option.name || 'Bean'} preview`}
-                                  className="h-full w-full object-cover"
-                                />
-                              ) : (
-                                <span className="inline-flex items-center gap-1 text-xs text-gray-500">
-                                  <ImagePlus size={14} />
-                                  <span>Upload</span>
-                                </span>
-                              )}
-                              <input
-                                type="file"
-                                accept="image/png,image/jpeg,image/webp"
-                                className="sr-only"
-                                onChange={(event) => uploadChoiceImage(event.target.files?.[0], index)}
-                              />
-                          </label>
-                          </div>
-                        )}
-                        <label className="text-xs font-bold text-gray-700">
-                          Choice label
+                    <div key={index} className="rounded-2xl border border-gray-200 p-4 bg-white space-y-3.5 shadow-2xs hover:border-gray-300 transition-colors">
+                      {/* Row 1: Label, Extra Price, Token Adjustment, and Delete */}
+                      <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+                        <div className="sm:col-span-5">
+                          <label className="block text-xs font-bold text-gray-700 mb-1">Choice Label</label>
                           <input
                             required
-                            placeholder="e.g. Dato Blend"
+                            placeholder="e.g. Oat Milk"
                             value={option.name}
                             onChange={(e) => updateOption(index, { name: e.target.value })}
-                            className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm font-normal bg-white outline-none focus:border-[#2E5E58]"
+                            className="w-full rounded-xl border border-gray-200 px-3.5 py-2 text-sm bg-white outline-none focus:border-[#2E5E58] shadow-2xs"
                           />
-                        </label>
-                        <label className="text-xs font-bold text-gray-700">
-                          Card color
-                          <input
-                            type="color"
-                            value={option.color_hex || '#2D655D'}
-                            onChange={(e) => updateOption(index, { color_hex: e.target.value })}
-                            className="mt-1 block h-10 w-full cursor-pointer rounded-xl border border-gray-300 p-1 bg-white"
-                          />
-                        </label>
-                        <label className="text-xs font-bold text-gray-700">
-                          Gradient end <span className="font-normal text-gray-400">(optional)</span>
-                          <input
-                            type="color"
-                            value={option.gradient_end_hex || option.color_hex || '#2D655D'}
-                            onChange={(e) => updateOption(index, { gradient_end_hex: e.target.value })}
-                            className="mt-1 block h-10 w-full cursor-pointer rounded-xl border border-gray-300 p-1 bg-white"
-                          />
-                        </label>
-                        <label className="text-xs font-bold text-gray-700">
-                          Gradient direction
-                          <select
-                            value={option.gradient_direction || 'diagonal'}
-                            onChange={(e) => updateOption(index, { gradient_direction: e.target.value })}
-                            disabled={!option.gradient_end_hex}
-                            title={!option.gradient_end_hex ? 'Set a gradient end colour first' : undefined}
-                            className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2 font-normal text-sm bg-white outline-none focus:border-[#2E5E58] disabled:opacity-40 disabled:cursor-not-allowed"
-                          >
-                            <option value="diagonal">↗ Diagonal</option>
-                            <option value="horizontal">→ Horizontal</option>
-                            <option value="vertical">↓ Vertical</option>
-                          </select>
-                        </label>
-                      </div>
+                        </div>
 
-                      {/* Row 2: Price, tokens, default, and actions */}
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 items-end pt-1 border-t border-gray-200/60">
-                        <label className="text-xs font-bold text-gray-700">
-                          Extra price (RM)
+                        <div className="sm:col-span-3">
+                          <div className="flex items-center gap-1 mb-1">
+                            <label className="text-xs font-bold text-gray-700">Extra Price (RM)</label>
+                            <InfoTooltip
+                              content="Additional cash price when selecting this choice. Set to 0 if included in base item price."
+                              title="Extra Price"
+                            />
+                          </div>
                           <input
                             type="number"
                             step="0.01"
                             value={option.price_delta_rm}
                             onChange={(e) => updateOption(index, { price_delta_rm: e.target.value })}
-                            className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm font-normal bg-white outline-none focus:border-[#2E5E58]"
+                            className="w-full rounded-xl border border-gray-200 px-3.5 py-2 text-sm bg-white outline-none focus:border-[#2E5E58] shadow-2xs"
+                            placeholder="0.00"
                           />
-                        </label>
-                        <label className="text-xs font-bold text-gray-700">
-                          Token adjustment
+                        </div>
+
+                        <div className="sm:col-span-3">
+                          <div className="flex items-center gap-1 mb-1">
+                            <label className="text-xs font-bold text-gray-700">Token Adjustment</label>
+                            <InfoTooltip
+                              content="Adjusts the required loyalty tokens for this choice. Set to 0 for no change. Use negative numbers (e.g. -10) to deduct or discount tokens."
+                              title="Token Adjustment"
+                            />
+                          </div>
                           <input
                             type="number"
                             min="-999"
                             max="999"
                             value={option.token_price_delta}
                             onChange={(e) => updateOption(index, { token_price_delta: e.target.value })}
-                            className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm font-normal bg-white outline-none focus:border-[#2E5E58]"
+                            className="w-full rounded-xl border border-gray-200 px-3.5 py-2 text-sm bg-white outline-none focus:border-[#2E5E58] shadow-2xs"
+                            placeholder="0"
                           />
-                          <span className="mt-1 block font-normal text-gray-500">Use a minus number to deduct tokens.</span>
-                        </label>
-                        <label className="flex min-h-10 items-center gap-2 rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-700">
-                          <input
-                            type="radio"
-                            name="default-customer-choice"
-                            checked={option.is_default === true}
-                            onChange={() => setOptionDefault(index)}
-                            className="h-4 w-4 rounded text-[#2E5E58] focus:ring-[#2E5E58]"
-                          />
-                          Default choice
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() => setForm({ ...form, options: form.options.map((entry) => ({ ...entry, is_default: false })) })}
-                          className="min-h-10 rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-50"
-                        >
-                          No default
-                        </button>
-                        <div className="flex items-center justify-end pb-1">
+                        </div>
+
+                        <div className="sm:col-span-1 flex justify-end">
                           <button
                             type="button"
                             disabled={form.options.length === 1}
@@ -849,37 +825,135 @@ export default function OptionsNutrition() {
                               const options = form.options.filter((_, optionIndex) => optionIndex !== index);
                               setForm({ ...form, options });
                             }}
-                            className="inline-flex items-center gap-1 text-sm font-semibold text-red-600 hover:text-red-700 disabled:opacity-30 px-3 py-2 rounded-xl hover:bg-red-50 transition-colors"
+                            title="Remove Choice"
+                            className="h-9 w-9 inline-flex items-center justify-center rounded-xl border border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-200 hover:bg-red-50 disabled:opacity-25 transition-colors cursor-pointer"
                           >
                             <Trash2 size={15} />
-                            Remove
                           </button>
                         </div>
                       </div>
-                      <details className="rounded-xl border border-gray-200 bg-white px-3 py-2.5">
-                        <summary className="cursor-pointer text-xs font-bold text-gray-700">
-                          Available for {form.menu_item_ids.filter((itemId) => !(option.excluded_menu_item_ids || []).includes(itemId)).length} of {form.menu_item_ids.length} selected items
+
+                      {/* Row 2: Visual Styling & Default Choice Selection */}
+                      <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-gray-100">
+                        <div className="flex flex-wrap items-center gap-3">
+                          {isBeanGroup(form.name) && (
+                            <div className="flex items-center gap-1.5">
+                              <div className="flex items-center gap-1">
+                                <span className="text-xs font-bold text-gray-700">Bean Image</span>
+                                <InfoTooltip content="Square PNG, JPG, or WebP. Appears illuminated when chosen in the customer app." title="Bean Image" />
+                              </div>
+                              <label className="flex h-8 w-16 cursor-pointer items-center justify-center overflow-hidden rounded-lg border border-dashed border-gray-300 bg-white hover:bg-gray-50 shadow-2xs">
+                                {option.image_url ? (
+                                  <img
+                                    src={option.image_url}
+                                    alt={`${option.name || 'Bean'} preview`}
+                                    className="h-full w-full object-cover"
+                                  />
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 text-[11px] text-gray-500">
+                                    <ImagePlus size={12} />
+                                    <span>Upload</span>
+                                  </span>
+                                )}
+                                <input
+                                  type="file"
+                                  accept="image/png,image/jpeg,image/webp"
+                                  className="sr-only"
+                                  onChange={(event) => uploadChoiceImage(event.target.files?.[0], index)}
+                                />
+                              </label>
+                            </div>
+                          )}
+
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-bold text-gray-700">Card Color:</span>
+                            <input
+                              type="color"
+                              value={option.color_hex || '#2D655D'}
+                              onChange={(e) => updateOption(index, { color_hex: e.target.value })}
+                              className="h-8 w-9 cursor-pointer rounded-lg border border-gray-200 p-0.5 bg-white shadow-2xs"
+                              title="Card Color"
+                            />
+                          </div>
+
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-bold text-gray-700">Gradient End:</span>
+                            <input
+                              type="color"
+                              value={option.gradient_end_hex || option.color_hex || '#2D655D'}
+                              onChange={(e) => updateOption(index, { gradient_end_hex: e.target.value })}
+                              className="h-8 w-9 cursor-pointer rounded-lg border border-gray-200 p-0.5 bg-white shadow-2xs"
+                              title="Gradient End (Optional)"
+                            />
+                          </div>
+
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-bold text-gray-700">Direction:</span>
+                            <select
+                              value={option.gradient_direction || 'diagonal'}
+                              onChange={(e) => updateOption(index, { gradient_direction: e.target.value })}
+                              disabled={!option.gradient_end_hex}
+                              title={!option.gradient_end_hex ? 'Set a gradient end colour first' : undefined}
+                              className="rounded-lg border border-gray-200 px-2 py-1 text-xs bg-white outline-none focus:border-[#2E5E58] shadow-2xs font-medium text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                              <option value="diagonal">↗ Diagonal</option>
+                              <option value="horizontal">→ Horizontal</option>
+                              <option value="vertical">↓ Vertical</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* Default Choice Toggle */}
+                        <div className="flex items-center gap-2">
+                          <label className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                            option.is_default
+                              ? 'bg-[#E8F3F0] border-[#2E5E58] text-[#1E433A] shadow-2xs'
+                              : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                          }`}>
+                            <input
+                              type="radio"
+                              name="default-customer-choice"
+                              checked={option.is_default === true}
+                              onChange={() => setOptionDefault(index)}
+                              className="sr-only"
+                            />
+                            <span className={`h-2 w-2 rounded-full ${option.is_default ? 'bg-[#1E433A]' : 'bg-gray-300'}`} />
+                            <span>{option.is_default ? 'Default Choice' : 'Set Default'}</span>
+                          </label>
+
+                          {option.is_default && (
+                            <button
+                              type="button"
+                              onClick={() => setForm({ ...form, options: form.options.map((entry) => ({ ...entry, is_default: false })) })}
+                              className="text-[11px] font-medium text-gray-400 hover:text-gray-600 underline cursor-pointer"
+                            >
+                              No default
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Availability Accordion */}
+                      <details className="rounded-xl border border-gray-100 bg-gray-50/60 px-3 py-2 text-xs">
+                        <summary className="cursor-pointer font-semibold text-gray-600 hover:text-gray-900 flex items-center justify-between">
+                          <span>Available for {form.menu_item_ids.filter((itemId) => !(option.excluded_menu_item_ids || []).includes(itemId)).length} of {form.menu_item_ids.length} selected items</span>
+                          <span className="text-[10px] text-gray-400 font-normal">Click to restrict items</span>
                         </summary>
-                        <p className="mt-2 text-xs text-gray-500">Untick items that should not offer this choice. The group default stays available everywhere.</p>
-                        <div className="mt-2 grid max-h-36 gap-2 overflow-y-auto sm:grid-cols-2">
+                        <div className="mt-2.5 pt-2 border-t border-gray-200/60 grid max-h-32 gap-1.5 overflow-y-auto sm:grid-cols-2">
                           {menuItems.filter((item) => form.menu_item_ids.includes(item.id)).map((item) => (
-                            <label key={item.id} className="flex items-center gap-2 text-xs text-gray-700">
+                            <label key={item.id} className="flex items-center gap-2 text-xs text-gray-700 p-1 hover:bg-white rounded transition-colors cursor-pointer">
                               <input
                                 type="checkbox"
                                 checked={!(option.excluded_menu_item_ids || []).includes(item.id)}
                                 disabled={option.is_default === true}
                                 onChange={(event) => setChoiceAvailability(index, item.id, event.target.checked)}
+                                className="rounded text-[#1E433A] accent-[#1E433A]"
                               />
-                              {item.name} <span className="text-gray-400">({item.product_kind_code})</span>
+                              <span className="truncate">{item.name}</span>
                             </label>
                           ))}
                         </div>
                       </details>
-                      {isBeanGroup(form.name) && (
-                        <p className="mt-2 text-xs text-gray-500">
-                          Upload a square PNG, JPG, or WebP image. It appears bright when selected and dimmed when unselected in the mobile app.
-                        </p>
-                      )}
                     </div>
                   ))}
                 </div>
@@ -889,15 +963,15 @@ export default function OptionsNutrition() {
               <button
                 type="button"
                 onClick={() => setForm(null)}
-                className="rounded-xl border border-gray-200 px-5 py-2.5 text-sm font-bold text-gray-700 hover:bg-gray-100 transition-colors"
+                className="rounded-xl border border-gray-200 px-5 py-2.5 text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 shadow-2xs transition-all cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 disabled={saving}
-                className="rounded-xl bg-[#1F3A34] px-6 py-2.5 text-sm font-bold text-white hover:bg-[#2E5E58] disabled:opacity-60 shadow-sm transition-all"
+                className="rounded-xl bg-[#1E433A] px-6 py-2.5 text-xs font-bold text-white hover:bg-[#16342D] disabled:opacity-60 shadow-xs transition-all cursor-pointer"
               >
-                {saving ? 'Saving...' : 'Save option group'}
+                {saving ? 'Saving...' : 'Save Option Group'}
               </button>
             </div>
           </form>

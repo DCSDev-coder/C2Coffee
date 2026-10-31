@@ -233,9 +233,10 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
               COALESCE(SUM(GREATEST(0, o.subtotal_rm + o.modifier_total_rm - o.discount_total_rm)), 0) AS total_spent_rm,
               COALESCE(SUM(o.token_amount_charged), 0) AS total_spent_tokens,
               MAX(o.created_at) AS last_order_at,
-              SUM(CASE WHEN o.status IN ('refunded', 'refund_requested') THEN 1 ELSE 0 END) AS refund_count
+              SUM(CASE WHEN o.status = 'refunded' THEN 1 ELSE 0 END) AS refund_count
             FROM orders o
             JOIN stores os_store ON os_store.id = o.store_id AND os_store.tenant_id = :tenantId
+            WHERE o.status IN ('paid', 'accepted', 'preparing', 'ready_for_pickup', 'collected', 'refunded')
             GROUP BY o.user_id
           ) os ON os.user_id = u.id
           WHERE (:includeDeleted = 1 OR u.deleted_at IS NULL)
@@ -661,8 +662,9 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
               COALESCE(SUM(GREATEST(0, o.subtotal_rm + o.modifier_total_rm - o.discount_total_rm)), 0) AS total_spent_rm,
               COALESCE(SUM(o.token_amount_charged), 0) AS total_spent_tokens,
               MAX(o.created_at) AS last_order_at,
-              SUM(CASE WHEN o.status IN ('refunded', 'refund_requested') THEN 1 ELSE 0 END) AS refund_count
+              SUM(CASE WHEN o.status = 'refunded' THEN 1 ELSE 0 END) AS refund_count
             FROM orders o
+            WHERE o.status IN ('paid', 'accepted', 'preparing', 'ready_for_pickup', 'collected', 'refunded')
             GROUP BY o.user_id
           ) os ON os.user_id = u.id
           WHERE u.id = :userId

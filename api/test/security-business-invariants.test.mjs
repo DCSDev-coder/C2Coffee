@@ -392,3 +392,58 @@ test('referral sharing exposes both mobile store links', async () => {
   assert.match(customerData, /ios_download_url/);
   assert.match(customerData, /apps\.apple\.com\/my\/app\/c2-coffee\/id6809305739/);
 });
+
+test('expanded inventory operations are tenant scoped and preserve non-negative stock', async () => {
+  const operations = await source('src/http/routes/admin-inventory-operations.ts');
+  assert.match(operations, /requireAnyAdminRole\(request, \['super_admin', 'operations_admin'\]\)/);
+  assert.match(operations, /tenant_id = :tenantId/);
+  assert.match(operations, /inventory_transfer_insufficient_stock/);
+  assert.match(operations, /inventory_stocktake_below_reserved/);
+  assert.match(operations, /inventory_wastage_insufficient_stock/);
+  assert.match(operations, /inventory_po_over_received/);
+  assert.match(operations, /inventory_po_supplier_item_missing/);
+  assert.match(operations, /inventory_receipt_rejection_reason_required/);
+  assert.match(operations, /inventory_purchase_receipts/);
+  assert.match(operations, /canViewCosts/);
+  assert.match(operations, /status IN \('submitted', 'partially_received'\)/);
+
+  const inventory = await source('src/http/routes/admin-inventory.ts');
+  assert.match(inventory, /inventory_negative_stock_blocked/);
+
+  const migration = await source('src/db/migrations/119_expand_inventory_operations.sql');
+  assert.match(migration, /inventory_purchase_orders/);
+  assert.match(migration, /inventory_stock_transfers/);
+  assert.match(migration, /inventory_stocktakes/);
+  assert.match(migration, /inventory_supplier_cost_history/);
+
+  const procurementMigration = await source('src/db/migrations/120_complete_inventory_procurement.sql');
+  assert.match(procurementMigration, /inventory_purchase_receipts/);
+  assert.match(procurementMigration, /inventory_purchase_receipt_lines/);
+  assert.match(procurementMigration, /accepted_purchase_units \+ rejected_purchase_units = delivered_purchase_units/);
+  assert.match(procurementMigration, /counted_purchase_units/);
+  assert.match(procurementMigration, /barcode/);
+});
+
+test('manual inventory receipts retain the supplying vendor', async () => {
+  const route = await source('src/http/routes/admin-inventory.ts');
+  const migration = await source('src/db/migrations/121_link_inventory_movements_to_supplier.sql');
+  assert.match(route, /inventory_supplier_required/);
+  assert.match(route, /inventory_supplier_item_missing/);
+  assert.match(route, /supplier_id/);
+  assert.match(migration, /inventory_movements/);
+  assert.match(migration, /fk_inventory_movement_supplier/);
+});
+
+test('menu option inventory uses stable verified option ids and order snapshots', async () => {
+  const checkout = await source('src/http/routes/checkout.ts');
+  assert.match(checkout, /option_group_option_id: option\.option_id/);
+  assert.match(checkout, /optionGroupOptionId: modifier\.option_group_option_id \?\? null/);
+
+  const counter = await source('src/http/routes/counter-payments.ts');
+  assert.match(counter, /optionGroupOptionId: modifier\.option_group_option_id \?\? null/);
+
+  const inventory = await source('src/services/inventory.ts');
+  assert.match(inventory, /JOIN inventory_option_recipes r/);
+  assert.match(inventory, /r\.option_group_option_id = oim\.option_group_option_id/);
+  assert.match(inventory, /GREATEST\(SUM\(requirements\.required_quantity\), 0\)/);
+});

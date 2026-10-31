@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { CalendarDays, Check, CircleAlert, ClipboardCheck, Clock3, Plus, RefreshCw, Save, Trash2, Volume2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, CalendarDays, Check, CircleAlert, ClipboardCheck, Clock3, Plus, RefreshCw, Save, Trash2, Volume2, X } from 'lucide-react';
 import {
   adminRequest,
   createAdminSideWorkBatch,
@@ -8,6 +8,39 @@ import {
   loadAdminOperationalSetup,
   saveAdminShiftSchedule
 } from '../lib/adminApi';
+import InfoTooltip from './InfoTooltip';
+
+function SortableHeader({ label, columnKey, currentKey, direction, onSort, info, className = "" }) {
+  const isSorted = currentKey === columnKey;
+  return (
+    <th className={`px-5 py-4 font-bold text-xs uppercase tracking-wide text-slate-500 whitespace-nowrap ${className}`}>
+      <div className={`flex items-center gap-1.5 ${className.includes('text-right') ? 'justify-end' : className.includes('text-center') ? 'justify-center' : ''}`}>
+        <button
+          type="button"
+          onClick={() => onSort(columnKey)}
+          className={`group inline-flex items-center gap-1.5 hover:text-[#1E433A] cursor-pointer focus:outline-none transition-colors select-none ${
+            isSorted ? "text-[#1E433A] font-bold" : ""
+          }`}
+          title={`Sort by ${label} ${isSorted && direction === "asc" ? "(Descending)" : "(Ascending)"}`}
+        >
+          <span>{label}</span>
+          <span className="inline-flex items-center">
+            {isSorted ? (
+              direction === "asc" ? (
+                <ArrowUp size={13} className="text-[#1E433A]" strokeWidth={2.5} />
+              ) : (
+                <ArrowDown size={13} className="text-[#1E433A]" strokeWidth={2.5} />
+              )
+            ) : (
+              <ArrowUpDown size={12} className="text-gray-300 group-hover:text-gray-500 transition-colors" />
+            )}
+          </span>
+        </button>
+        {info && <InfoTooltip content={info} title={label} />}
+      </div>
+    </th>
+  );
+}
 
 const initialShift = { barista_id: '', shift_date: isoDate(), starts_at: '09:00', ends_at: '17:00', repeat: false, repeat_until: isoDate(30), repeat_weekdays: [weekdayForDate(isoDate())] };
 const initialSideWork = { title: '', instructions: '', scheduled_date: isoDate(), scheduled_time: '14:00', repeat: false, repeat_until: isoDate(30), repeat_weekdays: [weekdayForDate(isoDate())] };
@@ -156,6 +189,35 @@ export default function Operations() {
   const [attendanceFrom, setAttendanceFrom] = useState(isoDate(-29));
   const [attendanceTo, setAttendanceTo] = useState(isoDate());
   const [attendanceBaristaId, setAttendanceBaristaId] = useState('');
+  const [attendanceSortKey, setAttendanceSortKey] = useState('date');
+  const [attendanceSortDirection, setAttendanceSortDirection] = useState('desc');
+
+  const handleAttendanceSort = (key) => {
+    if (attendanceSortKey === key) {
+      setAttendanceSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setAttendanceSortKey(key);
+      setAttendanceSortDirection(key === 'date' ? 'desc' : 'asc');
+    }
+  };
+
+  const sortedAttendance = useMemo(() => {
+    const list = [...attendance];
+    list.sort((a, b) => {
+      let aVal = a[attendanceSortKey];
+      let bVal = b[attendanceSortKey];
+      if (typeof aVal === 'string') {
+        aVal = aVal.toLowerCase();
+        bVal = (bVal || '').toLowerCase();
+      }
+      if (aVal == null) aVal = '';
+      if (bVal == null) bVal = '';
+      if (aVal < bVal) return attendanceSortDirection === 'asc' ? -1 : 1;
+      if (aVal > bVal) return attendanceSortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+    return list;
+  }, [attendance, attendanceSortKey, attendanceSortDirection]);
   const [shiftForm, setShiftForm] = useState(initialShift);
   const [sideWork, setSideWork] = useState([]);
   const [sideWorkForm, setSideWorkForm] = useState(initialSideWork);
@@ -429,11 +491,14 @@ export default function Operations() {
       <div className="mx-auto w-full max-w-7xl p-6 lg:p-8">
         <div className="flex flex-col gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#5C867F]">Store operations</p>
+            <div className="flex items-center gap-1.5">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#5C867F]">Store operations</p>
+              <InfoTooltip content="Timetable scheduling, side work checklists, sound beeps, and attendance records." title="Store Operations" />
+            </div>
             <h1 className="mt-1 text-3xl font-bold text-slate-900">Store operations</h1>
             <p className="mt-2 max-w-3xl text-sm text-slate-500">Publish the weekly staffing plan and review attendance. Receipt printers are set up directly on each Android C2 Store device.</p>
           </div>
-          <button type="button" onClick={() => void loadData()} disabled={loading} className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+          <button type="button" onClick={() => void loadData()} disabled={loading} className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50 cursor-pointer shadow-2xs">
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} /> Refresh
           </button>
         </div>
@@ -479,12 +544,15 @@ export default function Operations() {
             </div>}
           </div>
           {selectedDate && typeof document !== 'undefined' && createPortal(
-            <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-slate-900/35 backdrop-blur-md animate-in fade-in duration-200" role="dialog" aria-modal="true" aria-labelledby="add-shift-title">
-              <form onSubmit={addShift} className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl border border-gray-100 animate-in zoom-in-95 duration-200">
+            <div className="fixed inset-0 z-9999 flex items-center justify-center p-3 sm:p-4 bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-200 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="add-shift-title">
+              <form onSubmit={addShift} className="w-full max-w-lg rounded-3xl bg-white p-6 sm:p-7 shadow-2xl border border-gray-100 my-auto animate-in zoom-in-95 duration-200">
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#5C867F]">Timetable</p>
-                    <h2 id="add-shift-title" className="mt-1 text-xl font-bold text-slate-900">Add shift for {displayDate(selectedDate)}</h2>
+                    <div className="flex items-center gap-2 mt-1">
+                      <h2 id="add-shift-title" className="text-xl font-bold text-slate-900">Add shift for {displayDate(selectedDate)}</h2>
+                      <InfoTooltip content="Assign a barista to work between selected hours. Shifts extending past midnight are treated as next day." title="Add Shift" />
+                    </div>
                     <p className="mt-1 text-sm text-slate-500">An earlier end time means the shift finishes the next day.</p>
                   </div>
                   <button type="button" onClick={() => setSelectedDate(null)} className="p-1.5 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer" aria-label="Close add shift">
@@ -522,7 +590,7 @@ export default function Operations() {
                   <button type="button" onClick={() => setSelectedDate(null)} className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 cursor-pointer">
                     Close
                   </button>
-                  <button type="submit" className="inline-flex items-center gap-2 rounded-xl bg-[#2E5E58] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#244B46] shadow-sm cursor-pointer">
+                  <button type="submit" className="inline-flex items-center gap-2 rounded-xl bg-[#2E5E58] hover:bg-[#244B46] px-5 py-2.5 text-sm font-bold text-white shadow-xs cursor-pointer">
                     <Plus size={17} /> Add shift
                   </button>
                 </div>
@@ -533,7 +601,7 @@ export default function Operations() {
         </section>}
 
         {activeTab === 'side-work' && <section className="mt-6 grid gap-5 xl:grid-cols-[380px_1fr]">
-          <form onSubmit={addSideWork} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <form onSubmit={addSideWork} className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-2xs hover:shadow-xs transition-shadow">
             <h2 className="text-lg font-bold text-slate-900">Schedule side work</h2>
             <p className="mt-1 text-sm text-slate-500">Create timed cleaning and upkeep reminders for the barista team.</p>
             <label className="mt-5 block text-sm font-bold text-slate-700">Task name<input required maxLength="120" value={sideWorkForm.title} onChange={(event) => setSideWorkForm((current) => ({ ...current, title: event.target.value }))} placeholder="Mop the service floor" className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-[#2E5E58]" /></label>
@@ -541,16 +609,16 @@ export default function Operations() {
             <div className="mt-4 grid grid-cols-2 gap-3"><label className="text-sm font-bold text-slate-700">Start date<input required type="date" min={isoDate()} max={isoDate(30)} value={sideWorkForm.scheduled_date} onChange={(event) => setSideWorkForm((current) => ({ ...current, scheduled_date: event.target.value, repeat_weekdays: [weekdayForDate(event.target.value)] }))} className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" /></label><label className="text-sm font-bold text-slate-700">Time<input required type="time" value={sideWorkForm.scheduled_time} onChange={(event) => setSideWorkForm((current) => ({ ...current, scheduled_time: event.target.value }))} className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" /></label></div>
             <label className="mt-5 flex items-start gap-3 rounded-xl border border-[#CFE3DE] bg-[#F4FAF8] p-3 text-sm text-slate-700"><input type="checkbox" checked={sideWorkForm.repeat} onChange={(event) => setSideWorkForm((current) => ({ ...current, repeat: event.target.checked }))} className="mt-0.5 h-4 w-4 accent-[#2E5E58]" /><span><span className="font-bold">Repeat on selected weekdays</span><span className="mt-1 block text-xs text-slate-500">Creates the same task from the start date through the next 30 days.</span></span></label>
             {sideWorkForm.repeat && <div className="mt-3 rounded-xl border border-slate-200 p-3"><label className="block text-sm font-bold text-slate-700">Repeat until<input type="date" min={sideWorkForm.scheduled_date} max={isoDate(30)} value={sideWorkForm.repeat_until} onChange={(event) => setSideWorkForm((current) => ({ ...current, repeat_until: event.target.value }))} className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" /></label><p className="mt-3 text-xs font-bold uppercase tracking-wide text-slate-500">Weekdays</p><div className="mt-2 flex flex-wrap gap-2">{weekdayOptions.map(([value, label]) => <label key={value} className={`cursor-pointer rounded-lg border px-3 py-2 text-sm font-bold ${sideWorkForm.repeat_weekdays.includes(value) ? 'border-[#2E5E58] bg-[#E7F3EF] text-[#1F3A34]' : 'border-slate-200 text-slate-500'}`}><input type="checkbox" checked={sideWorkForm.repeat_weekdays.includes(value)} onChange={(event) => setSideWorkForm((current) => ({ ...current, repeat_weekdays: event.target.checked ? [...current.repeat_weekdays, value] : current.repeat_weekdays.filter((day) => day !== value) }))} className="sr-only" />{label}</label>)}</div></div>}
-            <button disabled={savingSideWork} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#1F3A34] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50"><Plus size={17} />{savingSideWork ? 'Scheduling...' : 'Schedule task'}</button>
+            <button disabled={savingSideWork} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#1F3A34] hover:bg-[#2E5E58] px-4 py-2.5 text-sm font-bold text-white transition-colors disabled:opacity-50 cursor-pointer shadow-xs"><Plus size={17} />{savingSideWork ? 'Scheduling...' : 'Schedule task'}</button>
           </form>
-          <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <article className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-2xs hover:shadow-xs transition-shadow">
             <div><h2 className="text-lg font-bold text-slate-900">Next 31 days</h2><p className="mt-1 text-sm text-slate-500">Completion is recorded against the clocked-in barista who confirms the task.</p></div>
-            <div className="mt-5 space-y-3">{sideWork.length === 0 ? <p className="rounded-xl border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-500">No side work scheduled.</p> : sideWork.map((task) => <div key={task.id} className="flex items-start justify-between gap-4 rounded-xl border border-slate-200 p-4"><div><div className="flex flex-wrap items-center gap-2"><p className="font-bold text-slate-900">{task.title}</p>{task.completed_at && <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700">Completed by {task.completed_by_barista_name}</span>}</div><p className="mt-1 text-sm font-semibold text-[#2E5E58]">{displayDate(task.scheduled_date)} at {displayTime(task.scheduled_time)}</p>{task.instructions && <p className="mt-2 text-sm leading-6 text-slate-600">{task.instructions}</p>}</div><button type="button" onClick={() => void removeSideWork(task.id)} className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label={`Remove ${task.title}`}><Trash2 size={17} /></button></div>)}</div>
+            <div className="mt-5 space-y-3">{sideWork.length === 0 ? <p className="rounded-xl border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-500">No side work scheduled.</p> : sideWork.map((task) => <div key={task.id} className="flex items-start justify-between gap-4 rounded-xl border border-slate-200/80 p-4 shadow-2xs hover:shadow-xs transition-shadow bg-white"><div><div className="flex flex-wrap items-center gap-2"><p className="font-bold text-slate-900">{task.title}</p>{task.completed_at && <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700">Completed by {task.completed_by_barista_name}</span>}</div><p className="mt-1 text-sm font-semibold text-[#2E5E58]">{displayDate(task.scheduled_date)} at {displayTime(task.scheduled_time)}</p>{task.instructions && <p className="mt-2 text-sm leading-6 text-slate-600">{task.instructions}</p>}</div><button type="button" onClick={() => void removeSideWork(task.id)} className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600 transition-colors cursor-pointer" aria-label={`Remove ${task.title}`}><Trash2 size={17} /></button></div>)}</div>
           </article>
         </section>}
 
         {activeTab === 'sounds' && <section className="mt-6">
-          <form onSubmit={saveSoundSettings} className="max-w-3xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <form onSubmit={saveSoundSettings} className="max-w-3xl rounded-2xl border border-slate-200/80 bg-white p-6 shadow-2xs hover:shadow-xs transition-shadow">
             <div className="flex items-start gap-4"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#F0F8F6] text-[#1F3A34]"><Volume2 size={22} /></div><div><h2 className="text-lg font-bold text-slate-900">Barista beep patterns</h2><p className="mt-1 text-sm leading-6 text-slate-500">Configure the sound played on the C2 Store device when a new order is claimed for printing, plus clock-in, clock-out, and side-work reminders. The printer still prints at the same time. The tablet's media volume remains the final hardware limit.</p></div></div>
             <label className="mt-6 block text-sm font-bold text-slate-700">Outlet<select value={selectedSoundStoreId} onChange={(event) => chooseSoundOutlet(event.target.value)} className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm" disabled={!soundOutlets.length}>{soundOutlets.map((outlet) => <option key={outlet.store_id} value={outlet.store_id}>{outlet.store_name}</option>)}</select></label>
             <label className="mt-5 block text-sm font-bold text-slate-700"><span className="flex items-center justify-between"><span>Beep volume</span><span className="text-[#2E5E58]">{soundForm.volume_percent}%</span></span><input type="range" min="0" max="100" step="5" value={soundForm.volume_percent} onChange={(event) => setSoundForm((current) => ({ ...current, volume_percent: Number(event.target.value) }))} className="mt-3 w-full accent-[#2E5E58]" /></label>
@@ -560,16 +628,74 @@ export default function Operations() {
               ['Clock in', 'clock_in_beeps', 'clock_in_style'],
               ['Clock out', 'clock_out_beeps', 'clock_out_style'],
               ['Side work due', 'side_work_beeps', 'side_work_style']
-            ].map(([label, countKey, styleKey]) => <div key={countKey} className="rounded-xl border border-slate-200 bg-slate-50 p-4"><p className="text-sm font-bold text-slate-800">{label}</p><label className="mt-3 block text-xs font-semibold uppercase tracking-wide text-slate-500">Sound style<select value={soundForm[styleKey]} onChange={(event) => setSoundForm((current) => ({ ...current, [styleKey]: event.target.value }))} className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm normal-case tracking-normal text-slate-800">{Object.entries(soundStyleLabels).map(([value, optionLabel]) => <option key={value} value={value}>{optionLabel}</option>)}</select></label><label className="mt-3 block text-xs font-semibold uppercase tracking-wide text-slate-500">Repeat<select value={soundForm[countKey]} onChange={(event) => setSoundForm((current) => ({ ...current, [countKey]: Number(event.target.value) }))} className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm normal-case tracking-normal text-slate-800">{[1, 2, 3, 4, 5].map((count) => <option key={count} value={count}>{count} time{count === 1 ? '' : 's'}</option>)}</select></label><button type="button" onClick={() => previewBeeps(soundForm[countKey], soundForm.volume_percent, soundForm[styleKey])} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[#5C867F] px-3 py-2 text-sm font-bold text-[#2E5E58] hover:bg-white"><Volume2 size={15} /> Preview</button></div>)}</div>
+            ].map(([label, countKey, styleKey]) => <div key={countKey} className="rounded-xl border border-slate-200 bg-slate-50 p-4"><p className="text-sm font-bold text-slate-800">{label}</p><label className="mt-3 block text-xs font-semibold uppercase tracking-wide text-slate-500">Sound style<select value={soundForm[styleKey]} onChange={(event) => setSoundForm((current) => ({ ...current, [styleKey]: event.target.value }))} className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm normal-case tracking-normal text-slate-800">{Object.entries(soundStyleLabels).map(([value, optionLabel]) => <option key={value} value={value}>{optionLabel}</option>)}</select></label><label className="mt-3 block text-xs font-semibold uppercase tracking-wide text-slate-500">Repeat<select value={soundForm[countKey]} onChange={(event) => setSoundForm((current) => ({ ...current, [countKey]: Number(event.target.value) }))} className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm normal-case tracking-normal text-slate-800">{[1, 2, 3, 4, 5].map((count) => <option key={count} value={count}>{count} time{count === 1 ? '' : 's'}</option>)}</select></label><button type="button" onClick={() => previewBeeps(soundForm[countKey], soundForm.volume_percent, soundForm[styleKey])} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[#5C867F] px-3 py-2 text-sm font-bold text-[#2E5E58] hover:bg-white cursor-pointer"><Volume2 size={15} /> Preview</button></div>)}</div>
             <p className="mt-4 text-xs leading-5 text-slate-500">Each event must use a different count so staff can identify it without looking at the screen. Setting volume to 0% mutes all patterns, including incoming-order alerts.</p>
-            <button type="submit" disabled={savingSound || !selectedSoundStoreId} className="mt-6 inline-flex items-center justify-center gap-2 rounded-xl bg-[#1F3A34] px-5 py-2.5 text-sm font-bold text-white disabled:opacity-50"><Save size={16} />{savingSound ? 'Saving...' : 'Save beep patterns'}</button>
+            <button type="submit" disabled={savingSound || !selectedSoundStoreId} className="mt-6 inline-flex items-center justify-center gap-2 rounded-xl bg-[#1F3A34] hover:bg-[#2E5E58] px-5 py-2.5 text-sm font-bold text-white transition-colors disabled:opacity-50 cursor-pointer shadow-xs"><Save size={16} />{savingSound ? 'Saving...' : 'Save beep patterns'}</button>
           </form>
         </section>}
 
         {activeTab === 'attendance' && <section className="mt-6 space-y-5">
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"><div><h2 className="text-lg font-bold text-slate-900">Attendance history</h2><p className="mt-1 text-sm text-slate-500">Compare server-recorded clock-ins and clock-outs with shifts published on or before each date. A current open shift is not marked as a missing clock-out.</p></div><div className="flex flex-wrap gap-3"><input type="date" value={attendanceFrom} onChange={(event) => setAttendanceFrom(event.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" /><input type="date" value={attendanceTo} onChange={(event) => setAttendanceTo(event.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" /><select value={attendanceBaristaId} onChange={(event) => setAttendanceBaristaId(event.target.value)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"><option value="">All baristas</option>{baristas.map((barista) => <option key={barista.id} value={barista.id}>{barista.name}</option>)}</select><button type="button" onClick={() => void loadAttendance()} className="inline-flex items-center gap-2 rounded-xl bg-[#2E5E58] px-4 py-2 text-sm font-bold text-white"><RefreshCw size={16} /> Load</button></div></div></div>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{[['Working now', attendanceSummary.active_now, 'bg-emerald-50 text-emerald-700'], ['Late arrivals', attendanceSummary.late_arrivals, 'bg-amber-50 text-amber-700'], ['Missing clock-out', attendanceSummary.missing_clock_out, 'bg-red-50 text-red-700'], ['Missed clock-in', attendanceSummary.missed_clock_in, 'bg-red-50 text-red-700']].map(([label, value, color]) => <div key={label} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p className="text-sm font-semibold text-slate-500">{label}</p><p className={`mt-2 inline-flex rounded-lg px-3 py-1 text-2xl font-bold ${color}`}>{value}</p></div>)}</div>
-          <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm"><table className="min-w-[850px] w-full text-left text-sm"><thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-5 py-4">Date</th><th className="px-5 py-4">Barista</th><th className="px-5 py-4">Planned</th><th className="px-5 py-4">Actual</th><th className="px-5 py-4">Duration</th><th className="px-5 py-4">Status</th></tr></thead><tbody className="divide-y divide-slate-100">{attendance.length === 0 ? <tr><td colSpan="6" className="px-5 py-12 text-center text-slate-500">Choose a date range and load attendance history.</td></tr> : attendance.map((record) => <tr key={record.id}><td className="px-5 py-4 font-medium text-slate-800">{record.date}</td><td className="px-5 py-4">{record.barista_name}</td><td className="px-5 py-4">{record.planned_start ? displayShiftTime(record.planned_start, record.planned_end, record.planned_ends_next_day) : 'No shift planned'}</td><td className="px-5 py-4">{record.clocked_in_at ? `${new Date(record.clocked_in_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${record.clocked_out_at ? new Date(record.clocked_out_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Open'}` : '--'}</td><td className="px-5 py-4">{record.duration_minutes == null ? '--' : `${Math.floor(record.duration_minutes / 60)}h ${record.duration_minutes % 60}m`}</td><td className="px-5 py-4"><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${record.status === 'completed' || record.status === 'clocked_in' ? 'bg-emerald-50 text-emerald-700' : record.status === 'clocked_in_late' || record.status === 'late' ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-700'}`}>{attendanceLabel(record.status)}{record.late_minutes ? ` (${record.late_minutes}m)` : ''}</span></td></tr>)}</tbody></table></div>
+          <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-2xs hover:shadow-xs transition-shadow"><div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"><div><h2 className="text-lg font-bold text-slate-900">Attendance history</h2><p className="mt-1 text-sm text-slate-500">Compare server-recorded clock-ins and clock-outs with shifts published on or before each date. A current open shift is not marked as a missing clock-out.</p></div><div className="flex flex-wrap gap-3"><input type="date" value={attendanceFrom} onChange={(event) => setAttendanceFrom(event.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" /><input type="date" value={attendanceTo} onChange={(event) => setAttendanceTo(event.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" /><select value={attendanceBaristaId} onChange={(event) => setAttendanceBaristaId(event.target.value)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"><option value="">All baristas</option>{baristas.map((barista) => <option key={barista.id} value={barista.id}>{barista.name}</option>)}</select><button type="button" onClick={() => void loadAttendance()} className="inline-flex items-center gap-2 rounded-xl bg-[#2E5E58] hover:bg-[#244B46] px-4 py-2 text-sm font-bold text-white transition-colors cursor-pointer shadow-xs"><RefreshCw size={16} /> Load</button></div></div></div>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              { label: 'Working now', value: attendanceSummary.active_now, color: 'bg-emerald-50 text-emerald-700', info: 'Baristas currently clocked in at the physical workstation.' },
+              { label: 'Late arrivals', value: attendanceSummary.late_arrivals, color: 'bg-amber-50 text-amber-700', info: 'Clock-ins recorded after the scheduled shift start time.' },
+              { label: 'Missing clock-out', value: attendanceSummary.missing_clock_out, color: 'bg-red-50 text-red-700', info: 'Shifts past scheduled end time with no recorded sign-out.' },
+              { label: 'Missed clock-in', value: attendanceSummary.missed_clock_in, color: 'bg-red-50 text-red-700', info: 'Scheduled shifts where the barista never clocked in.' }
+            ].map(({ label, value, color, info }) => (
+              <div key={label} className="rounded-2xl border border-gray-200/80 bg-white p-5 shadow-2xs hover:shadow-xs transition-shadow">
+                <div className="flex items-center gap-1.5">
+                  <p className="text-sm font-semibold text-slate-500">{label}</p>
+                  <InfoTooltip content={info} title={label} />
+                </div>
+                <p className={`mt-2 inline-flex rounded-xl px-3.5 py-1 text-2xl font-bold ${color}`}>{value}</p>
+              </div>
+            ))}
+          </div>
+          <div className="overflow-x-auto rounded-2xl border border-gray-200/80 bg-white shadow-2xs">
+            <table className="min-w-[850px] w-full text-left text-sm">
+              <thead className="bg-slate-50/95 backdrop-blur-sm border-b border-gray-200">
+                <tr>
+                  <SortableHeader label="Date" columnKey="date" currentKey={attendanceSortKey} direction={attendanceSortDirection} onSort={handleAttendanceSort} info="Date of shift or attendance event" />
+                  <SortableHeader label="Barista" columnKey="barista_name" currentKey={attendanceSortKey} direction={attendanceSortDirection} onSort={handleAttendanceSort} info="Barista profile name" />
+                  <th className="px-5 py-4 font-bold text-xs uppercase tracking-wide text-slate-500">Planned</th>
+                  <th className="px-5 py-4 font-bold text-xs uppercase tracking-wide text-slate-500">Actual</th>
+                  <SortableHeader label="Duration" columnKey="duration_minutes" currentKey={attendanceSortKey} direction={attendanceSortDirection} onSort={handleAttendanceSort} info="Total clocked duration on workstation" />
+                  <SortableHeader label="Status" columnKey="status" currentKey={attendanceSortKey} direction={attendanceSortDirection} onSort={handleAttendanceSort} info="Punctuality and completion status" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {sortedAttendance.length === 0 ? (
+                  <tr>
+                    <td colSpan="6" className="px-5 py-12 text-center text-slate-500">
+                      Choose a date range and load attendance history.
+                    </td>
+                  </tr>
+                ) : (
+                  sortedAttendance.map((record) => (
+                    <tr key={record.id} className="hover:bg-gray-50/50 transition-colors">
+                      <td className="px-5 py-4 font-medium text-slate-800">{record.date}</td>
+                      <td className="px-5 py-4 font-semibold text-gray-900">{record.barista_name}</td>
+                      <td className="px-5 py-4 text-slate-600">{record.planned_start ? displayShiftTime(record.planned_start, record.planned_end, record.planned_ends_next_day) : 'No shift planned'}</td>
+                      <td className="px-5 py-4 text-slate-600">{record.clocked_in_at ? `${new Date(record.clocked_in_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${record.clocked_out_at ? new Date(record.clocked_out_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Open'}` : '--'}</td>
+                      <td className="px-5 py-4 font-medium text-slate-700">{record.duration_minutes == null ? '--' : `${Math.floor(record.duration_minutes / 60)}h ${record.duration_minutes % 60}m`}</td>
+                      <td className="px-5 py-4">
+                        <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${
+                          record.status === 'completed' || record.status === 'clocked_in'
+                            ? 'bg-emerald-50 text-emerald-700'
+                            : record.status === 'clocked_in_late' || record.status === 'late'
+                            ? 'bg-amber-50 text-amber-700'
+                            : 'bg-red-50 text-red-700'
+                        }`}>
+                          {attendanceLabel(record.status)}{record.late_minutes ? ` (${record.late_minutes}m)` : ''}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </section>}
       </div>
     </div>

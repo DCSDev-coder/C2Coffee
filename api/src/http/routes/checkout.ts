@@ -54,7 +54,8 @@ const createOrderSchema = z.object({
                 .union([z.string(), z.number()])
                 .transform((value) => Number(value)),
               token_price_delta: z.coerce.number().int().min(-999).max(999).default(0),
-              calorie_delta_kcal: z.coerce.number().int().min(-5000).max(5000).default(0)
+              calorie_delta_kcal: z.coerce.number().int().min(-5000).max(5000).default(0),
+              option_group_option_id: z.coerce.number().int().positive().nullish()
             })
           )
           .max(20)
@@ -1018,6 +1019,7 @@ export async function registerCheckoutRoutes(
             `
               INSERT INTO order_item_modifiers (
                 order_item_id,
+                option_group_option_id,
                 modifier_group_name_snapshot,
                 modifier_option_name_snapshot,
                 price_delta_rm_snapshot,
@@ -1026,6 +1028,7 @@ export async function registerCheckoutRoutes(
               )
               VALUES (
                 :orderItemId,
+                :optionGroupOptionId,
                 :groupName,
                 :optionName,
                 :priceDeltaRm,
@@ -1035,6 +1038,7 @@ export async function registerCheckoutRoutes(
             `,
             {
               orderItemId: itemResult.insertId,
+              optionGroupOptionId: modifier.option_group_option_id ?? null,
               groupName: modifier.group_name,
               optionName: modifier.option_name,
               priceDeltaRm: normalizeMoney(modifier.price_delta_rm).toFixed(2),
@@ -1894,7 +1898,7 @@ export async function verifyCheckoutModifiers(
       throw new ApiError(400, 'invalid_option_selection', `Please choose valid options for ${group.name}.`);
     }
     for (const option of selected) {
-      canonical.push({ group_name: group.name, option_name: option.option_name, price_delta_rm: Number(option.price_delta_rm), token_price_delta: option.token_price_delta, calorie_delta_kcal: option.calorie_delta_kcal });
+      canonical.push({ group_name: group.name, option_name: option.option_name, price_delta_rm: Number(option.price_delta_rm), token_price_delta: option.token_price_delta, calorie_delta_kcal: option.calorie_delta_kcal, option_group_option_id: option.option_id });
     }
   }
   const knownNames = new Set([...groups.values()].map((group) => group.name));

@@ -4,9 +4,11 @@ import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import {
   Search, ChevronDown, Download, Users, Coins, ShoppingBag, X, Eye,
-  Edit3, CheckCircle2, Ticket, Percent, ArrowRight
+  Edit3, CheckCircle2, Ticket, Percent, ArrowRight,
+  ArrowUp, ArrowDown, ArrowUpDown
 } from "lucide-react";
 import Pagination from './Pagination';
+import InfoTooltip from './InfoTooltip';
 import TokenTransaction from './TokenTransaction';
 import LoyaltyAnalytics from './LoyaltyAnalytics';
 import LoyaltyProgramSummary from './LoyaltyProgramSummary';
@@ -21,25 +23,24 @@ const CustomDateInput = forwardRef(({ value, onClick, onClear }, ref) => (
         onClick(e);
       }}
       ref={ref}
-      className="peer flex items-center pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer"
+      className="peer flex items-center pl-4 pr-10 py-2.5 border border-gray-200 rounded-xl text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 shadow-2xs whitespace-nowrap cursor-pointer transition-colors"
     >
       {value || 'Select Date'}
     </button>
-    <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+    <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
       {value ? (
         <button
           onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClear(); }}
-          className="text-gray-400 hover:text-gray-600 rounded-full bg-gray-100 p-0.5 cursor-pointer"
+          className="text-gray-400 hover:text-gray-600 rounded-full bg-gray-100 p-0.5 pointer-events-auto cursor-pointer"
         >
           <X size={12} strokeWidth={2.5} />
         </button>
       ) : (
-        <ChevronDown size={16} className="text-gray-500 pointer-events-none transition-transform duration-200 peer-focus:-rotate-180" />
+        <ChevronDown size={14} className="text-gray-500 transition-transform duration-200 peer-focus:-rotate-180" />
       )}
     </div>
   </div>
 ));
-
 
 //Helpers
 const getTierColor = (tier, tierCode) => {
@@ -70,27 +71,60 @@ const getTypeColor = (type) => {
   }
 };
 
-//KPI Card Component
-const KPICard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-white" }) => (
-  <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center space-x-4 min-w-0">
-    <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 ${iconBg} ${iconColor} shadow-sm`}>
-      <Icon size={26} strokeWidth={2.2} />
-    </div>
-    <div className="flex-1 min-w-0">
-      <h3 className="text-gray-500 text-[11px] sm:text-xs xl:text-sm font-medium leading-tight mt-0.5 whitespace-normal">
-        {title}
-      </h3>
-      <p className="text-2xl font-bold text-gray-900 mt-1 leading-tight">{value}</p>
-      {change && (
-        <div className="flex items-center gap-1 mt-1">
-          <p className="text-[11px] text-gray-500 font-medium leading-tight whitespace-normal">
-            {change.includes('%') && !change.includes('of total') && !change.includes('↑') && !change.includes('↓') && change.includes('vs') ? `↑ ${change}` : change}
-          </p>
+// Sleek KPI Card matching standard
+const KPICard = ({ title, value, change, info, icon: Icon, iconBg = "bg-[#1E433A]", iconColor = "text-white" }) => (
+  <div className="flex items-center justify-between rounded-2xl border border-gray-200/80 bg-white p-5 shadow-2xs hover:shadow-xs transition-shadow">
+    <div className="flex items-center gap-3.5 min-w-0">
+      <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${iconBg} ${iconColor} shadow-xs`}>
+        <Icon size={20} strokeWidth={2.2} />
+      </div>
+      <div className="min-w-0">
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{title}</span>
+          {info && <InfoTooltip content={info} title={title} />}
         </div>
-      )}
+        <p className="text-2xl font-extrabold text-gray-900 tracking-tight leading-tight mt-0.5">{value}</p>
+      </div>
     </div>
+    {change && (
+      <span className="shrink-0 px-2.5 py-1 rounded-full text-xs font-bold bg-[#E8F3F0] text-[#1E433A]">
+        {change}
+      </span>
+    )}
   </div>
 );
+
+function SortableHeader({ label, columnKey, currentKey, direction, onSort, info, className = "" }) {
+  const isSorted = currentKey === columnKey;
+  return (
+    <th className={`px-6 py-4 font-bold text-[11px] text-gray-500 uppercase tracking-wider whitespace-nowrap ${className}`}>
+      <div className={`flex items-center gap-1.5 ${className.includes('text-right') ? 'justify-end' : className.includes('text-center') ? 'justify-center' : ''}`}>
+        <button
+          type="button"
+          onClick={() => onSort(columnKey)}
+          className={`group inline-flex items-center gap-1.5 hover:text-[#1E433A] cursor-pointer focus:outline-none transition-colors select-none ${
+            isSorted ? "text-[#1E433A] font-bold" : ""
+          }`}
+          title={`Sort by ${label} ${isSorted && direction === "asc" ? "(Descending)" : "(Ascending)"}`}
+        >
+          <span>{label}</span>
+          <span className="inline-flex items-center">
+            {isSorted ? (
+              direction === "asc" ? (
+                <ArrowUp size={13} className="text-[#1E433A]" strokeWidth={2.5} />
+              ) : (
+                <ArrowDown size={13} className="text-[#1E433A]" strokeWidth={2.5} />
+              )
+            ) : (
+              <ArrowUpDown size={12} className="text-gray-300 group-hover:text-gray-500 transition-colors" />
+            )}
+          </span>
+        </button>
+        {info && <InfoTooltip content={info} title={label} />}
+      </div>
+    </th>
+  );
+}
 
 //Main Component
 const LoyaltyTokens = () => {
@@ -102,6 +136,8 @@ const LoyaltyTokens = () => {
   const [transactions, setTransactions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
+  const [tokenSortKey, setTokenSortKey] = useState("time");
+  const [tokenSortDirection, setTokenSortDirection] = useState("desc");
 
   const [typeOpen, setTypeOpen] = useState(false);
 
@@ -219,8 +255,53 @@ const LoyaltyTokens = () => {
       return !isActivityFilterActive || group.transactions.length > 0;
     });
 
-  const totalPages = Math.max(1, Math.ceil(groupedMembers.length / itemsPerPage));
-  const paginatedMembers = groupedMembers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const handleTokenSort = (key) => {
+    if (tokenSortKey === key) {
+      setTokenSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setTokenSortKey(key);
+      setTokenSortDirection('asc');
+    }
+    setCurrentPage(1);
+  };
+
+  const sortedMembers = [...groupedMembers].sort((a, b) => {
+    let aVal, bVal;
+    if (tokenSortKey === 'time') {
+      const aTx = a.transactions[0];
+      const bTx = b.transactions[0];
+      aVal = aTx ? `${aTx.date} ${aTx.time}` : '';
+      bVal = bTx ? `${bTx.date} ${bTx.time}` : '';
+    } else if (tokenSortKey === 'customer') {
+      aVal = (a.member.name || '').toLowerCase();
+      bVal = (b.member.name || '').toLowerCase();
+    } else if (tokenSortKey === 'tier') {
+      aVal = (a.member.tier || '').toLowerCase();
+      bVal = (b.member.tier || '').toLowerCase();
+    } else if (tokenSortKey === 'activity') {
+      const aTx = a.transactions[0];
+      const bTx = b.transactions[0];
+      aVal = (aTx?.type || '').toLowerCase();
+      bVal = (bTx?.type || '').toLowerCase();
+    } else if (tokenSortKey === 'tokens') {
+      const aTx = a.transactions[0];
+      const bTx = b.transactions[0];
+      aVal = Number(aTx?.tokens || 0);
+      bVal = Number(bTx?.tokens || 0);
+    } else if (tokenSortKey === 'balance') {
+      aVal = Number(a.member.balance ?? a.member.tokens ?? 0);
+      bVal = Number(b.member.balance ?? b.member.tokens ?? 0);
+    }
+
+    if (aVal === bVal) return 0;
+    if (aVal === undefined || aVal === null || aVal === '') return 1;
+    if (bVal === undefined || bVal === null || bVal === '') return -1;
+    const res = aVal > bVal ? 1 : -1;
+    return tokenSortDirection === 'asc' ? res : -res;
+  });
+
+  const totalPages = Math.max(1, Math.ceil(sortedMembers.length / itemsPerPage));
+  const paginatedMembers = sortedMembers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   if (activeView === 'analytics') {
     return <LoyaltyAnalytics overview={overview} onBack={() => setActiveView('list')} onViewSummary={() => setActiveView('program_summary')} />;
@@ -329,13 +410,13 @@ const LoyaltyTokens = () => {
               <table className="min-w-full text-sm">
                 <thead className="sticky top-0 bg-white border-b border-gray-200 z-10">
                   <tr className="text-left text-xs font-bold text-gray-900">
-                    <th className="px-6 py-4 font-extrabold">Date & Time</th>
-                    <th className="px-6 py-4 font-extrabold">Wallet Owner</th>
-                    <th className="px-6 py-4 font-extrabold">Member Tier</th>
-                    <th className="px-6 py-4 font-extrabold">Latest Activity</th>
-                    <th className="px-6 py-4 font-extrabold text-right">Tokens</th>
-                    <th className="px-6 py-4 font-extrabold text-right">Balance</th>
-                    <th className="px-6 py-4 font-extrabold text-center">Actions</th>
+                    <SortableHeader label="Date & Time" columnKey="time" currentKey={tokenSortKey} direction={tokenSortDirection} onSort={handleTokenSort} info="Date and time of the latest token activity." />
+                    <SortableHeader label="Wallet Owner" columnKey="customer" currentKey={tokenSortKey} direction={tokenSortDirection} onSort={handleTokenSort} info="Customer name, contact details, and member ID." />
+                    <SortableHeader label="Member Tier" columnKey="tier" currentKey={tokenSortKey} direction={tokenSortDirection} onSort={handleTokenSort} info="Current tier status and benefits band." />
+                    <SortableHeader label="Latest Activity" columnKey="activity" currentKey={tokenSortKey} direction={tokenSortDirection} onSort={handleTokenSort} info="Most recent token earning or redemption transaction." />
+                    <SortableHeader label="Tokens" columnKey="tokens" currentKey={tokenSortKey} direction={tokenSortDirection} onSort={handleTokenSort} info="Token delta on the most recent event." className="text-right" />
+                    <SortableHeader label="Balance" columnKey="balance" currentKey={tokenSortKey} direction={tokenSortDirection} onSort={handleTokenSort} info="Current total token balance remaining in this customer's wallet." className="text-right" />
+                    <th className="px-6 py-4 font-bold text-[11px] text-gray-500 uppercase tracking-wider text-center">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -572,10 +653,13 @@ const LoyaltyTokens = () => {
 
       {/* Wallet adjustment modal */}
       {isEditTokensOpen && selectedCustomer && typeof document !== 'undefined' && createPortal(
-        <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-slate-900/35 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl w-full max-w-[420px] shadow-2xl border border-gray-100 overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="flex justify-between items-center px-6 py-4.5 border-b border-gray-100 bg-white/80 backdrop-blur-xs">
-              <h2 className="text-lg font-bold text-gray-900">Adjust Wallet Tokens</h2>
+        <div className="fixed inset-0 z-9999 flex items-center justify-center p-3 sm:p-4 bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-200 overflow-y-auto">
+          <div className="bg-white rounded-3xl w-full max-w-[440px] shadow-2xl border border-gray-100 overflow-hidden animate-in zoom-in-95 duration-200 my-auto">
+            <div className="flex justify-between items-center px-6 py-4.5 border-b border-gray-100 bg-white">
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-bold text-gray-900">Adjust Wallet Tokens</h2>
+                <InfoTooltip content="Add or deduct tokens from customer wallet with mandatory audit reason and confirmation." title="Adjust Wallet" />
+              </div>
               <button onClick={() => { setEditTokenPassword(""); setIsEditTokensOpen(false); }} className="p-1.5 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer">
                 <X size={20} />
               </button>
@@ -650,7 +734,7 @@ const LoyaltyTokens = () => {
                 </div>
               )}
             </div>
-            <div className="p-5 border-t border-gray-100 flex justify-end space-x-3 bg-gray-50">
+            <div className="p-5 border-t border-gray-100 flex justify-end space-x-3 bg-gray-50/50">
               <button
                 onClick={() => {
                   setIsEditTokensOpen(false);

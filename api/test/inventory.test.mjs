@@ -17,7 +17,7 @@ function mockConnection({ allocations = [], requirements = [], stock = null } = 
     executions,
     async query(sql) {
       if (sql.includes('FROM inventory_order_allocations')) return [allocations];
-      if (sql.includes('SUM(r.quantity_per_menu_item')) return [requirements];
+      if (sql.includes('requirements.required_quantity')) return [requirements];
       if (sql.includes('FROM inventory_store_stocks')) return [stock ? [stock] : []];
       throw new Error(`Unexpected inventory query: ${sql}`);
     },
@@ -31,7 +31,7 @@ function mockConnection({ allocations = [], requirements = [], stock = null } = 
 test('inventory reservation holds each recipe component without changing on-hand stock', async () => {
   const connection = mockConnection({
     requirements: [{ tenant_id: 1, store_id: 2, inventory_item_id: 3, item_name: 'Fresh milk', required_quantity: '400.000' }],
-    stock: { id: 9, on_hand_quantity: '1000.000', reserved_quantity: '100.000' }
+    stock: { id: 9, on_hand_quantity: '1000.000', reserved_quantity: '100.000', average_unit_cost_rm: '0.0100' }
   });
   const result = await reserveInventoryForOrder(connection, 55);
   assert.equal(result.reservedComponents, 1);
@@ -44,7 +44,7 @@ test('inventory reservation holds each recipe component without changing on-hand
 test('inventory reservation blocks checkout when available stock is insufficient', async () => {
   const connection = mockConnection({
     requirements: [{ tenant_id: 1, store_id: 2, inventory_item_id: 3, item_name: 'Large cup', required_quantity: '10.000' }],
-    stock: { id: 9, on_hand_quantity: '12.000', reserved_quantity: '5.000' }
+    stock: { id: 9, on_hand_quantity: '12.000', reserved_quantity: '5.000', average_unit_cost_rm: '0.1000' }
   });
   await assert.rejects(
     reserveInventoryForOrder(connection, 56),
@@ -56,7 +56,7 @@ test('inventory reservation blocks checkout when available stock is insufficient
 test('collection consumes a prior reservation and writes an idempotent ledger movement', async () => {
   const connection = mockConnection({
     allocations: [{ id: 7, tenant_id: 1, store_id: 2, inventory_item_id: 3, quantity: '250.000', status: 'reserved' }],
-    stock: { id: 9, on_hand_quantity: '1000.000', reserved_quantity: '250.000' }
+    stock: { id: 9, on_hand_quantity: '1000.000', reserved_quantity: '250.000', average_unit_cost_rm: '0.0200' }
   });
   const result = await consumeInventoryForOrder(connection, 57);
   assert.equal(result.consumedComponents, 1);
@@ -65,6 +65,7 @@ test('collection consumes a prior reservation and writes an idempotent ledger mo
   assert.match(connection.executions[1].sql, /INSERT IGNORE INTO inventory_movements/);
   assert.equal(connection.executions[1].values.quantityChange, -250);
   assert.equal(connection.executions[1].values.balanceAfter, 750);
+  assert.equal(connection.executions[1].values.totalCost, 5);
   assert.match(connection.executions[2].sql, /status = 'consumed'/);
 });
 

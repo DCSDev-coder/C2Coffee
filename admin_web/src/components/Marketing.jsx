@@ -4,6 +4,7 @@ import {
   AlertCircle,
   ArrowDown,
   ArrowUp,
+  ArrowUpDown,
   ChevronDown,
   Bell,
   MessageSquare,
@@ -15,6 +16,7 @@ import {
 } from "lucide-react";
 import Pagination from "./Pagination";
 import PaymentServiceNotices from "./PaymentServiceNotices";
+import InfoTooltip from "./InfoTooltip";
 import { showAdminError, showAdminSuccess } from "../lib/adminToast";
 import { requestAdminConfirm } from "../lib/adminDialog";
 import {
@@ -63,6 +65,10 @@ const bannerTypeOptions = [
   { value: "partner", label: "Partnership" },
   { value: "social", label: "Social / entertainment poster" },
 ];
+
+function bannerTypeLabel(value) {
+  return bannerTypeOptions.find((option) => option.value === value)?.label || value || "";
+}
 
 const destinationLabelMap = {
   reward_section: "Reward section",
@@ -298,6 +304,62 @@ const Marketing = () => {
     });
   }, [banners, searchTerm, selectedType, selectedPlacement, selectedStatus]);
 
+  const [sortKey, setSortKey] = useState("title");
+  const [sortDirection, setSortDirection] = useState("asc");
+
+  const handleSort = (key) => {
+    if (sortKey === key) {
+      if (sortDirection === "asc") {
+        setSortDirection("desc");
+      } else if (sortDirection === "desc") {
+        setSortKey(null);
+        setSortDirection(null);
+      }
+    } else {
+      setSortKey(key);
+      setSortDirection("asc");
+    }
+    setCurrentPage(1);
+  };
+
+  const sortedBanners = useMemo(() => {
+    if (!sortKey || !sortDirection) return filteredBanners;
+
+    return [...filteredBanners].sort((a, b) => {
+      let valA = "";
+      let valB = "";
+
+      if (sortKey === "title") {
+        valA = String(a.title || "").toLowerCase();
+        valB = String(b.title || "").toLowerCase();
+      } else if (sortKey === "type") {
+        valA = String(bannerTypeLabel(a.bannerType) || "").toLowerCase();
+        valB = String(bannerTypeLabel(b.bannerType) || "").toLowerCase();
+      } else if (sortKey === "route") {
+        valA = String(routeLabel(a) || "").toLowerCase();
+        valB = String(routeLabel(b) || "").toLowerCase();
+      } else if (sortKey === "placement") {
+        valA = String(a.placement || "both").toLowerCase();
+        valB = String(b.placement || "both").toLowerCase();
+      } else if (sortKey === "status") {
+        valA = String(bannerStatusLabel(a) || "").toLowerCase();
+        valB = String(bannerStatusLabel(b) || "").toLowerCase();
+      } else if (sortKey === "floating") {
+        const priorityA = a.floatingPriority ? 1 : 0;
+        const priorityB = b.floatingPriority ? 1 : 0;
+        return sortDirection === "asc" ? priorityA - priorityB : priorityB - priorityA;
+      } else if (sortKey === "engagement") {
+        const clicksA = Number(a.clicks || 0);
+        const clicksB = Number(b.clicks || 0);
+        return sortDirection === "asc" ? clicksA - clicksB : clicksB - clicksA;
+      }
+
+      if (valA < valB) return sortDirection === "asc" ? -1 : 1;
+      if (valA > valB) return sortDirection === "asc" ? 1 : -1;
+      return 0;
+    });
+  }, [filteredBanners, sortKey, sortDirection]);
+
   const summaryCards = useMemo(() => {
     const activeCount = banners.filter((banner) => {
       const status = bannerStatusLabel(banner);
@@ -324,9 +386,9 @@ const Marketing = () => {
 
   const totalPages = Math.max(
     1,
-    Math.ceil(filteredBanners.length / ITEMS_PER_PAGE),
+    Math.ceil(sortedBanners.length / ITEMS_PER_PAGE),
   );
-  const currentRows = filteredBanners.slice(
+  const currentRows = sortedBanners.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
     currentPage * ITEMS_PER_PAGE,
   );
@@ -727,89 +789,146 @@ const Marketing = () => {
     }
   };
 
-  const bannerTypeLabel = (value) =>
-    bannerTypeOptions.find((option) => option.value === value)?.label || value;
   const previewIsGif =
     selectedImageFile?.type === "image/gif" || formData.mediaType === "gif";
+
+  const SortableHeader = ({ label, columnKey, info, className = "" }) => {
+    const isSorted = sortKey === columnKey;
+    return (
+      <th className={`px-6 py-3 font-bold text-[11px] text-gray-500 uppercase tracking-wider border-b border-gray-100 ${className}`}>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => handleSort(columnKey)}
+            className={`group inline-flex items-center gap-1.5 hover:text-[#2E5E58] cursor-pointer focus:outline-none transition-colors select-none ${
+              isSorted ? "text-[#2E5E58] font-bold" : ""
+            }`}
+            title={`Sort by ${label} ${isSorted && sortDirection === "asc" ? "(Z to A)" : "(A to Z)"}`}
+          >
+            <span>{label}</span>
+            <span className="inline-flex items-center">
+              {isSorted ? (
+                sortDirection === "asc" ? (
+                  <ArrowUp size={13} className="text-[#2E5E58]" strokeWidth={2.5} />
+                ) : (
+                  <ArrowDown size={13} className="text-[#2E5E58]" strokeWidth={2.5} />
+                )
+              ) : (
+                <ArrowUpDown size={12} className="text-gray-300 group-hover:text-gray-500 transition-colors" />
+              )}
+            </span>
+          </button>
+          {info && <InfoTooltip content={info} title={label} />}
+        </div>
+      </th>
+    );
+  };
 
   return (
     <div className="flex-1 overflow-x-hidden overflow-y-auto bg-[#F9FAFB]">
       <div className="px-6 py-5 lg:px-8 lg:py-6 w-full h-full flex flex-col gap-4">
-        <div className="shrink-0 flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
-          <div className="space-y-0.5">
-            <h1 className="text-[1.55rem] leading-tight font-bold text-gray-900">
-              Marketing
-            </h1>
-            <p className="text-sm text-gray-500">
-              Manage the posters shown in the mobile app home and profile
-              surfaces.
-            </p>
-            <p className="text-xs text-gray-400">
-              Voucher posters route to rewards or menu, events switch from
-              calendar to menu, new-item posters deep-link to a product, and
-              Partnership posters support safe website or email actions.
+        <div className="shrink-0 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">
+                Marketing & Posters
+              </h1>
+              <InfoTooltip
+                title="Marketing Posters"
+                content="Manage visual banners displayed in the customer mobile app (Home and Profile surfaces). Posters can deep-link to vouchers, specific menu products, event schedules, or external partner sites."
+              />
+            </div>
+            <p className="text-xs font-medium text-gray-500 mt-0.5">
+              App promotional banners, partner campaigns, and customer announcements
             </p>
           </div>
 
           <div className="flex items-center gap-2.5">
-            <button
-              type="button"
-              onClick={() => setArrangeSurface("home")}
-              className="flex items-center gap-1.5 px-4 py-2 bg-white border border-[#1F3A34] text-[#1F3A34] text-sm font-semibold rounded-lg hover:bg-[#F5FBF9] transition-colors cursor-pointer shadow-sm"
-            >
-              Arrange display
-            </button>
+            <div className="inline-flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setArrangeSurface("home")}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-[#2E5E58] text-[#2E5E58] text-xs font-bold rounded-lg hover:bg-[#F5FBF9] transition-colors cursor-pointer shadow-xs"
+              >
+                Arrange display
+              </button>
+              <InfoTooltip
+                title="Display Arrangement"
+                content="Configure the exact carousel sequence for Home banners, Floating cards, and Partnership posters."
+              />
+            </div>
             <button
               type="button"
               onClick={() => void loadPageData()}
-              className="flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-colors cursor-pointer shadow-sm"
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-gray-300 text-gray-700 text-xs font-bold rounded-lg hover:bg-gray-50 transition-colors cursor-pointer shadow-xs"
             >
-              <RefreshCw size={16} /> Refresh
+              <RefreshCw size={14} /> Refresh
             </button>
             <button
               type="button"
               onClick={openCreateModal}
-              className="flex items-center gap-1.5 px-4 py-2 bg-[#1F3A34] text-white text-sm font-semibold rounded-lg hover:bg-[#162A26] transition-colors cursor-pointer shadow-sm"
+              className="flex items-center gap-1.5 px-4 py-2 bg-[#2E5E58] text-white text-xs font-bold rounded-lg hover:bg-[#1F4B43] transition-colors cursor-pointer shadow-xs"
             >
-              <Plus size={16} /> Add Poster
+              <Plus size={15} /> Add Poster
             </button>
           </div>
         </div>
 
         <PaymentServiceNotices />
 
-        <form onSubmit={sendCustomerMessage} className="rounded-2xl border border-[#D8E8E3] bg-[#F5FBF9] p-5 shadow-sm">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#1F3A34] text-white"><MessageSquare size={19} /></div>
-              <div>
-                <h2 className="text-lg font-bold text-[#1F3A34]">Send customer message</h2>
-                <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">Send a short update such as “Don’t forget to come by today.” It will appear in Notifications and be pushed to active customers who have marketing notifications enabled.</p>
+        <form onSubmit={sendCustomerMessage} className="rounded-2xl border border-gray-200/80 bg-white p-4 sm:p-5 shadow-xs">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#2E5E58]/10 text-[#2E5E58]">
+                <MessageSquare size={16} />
+              </div>
+              <div className="flex items-center gap-1.5">
+                <h2 className="text-sm font-bold text-gray-900 tracking-tight">Customer Broadcast</h2>
+                <InfoTooltip
+                  title="Broadcast Scope"
+                  content="Sends a push notification to active customers who enabled notifications, and records an announcement into their in-app Notifications tab."
+                />
               </div>
             </div>
-            <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-[#2E5E58]">In-app + push</span>
+            <span className="self-start sm:self-auto rounded-full bg-gray-100 px-2.5 py-0.5 text-[10px] font-bold text-gray-600">
+              In-app + Push notification
+            </span>
           </div>
-          <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)]">
-            <label className="text-sm font-semibold text-gray-700">Title<input required maxLength={120} value={customerMessage.title} onChange={(event) => setCustomerMessage((current) => ({ ...current, title: event.target.value }))} placeholder="A little reminder from C2 Coffee" className="mt-1.5 w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#2E5E58]" /></label>
-            <label className="text-sm font-semibold text-gray-700">Message<textarea required maxLength={420} rows={2} value={customerMessage.body} onChange={(event) => setCustomerMessage((current) => ({ ...current, body: event.target.value }))} placeholder="Don't forget to come by and enjoy your favourite drink today." className="mt-1.5 w-full resize-none rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#2E5E58]" /></label>
+          <div className="mt-3.5 grid gap-3 lg:grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)]">
+            <label className="text-xs font-semibold text-gray-700">
+              Title
+              <input required maxLength={120} value={customerMessage.title} onChange={(event) => setCustomerMessage((current) => ({ ...current, title: event.target.value }))} placeholder="e.g. A little reminder from C2 Coffee" className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs outline-none focus:border-[#2E5E58] focus:ring-1 focus:ring-[#2E5E58]" />
+            </label>
+            <label className="text-xs font-semibold text-gray-700">
+              Message
+              <textarea required maxLength={420} rows={2} value={customerMessage.body} onChange={(event) => setCustomerMessage((current) => ({ ...current, body: event.target.value }))} placeholder="e.g. Don't forget to come by and enjoy your favourite drink today." className="mt-1 w-full resize-none rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs outline-none focus:border-[#2E5E58] focus:ring-1 focus:ring-[#2E5E58]" />
+            </label>
           </div>
-          {customerMessageRetrySeconds > 0 && <p className="mt-3 text-right text-sm font-semibold text-amber-700">Messages are temporarily limited. You can send again in <span className="font-mono tabular-nums">{formatRetryCountdown(customerMessageRetrySeconds)}</span>.</p>}
-          <div className="mt-3 flex justify-end"><button type="submit" disabled={sendingCustomerMessage || customerMessageRetrySeconds > 0 || !customerMessage.title.trim() || !customerMessage.body.trim()} className="inline-flex items-center gap-2 rounded-xl bg-[#1F3A34] px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-[#2E5E58] disabled:cursor-not-allowed disabled:opacity-50"><Bell size={16} />{sendingCustomerMessage ? "Sending..." : customerMessageRetrySeconds > 0 ? `Try again in ${formatRetryCountdown(customerMessageRetrySeconds)}` : "Send message"}</button></div>
+          {customerMessageRetrySeconds > 0 && <p className="mt-2 text-right text-xs font-semibold text-amber-700">Messages are temporarily rate-limited. Try again in <span className="font-mono tabular-nums">{formatRetryCountdown(customerMessageRetrySeconds)}</span>.</p>}
+          <div className="mt-3 flex justify-end">
+            <button type="submit" disabled={sendingCustomerMessage || customerMessageRetrySeconds > 0 || !customerMessage.title.trim() || !customerMessage.body.trim()} className="inline-flex items-center gap-1.5 rounded-xl bg-[#2E5E58] px-3.5 py-2 text-xs font-bold text-white shadow-xs hover:bg-[#1F4B43] disabled:cursor-not-allowed disabled:opacity-50">
+              <Bell size={14} />{sendingCustomerMessage ? "Sending..." : customerMessageRetrySeconds > 0 ? `Try again in ${formatRetryCountdown(customerMessageRetrySeconds)}` : "Send broadcast"}
+            </button>
+          </div>
         </form>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 shrink-0">
           {summaryCards.map((card) => (
             <div
               key={card.label}
-              className="bg-white rounded-2xl border border-gray-200 shadow-sm px-4 py-3"
+              className="bg-white rounded-2xl border border-gray-200/80 shadow-xs px-5 py-3.5 flex items-center justify-between"
             >
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">
-                {card.label}
-              </p>
-              <p className="mt-2 text-2xl font-bold text-gray-900">
-                {card.value}
-              </p>
-              <p className="mt-1 text-xs text-gray-500">{card.note}</p>
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
+                    {card.label}
+                  </p>
+                  <InfoTooltip content={card.note} title={card.label} />
+                </div>
+                <p className="mt-1 text-2xl font-extrabold text-gray-900 tabular-nums">
+                  {card.value}
+                </p>
+              </div>
             </div>
           ))}
         </div>
@@ -899,36 +1018,19 @@ const Marketing = () => {
               </div>
             </div>
           </div>
-          <div className="border-b border-gray-100 bg-[#F5FBF9] px-5 py-2.5 text-xs text-[#2E5E58]">
-            Use Arrange display to control Home, Floating, and Partnership order separately.
-          </div>
 
           <div className="overflow-x-auto flex-1">
             <table className="w-full text-left text-sm whitespace-nowrap">
-              <thead className="bg-gray-50 sticky top-0 z-10">
+              <thead className="bg-gray-50/80 sticky top-0 z-10 border-b border-gray-100">
                 <tr>
-                  <th className="px-6 py-3 font-semibold text-[13px] text-gray-900 border-b border-gray-100 leading-tight">
-                    Poster
-                  </th>
-                  <th className="px-6 py-3 font-semibold text-[13px] text-gray-900 border-b border-gray-100 leading-tight">
-                    Type
-                  </th>
-                  <th className="px-6 py-3 font-semibold text-[13px] text-gray-900 border-b border-gray-100 leading-tight">
-                    Route
-                  </th>
-                  <th className="px-6 py-3 font-semibold text-[13px] text-gray-900 border-b border-gray-100 leading-tight">
-                    Placement
-                  </th>
-                  <th className="px-6 py-3 font-semibold text-[13px] text-gray-900 border-b border-gray-100 leading-tight">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 font-semibold text-[13px] text-gray-900 border-b border-gray-100 leading-tight">
-                    Floating
-                  </th>
-                  <th className="px-6 py-3 font-semibold text-[13px] text-gray-900 border-b border-gray-100 leading-tight">
-                    Engagement
-                  </th>
-                  <th className="px-6 py-3 font-semibold text-[13px] text-gray-900 border-b border-gray-100 leading-tight text-center">
+                  <SortableHeader label="Poster" columnKey="title" />
+                  <SortableHeader label="Type" columnKey="type" />
+                  <SortableHeader label="Route" columnKey="route" />
+                  <SortableHeader label="Placement" columnKey="placement" />
+                  <SortableHeader label="Status" columnKey="status" />
+                  <SortableHeader label="Floating" columnKey="floating" info="Priority floating banners appear as overlay popups on the mobile app home screen." />
+                  <SortableHeader label="Engagement" columnKey="engagement" info="Recorded views and click-through counts from customers." />
+                  <th className="px-6 py-3 font-bold text-[11px] text-gray-500 uppercase tracking-wider text-center">
                     Actions
                   </th>
                 </tr>
@@ -1082,7 +1184,7 @@ const Marketing = () => {
               totalPages={totalPages}
               setCurrentPage={setCurrentPage}
               itemsPerPage={ITEMS_PER_PAGE}
-              totalItems={filteredBanners.length}
+              totalItems={sortedBanners.length}
               itemName="posters"
             />
           </div>
@@ -1196,22 +1298,22 @@ const Marketing = () => {
         createPortal(
           <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-slate-900/35 backdrop-blur-md animate-in fade-in duration-200">
             <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 w-full max-w-3xl max-h-[92vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
-              <div className="px-6 py-4.5 border-b border-gray-100 bg-white/80 backdrop-blur-xs flex items-center justify-between shrink-0">
-                <div>
-                  <h2 className="text-lg font-bold text-gray-900">
+              <div className="px-6 py-4 border-b border-gray-100 bg-white flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-base font-bold text-gray-900">
                     {editingBanner ? "Edit Poster" : "Create Poster"}
                   </h2>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    Preview uses the same 4:5 portrait framing as the customer
-                    app.
-                  </p>
+                  <InfoTooltip
+                    title="Poster Dimensions"
+                    content="Displayed in customer mobile app with 4:5 portrait framing (or 16:9 landscape for partners)."
+                  />
                 </div>
                 <button
                   type="button"
                   onClick={closeModal}
-                  className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer"
+                  className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
                 >
-                  <X size={20} />
+                  <X size={18} />
                 </button>
               </div>
 
@@ -1328,27 +1430,27 @@ const Marketing = () => {
                       )}
                     </div>
 
-                    <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-3">
-                      <label className="flex items-start gap-3 text-sm text-gray-700 font-medium cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={formData.floatingPriority}
-                          disabled={formData.bannerType === "partner"}
-                          onChange={(event) =>
-                            setFormData((current) => ({
-                              ...current,
-                              floatingPriority: event.target.checked,
-                            }))
-                          }
-                          className="mt-0.5 h-4 w-4 rounded border-gray-300 text-[#1F3A34] focus:ring-[#1F3A34]"
-                        />
-                        <span>
-                          Use as floating banner
-                          <span className="block mt-1 text-xs font-normal text-gray-500">
-                            Mark any posters you want to appear as floating ads.
-                            Multiple posters can be selected.
-                          </span>
+                    <div className="rounded-xl border border-gray-200/80 bg-gray-50/70 px-4 py-3">
+                      <label className="flex items-center justify-between text-xs font-semibold text-gray-700 cursor-pointer">
+                        <span className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={formData.floatingPriority}
+                            disabled={formData.bannerType === "partner"}
+                            onChange={(event) =>
+                              setFormData((current) => ({
+                                ...current,
+                                floatingPriority: event.target.checked,
+                              }))
+                            }
+                            className="h-4 w-4 rounded border-gray-300 text-[#2E5E58] focus:ring-[#2E5E58]"
+                          />
+                          <span>Use as floating banner</span>
                         </span>
+                        <InfoTooltip
+                          title="Floating Banner"
+                          content="Displays as an overlay popup ad on top of the customer home screen."
+                        />
                       </label>
                     </div>
 
@@ -1363,7 +1465,7 @@ const Marketing = () => {
                               isActive: event.target.checked,
                             }))
                           }
-                          className="h-4 w-4 rounded border-gray-300 text-[#1F3A34] focus:ring-[#1F3A34]"
+                          className="h-4 w-4 rounded border-gray-300 text-[#2E5E58] focus:ring-[#2E5E58]"
                         />
                         Publish now
                       </label>
@@ -1372,39 +1474,50 @@ const Marketing = () => {
 
                   <div className="space-y-5">
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">
-                        Poster Media
-                      </label>
-                      <div className="border-2 border-dashed border-gray-200 rounded-xl p-4 bg-gray-50">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-xs font-semibold text-gray-700">
+                          Poster Media
+                        </label>
+                        <span className="text-[10px] font-semibold text-gray-400">
+                          {formData.bannerType === "partner" ? "1200 × 675 (16:9)" : "1080 × 1350 (4:5)"}
+                        </span>
+                      </div>
+                      <div className="border border-dashed border-gray-300 rounded-xl p-3.5 bg-gray-50/70">
                         <input
                           type="file"
                           accept="image/png,image/jpeg,image/webp,image/gif"
                           onChange={handlePosterFileChange}
-                          className="block w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-[#1F3A34] file:text-white hover:file:bg-[#162A26]"
+                          className="block w-full text-xs text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-[#2E5E58] file:text-white file:text-xs file:font-semibold hover:file:bg-[#1F4B43] file:cursor-pointer"
                         />
-                        <p className="text-[10px] text-gray-500 mt-2">
-                          {formData.bannerType === "partner"
-                            ? "PNG, JPG, WEBP, or GIF. Partner artwork is prepared as 1200 × 675 (16:9). GIFs must already be 16:9 and no longer than 30 seconds."
-                            : "PNG, JPG, WEBP, or GIF. Posters are prepared as 1080 × 1350 (4:5). GIFs must already be 4:5 and no longer than 30 seconds."}
-                        </p>
+                        <div className="mt-2 flex items-center gap-1.5 text-[11px] text-gray-400">
+                          <span>PNG, JPG, WEBP, GIF (max 30s)</span>
+                          <InfoTooltip
+                            title="Media Guidelines"
+                            content={
+                              formData.bannerType === "partner"
+                                ? "Artwork is prepared as 16:9 (1200 × 675). GIFs must be under 30 seconds."
+                                : "Standard posters are 4:5 portrait (1080 × 1350). GIFs must be under 30 seconds."
+                            }
+                          />
+                        </div>
                         {(selectedImageFile || formData.imageSource) && (
-                          <div className="mt-4 flex items-center gap-3">
+                          <div className="mt-3 flex items-center gap-3 pt-3 border-t border-gray-200/60">
                             <img
                               src={
                                 selectedImagePreview ||
                                 resolveImageUrl(formData.imageSource)
                               }
                               alt="Poster preview"
-                              className="w-20 h-20 object-cover rounded-xl border border-gray-200 bg-white"
+                              className="w-12 h-12 object-cover rounded-lg border border-gray-200 bg-white shrink-0"
                             />
-                            <div className="min-w-0">
-                              <p className="text-sm font-semibold text-gray-900 truncate">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-bold text-gray-900 truncate">
                                 {selectedImageFile
                                   ? selectedImageFile.name
                                   : "Current image"}
                               </p>
-                              <p className="text-xs text-gray-500 truncate">
-                                {formData.imageSource || "Ready to upload"}
+                              <p className="text-[10px] text-gray-400 truncate">
+                                {selectedImageFile ? `${(selectedImageFile.size / 1024).toFixed(0)} KB` : "Stored in catalog"}
                               </p>
                             </div>
                           </div>
@@ -1413,12 +1526,15 @@ const Marketing = () => {
                     </div>
 
                     <div>
-                      <p className="text-xs font-medium text-gray-500 mb-2">
-                        Customer app preview ·{" "}
-                        {formData.bannerType === "partner"
-                          ? "16:9 landscape"
-                          : "4:5 portrait"}
-                      </p>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-xs font-bold text-gray-700">App Preview</p>
+                          <InfoTooltip content="Real-time preview of how customers view this poster inside the mobile app." title="Customer View" />
+                        </div>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-gray-100 text-gray-600">
+                          {formData.bannerType === "partner" ? "16:9 Landscape" : "4:5 Portrait"}
+                        </span>
+                      </div>
                       <div
                         className={`mx-auto w-full ${formData.bannerType === "partner" ? "max-w-[420px] aspect-video" : "max-w-[280px] aspect-[4/5]"} overflow-hidden rounded-[24px] border border-gray-200 bg-gray-100 shadow-sm`}
                       >
@@ -1868,32 +1984,25 @@ const Marketing = () => {
                   </div>
                 </div>
 
-                <div className="pt-6 flex items-center justify-between gap-3">
-                  <p className="text-xs text-gray-400">
-                    {formData.bannerType === "event"
-                      ? "Event posters route to calendar before they start and to menu while active."
-                      : "Use short copy and let the image carry the promotion. The floating banner is chosen manually."}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={closeModal}
-                      className="px-4 py-2 rounded-lg border border-gray-300 text-sm font-semibold text-gray-700 bg-white hover:bg-gray-50"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={saving}
-                      className="px-5 py-2 rounded-lg bg-[#1F3A34] text-white text-sm font-semibold hover:bg-[#162A26] disabled:opacity-60 disabled:cursor-not-allowed"
-                    >
-                      {saving
-                        ? "Saving..."
-                        : editingBanner
-                          ? "Save Changes"
-                          : "Create Poster"}
-                    </button>
-                  </div>
+                <div className="pt-4 mt-2 border-t border-gray-100 flex items-center justify-end gap-2.5">
+                  <button
+                    type="button"
+                    onClick={closeModal}
+                    className="px-4 py-2 rounded-xl border border-gray-300 text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="px-5 py-2 rounded-xl bg-[#2E5E58] text-white text-xs font-bold hover:bg-[#1F4B43] transition-colors disabled:opacity-60 disabled:cursor-not-allowed shadow-xs cursor-pointer"
+                  >
+                    {saving
+                      ? "Saving..."
+                      : editingBanner
+                        ? "Save Changes"
+                        : "Create Poster"}
+                  </button>
                 </div>
               </form>
             </div>

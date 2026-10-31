@@ -177,7 +177,10 @@ async function requireLatestSchema(): Promise<void> {
     '115_expand_option_groups_to_all_menu_items.sql',
     '115_add_social_entertainment_banner_type.sql',
     '116_add_voucher_reminder_settings.sql',
-    '117_create_inventory_management.sql'
+    '117_create_inventory_management.sql',
+    '118_create_app_maintenance_mode.sql',
+    '119_expand_inventory_operations.sql',
+    '121_link_inventory_movements_to_supplier.sql'
   ];
   const [rows] = await mysqlPool.query<Array<RowDataPacket & { filename: string }>>(
     `SELECT filename FROM schema_migrations WHERE filename IN (:required)`,

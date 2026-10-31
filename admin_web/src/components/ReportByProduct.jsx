@@ -1,9 +1,21 @@
 import React, { forwardRef, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Download, Package, RefreshCw, Search, ShoppingCart, TrendingUp } from 'lucide-react';
+import {
+  ArrowDown,
+  ArrowLeft,
+  ArrowUp,
+  ArrowUpDown,
+  Download,
+  Package,
+  RefreshCw,
+  Search,
+  ShoppingCart,
+  TrendingUp
+} from 'lucide-react';
 import { BarChart, Bar, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import Pagination from './Pagination';
+import InfoTooltip from './InfoTooltip';
 import { getAdminApiBaseUrl, loadAdminProductReport } from '../lib/adminApi';
 import { formatReportMoney, formatReportTokens } from '../utils/reporting';
 import { exportToCSV } from '../utils/exportToCSV';
@@ -44,15 +56,18 @@ const CustomDateInput = forwardRef(({ value, onClick }, ref) => (
   </button>
 ));
 
-const StatCard = ({ title, value, subtitle, icon: Icon, iconBg }) => (
-  <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center space-x-4 min-w-0">
+const StatCard = ({ title, value, subtitle, icon: Icon, iconBg, info }) => (
+  <div className="bg-white p-5 rounded-2xl border border-gray-200/80 shadow-2xs hover:shadow-xs transition-shadow flex items-center space-x-4 min-w-0">
     <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 ${iconBg} text-white shadow-sm`}>
       <Icon size={26} strokeWidth={2.2} />
     </div>
     <div className="flex-1 min-w-0">
-      <h3 className="text-gray-500 text-[11px] sm:text-xs xl:text-sm font-medium leading-tight mt-0.5 whitespace-normal">
-        {title}
-      </h3>
+      <div className="flex items-center gap-1.5">
+        <h3 className="text-gray-500 text-[11px] sm:text-xs xl:text-sm font-medium leading-tight whitespace-normal">
+          {title}
+        </h3>
+        {info && <InfoTooltip content={info} title={title} />}
+      </div>
       <p className="text-2xl font-bold text-gray-900 mt-1 leading-tight">{value}</p>
       {subtitle && (
         <p className="text-[11px] text-gray-500 font-medium leading-tight whitespace-normal mt-1">{subtitle}</p>
@@ -60,6 +75,38 @@ const StatCard = ({ title, value, subtitle, icon: Icon, iconBg }) => (
     </div>
   </div>
 );
+
+function SortableHeader({ label, columnKey, currentKey, direction, onSort, info, className = "" }) {
+  const isSorted = currentKey === columnKey;
+  return (
+    <th className={`px-6 py-4 font-bold text-[11px] text-gray-500 uppercase tracking-wider whitespace-nowrap ${className}`}>
+      <div className={`flex items-center gap-1.5 ${className.includes('text-right') ? 'justify-end' : className.includes('text-center') ? 'justify-center' : ''}`}>
+        <button
+          type="button"
+          onClick={() => onSort(columnKey)}
+          className={`group inline-flex items-center gap-1.5 hover:text-[#1E433A] cursor-pointer focus:outline-none transition-colors select-none ${
+            isSorted ? "text-[#1E433A] font-bold" : ""
+          }`}
+          title={`Sort by ${label} ${isSorted && direction === "asc" ? "(Descending)" : "(Ascending)"}`}
+        >
+          <span>{label}</span>
+          <span className="inline-flex items-center">
+            {isSorted ? (
+              direction === "asc" ? (
+                <ArrowUp size={13} className="text-[#1E433A]" strokeWidth={2.5} />
+              ) : (
+                <ArrowDown size={13} className="text-[#1E433A]" strokeWidth={2.5} />
+              )
+            ) : (
+              <ArrowUpDown size={12} className="text-gray-300 group-hover:text-gray-500 transition-colors" />
+            )}
+          </span>
+        </button>
+        {info && <InfoTooltip content={info} title={label} />}
+      </div>
+    </th>
+  );
+}
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload || !payload.length) {
@@ -86,6 +133,8 @@ const ReportByProduct = ({ onBack }) => {
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedStoreId, setSelectedStoreId] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [productSortKey, setProductSortKey] = useState('unitsSold');
+  const [productSortDirection, setProductSortDirection] = useState('desc');
   const itemsPerPage = 8;
 
   useEffect(() => {
@@ -136,8 +185,55 @@ const ReportByProduct = ({ onBack }) => {
     ));
   }, [products, safeSearchTerm]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredData.length / itemsPerPage));
-  const currentRows = filteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const handleProductSort = (key) => {
+    if (productSortKey === key) {
+      setProductSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setProductSortKey(key);
+      setProductSortDirection('asc');
+    }
+    setCurrentPage(1);
+  };
+
+  const sortedData = useMemo(() => {
+    return [...filteredData].sort((a, b) => {
+      let aVal, bVal;
+      if (productSortKey === 'name') {
+        aVal = (a.name || '').toLowerCase();
+        bVal = (b.name || '').toLowerCase();
+      } else if (productSortKey === 'category') {
+        aVal = (a.category || '').toLowerCase();
+        bVal = (b.category || '').toLowerCase();
+      } else if (productSortKey === 'subcategory') {
+        aVal = (a.subcategory || '').toLowerCase();
+        bVal = (b.subcategory || '').toLowerCase();
+      } else if (productSortKey === 'unitsSold') {
+        aVal = Number(a.quantitySold || 0);
+        bVal = Number(b.quantitySold || 0);
+      } else if (productSortKey === 'revenue') {
+        aVal = Number(a.revenueRm || 0);
+        bVal = Number(b.revenueRm || 0);
+      } else if (productSortKey === 'tokenPrice') {
+        aVal = Number(a.basePriceToken || 0);
+        bVal = Number(b.basePriceToken || 0);
+      } else if (productSortKey === 'status') {
+        aVal = a.isActive ? 1 : 0;
+        bVal = b.isActive ? 1 : 0;
+      } else if (productSortKey === 'lastOrdered') {
+        aVal = a.lastOrderedAt ? new Date(a.lastOrderedAt).getTime() : 0;
+        bVal = b.lastOrderedAt ? new Date(b.lastOrderedAt).getTime() : 0;
+      }
+
+      if (aVal === bVal) return 0;
+      if (aVal === undefined || aVal === null || aVal === '') return 1;
+      if (bVal === undefined || bVal === null || bVal === '') return -1;
+      const res = aVal > bVal ? 1 : -1;
+      return productSortDirection === 'asc' ? res : -res;
+    });
+  }, [filteredData, productSortKey, productSortDirection]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedData.length / itemsPerPage));
+  const currentRows = sortedData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   const exportRows = useMemo(() => [
     ['Product Name', 'Category', 'Subcategory', 'Quantity Sold', 'RM Revenue', 'Token Price', 'Last Ordered', 'Active'],
@@ -208,6 +304,7 @@ const ReportByProduct = ({ onBack }) => {
             subtitle="Live menu items included in this report"
             icon={Package}
             iconBg="bg-[#1F3A34]"
+            info="Total active catalog products tracked in sales reports."
           />
           <StatCard
             title="Total Units Sold"
@@ -215,6 +312,7 @@ const ReportByProduct = ({ onBack }) => {
             subtitle="From completed menu orders"
             icon={ShoppingCart}
             iconBg="bg-[#2E5E58]"
+            info="Total cumulative items prepared and sold across orders."
           />
           <StatCard
             title="Total Revenue"
@@ -222,6 +320,7 @@ const ReportByProduct = ({ onBack }) => {
             subtitle="Live RM revenue from sold items"
             icon={TrendingUp}
             iconBg="bg-[#E07A5F]"
+            info="Gross Ringgit Malaysia revenue generated from product sales."
           />
           <StatCard
             title="Best Seller"
@@ -229,13 +328,17 @@ const ReportByProduct = ({ onBack }) => {
             subtitle={overview.summary.topProduct ? `${overview.summary.topProductUnits.toLocaleString('en-US')} units · ${formatReportMoney(overview.summary.topProductRevenueRm)} revenue` : ''}
             icon={TrendingUp}
             iconBg="bg-[#D4AF7A]"
+            info="Leading product by volume ordered in the selected time range."
           />
         </div>
 
         <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex flex-col h-[360px] shrink-0">
           <div className="flex items-center justify-between gap-4 mb-6">
             <div>
-              <h3 className="text-lg font-bold text-gray-900">Top 5 Products by Units Sold</h3>
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-bold text-gray-900">Top 5 Products by Units Sold</h3>
+                <InfoTooltip content="Visual ranking of the five most popular catalog items by quantity sold." title="Top Products" />
+              </div>
               <p className="text-sm text-gray-500">Ranked from live order records.</p>
             </div>
           </div>
@@ -288,16 +391,16 @@ const ReportByProduct = ({ onBack }) => {
 
           <div className="overflow-x-auto flex-1">
             <table className="w-full text-left text-sm whitespace-nowrap">
-              <thead className="bg-gray-50">
+              <thead className="bg-gray-50/80 backdrop-blur-xs border-b border-gray-200 sticky top-0 z-10">
                 <tr>
-                  <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Product</th>
-                  <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Category</th>
-                  <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Subcategory</th>
-                  <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100 text-right">Units Sold</th>
-                  <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100 text-right">Revenue</th>
-                  <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100 text-right">Token Price</th>
-                  <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Status</th>
-                  <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Last Ordered</th>
+                  <SortableHeader label="Product" columnKey="name" currentKey={productSortKey} direction={productSortDirection} onSort={handleProductSort} info="Product name and icon." />
+                  <SortableHeader label="Category" columnKey="category" currentKey={productSortKey} direction={productSortDirection} onSort={handleProductSort} info="Main menu classification e.g. Drinks, Food." />
+                  <SortableHeader label="Subcategory" columnKey="subcategory" currentKey={productSortKey} direction={productSortDirection} onSort={handleProductSort} info="Specific menu item subgroup." />
+                  <SortableHeader label="Units Sold" columnKey="unitsSold" currentKey={productSortKey} direction={productSortDirection} onSort={handleProductSort} info="Total quantity ordered." className="text-right" />
+                  <SortableHeader label="Revenue" columnKey="revenue" currentKey={productSortKey} direction={productSortDirection} onSort={handleProductSort} info="Gross revenue generated in RM." className="text-right" />
+                  <SortableHeader label="Token Price" columnKey="tokenPrice" currentKey={productSortKey} direction={productSortDirection} onSort={handleProductSort} info="Base price in loyalty tokens." className="text-right" />
+                  <SortableHeader label="Status" columnKey="status" currentKey={productSortKey} direction={productSortDirection} onSort={handleProductSort} info="Availability state in menu catalog." />
+                  <SortableHeader label="Last Ordered" columnKey="lastOrdered" currentKey={productSortKey} direction={productSortDirection} onSort={handleProductSort} info="Timestamp of most recent customer order." />
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">

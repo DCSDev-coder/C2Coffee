@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Check, ChevronRight, Save, X } from 'lucide-react';
+import { ChevronRight, Save, X } from 'lucide-react';
+import InfoTooltip from './InfoTooltip';
 import {
   applyAdminOptionNutritionToDrinks,
   loadAdminRecipeNutrition,
@@ -93,36 +94,66 @@ export default function RecipeNutrition({ drinks, groups }) {
   };
 
   const nutritionEditor = selectedDrink ? (
-    <div className="col-span-full rounded-xl border border-[#B9D9D1] bg-white p-4 sm:p-5">
-      <div className="flex flex-col gap-3 border-b border-gray-100 pb-4 sm:flex-row sm:items-end sm:justify-between">
+    <div className="col-span-full rounded-2xl border border-[#B9D9D1] bg-white p-5 shadow-xs">
+      <div className="flex flex-col gap-3 border-b border-gray-100 pb-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-xs font-bold uppercase tracking-wider text-[#2E5E58]">Editing drink</p>
+          <span className="text-[10px] font-bold uppercase tracking-wider text-[#2E5E58]">Editing Drink Recipe</span>
           <h3 className="text-lg font-bold text-gray-900">{selectedDrink.name}</h3>
         </div>
-        <div className="flex items-end gap-2">
-          <label className="text-sm font-bold text-gray-800">
-            Base calories
-            <input type="number" min="0" value={baseCalories} onChange={(event) => setBaseCalories(event.target.value)} className="ml-2 w-24 rounded-lg border border-gray-300 px-2 py-2 text-right text-sm" /> kcal
+        <div className="flex items-center gap-2">
+          <label className="flex items-center text-xs font-bold text-gray-700">
+            <span>Base calories:</span>
+            <input
+              type="number"
+              min="0"
+              value={baseCalories}
+              onChange={(event) => setBaseCalories(event.target.value)}
+              className="ml-2 w-20 rounded-xl border border-gray-200 px-2.5 py-1.5 text-right text-xs font-bold text-gray-900 bg-white shadow-2xs outline-none focus:border-[#2E5E58]"
+            />
+            <span className="ml-1 text-gray-400 font-normal">kcal</span>
           </label>
-          <button type="button" onClick={closeEditor} disabled={saving} className="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-50">
-            <X size={16} /> Close
+          <button
+            type="button"
+            onClick={closeEditor}
+            disabled={saving}
+            className="inline-flex items-center gap-1 rounded-xl border border-gray-200 px-3 py-1.5 text-xs font-bold text-gray-700 hover:bg-gray-50 shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
+          >
+            <X size={14} /> Close
           </button>
         </div>
       </div>
-      <div className="mt-4 space-y-5">
+      <div className="mt-4 space-y-4">
         {applicableGroups.map((group) => (
-          <div key={group.id}>
-            <div>
-              <h4 className="text-sm font-bold text-gray-900">{group.name}</h4>
-              <p className="text-xs text-gray-500">This value belongs to {selectedDrink.name} only. Apply all copies this option to applicable drinks.</p>
+          <div key={group.id} className="rounded-xl border border-gray-100 bg-gray-50/50 p-3.5 space-y-2">
+            <div className="flex items-center gap-1.5">
+              <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wider">{group.name}</h4>
+              <InfoTooltip
+                content={`Adjust calorie delta specifically for ${selectedDrink.name}. Click 'Apply All' to bulk propagate this value across other drinks.`}
+                title={group.name}
+              />
             </div>
-            <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {group.options.filter((option) => option.is_active).map((option) => (
-                <div key={option.id} className="flex items-center gap-3 rounded-lg border border-gray-200 p-3">
-                  <span className="min-w-0 flex-1 text-sm font-semibold text-gray-800">{option.name}</span>
-                  <input type="number" value={optionCalories[option.id] ?? 0} onChange={(event) => setOptionCalories({ ...optionCalories, [option.id]: event.target.value })} className="w-20 rounded border border-gray-300 px-2 py-1.5 text-right text-sm" aria-label={`${option.name} calories`} />
-                  <span className="text-xs text-gray-500">kcal</span>
-                  <button type="button" disabled={saving} onClick={() => applyOptionToAll(option)} className="rounded border border-[#2E5E58] px-2 py-1.5 text-xs font-bold text-[#1F3A34] hover:bg-[#F1FBF7] disabled:opacity-50">Apply all</button>
+                <div key={option.id} className="flex items-center justify-between gap-2 rounded-xl border border-gray-200 bg-white p-2.5 shadow-2xs">
+                  <span className="min-w-0 flex-1 truncate text-xs font-semibold text-gray-800">{option.name}</span>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <input
+                      type="number"
+                      value={optionCalories[option.id] ?? 0}
+                      onChange={(event) => setOptionCalories({ ...optionCalories, [option.id]: event.target.value })}
+                      className="w-16 rounded-lg border border-gray-200 px-2 py-1 text-right text-xs font-bold text-gray-900 outline-none focus:border-[#2E5E58]"
+                      aria-label={`${option.name} calories`}
+                    />
+                    <span className="text-[10px] text-gray-400 font-medium">kcal</span>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={() => applyOptionToAll(option)}
+                    className="rounded-lg border border-[#2E5E58]/30 px-2 py-1 text-[10px] font-bold text-[#1E433A] hover:bg-[#F1FBF7] transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    Apply All
+                  </button>
                 </div>
               ))}
             </div>
@@ -130,26 +161,50 @@ export default function RecipeNutrition({ drinks, groups }) {
         ))}
       </div>
       <div className="mt-5 flex justify-end border-t border-gray-100 pt-4">
-        <button type="button" disabled={saving} onClick={saveDrink} className="inline-flex items-center gap-2 rounded-lg bg-[#1F3A34] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#2E5E58] disabled:opacity-60">
-          <Save size={16} /> {saving ? 'Saving...' : `Save ${selectedDrink.name}`}
+        <button
+          type="button"
+          disabled={saving}
+          onClick={saveDrink}
+          className="inline-flex items-center gap-2 rounded-xl bg-[#1E433A] px-5 py-2 text-xs font-bold text-white hover:bg-[#16342D] shadow-xs transition-all cursor-pointer disabled:opacity-60"
+        >
+          <Save size={14} /> {saving ? 'Saving...' : `Save ${selectedDrink.name}`}
         </button>
       </div>
     </div>
   ) : null;
 
   return (
-    <section className="rounded-2xl border border-[#B9D9D1] bg-[#F7FCFA] p-5 shadow-sm">
-      <div className="mb-5">
-        <h2 className="text-base font-bold text-gray-900">Drink Nutrition</h2>
-        <p className="mt-1 text-sm text-gray-600">Choose a drink from the menu, then enter its own base and option calories. Use Apply all beside any option to copy only that option's value to every applicable drink.</p>
+    <section className="rounded-2xl border border-[#B9D9D1] bg-[#F7FCFA] p-5 shadow-xs">
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <h2 className="text-base font-bold text-gray-900">Drink Nutrition Recipes</h2>
+          <InfoTooltip
+            content="Select a drink to configure its base calories and customize modifier calorie deltas (milk, syrups, beans). Use 'Apply All' to sync a modifier's calorie value across all drinks."
+            title="Drink Nutrition"
+          />
+        </div>
+        <span className="text-xs font-semibold text-gray-500">
+          {drinks.length} {drinks.length === 1 ? 'drink' : 'drinks'}
+        </span>
       </div>
-      {message && <p className="mb-4 rounded-lg border border-[#B9D9D1] bg-white px-3 py-2 text-sm text-[#1F3A34]">{message}</p>}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      {message && <p className="mb-4 rounded-xl border border-[#B9D9D1] bg-white px-3 py-2 text-xs font-medium text-[#1F3A34] shadow-2xs">{message}</p>}
+      <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {drinks.map((drink) => (
           <React.Fragment key={drink.id}>
-            <button type="button" onClick={() => selectDrink(drink.id)} className={`flex items-center justify-between rounded-xl border px-4 py-3 text-left transition ${selectedItemId === drink.id ? 'border-[#2E5E58] bg-white ring-2 ring-[#2E5E58]/20' : 'border-gray-200 bg-white hover:border-[#7EAAA2]'}`}>
-              <span><span className="block text-sm font-bold text-gray-900">{drink.name}</span><span className="mt-0.5 block text-xs text-gray-500">Base: {drink.base_calories_kcal ?? 0} kcal</span></span>
-              {selectedItemId === drink.id ? <Check size={18} className="text-[#2E5E58]" /> : <ChevronRight size={18} className="text-gray-400" />}
+            <button
+              type="button"
+              onClick={() => selectDrink(drink.id)}
+              className={`flex items-center justify-between rounded-xl border px-3.5 py-2.5 text-left transition-all cursor-pointer ${
+                selectedItemId === drink.id
+                  ? 'border-[#2E5E58] bg-white ring-2 ring-[#2E5E58]/20 shadow-xs'
+                  : 'border-gray-200 bg-white hover:border-[#7EAAA2] shadow-2xs'
+              }`}
+            >
+              <div className="min-w-0 pr-2">
+                <p className="truncate text-xs font-bold text-gray-900">{drink.name}</p>
+                <p className="text-[10px] text-gray-400 font-medium">{drink.base_calories_kcal ?? 0} kcal base</p>
+              </div>
+              <ChevronRight size={14} className={`shrink-0 transition-transform ${selectedItemId === drink.id ? 'rotate-90 text-[#2E5E58]' : 'text-gray-400'}`} />
             </button>
             {selectedItemId === drink.id && nutritionEditor}
           </React.Fragment>

@@ -4,34 +4,36 @@ import { adminRequest, getAdminApiBaseUrl, uploadAdminVoucherImage } from '../li
 import {
   Search, ChevronDown, Download, Plus,
   Edit3, MoreVertical, X, Copy,
-  Trash2, Percent, Gift,
-  Tag
+  Trash2, Percent, Gift, Tag,
+  ArrowUp, ArrowDown, ArrowUpDown
 } from "lucide-react";
 import Pagination from './Pagination';
+import InfoTooltip from './InfoTooltip';
 import VouchersAnalytics from "./VouchersAnalytics";
 import { exportToCSV } from '../utils/exportToCSV';
 import { requestAdminConfirm, requestAdminPrompt } from '../lib/adminDialog';
 import { showAdminError } from '../lib/adminToast';
 
-// Stat Card Component (Matched to Customers & Orders KPICard) 
-const StatCard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-white" }) => (
-  <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center space-x-4 min-w-0">
-    <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 ${iconBg} ${iconColor} shadow-sm`}>
-      <Icon size={26} strokeWidth={2.2} />
-    </div>
-    <div className="flex-1 min-w-0">
-      <h3 className="text-gray-500 text-[11px] sm:text-xs xl:text-sm font-medium leading-tight mt-0.5 whitespace-normal">
-        {title}
-      </h3>
-      <p className="text-2xl font-bold text-gray-900 mt-1 leading-tight">{value}</p>
-      {change && (
-        <div className="flex items-center gap-1 mt-1">
-          <p className="text-[11px] text-gray-500 font-medium leading-tight whitespace-normal">
-            {change.includes('%') && !change.includes('of total') && !change.includes('↑') && !change.includes('↓') && change.includes('vs') ? `↑ ${change}` : change}
-          </p>
+// Modern KPI Card matching Dashboard & Orders standard 
+const StatCard = ({ title, value, change, info, icon: Icon, iconBg = "bg-[#1E433A]", iconColor = "text-white" }) => (
+  <div className="flex items-center justify-between rounded-2xl border border-gray-200/80 bg-white p-5 shadow-2xs hover:shadow-xs transition-shadow">
+    <div className="flex items-center gap-3.5 min-w-0">
+      <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${iconBg} ${iconColor} shadow-xs`}>
+        <Icon size={20} strokeWidth={2.2} />
+      </div>
+      <div className="min-w-0">
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{title}</span>
+          {info && <InfoTooltip content={info} title={title} />}
         </div>
-      )}
+        <p className="text-2xl font-extrabold text-gray-900 tracking-tight leading-tight mt-0.5">{value}</p>
+      </div>
     </div>
+    {change && (
+      <span className="shrink-0 px-2.5 py-1 rounded-full text-xs font-bold bg-[#E8F3F0] text-[#1E433A]">
+        {change}
+      </span>
+    )}
   </div>
 );
 
@@ -677,7 +679,41 @@ const ScopeSelectionSection = ({
   );
 };
 
+function SortableHeader({ label, columnKey, currentKey, direction, onSort, info, className = "" }) {
+  const isSorted = currentKey === columnKey;
+  return (
+    <th className={`px-6 py-4 font-bold text-[11px] text-gray-500 uppercase tracking-wider whitespace-nowrap ${className}`}>
+      <div className="flex items-center gap-1.5">
+        <button
+          type="button"
+          onClick={() => onSort(columnKey)}
+          className={`group inline-flex items-center gap-1.5 hover:text-[#1E433A] cursor-pointer focus:outline-none transition-colors select-none ${
+            isSorted ? "text-[#1E433A] font-bold" : ""
+          }`}
+          title={`Sort by ${label} ${isSorted && direction === "asc" ? "(Descending)" : "(Ascending)"}`}
+        >
+          <span>{label}</span>
+          <span className="inline-flex items-center">
+            {isSorted ? (
+              direction === "asc" ? (
+                <ArrowUp size={13} className="text-[#1E433A]" strokeWidth={2.5} />
+              ) : (
+                <ArrowDown size={13} className="text-[#1E433A]" strokeWidth={2.5} />
+              )
+            ) : (
+              <ArrowUpDown size={12} className="text-gray-300 group-hover:text-gray-500 transition-colors" />
+            )}
+          </span>
+        </button>
+        {info && <InfoTooltip content={info} title={label} />}
+      </div>
+    </th>
+  );
+}
+
 const Vouchers = ({ onNavigate }) => {
+  const [voucherSortKey, setVoucherSortKey] = useState("name");
+  const [voucherSortDirection, setVoucherSortDirection] = useState("asc");
   const [vouchers, setVouchers] = useState([]);
   const [, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -857,6 +893,15 @@ const Vouchers = ({ onNavigate }) => {
 
   const resetPage = () => setCurrentPage(1);
 
+  const handleVoucherSort = (key) => {
+    if (voucherSortKey === key) {
+      setVoucherSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setVoucherSortKey(key);
+      setVoucherSortDirection("asc");
+    }
+  };
+
   const typeFilterOptions = ["All Type", ...Array.from(new Set(vouchers.map((voucher) => voucher.type).filter(Boolean)))];
 
   const filtered = vouchers.filter((v) => {
@@ -871,8 +916,35 @@ const Vouchers = ({ onNavigate }) => {
     return matchSearch && matchType && matchStatus;
   });
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
-  const paginated = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+  const sortedVouchers = [...filtered].sort((a, b) => {
+    let comparison = 0;
+    switch (voucherSortKey) {
+      case "name":
+        comparison = (a.name || "").localeCompare(b.name || "");
+        break;
+      case "reward":
+        comparison = (a.benefitType || "").localeCompare(b.benefitType || "");
+        break;
+      case "audience":
+        comparison = (a.audience || "").localeCompare(b.audience || "");
+        break;
+      case "availability":
+        comparison = (a.availabilityMode || "").localeCompare(b.availabilityMode || "");
+        break;
+      case "status":
+        comparison = (a.status || "").localeCompare(b.status || "");
+        break;
+      case "usage":
+        comparison = (Number(a.issued) || 0) - (Number(b.issued) || 0);
+        break;
+      default:
+        comparison = 0;
+    }
+    return voucherSortDirection === "asc" ? comparison : -comparison;
+  });
+
+  const totalPages = Math.max(1, Math.ceil(sortedVouchers.length / ITEMS_PER_PAGE));
+  const paginated = sortedVouchers.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
   // Compute Analytics
   const totalVouchersCount = vouchers.length;
@@ -1221,23 +1293,26 @@ const Vouchers = ({ onNavigate }) => {
         <StatCard
           title="Voucher templates"
           value={totalVouchersCount.toLocaleString()}
-          change="Updated just now"
+          change="Updated live"
+          info="Total promotional and customer reward voucher templates in your catalog."
           icon={Percent}
-          iconBg="bg-[#1F3A34]"
+          iconBg="bg-[#1E433A]"
         />
         <StatCard
           title="Active Vouchers"
           value={activeVouchersCount.toLocaleString()}
-          change="Updated just now"
+          change="Available"
+          info="Vouchers currently active and redeemable by eligible customers."
           icon={Gift}
           iconBg="bg-[#2E5E58]"
         />
         <StatCard
           title="Redemption Rate"
           value={redemptionRateStr}
-          change="Updated just now"
+          change="Conversion"
+          info="Overall percentage of issued vouchers that customers successfully redeemed."
           icon={Tag}
-          iconBg="bg-[#D4AF7A]"
+          iconBg="bg-[#8C6D53]"
         />
       </div>
 
@@ -1246,14 +1321,14 @@ const Vouchers = ({ onNavigate }) => {
         {/* Search */}
         <div className="relative w-full max-w-[400px]">
           <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-            <Search size={18} className="text-gray-400" />
+            <Search size={16} className="text-gray-400" />
           </div>
           <input
             type="text"
             value={search}
             onChange={(e) => { setSearch(e.target.value); resetPage(); }}
             placeholder="Search vouchers by name, code or benefit..."
-            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-[#2E5E58] focus:border-[#2E5E58] text-sm"
+            className="block w-full pl-10 pr-3 py-2.5 border border-gray-200 rounded-xl focus:border-[#1E433A] outline-none text-xs bg-white shadow-2xs"
           />
         </div>
 
@@ -1266,41 +1341,41 @@ const Vouchers = ({ onNavigate }) => {
               onChange={(e) => { setTypeFilter(e.target.value); resetPage(); }}
               onFocus={() => setTypeOpen(true)}
               onBlur={() => setTypeOpen(false)}
-              className="peer pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer"
+              className="peer pl-4 pr-10 py-2.5 border border-gray-200 rounded-xl text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer shadow-2xs"
             >
               {typeFilterOptions.map((t) => (
                 <option key={t} value={t}>{t}</option>
               ))}
             </select>
             <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-              <ChevronDown size={16} className={`text-gray-500 transition-transform duration-200 ${typeOpen ? 'rotate-180' : ''}`} />
+              <ChevronDown size={14} className={`text-gray-500 transition-transform duration-200 ${typeOpen ? 'rotate-180' : ''}`} />
             </div>
           </div>
 
           {/* Status Filter */}
-          <div className="relative transition-transform duration-200 peer-focus:-rotate-180">
+          <div className="relative">
             <select
               value={statusFilter}
               onChange={(e) => { setStatusFilter(e.target.value); resetPage(); }}
               onFocus={() => setStatusOpen(true)}
               onBlur={() => setStatusOpen(false)}
-              className="peer pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer"
+              className="peer pl-4 pr-10 py-2.5 border border-gray-200 rounded-xl text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer shadow-2xs"
             >
               {STATUS_TYPES.map((s) => (
                 <option key={s} value={s}>{s}</option>
               ))}
             </select>
             <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-              <ChevronDown size={16} className={`text-gray-500 transition-transform duration-200 ${statusOpen ? 'rotate-180' : ''}`} />
+              <ChevronDown size={14} className={`text-gray-500 transition-transform duration-200 ${statusOpen ? 'rotate-180' : ''}`} />
             </div>
           </div>
 
           {/* + New Voucher Button */}
           <button
             onClick={() => setShowCreateModal(true)}
-            className="flex items-center px-4 py-2 bg-[#1F3A34] text-white border-transparent text-sm font-bold rounded-lg hover:bg-[#2E5E58] transition-colors shadow-sm cursor-pointer"
+            className="flex items-center px-4 py-2.5 bg-[#1E433A] text-white text-xs font-bold rounded-xl hover:bg-[#2E5E58] transition-colors shadow-2xs cursor-pointer"
           >
-            <Plus size={16} className="mr-2" /> New Voucher
+            <Plus size={15} className="mr-1.5" /> New Voucher
           </button>
         </div>
       </div>
@@ -1308,17 +1383,17 @@ const Vouchers = ({ onNavigate }) => {
       {/* 4. Main Content: Vouchers Table + Right Side Details Panel */}
       <div className="flex flex-col xl:flex-row gap-6 flex-1 min-h-0">
         {/* Table Card */}
-        <div className="flex-1 bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col min-w-0">
+        <div className="flex-1 bg-white rounded-2xl shadow-2xs border border-gray-200/80 overflow-hidden flex flex-col min-w-0">
           <div className="overflow-x-auto flex-1">
             <table className="min-w-full divide-y divide-gray-100 text-xs">
-              <thead>
-                <tr className="bg-white text-gray-900 font-bold border-b border-gray-100">
-                  <th className="px-6 py-4 text-left">Voucher</th>
-                  <th className="px-6 py-4 text-left">Reward</th>
-                  <th className="px-6 py-4 text-left">Who can receive it</th>
-                  <th className="px-6 py-4 text-left">Availability</th>
-                  <th className="px-6 py-4 text-left">Status &amp; usage</th>
-                  <th className="px-6 py-4 text-center">Actions</th>
+              <thead className="bg-[#FAFBFB] border-b border-gray-100">
+                <tr>
+                  <SortableHeader label="Voucher" columnKey="name" currentKey={voucherSortKey} direction={voucherSortDirection} onSort={handleVoucherSort} />
+                  <SortableHeader label="Reward" columnKey="reward" currentKey={voucherSortKey} direction={voucherSortDirection} onSort={handleVoucherSort} />
+                  <SortableHeader label="Who can receive it" columnKey="audience" currentKey={voucherSortKey} direction={voucherSortDirection} onSort={handleVoucherSort} info="Target customer group for this voucher." />
+                  <SortableHeader label="Availability" columnKey="availability" currentKey={voucherSortKey} direction={voucherSortDirection} onSort={handleVoucherSort} info="Time window and redemption restrictions." />
+                  <SortableHeader label="Status & usage" columnKey="status" currentKey={voucherSortKey} direction={voucherSortDirection} onSort={handleVoucherSort} info="Current lifecycle state and total redemption rate." />
+                  <th className="px-6 py-4 text-center font-bold text-[11px] text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50 bg-white">
@@ -1766,8 +1841,8 @@ const Vouchers = ({ onNavigate }) => {
       </div>
 
       {showIssueModal && issuingVoucher && typeof document !== 'undefined' && createPortal(
-        <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 sm:p-6 bg-slate-900/35 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 sm:p-6 bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl border border-gray-100 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between px-6 py-4.5 border-b border-gray-100 bg-white/80 backdrop-blur-xs">
               <div>
                 <h3 className="text-base font-bold text-gray-900 tracking-tight">Issue Voucher</h3>
@@ -1884,8 +1959,8 @@ const Vouchers = ({ onNavigate }) => {
 
       {/* Create New Voucher Modal */}
       {showCreateModal && typeof document !== 'undefined' && createPortal(
-        <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 sm:p-6 bg-slate-900/35 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 w-full max-w-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh]">
+        <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 sm:p-6 bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl border border-gray-100 w-full max-w-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh]">
             {/* Modal Header */}
             <div className="flex items-center justify-between px-6 py-4.5 border-b border-gray-100 bg-white/80 backdrop-blur-xs shrink-0">
               <div>
@@ -2377,8 +2452,8 @@ const Vouchers = ({ onNavigate }) => {
 
       {/*Edit Voucher Modal*/}
       {editingVoucher && typeof document !== 'undefined' && createPortal(
-        <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 sm:p-6 bg-slate-900/35 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 w-full max-w-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh]">
+        <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 sm:p-6 bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl border border-gray-100 w-full max-w-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh]">
             {/* Modal Header */}
             <div className="flex items-center justify-between px-6 py-4.5 border-b border-gray-100 bg-white/80 backdrop-blur-xs shrink-0">
               <div>

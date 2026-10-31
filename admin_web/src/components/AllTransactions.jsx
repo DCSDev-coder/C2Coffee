@@ -1,16 +1,51 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Download, Search, RefreshCw } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowUp, ArrowUpDown, Download, Search, RefreshCw } from 'lucide-react';
 import { exportToCSV } from '../utils/exportToCSV';
 import { loadAdminFinanceOverview } from '../lib/adminApi';
 import { formatPaymentLabel, formatReportMoney, formatReportTokens } from '../utils/reporting';
+import InfoTooltip from './InfoTooltip';
 
 const REFRESH_INTERVAL_MS = 60_000;
+
+function SortableHeader({ label, columnKey, currentKey, direction, onSort, info, className = "" }) {
+  const isSorted = currentKey === columnKey;
+  return (
+    <th className={`px-5 py-4 font-bold text-[11px] text-gray-500 uppercase tracking-wider whitespace-nowrap ${className}`}>
+      <div className={`flex items-center gap-1.5 ${className.includes('text-right') ? 'justify-end' : className.includes('text-center') ? 'justify-center' : ''}`}>
+        <button
+          type="button"
+          onClick={() => onSort(columnKey)}
+          className={`group inline-flex items-center gap-1.5 hover:text-[#1E433A] cursor-pointer focus:outline-none transition-colors select-none ${
+            isSorted ? "text-[#1E433A] font-bold" : ""
+          }`}
+          title={`Sort by ${label} ${isSorted && direction === "asc" ? "(Descending)" : "(Ascending)"}`}
+        >
+          <span>{label}</span>
+          <span className="inline-flex items-center">
+            {isSorted ? (
+              direction === "asc" ? (
+                <ArrowUp size={13} className="text-[#1E433A]" strokeWidth={2.5} />
+              ) : (
+                <ArrowDown size={13} className="text-[#1E433A]" strokeWidth={2.5} />
+              )
+            ) : (
+              <ArrowUpDown size={12} className="text-gray-300 group-hover:text-gray-500 transition-colors" />
+            )}
+          </span>
+        </button>
+        {info && <InfoTooltip content={info} title={label} />}
+      </div>
+    </th>
+  );
+}
 
 const AllTransactions = ({ onBack }) => {
   const [overview, setOverview] = useState({ recentTransactions: [] });
   const [searchTerm, setSearchTerm] = useState('');
   const [rowsPerPage, setRowsPerPage] = useState(50);
   const [currentPage, setCurrentPage] = useState(1);
+  const [transactionSortKey, setTransactionSortKey] = useState('dateTime');
+  const [transactionSortDirection, setTransactionSortDirection] = useState('desc');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
@@ -66,9 +101,50 @@ const AllTransactions = ({ onBack }) => {
     ));
   }, [searchTerm, transactions]);
 
+  const handleTransactionSort = (key) => {
+    if (transactionSortKey === key) {
+      setTransactionSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setTransactionSortKey(key);
+      setTransactionSortDirection('asc');
+    }
+    setCurrentPage(1);
+  };
+
+  const sortedTransactions = useMemo(() => {
+    return [...filtered].sort((a, b) => {
+      let aVal, bVal;
+      if (transactionSortKey === 'dateTime') {
+        aVal = `${a.date || ''} ${a.time || ''}`;
+        bVal = `${b.date || ''} ${b.time || ''}`;
+      } else if (transactionSortKey === 'type') {
+        aVal = (a.type || '').toLowerCase();
+        bVal = (b.type || '').toLowerCase();
+      } else if (transactionSortKey === 'description') {
+        aVal = (a.description || '').toLowerCase();
+        bVal = (b.description || '').toLowerCase();
+      } else if (transactionSortKey === 'amount') {
+        aVal = Number(a.amountRm || 0);
+        bVal = Number(b.amountRm || 0);
+      } else if (transactionSortKey === 'status') {
+        aVal = (a.status || '').toLowerCase();
+        bVal = (b.status || '').toLowerCase();
+      } else if (transactionSortKey === 'payment') {
+        aVal = (a.paymentMode || '').toLowerCase();
+        bVal = (b.paymentMode || '').toLowerCase();
+      }
+
+      if (aVal === bVal) return 0;
+      if (aVal === undefined || aVal === null || aVal === '') return 1;
+      if (bVal === undefined || bVal === null || bVal === '') return -1;
+      const res = aVal > bVal ? 1 : -1;
+      return transactionSortDirection === 'asc' ? res : -res;
+    });
+  }, [filtered, transactionSortKey, transactionSortDirection]);
+
   const visibleTransactions = useMemo(
-    () => filtered.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage),
-    [currentPage, filtered, rowsPerPage]
+    () => sortedTransactions.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage),
+    [currentPage, sortedTransactions, rowsPerPage]
   );
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
@@ -132,7 +208,10 @@ const AllTransactions = ({ onBack }) => {
             <ArrowLeft size={22} strokeWidth={2.5} />
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">All Transactions</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold text-gray-900">All Transactions</h1>
+              <InfoTooltip content="Comprehensive historical log of order charges, wallet debits, and customer refunds." title="Transaction Ledger" />
+            </div>
             <p className="text-sm text-gray-500 mt-1">
               Live order and refund transactions pulled from the backend.
             </p>
@@ -192,12 +271,12 @@ const AllTransactions = ({ onBack }) => {
           <table className="min-w-full text-sm whitespace-nowrap">
             <thead className="sticky top-0 bg-gray-50/90 backdrop-blur-sm shadow-sm z-10">
               <tr className="border-b border-gray-200 text-left">
-                <th className="px-5 py-4 font-bold text-gray-900 w-44">Date & Time</th>
-                <th className="px-5 py-4 font-bold text-gray-900 w-24">Type</th>
-                <th className="px-5 py-4 font-bold text-gray-900">Description</th>
-                <th className="px-5 py-4 font-bold text-gray-900 w-44 text-right">Amount</th>
-                <th className="px-5 py-4 font-bold text-gray-900 w-28">Status</th>
-                <th className="px-5 py-4 font-bold text-gray-900 w-40">Payment</th>
+                <SortableHeader label="Date & Time" columnKey="dateTime" currentKey={transactionSortKey} direction={transactionSortDirection} onSort={handleTransactionSort} info="Date and timestamp of transaction record." className="w-44" />
+                <SortableHeader label="Type" columnKey="type" currentKey={transactionSortKey} direction={transactionSortDirection} onSort={handleTransactionSort} info="Transaction action type." className="w-28" />
+                <SortableHeader label="Description" columnKey="description" currentKey={transactionSortKey} direction={transactionSortDirection} onSort={handleTransactionSort} info="Transaction summary description." />
+                <SortableHeader label="Amount" columnKey="amount" currentKey={transactionSortKey} direction={transactionSortDirection} onSort={handleTransactionSort} info="Gross transaction monetary value in RM and tokens." className="w-44 text-right" />
+                <SortableHeader label="Status" columnKey="status" currentKey={transactionSortKey} direction={transactionSortDirection} onSort={handleTransactionSort} info="Fulfillment and settlement outcome." className="w-28" />
+                <SortableHeader label="Payment" columnKey="payment" currentKey={transactionSortKey} direction={transactionSortDirection} onSort={handleTransactionSort} info="Payment channel applied." className="w-40" />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">

@@ -1,26 +1,27 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Award, BarChart3, Edit3, Gift, MoreVertical, Plus, Save, Trash2, Users, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, Award, BarChart3, Edit3, Gift, MoreVertical, Plus, Save, Trash2, Users, X } from 'lucide-react';
 import { BarChart, Bar, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import Pagination from './Pagination';
+import InfoTooltip from './InfoTooltip';
 import { adminRequest, createAdminTier, deleteAdminTier, getAdminApiBaseUrl, loadAdminLoyaltyOverview, loadAdminMenu, loadAdminVouchers, updateAdminTier, uploadAdminTierImage } from '../lib/adminApi';
 import { requestAdminConfirm } from '../lib/adminDialog';
 import { showAdminError } from '../lib/adminToast';
 
 const DEFAULT_COLORS = ['#1F3A34', '#2E5E58', '#6F9F96', '#E07A5F', '#D4AF7A', '#9333EA'];
 
-const statCardClass =
-  'bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center space-x-4 min-w-0';
-
-const StatCard = ({ title, value, change, icon: Icon, iconBg, iconColor = 'text-white' }) => (
-  <div className={statCardClass}>
+const StatCard = ({ title, value, change, icon: Icon, iconBg, iconColor = 'text-white', info }) => (
+  <div className="bg-white p-5 rounded-2xl border border-gray-200/80 shadow-2xs hover:shadow-xs transition-shadow flex items-center space-x-4 min-w-0">
     <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 ${iconBg} ${iconColor} shadow-sm`}>
       <Icon size={26} strokeWidth={2.2} />
     </div>
     <div className="flex-1 min-w-0">
-      <h3 className="text-gray-500 text-[11px] sm:text-xs xl:text-sm font-medium leading-tight mt-0.5 whitespace-normal">
-        {title}
-      </h3>
+      <div className="flex items-center gap-1.5">
+        <h3 className="text-gray-500 text-[11px] sm:text-xs xl:text-sm font-medium leading-tight whitespace-normal">
+          {title}
+        </h3>
+        {info && <InfoTooltip content={info} title={title} />}
+      </div>
       <p className="text-2xl font-bold text-gray-900 mt-1 leading-tight">{value}</p>
       {change && (
         <p className="text-[11px] text-gray-500 font-medium leading-tight whitespace-normal mt-1">
@@ -30,6 +31,38 @@ const StatCard = ({ title, value, change, icon: Icon, iconBg, iconColor = 'text-
     </div>
   </div>
 );
+
+function SortableHeader({ label, columnKey, currentKey, direction, onSort, info, className = "" }) {
+  const isSorted = currentKey === columnKey;
+  return (
+    <th className={`px-6 py-4 font-bold text-[11px] text-gray-500 uppercase tracking-wider whitespace-nowrap ${className}`}>
+      <div className={`flex items-center gap-1.5 ${className.includes('text-center') ? 'justify-center' : className.includes('text-right') ? 'justify-end' : ''}`}>
+        <button
+          type="button"
+          onClick={() => onSort(columnKey)}
+          className={`group inline-flex items-center gap-1.5 hover:text-[#1E433A] cursor-pointer focus:outline-none transition-colors select-none ${
+            isSorted ? "text-[#1E433A] font-bold" : ""
+          }`}
+          title={`Sort by ${label} ${isSorted && direction === "asc" ? "(Descending)" : "(Ascending)"}`}
+        >
+          <span>{label}</span>
+          <span className="inline-flex items-center">
+            {isSorted ? (
+              direction === "asc" ? (
+                <ArrowUp size={13} className="text-[#1E433A]" strokeWidth={2.5} />
+              ) : (
+                <ArrowDown size={13} className="text-[#1E433A]" strokeWidth={2.5} />
+              )
+            ) : (
+              <ArrowUpDown size={12} className="text-gray-300 group-hover:text-gray-500 transition-colors" />
+            )}
+          </span>
+        </button>
+        {info && <InfoTooltip content={info} title={label} />}
+      </div>
+    </th>
+  );
+}
 
 function parseNumber(value) {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
@@ -187,14 +220,17 @@ const TierModal = ({ open, title, form, onChange, onClose, onSave, saving }) => 
   if (!open || typeof document === 'undefined') return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-slate-900/35 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 w-full max-w-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
-        <div className="px-6 py-4.5 border-b border-gray-100 bg-white/80 backdrop-blur-xs flex items-center justify-between shrink-0">
+    <div className="fixed inset-0 z-9999 flex items-center justify-center p-3 sm:p-4 bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-200 overflow-y-auto">
+      <div className="bg-white rounded-3xl shadow-2xl border border-gray-100 w-full max-w-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200 my-auto">
+        <div className="px-6 py-4.5 border-b border-gray-100 bg-white flex items-center justify-between shrink-0">
           <div>
-            <h2 className="text-lg font-bold text-gray-900">{title}</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-bold text-gray-900">{title}</h2>
+              <InfoTooltip content="Live tier settings used by customer progress, menu pricing, and tier state." title="Tier Settings" />
+            </div>
             <p className="text-xs text-gray-500 mt-0.5">Live tier settings used by customer progress, menu pricing, and tier state.</p>
           </div>
-          <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer">
+          <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer" aria-label="Close modal">
             <X size={20} />
           </button>
         </div>
@@ -294,11 +330,14 @@ const TierRewardModal = ({ open, form, tiers, menuItems, onChange, onClose, onSa
   const allScopedItemsSelected = scopedItems.length > 0 && scopedItems.every((item) => form.eligibleItems.includes(item.name));
 
   return createPortal(
-    <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-slate-900/35 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl border border-gray-100 animate-in zoom-in-95 duration-200">
-        <div className="flex shrink-0 items-center justify-between border-b border-gray-100 bg-white/80 backdrop-blur-xs px-6 py-4.5">
+    <div className="fixed inset-0 z-9999 flex items-center justify-center p-3 sm:p-4 bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-200 overflow-y-auto">
+      <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl border border-gray-100 animate-in zoom-in-95 duration-200 my-auto">
+        <div className="flex shrink-0 items-center justify-between border-b border-gray-100 bg-white px-6 py-4.5">
           <div>
-            <h2 className="text-lg font-bold text-gray-900">{isEditing ? 'Edit Tier Reward' : 'New Tier Reward'}</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-bold text-gray-900">{isEditing ? 'Edit Tier Reward' : 'New Tier Reward'}</h2>
+              <InfoTooltip content={isEditing ? 'Update this tier voucher without changing which tier it belongs to.' : 'Create an achievement reward or a birthday-month reward for one tier.'} title="Tier Reward" />
+            </div>
             <p className="mt-0.5 text-xs text-gray-500">{isEditing ? 'Update this tier voucher without changing which tier it belongs to.' : 'Create an achievement reward or a birthday-month reward for one tier.'}</p>
           </div>
           <button type="button" onClick={onClose} className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer" aria-label="Close tier reward form">
@@ -461,6 +500,8 @@ const TierManagement = () => {
   const [tierRewardMenuItems, setTierRewardMenuItems] = useState([]);
   const [codeAutoGenerated, setCodeAutoGenerated] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
+  const [tierSortKey, setTierSortKey] = useState('minCups');
+  const [tierSortDirection, setTierSortDirection] = useState('asc');
   const itemsPerPage = 8;
 
   useEffect(() => {
@@ -791,8 +832,43 @@ const TierManagement = () => {
     }
   };
 
-  const totalPages = Math.max(1, Math.ceil(sortedTiers.length / itemsPerPage));
-  const paginatedTiers = sortedTiers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const handleTierSort = (key) => {
+    if (tierSortKey === key) {
+      setTierSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setTierSortKey(key);
+      setTierSortDirection('asc');
+    }
+    setCurrentPage(1);
+  };
+
+  const tableTiers = useMemo(() => {
+    return [...sortedTiers].sort((a, b) => {
+      let aVal, bVal;
+      if (tierSortKey === 'name') {
+        aVal = (a.name || '').toLowerCase();
+        bVal = (b.name || '').toLowerCase();
+      } else if (tierSortKey === 'minCups') {
+        aVal = parseNumber(a.minCups);
+        bVal = parseNumber(b.minCups);
+      } else if (tierSortKey === 'rewards') {
+        aVal = tierRewardIds(a).length + tierBirthdayRewardIds(a).length;
+        bVal = tierRewardIds(b).length + tierBirthdayRewardIds(b).length;
+      } else if (tierSortKey === 'status') {
+        aVal = a.isActive ? 1 : 0;
+        bVal = b.isActive ? 1 : 0;
+      }
+
+      if (aVal === bVal) return 0;
+      if (aVal === undefined || aVal === null || aVal === '') return 1;
+      if (bVal === undefined || bVal === null || bVal === '') return -1;
+      const res = aVal > bVal ? 1 : -1;
+      return tierSortDirection === 'asc' ? res : -res;
+    });
+  }, [sortedTiers, tierSortKey, tierSortDirection]);
+
+  const totalPages = Math.max(1, Math.ceil(tableTiers.length / itemsPerPage));
+  const paginatedTiers = tableTiers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
   return (
     <div className="px-8 pb-8 pt-2 h-full flex flex-col space-y-6 overflow-y-auto bg-gray-50/30">
       <div className="shrink-0 flex items-center justify-between">
@@ -828,6 +904,7 @@ const TierManagement = () => {
           change="Live loyalty data"
           icon={Users}
           iconBg="bg-[#1F3A34]"
+          info="Total registered loyalty members active across all tier levels."
         />
         <StatCard
           title="Base Tier"
@@ -835,6 +912,7 @@ const TierManagement = () => {
           change={baseTier ? `Starts at ${formatCupsLabel(baseTier.minCups)}` : 'No active tiers'}
           icon={BarChart3}
           iconBg="bg-[#6F9F96]"
+          info="Entry-level tier assigned to new customers upon joining the loyalty program."
         />
         <StatCard
           title="Top Tier"
@@ -842,6 +920,7 @@ const TierManagement = () => {
           change={topTier ? `Starts at ${formatCupsLabel(topTier.minCups)}` : 'No active tiers'}
           icon={Award}
           iconBg="bg-[#D4AF7A]"
+          info="Highest unlocked VIP tier with peak lifetime cup threshold and top rewards."
         />
       </div>
 
@@ -899,13 +978,13 @@ const TierManagement = () => {
       <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm flex flex-col flex-1 min-h-[420px]">
         <div className="overflow-x-auto flex-1">
           <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50/80 backdrop-blur-xs border-b border-gray-200 sticky top-0 z-10">
               <tr>
-                <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Tier Name</th>
-                <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Cups Needed</th>
-                <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100">Tier Rewards</th>
-                <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100 text-center">Status</th>
-                <th className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-100 text-center">Actions</th>
+                <SortableHeader label="Tier Name" columnKey="name" currentKey={tierSortKey} direction={tierSortDirection} onSort={handleTierSort} info="Display name and visual badge assigned to this loyalty level." />
+                <SortableHeader label="Cups Needed" columnKey="minCups" currentKey={tierSortKey} direction={tierSortDirection} onSort={handleTierSort} info="Number of lifetime cups required to reach and unlock this tier." />
+                <SortableHeader label="Tier Rewards" columnKey="rewards" currentKey={tierSortKey} direction={tierSortDirection} onSort={handleTierSort} info="Achievement and birthday vouchers unlocked upon reaching this tier." />
+                <SortableHeader label="Status" columnKey="status" currentKey={tierSortKey} direction={tierSortDirection} onSort={handleTierSort} info="Whether this tier is currently active in customer progression." className="text-center" />
+                <th className="px-6 py-4 font-bold text-[11px] text-gray-500 uppercase tracking-wider text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">

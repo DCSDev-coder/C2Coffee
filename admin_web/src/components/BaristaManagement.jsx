@@ -1,23 +1,27 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, ChevronDown, Download, Plus, MoreVertical, Coffee, CheckCircle, XCircle, X, Edit3, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, Search, ChevronDown, Download, Plus, MoreVertical, Coffee, CheckCircle, XCircle, X, Edit3, Trash2 } from 'lucide-react';
 import "react-datepicker/dist/react-datepicker.css";
 import { exportToCSV } from '../utils/exportToCSV';
 import Pagination from './Pagination';
+import InfoTooltip from './InfoTooltip';
 import { adminRequest } from '../lib/adminApi';
 import { requestAdminConfirm } from '../lib/adminDialog';
 import { showAdminError } from '../lib/adminToast';
 
-const StatCard = ({ title, value, subtitle, icon: Icon, iconBgColor, iconColor }) => (
-  <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center space-x-4 min-w-0">
+const StatCard = ({ title, value, subtitle, icon: Icon, iconBgColor, iconColor, info }) => (
+  <div className="bg-white p-5 rounded-2xl border border-gray-200/80 shadow-2xs hover:shadow-xs transition-shadow flex items-center space-x-4 min-w-0">
     <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 ${iconBgColor} ${iconColor} shadow-sm`}>
       <Icon size={26} strokeWidth={2.2} />
     </div>
     <div className="flex-1 min-w-0">
-      <h3 className="text-gray-500 text-[11px] sm:text-xs xl:text-sm font-medium leading-tight mt-0.5 whitespace-normal">
-        {title}
-      </h3>
-      <p className="text-2xl font-bold text-gray-900 leading-tight">{value}</p>
+      <div className="flex items-center gap-1.5">
+        <h3 className="text-gray-500 text-[11px] sm:text-xs xl:text-sm font-medium leading-tight whitespace-normal">
+          {title}
+        </h3>
+        {info && <InfoTooltip content={info} title={title} />}
+      </div>
+      <p className="text-2xl font-bold text-gray-900 leading-tight mt-1">{value}</p>
       {subtitle && (
         <div className="flex items-center gap-1 mt-1">
           <p className="text-[11px] text-gray-500 font-medium leading-tight whitespace-normal">
@@ -29,10 +33,42 @@ const StatCard = ({ title, value, subtitle, icon: Icon, iconBgColor, iconColor }
   </div>
 );
 
+function SortableHeader({ label, columnKey, currentKey, direction, onSort, info, className = "" }) {
+  const isSorted = currentKey === columnKey;
+  return (
+    <th className={`py-4 px-6 font-bold text-[11px] text-gray-500 uppercase tracking-wider whitespace-nowrap ${className}`}>
+      <div className={`flex items-center gap-1.5 ${className.includes('text-right') ? 'justify-end' : className.includes('text-center') ? 'justify-center' : ''}`}>
+        <button
+          type="button"
+          onClick={() => onSort(columnKey)}
+          className={`group inline-flex items-center gap-1.5 hover:text-[#1E433A] cursor-pointer focus:outline-none transition-colors select-none ${
+            isSorted ? "text-[#1E433A] font-bold" : ""
+          }`}
+          title={`Sort by ${label} ${isSorted && direction === "asc" ? "(Descending)" : "(Ascending)"}`}
+        >
+          <span>{label}</span>
+          <span className="inline-flex items-center">
+            {isSorted ? (
+              direction === "asc" ? (
+                <ArrowUp size={13} className="text-[#1E433A]" strokeWidth={2.5} />
+              ) : (
+                <ArrowDown size={13} className="text-[#1E433A]" strokeWidth={2.5} />
+              )
+            ) : (
+              <ArrowUpDown size={12} className="text-gray-300 group-hover:text-gray-500 transition-colors" />
+            )}
+          </span>
+        </button>
+        {info && <InfoTooltip content={info} title={label} />}
+      </div>
+    </th>
+  );
+}
+
 const StatusTag = ({ status }) => {
   const isActive = status === 'Active';
   return (
-    <span className={`px-3 py-1 rounded font-bold text-[13px] inline-flex items-center justify-center ${isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
+    <span className={`px-3 py-1 rounded-md font-bold text-xs inline-flex items-center justify-center ${isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
       {status}
     </span>
   );
@@ -45,6 +81,8 @@ const BaristaManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('Active');
   const [currentPage, setCurrentPage] = useState(1);
+  const [baristaSortKey, setBaristaSortKey] = useState('name');
+  const [baristaSortDirection, setBaristaSortDirection] = useState('asc');
   const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
 
   // Action menu and modals state
@@ -96,8 +134,38 @@ const BaristaManagement = () => {
     });
   }, [searchTerm, selectedStatus, baristas]);
 
-  const totalPages = Math.ceil(filteredBaristas.length / itemsPerPage) || 1;
-  const paginatedBaristas = filteredBaristas.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const handleBaristaSort = (key) => {
+    if (baristaSortKey === key) {
+      setBaristaSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setBaristaSortKey(key);
+      setBaristaSortDirection('asc');
+    }
+    setCurrentPage(1);
+  };
+
+  const sortedBaristas = useMemo(() => {
+    const list = [...filteredBaristas];
+    list.sort((a, b) => {
+      let aVal = a[baristaSortKey];
+      let bVal = b[baristaSortKey];
+      if (typeof aVal === 'string') {
+        aVal = aVal.toLowerCase();
+        bVal = (bVal || '').toLowerCase();
+      }
+      if (typeof aVal === 'boolean') {
+        aVal = aVal ? 1 : 0;
+        bVal = bVal ? 1 : 0;
+      }
+      if (aVal < bVal) return baristaSortDirection === 'asc' ? -1 : 1;
+      if (aVal > bVal) return baristaSortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+    return list;
+  }, [filteredBaristas, baristaSortKey, baristaSortDirection]);
+
+  const totalPages = Math.ceil(sortedBaristas.length / itemsPerPage) || 1;
+  const paginatedBaristas = sortedBaristas.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   // Stats
   const totalBaristas = baristas.length;
@@ -177,7 +245,10 @@ const BaristaManagement = () => {
     <div className="flex-1 overflow-x-hidden overflow-y-auto bg-[#F9FAFB]">
       <div className="p-6 lg:p-8 w-full h-full flex flex-col">
         <div className="mb-6 shrink-0">
-          <h1 className="text-2xl font-bold text-gray-900">Barista Management</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-gray-900">Barista Management</h1>
+            <InfoTooltip content="Manage staff profiles used for timetable attendance and six-digit PIN clock-ins on the shared workstation." title="Barista Management" />
+          </div>
           <p className="text-sm text-gray-500 mt-1">Manage staff profiles used for timetable attendance and six-digit PIN clock-ins on the shared workstation. Profiles do not need email, phone number, or separate app credentials.</p>
         </div>
 
@@ -189,6 +260,7 @@ const BaristaManagement = () => {
             icon={Coffee}
             iconBgColor="bg-[#1F3A34]"
             iconColor="text-white"
+            info="Total registered baristas active and inactive on the workstation roster."
           />
           <StatCard
             title="Active Baristas"
@@ -197,6 +269,7 @@ const BaristaManagement = () => {
             icon={CheckCircle}
             iconBgColor="bg-[#6F9F96]"
             iconColor="text-white"
+            info="Staff members eligible for weekly shift scheduling and PIN clock-in."
           />
           <StatCard
             title="Inactive Baristas"
@@ -205,6 +278,7 @@ const BaristaManagement = () => {
             icon={XCircle}
             iconBgColor="bg-[#E07A5F]"
             iconColor="text-white"
+            info="Archived baristas who no longer have active attendance access."
           />
         </div>
 
@@ -254,7 +328,7 @@ const BaristaManagement = () => {
 
             <button
               onClick={() => openModal()}
-              className="flex items-center space-x-2 px-4 py-2 border border-transparent rounded-lg bg-[#1F3A34] text-white font-medium hover:bg-[#2E5E58] transition-colors h-10"
+              className="flex items-center space-x-2 px-4 py-2 border border-transparent rounded-lg bg-[#1F3A34] text-white font-medium hover:bg-[#2E5E58] transition-colors h-10 cursor-pointer"
             >
               <Plus size={16} />
               <span>New Barista</span>
@@ -267,10 +341,10 @@ const BaristaManagement = () => {
             <table className="w-full text-left border-collapse min-w-[800px]">
               <thead className="sticky top-0 bg-gray-50/95 backdrop-blur-sm z-10 border-b border-gray-200">
                 <tr>
-                  <th className="py-4 px-6 text-xs font-bold text-gray-500 uppercase tracking-wider">Name</th>
-                  <th className="py-4 px-6 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Status</th>
-                  <th className="py-4 px-6 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Attendance PIN</th>
-                  <th className="py-4 px-6 text-xs font-bold text-gray-500 uppercase tracking-wider">Created At</th>
+                  <SortableHeader label="Name" columnKey="name" currentKey={baristaSortKey} direction={baristaSortDirection} onSort={handleBaristaSort} info="Barista profile display name" />
+                  <SortableHeader label="Status" columnKey="status" currentKey={baristaSortKey} direction={baristaSortDirection} onSort={handleBaristaSort} info="Roster scheduling and clock-in eligibility" className="text-center" />
+                  <SortableHeader label="Attendance PIN" columnKey="pinConfigured" currentKey={baristaSortKey} direction={baristaSortDirection} onSort={handleBaristaSort} info="Six-digit workstation authentication status" className="text-center" />
+                  <SortableHeader label="Created At" columnKey="createdAt" currentKey={baristaSortKey} direction={baristaSortDirection} onSort={handleBaristaSort} info="Roster profile registration timestamp" />
                   <th className="py-4 px-6 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Actions</th>
                 </tr>
               </thead>
@@ -353,12 +427,12 @@ const BaristaManagement = () => {
               totalPages={totalPages}
               setCurrentPage={setCurrentPage}
               itemsPerPage={itemsPerPage}
-              totalItems={filteredBaristas.length}
+              totalItems={sortedBaristas.length}
               itemName="barista"
             />
             <button
               onClick={handleExport}
-              className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 font-medium hover:bg-gray-50 h-10"
+              className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 font-medium hover:bg-gray-50 h-10 cursor-pointer"
             >
               <Download size={16} />
               <span>Export</span>
@@ -368,10 +442,13 @@ const BaristaManagement = () => {
       </div>
       {/* Barista Modal */}
       {isModalOpen && typeof document !== 'undefined' && createPortal(
-        <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-slate-900/35 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl p-6 shadow-2xl max-w-md w-full border border-gray-100 flex flex-col animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-9999 flex items-center justify-center p-3 sm:p-4 bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-200 overflow-y-auto">
+          <div className="bg-white rounded-3xl p-6 sm:p-7 shadow-2xl max-w-md w-full border border-gray-100 flex flex-col my-auto animate-in zoom-in-95 duration-200">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-gray-900">{editingBarista ? 'Edit Barista' : 'New Barista'}</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-xl font-bold text-gray-900">{editingBarista ? 'Edit Barista' : 'New Barista'}</h2>
+                <InfoTooltip content="Barista profiles allow shift check-in on the counter terminal via a 6-digit PIN." title="Barista Profile" />
+              </div>
               <button onClick={() => setIsModalOpen(false)} className="p-1.5 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors">
                 <X size={20} />
               </button>

@@ -1,22 +1,26 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, ChevronDown, Download, Plus, MoreVertical, Users, Menu, UserX, UserCog, X, Edit3, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, Search, ChevronDown, Download, Plus, MoreVertical, Users, Menu, UserX, UserCog, X, Edit3, Trash2 } from 'lucide-react';
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { exportToCSV } from '../utils/exportToCSV';
 import Pagination from './Pagination';
+import InfoTooltip from './InfoTooltip';
 import { adminRequest } from '../lib/adminApi';
 
-const StatCard = ({ title, value, subtitle, icon: Icon, iconBgColor, iconColor }) => (
-  <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center space-x-4 min-w-0">
+const StatCard = ({ title, value, subtitle, icon: Icon, iconBgColor, iconColor, info }) => (
+  <div className="bg-white p-5 rounded-2xl border border-gray-200/80 shadow-2xs hover:shadow-xs transition-shadow flex items-center space-x-4 min-w-0">
     <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 ${iconBgColor} ${iconColor} shadow-sm`}>
       <Icon size={26} strokeWidth={2.2} />
     </div>
     <div className="flex-1 min-w-0">
-      <h3 className="text-gray-500 text-[11px] sm:text-xs xl:text-sm font-medium leading-tight mt-0.5 whitespace-normal">
-        {title}
-      </h3>
-      <p className="text-2xl font-bold text-gray-900 leading-tight">{value}</p>
+      <div className="flex items-center gap-1.5">
+        <h3 className="text-gray-500 text-[11px] sm:text-xs xl:text-sm font-medium leading-tight whitespace-normal">
+          {title}
+        </h3>
+        {info && <InfoTooltip content={info} title={title} />}
+      </div>
+      <p className="text-2xl font-bold text-gray-900 leading-tight mt-1">{value}</p>
       {subtitle && (
         <div className="flex items-center gap-1 mt-1">
           <p className="text-[11px] text-gray-500 font-medium leading-tight whitespace-normal">
@@ -27,6 +31,38 @@ const StatCard = ({ title, value, subtitle, icon: Icon, iconBgColor, iconColor }
     </div>
   </div>
 );
+
+function SortableHeader({ label, columnKey, currentKey, direction, onSort, info, className = "" }) {
+  const isSorted = currentKey === columnKey;
+  return (
+    <th className={`py-4 px-6 font-bold text-[11px] text-gray-500 uppercase tracking-wider whitespace-nowrap ${className}`}>
+      <div className={`flex items-center gap-1.5 ${className.includes('text-right') ? 'justify-end' : className.includes('text-center') ? 'justify-center' : ''}`}>
+        <button
+          type="button"
+          onClick={() => onSort(columnKey)}
+          className={`group inline-flex items-center gap-1.5 hover:text-[#1E433A] cursor-pointer focus:outline-none transition-colors select-none ${
+            isSorted ? "text-[#1E433A] font-bold" : ""
+          }`}
+          title={`Sort by ${label} ${isSorted && direction === "asc" ? "(Descending)" : "(Ascending)"}`}
+        >
+          <span>{label}</span>
+          <span className="inline-flex items-center">
+            {isSorted ? (
+              direction === "asc" ? (
+                <ArrowUp size={13} className="text-[#1E433A]" strokeWidth={2.5} />
+              ) : (
+                <ArrowDown size={13} className="text-[#1E433A]" strokeWidth={2.5} />
+              )
+            ) : (
+              <ArrowUpDown size={12} className="text-gray-300 group-hover:text-gray-500 transition-colors" />
+            )}
+          </span>
+        </button>
+        {info && <InfoTooltip content={info} title={label} />}
+      </div>
+    </th>
+  );
+}
 
 const RoleTag = ({ role }) => {
   let bgColor = '';
@@ -176,8 +212,40 @@ const AdminManagement = ({ currentUser, initialRole = 'All Admin' }) => {
     });
   }, [managedAdmins, searchTerm, selectedRole, selectedStatus, selectedDate]);
 
-  const totalPages = Math.ceil(filteredAdmins.length / itemsPerPage) || 1;
-  const paginatedAdmins = filteredAdmins.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const [adminSortKey, setAdminSortKey] = useState('username');
+  const [adminSortDirection, setAdminSortDirection] = useState('asc');
+
+  const handleAdminSort = (key) => {
+    if (adminSortKey === key) {
+      setAdminSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setAdminSortKey(key);
+      setAdminSortDirection('asc');
+    }
+    setCurrentPage(1);
+  };
+
+  const sortedAdmins = useMemo(() => {
+    const list = [...filteredAdmins];
+    list.sort((a, b) => {
+      let aVal = a[adminSortKey];
+      let bVal = b[adminSortKey];
+      if (adminSortKey === 'lastLogin') {
+        aVal = a.loginDate ? a.loginDate.getTime() : 0;
+        bVal = b.loginDate ? b.loginDate.getTime() : 0;
+      } else if (typeof aVal === 'string') {
+        aVal = aVal.toLowerCase();
+        bVal = (bVal || '').toLowerCase();
+      }
+      if (aVal < bVal) return adminSortDirection === 'asc' ? -1 : 1;
+      if (aVal > bVal) return adminSortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+    return list;
+  }, [filteredAdmins, adminSortKey, adminSortDirection]);
+
+  const totalPages = Math.ceil(sortedAdmins.length / itemsPerPage) || 1;
+  const paginatedAdmins = sortedAdmins.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   // Stats
   const totalAdmins = managedAdmins.length;
@@ -319,7 +387,10 @@ const AdminManagement = ({ currentUser, initialRole = 'All Admin' }) => {
     <div className="flex-1 overflow-x-hidden overflow-y-auto bg-[#F9FAFB]">
       <div className="p-6 lg:p-8 w-full h-full flex flex-col">
         <div className="mb-6 shrink-0">
-          <h1 className="text-2xl font-bold text-gray-900">{initialRole === 'Barista' ? 'Barista Management' : 'Admin Management'}</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-gray-900">{initialRole === 'Barista' ? 'Barista Management' : 'Admin Management'}</h1>
+            <InfoTooltip content="Staff role provisioning, granular privileges, and account security controls." title="Admin Management" />
+          </div>
           <p className="text-sm text-gray-500 mt-1">
             {initialRole === 'Barista'
               ? 'Create and manage Barista Workspace accounts. Each prepared order records the signed-in staff member.'
@@ -335,6 +406,7 @@ const AdminManagement = ({ currentUser, initialRole = 'All Admin' }) => {
             icon={Users}
             iconBgColor="bg-[#1F3A34]"
             iconColor="text-white"
+            info="Total managed administrative accounts with portal or workspace credentials."
           />
           <StatCard
             title="Active Admins"
@@ -343,6 +415,7 @@ const AdminManagement = ({ currentUser, initialRole = 'All Admin' }) => {
             icon={Menu}
             iconBgColor="bg-[#6F9F96]"
             iconColor="text-white"
+            info="Accounts with active authentication access to the management console."
           />
           <StatCard
             title="Inactive Admins"
@@ -351,6 +424,7 @@ const AdminManagement = ({ currentUser, initialRole = 'All Admin' }) => {
             icon={UserX}
             iconBgColor="bg-[#E07A5F]"
             iconColor="text-white"
+            info="Deactivated admin accounts preserved for audit tracking and security."
           />
           <StatCard
             title="Roles"
@@ -359,6 +433,7 @@ const AdminManagement = ({ currentUser, initialRole = 'All Admin' }) => {
             icon={UserCog}
             iconBgColor="bg-[#D4AF7A]"
             iconColor="text-white"
+            info="Distinct functional permission profiles assigned across staff."
           />
         </div>
 
@@ -479,11 +554,11 @@ const AdminManagement = ({ currentUser, initialRole = 'All Admin' }) => {
             <table className="w-full text-left border-collapse min-w-[800px]">
               <thead className="sticky top-0 bg-gray-50/95 backdrop-blur-sm z-10 border-b border-gray-200">
                 <tr>
-                  <th className="py-4 px-6 text-xs font-bold text-gray-500 uppercase tracking-wider">Username</th>
-                  <th className="py-4 px-6 text-xs font-bold text-gray-500 uppercase tracking-wider">Email Address</th>
-                  <th className="py-4 px-6 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Role</th>
-                  <th className="py-4 px-6 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Status</th>
-                  <th className="py-4 px-6 text-xs font-bold text-gray-500 uppercase tracking-wider">Last Login</th>
+                  <SortableHeader label="Username" columnKey="username" currentKey={adminSortKey} direction={adminSortDirection} onSort={handleAdminSort} info="Account login username and staff name" />
+                  <SortableHeader label="Email Address" columnKey="email" currentKey={adminSortKey} direction={adminSortDirection} onSort={handleAdminSort} info="Registered contact email address" />
+                  <SortableHeader label="Role" columnKey="role" currentKey={adminSortKey} direction={adminSortDirection} onSort={handleAdminSort} info="System access and authorization level" className="text-center" />
+                  <SortableHeader label="Status" columnKey="status" currentKey={adminSortKey} direction={adminSortDirection} onSort={handleAdminSort} info="Account activation status" className="text-center" />
+                  <SortableHeader label="Last Login" columnKey="lastLogin" currentKey={adminSortKey} direction={adminSortDirection} onSort={handleAdminSort} info="Most recent authenticated session" />
                   <th className="py-4 px-6 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Actions</th>
                 </tr>
               </thead>
@@ -496,10 +571,12 @@ const AdminManagement = ({ currentUser, initialRole = 'All Admin' }) => {
                           <div className="w-8 h-8 rounded-full bg-[#1F3A34] text-white flex items-center justify-center font-bold text-xs shrink-0">
                             {admin.username.charAt(0).toUpperCase()}
                           </div>
-                          <span className="font-semibold text-gray-900">{admin.username}</span>
-                          {admin.fullName !== admin.username && (
-                            <span className="text-xs text-gray-500">{admin.fullName}</span>
-                          )}
+                          <div>
+                            <span className="font-semibold text-gray-900">{admin.username}</span>
+                            {admin.fullName !== admin.username && (
+                              <p className="text-xs text-gray-500 mt-0.5">{admin.fullName}</p>
+                            )}
+                          </div>
                         </div>
                       </td>
                       <td className="py-4 px-6 text-sm text-gray-600">{admin.email}</td>
@@ -569,12 +646,12 @@ const AdminManagement = ({ currentUser, initialRole = 'All Admin' }) => {
               totalPages={totalPages}
               setCurrentPage={setCurrentPage}
               itemsPerPage={itemsPerPage}
-              totalItems={filteredAdmins.length}
+              totalItems={sortedAdmins.length}
               itemName="admin"
             />
             <button
               onClick={handleExport}
-              className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 font-medium hover:bg-gray-50 h-10"
+              className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 font-medium hover:bg-gray-50 h-10 cursor-pointer"
             >
               <Download size={16} />
               <span>Export</span>
@@ -584,10 +661,13 @@ const AdminManagement = ({ currentUser, initialRole = 'All Admin' }) => {
       </div>
       {/* Admin Modal */}
       {isModalOpen && typeof document !== 'undefined' && createPortal(
-        <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-slate-900/35 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl p-6 shadow-2xl max-w-md w-full border border-gray-100 flex flex-col animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-9999 flex items-center justify-center p-3 sm:p-4 bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-200 overflow-y-auto">
+          <div className="bg-white rounded-3xl p-6 sm:p-7 shadow-2xl max-w-md w-full border border-gray-100 flex flex-col my-auto animate-in zoom-in-95 duration-200">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-gray-900">{editingAdmin ? 'Edit Account' : 'New Account'}</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-xl font-bold text-gray-900">{editingAdmin ? 'Edit Account' : 'New Account'}</h2>
+                <InfoTooltip content="Administrative accounts allow staff to sign into this console with role-specific capabilities." title="Admin Account" />
+              </div>
               <button onClick={() => setIsModalOpen(false)} className="p-1.5 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors">
                 <X size={20} />
               </button>
@@ -698,8 +778,8 @@ const AdminManagement = ({ currentUser, initialRole = 'All Admin' }) => {
         document.body
       )}
       {confirmation && typeof document !== 'undefined' && createPortal(
-        <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-slate-900/35 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="w-full max-w-md rounded-2xl border border-gray-100 bg-white p-6 shadow-2xl animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-9999 flex items-center justify-center p-3 sm:p-4 bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-200 overflow-y-auto">
+          <div className="w-full max-w-md rounded-3xl border border-gray-100 bg-white p-6 sm:p-7 shadow-2xl my-auto animate-in zoom-in-95 duration-200">
             <h2 className="text-xl font-bold text-gray-900">
               {confirmation.type === 'delete'
                 ? 'Deactivate account?'
@@ -740,7 +820,7 @@ const AdminManagement = ({ currentUser, initialRole = 'All Admin' }) => {
                   setConfirmation(null);
                   setConfirmationPassword('');
                 }}
-                className="rounded-lg border border-gray-300 px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                className="rounded-lg border border-gray-300 px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 cursor-pointer"
               >
                 Go Back
               </button>
@@ -748,7 +828,7 @@ const AdminManagement = ({ currentUser, initialRole = 'All Admin' }) => {
                 type="button"
                 disabled={isSubmitting || !confirmationPassword}
                 onClick={confirmation.type === 'delete' ? handleDeleteAdmin : confirmSaveAdmin}
-                className={`rounded-lg px-5 py-2.5 text-sm font-medium text-white transition-colors disabled:opacity-50 ${confirmation.type === 'delete' ? 'bg-red-600 hover:bg-red-700' : 'bg-[#1F3A34] hover:bg-[#2E5E58]'}`}
+                className={`rounded-lg px-5 py-2.5 text-sm font-medium text-white transition-colors disabled:opacity-50 cursor-pointer ${confirmation.type === 'delete' ? 'bg-red-600 hover:bg-red-700' : 'bg-[#1F3A34] hover:bg-[#2E5E58]'}`}
               >
                 {isSubmitting
                   ? 'Confirming...'

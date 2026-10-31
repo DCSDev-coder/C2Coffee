@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { ArrowLeft, Check, Mail, Search, X } from "lucide-react";
+import { ArrowLeft, Check, Mail, Search, X, Clock, CheckCircle2, XCircle } from "lucide-react";
 import Pagination from "./Pagination";
+import InfoTooltip from "./InfoTooltip";
 import {
   createAdminRefund,
   loadAdminRefunds,
@@ -14,9 +15,9 @@ const ITEMS_PER_PAGE = 10;
 const STATUSES = ["All Status", "Pending", "Approved", "Rejected"];
 
 const statusClass = {
-  Pending: "bg-amber-50 text-amber-700",
-  Approved: "bg-emerald-50 text-emerald-700",
-  Rejected: "bg-red-50 text-red-700",
+  Pending: "bg-amber-100 text-amber-800",
+  Approved: "bg-emerald-100 text-emerald-800",
+  Rejected: "bg-rose-100 text-rose-700",
 };
 
 const StatusBadge = ({ status }) => (
@@ -169,61 +170,39 @@ const RefundDetails = ({ onBack, currentUser, selectedStoreId = null, onStoreCha
 
   return (
     <div className="flex h-full flex-col px-8 pb-8 pt-2">
-      <div className="mb-6 flex items-start justify-between gap-4">
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <div className="flex items-center gap-2.5">
             <button
               onClick={onBack}
-              className="rounded-lg p-1 text-gray-700 hover:bg-gray-100"
+              className="rounded-xl p-2 text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors cursor-pointer"
               title="Back to Orders"
             >
-              <ArrowLeft size={22} />
+              <ArrowLeft size={20} />
             </button>
             <h1 className="text-2xl font-bold text-gray-900">Refund Reviews</h1>
+            <InfoTooltip
+              content="Review, approve, or reject customer refund claims. Approved token refunds are instantly credited back to customer wallets."
+              title="Refund Reviews"
+            />
           </div>
-          <p className="ml-8 mt-0.5 text-sm text-gray-500">
-            Approve a request to return its tokens to the customer's wallet.
+          <p className="ml-10 mt-0.5 text-xs text-gray-500">
+            Fulfillment disputes, customer refund claims, and token settlement reviews.
           </p>
         </div>
         <button
           onClick={() => setIsCreateOpen(true)}
-          className="rounded-lg bg-[#1F3A34] px-4 py-2 text-sm font-bold text-white hover:bg-[#2E5E58]"
+          className="rounded-xl bg-[#1E433A] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#16342D] shadow-xs transition-all cursor-pointer shrink-0"
         >
-          Create refund request
+          + Create Refund Request
         </button>
       </div>
-      <div className="mb-4 flex justify-end">
-        <OutletFilter value={selectedStoreId} onChange={onStoreChange} />
-      </div>
-      {error && (
-        <div className="mb-5 flex items-center justify-between gap-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          <span>{error}</span>
-          <button
-            onClick={() => void loadRefunds()}
-            className="font-bold underline"
-          >
-            Retry
-          </button>
-        </div>
-      )}
-      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        {STATUSES.slice(1).map((status) => (
-          <div
-            key={status}
-            className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
-          >
-            <p className="text-xs font-medium text-gray-500">{status}</p>
-            <p className="mt-1 text-2xl font-bold text-gray-900">
-              {counts[status]}
-            </p>
-          </div>
-        ))}
-      </div>
-      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="relative w-full sm:max-w-md">
           <Search
-            size={17}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+            size={16}
+            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"
           />
           <input
             value={search}
@@ -231,22 +210,85 @@ const RefundDetails = ({ onBack, currentUser, selectedStoreId = null, onStoreCha
               setSearch(event.target.value);
               setCurrentPage(1);
             }}
-            placeholder="Search refund, order, customer or reason"
-            className="w-full rounded-lg border border-gray-300 py-2 pl-10 pr-3 text-sm"
+            placeholder="Search refund ID, order, customer or reason..."
+            className="w-full rounded-xl border border-gray-200 py-2.5 pl-10 pr-3.5 text-xs bg-white outline-none focus:border-[#2E5E58] shadow-2xs"
           />
         </div>
-        <select
-          value={statusFilter}
-          onChange={(event) => {
-            setStatusFilter(event.target.value);
-            setCurrentPage(1);
-          }}
-          className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700"
-        >
-          {STATUSES.map((status) => (
-            <option key={status}>{status}</option>
-          ))}
-        </select>
+        <div className="flex items-center gap-3">
+          <OutletFilter value={selectedStoreId} onChange={onStoreChange} />
+          <select
+            value={statusFilter}
+            onChange={(event) => {
+              setStatusFilter(event.target.value);
+              setCurrentPage(1);
+            }}
+            className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-xs font-semibold text-gray-700 shadow-2xs outline-none focus:border-[#2E5E58] cursor-pointer"
+          >
+            {STATUSES.map((status) => (
+              <option key={status}>{status}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {error && (
+        <div className="mb-5 flex items-center justify-between gap-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-medium text-red-700 shadow-2xs">
+          <span>{error}</span>
+          <button
+            onClick={() => void loadRefunds()}
+            className="font-bold underline cursor-pointer"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      {/* KPI Cards */}
+      <div className="mb-6 grid grid-cols-1 gap-3.5 sm:grid-cols-3">
+        <div className="flex items-center justify-between rounded-2xl border border-gray-200/80 bg-white p-5 shadow-2xs">
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 bg-amber-50 text-amber-700 shadow-xs">
+              <Clock size={20} strokeWidth={2.2} />
+            </div>
+            <div>
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Pending Review</span>
+              <p className="text-2xl font-extrabold text-gray-900 tracking-tight leading-tight mt-0.5">{counts["Pending"] || 0}</p>
+            </div>
+          </div>
+          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800">
+            {counts["Pending"] > 0 ? "Requires action" : "Zero pending"}
+          </span>
+        </div>
+
+        <div className="flex items-center justify-between rounded-2xl border border-gray-200/80 bg-white p-5 shadow-2xs">
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 bg-emerald-50 text-emerald-700 shadow-xs">
+              <CheckCircle2 size={20} strokeWidth={2.2} />
+            </div>
+            <div>
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Approved</span>
+              <p className="text-2xl font-extrabold text-gray-900 tracking-tight leading-tight mt-0.5">{counts["Approved"] || 0}</p>
+            </div>
+          </div>
+          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-[#E8F3F0] text-[#1E433A]">
+            Settled
+          </span>
+        </div>
+
+        <div className="flex items-center justify-between rounded-2xl border border-gray-200/80 bg-white p-5 shadow-2xs">
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 bg-rose-50 text-rose-700 shadow-xs">
+              <XCircle size={20} strokeWidth={2.2} />
+            </div>
+            <div>
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Rejected</span>
+              <p className="text-2xl font-extrabold text-gray-900 tracking-tight leading-tight mt-0.5">{counts["Rejected"] || 0}</p>
+            </div>
+          </div>
+          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-600">
+            Declined
+          </span>
+        </div>
       </div>
       <div className="flex min-h-0 flex-1 flex-col gap-6 xl:flex-row">
         <div className="min-w-0 flex-1 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">

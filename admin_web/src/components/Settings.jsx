@@ -8,6 +8,7 @@ import {
   loadAdminMaintenance,
   updateAdminMaintenance,
 } from "../lib/adminApi";
+import InfoTooltip from "./InfoTooltip";
 
 const defaultAppearance = {
   primary_color: "#2E5E58",
@@ -82,65 +83,55 @@ const Settings = ({ setCurrentPage, currentUser }) => {
   const [isSavingMaintenance, setIsSavingMaintenance] = useState(false);
 
   useEffect(() => {
-    if (!canManageStore) return;
+    let active = true;
     loadAdminStore()
-      .then(({ store }) => setStoreName(store?.name || ""))
-      .catch(() =>
-        setStoreMessage(
-          "The outlet name could not be loaded. Please refresh and try again.",
-        ),
-      );
-  }, [canManageStore]);
-
-  useEffect(() => {
-    if (!canManageStore) return;
-    loadAdminMaintenance()
-      .then(({ maintenance: value }) => setMaintenance((current) => ({ ...current, ...value })))
-      .catch(() => setMaintenanceMessage("Maintenance settings could not be loaded. Please refresh and try again."));
-  }, [canManageStore]);
-
-  useEffect(() => {
-    if (!canViewAuditLogs) return;
+      .then((data) => {
+        if (!active) return;
+        setStoreName(data?.store?.name || "");
+      })
+      .catch(() => {});
     loadAdminAppearance()
-      .then(({ appearance: value, tier_appearances: tiers }) => {
-        const nextAppearance = {
+      .then((data) => {
+        if (!active) return;
+        const baseAppearance = {
           ...defaultAppearance,
           ...Object.fromEntries(
-            Object.entries(value || {}).filter(([, color]) => Boolean(color)),
+            Object.entries(data?.appearance || {}).filter(([, color]) =>
+              Boolean(color),
+            ),
           ),
         };
-        const nextTierAppearances = normalizeTierAppearances(
-          tiers,
-          nextAppearance,
+        setAppearance(baseAppearance);
+        setTierAppearances(
+          normalizeTierAppearances(data?.tier_appearances, baseAppearance),
         );
-        setAppearance(nextAppearance);
-        setTierAppearances(nextTierAppearances);
-        setTierAppearancesAvailable(Array.isArray(tiers));
-        setPreviewTierId(nextTierAppearances[0]?.tier_id ?? null);
+        setTierAppearancesAvailable(Array.isArray(data?.tier_appearances));
+        setPreviewTierId(data?.tier_appearances?.[0]?.tier_id || null);
       })
-      .catch(() =>
-        setAppearanceMessage(
-          "The app appearance could not be loaded. Please refresh and try again.",
-        ),
-      );
-  }, [canViewAuditLogs]);
+      .catch(() => {
+        if (!active) return;
+        setTierAppearancesAvailable(false);
+      });
+    loadAdminMaintenance()
+      .then((data) => {
+        if (!active) return;
+        setMaintenance((current) => ({ ...current, ...data?.maintenance }));
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const saveStoreName = async () => {
-    const name = storeName.trim();
-    if (name.length < 2) {
-      setStoreMessage("Enter an outlet name with at least two characters.");
-      return;
-    }
     setIsSavingStore(true);
     setStoreMessage("");
     try {
-      const { store } = await updateAdminStoreName(name);
-      setStoreName(store?.name || name);
-      setStoreMessage(
-        "Outlet name saved. This updates the customer app label only.",
-      );
+      const { store } = await updateAdminStoreName(storeName);
+      setStoreName(store.name);
+      setStoreMessage("Store name updated.");
     } catch {
-      setStoreMessage("The outlet name could not be saved. Please try again.");
+      setStoreMessage("Store name could not be saved.");
     } finally {
       setIsSavingStore(false);
     }
@@ -225,27 +216,43 @@ const Settings = ({ setCurrentPage, currentUser }) => {
 
   return (
     <div className="flex-1 overflow-y-auto bg-[#F9FAFB] p-6 lg:p-8">
-      <div className="max-w-3xl">
-        <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Account security and system records.
-        </p>
+      <div className="max-w-3xl space-y-6">
+        {/* Header */}
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Settings</h1>
+            <InfoTooltip
+              title="System Configuration"
+              content="Configure global store identity, customer mobile app branding and palettes, maintenance broadcast mode, and account security."
+            />
+          </div>
+          <p className="mt-1 text-sm text-gray-500">
+            Account security and system records.
+          </p>
+        </div>
 
-        <section className="mt-7 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+        {/* Account Security */}
+        <section className="rounded-2xl border border-gray-200/80 bg-white p-6 shadow-2xs transition-shadow hover:shadow-xs">
           <div className="flex items-start gap-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#1F3A34] text-white">
-              <ShieldCheck size={23} />
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#1F3A34] text-white shadow-2xs">
+              <ShieldCheck size={22} />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-gray-900">
-                Account Security
-              </h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-bold text-gray-900">
+                  Account Security
+                </h2>
+                <InfoTooltip
+                  title="Admin Credentials"
+                  content="Update administrative login credentials protected by multi-factor email verification codes."
+                />
+              </div>
               <p className="mt-1 text-sm text-gray-500">
                 Change your password with an email verification code.
               </p>
               <button
                 onClick={() => setCurrentPage?.("Profile")}
-                className="mt-4 inline-flex items-center gap-2 rounded-lg bg-[#1F3A34] px-4 py-2 text-sm font-bold text-white hover:bg-[#2E5E58]"
+                className="mt-4 inline-flex items-center gap-2 rounded-xl bg-[#1F3A34] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#2E5E58] transition-colors shadow-2xs hover:shadow-xs cursor-pointer"
               >
                 <KeyRound size={16} /> Open Account Security
               </button>
@@ -254,15 +261,21 @@ const Settings = ({ setCurrentPage, currentUser }) => {
         </section>
 
         {canManageStore && (
-          <section className="mt-4 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+          <section className="rounded-2xl border border-gray-200/80 bg-white p-6 shadow-2xs transition-shadow hover:shadow-xs">
             <div className="flex items-start gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#1F3A34] text-white">
-                <Store size={23} />
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#1F3A34] text-white shadow-2xs">
+                <Store size={22} />
               </div>
               <div className="min-w-0 flex-1">
-                <h2 className="text-lg font-bold text-gray-900">
-                  Customer Outlet
-                </h2>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg font-bold text-gray-900">
+                    Customer Outlet
+                  </h2>
+                  <InfoTooltip
+                    title="Public Brand Name"
+                    content="The public establishment name displayed in customer mobile applications and digital invoices."
+                  />
+                </div>
                 <p className="mt-1 text-sm text-gray-500">
                   C2 Coffee currently accepts customer orders for one outlet.
                   You can change its displayed name here; location routing is
@@ -280,13 +293,13 @@ const Settings = ({ setCurrentPage, currentUser }) => {
                     value={storeName}
                     onChange={(event) => setStoreName(event.target.value)}
                     maxLength={120}
-                    className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-[#2E5E58]"
+                    className="min-w-0 flex-1 rounded-xl border border-gray-300 px-3.5 py-2.5 text-sm text-gray-900 outline-hidden focus:border-[#1F3A34] focus:ring-2 focus:ring-[#1F3A34]/15"
                   />
                   <button
                     type="button"
                     disabled={isSavingStore}
                     onClick={saveStoreName}
-                    className="rounded-lg bg-[#1F3A34] px-4 py-2 text-sm font-bold text-white hover:bg-[#2E5E58] disabled:cursor-not-allowed disabled:opacity-60"
+                    className="rounded-xl bg-[#1F3A34] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#2E5E58] disabled:cursor-not-allowed disabled:opacity-60 transition-colors shadow-2xs hover:shadow-xs cursor-pointer"
                   >
                     {isSavingStore ? "Saving..." : "Save name"}
                   </button>
@@ -302,18 +315,70 @@ const Settings = ({ setCurrentPage, currentUser }) => {
         )}
 
         {canManageStore && (
-          <section className="mt-4 rounded-2xl border border-amber-200 bg-white p-6 shadow-sm">
+          <section className="rounded-2xl border border-amber-200/90 bg-white p-6 shadow-2xs transition-shadow hover:shadow-xs">
             <div className="flex items-start gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-800"><Wrench size={23} /></div>
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-100 text-amber-800 shadow-2xs">
+                <Wrench size={22} />
+              </div>
               <div className="min-w-0 flex-1">
-                <h2 className="text-lg font-bold text-gray-900">Customer app maintenance</h2>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg font-bold text-gray-900">Customer app maintenance</h2>
+                  <InfoTooltip
+                    title="Maintenance Lockout"
+                    content="Temporarily suspends mobile customer ordering. Baristas and staff with employee bypass remain able to access internal tools."
+                  />
+                </div>
                 <p className="mt-1 text-sm text-gray-500">When enabled, customers see only the maintenance screen. Approved employee accounts can continue for internal testing.</p>
-                <label className="mt-4 flex items-center gap-3 text-sm font-bold text-gray-800"><input type="checkbox" checked={maintenance.enabled} onChange={(event) => setMaintenance((current) => ({ ...current, enabled: event.target.checked }))} /> Enable maintenance mode</label>
-                <p className="mt-2 text-xs text-gray-500">Employee bypass is always enabled and is controlled by the employee flag on the customer membership.</p>
-                <label className="mt-4 block text-sm font-bold text-gray-700">Screen title<input value={maintenance.title} maxLength={160} onChange={(event) => setMaintenance((current) => ({ ...current, title: event.target.value }))} className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal outline-none focus:border-[#2E5E58]" /></label>
-                <label className="mt-4 block text-sm font-bold text-gray-700">Customer message<textarea value={maintenance.message} maxLength={600} onChange={(event) => setMaintenance((current) => ({ ...current, message: event.target.value }))} rows={3} className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal outline-none focus:border-[#2E5E58]" /></label>
-                <label className="mt-4 block text-sm font-bold text-gray-700">Expected end time (optional)<input type="datetime-local" value={maintenance.expected_end_at ? new Date(maintenance.expected_end_at).toISOString().slice(0, 16) : ""} onChange={(event) => setMaintenance((current) => ({ ...current, expected_end_at: event.target.value ? new Date(event.target.value).toISOString() : null }))} className="mt-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal outline-none focus:border-[#2E5E58]" /></label>
-                <button type="button" disabled={isSavingMaintenance} onClick={saveMaintenance} className="mt-4 rounded-lg bg-[#1F3A34] px-4 py-2 text-sm font-bold text-white hover:bg-[#2E5E58] disabled:cursor-not-allowed disabled:opacity-60">{isSavingMaintenance ? "Saving..." : "Save maintenance settings"}</button>
+                <label className="mt-4 flex items-center gap-3 text-sm font-bold text-gray-800 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={maintenance.enabled}
+                    onChange={(event) => setMaintenance((current) => ({ ...current, enabled: event.target.checked }))}
+                    className="h-4 w-4 rounded-sm border-gray-300 text-[#1F3A34] focus:ring-[#1F3A34] cursor-pointer"
+                  />
+                  <span>Enable maintenance mode</span>
+                </label>
+                <p className="mt-1.5 text-xs text-gray-500">Employee bypass is always enabled and is controlled by the employee flag on the customer membership.</p>
+                
+                <label className="mt-4 block text-sm font-bold text-gray-700">
+                  Screen title
+                  <input
+                    value={maintenance.title}
+                    maxLength={160}
+                    onChange={(event) => setMaintenance((current) => ({ ...current, title: event.target.value }))}
+                    className="mt-2 w-full rounded-xl border border-gray-300 px-3.5 py-2.5 text-sm font-normal outline-hidden focus:border-[#1F3A34] focus:ring-2 focus:ring-[#1F3A34]/15"
+                  />
+                </label>
+                
+                <label className="mt-4 block text-sm font-bold text-gray-700">
+                  Customer message
+                  <textarea
+                    value={maintenance.message}
+                    maxLength={600}
+                    onChange={(event) => setMaintenance((current) => ({ ...current, message: event.target.value }))}
+                    rows={3}
+                    className="mt-2 w-full rounded-xl border border-gray-300 px-3.5 py-2.5 text-sm font-normal outline-hidden focus:border-[#1F3A34] focus:ring-2 focus:ring-[#1F3A34]/15"
+                  />
+                </label>
+                
+                <label className="mt-4 block text-sm font-bold text-gray-700">
+                  Expected end time (optional)
+                  <input
+                    type="datetime-local"
+                    value={maintenance.expected_end_at ? new Date(maintenance.expected_end_at).toISOString().slice(0, 16) : ""}
+                    onChange={(event) => setMaintenance((current) => ({ ...current, expected_end_at: event.target.value ? new Date(event.target.value).toISOString() : null }))}
+                    className="mt-2 block rounded-xl border border-gray-300 px-3.5 py-2.5 text-sm font-normal outline-hidden focus:border-[#1F3A34] focus:ring-2 focus:ring-[#1F3A34]/15"
+                  />
+                </label>
+                
+                <button
+                  type="button"
+                  disabled={isSavingMaintenance}
+                  onClick={saveMaintenance}
+                  className="mt-5 rounded-xl bg-[#1F3A34] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#2E5E58] disabled:cursor-not-allowed disabled:opacity-60 transition-colors shadow-2xs hover:shadow-xs cursor-pointer"
+                >
+                  {isSavingMaintenance ? "Saving..." : "Save maintenance settings"}
+                </button>
                 {maintenanceMessage && <p className="mt-2 text-sm text-gray-600" role="status">{maintenanceMessage}</p>}
               </div>
             </div>
@@ -321,31 +386,37 @@ const Settings = ({ setCurrentPage, currentUser }) => {
         )}
 
         {canViewAuditLogs && (
-          <section className="mt-4 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+          <section className="rounded-2xl border border-gray-200/80 bg-white p-6 shadow-2xs transition-shadow hover:shadow-xs">
             <div className="flex items-start gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#1F3A34] text-white">
-                <Palette size={23} />
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#1F3A34] text-white shadow-2xs">
+                <Palette size={22} />
               </div>
               <div className="min-w-0 flex-1">
-                <h2 className="text-lg font-bold text-gray-900">
-                  App Appearance
-                </h2>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg font-bold text-gray-900">
+                    App Appearance
+                  </h2>
+                  <InfoTooltip
+                    title="Mobile App Theme"
+                    content="Branding palettes for mobile customer apps. Each loyalty tier can inherit from default or define its own premium custom palette."
+                  />
+                </div>
                 <p className="mt-1 text-sm text-gray-500">
                   Set a fallback palette and an individual palette for every
                   loyalty tier. Customers receive the palette for their tier
                   after the next app refresh or sign-in.
                 </p>
-                <p className="mt-4 text-sm font-bold text-gray-800">
+                <p className="mt-5 text-sm font-bold text-gray-800">
                   Fallback palette
                 </p>
-                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <div className="mt-3 grid gap-4 sm:grid-cols-2">
                   {appearanceFields.map(([key, label]) => (
                     <label
                       key={key}
                       className="block text-sm font-bold text-gray-700"
                     >
                       {label}
-                      <span className="mt-2 flex items-center gap-2 rounded-lg border border-gray-300 p-1.5">
+                      <span className="mt-1.5 flex items-center gap-2 rounded-xl border border-gray-300 p-1.5 bg-white">
                         <input
                           type="color"
                           value={appearance[key]}
@@ -355,7 +426,7 @@ const Settings = ({ setCurrentPage, currentUser }) => {
                               [key]: event.target.value.toUpperCase(),
                             }))
                           }
-                          className="h-9 w-11 cursor-pointer rounded border-0 bg-transparent p-0"
+                          className="h-9 w-11 cursor-pointer rounded-lg border-0 bg-transparent p-0"
                         />
                         <input
                           value={appearance[key]}
@@ -366,14 +437,14 @@ const Settings = ({ setCurrentPage, currentUser }) => {
                               [key]: event.target.value.toUpperCase(),
                             }))
                           }
-                          className="min-w-0 flex-1 border-0 px-2 py-1 text-sm uppercase outline-none"
+                          className="min-w-0 flex-1 border-0 px-2 py-1 text-sm uppercase outline-hidden font-mono text-gray-800"
                           aria-label={`${label} hex value`}
                         />
                       </span>
                     </label>
                   ))}
                 </div>
-                <div className="mt-7 border-t border-gray-200 pt-6">
+                <div className="mt-7 border-t border-gray-100 pt-6">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <h3 className="text-base font-bold text-gray-900">
@@ -383,7 +454,7 @@ const Settings = ({ setCurrentPage, currentUser }) => {
                         Choose a tier to edit the colours its members see.
                       </p>
                     </div>
-                    <span className="rounded-full bg-[#EDF6F3] px-3 py-1 text-xs font-bold text-[#2E5E58]">
+                    <span className="rounded-full bg-[#1F3A34]/10 px-3 py-1 text-xs font-bold text-[#1F3A34]">
                       {tierAppearancesAvailable === false
                         ? "API update required"
                         : `${tierAppearances.length} active tiers`}
@@ -397,10 +468,10 @@ const Settings = ({ setCurrentPage, currentUser }) => {
                             key={tier.tier_id}
                             type="button"
                             onClick={() => setPreviewTierId(tier.tier_id)}
-                            className={`rounded-full border px-3 py-2 text-sm font-bold transition ${
+                            className={`rounded-full border px-3.5 py-1.5 text-xs font-bold transition shadow-2xs cursor-pointer ${
                               tier.tier_id === previewTierId
                                 ? "border-[#1F3A34] bg-[#1F3A34] text-white"
-                                : "border-gray-300 bg-white text-gray-700 hover:border-[#6F9F96]"
+                                : "border-gray-200 bg-white text-gray-700 hover:border-[#2E5E58]"
                             }`}
                           >
                             {tier.name}
@@ -414,18 +485,18 @@ const Settings = ({ setCurrentPage, currentUser }) => {
                             className="block text-sm font-bold text-gray-700"
                           >
                             {label}
-                            <span className="mt-2 flex items-center gap-2 rounded-lg border border-gray-300 p-1.5">
+                            <span className="mt-1.5 flex items-center gap-2 rounded-xl border border-gray-300 p-1.5 bg-white">
                               <input
                                 type="color"
                                 value={selectedTierAppearance?.[key] || appearance[key]}
                                 onChange={(event) => updateTierAppearance(key, event.target.value)}
-                                className="h-9 w-11 cursor-pointer rounded border-0 bg-transparent p-0"
+                                className="h-9 w-11 cursor-pointer rounded-lg border-0 bg-transparent p-0"
                               />
                               <input
                                 value={selectedTierAppearance?.[key] || appearance[key]}
                                 maxLength={7}
                                 onChange={(event) => updateTierAppearance(key, event.target.value)}
-                                className="min-w-0 flex-1 border-0 px-2 py-1 text-sm uppercase outline-none"
+                                className="min-w-0 flex-1 border-0 px-2 py-1 text-sm uppercase outline-hidden font-mono text-gray-800"
                                 aria-label={`${previewTierName} ${label} hex value`}
                               />
                             </span>
@@ -434,29 +505,30 @@ const Settings = ({ setCurrentPage, currentUser }) => {
                       </div>
                     </>
                   ) : tierAppearancesAvailable === false ? (
-                    <p className="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
+                    <p className="mt-4 rounded-xl bg-amber-50 p-3.5 text-sm text-amber-800 border border-amber-200">
                       The connected API has not been updated for tier palettes yet. Deploy the latest API and run its database migrations, then refresh this page.
                     </p>
                   ) : (
-                    <p className="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
+                    <p className="mt-4 rounded-xl bg-amber-50 p-3.5 text-sm text-amber-800 border border-amber-200">
                       No active tiers are available to configure yet.
                     </p>
                   )}
                 </div>
-                <div className="mt-6 grid gap-5 rounded-2xl border border-[#D7E4E0] bg-[#F8FBFA] p-5 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-center">
+
+                <div className="mt-6 grid gap-5 rounded-2xl border border-gray-200/80 bg-gray-50/50 p-5 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-center shadow-2xs">
                   <div>
                     <div className="flex items-center gap-2 text-[#1F3A34]">
                       <Smartphone size={20} />
-                      <h3 className="text-lg font-bold">Customer app preview</h3>
+                      <h3 className="text-base font-bold text-gray-900">Customer app preview</h3>
                     </div>
                     <p className="mt-2 text-sm text-gray-600">
                       This is the mobile layout for the selected {previewTierName} tier, including the header, membership card, action button, and navigation.
                     </p>
-                    <p className={hasAccessibleText ? "mt-3 text-sm font-semibold text-emerald-700" : "mt-3 text-sm font-semibold text-red-700"}>
+                    <p className={hasAccessibleText ? "mt-3 text-sm font-semibold text-emerald-700" : "mt-3 text-sm font-semibold text-rose-700"}>
                       Text {previewContrast.text.toFixed(1)}:1 · Muted {previewContrast.muted.toFixed(1)}:1
                     </p>
                     {!hasAccessibleText && (
-                      <p className="mt-2 text-sm font-semibold text-red-700" role="alert">
+                      <p className="mt-2 text-sm font-semibold text-rose-700" role="alert">
                         Text and muted text must each have at least 4.5:1 contrast against the background for every tier.
                       </p>
                     )}
@@ -484,7 +556,7 @@ const Settings = ({ setCurrentPage, currentUser }) => {
                         </div>
                         <p className="mt-4 text-sm font-black" style={{ color: previewAppearance.text_color }}>Today&apos;s favourites</p>
                         <div className="mt-2 flex gap-2"><div className="h-16 flex-1 rounded-xl" style={{ backgroundColor: previewAppearance.primary_color, opacity: 0.15 }} /><div className="h-16 flex-1 rounded-xl" style={{ backgroundColor: previewAppearance.secondary_color }} /></div>
-                        <button type="button" className="mt-4 w-full rounded-xl py-2.5 text-xs font-black text-white" style={{ backgroundColor: previewAppearance.primary_color }}>ORDER NOW</button>
+                        <button type="button" className="mt-4 w-full rounded-xl py-2.5 text-xs font-black text-white cursor-pointer" style={{ backgroundColor: previewAppearance.primary_color }}>ORDER NOW</button>
                       </div>
                       <div className="flex justify-around border-t px-3 py-2 text-[9px] font-bold" style={{ borderColor: `${previewAppearance.muted_text_color}33`, color: previewAppearance.muted_text_color }}>
                         <span>HOME</span><span>MENU</span><span>ORDERS</span><span>PROFILE</span>
@@ -492,11 +564,12 @@ const Settings = ({ setCurrentPage, currentUser }) => {
                     </div>
                   </div>
                 </div>
+
                 <button
                   type="button"
                   disabled={isSavingAppearance || !hasAccessibleText}
                   onClick={saveAppearance}
-                  className="mt-4 rounded-lg bg-[#1F3A34] px-4 py-2 text-sm font-bold text-white hover:bg-[#2E5E58] disabled:cursor-not-allowed disabled:opacity-60"
+                  className="mt-5 rounded-xl bg-[#1F3A34] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#2E5E58] disabled:cursor-not-allowed disabled:opacity-60 transition-colors shadow-2xs hover:shadow-xs cursor-pointer"
                 >
                   {isSavingAppearance ? "Saving..." : "Save appearance"}
                 </button>
@@ -511,20 +584,26 @@ const Settings = ({ setCurrentPage, currentUser }) => {
         )}
 
         {canViewAuditLogs && (
-          <section className="mt-4 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+          <section className="rounded-2xl border border-gray-200/80 bg-white p-6 shadow-2xs transition-shadow hover:shadow-xs">
             <div className="flex items-start gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#1F3A34] text-white">
-                <FileText size={23} />
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#1F3A34] text-white shadow-2xs">
+                <FileText size={22} />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-gray-900">Audit Logs</h2>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg font-bold text-gray-900">Audit Logs</h2>
+                  <InfoTooltip
+                    title="System Activity"
+                    content="Full immutable chronological record of all administrative activities and operations."
+                  />
+                </div>
                 <p className="mt-1 text-sm text-gray-500">
                   Review recorded administrative activity, including password
                   changes.
                 </p>
                 <button
                   onClick={() => setCurrentPage?.("Audit Logs")}
-                  className="mt-4 inline-flex items-center gap-2 rounded-lg border border-[#1F3A34] px-4 py-2 text-sm font-bold text-[#1F3A34] hover:bg-[#F3F7F5]"
+                  className="mt-4 inline-flex items-center gap-2 rounded-xl border border-[#1F3A34] px-4 py-2 text-sm font-bold text-[#1F3A34] hover:bg-[#1F3A34]/5 transition-colors shadow-2xs hover:shadow-xs cursor-pointer"
                 >
                   View Audit Logs
                 </button>
