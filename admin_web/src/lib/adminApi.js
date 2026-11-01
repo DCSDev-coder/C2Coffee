@@ -1,5 +1,6 @@
 import { isTerminalAdminSessionFailure } from "./adminSessionPolicy";
 import {
+  ADMIN_LOGOUT_PATH,
   ADMIN_REFRESH_PATH,
   shouldAttachStoredAdminAccessToken,
   shouldAttemptAdminSessionRefresh,
@@ -23,6 +24,7 @@ const ADMIN_API_BASE_URL = resolveAdminApiBaseUrl(
 
 let refreshSessionPromise = null;
 let accessToken = null;
+const ADMIN_EXPLICIT_LOGOUT_KEY = "c2_admin_explicit_logout";
 
 export function getAdminApiBaseUrl() {
   return ADMIN_API_BASE_URL;
@@ -56,8 +58,50 @@ export function clearAdminTokens() {
 
   accessToken = null;
   // Clear tokens created by the previous browser-storage implementation.
-  window.localStorage.removeItem("c2_admin_access_token");
-  window.localStorage.removeItem("c2_admin_refresh_token");
+  try {
+    window.localStorage.removeItem("c2_admin_access_token");
+    window.localStorage.removeItem("c2_admin_refresh_token");
+  } catch {
+    // In-memory logout must still work when browser storage is unavailable.
+  }
+}
+
+export function markAdminExplicitlyLoggedOut() {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(ADMIN_EXPLICIT_LOGOUT_KEY, "1");
+  } catch {
+    // The in-memory token is still cleared by the caller.
+  }
+}
+
+export function clearAdminExplicitLogout() {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(ADMIN_EXPLICIT_LOGOUT_KEY);
+  } catch {
+    // Login can continue even when browser storage is unavailable.
+  }
+}
+
+export function wasAdminExplicitlyLoggedOut() {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(ADMIN_EXPLICIT_LOGOUT_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export async function logoutAdminSession() {
+  markAdminExplicitlyLoggedOut();
+  const { accessToken: currentAccessToken } = loadAdminTokens();
+  if (!currentAccessToken) return;
+  await adminRequest(ADMIN_LOGOUT_PATH, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${currentAccessToken}` },
+    suppressSuccessToast: true,
+  });
 }
 
 function buildAdminError(message, code = "unexpected_error", status = 500) {

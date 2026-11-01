@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   ADMIN_COMPLETE_SETUP_PATH,
   ADMIN_LOGIN_PATH,
+  ADMIN_LOGOUT_PATH,
   ADMIN_REFRESH_PATH,
   getSafeAdminLoginErrorMessage,
   shouldAttachStoredAdminAccessToken,
@@ -15,6 +16,7 @@ test("authentication entry requests never consume the normal refresh flow", () =
     ADMIN_LOGIN_PATH,
     ADMIN_REFRESH_PATH,
     ADMIN_COMPLETE_SETUP_PATH,
+    ADMIN_LOGOUT_PATH,
   ]) {
     assert.equal(
       shouldAttemptAdminSessionRefresh({
@@ -62,6 +64,17 @@ test("stored access tokens are not attached to login or refresh requests", () =>
     true,
   );
   assert.equal(shouldAttachStoredAdminAccessToken("/v1/admin/orders"), true);
+});
+
+test("logout never retries by rotating the refresh cookie", () => {
+  assert.equal(
+    shouldAttemptAdminSessionRefresh({
+      path: ADMIN_LOGOUT_PATH,
+      status: 401,
+      retryOnUnauthorized: true,
+    }),
+    false,
+  );
 });
 
 test("login errors never expose backend validation or account details", () => {

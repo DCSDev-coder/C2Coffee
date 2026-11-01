@@ -1,0 +1,7 @@
+# Copy this file outside the source checkout, for example to:
+# ~/.c2coffee-signing/key.properties
+# Keep the real file and keystore permissioned to the release owner only.
+keyAlias=your-upload-key-alias
+keyPassword=replace-with-secret
+storeFile=/absolute/path/to/upload-keystore.jks
+storePassword=replace-with-secret

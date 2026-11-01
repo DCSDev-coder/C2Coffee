@@ -33,39 +33,69 @@ async function loadRequirements(
   connection: PoolConnection,
   orderId: number
 ): Promise<RequirementRow[]> {
+  await connection.execute(
+    `INSERT IGNORE INTO inventory_order_usage_lines
+       (tenant_id, store_id, order_id, order_item_id, menu_item_id,
+        inventory_item_id, source_type, source_key, source_label,
+        quantity_per_menu_unit, ordered_menu_quantity, total_quantity,
+        recipe_revision)
+     SELECT s.tenant_id, o.store_id, o.id, oi.id, oi.menu_item_id,
+            r.inventory_item_id, 'base_recipe', 'base', 'Base product usage',
+            r.quantity_per_menu_item, oi.quantity,
+            r.quantity_per_menu_item * oi.quantity,
+            (SELECT MAX(rr.revision_no)
+               FROM inventory_recipe_revisions rr
+              WHERE rr.tenant_id = s.tenant_id
+                AND rr.scope_type = 'menu_item'
+                AND rr.scope_id = oi.menu_item_id)
+       FROM orders o
+       JOIN stores s ON s.id = o.store_id
+       JOIN order_items oi ON oi.order_id = o.id
+       JOIN inventory_menu_item_recipes r
+         ON r.menu_item_id = oi.menu_item_id AND r.tenant_id = s.tenant_id
+      WHERE o.id = :orderId`,
+    { orderId }
+  );
+
+  await connection.execute(
+    `INSERT IGNORE INTO inventory_order_usage_lines
+       (tenant_id, store_id, order_id, order_item_id, menu_item_id,
+        inventory_item_id, source_type, source_key, source_label,
+        quantity_per_menu_unit, ordered_menu_quantity, total_quantity,
+        recipe_revision)
+     SELECT s.tenant_id, o.store_id, o.id, oi.id, oi.menu_item_id,
+            r.inventory_item_id, 'option_delta', CONCAT('option:', oim.id),
+            CONCAT(oim.modifier_group_name_snapshot, ': ', oim.modifier_option_name_snapshot),
+            r.quantity_delta, oi.quantity, r.quantity_delta * oi.quantity,
+            (SELECT MAX(rr.revision_no)
+               FROM inventory_recipe_revisions rr
+              WHERE rr.tenant_id = s.tenant_id
+                AND rr.scope_type = 'option'
+                AND rr.scope_id = oim.option_group_option_id)
+       FROM orders o
+       JOIN stores s ON s.id = o.store_id
+       JOIN order_items oi ON oi.order_id = o.id
+       JOIN order_item_modifiers oim ON oim.order_item_id = oi.id
+       JOIN inventory_option_recipes r
+         ON r.option_group_option_id = oim.option_group_option_id
+        AND r.tenant_id = s.tenant_id
+      WHERE o.id = :orderId`,
+    { orderId }
+  );
+
   const [rows] = await connection.query<RequirementRow[]>(
-    `SELECT requirements.tenant_id, requirements.store_id, requirements.inventory_item_id,
+    `SELECT usage_lines.tenant_id, usage_lines.store_id, usage_lines.inventory_item_id,
             ii.name AS item_name,
-            CAST(GREATEST(SUM(requirements.required_quantity), 0) AS CHAR) AS required_quantity
-       FROM (
-         SELECT s.tenant_id, o.store_id, r.inventory_item_id,
-                r.quantity_per_menu_item * oi.quantity AS required_quantity
-           FROM orders o
-           JOIN stores s ON s.id = o.store_id
-           JOIN order_items oi ON oi.order_id = o.id
-           JOIN inventory_menu_item_recipes r
-             ON r.menu_item_id = oi.menu_item_id AND r.tenant_id = s.tenant_id
-          WHERE o.id = :orderId
-         UNION ALL
-         SELECT s.tenant_id, o.store_id, r.inventory_item_id,
-                r.quantity_delta * oi.quantity AS required_quantity
-           FROM orders o
-           JOIN stores s ON s.id = o.store_id
-           JOIN order_items oi ON oi.order_id = o.id
-           JOIN order_item_modifiers oim ON oim.order_item_id = oi.id
-           JOIN inventory_option_recipes r
-             ON r.option_group_option_id = oim.option_group_option_id
-            AND r.tenant_id = s.tenant_id
-          WHERE o.id = :orderId
-       ) requirements
+            CAST(GREATEST(SUM(usage_lines.total_quantity), 0) AS CHAR) AS required_quantity
+       FROM inventory_order_usage_lines usage_lines
        JOIN inventory_items ii
-         ON ii.id = requirements.inventory_item_id
-        AND ii.tenant_id = requirements.tenant_id AND ii.is_active = 1
-      GROUP BY requirements.tenant_id, requirements.store_id,
-               requirements.inventory_item_id, ii.name
-     HAVING SUM(requirements.required_quantity) > 0
-      ORDER BY requirements.inventory_item_id
-      FOR UPDATE`,
+         ON ii.id = usage_lines.inventory_item_id
+        AND ii.tenant_id = usage_lines.tenant_id
+      WHERE usage_lines.order_id = :orderId
+      GROUP BY usage_lines.tenant_id, usage_lines.store_id,
+               usage_lines.inventory_item_id, ii.name
+     HAVING SUM(usage_lines.total_quantity) > 0
+      ORDER BY usage_lines.inventory_item_id`,
     { orderId }
   );
   return rows;

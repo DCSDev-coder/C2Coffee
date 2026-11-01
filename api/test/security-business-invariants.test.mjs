@@ -409,6 +409,7 @@ test('expanded inventory operations are tenant scoped and preserve non-negative 
 
   const inventory = await source('src/http/routes/admin-inventory.ts');
   assert.match(inventory, /inventory_negative_stock_blocked/);
+  assert.doesNotMatch(inventory, /c\.tenant_id/);
 
   const migration = await source('src/db/migrations/119_expand_inventory_operations.sql');
   assert.match(migration, /inventory_purchase_orders/);
@@ -445,5 +446,26 @@ test('menu option inventory uses stable verified option ids and order snapshots'
   const inventory = await source('src/services/inventory.ts');
   assert.match(inventory, /JOIN inventory_option_recipes r/);
   assert.match(inventory, /r\.option_group_option_id = oim\.option_group_option_id/);
-  assert.match(inventory, /GREATEST\(SUM\(requirements\.required_quantity\), 0\)/);
+  assert.match(inventory, /INSERT IGNORE INTO inventory_order_usage_lines/);
+  assert.match(inventory, /GREATEST\(SUM\(usage_lines\.total_quantity\), 0\)/);
+  assert.match(inventory, /recipe_revision/);
+});
+
+test('inventory order usage is revisioned and supplier receipts retain batch traceability', async () => {
+  const migration = await source('src/db/migrations/122_trace_inventory_usage_and_receipt_batches.sql');
+  const inventory = await source('src/services/inventory.ts');
+  const admin = await source('src/http/routes/admin-inventory.ts');
+  const operations = await source('src/http/routes/admin-inventory-operations.ts');
+  const readiness = await source('src/scripts/production-readiness.ts');
+
+  assert.match(migration, /inventory_recipe_revisions/);
+  assert.match(migration, /inventory_order_usage_lines/);
+  assert.match(migration, /lot_number/);
+  assert.match(migration, /expiry_date/);
+  assert.match(inventory, /INSERT IGNORE INTO inventory_order_usage_lines/);
+  assert.match(admin, /inventory\/order-usage/);
+  assert.match(operations, /lot_number/);
+  assert.match(readiness, /120_complete_inventory_procurement\.sql/);
+  assert.match(readiness, /121_link_inventory_movements_to_supplier\.sql/);
+  assert.match(readiness, /122_trace_inventory_usage_and_receipt_batches\.sql/);
 });

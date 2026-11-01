@@ -60,6 +60,44 @@ function SubmitButton({ saving, children }) {
   );
 }
 
+function SearchableItemSelect({ value, onChange, items, placeholder = 'Search or select inventory item', required = false }) {
+  const [search, setSearch] = useState('');
+  const filtered = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return items;
+    return items.filter((item) =>
+      `${item.name} ${item.code || ''} ${item.category || ''}`.toLowerCase().includes(term)
+    );
+  }, [items, search]);
+
+  return (
+    <div className="space-y-1.5">
+      <input
+        type="search"
+        value={search}
+        onChange={(event) => setSearch(event.target.value)}
+        placeholder={placeholder}
+        aria-label="Filter inventory items"
+        className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700 shadow-2xs outline-none focus:border-[#1E433A]"
+      />
+      <select
+        required={required}
+        value={value}
+        onChange={onChange}
+        className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-800 shadow-2xs outline-none focus:border-[#1E433A]"
+      >
+        <option value="">Select inventory item</option>
+        {filtered.map((item) => (
+          <option key={item.id} value={item.id}>
+            {item.name} ({unitLabels[item.unit_code] || item.unit_code})
+          </option>
+        ))}
+      </select>
+      {search && !filtered.length && <p className="text-[11px] text-amber-700">No inventory item matches “{search}”.</p>}
+    </div>
+  );
+}
+
 function ItemLineEditor({ lines, setLines, items, mode = 'quantity', catalog = [], canViewCosts = false }) {
   const add = () =>
     setLines([
@@ -83,19 +121,12 @@ function ItemLineEditor({ lines, setLines, items, mode = 'quantity', catalog = [
         return (
         <div key={index} className="rounded-2xl border border-gray-200/80 bg-[#FAFBFB] p-4 space-y-3">
           <div className={`grid gap-3 ${mode === 'stocktake' ? 'sm:grid-cols-[1fr_125px_125px_40px]' : 'sm:grid-cols-[1fr_150px_40px]'}`}>
-            <select
+            <SearchableItemSelect
               required
               value={line.inventory_item_id}
               onChange={(event) => update(index, 'inventory_item_id', event.target.value)}
-              className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-800 shadow-2xs outline-none focus:border-[#1E433A]"
-            >
-              <option value="">Select inventory item</option>
-              {items.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name} ({unitLabels[item.unit_code] || item.unit_code})
-                </option>
-              ))}
-            </select>
+              items={items}
+            />
             {mode === 'stocktake' ? (
               <>
                 <input
@@ -158,7 +189,7 @@ function ItemLineEditor({ lines, setLines, items, mode = 'quantity', catalog = [
   );
 }
 
-export default function InventoryOperations({ storeId, stores, items, onInventoryChanged }) {
+export default function InventoryOperations({ storeId, stores, items, onInventoryChanged, requestedAction = null, onActionHandled }) {
   const [section, setSection] = useState('supply');
   const [data, setData] = useState({ can_view_costs: false, supply_needs: [], suppliers: [], supplier_items: [], purchase_orders: [], transfers: [], stocktakes: [] });
   const [optionData, setOptionData] = useState({ options: [], recipes: [] });
@@ -244,6 +275,18 @@ export default function InventoryOperations({ storeId, stores, items, onInventor
         .map((row) => ({ inventory_item_id: String(row.inventory_item_id), quantity_delta: String(row.quantity_delta) }))
     );
   }, [optionData.recipes, selectedOptionId]);
+
+  useEffect(() => {
+    if (!requestedAction) return;
+    const sectionByAction = {
+      supplier: 'purchasing', supplierItem: 'purchasing', po: 'purchasing',
+      receive: 'purchasing', stocktake: 'operations', wastage: 'operations',
+      transfer: 'operations', options: 'options', levels: 'supply'
+    };
+    setSection(sectionByAction[requestedAction] || 'supply');
+    if (!['receive', 'options'].includes(requestedAction)) setModal(requestedAction);
+    onActionHandled?.();
+  }, [requestedAction, onActionHandled]);
 
   const run = async (action, successMessage, refreshStock = false) => {
     setSaving(true);
@@ -428,7 +471,9 @@ export default function InventoryOperations({ storeId, stores, items, onInventor
             line_id: line.id,
             delivered_purchase_units: String(line.remaining_purchase_units),
             rejected_purchase_units: '0',
-            rejection_reason: ''
+            rejection_reason: '',
+            lot_number: '',
+            expiry_date: ''
           }))
       });
       setModal(receiveMode ? 'receivePo' : 'poDetail');
@@ -451,7 +496,9 @@ export default function InventoryOperations({ storeId, stores, items, onInventor
               line_id: Number(line.line_id),
               delivered_purchase_units: number(line.delivered_purchase_units),
               rejected_purchase_units: number(line.rejected_purchase_units),
-              rejection_reason: line.rejection_reason
+              rejection_reason: line.rejection_reason,
+              lot_number: line.lot_number || '',
+              expiry_date: line.expiry_date || ''
             }))
         })
       }),
@@ -1384,6 +1431,13 @@ export default function InventoryOperations({ storeId, stores, items, onInventor
                     {(entry.delivery_order_ref || entry.supplier_invoice_ref) && (
                       <p className="mt-1 text-gray-400">DO: {entry.delivery_order_ref || '—'} · Invoice: {entry.supplier_invoice_ref || '—'}</p>
                     )}
+                    {(poDetail.receipt_lines || []).filter((line) => String(line.receipt_id) === String(entry.id)).map((line) => (
+                      <p key={line.id} className="mt-1 text-gray-500">
+                        {line.inventory_item_name}: {qty(line.accepted_purchase_units)} accepted
+                        {line.lot_number ? ` · Lot ${line.lot_number}` : ''}
+                        {line.expiry_date ? ` · Expires ${new Date(`${line.expiry_date}T00:00:00`).toLocaleDateString('en-MY')}` : ''}
+                      </p>
+                    ))}
                   </div>
                 ))}
                 {!poDetail.receipts?.length && <p className="text-xs text-gray-500">No deliveries have been recorded.</p>}
@@ -1472,6 +1526,26 @@ export default function InventoryOperations({ storeId, stores, items, onInventor
                           required type="number" min="0" step="0.001"
                           value={receiptLine.rejected_purchase_units}
                           onChange={(event) => updateReceiptLine('rejected_purchase_units', event.target.value)}
+                          className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs outline-none focus:border-[#1E433A]"
+                        />
+                      </div>
+                    </div>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-gray-600 mb-1">Batch / lot number (optional)</label>
+                        <input
+                          value={receiptLine.lot_number || ''}
+                          onChange={(event) => updateReceiptLine('lot_number', event.target.value)}
+                          placeholder="e.g. LOT-2410-A"
+                          className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs outline-none focus:border-[#1E433A]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-gray-600 mb-1">Expiry date (optional)</label>
+                        <input
+                          type="date"
+                          value={receiptLine.expiry_date || ''}
+                          onChange={(event) => updateReceiptLine('expiry_date', event.target.value)}
                           className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs outline-none focus:border-[#1E433A]"
                         />
                       </div>

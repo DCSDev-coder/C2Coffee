@@ -10,10 +10,13 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  Search,
 } from 'lucide-react';
 import { adminRequest, getAdminApiBaseUrl } from '../lib/adminApi';
 import { requestAdminConfirm } from '../lib/adminDialog';
 import InfoTooltip from './InfoTooltip';
+import { adminManualSections } from '../data/adminManual';
 
 const guideLabels = { attire: 'Attire guide', rules: 'Store rules', drink: 'Drink preparation' };
 
@@ -297,11 +300,18 @@ export default function StaffGuides() {
   const [file, setFile] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [manualQuery, setManualQuery] = useState('');
+  const [openManualPage, setOpenManualPage] = useState('Inventory');
 
   // Lightbox / Image Viewer state
   const [viewingIndex, setViewingIndex] = useState(null);
 
   const visibleGuides = guides.filter((guide) => guide.guide_type === type);
+  const manualResults = adminManualSections.filter((section) => {
+    const query = manualQuery.trim().toLowerCase();
+    return !query || `${section.group} ${section.page} ${section.purpose} ${section.steps.join(' ')} ${section.notes}`.toLowerCase().includes(query);
+  });
+  const manualGroups = [...new Set(manualResults.map((section) => section.group))];
 
   const load = async () => {
     const [guideData, menuData] = await Promise.all([
@@ -371,9 +381,79 @@ export default function StaffGuides() {
             <InfoTooltip content="Visual SOP and dress code reference materials presented on the Barista Workspace." title="Staff Guides" />
           </div>
           <p className="mt-2 text-sm text-gray-500">
-            Upload image-only attire, store-rule, and drink preparation guides for the C2 Store Barista Workspace.
+            Use the written Admin Manual for page-by-page instructions, then maintain image-based attire, store-rule, and drink preparation guides below.
           </p>
         </div>
+
+        <section className="rounded-2xl border border-[#CFE0DC] bg-[#F3F8F6] p-5 shadow-2xs">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <BookOpen size={20} className="text-[#1F3A34]" />
+                <h2 className="text-xl font-extrabold text-[#1F3A34]">Admin Manual</h2>
+                <span className="rounded-full bg-white px-2.5 py-1 text-xs font-bold text-[#2E5E58]">{adminManualSections.length} pages</span>
+              </div>
+              <p className="mt-1.5 max-w-3xl text-sm text-gray-600">
+                Step-by-step guidance for daily operations, menu setup, inventory, marketing, reports, staff, and administration.
+              </p>
+            </div>
+            <div className="relative w-full sm:w-72">
+              <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                value={manualQuery}
+                onChange={(event) => setManualQuery(event.target.value)}
+                placeholder="Search the manual..."
+                aria-label="Search Admin Manual"
+                className="w-full rounded-xl border border-gray-200 bg-white py-2.5 pl-9 pr-3 text-sm text-gray-800 outline-none focus:border-[#2E5E58]"
+              />
+            </div>
+          </div>
+
+          <div className="mt-5 space-y-3">
+            {manualGroups.map((group) => (
+              <div key={group} className="rounded-xl border border-white/80 bg-white/80">
+                <p className="border-b border-gray-100 px-4 py-2.5 text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#2E5E58]">{group}</p>
+                <div className="divide-y divide-gray-100">
+                  {manualResults.filter((section) => section.group === group).map((section) => {
+                    const isOpen = openManualPage === section.page;
+                    return (
+                      <div key={section.page}>
+                        <button
+                          type="button"
+                          onClick={() => setOpenManualPage(isOpen ? '' : section.page)}
+                          className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm font-bold text-gray-800 hover:bg-[#F8FBFA] cursor-pointer"
+                          aria-expanded={isOpen}
+                        >
+                          <span>{section.page}</span>
+                          <ChevronDown size={16} className={`shrink-0 text-[#2E5E58] transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                        </button>
+                        {isOpen && (
+                          <div className="grid gap-4 border-t border-gray-100 px-4 pb-4 pt-3 text-sm text-gray-600 md:grid-cols-[1fr_1.2fr]">
+                            <div>
+                              <p className="font-semibold text-gray-800">What this page is for</p>
+                              <p className="mt-1 leading-6">{section.purpose}</p>
+                              <p className="mt-3 font-semibold text-gray-800">Important note</p>
+                              <p className="mt-1 leading-6">{section.notes}</p>
+                            </div>
+                            <div>
+                              <p className="font-semibold text-gray-800">How to use it</p>
+                              <ol className="mt-1 list-decimal space-y-1.5 pl-5 leading-6">
+                                {section.steps.map((step) => <li key={step}>{step}</li>)}
+                              </ol>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+            {!manualResults.length && (
+              <p className="rounded-xl border border-dashed border-gray-300 bg-white p-6 text-center text-sm text-gray-500">No manual pages match your search.</p>
+            )}
+          </div>
+        </section>
 
         {/* Tab switcher */}
         <div className="flex flex-wrap items-center gap-2 border-b border-gray-200/80 pb-3">

@@ -180,7 +180,9 @@ async function requireLatestSchema(): Promise<void> {
     '117_create_inventory_management.sql',
     '118_create_app_maintenance_mode.sql',
     '119_expand_inventory_operations.sql',
-    '121_link_inventory_movements_to_supplier.sql'
+    '120_complete_inventory_procurement.sql',
+    '121_link_inventory_movements_to_supplier.sql',
+    '122_trace_inventory_usage_and_receipt_batches.sql'
   ];
   const [rows] = await mysqlPool.query<Array<RowDataPacket & { filename: string }>>(
     `SELECT filename FROM schema_migrations WHERE filename IN (:required)`,

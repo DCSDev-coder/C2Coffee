@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'api_client.dart';
+import 'payment_navigation_policy.dart';
 
 class CounterPaymentException implements Exception {
   const CounterPaymentException(this.message);
@@ -153,12 +154,9 @@ class CounterPaymentService {
 
   Uri checkoutUri(String url) {
     final uri = Uri.tryParse(url);
-    final host = uri?.host.toLowerCase() ?? '';
-    if (uri == null ||
-        uri.scheme != 'https' ||
-        (host != 'chip-in.asia' && !host.endsWith('.chip-in.asia'))) {
+    if (!isTrustedPaymentWebViewUri(uri)) {
       throw const CounterPaymentException('The payment link is invalid.');
     }
-    return uri;
+    return uri!;
   }
 }

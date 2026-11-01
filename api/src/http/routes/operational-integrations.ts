@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { authenticateAdminRequest } from '../../admin/guard.js';
 import { ApiError } from '../errors.js';
 import { mysqlPool } from '../../db/mysql.js';
+import { isAllowedDirectPrinterDestination } from '../../lib/printer-network.js';
 import {
   defaultCapabilities,
   integrationCapabilities,
@@ -45,6 +46,14 @@ const printerSchema = z.object({
   if (!value.network_host) context.addIssue({ code: z.ZodIssueCode.custom, path: ['network_host'], message: 'Enter the printer IP address.' });
   if (value.network_port === null) context.addIssue({ code: z.ZodIssueCode.custom, path: ['network_port'], message: 'Enter the printer port.' });
   if (!value.direct_print_device_key) context.addIssue({ code: z.ZodIssueCode.custom, path: ['direct_print_device_key'], message: 'Enter the assigned tablet code.' });
+  if (value.network_host && value.network_port !== null &&
+      !isAllowedDirectPrinterDestination(value.network_host, value.network_port)) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['network_host'],
+      message: 'Use a private outlet Wi-Fi printer IPv4 address and raw print port 9100.'
+    });
+  }
 });
 
 const weeklyScheduleSchema = z.object({

@@ -101,6 +101,38 @@ function monthBounds(month: string): { start: Date; end: Date } {
   };
 }
 
+async function recordRecipeRevision(
+  connection: PoolConnection,
+  request: FastifyRequest,
+  scopeType: 'menu_item' | 'option',
+  scopeId: number,
+  components: unknown
+): Promise<number> {
+  const [rows] = await connection.query<RowDataPacket[]>(
+    `SELECT COALESCE(MAX(revision_no), 0) + 1 AS revision_no
+       FROM inventory_recipe_revisions
+      WHERE tenant_id = :tenantId AND scope_type = :scopeType AND scope_id = :scopeId`,
+    { tenantId: request.adminAuth.tenantId, scopeType, scopeId }
+  );
+  const revisionNo = Number(rows[0].revision_no);
+  await connection.execute(
+    `INSERT INTO inventory_recipe_revisions
+       (tenant_id, scope_type, scope_id, revision_no, components_json,
+        created_by_admin_user_id)
+     VALUES (:tenantId, :scopeType, :scopeId, :revisionNo, :components,
+             :adminUserId)`,
+    {
+      tenantId: request.adminAuth.tenantId,
+      scopeType,
+      scopeId,
+      revisionNo,
+      components: JSON.stringify(components),
+      adminUserId: request.adminAuth.adminUserId
+    }
+  );
+  return revisionNo;
+}
+
 export async function registerAdminInventoryRoutes(app: FastifyInstance): Promise<void> {
   app.get('/v1/admin/inventory/context', { preHandler: authenticateAdminRequest }, async (request) => {
     requireInventoryAccess(request);
@@ -429,7 +461,14 @@ export async function registerAdminInventoryRoutes(app: FastifyInstance): Promis
     const connection = await mysqlPool.getConnection();
     try {
       await connection.beginTransaction();
-      const [menuItems] = await connection.query<RowDataPacket[]>('SELECT id FROM menu_items WHERE id = :menuItemId LIMIT 1 FOR UPDATE', { menuItemId });
+      const [menuItems] = await connection.query<RowDataPacket[]>(
+        `SELECT i.id
+           FROM menu_items i
+           JOIN menu_categories c ON c.id = i.category_id
+          WHERE i.id = :menuItemId
+          LIMIT 1 FOR UPDATE`,
+        { menuItemId }
+      );
       if (!menuItems[0]) throw new ApiError(404, 'menu_item_not_found', 'Menu item not found.');
       if (payload.components.length > 0) {
         const componentParams = Object.fromEntries(
@@ -461,12 +500,61 @@ export async function registerAdminInventoryRoutes(app: FastifyInstance): Promis
           }
         );
       }
+      const revisionNo = await recordRecipeRevision(
+        connection,
+        request,
+        'menu_item',
+        menuItemId,
+        payload.components
+      );
       await audit(connection, request, 'inventory_recipe_updated', 'menu_item', menuItemId, payload);
       await connection.commit();
-      return { updated: true, component_count: payload.components.length };
+      return { updated: true, component_count: payload.components.length, revision_no: revisionNo };
     } catch (error) {
       await connection.rollback();
       throw error;
+    } finally {
+      connection.release();
+    }
+  });
+
+  app.get('/v1/admin/inventory/order-usage', { preHandler: authenticateAdminRequest }, async (request) => {
+    requireInventoryAccess(request);
+    const query = stockQuerySchema.extend({
+      search: z.string().trim().max(100).optional().default(''),
+      limit: z.coerce.number().int().min(1).max(250).default(100)
+    }).parse(request.query);
+    const connection = await mysqlPool.getConnection();
+    try {
+      await assertStore(connection, request.adminAuth.tenantId, query.store_id);
+      const search = `%${query.search}%`;
+      const [rows] = await connection.query<RowDataPacket[]>(
+        `SELECT u.id, u.order_id, o.order_ref, o.status AS order_status,
+                o.created_at AS order_created_at, u.order_item_id,
+                oi.item_name_snapshot AS product_name,
+                u.source_type, u.source_label, u.recipe_revision,
+                ii.name AS inventory_item_name, ii.unit_code,
+                CAST(u.quantity_per_menu_unit AS CHAR) AS quantity_per_menu_unit,
+                u.ordered_menu_quantity,
+                CAST(u.total_quantity AS CHAR) AS total_quantity
+           FROM inventory_order_usage_lines u
+           JOIN orders o ON o.id = u.order_id
+           JOIN order_items oi ON oi.id = u.order_item_id
+           JOIN inventory_items ii ON ii.id = u.inventory_item_id
+          WHERE u.tenant_id = :tenantId AND u.store_id = :storeId
+            AND (:searchText = '' OR o.order_ref LIKE :search
+              OR oi.item_name_snapshot LIKE :search OR ii.name LIKE :search)
+          ORDER BY o.created_at DESC, u.order_id DESC, u.order_item_id, u.id
+          LIMIT :limit`,
+        {
+          tenantId: request.adminAuth.tenantId,
+          storeId: query.store_id,
+          searchText: query.search,
+          search,
+          limit: query.limit
+        }
+      );
+      return { usage: rows };
     } finally {
       connection.release();
     }

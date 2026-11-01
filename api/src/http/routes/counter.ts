@@ -15,6 +15,7 @@ import { isStoreTradingNow } from '../../services/store-availability.js';
 import { sendOtpEmail } from '../../services/otp-email.js';
 import { getKualaLumpurDateParts } from '../../lib/kuala-lumpur-time.js';
 import { verifyPassword } from '../../lib/password.js';
+import { isAllowedDirectPrinterDestination } from '../../lib/printer-network.js';
 import {
   collectMatchedUnits,
   assertTierVoucherStillEligible,
@@ -50,7 +51,13 @@ const directPrinterConfigurationSchema = z.object({
     z.string().trim().ipv4()
   ]),
   network_port: z.coerce.number().int().min(1).max(65535)
-});
+}).refine(
+  (value) => isAllowedDirectPrinterDestination(value.network_host, value.network_port),
+  {
+    path: ['network_host'],
+    message: 'Use a private outlet Wi-Fi printer IPv4 address and raw print port 9100.'
+  }
+);
 const directPrintAcknowledgementSchema = z.object({
   job_ref: z.string().uuid(),
   outcome: z.enum(['printed', 'failed']),

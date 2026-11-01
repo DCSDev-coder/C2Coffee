@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import 'app_colors.dart';
+import 'payment_navigation_policy.dart';
 
 class ChipCheckoutPage extends StatefulWidget {
   const ChipCheckoutPage({
@@ -41,10 +42,13 @@ class _ChipCheckoutPageState extends State<ChipCheckoutPage> {
           },
           onNavigationRequest: (request) {
             final uri = Uri.tryParse(request.url);
-            if (uri?.scheme == 'https') return NavigationDecision.navigate;
+            if (isTrustedPaymentWebViewUri(uri)) {
+              return NavigationDecision.navigate;
+            }
             if (mounted) {
               setState(() {
-                _statusMessage = 'An unsafe payment-page link was blocked.';
+                _statusMessage =
+                    'A payment-page link outside the approved provider was blocked.';
               });
             }
             return NavigationDecision.prevent;

@@ -25,6 +25,16 @@ Production builds accept only HTTPS checkout URLs on CHIP-owned
 `chip-in.asia` hosts. Payment creation and confirmation happen through the C2
 API; the CHIP secret key must never be included in a Flutter build.
 
+## Android release signing
+
+Release signing material must stay outside this checkout. By default Gradle
+reads `~/.c2coffee-signing/key.properties`; release automation may instead set
+`C2_ANDROID_SIGNING_PROPERTIES`, or provide all four `C2_ANDROID_KEYSTORE_PATH`,
+`C2_ANDROID_KEY_ALIAS`, `C2_ANDROID_KEY_PASSWORD`, and
+`C2_ANDROID_STORE_PASSWORD` environment variables. See
+`android/key.properties.example` for the property names. Never place the real
+keystore or passwords in source control, shared ZIP files, or deployment logs.
+
 ## Customer app update notices
 
 The app checks this HTTPS manifest after launch, when returning to the

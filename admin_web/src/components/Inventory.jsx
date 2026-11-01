@@ -86,6 +86,8 @@ export default function Inventory() {
   const [items, setItems] = useState([]);
   const [recipes, setRecipes] = useState([]);
   const [report, setReport] = useState([]);
+  const [orderUsage, setOrderUsage] = useState([]);
+  const [orderUsageSearch, setOrderUsageSearch] = useState('');
   const [month, setMonth] = useState(currentMonth());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -104,6 +106,7 @@ export default function Inventory() {
   const [recipeCategory, setRecipeCategory] = useState('all');
   const [openPopup, setOpenPopup] = useState(null);
   const [canViewCosts, setCanViewCosts] = useState(false);
+  const [operationsAction, setOperationsAction] = useState(null);
 
   const selectedStore = context.stores.find((store) => String(store.id) === String(storeId));
   const activeItems = useMemo(() => items.filter((item) => Boolean(item.is_active)), [items]);
@@ -250,6 +253,14 @@ export default function Inventory() {
     setReport(response.items || []);
   }, [month, storeId]);
 
+  const loadOrderUsage = useCallback(async (search = '') => {
+    if (!storeId) return;
+    const response = await adminRequest(
+      `/v1/admin/inventory/order-usage?store_id=${encodeURIComponent(storeId)}&search=${encodeURIComponent(search)}&limit=100`
+    );
+    setOrderUsage(response.usage || []);
+  }, [storeId]);
+
   const loadMovementCatalog = useCallback(async () => {
     if (!storeId) return;
     const response = await adminRequest(`/v1/admin/inventory/operations?store_id=${encodeURIComponent(storeId)}`);
@@ -266,10 +277,10 @@ export default function Inventory() {
   useEffect(() => {
     if (!storeId) return;
     setLoading(true);
-    Promise.all([loadStock(), loadReport()])
+    Promise.all([loadStock(), loadReport(), loadOrderUsage()])
       .catch((error) => showAdminError(error.message || 'Inventory balances could not be loaded.'))
       .finally(() => setLoading(false));
-  }, [loadReport, loadStock, storeId]);
+  }, [loadOrderUsage, loadReport, loadStock, storeId]);
 
   useEffect(() => {
     if (openPopup !== 'movement') return;
@@ -286,7 +297,7 @@ export default function Inventory() {
   const refreshAll = async () => {
     setLoading(true);
     try {
-      await Promise.all([loadContext(), loadStock(), loadRecipes(), loadReport()]);
+      await Promise.all([loadContext(), loadStock(), loadRecipes(), loadReport(), loadOrderUsage()]);
     } catch (error) {
       showAdminError(error.message || 'Inventory could not be refreshed.');
     } finally {
@@ -437,11 +448,16 @@ export default function Inventory() {
   }
 
   const tabItems = [
-    { id: 'stock', label: 'Stock balances' },
-    { id: 'recipes', label: 'Menu recipes' },
-    { id: 'operations', label: 'Supply & operations' },
-    { id: 'report', label: 'Monthly usage report' }
+    { id: 'stock', label: 'Inventory overview' },
+    { id: 'operations', label: 'Purchasing & stock work' },
+    { id: 'recipes', label: 'Product usage' },
+    { id: 'report', label: 'Reports & audit trail' }
   ];
+
+  const openOperationsAction = (action) => {
+    setOperationsAction(action);
+    setTab('operations');
+  };
 
   return (
     <div className="flex-1 overflow-y-auto bg-[#F9FAFB] p-6 lg:p-8">
@@ -547,6 +563,27 @@ export default function Inventory() {
             </button>
           ))}
         </div>
+
+        <SectionCard className="mt-6 p-4">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#2E5E58]">Quick work</p>
+              <h2 className="mt-1 text-base font-bold text-gray-900">Complete common inventory jobs without hunting through pages</h2>
+              <p className="mt-1 text-xs text-gray-500">Recommended flow: create the item once → link suppliers → order → receive → stock is updated automatically.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => { setTab('stock'); setOpenPopup('item'); }} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 cursor-pointer">1. Add item</button>
+              <button type="button" onClick={() => openOperationsAction('supplier')} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 cursor-pointer">2. Add supplier</button>
+              <button type="button" onClick={() => openOperationsAction('supplierItem')} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 cursor-pointer">3. Link item</button>
+              <button type="button" onClick={() => openOperationsAction('po')} className="rounded-xl bg-[#1E433A] px-3 py-2 text-xs font-bold text-white hover:bg-[#2E5E58] cursor-pointer">4. Create order</button>
+              <button type="button" onClick={() => openOperationsAction('receive')} className="rounded-xl bg-[#2E5E58] px-3 py-2 text-xs font-bold text-white hover:bg-[#1E433A] cursor-pointer">5. Receive delivery</button>
+              <button type="button" onClick={() => setTab('recipes')} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 cursor-pointer">Set product usage</button>
+              <button type="button" onClick={() => openOperationsAction('options')} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 cursor-pointer">Set choice usage</button>
+              <button type="button" onClick={() => openOperationsAction('stocktake')} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 cursor-pointer">Count stock</button>
+              <button type="button" onClick={() => openOperationsAction('wastage')} className="rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50 cursor-pointer">Record loss</button>
+            </div>
+          </div>
+        </SectionCard>
 
         {/* TAB 1: Stock Balances */}
         {tab === 'stock' && (
@@ -850,14 +887,14 @@ export default function Inventory() {
                 <div>
                   <div className="flex items-center gap-2">
                     <h2 className="text-base font-bold text-gray-900">
-                      Recipe for {context.menu_items.find((item) => String(item.id) === String(selectedMenuItemId))?.name || 'Menu Item'}
+                      Product usage for {context.menu_items.find((item) => String(item.id) === String(selectedMenuItemId))?.name || 'Menu Item'}
                     </h2>
                     <InfoTooltip
                       title="Recipe Breakdown"
-                      content="Specify how much of each raw inventory item is consumed when 1 portion of this menu item is ordered. Inventory balances will automatically decrement upon order confirmation."
+                      content="Specify every material, ingredient, packaging item, or finished unit used for one sale. This works for drinks, food, candles, perfumes, bundles, and future products."
                     />
                   </div>
-                  <p className="mt-0.5 text-xs text-gray-500">Enter quantity required per serving.</p>
+                  <p className="mt-0.5 text-xs text-gray-500">Enter the quantity used for one sold unit. Customer choices can add or replace usage under “Set choice usage”.</p>
                 </div>
               </div>
 
@@ -931,6 +968,8 @@ export default function Inventory() {
             stores={context.stores}
             items={items}
             onInventoryChanged={refreshAll}
+            requestedAction={operationsAction}
+            onActionHandled={() => setOperationsAction(null)}
           />
         )}
 
@@ -1065,6 +1104,27 @@ export default function Inventory() {
                         </td>
                       </tr>
                     )}
+                  </tbody>
+                </table>
+              </div>
+            </SectionCard>
+            <SectionCard className="mt-5 p-0 overflow-hidden">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 p-5">
+                <div>
+                  <h2 className="text-base font-bold text-gray-900">Order-to-inventory audit trail</h2>
+                  <p className="mt-1 text-xs text-gray-500">See which sold product or customer choice caused each inventory requirement. Historical rows keep the recipe revision used at order time.</p>
+                </div>
+                <div className="flex gap-2">
+                  <input type="search" value={orderUsageSearch} onChange={(event) => setOrderUsageSearch(event.target.value)} placeholder="Order, product, or item" className="w-64 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs outline-none focus:border-[#1E433A]" />
+                  <button type="button" onClick={() => loadOrderUsage(orderUsageSearch)} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 cursor-pointer">Search</button>
+                </div>
+              </div>
+              <div className="max-h-[420px] overflow-auto">
+                <table className="min-w-full text-left text-xs">
+                  <thead className="sticky top-0 bg-[#FAFBFB] text-[10px] font-bold uppercase tracking-wider text-gray-500"><tr><th className="px-5 py-3">Order</th><th className="px-3 py-3">Sold product</th><th className="px-3 py-3">Usage source</th><th className="px-3 py-3">Inventory item</th><th className="px-3 py-3">Required</th><th className="px-3 py-3">Revision</th></tr></thead>
+                  <tbody className="divide-y divide-gray-100 bg-white">
+                    {orderUsage.map((row) => <tr key={row.id} className="hover:bg-gray-50/70"><td className="px-5 py-3"><p className="font-bold text-gray-900">{row.order_ref}</p><p className="text-[10px] capitalize text-gray-400">{String(row.order_status).replaceAll('_', ' ')}</p></td><td className="px-3 py-3 font-semibold text-gray-800">{row.product_name} × {row.ordered_menu_quantity}</td><td className="px-3 py-3 text-gray-600">{row.source_label}</td><td className="px-3 py-3 font-semibold text-gray-800">{row.inventory_item_name}</td><td className="px-3 py-3 font-bold text-[#1E433A]">{formatQuantity(row.total_quantity)} {unitLabels[row.unit_code] || row.unit_code}</td><td className="px-3 py-3 text-gray-500">{row.recipe_revision ? `v${row.recipe_revision}` : 'Legacy'}</td></tr>)}
+                    {!orderUsage.length && <tr><td colSpan="6" className="px-5 py-10 text-center text-gray-500">No order-linked inventory usage has been recorded yet.</td></tr>}
                   </tbody>
                 </table>
               </div>

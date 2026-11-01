@@ -2,11 +2,12 @@ import React, { lazy, Suspense, useEffect, useState } from 'react';
 import Layout from './components/Layout';
 import Login from './components/Login';
 import {
-  adminRequest,
+  clearAdminExplicitLogout,
   clearAdminTokens,
-  loadAdminTokens,
+  logoutAdminSession,
   refreshAdminSession,
-  saveAdminTokens
+  saveAdminTokens,
+  wasAdminExplicitlyLoggedOut
 } from './lib/adminApi';
 import { isTerminalAdminSessionFailure } from './lib/adminSessionPolicy';
 import { canAccessAdminPage, firstAccessibleAdminPage } from './lib/adminPermissions';
@@ -40,6 +41,32 @@ const CounterDevices = lazy(() => import('./components/CounterDevices'));
 const PlatformTenants = lazy(() => import('./components/PlatformTenants'));
 const DataRetention = lazy(() => import('./components/DataRetention'));
 const Inventory = lazy(() => import('./components/Inventory'));
+
+const LAST_ADMIN_PAGE_KEY = 'c2_admin_last_page';
+
+function readLastAdminPage() {
+  try {
+    return window.localStorage.getItem(LAST_ADMIN_PAGE_KEY) || 'Dashboard';
+  } catch {
+    return 'Dashboard';
+  }
+}
+
+function saveLastAdminPage(page) {
+  try {
+    window.localStorage.setItem(LAST_ADMIN_PAGE_KEY, page);
+  } catch {
+    // Page persistence is a convenience and must never block navigation.
+  }
+}
+
+function clearLastAdminPage() {
+  try {
+    window.localStorage.removeItem(LAST_ADMIN_PAGE_KEY);
+  } catch {
+    // Ignore storage failures during logout/session cleanup.
+  }
+}
 
 function AppContent({
   layoutCurrentPage,
@@ -109,11 +136,16 @@ function App() {
   const [sessionRestoreAttempt, setSessionRestoreAttempt] = useState(0);
   const [currentTenant, setCurrentTenant] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
-  const [currentPage, setCurrentPage] = useState('Dashboard');
+  const [currentPage, setCurrentPage] = useState(readLastAdminPage);
   const [prevPage, setPrevPage] = useState('Dashboard');
 
   useEffect(() => {
     const restoreAdminSession = async () => {
+      if (wasAdminExplicitlyLoggedOut()) {
+        clearAdminTokens();
+        setIsBootstrapping(false);
+        return;
+      }
       try {
         const response = await refreshAdminSession();
 
@@ -154,6 +186,7 @@ function App() {
       setCurrentUser(null);
       setCurrentPage('Dashboard');
       setPrevPage('Dashboard');
+      clearLastAdminPage();
     };
 
     window.addEventListener('c2-admin-session-expired', handleSessionExpired);
@@ -161,6 +194,12 @@ function App() {
       window.removeEventListener('c2-admin-session-expired', handleSessionExpired);
     };
   }, []);
+
+  useEffect(() => {
+    if (isLoggedIn) {
+      saveLastAdminPage(currentPage);
+    }
+  }, [currentPage, isLoggedIn]);
 
   const handleNavigate = (newPage) => {
     if (newPage !== 'Profile' && !canAccessAdminPage(currentUser?.roles, newPage)) {
@@ -189,18 +228,11 @@ function App() {
       : currentPage;
 
   const handleLogout = async () => {
-    const tokens = loadAdminTokens();
-    if (tokens.accessToken) {
-      try {
-        await adminRequest('/v1/admin/auth/logout', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${tokens.accessToken}`
-          }
-        });
-      } catch {
-        // Ignore logout failures and clear local state anyway.
-      }
+    try {
+      await logoutAdminSession();
+    } catch {
+      // Keep the explicit-logout marker so a failed network request cannot
+      // silently restore the refresh-cookie session on the next page load.
     }
 
     clearAdminTokens();
@@ -209,9 +241,11 @@ function App() {
     setCurrentUser(null);
     setCurrentPage('Dashboard');
     setPrevPage('Dashboard');
+    clearLastAdminPage();
   };
 
   const handleLoginSuccess = ({ accessToken, tenant, user }) => {
+    clearAdminExplicitLogout();
     saveAdminTokens({ accessToken, refreshToken: null });
     if (tenant) {
       setCurrentTenant(tenant);
@@ -220,7 +254,8 @@ function App() {
       setCurrentUser(user);
     }
     setIsLoggedIn(true);
-    setCurrentPage(firstAccessibleAdminPage(user?.roles));
+    const savedPage = readLastAdminPage();
+    setCurrentPage(canAccessAdminPage(user?.roles, savedPage) ? savedPage : firstAccessibleAdminPage(user?.roles));
   };
 
   if (isBootstrapping) {

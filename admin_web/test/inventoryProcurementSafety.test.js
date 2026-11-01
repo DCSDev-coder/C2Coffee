@@ -42,3 +42,16 @@ test('manual supplier receipts require a supplier-linked item filter', async () 
   assert.match(api, /supplier_id/);
   assert.match(migration, /fk_inventory_movement_supplier/);
 });
+
+test('inventory workspace exposes direct staff actions, searchable item picking, and receiving trace fields', async () => {
+  const inventory = await source('src/components/Inventory.jsx');
+  const operations = await source('src/components/InventoryOperations.jsx');
+
+  assert.match(inventory, /Quick work/);
+  assert.match(inventory, /Create order/);
+  assert.match(inventory, /Receive delivery/);
+  assert.match(inventory, /Order-to-inventory audit trail/);
+  assert.match(operations, /SearchableItemSelect/);
+  assert.match(operations, /Batch \/ lot number/);
+  assert.match(operations, /Expiry date/);
+});

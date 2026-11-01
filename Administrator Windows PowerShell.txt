@@ -1,7 +1,7 @@
 PS D:\C2Coffee\api> docker compose down
 [+] down 2/2
- ✔ Container c2coffee-api Removed                                                                        16.3s
- ✔ Network api_default    Removed                                                                         0.4s
+ ✔ Container c2coffee-api Removed                                                                        17.0s
+ ✔ Network api_default    Removed                                                                         0.3s
 PS D:\C2Coffee\api> docker compose build --no-cache
 #1 [internal] load local bake definitions
 #1 reading from stdin 503B 0.1s done
@@ -9,14 +9,14 @@ PS D:\C2Coffee\api> docker compose build --no-cache
 
 #2 [internal] load build definition from Dockerfile
 #2 transferring dockerfile: 746B 0.0s done
-#2 DONE 0.0s
+#2 DONE 0.1s
 
 #3 [internal] load metadata for docker.io/library/node:22-alpine
-#3 DONE 3.4s
+#3 DONE 2.6s
 
 #4 [internal] load .dockerignore
 #4 transferring context: 188B 0.0s done
-#4 DONE 0.0s
+#4 DONE 0.1s
 
 #5 [internal] load build context
 #5 DONE 0.0s
@@ -29,106 +29,105 @@ PS D:\C2Coffee\api> docker compose build --no-cache
 #7 CACHED
 
 #5 [internal] load build context
-#5 transferring context: 89.56kB 0.1s done
+#5 transferring context: 117.76kB 0.1s done
 #5 DONE 0.2s
 
 #8 [deps 3/4] COPY package.json package-lock.json* ./
 #8 DONE 0.1s
 
-#9 [deps 4/4] RUN npm ci
+#9 [runtime 4/6] RUN npm ci --omit=dev && npm cache clean --force
 #9 ...
 
-#10 [runtime 4/6] RUN npm ci --omit=dev && npm cache clean --force
-#10 13.36 npm warn deprecated node-domexception@1.0.0: Use your platform's native DOMException instead
+#10 [deps 4/4] RUN npm ci
 #10 ...
 
-#9 [deps 4/4] RUN npm ci
-#9 13.87 npm warn deprecated node-domexception@1.0.0: Use your platform's native DOMException instead
-#9 18.32
-#9 18.32 added 132 packages, and audited 133 packages in 17s
-#9 18.32
-#9 18.32 41 packages are looking for funding
-#9 18.32   run `npm fund` for details
-#9 18.33
-#9 18.33 found 0 vulnerabilities
-#9 18.33 npm notice
-#9 18.33 npm notice New major version of npm available! 10.9.9 -> 12.2.1
-#9 18.33 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.1
-#9 18.33 npm notice To update run: npm install -g npm@12.2.1
-#9 18.33 npm notice
+#9 [runtime 4/6] RUN npm ci --omit=dev && npm cache clean --force
+#9 13.45 npm warn deprecated node-domexception@1.0.0: Use your platform's native DOMException instead
+#9 17.44
+#9 17.44 added 125 packages, and audited 126 packages in 16s
+#9 17.44
+#9 17.44 41 packages are looking for funding
+#9 17.44   run `npm fund` for details
+#9 17.44
+#9 17.44 found 0 vulnerabilities
+#9 17.45 npm notice
+#9 17.45 npm notice New major version of npm available! 10.9.9 -> 12.2.1
+#9 17.45 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.1
+#9 17.45 npm notice To update run: npm install -g npm@12.2.1
+#9 17.45 npm notice
+#9 18.16 npm warn using --force Recommended protections disabled.
 #9 ...
 
-#10 [runtime 4/6] RUN npm ci --omit=dev && npm cache clean --force
-#10 17.12
-#10 17.12 added 125 packages, and audited 126 packages in 16s
-#10 17.12
-#10 17.12 41 packages are looking for funding
-#10 17.12   run `npm fund` for details
-#10 17.12
-#10 17.12 found 0 vulnerabilities
-#10 17.13 npm notice
-#10 17.13 npm notice New major version of npm available! 10.9.9 -> 12.2.1
-#10 17.13 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.1
-#10 17.13 npm notice To update run: npm install -g npm@12.2.1
-#10 17.13 npm notice
-#10 17.67 npm warn using --force Recommended protections disabled.
-#10 DONE 19.2s
+#10 [deps 4/4] RUN npm ci
+#10 13.96 npm warn deprecated node-domexception@1.0.0: Use your platform's native DOMException instead
+#10 18.59
+#10 18.59 added 132 packages, and audited 133 packages in 17s
+#10 18.59
+#10 18.59 41 packages are looking for funding
+#10 18.59   run `npm fund` for details
+#10 18.60
+#10 18.60 found 0 vulnerabilities
+#10 18.60 npm notice
+#10 18.60 npm notice New major version of npm available! 10.9.9 -> 12.2.1
+#10 18.60 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.1
+#10 18.60 npm notice To update run: npm install -g npm@12.2.1
+#10 18.60 npm notice
+#10 DONE 19.5s
 
-#9 [deps 4/4] RUN npm ci
-#9 DONE 19.2s
+#9 [runtime 4/6] RUN npm ci --omit=dev && npm cache clean --force
+#9 DONE 19.7s
 
 #11 [build 3/5] COPY --from=deps /app/node_modules ./node_modules
-#11 DONE 4.9s
+#11 DONE 5.7s
 
 #12 [build 4/5] COPY . .
-#12 DONE 3.9s
+#12 DONE 3.4s
 
 #13 [build 5/5] RUN npm run build
-#13 3.943
-#13 3.943 > @c2coffee/api@0.1.0 build
-#13 3.943 > node scripts/clean-dist.mjs && tsc -p tsconfig.json && node scripts/copy-sql.mjs
-#13 3.943
-#13 38.05 npm notice
-#13 38.05 npm notice New major version of npm available! 10.9.9 -> 12.2.1
-#13 38.05 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.1
-#13 38.05 npm notice To update run: npm install -g npm@12.2.1
-#13 38.05 npm notice
-#13 DONE 38.3s
+#13 3.280
+#13 3.280 > @c2coffee/api@0.1.0 build
+#13 3.280 > node scripts/clean-dist.mjs && tsc -p tsconfig.json && node scripts/copy-sql.mjs
+#13 3.280
+#13 38.03 npm notice
+#13 38.03 npm notice New major version of npm available! 10.9.9 -> 12.2.1
+#13 38.03 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.1
+#13 38.03 npm notice To update run: npm install -g npm@12.2.1
+#13 38.03 npm notice
+#13 DONE 38.4s
 
 #14 [runtime 5/6] COPY --from=build /app/dist ./dist
 #14 DONE 1.1s
 
 #15 [runtime 6/6] RUN chown -R node:node /app
-#15 DONE 20.3s
+#15 DONE 20.0s
 
 #16 exporting to image
 #16 exporting layers
-#16 exporting layers 33.1s done
-#16 exporting manifest sha256:ab89687573588e7f966727d9a99486095087835af31df64f30bdf01075069943 0.1s done
-#16 exporting config sha256:4a73bb3ca588b77486860cc437b2fc12c6be7b44f800d7cc8790066c8d2e3695 0.0s done
-#16 exporting attestation manifest sha256:c77c12b0aca72ee860826bcd060a9887c72a7e6c7cac69faed7138d5ea120626
-#16 exporting attestation manifest sha256:c77c12b0aca72ee860826bcd060a9887c72a7e6c7cac69faed7138d5ea120626 0.1s done
-#16 exporting manifest list sha256:50a902f803f5e65f23d98f5f050e52de3046d4d88556a228b9cf83488cbbe987 0.0s done
-#16 naming to docker.io/library/api-c2-api:latest
-#16 naming to docker.io/library/api-c2-api:latest done
+#16 exporting layers 32.9s done
+#16 exporting manifest sha256:688ec34b528d379ca89b99826fe706f9598981a073fa155fac6e0a9cbd7d58e5 0.1s done
+#16 exporting config sha256:bb2fdda56796f7abe62581cd3ad2c8a029ce668328d26dc7c86a9f2c2d7275b3 0.0s done
+#16 exporting attestation manifest sha256:62e115b3dbea9c77ea845775b46e70a2478427199444d10a871f06dd77792405
+#16 exporting attestation manifest sha256:62e115b3dbea9c77ea845775b46e70a2478427199444d10a871f06dd77792405 0.1s done
+#16 exporting manifest list sha256:39fe87f72cf6f28420f281b149adb49d9190af5b630e648650294d5c65b9155e
+#16 exporting manifest list sha256:39fe87f72cf6f28420f281b149adb49d9190af5b630e648650294d5c65b9155e 0.0s done
+#16 naming to docker.io/library/api-c2-api:latest 0.0s done
 #16 unpacking to docker.io/library/api-c2-api:latest
-#16 unpacking to docker.io/library/api-c2-api:latest 22.8s done
-#16 DONE 56.3s
+#16 unpacking to docker.io/library/api-c2-api:latest 21.5s done
+#16 DONE 54.8s
 
 #17 resolving provenance for metadata file
 #17 DONE 0.1s
 [+] build 1/1
- ✔ Image api-c2-api Built                                                                               160.3s
+ ✔ Image api-c2-api Built                                                                               158.0s
 PS D:\C2Coffee\api> docker compose run --rm --no-deps c2-api npm run migrate:prod
 [+]  1/1te 1/1
  ✔ Network api_default Created                                                                            0.2s
-Container api-c2-api-run-154001a8c339 Creating
-Container api-c2-api-run-154001a8c339 Created
+Container api-c2-api-run-3ac61726af3e Creating
+Container api-c2-api-run-3ac61726af3e Created
 
 > @c2coffee/api@0.1.0 migrate:prod
 > node dist/db/migrate.js
 
-Applied migration: 121_link_inventory_movements_to_supplier.sql
 npm notice
 npm notice New major version of npm available! 10.9.9 -> 12.2.1
 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.1

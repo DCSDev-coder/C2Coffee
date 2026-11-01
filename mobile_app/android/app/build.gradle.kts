@@ -1,4 +1,5 @@
 import java.io.FileInputStream
+import java.io.File
 import java.util.Properties
 
 plugins {
@@ -9,18 +10,39 @@ plugins {
 }
 
 val keystoreProperties = Properties()
-val keystorePropertiesFile = rootProject.file("key.properties")
+val signingPropertiesPath = System.getenv("C2_ANDROID_SIGNING_PROPERTIES")
+    ?.takeIf { it.isNotBlank() }
+    ?: File(System.getProperty("user.home"), ".c2coffee-signing/key.properties").absolutePath
+val keystorePropertiesFile = file(signingPropertiesPath)
 
 if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
-val requiredKeystoreProperties = listOf("keyAlias", "keyPassword", "storeFile", "storePassword")
+fun signingValue(environmentName: String, propertyName: String): String? =
+    System.getenv(environmentName)?.takeIf { it.isNotBlank() }
+        ?: (keystoreProperties[propertyName] as? String)?.takeIf { it.isNotBlank() }
+
+val releaseKeyAlias = signingValue("C2_ANDROID_KEY_ALIAS", "keyAlias")
+val releaseKeyPassword = signingValue("C2_ANDROID_KEY_PASSWORD", "keyPassword")
+val releaseStoreFile = signingValue("C2_ANDROID_KEYSTORE_PATH", "storeFile")
+val releaseStorePassword = signingValue("C2_ANDROID_STORE_PASSWORD", "storePassword")
+
 fun verifyReleaseKeystore() {
-    if (requiredKeystoreProperties.any { key ->
-        (keystoreProperties[key] as? String).isNullOrBlank()
-    }) {
-        throw GradleException("android/key.properties is required and must be complete for a Play release build.")
+    val missing = listOf(
+        "key alias" to releaseKeyAlias,
+        "key password" to releaseKeyPassword,
+        "keystore path" to releaseStoreFile,
+        "store password" to releaseStorePassword,
+    ).filter { it.second.isNullOrBlank() }.map { it.first }
+    if (missing.isNotEmpty()) {
+        throw GradleException(
+            "Android release signing is incomplete (${missing.joinToString()}). " +
+                "Use C2_ANDROID_* environment variables or $signingPropertiesPath."
+        )
+    }
+    if (!file(releaseStoreFile!!).isFile) {
+        throw GradleException("Android release keystore was not found at $releaseStoreFile.")
     }
 }
 
@@ -53,10 +75,10 @@ android {
 
     signingConfigs {
         create("release") {
-            keyAlias = keystoreProperties["keyAlias"] as String?
-            keyPassword = keystoreProperties["keyPassword"] as String?
-            storeFile = keystoreProperties["storeFile"]?.let { file(it) }
-            storePassword = keystoreProperties["storePassword"] as String?
+            keyAlias = releaseKeyAlias
+            keyPassword = releaseKeyPassword
+            storeFile = releaseStoreFile?.let { file(it) }
+            storePassword = releaseStorePassword
         }
     }
 

@@ -1,11 +1,13 @@
 export const ADMIN_LOGIN_PATH = "/v1/admin/auth/login";
 export const ADMIN_REFRESH_PATH = "/v1/admin/auth/refresh";
 export const ADMIN_COMPLETE_SETUP_PATH = "/v1/admin/auth/complete-setup";
+export const ADMIN_LOGOUT_PATH = "/v1/admin/auth/logout";
 
 const nonRefreshableAuthPaths = new Set([
   ADMIN_LOGIN_PATH,
   ADMIN_REFRESH_PATH,
   ADMIN_COMPLETE_SETUP_PATH,
+  ADMIN_LOGOUT_PATH,
 ]);
 
 export function shouldAttachStoredAdminAccessToken(path) {

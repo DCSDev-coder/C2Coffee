@@ -17,11 +17,12 @@ function mockConnection({ allocations = [], requirements = [], stock = null } = 
     executions,
     async query(sql) {
       if (sql.includes('FROM inventory_order_allocations')) return [allocations];
-      if (sql.includes('requirements.required_quantity')) return [requirements];
+      if (sql.includes('FROM inventory_order_usage_lines')) return [requirements];
       if (sql.includes('FROM inventory_store_stocks')) return [stock ? [stock] : []];
       throw new Error(`Unexpected inventory query: ${sql}`);
     },
     async execute(sql, values) {
+      if (sql.includes('INSERT IGNORE INTO inventory_order_usage_lines')) return [{ affectedRows: 1 }];
       executions.push({ sql, values });
       return [{ affectedRows: 1 }];
     }
@@ -73,6 +74,8 @@ test('inventory administration is tenant scoped and order lifecycle hooks cover 
   const admin = await source('src/http/routes/admin-inventory.ts');
   assert.match(admin, /requireAnyAdminRole\(request, \['super_admin', 'operations_admin'\]\)/);
   assert.match(admin, /tenant_id = :tenantId/);
+  assert.match(admin, /r\.tenant_id = :tenantId/);
+  assert.doesNotMatch(admin, /c\.tenant_id/);
   assert.match(admin, /admin_audit_logs/);
 
   const mobile = await source('src/http/routes/checkout.ts');

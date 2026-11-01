@@ -53,8 +53,10 @@ tenant, outlet, and workstation key.
 
 1. Install and activate C2 Store against the correct outlet.
 2. Open **Barista Workspace > Workstation**, enter the outlet printer IP address
-   and port, then save it. The activated device registers that printer against
-   its own tenant and outlet.
+   and port, then save it. Network printers must use a private outlet address
+   (`10.x.x.x`, `172.16.x.x` through `172.31.x.x`, or `192.168.x.x`) and raw
+   print port `9100`. The activated device registers that printer against its
+   own tenant and outlet.
 3. Run a physical test print on the outlet Wi-Fi. The printer becomes active
    for new orders only after that test succeeds.
 4. Confirm one real order prints once before putting the workstation into live
@@ -62,6 +64,26 @@ tenant, outlet, and workstation key.
 
 Direct ESC/POS network printing is currently enabled only on Android. The iOS
 app builds successfully, but it will not claim or send direct printer jobs.
+
+Raw ESC/POS traffic is not encrypted by typical receipt-printer hardware. Keep
+the tablet and printer on an isolated, access-controlled outlet Wi-Fi or printer
+VLAN, and never expose port 9100 to the internet. C2 Store and the API both
+reject public printer destinations, but network isolation remains a production
+requirement.
+
+## CHIP payment WebView hosts
+
+The in-app checkout permits only HTTPS pages on `chip-in.asia` and its
+subdomains. If a verified CHIP payment method requires a bank-owned redirect,
+add only the exact approved parent host at build time as a comma-separated
+list, for example:
+
+```bash
+flutter build apk --release \
+  --dart-define=CHIP_WEBVIEW_ALLOWED_HOSTS=approved-bank.example
+```
+
+Do not add broad shared domains or hosts learned from unverified links.
 
 Firebase order push is intentionally not enabled in this merged package yet.
 The Counter Android/iOS application must first be registered in Firebase with

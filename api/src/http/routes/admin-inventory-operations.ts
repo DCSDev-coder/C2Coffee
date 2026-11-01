@@ -50,7 +50,9 @@ const receiptSchema = z.object({
     line_id: id,
     delivered_purchase_units: quantity,
     rejected_purchase_units: z.coerce.number().min(0).max(10_000_000).default(0),
-    rejection_reason: z.string().trim().max(255).optional().or(z.literal(''))
+    rejection_reason: z.string().trim().max(255).optional().or(z.literal('')),
+    lot_number: z.string().trim().max(120).optional().or(z.literal('')),
+    expiry_date: z.string().date().optional().or(z.literal(''))
   }).refine((line) => line.rejected_purchase_units <= line.delivered_purchase_units, {
     message: 'Rejected quantity cannot exceed delivered quantity.'
   })).min(1).max(200)
@@ -492,12 +494,28 @@ export async function registerAdminInventoryOperationsRoutes(app: FastifyInstanc
         GROUP BY r.id, au.full_name ORDER BY r.received_at DESC`,
       { poId, tenantId: request.adminAuth.tenantId }
     );
+    const [receiptLines] = await mysqlPool.query<RowDataPacket[]>(
+      `SELECT rl.id, rl.receipt_id, r.receipt_ref, ii.name AS inventory_item_name,
+              rl.lot_number, rl.expiry_date,
+              CAST(rl.delivered_purchase_units AS CHAR) AS delivered_purchase_units,
+              CAST(rl.accepted_purchase_units AS CHAR) AS accepted_purchase_units,
+              CAST(rl.rejected_purchase_units AS CHAR) AS rejected_purchase_units,
+              rl.rejection_reason
+         FROM inventory_purchase_receipt_lines rl
+         JOIN inventory_purchase_receipts r ON r.id = rl.receipt_id
+         JOIN inventory_purchase_order_lines pol ON pol.id = rl.purchase_order_line_id
+         JOIN inventory_items ii ON ii.id = pol.inventory_item_id
+        WHERE r.purchase_order_id = :poId AND r.tenant_id = :tenantId
+        ORDER BY r.received_at DESC, ii.name`,
+      { poId, tenantId: request.adminAuth.tenantId }
+    );
     const showCosts = canViewCosts(request);
     return {
       can_view_costs: showCosts,
       purchase_order: orders[0],
       lines: lines.map((line) => ({ ...line, purchase_unit_cost_rm: showCosts ? line.purchase_unit_cost_rm : null })),
-      receipts
+      receipts,
+      receipt_lines: receiptLines
     };
   });
 
@@ -572,15 +590,19 @@ export async function registerAdminInventoryOperationsRoutes(app: FastifyInstanc
         await connection.execute(
           `INSERT INTO inventory_purchase_receipt_lines
              (receipt_id, purchase_order_line_id, delivered_purchase_units,
-              accepted_purchase_units, rejected_purchase_units, rejection_reason)
-           VALUES (:receiptId, :lineId, :delivered, :accepted, :rejected, :reason)`,
+              accepted_purchase_units, rejected_purchase_units, rejection_reason,
+              lot_number, expiry_date)
+           VALUES (:receiptId, :lineId, :delivered, :accepted, :rejected, :reason,
+                   :lotNumber, :expiryDate)`,
           {
             receiptId: receiptHeader.insertId,
             lineId: receipt.line_id,
             delivered: receipt.delivered_purchase_units,
             accepted: acceptedPurchaseUnits,
             rejected: receipt.rejected_purchase_units,
-            reason: receipt.rejection_reason || null
+            reason: receipt.rejection_reason || null,
+            lotNumber: receipt.lot_number || null,
+            expiryDate: receipt.expiry_date || null
           }
         );
         if (acceptedPurchaseUnits === 0) continue;
@@ -889,9 +911,30 @@ export async function registerAdminInventoryOperationsRoutes(app: FastifyInstanc
           { tenantId: request.adminAuth.tenantId, optionId, itemId: component.inventory_item_id, quantityDelta: component.quantity_delta }
         );
       }
+      const [revisionRows] = await connection.query<RowDataPacket[]>(
+        `SELECT COALESCE(MAX(revision_no), 0) + 1 AS revision_no
+           FROM inventory_recipe_revisions
+          WHERE tenant_id = :tenantId AND scope_type = 'option' AND scope_id = :optionId`,
+        { tenantId: request.adminAuth.tenantId, optionId }
+      );
+      const revisionNo = Number(revisionRows[0].revision_no);
+      await connection.execute(
+        `INSERT INTO inventory_recipe_revisions
+           (tenant_id, scope_type, scope_id, revision_no, components_json,
+            created_by_admin_user_id)
+         VALUES (:tenantId, 'option', :optionId, :revisionNo, :components,
+                 :adminUserId)`,
+        {
+          tenantId: request.adminAuth.tenantId,
+          optionId,
+          revisionNo,
+          components: JSON.stringify(payload.components),
+          adminUserId: request.adminAuth.adminUserId
+        }
+      );
       await audit(connection, request, 'inventory_option_recipe_updated', 'menu_option', optionId, payload);
       await connection.commit();
-      return { updated: true };
+      return { updated: true, revision_no: revisionNo };
     } catch (error) { await connection.rollback(); throw error; } finally { connection.release(); }
   });
 

@@ -379,7 +379,10 @@ class _DirectPrinterCardState extends State<_DirectPrinterCard> {
   Future<void> _save() async {
     final config = _formConfig();
     if (config == null) {
-      TopNotice.error(context, 'Enter a valid printer IP address and port.');
+      TopNotice.error(
+        context,
+        'Use a private outlet Wi-Fi printer IPv4 address and port 9100.',
+      );
       return;
     }
     setState(() => _working = true);

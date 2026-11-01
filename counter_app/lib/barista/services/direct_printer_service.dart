@@ -11,6 +11,25 @@ import 'package:image/image.dart' as image;
 import '../../api_client.dart';
 import '../../auth_service.dart';
 
+bool isPrivatePrinterIpv4(String value) {
+  final parts = value.trim().split('.');
+  if (parts.length != 4) return false;
+  final octets = parts.map(int.tryParse).toList();
+  if (octets.any((value) => value == null || value < 0 || value > 255)) {
+    return false;
+  }
+  final first = octets[0]!;
+  final second = octets[1]!;
+  return first == 10 ||
+      (first == 172 && second >= 16 && second <= 31) ||
+      (first == 192 && second == 168);
+}
+
+bool isAllowedDirectPrinterConfig(DirectPrinterConfig config) {
+  if (config.isSunmi) return config.port == 9100;
+  return isPrivatePrinterIpv4(config.host) && config.port == 9100;
+}
+
 class DirectPrinterConfig {
   const DirectPrinterConfig({required this.host, required this.port});
 
@@ -109,13 +128,16 @@ class DirectPrinterService {
   Future<DirectPrinterConfig?> loadConfig() async {
     final host = (await _storage.read(key: _printerHostKey))?.trim() ?? '';
     final port = int.tryParse(await _storage.read(key: _printerPortKey) ?? '');
-    if (host.isEmpty || port == null || port < 1 || port > 65535) return null;
-    return DirectPrinterConfig(host: host, port: port);
+    if (host.isEmpty || port == null) return null;
+    final config = DirectPrinterConfig(host: host, port: port);
+    return isAllowedDirectPrinterConfig(config) ? config : null;
   }
 
   Future<void> saveConfig(DirectPrinterConfig config) async {
-    if (!config.isConfigured || config.port < 1 || config.port > 65535) {
-      throw StateError('Enter a valid printer IP address and port.');
+    if (!config.isConfigured || !isAllowedDirectPrinterConfig(config)) {
+      throw StateError(
+        'Use a private outlet Wi-Fi printer IPv4 address and port 9100.',
+      );
     }
     final token = await _requiredDeviceToken();
     final key = await workstationKey();
@@ -225,6 +247,12 @@ class DirectPrinterService {
       } on PlatformException catch (e) {
         throw StateError('Sunmi inner printer error: ${e.message ?? e.code}');
       }
+    }
+
+    if (!isAllowedDirectPrinterConfig(config)) {
+      throw StateError(
+        'Printing was blocked because the destination is outside the private outlet network.',
+      );
     }
 
     Socket? socket;

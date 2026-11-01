@@ -13,6 +13,27 @@ DirectPrintJob job({required String name, required bool employee}) =>
     );
 
 void main() {
+  test('accepts only private outlet IPv4 printers on raw print port 9100', () {
+    expect(
+      isAllowedDirectPrinterConfig(
+        const DirectPrinterConfig(host: '192.168.1.50', port: 9100),
+      ),
+      isTrue,
+    );
+    expect(
+      isAllowedDirectPrinterConfig(
+        const DirectPrinterConfig(host: '8.8.8.8', port: 9100),
+      ),
+      isFalse,
+    );
+    expect(
+      isAllowedDirectPrinterConfig(
+        const DirectPrinterConfig(host: '192.168.1.50', port: 22),
+      ),
+      isFalse,
+    );
+  });
+
   test('adds an employee label to an employee receipt name', () {
     expect(
       job(name: 'Aina', employee: true).printedCustomerName,
